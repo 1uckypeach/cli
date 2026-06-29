@@ -1,4 +1,59 @@
 {
+  "+formula-verify": {
+    "risk": "read",
+    "flags": [
+      {
+        "name": "url",
+        "kind": "public",
+        "type": "string",
+        "required": "xor",
+        "desc": "Spreadsheet URL (XOR with `--spreadsheet-token`)"
+      },
+      {
+        "name": "spreadsheet-token",
+        "kind": "public",
+        "type": "string",
+        "required": "xor",
+        "desc": "Spreadsheet token (XOR with `--url`)"
+      },
+      {
+        "name": "sheet-id",
+        "kind": "public",
+        "type": "string_slice",
+        "required": "optional",
+        "desc": "Sheet reference_id(s); repeat or comma-separate to scan multiple sheets. Omit to scan all visible sheets."
+      },
+      {
+        "name": "sheet-name",
+        "kind": "public",
+        "type": "string_slice",
+        "required": "optional",
+        "desc": "Sheet name(s); repeat or comma-separate to scan multiple sheets. Omit to scan all visible sheets."
+      },
+      {
+        "name": "range",
+        "kind": "own",
+        "type": "string_slice",
+        "required": "optional",
+        "desc": "Optional A1 ranges (e.g. `A1:Z200`); repeat or comma-separate for multiple ranges. Omit to scan each sheet's current_region."
+      },
+      {
+        "name": "max-locations",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Max locations / samples per error type; default 20.",
+        "default": "20"
+      },
+      {
+        "name": "exit-on-error",
+        "kind": "own",
+        "type": "bool",
+        "required": "optional",
+        "desc": "When status=errors_found, exit non-zero. Useful for CI gate after batch formula writes."
+      }
+    ]
+  },
   "+workbook-info": {
     "risk": "read",
     "flags": [

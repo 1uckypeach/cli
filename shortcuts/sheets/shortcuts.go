@@ -105,6 +105,9 @@ func shortcutList() []common.Shortcut {
 		CellsSearch,
 		CellsReplace,
 
+		// lark_sheet_formula_verify
+		FormulaVerify,
+
 		// lark_sheet_write_cells
 		CellsSet,
 		CellsSetStyle,
