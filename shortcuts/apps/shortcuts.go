@@ -63,6 +63,9 @@ func Shortcuts() []common.Shortcut {
 		AppsSessionStop,
 		AppsSessionMessagesList,
 		AppsChat,
+		AppsPluginInstall,
+		AppsPluginUninstall,
+		AppsPluginList,
 		// open API key management
 		AppsOpenAPIKeyList,
 		AppsOpenAPIKeyGet,

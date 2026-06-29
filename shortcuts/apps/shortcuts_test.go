@@ -19,11 +19,12 @@ import (
 //   - 7 file（list/get/sign/download/upload/delete/quota-get）
 //   - 3 git-credential
 //   - 5 session（create/list/get/stop/chat）+ 1 session-messages-list
-//   - 8 openapi-key（list/get/create/update/enable/disable/delete/reset）= 60。
-func TestAppsShortcuts_Returns60(t *testing.T) {
+//   - 8 openapi-key（list/get/create/update/enable/disable/delete/reset）
+//   - 3 plugin（install/uninstall/list）= 63。
+func TestAppsShortcuts_Returns63(t *testing.T) {
 	got := Shortcuts()
-	if len(got) != 60 {
-		t.Fatalf("Shortcuts() returned %d entries, want 60", len(got))
+	if len(got) != 63 {
+		t.Fatalf("Shortcuts() returned %d entries, want 63", len(got))
 	}
 }
 
