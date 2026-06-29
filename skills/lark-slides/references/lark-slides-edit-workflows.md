@@ -1,21 +1,51 @@
 # 编辑已有 PPT：读-改-写闭环
 
-局部编辑走 **shortcut [`+replace-slide`](lark-slides-replace-slide.md)**（块级替换 / 插入），配合 `xml_presentation.slide.get` 读原页拿 `block_id`。已有 Slides 的多页整页重建走 **[`+replace-pages`](lark-slides-replace-pages.md)**，保持原 presentation 链接不变。
+页面级重写、导入模板二创、布局/素材保留优先走 **[`+replace-pages`](lark-slides-replace-pages.md)**，保持原 presentation 链接不变。只有很小的局部编辑才走 **[`+replace-slide`](lark-slides-replace-slide.md)**（块级替换 / 插入），并且必须先读原页拿最新 `block_id`。
 
 > 生成 XML 前**必读** [xml-schema-quick-ref.md](xml-schema-quick-ref.md)。
 
-## 决策树：block_replace vs block_insert
+## 决策树：replace-pages vs replace-slide
 
 | 需求 | 推荐 action | 理由 |
 |------|------------|------|
+| 导入 PPTX/PDF 后二次创作、保留模板、背景、图片、图表或页面视觉语言 | `+replace-pages` | 生成完整 `<slide>`，可直接复用旧页 `<style>`、`<img src>` file token、`<chart>`、`<table>`、关键 motif，避开 block 级 patch 易失败点 |
+| 单页也要重排版式或替换大部分页面内容 | `+replace-pages`（pages 数组传 1 项） | 仓库代码命令名是复数；支持 1 个 item，按 create-before-delete-old 执行 |
+| 多页版式重建、整页坐标重排 | `+replace-pages` | 原 presentation 内批量 create-before/delete-old，不生成新 Slides 链接 |
 | 已知某块的 `block_id`，要换这块内容（改标题、换图、挪坐标） | `block_replace` | 精准替换，原子性好；`replacement` 根 `id` 由 CLI 自动注入为 `block_id` |
 | 只加 1~N 个元素、不动现有布局 | `block_insert` | 新增不覆盖，可选 `insert_before_block_id` 指定位置 |
 | 一次动多个元素（如：换标题 + 加图） | 单次 `--parts` 里拼多条 | 整批作为原子事务，任一失败整批不生效；`block_replace` 和 `block_insert` 可混用 |
-| 多页版式重建、整页坐标重排 | `+replace-pages` | 原 presentation 内批量 create-before/delete-old，不生成新 Slides 链接 |
 
 > **没有字段级 patch**：即便只想改一个 `shape` 的 `topLeftX`，也得把整个块的新 XML 写出来用 `block_replace`。这不是"微调"，是块级重写。
 
-## 最小读-改-写闭环
+## 导入 PPTX/PDF 后的保模板流程
+
+1. 用 `drive +import --type slides` 导入 PPTX/PDF；PPTX 必须导入，PDF 只有明显不是演示稿/模板时才跳过。
+2. 用 `xml_presentations.get` 回读导入后的 XML，保存到 `.lark-slides/plan/<id>/source.xml`。
+3. 为每页列 `source_asset_inventory`：`<style>`、`<img src>`、`<chart>`、`<table>`、`<whiteboard>`、关键 shape/motif 和 bbox。源素材默认是 locked assets。
+4. 在 `slide_plan.json` 里设置 `target_xml_presentation_id`，每页记录 `source_slide_id`、`rewrite_mode: "preserve_template"` 和 `rewrite_contract`。
+5. 生成完整新 `<slide>`：先复制源页 `<style>` 和 locked assets，再替换文案、调整布局、删除逐块列明的模板占位文字，最后补充新业务图形。
+6. 组装 `pages.json`，每项包含旧页 `slide_id` 和完整新页 `content`。
+7. 先跑 `+replace-pages --validate-only` 或 dry-run，再执行 `+replace-pages`。
+8. 回读全文 XML，核对 locked assets、图片 token、图表、表格、背景和页数；如果账号具备截图能力，可额外截图检查视觉效果。
+
+不要从空 `<slide>` 重画后再按感觉补素材。模板二创不是"复用 slide_id 的新 deck"，而是在源页 XML 之上做保留式改写。
+
+`rewrite_contract.discarded_blocks` 必须逐块列出 `type`、`id` 和原因。`discarded_blocks.type = "all"` 默认禁止；只有用户明确要求不保留模板素材或只参考风格重做时，才允许 `rewrite_mode: "style_reference_only"`，并在 plan 中记录用户原话或等价证据。
+
+`+replace-slide` 不作为导入模板二创主路径。它依赖当前页 `block_id`、单根 XML 片段和后端 block replace 约束，出现 3350001 时需要重新读页和修片段；页面级二创通常用 `+replace-pages` 更稳。
+
+最小 `pages.json` 形态：
+
+```json
+[
+  {
+    "slide_id": "old_slide_id",
+    "content": "<slide xmlns=\"http://www.larkoffice.com/sml/2.0\"><style>...</style><data>...</data></slide>"
+  }
+]
+```
+
+## 小型块级编辑闭环
 
 ```bash
 PID="xml_presentation_id_here"

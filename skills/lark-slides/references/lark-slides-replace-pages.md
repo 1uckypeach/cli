@@ -1,8 +1,10 @@
-# slides +replace-pages（多页整页重建）
+# slides +replace-pages（页面级重建）
 
-批量替换已有演示文稿里的多个页面，保持原 `xml_presentation_id` 和原 Slides 链接不变。适合多页版式大改、坐标重排、整页视觉重建；单个文本框、图片或 shape 的局部编辑仍优先用 [`+replace-slide`](lark-slides-replace-slide.md)。
+批量替换已有演示文稿里的一个或多个页面，保持原 `xml_presentation_id` 和原 Slides 链接不变。适合导入 PPTX/PDF 后二次创作、保留模板素材、版式大改、坐标重排、整页视觉重建；单个文本框、图片或 shape 的小型局部编辑才考虑 [`+replace-slide`](lark-slides-replace-slide.md)。
 
 > 重要：这是多步编排，不是后端原子事务。CLI 对每页执行“先创建新页到旧页前，再删除旧页”；创建失败时旧页会保留。删除失败时可能出现新旧页同时存在，需要按返回结果继续处理。
+
+> 命令名以仓库代码为准：当前 shortcut 是 `slides +replace-pages`（复数）。即使只替换一页，也传一个包含 1 个 item 的 `pages` 数组。
 
 ## 命令
 
@@ -44,6 +46,26 @@ lark-cli slides +replace-pages \
 - `content` 必须是完整 `<slide>...</slide>` XML。
 - 同一批次不能重复 `slide_id`。
 - CLI 不会回读整份 presentation；如果 `slide_id` 已失效，create/delete 阶段会返回对应错误。
+
+## 保留导入模板素材
+
+导入 PPTX/PDF 或改写已有 Slides 时，先用 `xml_presentations.get` 保存当前 XML，再为每页盘点素材。源素材默认锁定保留，不是可随意替换的装饰：
+
+- `<style>`：页面背景、渐变、底色或图片底纹。
+- `<img src="...">`：同一个 `xml_presentation_id` 内的 file token 可直接复制到新页 XML。
+- `<chart>` / `<table>`：优先保留原结构；只在用户要求时改数据或标签。
+- `<whiteboard>`：可保留外层位置；注意回读 XML 可能不包含内部 SVG/Mermaid。
+- 关键 shape/motif：侧边栏、分节条、卡片底、编号徽章、分割线等模板视觉语言。
+
+在 `slide_plan.json` 中把这些事实写入 `source_asset_inventory`，并在每页 `rewrite_contract.must_reuse` 中绑定要保留的 locked assets。生成 replacement `content` 时，顺序必须是：
+
+1. 先复制源页 `<style>` 和 locked assets。
+2. 再替换模板占位文案和必要布局。
+3. 最后补充新业务图形。
+
+不要从空 `<slide>` 重画后再按感觉补素材。不要把导入底稿当成普通参考后重新 `slides +create` 一份脱离素材的新 deck。
+
+`discarded_blocks` 只能逐块删除源元素，必须写 `type`、`id` 和原因。`discarded_blocks.type = "all"` 默认非法；只有用户明确要求"不保留模板素材"或"只参考风格重做"时，才允许 `rewrite_mode: "style_reference_only"`。
 
 ## Dry Run
 
@@ -90,6 +112,7 @@ lark-cli slides +replace-pages --as user \
 ## 使用建议
 
 1. 大幅改写前先 `xml_presentations.get` 保存当前 XML，并记录要替换页面的 `slide_id`。
-2. 生成只含 `slide_id` 的 `pages.json` 后先跑 `--dry-run` 或 `--validate-only`。
-3. 默认不要开 `--continue-on-error`，除非能接受部分页面已替换。
-4. 替换后再回读全文 XML 并截图检查，确认页序、视觉和文本没有破损。
+2. 导入模板二创时，先在 plan 中记录每页要复用的背景、图片 token、图表、表格和 motif，再生成完整新页 XML。
+3. 生成只含 `slide_id` 和完整 `<slide>` content 的 `pages.json` 后先跑 `--dry-run` 或 `--validate-only`。
+4. 默认不要开 `--continue-on-error`，除非能接受部分页面已替换。
+5. 替换后再回读全文 XML，确认页序、背景、图片、图表、表格、locked motif 和文本没有破损；如果当前账号具备截图能力，可额外截图检查视觉效果。

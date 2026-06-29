@@ -21,7 +21,7 @@
 4. 检查标签闭合、属性引号、`<content>` 结构，以及 `<slide>` 直接子元素。
 5. 页面空白、溢出、重叠或越界时，按 [validation-checklist.md](validation-checklist.md) 运行 XML 文本重叠检查，并人工核对越界、截断、图文压盖等视觉风险；工具当前只会报告 `xml_not_well_formed` / `bbox_overlap`。
 6. 如果使用 `--slides '[...]'`，怀疑 shell 截断时直接切到两步创建：先 `slides +create`，再用 `xml_presentation.slide.create` 逐页添加。
-7. 局部问题用 `+replace-slide` 块级修正；整页结构要改时再用 `slide.delete` 旧页 + `slide.create` 新页。
+7. 小型局部问题用 `+replace-slide` 块级修正；整页结构要改、导入模板二创或需要保留页面素材时，用 `+replace-pages`，不要手写 `slide.delete` + `slide.create` 编排。
 
 ## Symptom Fixes
 

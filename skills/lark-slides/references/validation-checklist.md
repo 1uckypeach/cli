@@ -14,7 +14,8 @@
 6. 检查页面不是全部退化为标题加 bullet list。
 7. 检查视觉层级：标题、主视觉、支撑信息三者可区分。
 8. 检查明显溢出和布局风险：重叠、越界、底部拥挤、长文本框。
-9. 在最终回复中给出简短验证记录。
+9. 如果是导入 PPTX/PDF/slides 后二创，必须做 XML 级素材核对：`source_asset_inventory` / `rewrite_contract.must_reuse` 中的 locked assets 是否仍在 replacement 或回读 XML 中。
+10. 在最终回复中给出简短验证记录。
 
 回读命令：
 
@@ -61,6 +62,17 @@ python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentatio
 - `visual_focus` 是页面中最醒目或最大的信息区域之一。
 - `text_density` 影响了文本量，没有用长 bullet 框替代规划。
 - `asset_need` 有真实素材时已放入正确区域；没有真实素材时，`fallback_if_missing` 已用 XML 形状、线条、标签、表格或图表兜底。
+- 导入/模板二创任务中，`source_asset_inventory` 里的 `<style>`、`<img src>`、`<chart>`、`<table>`、`<whiteboard>` 或 motif shape 已在最终 XML 中保留，除非 `rewrite_contract.discarded_blocks` 逐块标记了 `type`、`id` 和原因。
+
+## Source Asset Preservation
+
+模板二创默认 `reuse_policy: "preserve_by_default"`。验证时不要只看新页是否有视觉元素，还要核对源素材是否被保留：
+
+- 源页 locked assets 必须出现在 `pages.json` replacement XML 或最终回读 XML 中。
+- 如果源页存在 `<img>`、`<table>`、`<chart>`、`<whiteboard>` 或关键 motif，replacement 里对应类型数量明显归零，且 plan 没有逐块 discard，视为失败。
+- `discarded_blocks.type = "all"` 默认不是有效说明。只有 `rewrite_mode: "style_reference_only"` 且 plan 记录了用户明确要求不保留模板素材时，才可接受。
+- `fallback_if_missing` 不能解释源素材消失；它只适用于源页没有可用素材时的新资产兜底。
+- 截图检查是可选增强能力，不是默认必需项；没有截图能力时，至少完成 XML 级素材核对。
 
 如果用户指定了关键页，例如“架构解释”“Self-Attention 机制解释”“对比或演进视角”“总结页”，最终验证记录必须逐项说明这些页已存在。
 
@@ -72,6 +84,8 @@ python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentatio
 - 关键文本没有出现在回读 XML 中。
 - 图片仍是 `@./path`，或 `<img src>` 是 http(s) 外链。
 - 页面依赖的图片区域为空，且没有 fallback visual。
+- 导入模板的背景、核心图片、图表、表格或品牌/版式 motif 在最终 XML 中消失，且 plan 没有逐块说明丢弃原因。
+- 源页有 `<img>` / `<table>` 等素材，replacement 或最终回读 XML 中对应类型数量归零，且没有 `style_reference_only` 用户意图证据。
 - 返回 XML 缺页、页序明显错误，或某页内容被 shell 截断。
 - 大量形状坐标完全相同，导致主体内容重叠。
 - 渐变背景回退成空白或白底，导致文字不可读。
@@ -104,7 +118,8 @@ python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentatio
 - 回读：已执行 xml_presentations.get，实际页数 N / 预期 N。
 - 关键页：架构解释 / Self-Attention / 对比或演进 / 总结页均存在。
 - 结构：检查了主要 shape/img/table/chart 元素，无明显空白页或破损页。
+- 素材：已核对 source_asset_inventory / rewrite_contract.must_reuse，导入底稿的背景、图片 token、图表/表格或 motif 已按 plan 保留；被删除素材均有逐块 discarded reason。
 - 布局：检查了标题层级、主视觉、重叠/越界/文本溢出风险。
 ```
 
-不要声称完成了人工视觉验收，除非确实打开或获取了可视化结果。仅从 XML 静态检查得出的结论，应表述为“静态检查未发现明显问题”。
+不要声称完成了人工视觉验收，除非确实打开或获取了可视化结果。仅从 XML 静态检查得出的结论，应表述为“静态检查未发现明显问题”。截图能力可能不可用，不要把截图作为默认交付门槛。

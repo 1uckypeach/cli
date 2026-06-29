@@ -2,7 +2,9 @@
 
 > **前置条件：** 先阅读 [`../lark-shared/SKILL.md`](../../lark-shared/SKILL.md) 了解认证、全局参数和安全规则。
 
-对指定 slide 做块级替换或插入。编辑已有 PPT 的主路径——`slide_id` 不变、页序不动、只影响被指定的块。
+对指定 slide 做块级替换或插入。适合小型局部编辑：`slide_id` 不变、页序不动、只影响被指定的块。
+
+导入 PPTX/PDF 后二次创作、模板素材保留、整页布局重建不要默认用本 shortcut；优先用 [`+replace-pages`](lark-slides-replace-pages.md) 生成完整新页 XML，并在同一个 presentation 内复用旧页背景、图片 file token、图表、表格和 motif。
 
 相比直接调 `xml_presentation.slide.replace`，这个 shortcut 的四个额外价值：
 

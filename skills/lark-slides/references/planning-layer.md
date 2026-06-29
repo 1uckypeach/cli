@@ -7,15 +7,33 @@
 ## Required Flow
 
 1. 理解用户需求，必要时澄清主题、受众、页数、风格。
-2. 如果适合模板，先用 `template_tool.py search` 检索，锁定模板后用 `summarize` 获取主题和页型信息。
-3. 选择唯一 plan 目录：`.lark-slides/plan/<deck-or-task-id>/`。
-4. 先创建目录：`mkdir -p .lark-slides/plan/<deck-or-task-id>`。
-5. 写入 `.lark-slides/plan/<deck-or-task-id>/slide_plan.json`。
-6. 读取 `xml-schema-quick-ref.md`、`visual-planning.md` 和 `asset-planning.md`。
-7. 按 plan、visual planning 和 asset planning 规则逐页生成 XML，把 `layout_type`、`visual_focus`、`text_density` 转成具体页面几何和文本量约束，并把缺失素材转成可执行兜底视觉。
-8. 创建 PPT 后用 `xml_presentations.get` 回读，核对页面数量、关键元素和 plan 到 XML 的对应关系。
+2. 如果用户给了 PPTX/PDF/slides 材料，先导入或回读为 Slides；PPTX 必须导入，PDF 只有在明显是长文档/资料而不是演示稿、模板或视觉底稿时才跳过导入。
+3. 如果没有用户提供的模板材料、且适合内置模板，再用 `template_tool.py search` 检索，锁定模板后用 `summarize` 获取主题和页型信息。
+4. 选择唯一 plan 目录：`.lark-slides/plan/<deck-or-task-id>/`。
+5. 先创建目录：`mkdir -p .lark-slides/plan/<deck-or-task-id>`。
+6. 写入 `.lark-slides/plan/<deck-or-task-id>/slide_plan.json`。
+7. 读取 `xml-schema-quick-ref.md`、`visual-planning.md` 和 `asset-planning.md`。
+8. 按 plan、visual planning 和 asset planning 规则逐页生成 XML，把 `layout_type`、`visual_focus`、`text_density` 转成具体页面几何和文本量约束；只有缺失的新素材才转成可执行兜底视觉，源页素材不算缺失素材。
+9. 创建或替换后用 `xml_presentations.get` 回读，核对页面数量、关键元素和 plan 到 XML 的对应关系。
 
 模板不能代替 plan。模板搜索和摘要只能影响 `theme_style`、页面流、布局选择和局部布局骨架；最终仍必须有 `.lark-slides/plan/<deck-or-task-id>/slide_plan.json`。
+
+## Imported Deck Preservation
+
+当用户提供 PPTX/PDF/slides 作为模板、底稿、版式参考或二创对象时，plan 必须把导入后的 presentation 当成目标，而不是把它当成普通参考图。
+
+流程：
+
+1. 先用 `drive +import --type slides` 导入本地 PPTX/PDF，或用 `xml_presentations.get` 回读已有 Slides。
+2. 保存导入/回读 XML 到 plan 目录，记录 `target_xml_presentation_id`、`revision_id`、每页 `slide_id`。
+3. 做每页 `source_asset_inventory`：`<style>` 背景、`<img src="...">` file token、`<chart>`、`<table>`、`<whiteboard>`、关键 shape/motif 和它们的 bbox。这个清单是事实层，来自 `source.xml`，不要用模型偏好改写事实。
+4. 写 plan 时为每个目标页绑定 `source_slide_id`，并写 `rewrite_contract`。默认 `reuse_policy` 是 `preserve_by_default`：源页素材默认锁定保留。
+5. 生成完整 `<slide>` XML 时，先复制源页 `<style>` 和 locked assets，再替换模板占位文案，最后补充新业务图形。
+6. 默认用 `slides +replace-pages` 执行页面级替换。仓库代码中的命令名是复数 `+replace-pages`；即使只替换一页，也传一个包含 1 个 item 的 `pages` 数组。
+
+`+replace-slide` 只适合小型块级编辑：改一个标题、插入一个图、替换一个已知 block。导入模板二创不要默认走它，因为它依赖最新 `block_id` 和局部 XML 片段，更容易触发 3350001。
+
+禁止把模板二创理解成"按模板风格重画"。`discarded_blocks` 必须逐块列出 `type`、`id` 和具体原因；`discarded_blocks.type = "all"` 默认非法。只有用户明确说"不要保留模板素材"、"只参考风格重做"等同义要求时，才允许 `rewrite_mode: "style_reference_only"`，并必须在 plan 中记录 `user_intent_evidence`。
 
 ## Plan Path
 
@@ -56,6 +74,27 @@ Exception:
 ```json
 {
   "presentation_goal": "Explain the proposal and secure approval for the next phase.",
+  "target_xml_presentation_id": "optional existing/imported presentation id for in-place rewrite",
+  "source_deck": {
+    "source_type": "pptx|pdf|slides|none",
+    "source_path_or_url": "optional original user material",
+    "source_xml_path": ".lark-slides/plan/example/source.xml",
+    "source_slide_count": 12
+  },
+  "source_asset_inventory": {
+    "generated_from": ".lark-slides/plan/example/source.xml",
+    "default_policy": "preserve_by_default",
+    "pages": [
+      {
+        "source_slide_id": "old1",
+        "locked_assets": [
+          {"type": "style", "id": "slide-style", "reason": "template background"},
+          {"type": "img", "id": "bPk", "src": "file_token", "reason": "template hero visual"},
+          {"type": "shape", "id": "bQr", "role": "motif", "reason": "layout structure"}
+        ]
+      }
+    ]
+  },
   "audience": "Product and engineering leaders who know the domain but need a concise decision narrative.",
   "theme_style": "Clean business style, light background, restrained blue accent, strong visual hierarchy.",
   "visual_system": {
@@ -83,6 +122,15 @@ Exception:
     {
       "page": 1,
       "title": "Proposal Title",
+      "source_slide_id": "optional original slide id when rewriting an imported/existing deck",
+      "rewrite_mode": "preserve_template",
+      "rewrite_contract": {
+        "reuse_policy": "preserve_by_default",
+        "must_reuse": ["style:slide-style", "img:bPk", "shape:bQr"],
+        "discarded_blocks": [
+          {"type": "shape", "id": "bAb", "reason": "template placeholder text"}
+        ]
+      },
       "key_message": "The initiative is ready for a focused pilot.",
       "layout_type": "title-cover",
       "visual_focus": "Large title area with one concise supporting statement.",
@@ -104,6 +152,9 @@ Exception:
 Top-level fields:
 
 - `presentation_goal`: what the whole deck is trying to achieve.
+- `target_xml_presentation_id`: required when rewriting an imported or existing deck in place.
+- `source_deck`: required when user-provided PPTX/PDF/slides material was imported or read back.
+- `source_asset_inventory`: required when `source_deck.source_type` is `pptx`, `pdf`, or `slides`; record source-page assets before planning new page XML.
 - `audience`: target readers or listeners and their assumed background.
 - `theme_style`: visual tone, palette direction, and professional style.
 - `visual_system`: deck-level visual rules that must stay stable across pages, including background strategy, recurring motif, and color roles.
@@ -115,6 +166,9 @@ Each slide must include:
 
 - `page`: 1-based page number.
 - `title`: slide title.
+- `source_slide_id`: required when this page rewrites an imported/existing page.
+- `rewrite_mode`: `preserve_template` by default for imported/existing deck rewrites; use `style_reference_only` only when the user explicitly asked not to preserve template assets.
+- `rewrite_contract`: required when `source_slide_id` is present; list locked source assets to reuse and any individually discarded source blocks.
 - `key_message`: the one idea this page must land.
 - `layout_type`: planned page structure.
 - `visual_focus`: dominant visual object or region.
@@ -204,6 +258,8 @@ Before writing each slide XML, map the plan fields to concrete decisions:
 - `visual_focus` determines the largest visual region or emphasized object.
 - `text_density` caps visible text volume.
 - `asset_need` informs placeholder diagrams, icons, charts, screenshots, or shape-based fallback visuals only. Missing real assets must use `fallback_if_missing`, not blank regions.
+- `source_asset_inventory` determines which source XML blocks are locked by default. Copy source `<style>`, `<img src>` file tokens, charts, tables, whiteboards, and key motif shapes before generating new business visuals.
+- `rewrite_contract.discarded_blocks` only removes individually named source blocks. Do not use `type: "all"` unless `rewrite_mode` is `style_reference_only` and `user_intent_evidence` records the user's explicit instruction.
 
 After creating the PPT, fetch the presentation and verify:
 
@@ -217,3 +273,4 @@ After creating the PPT, fetch the presentation and verify:
 - The actual backgrounds match `visual_system.background_strategy`; any dark, image-led, or emphasis page has an intentional relationship to the rest of the deck.
 - Text boxes respect `typography_constraints`; long labels, captions, footer text, and conclusion bars are not squeezed into boxes that are too short for the intended line count.
 - If real assets are used, the final XML contains renderable asset tokens or supported local placeholders for creation, not http URLs, stale local paths, or blank image boxes.
+- For imported/template rewrites, replacement/readback XML still contains locked source assets from `source_asset_inventory`, especially background style, image tokens, charts, tables, whiteboards, and recurring motif blocks. If a locked source asset disappears, the plan must contain a block-level discard reason.

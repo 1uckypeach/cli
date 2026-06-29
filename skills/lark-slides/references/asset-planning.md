@@ -10,8 +10,24 @@
 - Every planned asset must include a fallback visual plan so the slide can be generated with XML shapes, text, arrows, tables, simple charts, whiteboard diagrams, or placeholder regions.
 - Asset needs must serve the page's `key_message` and `visual_focus`. Do not add decorative assets that do not clarify the page.
 - Prefer a few high-value asset plans over one asset on every page. For a 6-page technical or business deck, plan assets on at least 3 pages when the content allows.
-- If a real local asset already exists or the user provides one, it can be used through the normal media-upload workflow. Still keep `fallback_if_missing` in the plan.
+- If a real local asset already exists or the user provides one, it can be used through the normal media-upload workflow. Still keep `fallback_if_missing` in the plan for genuinely missing new assets.
+- If the user provides PPTX/PDF/slides material and it has been imported/read back, its existing slide assets are not "missing assets." Record them in `source_asset_inventory` / `rewrite_contract` in `planning-layer.md` and reuse the original XML or file token in the replacement page.
+- `fallback_if_missing` must not replace an existing source `<img>`, `<table>`, `<chart>`, `<whiteboard>`, or locked motif. It only applies when the page needs a new asset that is absent from the source deck.
 - Do not leave blank image boxes in final XML. If the asset is missing, render the fallback visual.
+
+## Imported Slide Assets
+
+For imported or existing Slides rewrites, first inventory the source XML before writing new page XML. This inventory is a lock list, not a suggestion list:
+
+- Preserve `<style>` when it carries the template background, gradient, image fill, or visual tone.
+- Preserve `<img src="...">` when the image is part of the template, brand, product screenshot, chart export, decorative background, or layout.
+- Preserve `<chart>` / `<table>` when the user asked to keep data visuals or when they anchor the page design; update labels/data only if requested.
+- Preserve `<whiteboard>` position when it represents a diagram to keep, but remember readback XML may not include its inner SVG/Mermaid content.
+- Preserve recurring shape motifs such as side bars, section bands, numbered badges, separators, or card containers.
+
+When using `+replace-pages`, a reused `<img src>` from the same `xml_presentation_id` can be copied directly into the new `<slide>` content. Do not re-upload it and do not replace it with an external URL.
+
+Use `asset_need` for new desired assets. Use `source_asset_inventory` and `rewrite_contract.must_reuse` for old assets that must survive the rewrite. If an old asset should be removed, list that exact block in `rewrite_contract.discarded_blocks` with `type`, `id`, and reason; do not remove whole pages of assets with a broad "old graphics do not match" explanation.
 
 ## JSON Shape
 
@@ -117,8 +133,9 @@ Business comparison page:
 
 When generating XML:
 
-1. If an asset exists and the workflow supports it, place it in the planned visual region.
-2. If no asset exists, immediately render `fallback_if_missing` with XML-native shapes, text, lines, arrows, tables, whiteboard diagrams, or chart-like elements.
-3. Size the fallback to satisfy `visual_focus`; it should be a real page element, not a tiny decoration.
-4. Keep text-density limits. Do not compensate for missing assets by adding long bullet text.
-5. After creation, fetch the presentation and verify asset pages are not blank and that each planned fallback is visible when no real asset was used.
+1. If an asset exists in the imported/current presentation and the page rewrite stays in that same `xml_presentation_id`, reuse the original XML block or file token in the planned visual region.
+2. Generate from source outward: copy source `<style>` and locked assets first, then replace placeholder text, then add new XML-native visuals.
+3. If no source or new real asset exists, immediately render `fallback_if_missing` with XML-native shapes, text, lines, arrows, tables, whiteboard diagrams, or chart-like elements.
+4. Size the fallback to satisfy `visual_focus`; it should be a real page element, not a tiny decoration.
+5. Keep text-density limits. Do not compensate for missing assets by adding long bullet text.
+6. After creation or replacement, fetch the presentation and verify asset pages are not blank, locked source assets are still present, and each planned fallback is visible only when no source or real asset was available.
