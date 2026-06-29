@@ -123,6 +123,26 @@ func sheetCreateInput(runtime flagView, token string) (map[string]interface{}, e
 	if strings.TrimSpace(runtime.Str("title")) == "" {
 		return nil, common.ValidationErrorf("--title is required")
 	}
+	// --type bitable 建一张空白多维表格子表（operation=create_bitable）；默认 sheet 为普通
+	// 电子表格子表。bitable 子表内容编辑走 lark-base 命令，row-count/col-count 不适用。
+	sheetType := strings.TrimSpace(runtime.Str("type"))
+	if sheetType == "" {
+		sheetType = "sheet"
+	}
+	if sheetType != "sheet" && sheetType != "bitable" {
+		return nil, common.ValidationErrorf("--type must be 'sheet' or 'bitable'")
+	}
+	if sheetType == "bitable" {
+		input := map[string]interface{}{
+			"excel_id":   token,
+			"operation":  "create_bitable",
+			"sheet_name": strings.TrimSpace(runtime.Str("title")),
+		}
+		if runtime.Changed("index") {
+			input["target_index"] = runtime.Int("index")
+		}
+		return input, nil
+	}
 	if n := runtime.Int("row-count"); n < 0 || n > 50000 {
 		return nil, common.ValidationErrorf("--row-count must be between 0 and 50000")
 	}

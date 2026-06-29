@@ -770,6 +770,7 @@ var flagDefs = map[string]commandDef{
 			{Name: "index", Kind: "own", Type: "int", Required: "optional", Desc: "Insert position (0-based); appended to the end when omitted", Default: "-1"},
 			{Name: "row-count", Kind: "own", Type: "int", Required: "optional", Desc: "Initial row count (default 200, max 50000)", Default: "200"},
 			{Name: "col-count", Kind: "own", Type: "int", Required: "optional", Desc: "Initial column count (default 20, max 200)", Default: "20"},
+			{Name: "type", Kind: "own", Type: "string", Required: "optional", Desc: "New sub-sheet type: sheet (spreadsheet) | bitable; default sheet. bitable creates an empty table only — edit its content via lark-base commands", Default: "sheet"},
 			{Name: "dry-run", Kind: "system", Type: "bool", Required: "optional"},
 		},
 	},
