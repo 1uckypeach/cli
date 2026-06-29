@@ -634,6 +634,18 @@ var flagDefs = map[string]commandDef{
 			{Name: "dry-run", Kind: "system", Type: "bool", Required: "optional"},
 		},
 	},
+	"+formula-verify": {
+		Risk: "read",
+		Flags: []flagDef{
+			{Name: "url", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet URL (XOR with `--spreadsheet-token`)"},
+			{Name: "spreadsheet-token", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet token (XOR with `--url`)"},
+			{Name: "sheet-id", Kind: "public", Type: "string_slice", Required: "optional", Desc: "Sheet reference_id(s); repeat or comma-separate to scan multiple sheets. Omit to scan all visible sheets."},
+			{Name: "sheet-name", Kind: "public", Type: "string_slice", Required: "optional", Desc: "Sheet name(s); repeat or comma-separate to scan multiple sheets. Omit to scan all visible sheets."},
+			{Name: "range", Kind: "own", Type: "string_slice", Required: "optional", Desc: "Optional A1 ranges (e.g. `A1:Z200`); repeat or comma-separate for multiple ranges. Omit to scan each sheet's current_region."},
+			{Name: "max-locations", Kind: "own", Type: "int", Required: "optional", Desc: "Max locations / samples per error type; default 20.", Default: "20"},
+			{Name: "exit-on-error", Kind: "own", Type: "bool", Required: "optional", Desc: "When status=errors_found, exit non-zero. Useful for CI gate after batch formula writes."},
+		},
+	},
 	"+pivot-create": {
 		Risk: "write",
 		Flags: []flagDef{
