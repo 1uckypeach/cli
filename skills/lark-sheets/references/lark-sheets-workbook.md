@@ -15,7 +15,11 @@
 | 操作需求 | 使用工具 | 说明 |
 |---------|---------|------|
 | 查看工作簿结构 | `+workbook-info` | 获取子表列表、名称、行列数、冻结位置等元数据 |
+| 新建工作簿（可预填数据） | `+workbook-create` | 从内存数据建一张新表（`--values` / `--sheets` typed） |
+| 导入本地文件为新表 | `+workbook-import` | 把本地 `.xlsx` / `.xls` / `.csv` 导入为新的飞书电子表格 |
+| 导出工作簿到本地 | `+workbook-export` | 导出为本地 `.xlsx`（整簿）或单子表 `.csv` |
 | 变更工作簿结构 | `+sheet-{create|delete|rename|move|copy|hide|unhide|set-tab-color}` | 新建/删除/移动/重命名/复制/隐藏子表、修改标签颜色 |
+| 切换子表网格线显隐 | `+sheet-show-gridline` / `+sheet-hide-gridline` | 显示 / 隐藏单个子表的网格线 |
 
 注意：
 
@@ -87,7 +91,7 @@ _公共四件套 · 系统：`--dry-run`_
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `--index` | int | required | 目标位置（0-based） |
-| `--source-index` | int | optional | 源位置（0-based）；可选，未传时由 CLI runtime 根据 `--sheet-id` / `--sheet-name` 当前在工作簿中的 index 自动派生 |
+| `--source-index` | int | optional | 源位置（0-based）；standalone 调用时可选，未传时由 CLI runtime 根据 `--sheet-id` / `--sheet-name` 当前在工作簿中的 index 自动派生。但在 `+batch-update` 内不可省（须显式传）——batch 中途无法发起结构查询自动派生 |
 
 ### `+sheet-copy`
 
@@ -138,7 +142,7 @@ _系统：`--dry-run`_
 | --- | --- | --- | --- |
 | `--title` | string | required | 新 spreadsheet 标题 |
 | `--folder-token` | string | optional | 目标文件夹 token；省略时放在云空间根目录 |
-| `--values` | string + File + Stdin（简单 JSON） | optional | untyped 初始数据，一个 JSON 二维数组（表头并入第一行）：`[["列A","列B"],["alice",95]]`；值原样写入、类型由飞书自动识别，走与 --sheets 相同的分批 `+cells-set`；配 --styles 控制格式/颜色/合并/行列尺寸 |
+| `--values` | string + File + Stdin（简单 JSON） | optional | untyped 初始数据，一个 JSON 二维数组（表头并入第一行）：`[["列A","列B"],["alice",95]]`；值原样写入、类型由飞书自动识别（日期 / 数字会落成文本，需类型保真改用 --sheets），走与 --sheets 相同的分批 `+cells-set`；配 --styles 控制格式/颜色/合并/行列尺寸 |
 | `--sheets` | string + File + Stdin（复合 JSON） | optional | 建表后写入的 typed 表格协议 JSON（同 +table-put）：顶层 `{"sheets":[...]}`，每个数组项是一张子表 `{name, start_cell?, mode?, header?, allow_overwrite?, columns:["colA","colB",...], data:[[...]], dtypes?:{colA:pandasDtype, ...}, formats?:{colA:numberFormat, ...}}` —— `name` 与外层 `sheets` 数组都不可省。Agents 用 `scripts/sheets_df.py` 的 `df_to_sheet(df, name)` 把 DataFrame 转成一项再包 `{"sheets":[...]}`。与 --values 互斥；新表默认子表复用为第一个子表，日期/数字类型保真。 |
 | `--styles` | string + File + Stdin（复合 JSON） | optional | 建表时同时写入的视觉处理操作 JSON：顶层 `{styles:[...]}`，每项对应一个目标子表、含 `name`，并至少给 `cell_styles` / `row_sizes` / `col_sizes` / `cell_merges` 之一。`cell_styles` 用 A1 单元格 range + 扁平样式字段（字段同 +cells-set-style，含 number_format / 颜色 / 对齐 / border_styles）；row/col sizes 用行/列范围 + type/size；merges 用单元格 range + 可选 merge_type。与 --sheets 搭配时 styles 数组长度/顺序/name 必须与 --sheets.sheets 对应；与 --values 搭配时只给一个 styles 项（其 name 忽略）。完整 cell_styles 字段结构跑 `+workbook-create --print-schema --flag-name styles`。 |
 

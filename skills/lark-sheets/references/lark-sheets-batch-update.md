@@ -51,7 +51,7 @@ _公共：URL/token（无 sheet 定位） · 系统：`--dry-run`_
 
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `--ranges` | string + File + Stdin（简单 JSON） | required | 目标范围 JSON 数组，每项必须带 sheet 前缀（如 `["'Sheet1'!A1:B2","'Sheet2'!D1:D10"]`）；前缀必须是 sheet 显示名（如 `Sheet1`），不接受 sheet reference_id；支持跨 sheet；所有 range 应用同一组 style |
+| `--ranges` | string + File + Stdin（简单 JSON） | required | 目标范围 JSON 数组，每项必须带 sheet 前缀（如 `["Sheet1!A1:B2","Sheet2!D1:D10"]`，前缀裸写不加引号）；前缀必须与 sheet 真实显示名完全一致（含大小写），不接受 sheet reference_id；支持跨 sheet；所有 range 应用同一组 style |
 | `--background-color` | string | optional | 背景颜色（十六进制，如 `#ffffff`） |
 | `--font-color` | string | optional | 字体颜色（十六进制，如 `#000000`） |
 | `--font-family` | string | optional | 字体名称（如 `Arial`、`微软雅黑`） |
@@ -71,7 +71,7 @@ _公共：URL/token（无 sheet 定位） · 系统：`--dry-run`_
 
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `--ranges` | string + File + Stdin（简单 JSON） | required | 目标范围 JSON 数组（如 `["'Sheet1'!A2:A100","'Sheet1'!C2:C100"]`），每项必须带 sheet 前缀；前缀必须是 sheet 显示名（如 `Sheet1`），不接受 sheet reference_id |
+| `--ranges` | string + File + Stdin（简单 JSON） | required | 目标范围 JSON 数组（如 `["Sheet1!A2:A100","Sheet1!C2:C100"]`，前缀裸写不加引号），每项必须带 sheet 前缀；前缀必须与 sheet 真实显示名完全一致（含大小写），不接受 sheet reference_id |
 | `--options` | string + File + Stdin（复合 JSON） | xor | 下拉选项 JSON 数组，例如 `["opt1","opt2"]`。服务端不限制选项数量，也不限制单个选项长度；含逗号的选项可以接受（写入时会自动转义）。大量选项建议改用 `--source-range`。 |
 | `--colors` | string + File + Stdin（简单 JSON） | optional | 下拉胶囊背景色，RGB hex 数组（如 `["#1FB6C1","#F006C2"]`）。长度可短不可长——超长 Validate 拦截（`--colors length (N) must not exceed dropdown source size (M)`），未指定项按内置 10 色色板循环补色。**单独传即生效**；`--highlight=false` 时被忽略。 |
 | `--multiple` | bool | optional | 启用多选 |
@@ -84,7 +84,7 @@ _公共：URL/token（无 sheet 定位） · 系统：`--yes`、`--dry-run`_
 
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `--ranges` | string + File + Stdin（简单 JSON） | required | 目标范围 JSON 数组（最多 100 个，如 `["'Sheet1'!E2:E6"]`），每项必须带 sheet 前缀；前缀必须是 sheet 显示名（如 `Sheet1`），不接受 sheet reference_id |
+| `--ranges` | string + File + Stdin（简单 JSON） | required | 目标范围 JSON 数组（最多 100 个，如 `["Sheet1!E2:E6"]`，前缀裸写不加引号），每项必须带 sheet 前缀；前缀必须与 sheet 真实显示名完全一致（含大小写），不接受 sheet reference_id |
 
 ### `+cells-batch-clear`
 
@@ -92,7 +92,7 @@ _公共：URL/token（无 sheet 定位） · 系统：`--yes`、`--dry-run`_
 
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `--ranges` | string + File + Stdin（简单 JSON） | required | 目标范围 JSON 数组，每项必须带 sheet 前缀（如 `["'Sheet1'!A2:Z1000","'Sheet2'!A2:Z1000"]`）；前缀必须是 sheet 显示名（如 `Sheet1`），不接受 sheet reference_id；支持跨 sheet；对所有 range 执行同一 scope 的清除 |
+| `--ranges` | string + File + Stdin（简单 JSON） | required | 目标范围 JSON 数组，每项必须带 sheet 前缀（如 `["Sheet1!A2:Z1000","Sheet2!A2:Z1000"]`，前缀裸写不加引号）；前缀必须与 sheet 真实显示名完全一致（含大小写），不接受 sheet reference_id；支持跨 sheet；对所有 range 执行同一 scope 的清除 |
 | `--scope` | string | optional | 清除范围 enum：`content`（默认，仅清内容）/ `formats`（仅清格式）/ `all`（清内容 + 格式）（可选值：`content` / `formats` / `all`） |
 
 ## Schemas
@@ -138,7 +138,7 @@ lark-cli sheets +batch-update --url "https://example.feishu.cn/sheets/shtXXX" --
 
 # ops.json （array<{shortcut, input}>，shortcut 用 CLI 名）:
 # [
-#   {"shortcut": "+dim-insert", "input": {"sheet_id":"...","dimension":"row","start":10,"end":12}},
+#   {"shortcut": "+dim-insert", "input": {"sheet_id":"...","position":10,"count":3}},
 #   {"shortcut": "+cells-set",  "input": {"sheet_id":"...","range":"A11:B12","cells":[[{"value":"a"},{"value":"b"}],[{"value":"c"},{"value":"d"}]]}}
 # ]
 ```
@@ -146,7 +146,7 @@ lark-cli sheets +batch-update --url "https://example.feishu.cn/sheets/shtXXX" --
 > ⚠️ **子操作定位规则**：
 > - spreadsheet 定位（`--url` / `--spreadsheet-token`）**只在顶层给一次**；`+batch-update` 顶层**没有** `--sheet-id` / `--sheet-name`，在顶层传不生效。
 > - **每个子操作的子表定位 `sheet_id`（或 `sheet_name`）写进它自己的 `input`**（见上方 ops.json 每个 item）。
-> - `input` 的键是该 shortcut 的 flag **展平**成 JSON（`"range":"A11:B12"`、`"dimension":"row"`），不要把整组 `--operations` 再套一层嵌套 JSON。
+> - `input` 的键是该 shortcut 的 flag **展平**成 JSON（`"range":"A11:B12"`、`"position":11`），不要把整组 `--operations` 再套一层嵌套 JSON。
 
 > **常见组合：插列 + 写表头 + 整列回填**——一次原子提交，不要拆成 N 次独立调用。批量回填同一列 **只需一次** `+cells-set`（range 写整列范围、cells 写 N×1 矩阵），不需要逐行循环。
 >
@@ -154,7 +154,7 @@ lark-cli sheets +batch-update --url "https://example.feishu.cn/sheets/shtXXX" --
 > // 在 C 列前插入新列 → 写表头 C1 → 回填 C2:C100 共 99 行
 > [
 >   {"shortcut": "+dim-insert",
->    "input": {"sheet_id": "...", "dimension": "column", "start": 3, "end": 4}},
+>    "input": {"sheet_id": "...", "position": "C", "count": 1}},
 >   {"shortcut": "+cells-set",
 >    "input": {"sheet_id": "...", "range": "C1:C100",
 >              "cells": [[{"value":"score"}], [{"value":95}], [{"value":87}], /* ... 97 more rows ... */ ]}}

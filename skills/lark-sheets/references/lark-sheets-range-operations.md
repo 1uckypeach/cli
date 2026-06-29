@@ -22,6 +22,7 @@
 
 注意：
 
+- **`--range` 两种语法别混**：`+cells-clear` / `+cells-{merge|unmerge}` / `+range-*` 用单元格 A1 矩形（如 `A2:A10`）；`+rows-resize` / `+cols-resize` 用纯行 / 列区间（行 `2:10`、列 `A:C`），不要给 resize 传 `A2:A10`
 - 用户说"这行 / 整行 / 首行"时，优先使用整行范围如 `1:1`；"这列 / 整列"时使用 `J:J`。不要截断为局部矩形
 - 合并后只保留左上角单元格的内容，其余清除。写入合并区域用 `+cells-set` 对左上角单元格操作
 - 调整行高列宽时，先读取相邻行列尺寸再决定像素值，不要随意猜测
@@ -35,7 +36,7 @@
 2. **判定阈值**：当前列宽（用 `+sheet-info --include row_heights,col_widths` 拿）≥ 最长字符数 × 字体宽度系数 + buffer 才算适配。默认列宽 11 通常只够 11 个半角字符或 5-6 个汉字，写长文本前必扩宽。
 3. **修复二选一**：
    - **扩列宽**：用 `+rows-resize / +cols-resize` 把目标列宽设为 `max(表头字符数, 内容采样最长字符数) × 8 + 16` 像素（经验值）
-   - **自动换行**：在 `+cells-set` 时给单元格设置 `cell_styles.word_wrap="auto-wrap"`（可选值：`overflow` / `auto-wrap` / `word-clip`），并用 `+rows-resize / +cols-resize` 调高对应行的行高
+   - **自动换行**：在 `+cells-set` 时给单元格设置 `cell_styles.word_wrap="auto-wrap"`（可选值：`overflow` / `auto-wrap` / `word-clip`；`cell_styles` 字段见 `lark-sheets-write-cells`），并用 `+rows-resize / +cols-resize` 调高对应行的行高
 4. **新增列默认列宽规则**：新增列宽度 ≥ `max(表头字符数, 内容采样最长字符数) × 8 + 16` 像素，**禁止**用默认 11 直接交付。
 
 **典型反例**：默认列宽 11 但内容含 12+ 字符的中文 / 含单位的数值（如 `109.10μmol/L`）/ 长数字未设 `number_format` 显示为科学计数法 —— 用户在结果表里看不到完整原值。

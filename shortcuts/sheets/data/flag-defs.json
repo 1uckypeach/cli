@@ -219,7 +219,7 @@
         "kind": "own",
         "type": "int",
         "required": "optional",
-        "desc": "Source position (0-based); optional. If omitted, the CLI runtime derives it from the current workbook index of `--sheet-id` / `--sheet-name`",
+        "desc": "Source position (0-based); optional for standalone calls — if omitted, the CLI runtime derives it from the current workbook index of `--sheet-id` / `--sheet-name`. Inside `+batch-update` it must be passed explicitly, since batch cannot issue a structure query mid-run to derive it",
         "default": "-1"
       },
       {
@@ -515,7 +515,7 @@
         "kind": "own",
         "type": "string",
         "required": "optional",
-        "desc": "Untyped initial data as one 2D JSON array (`[[\"alice\",95]]`); values are written as-is with their type auto-detected, through the same batched set_cell_range path as --sheets — pair with --styles for number formats, colors, merges, and row/col sizes",
+        "desc": "Untyped initial data as one 2D JSON array (`[[\"alice\",95]]`); values are written as-is with their type auto-detected (dates / numbers land as text — use --sheets to preserve types), through the same batched set_cell_range path as --sheets — pair with --styles for number formats, colors, merges, and row/col sizes",
         "input": [
           "file",
           "stdin"
@@ -1069,7 +1069,7 @@
         "kind": "own",
         "type": "int",
         "required": "optional",
-        "desc": "Group nesting level to ungroup; default 1 (outermost)",
+        "desc": "Group nesting level to ungroup; default 1 (1 = outermost, larger = deeper)",
         "default": "1"
       },
       {
@@ -2746,7 +2746,7 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "Target ranges as a JSON array (e.g. `[\"'Sheet1'!A1:B2\",\"'Sheet2'!D1:D10\"]`); each item must include a sheet prefix; the prefix must be the sheet display name (e.g. `Sheet1`), not the sheet reference_id; ranges may target different sheets; the same style is applied to every range",
+        "desc": "Target ranges as a JSON array (e.g. `[\"Sheet1!A1:B2\",\"Sheet2!D1:D10\"]`, prefix written bare without quotes); each prefix must exactly match the sheet display name (case-sensitive), not the sheet reference_id; ranges may target different sheets; the same style is applied to every range",
         "input": [
           "file",
           "stdin"
@@ -2899,7 +2899,7 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "Target ranges as a JSON array (e.g. `[\"'Sheet1'!A2:A100\",\"'Sheet1'!C2:C100\"]`); each item must include a sheet prefix; the prefix must be the sheet display name (e.g. `Sheet1`), not the sheet reference_id",
+        "desc": "Target ranges as a JSON array (e.g. `[\"Sheet1!A2:A100\",\"Sheet1!C2:C100\"]`, prefix written bare without quotes); each item must include a sheet prefix; the prefix must exactly match the sheet display name (case-sensitive), not the sheet reference_id",
         "input": [
           "file",
           "stdin"
@@ -2979,7 +2979,7 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "Target ranges as a JSON array (up to 100 items, e.g. `[\"'Sheet1'!E2:E6\"]`); each item must include a sheet prefix; the prefix must be the sheet display name (e.g. `Sheet1`), not the sheet reference_id",
+        "desc": "Target ranges as a JSON array (up to 100 items, e.g. `[\"Sheet1!E2:E6\"]`, prefix written bare without quotes); each item must include a sheet prefix; the prefix must exactly match the sheet display name (case-sensitive), not the sheet reference_id",
         "input": [
           "file",
           "stdin"
@@ -3023,7 +3023,7 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "Target ranges as a JSON array (e.g. `[\"'Sheet1'!A2:Z1000\",\"'Sheet2'!A2:Z1000\"]`); each item must include a sheet prefix; the prefix must be the sheet display name (e.g. `Sheet1`), not the sheet reference_id; ranges may target different sheets; the same scope is cleared from every range",
+        "desc": "Target ranges as a JSON array (e.g. `[\"Sheet1!A2:Z1000\",\"Sheet2!A2:Z1000\"]`, prefix written bare without quotes); each prefix must exactly match the sheet display name (case-sensitive), not the sheet reference_id; ranges may target different sheets; the same scope is cleared from every range",
         "input": [
           "file",
           "stdin"
@@ -3141,7 +3141,7 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "Full chart config JSON. Top-level keys: `position` / `offset` / `size` / `snapshot` (no top-level `data`, no extra nested `properties`); chart data config lives under `snapshot.data` (`refs` / `headerMode` / `dim1` / `dim2`). Deeply nested — run `--print-schema --flag-name properties` for the full structure.",
+        "desc": "Full chart config JSON. Top-level keys: `position` / `offset` / `size` / `snapshot` (no top-level `data`, no extra nested `properties`); chart data config lives under `snapshot.data` (`refs` / `headerMode` / `dim1` / `dim2`); must include at least one of `snapshot.data.dim1.serie.index` or `dim2.series[].index`, otherwise the server rejects it. Deeply nested — run `--print-schema --flag-name properties` for the full structure.",
         "input": [
           "file",
           "stdin"
@@ -4080,7 +4080,7 @@
         "kind": "own",
         "type": "string",
         "required": "optional",
-        "desc": "Filter-view name; auto-assigned by the server when omitted on create, kept unchanged when omitted on update; takes precedence over the same-named field inside `--properties`"
+        "desc": "Filter-view name; auto-assigned by the server when omitted; takes precedence over the same-named field inside `--properties`"
       },
       {
         "name": "dry-run",

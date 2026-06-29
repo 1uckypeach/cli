@@ -2,7 +2,7 @@
 
 ## 列格式多样性预探（写公式 / 排序 / 筛选前必做）
 
-> 对应 `lark-sheets-core-operations` 的 **R3 计算复现**——本节是 R3 在 read_data 工具层的具体落地。
+> 本节给出"写公式 / 排序 / 筛选前先探清列格式多样性"的正确流程，是主 SKILL.md「飞书表格编辑准则」准则 3（读全再写）在 read_data 工具层的落地。
 
 对参与后续**计算 / 排序 / 筛选 / 公式提取**的列，**必须**先 sample **至少 50 行**（小表则全量），识别该列所有值类型变体后再设计公式 / 条件。只看前 10 行不够，因为下列差异通常潜伏在表尾或中段：
 
@@ -22,7 +22,7 @@
 | 读取目的 | 用这个 shortcut | 数据去向 | 说明 |
 |---------|----------------|---------|------|
 | 快速查看纯值数据、批量处理 | `+csv-get` | 对话上下文 | 返回 CSV 文本（每行带 `[row=N]` 前缀）；大表请按 `--range` 行窗口分批读（截断时看 `has_more`） |
-| 按列类型结构化读出（喂 DataFrame / round-trip 回 `+table-put`） | `+table-get` | 对话上下文 | 返回 typed 协议（`columns:[列名]` + `data` + `dtypes`/`formats` + `range`），输出形状对齐 pandas split；可一行 `pd.DataFrame(sheet["data"], columns=sheet["columns"]).astype(sheet["dtypes"])` 还原 DataFrame，或直接 round-trip 回 `+table-put`。不带 `--range` 时读**完整 used range**（跨过表中部空行 / 空列），每个子表回传实际读取范围 `range` 供完整性校验 |
+| 按列类型结构化读出（喂 DataFrame / round-trip 回 `+table-put`） | `+table-get` | 对话上下文 | 返回 typed 协议（`columns:[列名]` + `data` + `dtypes`/`formats` + `range`），输出形状对齐 pandas split；可一行 `pd.DataFrame(sheet["data"], columns=sheet["columns"]).astype(sheet["dtypes"])` 还原 DataFrame，或直接 round-trip 回 `+table-put`。不带 `--range` 时读**完整 used range**（跨过表中部空行 / 空列），每个子表回传实际读取范围 `range` 供完整性校验。注意这与下文 `current_region` "遇表中部空行截断"不矛盾：`+table-get` 读的是子表物理 used range（飞书记录的已用矩形，含中间空行），`current_region` 是从锚点连通扩展、遇整行空行就断 |
 | 查看公式、样式、批注、数据验证 | `+cells-get` | 对话上下文 | 返回单元格完整信息，token 开销较大 |
 | 查看某区域的下拉框（数据验证）选项 | `+dropdown-get` | 对话上下文 | 返回该 A1 范围已配置的下拉列表选项 |
 

@@ -32,7 +32,7 @@
 **常见配置错误（必须注意）**：
 - **数据源范围必须精确**：透视表的数据源范围必须包含表头行，且精确覆盖全部数据行列。范围过大（包含空行/空列）或过小（遗漏数据列）都会导致透视表结果错误
 - **行列字段选择要匹配用户意图**：用户说"按商品统计金额"→ 行字段=商品，值字段=金额（`summarize_by: "sum"`）。不要把行列字段搞反
-- **聚合类型要匹配**：用户说"统计数量"→ `summarize_by: "count"`；"统计总额"→ `"sum"`；"统计平均"→ `"average"`。完整合法值：`sum` / `count` / `average` / `max` / `min` / `product` / `countNums` / `stdDev` / `stdDevp` / `var` / `varp` / `distinct` / `median`。默认不要用 `count` 替代 `sum`
+- **聚合类型要匹配**：用户说"统计数量"→ `summarize_by: "count"`；"统计总额"→ `"sum"`；"统计平均"→ `"average"`。完整合法值：`sum` / `count` / `average` / `max` / `min` / `product` / `countNums` / `stdDev` / `stdDevp` / `var` / `varp` / `distinct` / `median`。按用户意图选聚合方式，不要拿 `count` 顶替 `sum`
 - **参数长度限制**：如果透视表配置 JSON 过长（数据源范围跨越大量行列），可能导致工具调用失败。此时应先确认数据范围的精确边界，避免传入过大的 range
 - **创建后必须验证**：调用 `+pivot-list` 确认透视表结构正确
 
