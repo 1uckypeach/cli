@@ -856,13 +856,19 @@ func buildValuesPayload(runtime flagView, sheetStyles *workbookCreateSheetStyles
 		cols[i] = tableColumnSpec{Name: fmt.Sprintf("col%d", i+1)} // type-less
 	}
 	noHeader := false
-	return &tablePayload{Sheets: []tableSheetSpec{{
+	payload := &tablePayload{Sheets: []tableSheetSpec{{
 		Name:    valuesSheetName,
 		Mode:    "overwrite",
 		Header:  &noHeader,
 		Columns: cols,
 		Rows:    rows,
-	}}}, nil
+	}}}
+	// --values bypasses tablePayload.validate(), so enforce the cell budget here
+	// too — otherwise a giant --values array materializes unbounded.
+	if err := payload.checkCellBudget(); err != nil {
+		return nil, err
+	}
+	return payload, nil
 }
 
 // parseValuesRows decodes --values (JSON 2D array, with @file/stdin already

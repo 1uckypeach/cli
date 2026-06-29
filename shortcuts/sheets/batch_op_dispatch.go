@@ -332,10 +332,20 @@ func translateBatchOp(raw interface{}, token string, index int) (map[string]inte
 	}, nil
 }
 
+// maxBatchOperations caps how many sub-operations a single +batch-update may
+// carry. Every translated op (with its own cells/properties payload) is held in
+// the out slice at once before the whole batch is marshaled, so an unbounded
+// operation count is the same unbounded-materialization hazard as the fan-out
+// matrix, on the operations axis.
+const maxBatchOperations = 100
+
 // translateBatchOperations 翻译整个 ops 数组；fail-fast，遇错立即返回。
 func translateBatchOperations(rawOps []interface{}, token string) ([]interface{}, error) {
 	if len(rawOps) == 0 {
 		return nil, sheetsValidationForFlag("operations", "--operations must be a non-empty JSON array")
+	}
+	if len(rawOps) > maxBatchOperations {
+		return nil, sheetsValidationForFlag("operations", "--operations accepts at most %d entries; got %d", maxBatchOperations, len(rawOps))
 	}
 	out := make([]interface{}, 0, len(rawOps))
 	for i, raw := range rawOps {

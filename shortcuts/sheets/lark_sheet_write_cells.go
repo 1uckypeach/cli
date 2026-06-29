@@ -165,6 +165,9 @@ func cellsSetStyleInput(runtime flagView, token, sheetID, sheetName string) (map
 	if err != nil {
 		return nil, sheetsValidationForFlag("range", "--range %q: %v", rangeStr, err)
 	}
+	if err := checkStampMatrixBudget("range", rangeStr, rows, cols); err != nil {
+		return nil, err
+	}
 	if err := requireAnyStyleFlag(runtime); err != nil {
 		return nil, err
 	}
@@ -450,6 +453,9 @@ func dropdownSetInput(runtime flagView, token, sheetID, sheetName string) (map[s
 	if err != nil {
 		return nil, sheetsValidationForFlag("range", "--range %q: %v", rangeStr, err)
 	}
+	if err := checkStampMatrixBudget("range", rangeStr, rows, cols); err != nil {
+		return nil, err
+	}
 	validation, err := buildDropdownValidation(runtime)
 	if err != nil {
 		return nil, err
@@ -692,9 +698,30 @@ func letterToColumnIndex(letters string) int {
 	return n - 1
 }
 
+// maxStampMatrixCells bounds how many per-cell maps a fan-out / stamp shortcut
+// will materialize from a single A1 range. The backing tools take an explicit
+// cells matrix, so the CLI must expand a range like "A1:Z100000" into rows×cols
+// maps before sending it — an unbounded blow-up (2.6M cells ≈ 900MB heap, then
+// doubled again by json.Marshal) that OOMs the process before the request even
+// leaves. 200000 matches the documented --max-cells safety cap.
+const maxStampMatrixCells = 200000
+
+// checkStampMatrixBudget rejects a range whose materialized cell count would
+// exceed maxStampMatrixCells, before fillCellsMatrix allocates it. rows*cols is
+// computed in int64 to stay safe against overflow on pathological ranges.
+func checkStampMatrixBudget(flagName, rangeStr string, rows, cols int) error {
+	if total := int64(rows) * int64(cols); total > maxStampMatrixCells {
+		return sheetsValidationForFlag(flagName,
+			"range %q covers %d cells, over the %d-cell safety cap; narrow the range or split it across smaller ranges",
+			rangeStr, total, maxStampMatrixCells)
+	}
+	return nil
+}
+
 // fillCellsMatrix returns a rows×cols matrix where every cell is the same
 // (shallow-copied) prototype map. Use for fan-out shortcuts that stamp a
 // single attribute (style / data_validation) across an entire range.
+// Callers MUST gate the dimensions through checkStampMatrixBudget first.
 func fillCellsMatrix(rows, cols int, prototype map[string]interface{}) [][]interface{} {
 	cells := make([][]interface{}, rows)
 	for r := range cells {

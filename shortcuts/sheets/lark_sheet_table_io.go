@@ -382,6 +382,32 @@ func (p *tablePayload) validate() error {
 			return common.ValidationErrorf("--sheets[%d] %q: mode %q is invalid (want \"overwrite\" or \"append\")", i, s.Name, s.Mode)
 		}
 	}
+	return p.checkCellBudget()
+}
+
+// maxTablePutCells bounds how many cells a single +table-put / +workbook-create
+// write may materialize. Unlike the fan-out stamp cap (maxStampMatrixCells),
+// these cells come from the caller's own --sheets/--values payload rather than a
+// range blow-up, so this is a generous OOM guardrail, not a usability limit:
+// buildSheetMatrix builds the whole rows×cols matrix of per-cell maps in memory
+// before slicing it into tablePutMaxCellsPerWrite-sized writes, so an unbounded
+// payload (2.6M cells ≈ 900MB heap, doubled again by json.Marshal) OOMs the
+// process before the first write leaves.
+const maxTablePutCells = 1_000_000
+
+// checkCellBudget rejects a payload whose total materialized cell count across
+// all sheets exceeds maxTablePutCells. Counted in int64 to stay overflow-safe on
+// pathological row/column counts.
+func (p *tablePayload) checkCellBudget() error {
+	var total int64
+	for i := range p.Sheets {
+		total += int64(len(p.Sheets[i].Rows)) * int64(len(p.Sheets[i].Columns))
+	}
+	if total > maxTablePutCells {
+		return common.ValidationErrorf(
+			"--sheets/--values cover %d cells total, over the %d-cell safety cap; split the write across smaller payloads",
+			total, maxTablePutCells)
+	}
 	return nil
 }
 
