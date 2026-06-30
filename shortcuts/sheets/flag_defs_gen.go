@@ -646,6 +646,33 @@ var flagDefs = map[string]commandDef{
 			{Name: "exit-on-error", Kind: "own", Type: "bool", Required: "optional", Desc: "When status=errors_found, exit non-zero. Useful for CI gate after batch formula writes."},
 		},
 	},
+	"+history-list": {
+		Risk: "read",
+		Flags: []flagDef{
+			{Name: "url", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet locator"},
+			{Name: "spreadsheet-token", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet locator"},
+			{Name: "end-version", Kind: "own", Type: "int", Required: "optional", Desc: "Max version to query (descending pagination). Omit on the first call; pass next_end_version from the previous response."},
+			{Name: "dry-run", Kind: "system", Type: "bool", Required: "optional"},
+		},
+	},
+	"+history-revert": {
+		Risk: "write",
+		Flags: []flagDef{
+			{Name: "url", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet locator"},
+			{Name: "spreadsheet-token", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet locator"},
+			{Name: "history-version-id", Kind: "own", Type: "string", Required: "required", Desc: "History version to revert to (from +history-list)."},
+			{Name: "dry-run", Kind: "system", Type: "bool", Required: "optional"},
+		},
+	},
+	"+history-revert-status": {
+		Risk: "read",
+		Flags: []flagDef{
+			{Name: "url", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet locator"},
+			{Name: "spreadsheet-token", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet locator"},
+			{Name: "transaction-id", Kind: "own", Type: "string", Required: "required", Desc: "Async revert transaction id (from +history-revert)."},
+			{Name: "dry-run", Kind: "system", Type: "bool", Required: "optional"},
+		},
+	},
 	"+pivot-create": {
 		Risk: "write",
 		Flags: []flagDef{
