@@ -63,7 +63,8 @@ func TestPluginInstall_SinglePlugin(t *testing.T) {
 
 	// Verify file extracted
 	manifestPath := filepath.Join(dir, "node_modules", "@test/my-plugin", "manifest.json")
-	if _, err := os.Stat(manifestPath); err != nil {		t.Fatalf("manifest.json not extracted: %v", err)
+	if _, err := os.Stat(manifestPath); err != nil {
+		t.Fatalf("manifest.json not extracted: %v", err)
 	}
 
 	// Verify package.json updated
