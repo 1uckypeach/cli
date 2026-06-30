@@ -5,6 +5,7 @@ package sheets
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/larksuite/cli/errs"
@@ -97,37 +98,50 @@ func TestHistoryShortcuts_DryRun(t *testing.T) {
 	}
 }
 
-// TestHistoryRevert_MissingRequiredFlag asserts the required selector is
-// enforced in Validate (no request is sent) and the error is tagged with the
-// offending flag param: +history-revert needs --history-version-id, while
-// +history-revert-status needs --transaction-id (the receipt from +history-revert).
+// TestHistoryRevert_MissingRequiredFlag asserts each shortcut rejects a
+// missing required selector before any request is sent, with two distinct
+// gates by design:
+//
+//   - +history-revert: --history-version-id is cobra-required (Required=true
+//     in the flag def → MarkFlagRequired). cobra refuses the call before
+//     Validate runs with a plain "required flag(s)" error; the cmd dispatcher
+//     classifies it as a typed *errs.ValidationError (invalid_argument, exit 2).
+//     The test rig invokes the shortcut via cmd.Execute and observes the raw
+//     cobra error directly (no dispatcher wrap), so we assert the cobra text
+//     contract instead of the typed envelope.
+//
+//   - +history-revert-status: --transaction-id is cobra-optional;
+//     requiredness is enforced inside Validate so we still get a typed,
+//     flag-tagged *errs.ValidationError with Param="--transaction-id".
 func TestHistoryRevert_MissingRequiredFlag(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		sc        common.Shortcut
-		wantParam string
-	}{
-		{HistoryRevert, "--history-version-id"},
-		{HistoryRevertStatus, "--transaction-id"},
-	}
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.sc.Command, func(t *testing.T) {
-			t.Parallel()
-			_, _, err := runShortcutCapturingErr(t, tc.sc, []string{"--url", testURL})
-			if err == nil {
-				t.Fatalf("%s: expected validation error for missing %s", tc.sc.Command, tc.wantParam)
-			}
-			var validationErr *errs.ValidationError
-			if !errors.As(err, &validationErr) {
-				t.Fatalf("%s: error = %T %v, want *errs.ValidationError", tc.sc.Command, err, err)
-			}
-			if validationErr.Param != tc.wantParam {
-				t.Fatalf("%s: param = %q, want %s", tc.sc.Command, validationErr.Param, tc.wantParam)
-			}
-		})
-	}
+	t.Run(HistoryRevert.Command, func(t *testing.T) {
+		t.Parallel()
+		_, _, err := runShortcutCapturingErr(t, HistoryRevert, []string{"--url", testURL})
+		if err == nil {
+			t.Fatalf("%s: expected error for missing --history-version-id", HistoryRevert.Command)
+		}
+		msg := err.Error()
+		if !strings.Contains(msg, "required flag(s)") || !strings.Contains(msg, "history-version-id") {
+			t.Fatalf("%s: cobra error = %q, want substrings 'required flag(s)' and 'history-version-id'", HistoryRevert.Command, msg)
+		}
+	})
+
+	t.Run(HistoryRevertStatus.Command, func(t *testing.T) {
+		t.Parallel()
+		_, _, err := runShortcutCapturingErr(t, HistoryRevertStatus, []string{"--url", testURL})
+		if err == nil {
+			t.Fatalf("%s: expected validation error for missing --transaction-id", HistoryRevertStatus.Command)
+		}
+		var validationErr *errs.ValidationError
+		if !errors.As(err, &validationErr) {
+			t.Fatalf("%s: error = %T %v, want *errs.ValidationError", HistoryRevertStatus.Command, err, err)
+		}
+		if validationErr.Param != "--transaction-id" {
+			t.Fatalf("%s: param = %q, want --transaction-id", HistoryRevertStatus.Command, validationErr.Param)
+		}
+	})
 }
 
 // dryRunFirstCallURL runs the shortcut in --dry-run and returns the first

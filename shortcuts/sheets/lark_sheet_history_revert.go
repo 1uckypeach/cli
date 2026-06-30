@@ -33,17 +33,17 @@ import (
 // than via flagsFor(), because flag_defs_gen.go / data/flag-defs.json are
 // synced from sheet-skill-spec (BE-3) and must not be hand-edited.
 
-// historyVersionIDFlag is the target-version selector shared by the revert and
-// revert-status shortcuts. Requiredness is enforced in Validate (via
-// validateHistoryVersionID) rather than through cobra's MarkFlagRequired, so a
-// missing value yields a typed, flag-tagged *errs.ValidationError at the
-// Validate stage — an actionable error before any request is sent — instead of
-// cobra's plain "required flag not set" string.
+// historyVersionIDFlag is the target-version selector shared by +history-revert.
+// Required at the cli surface (cobra MarkFlagRequired): a missing value yields
+// cobra's standard "required flag(s) \"history-version-id\" not set" message
+// before Validate runs. We still trim + reject control-chars in Validate to
+// reject empty strings ("--history-version-id "" "), which cobra accepts.
 func historyVersionIDFlag() common.Flag {
 	return common.Flag{
-		Name: "history-version-id",
-		Type: "string",
-		Desc: "History version to act on (from +history-list). Required.",
+		Name:     "history-version-id",
+		Type:     "string",
+		Required: true,
+		Desc:     "History version to act on (from +history-list).",
 	}
 }
 
@@ -101,9 +101,12 @@ func historyRevertStatusInput(token, transactionID string) map[string]interface{
 }
 
 // HistoryRevert wraps the history_revert tool (write): asynchronously revert a
-// spreadsheet to the given history version. --history-version-id is required;
-// a missing value fails in Validate before any request is sent. Returns the
-// async receipt / transaction id, queryable via +history-revert-status.
+// spreadsheet to the given history version. --history-version-id is required
+// at the cli surface (cobra MarkFlagRequired); a missing flag fails before
+// Validate runs with cobra's standard "required flag(s)" error (which the
+// dispatcher classifies as a typed *errs.ValidationError, exit 2). We still
+// trim + reject empty / control-char values in Validate to catch the
+// "--history-version-id ''" cobra-accepts-but-empty case.
 var HistoryRevert = common.Shortcut{
 	Service:     "sheets",
 	Command:     "+history-revert",
