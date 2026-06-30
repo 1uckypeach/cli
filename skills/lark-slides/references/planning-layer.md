@@ -1,13 +1,15 @@
 # Planning Layer
 
-新建演示文稿或大幅改写页面时，必须先写 `.lark-slides/plan/<deck-or-task-id>/slide_plan.json`，再生成 XML。这个文件是 deck 的设计中间层，用来把叙事、页面角色、布局、视觉重点和文字密度固定下来，避免从用户提示直接跳到 XML。
+本文件只适用于 Create Workflow：新建演示文稿、从零大幅改写、用户明确要求重设计，或没有模板保留诉求的场景。进入本工作流时，必须先写 `.lark-slides/plan/<deck-or-task-id>/slide_plan.json`，再生成 XML。这个文件是 deck 的设计中间层，用来把叙事、页面角色、布局、视觉重点和文字密度固定下来，避免从用户提示直接跳到 XML。
 
-小型已有页编辑可豁免，例如只替换一个标题、改一个数字、插入一个块、上传并插入一张图。只要任务会重排多页、生成新 deck、替换整页结构，仍然需要规划层。
+如果用户提供 PPTX/PDF/slides 作为模板、底稿或二创对象，或要求保留原版式/素材/结构，请走 `template-rewrite-workflow.md`。不要在 `slide_plan.json` 工作流中处理模板二创。
+
+小型已有页编辑可豁免，例如只替换一个标题、改一个数字、插入一个块、上传并插入一张图。模板二创也不使用本规划层；它以 `source.xml` 为事实源、`pages.json` 为执行输入。
 
 ## Required Flow
 
 1. 理解用户需求，必要时澄清主题、受众、页数、风格。
-2. 如果适合模板，先用 `template_tool.py search` 检索，锁定模板后用 `summarize` 获取主题和页型信息。
+2. 如果没有用户提供本地/在线模板材料且适合内置模板，先用 `template_tool.py search` 检索，锁定模板后用 `summarize` 获取主题和页型信息。
 3. 选择唯一 plan 目录：`.lark-slides/plan/<deck-or-task-id>/`。
 4. 先创建目录：`mkdir -p .lark-slides/plan/<deck-or-task-id>`。
 5. 写入 `.lark-slides/plan/<deck-or-task-id>/slide_plan.json`。
@@ -15,7 +17,9 @@
 7. 按 plan、visual planning 和 asset planning 规则逐页生成 XML，把 `layout_type`、`visual_focus`、`text_density` 转成具体页面几何和文本量约束，并把缺失素材转成可执行兜底视觉。
 8. 创建 PPT 后用 `xml_presentations.get` 回读，核对页面数量、关键元素和 plan 到 XML 的对应关系。
 
-模板不能代替 plan。模板搜索和摘要只能影响 `theme_style`、页面流、布局选择和局部布局骨架；最终仍必须有 `.lark-slides/plan/<deck-or-task-id>/slide_plan.json`。
+内置模板不能代替 plan。模板搜索和摘要只能影响 `theme_style`、页面流、布局选择和局部布局骨架；最终仍必须有 `.lark-slides/plan/<deck-or-task-id>/slide_plan.json`。
+
+如果用户提供 PPTX/PDF/slides 作为模板、底稿或二创对象，请走 `references/template-rewrite-workflow.md`。不要在本工作流中复制 `source.xml` 的素材清单、bbox、层级或样式，也不要生成 `page_rewrite_plan.json` / `rewrite_manifest.json`。
 
 ## Plan Path
 
@@ -24,7 +28,7 @@ Use a separate plan directory per deck or task so multiple presentations in the 
 Recommended IDs:
 
 - New deck before creation: title slug plus date/time, such as `q3-review-20260507-1805`.
-- Existing PPT rewrite: the `xml_presentation_id`.
+- Existing PPT redesign after the user explicitly abandons template preservation: the `xml_presentation_id` plus a short redesign slug.
 - Ambiguous or untitled task: short task slug plus date/time.
 
 Rules:
@@ -40,7 +44,7 @@ Rules:
 Keep:
 
 - `.lark-slides/plan/<deck-or-task-id>/slide_plan.json` after successful creation or major rewrite. The plan is the editable design state for the deck.
-- A small manifest when useful for follow-up work, such as `xml_presentation_id`, slide IDs, `revision_id`, plan path, and verification status.
+- A small creation status note when useful for follow-up work, such as `xml_presentation_id`, slide IDs, `revision_id`, plan path, and verification status. Do not create a rewrite manifest for Template Rewrite Workflow.
 
 Clean or avoid keeping:
 

@@ -2,6 +2,8 @@
 
 局部编辑走 **shortcut [`+replace-slide`](lark-slides-replace-slide.md)**（块级替换 / 插入），配合 `xml_presentation.slide.get` 读原页拿 `block_id`。已有 Slides 的多页整页重建走 **[`+replace-pages`](lark-slides-replace-pages.md)**，保持原 presentation 链接不变。
 
+模板/底稿/PPTX/PDF/existing Slides 二创必须先读 [`template-rewrite-workflow.md`](template-rewrite-workflow.md)：以 `source.xml` 为源页骨架生成 replacement slide，不允许用 `python-pptx` 清空模板页、从 blank layout 重画、再导入新本地 PPTX 作为最终产物；也不允许把模板当背景后覆盖一套通用卡片层。
+
 > 生成 XML 前**必读** [xml-schema-quick-ref.md](xml-schema-quick-ref.md)。
 
 ## 决策树：block_replace vs block_insert
@@ -11,7 +13,7 @@
 | 已知某块的 `block_id`，要换这块内容（改标题、换图、挪坐标） | `block_replace` | 精准替换，原子性好；`replacement` 根 `id` 由 CLI 自动注入为 `block_id` |
 | 只加 1~N 个元素、不动现有布局 | `block_insert` | 新增不覆盖，可选 `insert_before_block_id` 指定位置 |
 | 一次动多个元素（如：换标题 + 加图） | 单次 `--parts` 里拼多条 | 整批作为原子事务，任一失败整批不生效；`block_replace` 和 `block_insert` 可混用 |
-| 多页版式重建、整页坐标重排 | `+replace-pages` | 原 presentation 内批量 create-before/delete-old，不生成新 Slides 链接 |
+| 模板二创、页面级改写、整页坐标调整 | `+replace-pages` | 原 presentation 内批量 create-before/delete-old；模板场景必须从源页 XML 骨架向外改，把新内容贴回源页已有容器、节点、箭头、时间线、图表/table 或注释，不生成新 Slides 链接 |
 
 > **没有字段级 patch**：即便只想改一个 `shape` 的 `topLeftX`，也得把整个块的新 XML 写出来用 `block_replace`。这不是"微调"，是块级重写。
 

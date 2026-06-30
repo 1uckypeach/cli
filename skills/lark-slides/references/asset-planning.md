@@ -1,8 +1,10 @@
 # Asset Planning
 
-新建演示文稿或大幅改写页面时，在写入 `slide_plan.json` 前后都可以参考本文件。目标是让 agent 主动识别有价值的图、图标、图表、流程图、时序图、架构图、装饰图案、截图或示意图需求，同时保持 deck 在没有真实素材时也能完整执行。
+本文件默认只供 Create Workflow / `planning-layer.md` 使用。新建演示文稿、从零大幅改写或用户明确要求重设计时，在写入 `slide_plan.json` 前后都可以参考本文件。目标是让 agent 主动识别有价值的图、图标、图表、流程图、时序图、架构图、装饰图案、截图或示意图需求，同时保持 deck 在没有真实素材时也能完整执行。
 
 本文件只定义轻量资产规划。不要把它理解成素材采集流程。
+
+模板二创不要为了 `asset_need` 重新规划或替换旧素材。模板二创中的旧素材、旧容器、旧样式以 `source.xml` 为准，由 `template-rewrite-workflow.md` 处理。
 
 ## Core Rules
 
@@ -12,6 +14,8 @@
 - Prefer a few high-value asset plans over one asset on every page. For a 6-page technical or business deck, plan assets on at least 3 pages when the content allows.
 - If a real local asset already exists or the user provides one, it can be used through the normal media-upload workflow. Still keep `fallback_if_missing` in the plan.
 - Do not leave blank image boxes in final XML. If the asset is missing, render the fallback visual.
+- In Template Rewrite Workflow, `fallback_if_missing` cannot cover, replace, or obscure existing source img/table/chart/whiteboard/shape/motif/text containers.
+- In Template Rewrite Workflow, reference fallback ideas only when the source page has no usable carrying area and a new visual element is truly required.
 
 ## JSON Shape
 

@@ -1,8 +1,10 @@
 # slides +replace-pages（多页整页重建）
 
-批量替换已有演示文稿里的多个页面，保持原 `xml_presentation_id` 和原 Slides 链接不变。适合多页版式大改、坐标重排、整页视觉重建；单个文本框、图片或 shape 的局部编辑仍优先用 [`+replace-slide`](lark-slides-replace-slide.md)。
+批量替换已有演示文稿里的多个页面，保持原 `xml_presentation_id` 和原 Slides 链接不变。适合模板二创、页面级改写、坐标调整和素材保留；单个文本框、图片或 shape 的局部编辑仍优先用 [`+replace-slide`](lark-slides-replace-slide.md)。
 
 > 重要：这是多步编排，不是后端原子事务。CLI 对每页执行“先创建新页到旧页前，再删除旧页”；创建失败时旧页会保留。删除失败时可能出现新旧页同时存在，需要按返回结果继续处理。
+
+> 模板二创重要边界：`+replace-pages` 消费完整 replacement slide XML，但这个 XML 应以 `source.xml` 的源页结构为骨架。不要用 `python-pptx` 清空模板页、从 blank layout 重画、生成新本地 PPTX 再导入来替代本命令；也不要把模板当背景，再覆盖一套通用卡片系统。
 
 ## 命令
 
@@ -42,6 +44,8 @@ lark-cli slides +replace-pages \
 
 - 每项必须提供 `slide_id`；不支持 `slide_number`。
 - `content` 必须是完整 `<slide>...</slide>` XML。
+- 模板二创时，`content` 应复用源页 `<style>`、`<img src>`、chart/table/whiteboard、shape、line/icon、文本容器等结构，只替换必要文本或局部元素。
+- 模板二创时，新内容应贴回源页已有 text container、图形标签、节点、箭头、时间线、chart/table 或注释容器；源页的 dominant structure 不能只留作背景装饰。
 - 同一批次不能重复 `slide_id`。
 - CLI 不会回读整份 presentation；如果 `slide_id` 已失效，create/delete 阶段会返回对应错误。
 
@@ -92,4 +96,5 @@ lark-cli slides +replace-pages --as user \
 1. 大幅改写前先 `xml_presentations.get` 保存当前 XML，并记录要替换页面的 `slide_id`。
 2. 生成只含 `slide_id` 的 `pages.json` 后先跑 `--dry-run` 或 `--validate-only`。
 3. 默认不要开 `--continue-on-error`，除非能接受部分页面已替换。
-4. 替换后再回读全文 XML 并截图检查，确认页序、视觉和文本没有破损。
+4. 模板二创不要把源页改成通用两卡、三卡、2x2 卡片，也不要用大白卡或大色块覆盖模板主体素材。源页如果有箭头、节点、时间线、图表、表格、几何结构、设备图或人物图，优先替换这些结构上的标签、数字和注释。
+5. 替换后再回读全文 XML，并按 `validation-checklist.md` 对比 `source.xml` 和 `readback.xml`；需要确认视觉一致性时，用 `slides +screenshot` 抽查封面、典型内容页、复杂结构页和结尾页。
