@@ -71,11 +71,15 @@ func historyRevertInput(token, versionID string) map[string]interface{} {
 // transactionIDFlag is the async-revert receipt selector used by
 // +history-revert-status: the transaction_id returned by +history-revert (NOT a
 // history version id — the facade-agg status tool keys on transaction_id).
+// Required at the cli surface (cobra MarkFlagRequired) — same gating model as
+// historyVersionIDFlag. Validate still trims + rejects empty/control-char
+// values to catch the "--transaction-id ''" cobra-accepts-but-empty case.
 func transactionIDFlag() common.Flag {
 	return common.Flag{
-		Name: "transaction-id",
-		Type: "string",
-		Desc: "Async revert transaction id (from +history-revert). Required.",
+		Name:     "transaction-id",
+		Type:     "string",
+		Required: true,
+		Desc:     "Async revert transaction id (from +history-revert).",
 	}
 }
 

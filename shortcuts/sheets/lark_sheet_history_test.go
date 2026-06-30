@@ -4,11 +4,9 @@
 package sheets
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
-	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -132,14 +130,11 @@ func TestHistoryRevert_MissingRequiredFlag(t *testing.T) {
 		t.Parallel()
 		_, _, err := runShortcutCapturingErr(t, HistoryRevertStatus, []string{"--url", testURL})
 		if err == nil {
-			t.Fatalf("%s: expected validation error for missing --transaction-id", HistoryRevertStatus.Command)
+			t.Fatalf("%s: expected error for missing --transaction-id", HistoryRevertStatus.Command)
 		}
-		var validationErr *errs.ValidationError
-		if !errors.As(err, &validationErr) {
-			t.Fatalf("%s: error = %T %v, want *errs.ValidationError", HistoryRevertStatus.Command, err, err)
-		}
-		if validationErr.Param != "--transaction-id" {
-			t.Fatalf("%s: param = %q, want --transaction-id", HistoryRevertStatus.Command, validationErr.Param)
+		msg := err.Error()
+		if !strings.Contains(msg, "required flag(s)") || !strings.Contains(msg, "transaction-id") {
+			t.Fatalf("%s: cobra error = %q, want substrings 'required flag(s)' and 'transaction-id'", HistoryRevertStatus.Command, msg)
 		}
 	})
 }

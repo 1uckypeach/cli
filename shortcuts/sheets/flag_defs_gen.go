@@ -669,7 +669,7 @@ var flagDefs = map[string]commandDef{
 		Flags: []flagDef{
 			{Name: "url", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet locator"},
 			{Name: "spreadsheet-token", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet locator"},
-			{Name: "transaction-id", Kind: "own", Type: "string", Required: "optional", Desc: "Async revert transaction id (from +history-revert)."},
+			{Name: "transaction-id", Kind: "own", Type: "string", Required: "required", Desc: "Async revert transaction id (from +history-revert)."},
 			{Name: "dry-run", Kind: "system", Type: "bool", Required: "optional"},
 		},
 	},

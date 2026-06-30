@@ -4912,7 +4912,7 @@
         "name": "transaction-id",
         "kind": "own",
         "type": "string",
-        "required": "optional",
+        "required": "required",
         "desc": "Async revert transaction id (from +history-revert)."
       },
       {
