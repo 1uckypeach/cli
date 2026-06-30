@@ -50,6 +50,17 @@ func TestHistoryShortcuts_DryRun(t *testing.T) {
 			},
 		},
 		{
+			name:     "+history-list paginates with --end-version",
+			sc:       HistoryList,
+			args:     []string{"--url", testURL, "--end-version", "12345"},
+			toolName: "history_list",
+			wantPath: "invoke_read",
+			wantInput: map[string]interface{}{
+				"excel_id":    testToken,
+				"end_version": float64(12345), // post-JSON-unmarshal numeric type
+			},
+		},
+		{
 			name:     "+history-revert routes to invoke_write with version id",
 			sc:       HistoryRevert,
 			args:     []string{"--url", testURL, "--history-version-id", versionID},

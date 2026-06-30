@@ -1702,8 +1702,8 @@
         "kind": "own",
         "type": "int",
         "required": "optional",
-        "desc": "Safety cap; default 200000",
-        "default": "200000",
+        "desc": "Safety cap; default 50000",
+        "default": "50000",
         "hidden": true
       },
       {
@@ -4841,6 +4841,13 @@
         "type": "string",
         "required": "xor",
         "desc": "Spreadsheet locator"
+      },
+      {
+        "name": "end-version",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Max version to query (descending pagination). Omit on the first call; pass next_end_version from the previous response."
       },
       {
         "name": "dry-run",

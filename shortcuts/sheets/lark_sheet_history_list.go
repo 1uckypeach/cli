@@ -41,6 +41,12 @@ func historyLocatorFlags() []common.Flag {
 // versions. Each item carries history_version_id / create_time / action /
 // all_block_revision (projected server-side). An empty sheet yields an empty
 // list and exit 0.
+//
+// Backward pagination: --end-version (optional int) maps to the tool's
+// `end_version` parameter. Omit on the first call to fetch the latest page.
+// On subsequent pages pass the previous response's next_end_version as
+// --end-version. The tool returns next_end_version + has_more only when
+// more history exists; both fields are absent at the earliest page.
 var HistoryList = common.Shortcut{
 	Service:     "sheets",
 	Command:     "+history-list",
@@ -49,21 +55,23 @@ var HistoryList = common.Shortcut{
 	Scopes:      []string{"sheets:spreadsheet:read"},
 	AuthTypes:   []string{"user", "bot"},
 	HasFormat:   true,
-	Flags:       historyLocatorFlags(),
+	Flags: append(historyLocatorFlags(),
+		common.Flag{Name: "end-version", Type: "int", Desc: "Max version to query (descending pagination). Omit on the first call; pass the previous response's next_end_version on subsequent pages."},
+	),
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		_, err := resolveSpreadsheetToken(runtime)
 		return err
 	},
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
 		token, _ := resolveSpreadsheetToken(runtime)
-		return invokeToolDryRun(token, ToolKindRead, "history_list", historyListInput(token))
+		return invokeToolDryRun(token, ToolKindRead, "history_list", historyListInput(runtime, token))
 	},
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		token, err := resolveSpreadsheetTokenExec(runtime)
 		if err != nil {
 			return err
 		}
-		out, err := callTool(ctx, runtime, token, ToolKindRead, "history_list", historyListInput(token))
+		out, err := callTool(ctx, runtime, token, ToolKindRead, "history_list", historyListInput(runtime, token))
 		if err != nil {
 			return err
 		}
@@ -73,9 +81,17 @@ var HistoryList = common.Shortcut{
 	},
 	Tips: []string{
 		"Capture a history_version_id from the result to feed +history-revert.",
+		"For older history, capture next_end_version from the response and pass it as --end-version on the next call (omitted by the server when the earliest page is reached).",
 	},
 }
 
-func historyListInput(token string) map[string]interface{} {
-	return map[string]interface{}{"excel_id": token}
+// historyListInput composes the history_list tool input. --end-version is
+// optional: include it only when explicitly set so the server treats absence
+// as "first page (latest)".
+func historyListInput(runtime *common.RuntimeContext, token string) map[string]interface{} {
+	in := map[string]interface{}{"excel_id": token}
+	if runtime.Changed("end-version") {
+		in["end_version"] = runtime.Int("end-version")
+	}
+	return in
 }
