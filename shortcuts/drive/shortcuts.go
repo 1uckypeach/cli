@@ -31,6 +31,7 @@ func Shortcuts() []common.Shortcut {
 		DriveTaskResult,
 		DriveApplyPermission,
 		DriveMemberAdd,
+		DrivePublicPermissionUpdate,
 		DriveSecureLabelList,
 		DriveSecureLabelUpdate,
 		DriveSearch,

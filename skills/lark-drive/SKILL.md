@@ -32,6 +32,7 @@ metadata:
 - 用户要在 Drive 里上传、创建、读取、局部 patch 或覆盖更新**原生 `.md` 文件**（不是导入成 docx），切到 [`lark-markdown`](../lark-markdown/SKILL.md)。
 - 用户要比较原生 `.md` 文件的**历史版本差异**，或比较远端 Markdown 与本地草稿，切到 [`lark-markdown`](../lark-markdown/SKILL.md) 的 `lark-cli markdown +diff`；需要版本号时先用 `drive +version-history`。
 - 用户要查看、下载、回滚或删除文件的**历史版本**，使用 `drive +version-history`、`drive +version-get`、`drive +version-revert`、`drive +version-delete`；这组命令同时支持 `--as user` 和 `--as bot`，自动化场景优先 `--as bot`。
+- 用户要修改文档公开权限设置（链接分享、对外分享、谁可评论/复制/管理协作者），优先使用 `lark-cli drive +public-permission-update`，并先阅读 [`references/lark-drive-public-permission-update.md`](references/lark-drive-public-permission-update.md)。这是 `high-risk-write`，执行前必须 `--dry-run`，真正执行需 `--yes`。
 - 用户要把本地 `.xlsx` / `.xls` / `.csv` 导入成电子表格，使用 `lark-cli drive +import --type sheet`。
 - 用户要在云空间（云盘/云存储）里新建文件夹，优先使用 `lark-cli drive +create-folder`。
 - 用户要查看某个文件有哪些可下载预览格式，或想下载 PDF / HTML / 文本 / 图片等预览产物，使用 `lark-cli drive +preview`。
@@ -105,7 +106,7 @@ lark-cli drive +inspect --url 'https://xxx.feishu.cn/wiki/wikcnXXX'
 
 ### 权限能力入口
 
-- 用户要管理 Drive 文档/文件协作者、公开权限、授权当前应用访问文档，或处理 `permission.public.patch` 的 `91009` / `91010` / `91011` / `91012` 错误时，先读 [`lark-drive-permission-guide.md`](references/lark-drive-permission-guide.md)。
+- 用户要管理 Drive 文档/文件协作者、授权当前应用访问文档，或做权限治理 / 排障时，先读 [`lark-drive-permission-guide.md`](references/lark-drive-permission-guide.md)；如果是修改公开权限设置（链接分享、对外分享、谁可评论 / 复制 / 管理协作者），仍按快速决策走 [`lark-drive-public-permission-update.md`](references/lark-drive-public-permission-update.md)。
 - 用户只是没有访问权限并希望向 owner 申请访问，优先使用 [`+apply-permission`](references/lark-drive-apply-permission.md)。
 - 普通 scope、身份或登录问题仍按 [`lark-shared`](../lark-shared/SKILL.md) 处理；不要把租户安全策略、对外分享、密级拦截简单归类为缺 scope。
 
@@ -148,6 +149,7 @@ Shortcut 是对常用操作的高级封装（`lark-cli drive +<verb> [flags]`）
 | [`+inspect`](references/lark-drive-inspect.md) | 检视 URL 的类型、标题和 canonical token；wiki URL 会自动解包到底层文档。 |
 | [`+apply-permission`](references/lark-drive-apply-permission.md) | 以 user 身份向文档 owner 申请访问权限。 |
 | [`+member-add`](references/lark-drive-member-add.md) | 添加一个或最多 10 个 Drive 文档、文件、文件夹或 wiki 节点协作者/授权成员；封装 Drive permission member create/batch_create，真实写入需要 `--yes`。 |
+| [`+public-permission-update`](references/lark-drive-public-permission-update.md) | 更新公开权限设置。高风险写操作：先 `--dry-run`，确认目标和字段后再传 `--yes`。 |
 | [`+secure-label-list`](references/lark-drive-secure-label.md) | 列出当前用户可用的密级标签。 |
 | [`+secure-label-update`](references/lark-drive-secure-label.md) | 更新 Drive 文件或文档的密级标签。 |
 
