@@ -51,7 +51,7 @@ _公共：URL/token（无 sheet 定位） · 系统：`--dry-run`_
 
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `--history-version-id` | string | optional | 要回滚到的历史版本（取自 +history-list） |
+| `--history-version-id` | string | required | 要回滚到的历史版本（取自 +history-list） |
 
 ### `+history-revert-status`
 
@@ -59,7 +59,7 @@ _公共：URL/token（无 sheet 定位） · 系统：`--dry-run`_
 
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `--transaction-id` | string | optional | 异步回滚的受理标识（取自 +history-revert） |
+| `--transaction-id` | string | required | 异步回滚的受理标识（取自 +history-revert） |
 
 ## Examples
 
