@@ -67,7 +67,7 @@ metadata:
 | 看子表结构（合并 / 行高列宽 / 冻结 / 隐藏） | `+sheet-info` | `+sheet-get`、`+structure-get`、`+sheet-structure-get` |
 | 看工作簿 / 子表清单 | `+workbook-info` | `+sheet-list`、`+workbook-get`、`+workbook-list` |
 | 导出 xlsx / 单表 csv | `+workbook-export` | — |
-| 导入本地 xlsx/xls/csv 文件为飞书电子表格 | `+workbook-import --file ./x.xlsx`（本地表格文件 → 飞书电子表格的正解；仅要导成多维表格 bitable 时才用 `drive +import --type bitable`） | `drive +import`（导电子表格时绕了 drive 通道、还要多给 `--type`，应直接用 `+workbook-import`）、把 .xlsx 在本地读成数据再 `+workbook-create` 重灌 |
+| 导入本地 xlsx/xls/csv 文件为飞书电子表格 | `+workbook-import --file ./x.xlsx`（本地表格文件 → 飞书电子表格的正解；仅要导成多维表格 bitable 时才用 `drive +import --type bitable`） | `drive +import`（导电子表格时绕了 drive 通道、还要多给 `--type`，应直接用 `+workbook-import`）、把 .xlsx 在本地读成数据再 `+workbook-create` 重灌（多此一举，应直接 `+workbook-import`） |
 | 清除内容 / 格式 | `+cells-clear`（范围维度用 `--scope`，取值 content / formats / all） | `--type` |
 | 批量清除多区域 | `+cells-batch-clear`（`--scope`） | `--target` |
 | 调整列宽 / 行高 | `+cols-resize` / `+rows-resize`（行、列是两个独立命令） | `--dimension`（无此 flag） |
