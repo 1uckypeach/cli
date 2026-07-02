@@ -70,6 +70,7 @@ func shortcutList() []common.Shortcut {
 	return []common.Shortcut{
 		// lark_sheet_workbook
 		WorkbookInfo,
+		RevisionGet,
 		SheetCreate,
 		SheetDelete,
 		SheetRename,
@@ -94,6 +95,9 @@ func shortcutList() []common.Shortcut {
 		DimGroup,
 		DimUngroup,
 		DimMove,
+
+		// lark_sheet_changeset
+		ChangesetGet,
 
 		// lark_sheet_read_data
 		CellsGet,
