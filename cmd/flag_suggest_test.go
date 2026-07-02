@@ -4,11 +4,13 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -77,6 +79,40 @@ func TestFlagDidYouMean_UnknownFlagSuggestsAndListsValid(t *testing.T) {
 	// The same candidate is also carried in the human-facing hint.
 	if !strings.Contains(verr.Hint, "--range") {
 		t.Errorf("hint should suggest --range, got %q", verr.Hint)
+	}
+}
+
+func TestFlagDidYouMean_WikiNodeGetSuggestsNodeToken(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_REMOTE_META", "off")
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	root := Build(context.Background(), cmdutil.InvocationContext{}, WithoutPlugins())
+	root.SetArgs([]string{
+		"wiki", "+node-get",
+		"--node", "https://feishu.cn/wiki/wikcnABC",
+		"--as", "user",
+	})
+
+	err := root.Execute()
+	var verr *errs.ValidationError
+	if !errors.As(err, &verr) {
+		t.Fatalf("expected *errs.ValidationError, got %T (%v)", err, err)
+	}
+	if len(verr.Params) != 1 || verr.Params[0].Name != "--node" {
+		t.Fatalf("Params = %v, want one entry named --node", verr.Params)
+	}
+	found := false
+	for _, s := range verr.Params[0].Suggestions {
+		if s == "--node-token" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Params[0].Suggestions = %v, want --node-token", verr.Params[0].Suggestions)
+	}
+	if !strings.Contains(verr.Hint, "--node-token") {
+		t.Fatalf("hint = %q, want --node-token", verr.Hint)
 	}
 }
 
