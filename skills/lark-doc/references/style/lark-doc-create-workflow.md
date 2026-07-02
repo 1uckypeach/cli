@@ -16,7 +16,9 @@
 
 ## 典型 Code-Act Loop 流程
 
-### 步骤一：规划与初始创建（串行）
+### 步骤一：规划与撰写（单 Agent 串行）
+
+正文由主 Agent 一人从规划到撰写从头到尾完成，**不拆分给并行子 Agent 分节写**——文档要靠全局视角保证前后连贯、不重复、不矛盾；分节并行会丢掉这个视角，也无法执行「全文级」的组件约束（这类约束没有任何单节子 Agent 看得到全文）。
 
 1. 分析用户需求：受众、目的、范围
 2. 设计大纲：根据任务自然选择结构。可以是短文、纪要、FAQ、方案、报告、清单或其他形式；不要默认套固定章节、固定开头或固定富 block 配比
@@ -24,36 +26,47 @@
    - ⚠️ 创建较长文档时，**不要**一次性把完整章节内容塞进 `--content`。超长 `--content` 容易触发字符/参数限制。
    - 完整内容留到步骤二，由各 Agent 用 `block_insert_after --block-id <章节标题 block_id>` 分段写入。
    - ⚠️ **`@file` 路径限制**：`--content @file` 只接受当前工作目录下的相对路径，传绝对路径（如 `@/tmp/xxx.md`）会报 `unsafe file path`。需要落盘时，将文件写在 cwd 下，用完自行清理。
+3. `docs +create --api-version v2` 创建并撰写：
+   - **短文档**：一次写入完整内容
+   - **长文档**：先建骨架（标题 + 各级标题），再由主 Agent **顺序逐节**用 `block_insert_after --block-id <章节标题 block_id>` 补全正文；写完一节再写下一节，始终带着已写内容的上下文，保证衔接、不重复
+   - ⚠️ 不要一次性把超长完整内容塞进 `--content`，容易触发字符/参数限制；长文按节分次写入
+   - ⚠️ 同一节内多次插入时，要锚到**上一个新插入的 block**（按 [`lark-doc-update.md`](../lark-doc-update.md) 的「Block ID 生命周期」），否则反复锚同一个标题会让段落顺序颠倒
+   - ⚠️ 若先建骨架写了占位摘要，补正文时**删除占位摘要**，不要留残渣
+   - ⚠️ **`@file` 路径限制**：`--content @file` 只接受当前工作目录下的相对路径，传绝对路径（如 `@/tmp/xxx.md`）会报 `unsafe file path`。需要落盘时，将文件写在 cwd 下，用完自行清理
 
-### 步骤二：分段撰写（并行 Agent）
+### 步骤二：整合审查与画板识别（串行）
 
-4. Spawn Agent 并行撰写各章节。每个 Agent 需收到：
-   - 文档 token、负责的章节范围、用户目标、目标读者和已有风格线索
-   - `lark-doc-xml.md` 和 `lark-doc-style.md` 的完整路径（Agent 须先读取）
-   - 使用 `block_insert_after --block-id <章节标题 block_id>` 写入对应章节内容
+4. `docs +fetch --api-version v2 --detail with-ids` 获取文档，审查整体效果
+5. 评估内容是否满足用户目标：事实是否完整、结构是否清楚、语气是否匹配、是否保留必要素材；检查跨节有无重复、矛盾或断流。再按 `lark-doc-style.md` 的写作原则**逐节核对**，发现问题就地定向修正：
+   - **去列举**：叙述性内容（背景 / 现状 / 认识 / 分析 / 成效等）是否被做成了列举？是则改成段落；列举只留给真正并列的具体措施 / 步骤 / 清单。
+   - **查"通篇一是二是"**：是不是每个方面 / 每节都齐刷刷"一是 / 二是 / 三是"、几乎没有叙述段落？是则给背景 / 认识 / 分析 / 过渡补上段落，「一是 / 二是」只收到列具体问题 / 措施那一处（纯清单 / 台账类除外）。
+   - **查编号**：全篇是否一套、不跳号、不跳级；**有没有中文序号 + 阿拉伯小数混用（一、+ 1.1）**。
+   - **查呈现**：成行成列的数据是否该用表格却写成了段落 / "A+B+C"串？"小标题 + 一句话"的小项是否被升成了标题？是则按 `lark-doc-style.md` §二改成表格 / 标签行 / 加粗引导句段落。
+   - **查组件**：高亮块 / 分栏 / 画板 / 颜色是否克制、符合体裁。
+6. **画板识别**：逐章节扫描，判断是否有段落用图明显比文字更易懂（流程 / 架构 / 时间线 / 对比 / 占比等，见 `lark-doc-style.md` 的画板原则）。默认用文字，只有确需图示才记录需要插图的章节、推荐画板类型、mermaid/SVG 路径和用于画图的源内容
 
-### 步骤三：整合审查与画板识别（串行）
+### 步骤三：画板处理与润色
 
 5. `docs +fetch --detail with-ids` 获取文档，审查整体效果
 6. 评估内容是否满足用户目标：事实是否完整、结构是否清楚、语气是否匹配、是否保留必要素材
 7. **画板意图识别**：逐章节扫描，按 `lark-doc-style.md`「画板意图识别」表判断是否有段落适合用图表达。重要信息优先画板化，记录需要插图的章节、推荐画板类型、mermaid/SVG 路径和用于画图的源内容
+7. **优先处理步骤二识别出的画板需求**：参考 [lark-doc-whiteboard.md](../lark-doc-whiteboard.md) 中的方式插入图表画板。画板渲染仍隔离到 SubAgent（见下方「画板 SubAgent 子任务要求」），正文本身不交给子 Agent
+8. 由**主 Agent 自行润色**（不另起内容子 Agent，正文始终一人维护）：文字密集且不易读时，优先拆段、加小标题或调整顺序——叙述内容保持成段，**不要默认改成列表**，只有确属并列要点 / 步骤才用列表（见 `lark-doc-style.md`）；只有确实存在行列数据时才用 `<table>`。其余富 block 的取舍一律遵循 `lark-doc-style.md` 的写作原则，不主动堆叠。需要明显分隔的主题可补充 `<hr/>`，不强制章节间都使用。本地图片使用 `docs +media-insert` 插入
 
 ### 步骤四：画板处理与润色（并行 Agent）
 
-8. **优先处理步骤三识别出的画板需求**：
-   参考 [lark-doc-whiteboard.md](../lark-doc-whiteboard.md)中的方式，插入图表画板。
-9. Spawn 内容改写 Agent 定向润色：
-   - 文字密集且不易读时，优先拆段、改列表、增加小标题或调整顺序；只有确实存在行列数据、并列对比或强提醒信息时，才考虑 `<table>` / `<grid>` / `<callout>`
-   - 需要明显分隔的主题可补充 `<hr/>`，不强制章节间都使用
-   - 本地图片使用 `docs +media-insert` 插入
+**仅当**用户给了明确字数要求（写 N 字 / x-y 字 / x 字左右 / 上下浮动）时执行；否则**跳过本步**。字数必须用脚本量，不要自己估。
+
+1. 把要求归一成参数：`>x`→`--min x`；`<y`→`--max y`；`x-y`→`--min x --max y`；`x 字左右`→`--approx x`（自动 ±10%）
+2. 量实际字数（对齐飞书「总字数」）：`uv run scripts/count_chars.py --doc <document_id> <上面的目标参数>`（脚本在 lark-doc skill 根的 `scripts/` 下）
+3. 看输出 `verdict`：`pass` 即通过；`under` → 在最该展开的节补**实质内容**（非注水）；`over` → 从最长/最冗余处删减。改完**重新跑脚本复测**
+4. **最多 2 轮**。2 轮后仍不达标：停止，不得为达标而注水或删关键内容；如实汇报【目标区间 / 当前字数 / 差值与方向 / 已试 2 轮 / 未达原因】并交付文档链接，**禁止谎称达标**
 
 
-## Agent 子任务要求
-
-内容改写 Agent 必须收到：文档 token、章节范围（标题/block ID）、`lark-doc-xml.md` 和 `lark-doc-style.md` 路径、用户目标/风格要求、具体的 `docs +update` command 和 `--block-id`。
+## 画板 SubAgent 子任务要求
 
 Mermaid 图由主 Agent 直接插入 `<whiteboard type="mermaid">...</whiteboard>`，无需 SubAgent。
 
-SVG SubAgent 必须收到：文档 token、插入位置（标题/block ID）、图表目标、源内容片段、`lark-doc-xml.md` 路径，以及[lark-doc-whiteboard.md](../lark-doc-whiteboard.md) 中的 "SVG 设计 Workflow" 指南。它只负责插入一个 `<whiteboard type="svg">...</whiteboard>`，不改其他正文，也不读取 `lark-whiteboard`。
+SVG SubAgent 必须收到：文档 token、插入位置（标题/block ID）、图表目标、源内容片段、`lark-doc-xml.md` 路径，以及 [lark-doc-whiteboard.md](../lark-doc-whiteboard.md) 中的 "SVG 设计 Workflow" 指南。它只负责插入一个 `<whiteboard type="svg">...</whiteboard>`，不改其他正文，也不读取 `lark-whiteboard`。
 
 已有画板更新 SubAgent 必须收到：board_token、图表目标、推荐画板类型、源内容片段、[`../../../lark-whiteboard/SKILL.md`](../../../lark-whiteboard/SKILL.md) 路径。它只负责写入画板，不改文档正文。
