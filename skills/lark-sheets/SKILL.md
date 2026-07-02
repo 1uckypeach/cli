@@ -50,32 +50,34 @@ metadata:
 
 ## 场景 → 命令速查（拿不准命令名先查这里，别按直觉拼）
 
-把高频意图映射到**真实存在**的 shortcut / flag。agent 常从 Excel / Google Sheets / 飞书 OpenAPI 误迁移命令名或 flag，先对照本表，避免一次必然失败的试错。完整 shortcut 见各工具参考。
+把高频意图映射到**真实存在**的 shortcut / flag。agent 常从 Excel / Google Sheets / 飞书 OpenAPI 误迁移命令名或 flag，先对照本表，避免一次必然失败的试错。完整 shortcut 见各工具参考。**选定命令后别急着写——先读「动手前读」列指向的 reference 再动手**：命令名对得上不代表用法对，写入 / 清除 / 透视类尤其容易漏掉 reference 里的防错、类型与样式继承规则。
 
-| 你要做的事 | ✅ 正确写法 | ❌ 不存在（会被 cobra 拒） |
-| --- | --- | --- |
-| 读数据（纯值 / CSV） | `+csv-get`（范围用 `--range`） | `+get-range`、`+range-get`、`+cells-read` |
-| 读值 + 公式 / 样式 / 批注 | `+cells-get --include value,formula,style,comment,data_validation` | `+get-cell`、`+cell-get`、`--with-styles`、`--with-merges`、`--include-merged-cells` |
-| 写纯文本值（整块 CSV 平铺，列里没有需保留的数值 / 日期语义） | `+csv-put`（定位用 `--start-cell`，单个左上角锚点格；也接受 `--range` 别名，区间自动取左上角） | — |
-| 写带类型的数据到**已有**表（列里有数字 / 金额 / 百分比 / 日期 / 计数，要可排序 / 求和 / 入图表 / 透视） | `+table-put --sheets` 完整 payload `{"sheets":[{...}]}`（列名走 `columns`、二维数据走 `data`、列 pandas dtype 走 `dtypes`、列展示格式走 `formats`；来源不限 DataFrame——Counter / dict / list 同理；要同时美化加 `--styles` 一步带样式（区域底色 / 边框 / 列宽 / 行高 / 合并），不必事后再刷；payload 里不存在的 sheet 名会自动建子表，详见 write-cells） | 在本地把数字拼成 `"$1,234"` / `"30.5%"` 字符串再 `+csv-put`（会落成文本、丢失计算能力） |
-| **新建**电子表格并写带类型的数据（类型保真需求同上，但目标表还不存在） | `+workbook-create --sheets`（协议与 `+table-put` 同构、一步建表 + typed 写入，无需先建空表再 `+table-put`；date / number 不丢；`--styles` 同样可在建表同一步带全套样式，详见 workbook） | 用 `--values` 灌日期 / 数字（会落成文本、丢类型） |
-| 写值 / 公式 / 样式 | `+cells-set`（定位用 `--range`） | — |
-| 插图：图片**绑定到某条记录**、随行走（凭证 / 证件照 / 商品图 / 头像 / 二维码 / 每行配图） | `+cells-set-image`（单格 `--range`，嵌入单元格内） | — |
-| 插图：**自由摆放、不绑数据**的装饰 / 标识（logo / 水印 / 封面大图 / banner） | `+float-image-create`（浮动图片，自由定位 + 尺寸 + 层级） | — |
-| 查找单元格 | `+cells-search`（关键字用 `--find`） | `+cells-find`、`+find`、`--query` |
-| 查找并替换 | `+cells-replace` | — |
-| 看子表结构（合并 / 行高列宽 / 冻结 / 隐藏） | `+sheet-info` | `+sheet-get`、`+structure-get`、`+sheet-structure-get` |
-| 看工作簿 / 子表清单 | `+workbook-info` | `+sheet-list`、`+workbook-get`、`+workbook-list` |
-| 导出 xlsx / 单表 csv | `+workbook-export` | — |
-| 导入本地 xlsx/xls/csv 文件为飞书电子表格 | `+workbook-import --file ./x.xlsx`（本地表格文件 → 飞书电子表格的正解；仅要导成多维表格 bitable 时才用 `drive +import --type bitable`） | `drive +import`（导电子表格时绕了 drive 通道、还要多给 `--type`，应直接用 `+workbook-import`）、把 .xlsx 在本地读成数据再 `+workbook-create` 重灌（多此一举，应直接 `+workbook-import`） |
-| 清除内容 / 格式 | `+cells-clear`（范围维度用 `--scope`，取值 content / formats / all） | `--type` |
-| 批量清除多区域 | `+cells-batch-clear`（`--scope`） | `--target` |
-| 调整列宽 / 行高 | `+cols-resize` / `+rows-resize`（行、列是两个独立命令） | `--dimension`（无此 flag） |
-| 分组汇总 / 透视 | `+pivot-create`（默认不传落点 flag → 自动新建子表，零覆盖） | 用 SUMIF / 本地脚本拼一张假透视表 |
+| 你要做的事 | ✅ 正确写法 | 动手前读 | ❌ 不存在（会被 cobra 拒） |
+| --- | --- | --- | --- |
+| 读数据（纯值 / CSV） | `+csv-get`（范围用 `--range`） | `lark-sheets-read-data` | `+get-range`、`+range-get`、`+cells-read` |
+| 读值 + 公式 / 样式 / 批注 | `+cells-get --include value,formula,style,comment,data_validation` | `lark-sheets-read-data` | `+get-cell`、`+cell-get`、`--with-styles`、`--with-merges`、`--include-merged-cells` |
+| 写纯文本值（整块 CSV 平铺，列里没有需保留的数值 / 日期语义） | `+csv-put`（定位用 `--start-cell`，单个左上角锚点格；也接受 `--range` 别名，区间自动取左上角） | `lark-sheets-write-cells` | — |
+| 写带类型的数据到**已有**表（列里有数字 / 金额 / 百分比 / 日期 / 计数等**本质是量值**的数据——不看当下要不要排序 / 求和，量值一律走这里） | `+table-put --sheets` 完整 payload `{"sheets":[{...}]}`（列名走 `columns`、二维数据走 `data`、列 pandas dtype 走 `dtypes`、列展示格式走 `formats`；来源不限 DataFrame——Counter / dict / list 同理；要同时美化加 `--styles` 一步带样式（区域底色 / 边框 / 列宽 / 行高 / 合并），不必事后再刷；payload 里不存在的 sheet 名会自动建子表，详见 write-cells） | `lark-sheets-write-cells` | 在本地把数字拼成 `"$1,234"` / `"30.5%"` 字符串再 `+csv-put`（会落成文本、丢失计算能力）；或以"只是 leaderboard / 报表展示、又不用算"为由把百分比写成 `"54%"`（展示用途不改变"百分比是数值"的事实） |
+| **新建**电子表格并写带类型的数据（类型保真需求同上，但目标表还不存在） | `+workbook-create --sheets`（协议与 `+table-put` 同构、一步建表 + typed 写入，无需先建空表再 `+table-put`；date / number 不丢；`--styles` 同样可在建表同一步带全套样式，详见 workbook） | `lark-sheets-workbook` | 用 `--values` 灌日期 / 数字（会落成文本、丢类型） |
+| 写公式 / 富写入（样式 · 批注 · 图片 · 富文本），或需精确矩形定位的值 | `+cells-set`（定位用 `--range`；批注 / 图片 / 富文本只能用它，公式也可） | `lark-sheets-write-cells` | — |
+| 插图：图片**绑定到某条记录**、随行走（凭证 / 证件照 / 商品图 / 头像 / 二维码 / 每行配图） | `+cells-set-image`（单格 `--range`，嵌入单元格内） | `lark-sheets-write-cells` | — |
+| 插图：**自由摆放、不绑数据**的装饰 / 标识（logo / 水印 / 封面大图 / banner） | `+float-image-create`（浮动图片，自由定位 + 尺寸 + 层级） | `lark-sheets-float-image` | — |
+| 查找 / 替换文本 | `+cells-search`（找，关键字用 `--find`）、`+cells-replace`（替换） | `lark-sheets-search-replace` | `+cells-find`、`+find`、`--query` |
+| 看子表结构（合并 / 行高列宽 / 冻结 / 隐藏） | `+sheet-info` | `lark-sheets-sheet-structure` | `+sheet-get`、`+structure-get`、`+sheet-structure-get` |
+| 看工作簿 / 子表清单 | `+workbook-info` | `lark-sheets-workbook` | `+sheet-list`、`+workbook-get`、`+workbook-list` |
+| 导出 xlsx / 单表 csv | `+workbook-export` | `lark-sheets-workbook` | — |
+| 导入本地 xlsx/xls/csv 文件为飞书电子表格 | `+workbook-import --file ./x.xlsx`（本地表格文件 → 飞书电子表格的正解；仅要导成多维表格 bitable 时才用 `drive +import --type bitable`） | `lark-sheets-workbook` | `drive +import`（导电子表格时绕了 drive 通道、还要多给 `--type`，应直接用 `+workbook-import`）、把 .xlsx 在本地读成数据再 `+workbook-create` 重灌（多此一举，应直接 `+workbook-import`） |
+| 清除内容 / 格式 | `+cells-clear`（范围维度用 `--scope`，取值 content / formats / all） | `lark-sheets-range-operations` | `--type` |
+| 批量清除多区域 | `+cells-batch-clear`（`--scope`） | `lark-sheets-batch-update` | `--target` |
+| 调整列宽 / 行高 | `+cols-resize` / `+rows-resize`（行、列是两个独立命令） | `lark-sheets-range-operations` | `--dimension`（无此 flag） |
+| 分组汇总 / 透视 | `+pivot-create`（默认不传落点 flag → 自动新建子表，零覆盖） | `lark-sheets-pivot-table` | 用 SUMIF / 本地脚本拼一张假透视表 |
+| 画图表 / 可视化（柱 / 折线 / 饼 / 条 / 散点 / 组合…） | `+chart-create` | `lark-sheets-chart` | matplotlib / 本地画图再贴图（原生图表可交互、随数据更新） |
+| 条件高亮 / 数据条 / 色阶 / 重复值标记 | `+cond-format-create` | `lark-sheets-conditional-format` | `+highlight`、`+conditional-format`、逐格 `+cells-set-style` 硬凑 |
+| 筛选 / 只看符合条件的行 | `+filter-create` | `lark-sheets-filter` | pandas filter 后覆盖写回（会毁原数据；要保存多份筛选状态用 `+filter-view-create`） |
 
 > ⚠️ **动手前的触发式必读（按动作判定，不看主场景）**：本次操作只要**涉及样式 / 美化**（底色 / 边框 / 字号 / 对齐 / 数字格式 / 汇总行 / 配色 / 列宽行高），动手前先读 `lark-sheets-visual-standards`；只要**要写飞书公式**，动手前先读 `lark-sheets-formula-translation`（飞书函数与 Excel 有差异，凭直觉迁移易错）。哪怕主任务是"建表 / 展开数据 / 录入"，只要动作里含美化或写公式就适用——别因"这不算专门的美化 / 公式任务"而跳过。
 > ⚠️ **两种图片别选错**：图若**绑定某条记录、要随行排序 / 筛选 / 增删**（凭证 / 证件照 / 每行配图，话里带「对应 / 每行 / 这列」等绑定词）→ 单元格图片 `+cells-set-image`；只是自由摆放的装饰（logo / 水印 / 封面）→ 浮动图片 `+float-image-create`。别因「浮动图更好控制 / 更熟」默认选浮动图。
-> ⚠️ **纯文本还是数值语义**：要写的列里有数字 / 金额 / 百分比 / 日期 / 计数 → `+table-put`（写入已有表；外层 `{"sheets":[...]}` 包裹、列 pandas dtype 用 `dtypes`、展示格式用 `formats`，保留排序 / 求和 / 图表 / 透视能力；**目标表还不存在就用 `+workbook-create --sheets`**，同 typed 协议、一步建表 + 写入，别先建空表再 `+table-put`）；纯文本且只是把值平铺、无需顺带美化时才用 `+csv-put`（要美化见下条）。两者写完显示可以完全相同，但 `+csv-put` 落的是文本、不能参与计算——别把数值在本地拼成带 `$` / `%` 的字符串再走 `+csv-put`。
+> ⚠️ **纯文本还是数值语义（看数据本质，不看当下用途）**：要写的列里有金额 / 百分比 / 比率 / 计数 / 日期等**本质是量值**的数据 → 一律数值写入，**与"当下要不要排序 / 求和"无关**（"只是 leaderboard / 报表展示、不用算"不是写成 `"54%"` 文本的理由——展示用途不改变百分比是数值的事实）：常规二维表用 `+table-put`（外层 `{"sheets":[...]}` 包裹、列 pandas dtype 用 `dtypes`、展示格式用 `formats`，保留排序 / 求和 / 图表 / 透视能力；**目标表还不存在就用 `+workbook-create --sheets`**，同 typed 协议、一步建表 + 写入，别先建空表再 `+table-put`）。只有编号 / 身份证 / 单据号这类**本质是标识符**、要字面保真的才算纯文本，用 `+csv-put` 平铺；别把数值在本地拼成带 `$` / `%` 的字符串再走 `+csv-put`（落成文本、不能参与计算）。**当版式 `+table-put` 装不下时**（多级 / 合并表头、每方向占两列的宽表 leaderboard，或同批要混写公式 / 批注）——用 `+cells-set` 而非退回 `+csv-put` 拼字符串：`value` 直接传数字（百分比传小数 `0.4`、金额传 `1234.5`）+ `cell_styles.number_format`（`"0%"` / `"#,##0.00"`），照样显示 `40%` 且数值无损。**版式复杂只决定用哪个命令，绝不是拼 `"40%"` 字符串的理由。**
 > ⚠️ **要新建子表 / 整表美化 → 别默认「`+csv-put` 写值再事后刷样式」**：`+table-put` / `+workbook-create` 的 `--styles` 能在写数据的**同一步**带全套样式（区域底色 / 边框 / 列宽 / 行高 / 合并），且 `+table-put` 的 payload 里若 sheet 名不在工作簿中会自动新建子表——**纯文本表要新建子表 + 美化时同样走这里**（`--styles` 与列是否 typed 无关），比「`+csv-put` 写值 + 多次 `+cells-batch-set-style` / `+*-resize` 刷样式」少好几次调用（冻结行列等 sheet 级属性仍需 `+dim-freeze` 单独一步）。
 > ⚠️ **定位 flag**：`+cells-get` / `+cells-set` / `+csv-get` 用 `--range`；`+csv-put` 规范用 `--start-cell`（单个左上角锚点格），也接受 `--range` 别名（区间自动取左上角），二者择一即可。
 > ⚠️ **读取附加信息**一律走 `+cells-get --include …`，**没有** `--with-styles` 这类 flag；**看合并单元格**用 `+sheet-info` 的 `merged_cells`，不要在 `+cells-get` 里找 merge flag。
