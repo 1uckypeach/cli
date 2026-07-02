@@ -53,7 +53,7 @@ Shortcut 是对常用操作的高级封装（`lark-cli wiki +<verb> [flags]`）�
 | [`+space-create`](references/lark-wiki-space-create.md) | Create a wiki space (user identity only) |
 | [`+node-list`](references/lark-wiki-node-list.md) | List wiki nodes in a space or under a parent node (supports pagination) |
 | [`+node-copy`](references/lark-wiki-node-copy.md) | Copy a wiki node to a target space or parent node |
-| [`+node-get`](references/lark-wiki-node-get.md) | Get a wiki node's details by node_token / obj_token / Lark URL. **Always pass the input as `--node-token` (not `--node`); `--token` is only a deprecated compatibility alias.** |
+| [`+node-get`](references/lark-wiki-node-get.md) | Get a wiki node's details by node_token / obj_token / Lark URL. **Pass the input as `--node-token`; `--token` is only a deprecated compatibility alias.** |
 | [`+node-delete`](references/lark-wiki-node-delete.md) | Delete a wiki node, polling the async delete task when needed |
 | [`+member-add`](references/lark-wiki-member-add.md) | Add a member to a wiki space |
 | [`+member-remove`](references/lark-wiki-member-remove.md) | Remove a member from a wiki space |

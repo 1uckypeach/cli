@@ -71,7 +71,7 @@ var WikiNodeGet = common.Shortcut{
 	Tips: []string{
 		"Example: lark-cli wiki +node-get --node-token https://feishu.cn/wiki/<token> --as user --format json",
 		"--node-token accepts a raw token (wikcnXXX, docxXXX, ...) or a Lark URL like https://feishu.cn/wiki/<token> or https://feishu.cn/docx/<token>.",
-		"Use --node-token, not --node. The deprecated --token alias only exists for old scripts.",
+		"Use --node-token in new commands; --token is a deprecated compatibility alias for old scripts.",
 		"For raw obj_tokens (not starting with wik), pass --obj-type so the API knows how to resolve them; URL inputs infer it from the path.",
 		"Pair with +move / +node-copy / +delete-space to confirm space_id, obj_type, and parent before mutating.",
 		"--token is the deprecated original name and still works for backward compatibility; new scripts should use --node-token.",
