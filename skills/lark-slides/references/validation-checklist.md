@@ -1,6 +1,6 @@
 # Validation Checklist
 
-创建或大幅改写演示文稿后，必须做一次显式验证。目标是发现空白页、XML 损坏、内容截断、明显溢出、弱视觉层级和未验证输出。
+创建或大幅改写演示文稿后，必须做一次显式验证，如果只创建空白ppt则不用验证。目标是发现空白页、XML 损坏、内容截断、明显溢出、弱视觉层级和未验证输出。
 
 小型已有页编辑也要做对应范围的验证：至少读取被改页面或全文 XML，确认目标元素已更新且未破坏周边结构。
 
@@ -46,7 +46,7 @@ python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentatio
 
 ## Page Count And Structure
 
-- 实际页数必须等于用户要求或 `slide_plan.json` 的页数。
+- 实际页数必须等于用户要求或已确认大纲的页数。
 - 如果创建过程部分失败，先记录已创建的 `xml_presentation_id`，再回读确认哪些页已写入。
 - 每页都应包含 `<data>`，且 `<data>` 内至少有一个非背景主体元素。
 - 封面、章节页、总结页可以文字较少，但不能只有空背景。
@@ -54,7 +54,7 @@ python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentatio
 
 ## Expected Elements
 
-按 `slide_plan.json` 和用户要求逐页核对：
+按已确认大纲和用户要求逐页核对：
 
 - 标题或主结论存在，并能对应 `key_message`。
 - `layout_type` 对应的主要结构已生成。

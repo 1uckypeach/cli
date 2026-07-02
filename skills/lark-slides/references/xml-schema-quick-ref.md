@@ -8,6 +8,8 @@
 2. `<presentation>` 直接子元素只有 `<title>`、`<theme>`、`<slide>`
 3. `<slide>` 直接子元素只有 `<style>`、`<data>`、`<note>`
 4. 页面中的文本通常通过 `<content>` 表达，而不是把 `<title>`、`<body>` 直接挂在 `<slide>` 下
+5. 文本中的特殊字符必须按 XML 规则转义，例如 `&` 写成 `&amp;`，`<` / `>` 写成 `&lt;` / `&gt;`
+6. 标准 16:9 页面建议使用 `width="960"` 和 `height="540"`
 
 ## 最小可用示例
 
@@ -36,6 +38,8 @@
 
 **子元素：** `<title>?`, `<theme>?`, `<slide>+`
 
+`<slide>` 至少 1 页，最多 100 页。
+
 ## slide 元素
 
 | 属性 | 必需 | 说明 |
@@ -54,6 +58,19 @@ XSD 中的 `title`、`headline`、`sub-headline`、`body`、`caption` 主要出�
 - `<theme><textStyles>...</textStyles></theme>` 中，作为主题文本样式
 - `<content textType="...">` 中，作为内容的文本类型
 
+`<theme>` 当前可包含：
+
+- `<background>` - 演示文稿级背景填充
+- `<textStyles>` - 主题文本样式集合
+
+主题文本样式常用属性：
+
+| 属性 | 说明 |
+|------|------|
+| `fontFamily` | 字体 |
+| `fontSize` | 字号 |
+| `fontColor` | 字体颜色 |
+
 `textStyles` 的 schema 默认值如下：
 
 | textType | 默认字号 |
@@ -71,18 +88,22 @@ XSD 中的 `title`、`headline`、`sub-headline`、`body`、`caption` 主要出�
 | 属性 | 说明 |
 |------|------|
 | `textType` | `title` / `headline` / `sub-headline` / `body` / `caption` |
+| `verticalAlign` | 垂直对齐方式 |
 | `textAlign` | 文本对齐方式 |
 | `lineSpacing` | 行间距，schema 默认 `multiple:1.5` |
 | `fontSize` | 字号 |
 | `fontFamily` | 字体 |
 | `color` | 字体颜色 |
 | `bold` / `italic` / `underline` / `strikethrough` | 文本样式 |
+| `wrap` | 是否自动换行 |
 
 `<content>` 的子元素只能是：
 
 - `<p>`
 - `<ul>`
 - `<ol>`
+
+`<p>` 可混排纯文本和内联标签：`<br/>`、`<strong>`、`<em>`、`<u>`、`<span>`、`<del>`、`<a>`、`<shadow>`、`<outline>`。
 
 ### content 示例
 
@@ -117,6 +138,10 @@ XSD 中的 `title`、`headline`、`sub-headline`、`body`、`caption` 主要出�
 | `width` | 是 | 宽度 |
 | `height` | 是 | 高度 |
 | `rotation` | 否 | 旋转角度 |
+| `flipX` / `flipY` | 否 | 翻转 |
+| `alpha` | 否 | 透明度 |
+
+可选子元素：`<fill>`、`<border>`、`<reflection>`、`<shadow>`、`<content>`。
 
 ### line
 
@@ -126,11 +151,15 @@ XSD 中的 `title`、`headline`、`sub-headline`、`body`、`caption` 主要出�
 </line>
 ```
 
+`line` 使用 `startX` / `startY` / `endX` / `endY`，不是 `x1` / `y1` / `x2` / `y2`。
+
 ### img
 
 ```xml
 <img src="file_token_or_url" topLeftX="80" topLeftY="120" width="320" height="180"/>
 ```
+
+`img` 使用 `topLeftX` / `topLeftY`，不是 `x` / `y`。
 
 `src` 只支持：`slides +media-upload` 返回的 `file_token`，或 `@<本地路径>` 占位符（仅 `+create --slides` 自动上传并替换）。**禁止使用 http(s) 外链 URL**——飞书 slides 渲染端不会代理外链图，外链 src 在 PPT 里通常不显示。本地图片详见 [lark-slides-create.md](lark-slides-create.md#本地图片path-占位符) / [lark-slides-media-upload.md](lark-slides-media-upload.md)。
 
@@ -143,6 +172,14 @@ XSD 中的 `title`、`headline`、`sub-headline`、`body`、`caption` 主要出�
 ```
 
 `iconType` 必须来自已验证的 IconPark 路径。需要语义图标时，先运行 `scripts/iconpark_tool.py search --query "<语义>"`，不要凭记忆拼路径。更多规则见 [iconpark.md](iconpark.md)。
+
+### table
+
+表格结构为 `<table>`，内部可包含 `<colgroup>` / `<tr>`，`<tr>` 内为 `<td>`，`<td>` 内可放 `<content>`。
+
+### chart
+
+图表元素必须至少包含 `<chartPlotArea>` 和 `<chartData>`；还可包含 `<chartTitle>`、`<chartSubTitle>`、`<chartStyle>`、`<chartLegend>`、`<chartTooltip>`。复杂 chart XML 以 XSD 为准，不要自行发明简化 DSL。
 
 ### whiteboard
 
@@ -230,13 +267,6 @@ Mermaid 模式：内容用 `<![CDATA[...]]>` 包裹，避免 `[`、`>`、`-->` �
   </content>
 </note>
 ```
-
-## 详细参考
-
-- [slides_xml_schema_definition.xml](slides_xml_schema_definition.xml)
-- [xml-format-guide.md](xml-format-guide.md)
-- [examples.md](examples.md)
-- [slides_demo.xml](slides_demo.xml)
 
 ## Schema 版本信息
 
