@@ -46,7 +46,7 @@ func TestAppsDBExecuteDryRun(t *testing.T) {
 		t.Cleanup(cancel)
 
 		result, err := clie2e.RunCmd(ctx, clie2e.Request{
-			Args:      []string{"apps", "+db-execute", "--app-id", "app_x", "--sql", "SELECT 1", "--env", "online", "--dry-run"},
+			Args:      []string{"apps", "+db-execute", "--app-id", "app_x", "--sql", "SELECT 1", "--environment", "online", "--dry-run"},
 			DefaultAs: "user",
 		})
 		require.NoError(t, err)

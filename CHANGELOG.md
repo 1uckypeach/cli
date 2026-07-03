@@ -2,6 +2,84 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.0.64] - 2026-07-02
+
+### Features
+
+- **im**: Upgrade card send to Card 2.0 with full component reference (#1688)
+- **im**: Add `+chat-members-list` shortcut for member listing (#1398)
+- **okr**: Semi-plain text format with mention position preservation and `patch` shortcut (#1671)
+
+### Bug Fixes
+
+- **cli**: Point permission-apply link at official `/page/scope-apply` entry (#1722)
+- **cli**: Improve secure label error handling (#1707)
+- **cli**: Reduce public content token false positives
+- **cli**: Increase npm registry fetch timeout to 15s during update check (#1724)
+- **doc**: Align word statistics compound tokens (#1706)
+
+### Documentation
+
+- **approval**: Add detailed command-to-reference mapping for the approval skill (#1630)
+- **doc**: Support `reference_map` in docs (#1690)
+- **slides**: Refresh generation guidance — add constraints, drop template toolchain, and inline lint XML fixtures
+
+## [v1.0.62] - 2026-07-01
+
+### Features
+
+- **vc**: Add meeting message send shortcut (#1643)
+- **doc**: Add document word statistics helper (#1697)
+- **cli**: Interactive upgrade prompt for bare `lark-cli` invocation (#1498)
+- **install**: Fail closed when `checksums.txt` is missing during install (#1503)
+
+### Bug Fixes
+
+- **drive**: Improve batch failure handling for push/pull/sync (#1703)
+- **base**: Support JSON array input for field create (#1661)
+- **task**: Expose completion state in `my tasks` output (#1641)
+- **cli**: Reduce public content credential false positives (#1700)
+
+## [v1.0.61] - 2026-06-30
+
+### Features
+
+- **apps**: Add `db`, `file`, `openapi-key` and observability shortcuts (#1596)
+- **identity**: Add `whoami` command showing effective identity (#1666)
+- **docs**: Add reference map flags (#1547)
+
+### Bug Fixes
+
+- **identity**: Correct identity diagnosis under external credential providers (#1693)
+- **cli**: Harden git credential error handling (#1676)
+
+### Documentation
+
+- **doc**: Guide document copy skill usage (#1673)
+- **doc**: Fix lark-doc media token examples (#1662)
+
+## [v1.0.60] - 2026-06-29
+
+### Features
+
+- **affordance**: Per-command usage guidance system with markdown source (#1565)
+- **event**: Support VC meeting lifecycle events (#1632)
+- **sheets**: Use `office_sheet_file` parent_type for imported office spreadsheets (#1606)
+- **authorization**: Expand lark-shared auth guidance and assert clean logout JSON (#1598)
+- **transport**: Add `LARK_CLI_NO_PROXY_WARN` to silence proxy warning (#1647)
+
+### Bug Fixes
+
+- **install**: Load `@clack/prompts` via dynamic import to avoid `ERR_REQUIRE_ESM` (#1652)
+
+### Tests
+
+- **doc**: Derive fetch test flag defaults from `v2FetchFlags` (#1428)
+
+### Build
+
+- **ci**: Reduce public content false positives
+
 ## [v1.0.59] - 2026-06-26
 
 ### Features
@@ -1277,6 +1355,10 @@ Bundled AI agent skills for intelligent assistance:
 - Bilingual documentation (English & Chinese).
 - CI/CD pipelines: linting, testing, coverage reporting, and automated releases.
 
+[v1.0.64]: https://github.com/larksuite/cli/releases/tag/v1.0.64
+[v1.0.62]: https://github.com/larksuite/cli/releases/tag/v1.0.62
+[v1.0.61]: https://github.com/larksuite/cli/releases/tag/v1.0.61
+[v1.0.60]: https://github.com/larksuite/cli/releases/tag/v1.0.60
 [v1.0.59]: https://github.com/larksuite/cli/releases/tag/v1.0.59
 [v1.0.58]: https://github.com/larksuite/cli/releases/tag/v1.0.58
 [v1.0.57]: https://github.com/larksuite/cli/releases/tag/v1.0.57
