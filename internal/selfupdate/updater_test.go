@@ -208,6 +208,13 @@ func TestSkillsCommandsUseExpectedArgs(t *testing.T) {
 			},
 			want: "-y skills add https://open.feishu.cn -s lark-mail -g -y",
 		},
+		{
+			name: "install isolated suite skill",
+			run: func(u *Updater) *NpmResult {
+				return u.runSkillsInstall(isolatedSkillsSourceURL, []string{"lark-suite"})
+			},
+			want: "-y skills add https://open.feishu.cn/lark-cli/isolated-skills -s lark-suite -g -y",
+		},
 	}
 
 	for _, tt := range tests {
@@ -235,6 +242,34 @@ func TestSkillsCommandsUseExpectedArgs(t *testing.T) {
 				t.Fatalf("args = %q, want %q", strings.TrimSpace(string(raw)), tt.want)
 			}
 		})
+	}
+}
+
+func TestInstallSuiteSkillFallsBackToIsolatedGitHubSource(t *testing.T) {
+	called := []string{}
+	u := &Updater{
+		SkillsCommandOverride: func(args ...string) *NpmResult {
+			called = append(called, strings.Join(args, " "))
+			r := &NpmResult{}
+			if strings.Contains(strings.Join(args, " "), isolatedSkillsSourceURL) {
+				r.Err = fmt.Errorf("isolated source unavailable")
+			}
+			return r
+		},
+	}
+
+	result := u.InstallSuiteSkill()
+	if result.Err != nil {
+		t.Fatalf("InstallSuiteSkill() err = %v, want nil", result.Err)
+	}
+	if len(called) != 2 {
+		t.Fatalf("calls = %#v, want primary and fallback", called)
+	}
+	if !strings.Contains(called[0], isolatedSkillsSourceURL) {
+		t.Fatalf("primary call = %q, want isolated source", called[0])
+	}
+	if !strings.Contains(called[1], isolatedSkillsFallback) {
+		t.Fatalf("fallback call = %q, want isolated GitHub fallback", called[1])
 	}
 }
 
