@@ -10,6 +10,7 @@ package sheets
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	neturl "net/url"
 	"strings"
@@ -44,7 +45,8 @@ func sheetsValidationCauseForFlag(name string, cause error) *errs.ValidationErro
 // classification and only adds the domain's flag param.
 func sheetsInputStatError(flag string, err error) error {
 	wrapped := common.WrapInputStatErrorTyped(err)
-	if v, ok := wrapped.(*errs.ValidationError); ok {
+	var v *errs.ValidationError
+	if errors.As(wrapped, &v) {
 		return v.WithParam(sheetsFlagParam(flag))
 	}
 	return wrapped

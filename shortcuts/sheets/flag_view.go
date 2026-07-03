@@ -281,18 +281,18 @@ func (m mapFlagView) validateRawTypes() error {
 			// parse time; reject here too to keep batch/standalone parity.
 			f, isNum := val.(float64)
 			if !isNum {
-				return fmt.Errorf("--%s must be a number, got %s", name, jsonTypeName(val))
+				return fmt.Errorf("--%s must be a number, got %s", name, jsonTypeName(val)) //nolint:forbidigo // intermediate error; the batch dispatcher wraps it into a typed operations validation error
 			}
 			if math.Trunc(f) != f {
-				return fmt.Errorf("--%s must be an integer, got %s", name, strconv.FormatFloat(f, 'g', -1, 64))
+				return fmt.Errorf("--%s must be an integer, got %s", name, strconv.FormatFloat(f, 'g', -1, 64)) //nolint:forbidigo // intermediate error; the batch dispatcher wraps it into a typed operations validation error
 			}
 		case "float64":
 			if _, isNum := val.(float64); !isNum {
-				return fmt.Errorf("--%s must be a number, got %s", name, jsonTypeName(val))
+				return fmt.Errorf("--%s must be a number, got %s", name, jsonTypeName(val)) //nolint:forbidigo // intermediate error; the batch dispatcher wraps it into a typed operations validation error
 			}
 		case "bool":
 			if _, isBool := val.(bool); !isBool {
-				return fmt.Errorf("--%s must be a boolean, got %s", name, jsonTypeName(val))
+				return fmt.Errorf("--%s must be a boolean, got %s", name, jsonTypeName(val)) //nolint:forbidigo // intermediate error; the batch dispatcher wraps it into a typed operations validation error
 			}
 		}
 	}

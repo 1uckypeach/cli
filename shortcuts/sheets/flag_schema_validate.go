@@ -243,7 +243,7 @@ func validateAgainstSchema(value interface{}, schema *schemaProperty, path strin
 
 	if schema.Type != "" {
 		if !matchesJSONType(value, schema.Type) {
-			return fmt.Errorf("%sexpected type %q, got %q", pathPrefix(path), schema.Type, jsType(value))
+			return fmt.Errorf("%sexpected type %q, got %q", pathPrefix(path), schema.Type, jsType(value)) //nolint:forbidigo // intermediate error; validateFlagAgainstSchema wraps it into a typed flag validation error with a --print-schema hint
 		}
 	}
 
@@ -251,20 +251,20 @@ func validateAgainstSchema(value interface{}, schema *schemaProperty, path strin
 	// already reported above). Apply to both `number` and `integer` types.
 	if num, ok := value.(float64); ok {
 		if schema.Minimum != nil && num < *schema.Minimum {
-			return fmt.Errorf("%svalue %v is below minimum %v", pathPrefix(path), num, *schema.Minimum)
+			return fmt.Errorf("%svalue %v is below minimum %v", pathPrefix(path), num, *schema.Minimum) //nolint:forbidigo // intermediate error; validateFlagAgainstSchema wraps it into a typed flag validation error with a --print-schema hint
 		}
 		if schema.Maximum != nil && num > *schema.Maximum {
-			return fmt.Errorf("%svalue %v is above maximum %v", pathPrefix(path), num, *schema.Maximum)
+			return fmt.Errorf("%svalue %v is above maximum %v", pathPrefix(path), num, *schema.Maximum) //nolint:forbidigo // intermediate error; validateFlagAgainstSchema wraps it into a typed flag validation error with a --print-schema hint
 		}
 	}
 
 	// Array length bounds — only checked when value is an array.
 	if arr, ok := value.([]interface{}); ok {
 		if schema.MinItems != nil && len(arr) < *schema.MinItems {
-			return fmt.Errorf("%sarray has %d items, minimum is %d", pathPrefix(path), len(arr), *schema.MinItems)
+			return fmt.Errorf("%sarray has %d items, minimum is %d", pathPrefix(path), len(arr), *schema.MinItems) //nolint:forbidigo // intermediate error; validateFlagAgainstSchema wraps it into a typed flag validation error with a --print-schema hint
 		}
 		if schema.MaxItems != nil && len(arr) > *schema.MaxItems {
-			return fmt.Errorf("%sarray has %d items, maximum is %d", pathPrefix(path), len(arr), *schema.MaxItems)
+			return fmt.Errorf("%sarray has %d items, maximum is %d", pathPrefix(path), len(arr), *schema.MaxItems) //nolint:forbidigo // intermediate error; validateFlagAgainstSchema wraps it into a typed flag validation error with a --print-schema hint
 		}
 	}
 
@@ -282,7 +282,7 @@ func validateAgainstSchema(value interface{}, schema *schemaProperty, path strin
 			if hint := suggestEnumMatch(value, schema.Enum); hint != "" {
 				msg += fmt.Sprintf(` (did you mean %q?)`, hint)
 			}
-			return fmt.Errorf("%s", msg)
+			return fmt.Errorf("%s", msg) //nolint:forbidigo // intermediate error; validateFlagAgainstSchema wraps it into a typed flag validation error with a --print-schema hint
 		}
 	}
 
@@ -295,7 +295,7 @@ func validateAgainstSchema(value interface{}, schema *schemaProperty, path strin
 			}
 		}
 		if !matched {
-			return fmt.Errorf("%svalue does not match any of oneOf alternatives", pathPrefix(path))
+			return fmt.Errorf("%svalue does not match any of oneOf alternatives", pathPrefix(path)) //nolint:forbidigo // intermediate error; validateFlagAgainstSchema wraps it into a typed flag validation error with a --print-schema hint
 		}
 	}
 
@@ -305,7 +305,7 @@ func validateAgainstSchema(value interface{}, schema *schemaProperty, path strin
 	if obj, ok := value.(map[string]interface{}); ok {
 		for _, key := range schema.Required {
 			if _, present := obj[key]; !present {
-				return fmt.Errorf("required property %q is missing at %s", key, pathOrRoot(path))
+				return fmt.Errorf("required property %q is missing at %s", key, pathOrRoot(path)) //nolint:forbidigo // intermediate error; validateFlagAgainstSchema wraps it into a typed flag validation error with a --print-schema hint
 			}
 		}
 		if schema.Properties != nil {
@@ -357,7 +357,7 @@ func validateAgainstSchema(value interface{}, schema *schemaProperty, path strin
 			sort.Strings(extras)
 			for _, key := range extras {
 				if schema.AdditionalProperties.Strict {
-					return fmt.Errorf("%sunexpected property %q (not declared in schema)", pathPrefix(path), key)
+					return fmt.Errorf("%sunexpected property %q (not declared in schema)", pathPrefix(path), key) //nolint:forbidigo // intermediate error; validateFlagAgainstSchema wraps it into a typed flag validation error with a --print-schema hint
 				}
 				if schema.AdditionalProperties.Schema != nil {
 					child := key

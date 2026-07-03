@@ -5,6 +5,7 @@ package backward
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -145,7 +146,8 @@ func validateSheetMediaUploadFile(runtime *common.RuntimeContext, filePath strin
 	stat, err := runtime.FileIO().Stat(filePath)
 	if err != nil {
 		wrapped := common.WrapInputStatErrorTyped(err, "file not found")
-		if v, ok := wrapped.(*errs.ValidationError); ok {
+		var v *errs.ValidationError
+		if errors.As(wrapped, &v) {
 			return "", nil, v.WithParam("--file")
 		}
 		return "", nil, wrapped

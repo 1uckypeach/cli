@@ -631,23 +631,23 @@ func rangeDimensions(rangeStr string) (rows, cols int, err error) {
 	}
 	rangeStr = strings.TrimSpace(rangeStr)
 	if rangeStr == "" {
-		return 0, 0, fmt.Errorf("empty range")
+		return 0, 0, fmt.Errorf("empty range") //nolint:forbidigo // intermediate error; callers wrap it into a typed --range/--source-range validation error
 	}
 	parts := strings.SplitN(rangeStr, ":", 2)
 	if len(parts) == 1 {
 		// single cell, e.g. "A1"
 		if _, _, ok := splitCellRef(parts[0]); !ok {
-			return 0, 0, fmt.Errorf("invalid cell ref %q", parts[0])
+			return 0, 0, fmt.Errorf("invalid cell ref %q", parts[0]) //nolint:forbidigo // intermediate error; callers wrap it into a typed --range/--source-range validation error
 		}
 		return 1, 1, nil
 	}
 	startCol, startRow, ok1 := splitCellRef(parts[0])
 	endCol, endRow, ok2 := splitCellRef(parts[1])
 	if !ok1 || !ok2 {
-		return 0, 0, fmt.Errorf("unsupported range form %q (need rectangular A1:B2)", rangeStr)
+		return 0, 0, fmt.Errorf("unsupported range form %q (need rectangular A1:B2)", rangeStr) //nolint:forbidigo // intermediate error; callers wrap it into a typed --range/--source-range validation error
 	}
 	if endRow < startRow || endCol < startCol {
-		return 0, 0, fmt.Errorf("end %q must be at or after start %q", parts[1], parts[0])
+		return 0, 0, fmt.Errorf("end %q must be at or after start %q", parts[1], parts[0]) //nolint:forbidigo // intermediate error; callers wrap it into a typed --range/--source-range validation error
 	}
 	return endRow - startRow + 1, endCol - startCol + 1, nil
 }
