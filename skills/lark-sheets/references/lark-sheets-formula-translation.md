@@ -1,7 +1,7 @@
 # 飞书表格公式生成规则
 
 > **本文定位**：飞书公式正确性的**唯一权威**——书写任何飞书公式、或把 Excel 公式迁移到飞书前，先读本文。涵盖公式书写约定（绝对引用、范围语法）、投影 vs spill、ARRAYFORMULA / 数组语义、高风险引用函数、日期差、不支持函数清单。
-> **边界**：本文只讲"公式怎么写对"；公式**怎么写入表格**（`+cells-set` / 模板单元格 + `--copy-to-range` / 容错回读）见 `lark-sheets-write-cells`。**公式写入完成后的强制收尾**见 `Lark Sheet Formula Verify`：不要把"翻译对了"误当成"已经交付完成"。本文不含 shortcut，通用编辑准则见主 SKILL.md「飞书表格编辑准则」。
+> **边界**：本文只讲"公式怎么写对"；公式**怎么写入表格**（`+cells-set` / 模板单元格 + `--copy-to-range` / 容错回读）见 `lark-sheets-write-cells`。**公式写入完成后的强制收尾**见 `lark-sheets-formula-verify`：不要把"翻译对了"误当成"已经交付完成"。本文不含 shortcut，通用编辑准则见主 SKILL.md「飞书表格编辑准则」。
 
 **核心原则：飞书不像 Excel 365 那样默认 spill（溢出展开）。飞书普通公式遇到区域时默认"投影"（只取当前行/列对应的单个值），必须显式使用 `ARRAYFORMULA` 或原生数组函数才能逐项展开。**
 
@@ -26,7 +26,7 @@
 本文解决的是"公式怎么写对"，不是"写进表里后一定能零错误运行"。因此：
 
 1. 按本文完成公式改写后，用 `lark-sheets-write-cells` / `lark-sheets-batch-update` 把公式真实写入表格。
-2. 公式一旦落表，就默认进入 `Lark Sheet Formula Verify` 的收尾阶段。
+2. 公式一旦落表，就默认进入 `lark-sheets-formula-verify` 的收尾阶段。
 3. 最终必须跑 `+formula-verify` 收敛到 `status='success'`；`errors_found` / `partial` 都不算完成。
 
 ## 决策流程
