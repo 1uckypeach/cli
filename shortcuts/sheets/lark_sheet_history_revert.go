@@ -73,7 +73,8 @@ func historyRevertInput(token, versionID string) map[string]interface{} {
 // history version id — the facade-agg status tool keys on transaction_id).
 // Required at the cli surface (cobra MarkFlagRequired) — same gating model as
 // historyVersionIDFlag. Validate still trims + rejects empty/control-char
-// values to catch the "--transaction-id ''" cobra-accepts-but-empty case.
+// values to catch the case where cobra accepts --transaction-id with an
+// empty-string value.
 func transactionIDFlag() common.Flag {
 	return common.Flag{
 		Name:     "transaction-id",
@@ -110,7 +111,7 @@ func historyRevertStatusInput(token, transactionID string) map[string]interface{
 // Validate runs with cobra's standard "required flag(s)" error (which the
 // dispatcher classifies as a typed *errs.ValidationError, exit 2). We still
 // trim + reject empty / control-char values in Validate to catch the
-// "--history-version-id ''" cobra-accepts-but-empty case.
+// case where cobra accepts --history-version-id with an empty-string value.
 var HistoryRevert = common.Shortcut{
 	Service:     "sheets",
 	Command:     "+history-revert",

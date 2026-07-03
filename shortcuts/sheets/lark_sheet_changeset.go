@@ -75,14 +75,14 @@ func changesetRevisions(runtime flagView) (start int, end int, err error) {
 	start = runtime.Int("start-revision")
 	end = runtime.Int("end-revision")
 	if start < 1 {
-		return 0, 0, common.FlagErrorf("--start-revision must be >= 1")
+		return 0, 0, sheetsValidationForFlag("start-revision", "--start-revision must be >= 1")
 	}
 	if end > 0 {
 		if end < start {
-			return 0, 0, common.FlagErrorf("--end-revision (%d) must be >= --start-revision (%d)", end, start)
+			return 0, 0, sheetsValidationForFlag("end-revision", "--end-revision (%d) must be >= --start-revision (%d)", end, start)
 		}
 		if end-start+1 > changesetMaxRevGap {
-			return 0, 0, common.FlagErrorf("version gap exceeds limit %d (start=%d, end=%d)", changesetMaxRevGap, start, end)
+			return 0, 0, sheetsValidationForFlag("end-revision", "version gap exceeds limit %d (start=%d, end=%d)", changesetMaxRevGap, start, end)
 		}
 	}
 	return start, end, nil
