@@ -1,8 +1,8 @@
-# 飞书表格公式自检（+formula-verify）
+# Lark Sheet Formula Verify（+formula-verify）
 
-> **本文定位**：飞书表格"公式写入后是否真的零错误"的自检入口。公式的书写规则与 Excel→飞书迁移的语义规则一律以 `lark-sheets-formula-translation` 为唯一权威，本文不重复；本文聚焦"写完了之后怎么用一次调用确认 zero-error"。
+> **本文定位**：飞书表格"公式写入后是否真的零错误"的自检入口，也是所有写公式任务的**强制收尾步骤**。公式的书写规则与 Excel→飞书迁移的语义规则一律以 `lark-sheets-formula-translation` 为唯一权威，本文不重复；本文聚焦"写完了之后怎么用一次调用确认 zero-error"。
 >
-> **边界**：本文不讲公式怎么写（去 `lark-sheets-formula-translation`），也不讲公式怎么写入表格（去 `lark-sheets-write-cells` / `lark-sheets-batch-update`）。本文只讲一件事：**写完之后必须用 `+formula-verify` 自检到 zero-error 才能交付**。
+> **边界**：本文不讲公式怎么写（去 `lark-sheets-formula-translation`），也不讲公式怎么写入表格（去 `lark-sheets-write-cells` / `lark-sheets-batch-update`）。本文只讲一件事：**只要任务里发生了公式落表、批量填充公式、`--copy-to-range` 扩展公式、导入含公式 workbook，收尾就必须用 `+formula-verify` 自检到 zero-error 才能交付**。
 
 ## 为什么需要自检
 
@@ -36,9 +36,10 @@
 
 ## 写入收尾收敛规则
 
-任何批量公式 / 含公式列写入完成后调用 `+formula-verify` 直到 `status='success'` 才能交付。触发场景：
+任何批量公式 / 含公式列写入完成后调用 `+formula-verify` 直到 `status='success'` 才能交付。不要等用户显式说"校验一下公式"才想到这里；**只要任务动作包含写公式，这一步默认就该做**。触发场景：
 
 - `+cells-set` / `+cells-csv-set`
+- `+cells-set --copy-to-range` / 模板单元格向整列或整块扩展公式
 - `+sandbox-import`
 - `+batch-update` 中含写入子操作
 - `+table-put`（任意列含公式时）
