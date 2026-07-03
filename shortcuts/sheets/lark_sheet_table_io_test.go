@@ -537,14 +537,15 @@ func TestTablePut_SheetCreateDims(t *testing.T) {
 	cases := []struct {
 		name               string
 		spec               tableSheetSpec
+		styles             *workbookCreateStylePayload
 		wantRows, wantCols int
 	}{
-		{"small table keeps 20x200 floor", tableSheetSpec{Columns: cols(3), Rows: rows(5)}, 200, 20},
-		{"wide table grows columns", tableSheetSpec{Columns: cols(37), Rows: rows(22)}, 200, 37},
-		{"long table grows rows", tableSheetSpec{Columns: cols(3), Rows: rows(500)}, 501, 20},
-		{"start_cell offset adds to both", tableSheetSpec{StartCell: "C5", Columns: cols(40), Rows: rows(5)}, 200, 42},
-		{"header:false drops the header row", tableSheetSpec{Header: bp(false), Columns: cols(3), Rows: rows(500)}, 500, 20},
-		{"columns clamp at backend max 200", tableSheetSpec{Columns: cols(250), Rows: rows(5)}, 200, 200},
+		{"small table keeps 20x200 floor", tableSheetSpec{Columns: cols(3), Rows: rows(5)}, nil, 200, 20},
+		{"wide table grows columns", tableSheetSpec{Columns: cols(37), Rows: rows(22)}, nil, 200, 37},
+		{"long table grows rows", tableSheetSpec{Columns: cols(3), Rows: rows(500)}, nil, 501, 20},
+		{"start_cell offset adds to both", tableSheetSpec{StartCell: "C5", Columns: cols(40), Rows: rows(5)}, nil, 200, 42},
+		{"header:false drops the header row", tableSheetSpec{Header: bp(false), Columns: cols(3), Rows: rows(500)}, nil, 500, 20},
+		{"columns clamp at backend max 200", tableSheetSpec{Columns: cols(250), Rows: rows(5)}, nil, 200, 200},
 		// Default headerOn() is false for append mode, but writeSheetData forces
 		// a header when append hits an empty sheet with no explicit Header
 		// choice (so column names aren't lost). sheetCreateDims runs only on
@@ -552,14 +553,22 @@ func TestTablePut_SheetCreateDims(t *testing.T) {
 		// match: append + Header=nil ⇒ +1 row. Otherwise an append-near-50000
 		// payload would be created one row short.
 		{"append on new sheet sizes for the forced header row (49999 data rows + 1 header = 50000)",
-			tableSheetSpec{Mode: "append", Columns: cols(3), Rows: rows(49999)}, 50000, 20},
+			tableSheetSpec{Mode: "append", Columns: cols(3), Rows: rows(49999)}, nil, 50000, 20},
 		{"append + Header=false (explicit) does NOT add the forced header row",
-			tableSheetSpec{Mode: "append", Header: bp(false), Columns: cols(3), Rows: rows(50)}, 200, 20},
+			tableSheetSpec{Mode: "append", Header: bp(false), Columns: cols(3), Rows: rows(50)}, nil, 200, 20},
+		// --styles reaching past the data grows the grid so a cell_styles op on a
+		// blank cell (or a merge / resize) still fits after the create.
+		{"styles past the data grow the grid",
+			tableSheetSpec{Columns: cols(3), Rows: rows(5)},
+			&workbookCreateStylePayload{CellStyles: []workbookCreateCellStyleOp{{Range: "A1:Z400"}}}, 400, 26},
+		{"styles inside the data don't shrink the grid",
+			tableSheetSpec{Columns: cols(3), Rows: rows(5)},
+			&workbookCreateStylePayload{CellStyles: []workbookCreateCellStyleOp{{Range: "A1:B2"}}}, 200, 20},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			gotRows, gotCols := sheetCreateDims(&tt.spec)
+			gotRows, gotCols := sheetCreateDims(&tt.spec, tt.styles)
 			if gotRows != tt.wantRows || gotCols != tt.wantCols {
 				t.Errorf("sheetCreateDims = (%d rows, %d cols), want (%d, %d)", gotRows, gotCols, tt.wantRows, tt.wantCols)
 			}

@@ -654,16 +654,26 @@ var WorkbookCreate = common.Shortcut{
 			s := &payload.Sheets[i]
 			matrix, _ := buildSheetMatrix(s, headerOn(s))
 			_, col0, row0, _ := sheetAnchor(s)
-			_ = applyWorkbookCreateStylesToMatrix(matrix, sheetStyles.styleFor(i), col0, row0, fmt.Sprintf("--styles for sheet %q", s.Name))
+			matrix, _ = applyWorkbookCreateStylesToMatrix(matrix, sheetStyles.styleFor(i), col0, row0, fmt.Sprintf("--styles for sheet %q", s.Name))
+			// Padding can widen / lengthen the matrix past the data, so build the
+			// range from the padded dims to match what Execute writes.
+			rng := tablePutFullRange(s, len(matrix))
+			writeCols := len(s.Columns)
+			if len(matrix) > 0 {
+				writeCols = len(matrix[0])
+				rng = fmt.Sprintf("%s%d:%s%d",
+					columnIndexToLetter(col0), row0+1,
+					columnIndexToLetter(col0+writeCols-1), row0+len(matrix))
+			}
 			input := map[string]interface{}{
 				"excel_id":   "<new-token>",
 				"sheet_name": s.Name,
-				"range":      tablePutFullRange(s, len(matrix)),
+				"range":      rng,
 				"cells":      matrix,
 			}
 			wireBody, _ := buildToolBody("set_cell_range", input)
 			dry.POST("/open-apis/sheet_ai/v2/spreadsheets/<new-token>/tools/invoke_write").
-				Desc(fmt.Sprintf("write sheet %q (%d data rows × %d cols) via set_cell_range", s.Name, len(s.Rows), len(s.Columns))).
+				Desc(fmt.Sprintf("write sheet %q (%d data rows × %d cols) via set_cell_range", s.Name, len(s.Rows), writeCols)).
 				Body(wireBody)
 			appendWorkbookCreateVisualOpsDryRun(dry, "<new-token>", "", s.Name, sheetStyles.styleFor(i))
 		}
@@ -1383,20 +1393,79 @@ func workbookCreateStyleDimensions(styles *workbookCreateStylePayload, baseCol, 
 	return rows, cols
 }
 
-func applyWorkbookCreateStylesToMatrix(rows [][]interface{}, styles *workbookCreateStylePayload, baseCol, baseRow int, label string) error {
+// padMatrixForStyles grows the matrix down and right so it covers every
+// cell_styles range, appending empty cells for the positions the data doesn't
+// reach. cell_styles are applied by writing into the matrix in place (see
+// applyWorkbookCreateStylesToMatrix), so a style on a cell past the data extent
+// needs a real — if empty — cell to attach to. This lets a create/write set
+// styles on blank cells (reserved regions, decorative headers, empty borders).
+//
+// Only cell_styles contribute to the extent: cell_merges / row_sizes / col_sizes
+// run as separate API calls (see workbookCreateVisualOps) and never touch the
+// matrix. Ranges that start left of baseCol or above baseRow are skipped here
+// (the matrix can only extend down/right) and left for the caller to reject.
+// The (possibly reallocated) matrix is returned; callers must use the result.
+func padMatrixForStyles(rows [][]interface{}, styles *workbookCreateStylePayload, baseCol, baseRow int) [][]interface{} {
 	if styles == nil {
-		return nil
+		return rows
 	}
+	needRows := len(rows)
+	needCols := 0
+	if len(rows) > 0 {
+		needCols = len(rows[0])
+	}
+	for _, op := range styles.CellStyles {
+		startCol, startRow, endCol, endRow, err := workbookCreateStyleRangeBounds(op.Range)
+		if err != nil || startCol < baseCol || startRow < baseRow {
+			continue // unparsable, or up/left of the anchor: not paddable
+		}
+		if endCol-baseCol+1 > needCols {
+			needCols = endCol - baseCol + 1
+		}
+		if endRow-baseRow+1 > needRows {
+			needRows = endRow - baseRow + 1
+		}
+	}
+	// Widen existing rows to needCols.
+	for r := range rows {
+		for len(rows[r]) < needCols {
+			rows[r] = append(rows[r], map[string]interface{}{})
+		}
+	}
+	// Append full empty rows to reach needRows.
+	for len(rows) < needRows {
+		row := make([]interface{}, needCols)
+		for c := range row {
+			row[c] = map[string]interface{}{}
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+// applyWorkbookCreateStylesToMatrix pads the matrix to cover the cell_styles
+// ranges (see padMatrixForStyles), merges each op's style into the covered
+// cells, and returns the padded matrix. A range that starts left of / above the
+// write anchor can't be padded to and is rejected.
+func applyWorkbookCreateStylesToMatrix(rows [][]interface{}, styles *workbookCreateStylePayload, baseCol, baseRow int, label string) ([][]interface{}, error) {
+	if styles == nil {
+		return rows, nil
+	}
+	rows = padMatrixForStyles(rows, styles, baseCol, baseRow)
 	for i, op := range styles.CellStyles {
 		startCol, startRow, endCol, endRow, err := workbookCreateStyleRangeBounds(op.Range)
 		if err != nil {
-			return common.ValidationErrorf("%s[%d].range %q: %v", label, i, op.Range, err)
+			return rows, common.ValidationErrorf("%s[%d].range %q: %v", label, i, op.Range, err)
 		}
-		if startCol < baseCol || startRow < baseRow || endRow-baseRow >= len(rows) || len(rows) == 0 || endCol-baseCol >= len(rows[0]) {
-			return common.ValidationErrorf("%s[%d].range %q is outside the write range %s%d:%s%d",
+		// After padding, the matrix reaches every range that starts at or after
+		// the anchor; a start left of / above it can't be covered. The endRow /
+		// endCol checks stay as a defensive backstop (padding should have made
+		// them unreachable).
+		if startCol < baseCol || startRow < baseRow || len(rows) == 0 ||
+			endRow-baseRow >= len(rows) || endCol-baseCol >= len(rows[0]) {
+			return rows, common.ValidationErrorf("%s[%d].range %q starts outside the write range (its top-left must be at or after %s%d)",
 				label, i, op.Range,
-				columnIndexToLetter(baseCol), baseRow+1,
-				columnIndexToLetter(baseCol+len(rows[0])-1), baseRow+len(rows))
+				columnIndexToLetter(baseCol), baseRow+1)
 		}
 		for r := startRow - baseRow; r <= endRow-baseRow; r++ {
 			for c := startCol - baseCol; c <= endCol-baseCol; c++ {
@@ -1404,7 +1473,7 @@ func applyWorkbookCreateStylesToMatrix(rows [][]interface{}, styles *workbookCre
 			}
 		}
 	}
-	return nil
+	return rows, nil
 }
 
 func appendWorkbookCreateVisualOpsDryRun(dry *common.DryRunAPI, token, sheetID, sheetName string, styles *workbookCreateStylePayload) {
