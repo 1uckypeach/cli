@@ -154,9 +154,9 @@ lark-cli sheets +batch-update --url "https://example.feishu.cn/sheets/shtXXX" --
 > // 在 C 列前插入新列 → 写表头 C1 → 回填 C2:C100 共 99 行
 > [
 >   {"shortcut": "+dim-insert",
->    "input": {"sheet_id": "...", "position": "C", "count": 1}},
+>    "input": {"sheet_name": "Sheet1", "position": "C", "count": 1}},
 >   {"shortcut": "+cells-set",
->    "input": {"sheet_id": "...", "range": "C1:C100",
+>    "input": {"sheet_name": "Sheet1", "range": "C1:C100",
 >              "cells": [[{"value":"score"}], [{"value":95}], [{"value":87}], /* ... 97 more rows ... */ ]}}
 > ]
 > ```
