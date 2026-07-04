@@ -13,8 +13,8 @@ p, h1-h9, ul, ol, li, table, thead, tbody, tr, th, td, blockquote, pre, code, hr
 ## 容器标签
 |标签|说明|关键属性|
 |-|-|-|
-| `<callout>` | 高亮框，子块仅支持文本、标题、列表、待办、引用 | `emoji`(默认 bulb), `background-color`, `border-color`, `text-color` |
-| `<grid>` + `<column>` | 分栏布局，各列 width-ratio 之和为 1 | `width-ratio` |
+| `<callout>` | 高亮框，子块仅支持文本、标题、列表、待办、引用。**强提醒专用，使用前先看 `lark-doc-style.md` 的写作原则** | `emoji`(默认 bulb), `background-color`, `border-color`, `text-color` |
+| `<grid>` + `<column>` | 分栏布局，各列 width-ratio 之和为 1。**使用前先看 `lark-doc-style.md` 的写作原则** | `width-ratio` |
 | `<whiteboard>` | 嵌入画板 | `type`: `blank` \| `mermaid` \| `plantuml` \| `svg` |
 | `<pre>` | （代码块，内含 `code`）| `lang`, `caption` |
 | `<figure>` | 视图容器 | `view-type` |
