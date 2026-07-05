@@ -68,7 +68,8 @@ metadata:
 | 复核某次（AI）编辑改了什么 / 取两个版本间的变更 | `+changeset-get --start-revision <编辑前版本>`（省略 `--end-revision` 取到最新；版本差 ≤ 20） | — |
 | 取当前文档 revision（版本号） | `+revision-get` | `lark-sheets-workbook` | — |
 | 导出 xlsx / 单表 csv | `+workbook-export` | `lark-sheets-workbook` | — |
-| 导入本地 xlsx/xls/csv 文件为飞书电子表格 | `+workbook-import --file ./x.xlsx`（本地表格文件 → 飞书电子表格的正解；仅要导成多维表格 bitable 时才用 `drive +import --type bitable`） | `lark-sheets-workbook` | `drive +import`（导电子表格时绕了 drive 通道、还要多给 `--type`，应直接用 `+workbook-import`）、把 .xlsx 在本地读成数据再 `+workbook-create` 重灌（多此一举，应直接 `+workbook-import`） |
+| 导入本地 xlsx/xls/csv 文件为飞书电子表格 | `+workbook-import --file ./x.xlsx`（本地表格文件 → 飞书电子表格的正解；仅要导成多维表格 bitable 时才用 `drive +import --type bitable`） | `lark-sheets-workbook` | `drive +import`（导电子表格时绕了 drive 通道、还要多给 `--type`，应直接用 `+workbook-import`）、把 .xlsx 在本地读成数据再 `+workbook-create` 重灌（多此一举，应直接 `+workbook-import`）、要把文件并入某个**已有在线工作簿**（给它加子表）却用它——import 只会新建独立表，加子表应走 `+sheet-copy` / `+sheet-create` |
+| 参考某个**已有在线表**、把多个本地文件 / 数据各作为一张子表**追加**进去（不另起独立表） | 先 `+workbook-info` 拿模板子表 `sheet_id` → `+sheet-copy` 逐张复制模板子表（公式 / 合并 / 分组底色 / 列宽 / 条件格式全继承）再用 `+cells-*` 只改数据；无模板可继承时 `+sheet-create` 建空子表 + `+table-put --sheets/--styles` 写入 | `lark-sheets-workbook` | 把文件 `+workbook-import` / `+workbook-create` 另起一张**独立新表**（目标是并入已有工作簿时就跑偏了；这两条只产新表、不接受已有表定位） |
 | 清除内容 / 格式 | `+cells-clear`（范围维度用 `--scope`，取值 content / formats / all） | `lark-sheets-range-operations` | `--type` |
 | 批量清除多区域 | `+cells-batch-clear`（`--scope`） | `lark-sheets-batch-update` | `--target` |
 | 调整列宽 / 行高 | `+cols-resize` / `+rows-resize`（行、列是两个独立命令） | `lark-sheets-range-operations` | `--dimension`（无此 flag） |

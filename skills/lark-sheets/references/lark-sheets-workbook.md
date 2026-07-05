@@ -398,6 +398,8 @@ standalone 路径在缺 `--source-index` / 只给 `--sheet-name` 时会自动发
 lark-cli sheets +sheet-copy --url "..." --sheet-id "$SID" --title "副本"
 ```
 
+> 💡 `+sheet-copy` 连**公式 / 合并 / 分组底色 / 列宽 / 条件格式**一起整表复制。"照一张现成子表批量造结构相同的新子表"（如参考模板给每份数据各建一张同构子表）时，先 `+sheet-copy` 复制模板再用 `+cells-*` 只改数据，比从零 `+sheet-create` + 重建公式 / 样式省一大截，也天然满足"公式 / 分组 / 颜色照搬"。要把本地文件 / 数据并入**已有工作簿**当子表时走它（或 `+sheet-create`），别用 `+workbook-import` / `+workbook-create`——那两条只会新建独立表。
+
 ### `+sheet-hide` / `+sheet-unhide`
 
 ```bash
