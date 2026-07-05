@@ -203,6 +203,8 @@ _排序条件列表（仅 sort 操作）_
 
 ### `+cells-clear`
 
+> ⚠️ **`--scope all` 清整表是不可逆的大范围破坏**：会一并抹掉该区域的合并单元格、原公式，以及图表 / 透视表引用的数据源列（这类列常在主数据区右侧，视觉上"看着没用"却被图例 / 系列引用）。**"美化 / 规范化一张已有表"永远不需要 clear 原表再重写**——若你打算"清空原表 → 写入重排后的版本"，说明走错了路径，应改为原地只刷样式（见 `lark-sheets-visual-standards` 场景三）。
+
 > **删不掉嵌入对象**：`+cells-clear`（任何 `--scope`，含 `all`）只清单元格的值 / 格式，**删不掉**压在范围内的透视表 / 图表等嵌入对象——后端会报 `can not find embedded block`。删透视表用 `+pivot-delete`、删图表用 `+chart-delete`（先用 `+pivot-list` / `+chart-list` 拿对象 id）。
 
 > 需要一次清除**多个不连续 range**（如把内容搬走后批量去掉散落各处的边框/底色）时，改用 `lark-sheets-batch-update` 的 `+cells-batch-clear`，避免对 `+cells-clear` 逐个 range 调用。
