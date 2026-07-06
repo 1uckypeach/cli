@@ -8,6 +8,8 @@
 2. **批次完成后必须回读校验**：整个 `+batch-update` 执行成功后，用 `+csv-get` 或 `+cells-get` 抽样回读受影响区域，至少校验 3-5 个代表性单元格（首 / 中 / 末），与本地脚本预先计算的预期值对照。
 3. **预期条数前置断言**：涉及"批量填充 N 行"或"对 M 个区域分别写入"时，先把 N、M 硬编码进代码，回读后断言实际等于预期；不一致就再发一轮 `+batch-update` 补齐，禁止交付半成品。
 
+若本次 `+batch-update` 的任一子操作写入了公式、复制了公式模板、或导入了含公式的数据块，**回读校验之后还必须继续执行 `+formula-verify`**。`+batch-update` 的原子提交只保证“写入动作都执行了”，不保证整批公式运行结果 zero-error。
+
 ## 使用场景
 
 写入。批量执行多个写入工具操作。将多个工具调用合并为一次请求，按顺序依次执行。适合需要连续执行多个写入操作的场景（如先修改结构再写入数据）。注意：不支持嵌套 `+batch-update`。
@@ -21,6 +23,11 @@
 - 需要对多个区域执行不同写入操作时（多次 `+cells-set` + `+cells-clear` 等组合）
 
 当同一工具需要对多个区域重复调用时，**必须**改用 `+batch-update` 合并为单次请求——`+batch-update` 是原子提交（要么全成功要么整批回滚）；逐个调用非原子，中途失败会留下半成品。
+
+**公式相关批处理的默认闭环**：
+- 写前：先读 `lark-sheets-formula-translation`，把公式改写成飞书可执行语义。
+- 写时：用 `+batch-update` 一次性完成插行/写公式/复制模板等原子动作。
+- 写后：抽样回读之外，继续跑 `lark-sheets-formula-verify`，直到 `+formula-verify` 返回 `status='success'`。
 
 **`+dropdown-update` 的选项模式（`--options` / `--source-range` 二选一）+ 配色规则**（`--colors` 长度可短不能长、必须配 `--highlight=true` 才生效、不传按内置 10 色色板循环补色）见 [`lark-sheets-write-cells`](./lark-sheets-write-cells.md) 的「Dropdown 选项 + 配色」节，本文不重复。`+dropdown-delete` 不涉及这些 flag。
 
