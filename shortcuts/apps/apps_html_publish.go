@@ -120,10 +120,10 @@ var AppsHTMLPublish = common.Shortcut{
 			Path:  strings.TrimSpace(rctx.Str("path")),
 		}
 
-		meta := queryAppMeta(ctx, rctx, spec.AppID)
+		appType := queryAppType(ctx, rctx, spec.AppID)
 
-		// doubao-html (app_type=7, arch_type=4): zip + TOS path
-		if meta != nil && meta.AppType == 7 && meta.ArchType == 4 {
+		// doubao-html (modern_html): zip + TOS path
+		if appType == "modern_html" {
 			tosClient := appsHTMLPublishTOSAPI{runtime: rctx}
 			out, err := runHTMLPublishTOS(ctx, rctx.FileIO(), tosClient, rctx, spec)
 			if err != nil {

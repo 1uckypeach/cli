@@ -11,7 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
+
 	"strings"
 	"unicode"
 
@@ -87,7 +87,7 @@ var AppsInit = common.Shortcut{
 	},
 	DryRun: func(ctx context.Context, rctx *common.RuntimeContext) *common.DryRunAPI {
 		appID := strings.TrimSpace(rctx.Str("app-id"))
-		template := resolveTemplate(rctx, nil)
+		template := resolveTemplate(rctx, "")
 		dry := common.NewDryRunAPI().
 			Desc("Initialize app code (credential-init, clone, checkout, npx code-init, optional commit/push)").
 			Set("credential_init", fmt.Sprintf("apps +git-credential-init --app-id %s --format json", appID)).
@@ -125,19 +125,17 @@ func defaultCloneDir(appID string) string {
 }
 
 // resolveTemplate returns the scaffold template for an empty-repo `app init`.
-// An explicit --template wins. When meta is available the template is derived
-// from app_type/arch_type; otherwise it falls back to defaultTemplate.
-func resolveTemplate(rctx *common.RuntimeContext, meta *appMeta) string {
+// An explicit --template wins. When appType is available the template is derived
+// from it; otherwise it falls back to defaultTemplate.
+func resolveTemplate(rctx *common.RuntimeContext, appType string) string {
 	if t := strings.TrimSpace(rctx.Str("template")); t != "" {
 		return t
 	}
-	if meta != nil {
-		switch {
-		case meta.AppType == 7 && meta.ArchType == 3:
-			return ""
-		case meta.AppType == 7 && meta.ArchType == 4:
-			return "vite-react"
-		}
+	if appType == "html" {
+		return ""
+	}
+	if appType != "" {
+		return appType
 	}
 	return defaultTemplate
 }
@@ -332,8 +330,8 @@ func isEmptyRepo(ctx context.Context, dir string) (bool, error) {
 // runScaffold runs the npx scaffolding step inside the cloned repo (cwd=dir).
 // Empty repo -> `app init`; non-empty -> `app sync` + meta app_id patch +
 // conditional `skills sync`. Returns "init", "upgrade", or "skipped".
-func runScaffold(ctx context.Context, dir, appID string, meta *appMeta, explicitTemplate string) (string, error) {
-	if isStaticHtml(meta) {
+func runScaffold(ctx context.Context, dir, appID, appType, explicitTemplate string) (string, error) {
+	if appType == "html" {
 		return scaffoldKindSkipped, nil
 	}
 	empty, err := isEmptyRepo(ctx, dir)
@@ -341,7 +339,7 @@ func runScaffold(ctx context.Context, dir, appID string, meta *appMeta, explicit
 		return "", err
 	}
 	if empty {
-		args := scaffoldInitArgs(meta, appID, explicitTemplate)
+		args := scaffoldInitArgs(appType, appID, explicitTemplate)
 		if _, stderr, err := initRunner.Run(ctx, dir, "npx", args...); err != nil {
 			return "", appsExternalToolError(err, "npx app init failed: %s", gitErr(stderr, err))
 		}
@@ -362,19 +360,15 @@ func runScaffold(ctx context.Context, dir, appID string, meta *appMeta, explicit
 }
 
 // scaffoldInitArgs builds the npx argument list for `app init`. An explicit
-// template wins; otherwise, when meta is available, --app-type/--arch-type are
-// passed so miaoda-cli picks the right scaffold; nil meta falls back to
-// --template defaultTemplate.
-func scaffoldInitArgs(meta *appMeta, appID, explicitTemplate string) []string {
+// template wins; otherwise, when appType is available, it is passed as
+// --template; empty appType falls back to --template defaultTemplate.
+func scaffoldInitArgs(appType, appID, explicitTemplate string) []string {
 	base := []string{"-y", "--prefer-online", miaodaCLIPkg, "app", "init"}
 	if explicitTemplate != "" {
 		return append(base, "--template", explicitTemplate, "--app-id", appID)
 	}
-	if meta != nil {
-		return append(base,
-			"--app-type", strconv.Itoa(meta.AppType),
-			"--arch-type", strconv.Itoa(meta.ArchType),
-			"--app-id", appID)
+	if appType != "" {
+		return append(base, "--template", appType, "--app-id", appID)
 	}
 	return append(base, "--template", defaultTemplate, "--app-id", appID)
 }
@@ -470,7 +464,7 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		return err
 	}
 
-	meta := queryAppMeta(ctx, rctx, appID)
+	appType := queryAppType(ctx, rctx, appID)
 
 	// Already-initialized short-circuit: a dir containing .spark/meta.json is an
 	// initialized app repo -> skip clone/scaffold/commit, but still refresh
@@ -485,11 +479,10 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 			"committed":  false,
 			"pushed":     false,
 		}
-		if meta != nil {
-			out["app_type"] = meta.AppType
-			out["arch_type"] = meta.ArchType
+		if appType != "" {
+			out["app_type"] = appType
 		}
-		if isStaticHtml(meta) {
+		if appType == "html" {
 			out["env_pulled"] = false
 			out["env_pull_skipped"] = true
 			out["message"] = "Repository already initialized (static HTML app — no env pull needed)."
@@ -529,7 +522,7 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		return appsFailedPreconditionError("git executable not found on PATH").
 			WithHint("install git and ensure it is on your PATH")
 	}
-	if !isStaticHtml(meta) {
+	if appType != "html" {
 		if _, err := exec.LookPath("npx"); err != nil {
 			return appsFailedPreconditionError("npx executable not found on PATH").
 				WithHint("install Node.js (which provides npx) and ensure it is on your PATH")
@@ -560,7 +553,7 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 
 	initLogf(rctx, "Initializing app code (running miaoda-cli)...")
 	explicitTemplate := strings.TrimSpace(rctx.Str("template"))
-	scaffold, err := runScaffold(ctx, dir, appID, meta, explicitTemplate)
+	scaffold, err := runScaffold(ctx, dir, appID, appType, explicitTemplate)
 	if err != nil {
 		return err
 	}
@@ -585,14 +578,13 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		"pushed":         pushed,
 		"message":        "Repository initialized. You can start developing.",
 	}
-	if meta != nil {
-		out["app_type"] = meta.AppType
-		out["arch_type"] = meta.ArchType
+	if appType != "" {
+		out["app_type"] = appType
 	}
 
 	var envFile string
 	var envPulled bool
-	if isStaticHtml(meta) {
+	if appType == "html" {
 		out["env_pulled"] = false
 		out["env_pull_skipped"] = true
 	} else {
@@ -614,7 +606,7 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 	rctx.OutFormat(out, nil, func(w io.Writer) {
 		fmt.Fprintf(w, "✓ Repository initialized at %s\n", dir)
 		fmt.Fprintf(w, "  branch: %s\n  scaffold: %s\n", defaultInitBranch, scaffold)
-		if isStaticHtml(meta) {
+		if appType == "html" {
 			fmt.Fprintln(w, "  (static HTML app — env pull skipped)")
 		} else if envPulled {
 			fmt.Fprintf(w, "✓ Local environment written to %s\n", envFile)
