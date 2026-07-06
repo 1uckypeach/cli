@@ -181,6 +181,49 @@ XSD 中的 `title`、`headline`、`sub-headline`、`body`、`caption` 主要出�
 
 图表元素必须至少包含 `<chartPlotArea>` 和 `<chartData>`；还可包含 `<chartTitle>`、`<chartSubTitle>`、`<chartStyle>`、`<chartLegend>`、`<chartTooltip>`。复杂 chart XML 以 XSD 为准，不要自行发明简化 DSL。
 
+完整图表类型覆盖示例见 [slides_chart_demo.xml](slides_chart_demo.xml)，其中包含柱状、条形、折线、面积、饼 / 环、雷达等原生 `<chart>` 示例，以及散点、气泡、漏斗、帕累托、瀑布等 `<whiteboard>` SVG 图表示例。
+
+典型柱状图示例：
+
+```xml
+<chart topLeftX="80" topLeftY="120" width="420" height="260">
+  <chartTitle fontSize="16" bold="true" color="rgb(31, 35, 41)">季度收入</chartTitle>
+  <chartStyle>
+    <chartBackground color="rgba(255, 255, 255, 0)"/>
+    <chartFont size="10" color="rgb(100, 116, 139)"/>
+    <chartColorTheme>
+      <color value="rgb(58, 119, 255)"/>
+      <color value="rgb(255, 126, 35)"/>
+    </chartColorTheme>
+  </chartStyle>
+  <chartLegend position="bottom" fontSize="10" color="rgb(100, 116, 139)"/>
+  <chartPlotArea>
+    <chartPlot type="column">
+      <chartBars gap="0.28"/>
+    </chartPlot>
+    <chartAxes>
+      <chartAxis type="x">
+        <chartLabel fontSize="10" color="rgb(100, 116, 139)"/>
+        <chartAxisLine/>
+      </chartAxis>
+      <chartAxis type="y" min="0">
+        <chartLabel fontSize="10" color="rgb(100, 116, 139)"/>
+        <chartGridLine width="1" color="rgb(226, 232, 240)"/>
+      </chartAxis>
+    </chartAxes>
+  </chartPlotArea>
+  <chartData>
+    <dim1>
+      <chartField name="x" valueType="string">Q1,Q2,Q3,Q4</chartField>
+    </dim1>
+    <dim2>
+      <chartField name="收入" valueType="number">42,56,48,72</chartField>
+      <chartField name="成本" valueType="number">31,38,44,51</chartField>
+    </dim2>
+  </chartData>
+</chart>
+```
+
 ### whiteboard
 
 ```xml
