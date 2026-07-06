@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -35,6 +36,7 @@ const (
 const (
 	scaffoldKindInit    = "init"
 	scaffoldKindUpgrade = "upgrade"
+	scaffoldKindSkipped = "skipped"
 )
 
 const (
@@ -85,7 +87,7 @@ var AppsInit = common.Shortcut{
 	},
 	DryRun: func(ctx context.Context, rctx *common.RuntimeContext) *common.DryRunAPI {
 		appID := strings.TrimSpace(rctx.Str("app-id"))
-		template := resolveTemplate(rctx, appID)
+		template := resolveTemplate(rctx, nil)
 		dry := common.NewDryRunAPI().
 			Desc("Initialize app code (credential-init, clone, checkout, npx code-init, optional commit/push)").
 			Set("credential_init", fmt.Sprintf("apps +git-credential-init --app-id %s --format json", appID)).
@@ -123,16 +125,20 @@ func defaultCloneDir(appID string) string {
 }
 
 // resolveTemplate returns the scaffold template for an empty-repo `app init`.
-// An explicit --template wins. When omitted, it should be derived from the
-// app's tech stack.
-// TODO(apps-init): look up the app by appID via the apps API (e.g. `apps +list`
-// or a get-app endpoint), read its tech stack, and map tech-stack -> template
-// through a (future) enum. Until that lands, fall back to defaultTemplate.
-func resolveTemplate(rctx *common.RuntimeContext, appID string) string {
+// An explicit --template wins. When meta is available the template is derived
+// from app_type/arch_type; otherwise it falls back to defaultTemplate.
+func resolveTemplate(rctx *common.RuntimeContext, meta *appMeta) string {
 	if t := strings.TrimSpace(rctx.Str("template")); t != "" {
 		return t
 	}
-	// TODO(apps-init): derive from app tech stack (apps API + enum mapping).
+	if meta != nil {
+		switch {
+		case meta.AppType == 7 && meta.ArchType == 3:
+			return ""
+		case meta.AppType == 7 && meta.ArchType == 4:
+			return "vite-react"
+		}
+	}
 	return defaultTemplate
 }
 
@@ -325,17 +331,18 @@ func isEmptyRepo(ctx context.Context, dir string) (bool, error) {
 
 // runScaffold runs the npx scaffolding step inside the cloned repo (cwd=dir).
 // Empty repo -> `app init`; non-empty -> `app sync` + meta app_id patch +
-// conditional `skills sync`. Returns "init" or "upgrade".
-func runScaffold(ctx context.Context, dir, appID, template string) (string, error) {
+// conditional `skills sync`. Returns "init", "upgrade", or "skipped".
+func runScaffold(ctx context.Context, dir, appID string, meta *appMeta, explicitTemplate string) (string, error) {
+	if isStaticHtml(meta) {
+		return scaffoldKindSkipped, nil
+	}
 	empty, err := isEmptyRepo(ctx, dir)
 	if err != nil {
 		return "", err
 	}
 	if empty {
-		// isEmptyRepo treats a repo with no tracked files — or only the backend's
-		// seed README.md — as empty. If other seed files (e.g. .gitignore) can
-		// appear, extend isEmptyRepo's allow-list accordingly.
-		if _, stderr, err := initRunner.Run(ctx, dir, "npx", "-y", "--prefer-online", miaodaCLIPkg, "app", "init", "--template", template, "--app-id", appID); err != nil {
+		args := scaffoldInitArgs(meta, appID, explicitTemplate)
+		if _, stderr, err := initRunner.Run(ctx, dir, "npx", args...); err != nil {
 			return "", appsExternalToolError(err, "npx app init failed: %s", gitErr(stderr, err))
 		}
 		return scaffoldKindInit, nil
@@ -352,6 +359,24 @@ func runScaffold(ctx context.Context, dir, appID, template string) (string, erro
 		}
 	}
 	return scaffoldKindUpgrade, nil
+}
+
+// scaffoldInitArgs builds the npx argument list for `app init`. An explicit
+// template wins; otherwise, when meta is available, --app-type/--arch-type are
+// passed so miaoda-cli picks the right scaffold; nil meta falls back to
+// --template defaultTemplate.
+func scaffoldInitArgs(meta *appMeta, appID, explicitTemplate string) []string {
+	base := []string{"-y", "--prefer-online", miaodaCLIPkg, "app", "init"}
+	if explicitTemplate != "" {
+		return append(base, "--template", explicitTemplate, "--app-id", appID)
+	}
+	if meta != nil {
+		return append(base,
+			"--app-type", strconv.Itoa(meta.AppType),
+			"--arch-type", strconv.Itoa(meta.ArchType),
+			"--app-id", appID)
+	}
+	return append(base, "--template", defaultTemplate, "--app-id", appID)
 }
 
 // parseRepoURLFromEnvelope extracts data.repository_url from a lark-cli JSON
@@ -445,9 +470,12 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		return err
 	}
 
+	meta := queryAppMeta(ctx, rctx, appID)
+
 	// Already-initialized short-circuit: a dir containing .spark/meta.json is an
 	// initialized app repo -> skip clone/scaffold/commit, but still refresh
 	// the local env so a re-run picks up the latest startup env vars.
+	// Static HTML apps skip env-pull (they have no env vars).
 	if isAlreadyInitialized(dir) {
 		initLogf(rctx, "Already initialized at %s — refreshing local environment", dir)
 		out := map[string]interface{}{
@@ -456,6 +484,20 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 			"scaffold":   "already_initialized",
 			"committed":  false,
 			"pushed":     false,
+		}
+		if meta != nil {
+			out["app_type"] = meta.AppType
+			out["arch_type"] = meta.ArchType
+		}
+		if isStaticHtml(meta) {
+			out["env_pulled"] = false
+			out["env_pull_skipped"] = true
+			out["message"] = "Repository already initialized (static HTML app — no env pull needed)."
+			rctx.OutFormat(out, nil, func(w io.Writer) {
+				fmt.Fprintf(w, "✓ Already initialized at %s\n", dir)
+				fmt.Fprintln(w, "仓库已初始化完成，可以开始开发了。")
+			})
+			return nil
 		}
 		initLogf(rctx, "Pulling local environment variables...")
 		envFile, envPullErr := pullEnv(ctx, rctx, appID, dir)
@@ -487,9 +529,11 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		return appsFailedPreconditionError("git executable not found on PATH").
 			WithHint("install git and ensure it is on your PATH")
 	}
-	if _, err := exec.LookPath("npx"); err != nil {
-		return appsFailedPreconditionError("npx executable not found on PATH").
-			WithHint("install Node.js (which provides npx) and ensure it is on your PATH")
+	if !isStaticHtml(meta) {
+		if _, err := exec.LookPath("npx"); err != nil {
+			return appsFailedPreconditionError("npx executable not found on PATH").
+				WithHint("install Node.js (which provides npx) and ensure it is on your PATH")
+		}
 	}
 
 	if err := ensureEmptyDir(dir); err != nil {
@@ -515,7 +559,8 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 	}
 
 	initLogf(rctx, "Initializing app code (running miaoda-cli)...")
-	scaffold, err := runScaffold(ctx, dir, appID, resolveTemplate(rctx, appID))
+	explicitTemplate := strings.TrimSpace(rctx.Str("template"))
+	scaffold, err := runScaffold(ctx, dir, appID, meta, explicitTemplate)
 	if err != nil {
 		return err
 	}
@@ -530,15 +575,6 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		initLogf(rctx, "Working tree clean — skipped commit/push")
 	}
 
-	initLogf(rctx, "Pulling local environment variables...")
-	envFile, envPullErr := pullEnv(ctx, rctx, appID, dir)
-	envPulled := envPullErr == ""
-	if envPulled {
-		initLogf(rctx, "Local environment written to %s", envFile)
-	} else {
-		initLogf(rctx, "Could not pull local env vars: %s", envPullErr)
-	}
-
 	out := map[string]interface{}{
 		"app_id":         appID,
 		"repository_url": redactURLCredentials(repoURL),
@@ -547,21 +583,43 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		"scaffold":       scaffold,
 		"committed":      committed,
 		"pushed":         pushed,
-		"env_pulled":     envPulled,
 		"message":        "Repository initialized. You can start developing.",
 	}
-	if envPulled {
-		out["env_file"] = envFile
-	} else {
-		out["env_pull_error"] = envPullErr
-		out["message"] = fmt.Sprintf("Repository initialized. Could not pull local env vars automatically — run `lark-cli apps +env-pull --app-id %s` to retry.", appID)
+	if meta != nil {
+		out["app_type"] = meta.AppType
+		out["arch_type"] = meta.ArchType
 	}
+
+	var envFile string
+	var envPulled bool
+	if isStaticHtml(meta) {
+		out["env_pulled"] = false
+		out["env_pull_skipped"] = true
+	} else {
+		initLogf(rctx, "Pulling local environment variables...")
+		var envPullErr string
+		envFile, envPullErr = pullEnv(ctx, rctx, appID, dir)
+		envPulled = envPullErr == ""
+		out["env_pulled"] = envPulled
+		if envPulled {
+			initLogf(rctx, "Local environment written to %s", envFile)
+			out["env_file"] = envFile
+		} else {
+			initLogf(rctx, "Could not pull local env vars: %s", envPullErr)
+			out["env_pull_error"] = envPullErr
+			out["message"] = fmt.Sprintf("Repository initialized. Could not pull local env vars automatically — run `lark-cli apps +env-pull --app-id %s` to retry.", appID)
+		}
+	}
+
 	rctx.OutFormat(out, nil, func(w io.Writer) {
 		fmt.Fprintf(w, "✓ Repository initialized at %s\n", dir)
 		fmt.Fprintf(w, "  branch: %s\n  scaffold: %s\n", defaultInitBranch, scaffold)
-		if envPulled {
+		if isStaticHtml(meta) {
+			fmt.Fprintln(w, "  (static HTML app — env pull skipped)")
+		} else if envPulled {
 			fmt.Fprintf(w, "✓ Local environment written to %s\n", envFile)
 		} else {
+			envPullErr := out["env_pull_error"]
 			fmt.Fprintf(w, "⚠ Could not pull local env vars: %s\n", envPullErr)
 			fmt.Fprintf(w, "  run `lark-cli apps +env-pull --app-id %s` to retry\n", appID)
 		}
