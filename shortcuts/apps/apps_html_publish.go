@@ -119,6 +119,27 @@ var AppsHTMLPublish = common.Shortcut{
 			AppID: strings.TrimSpace(rctx.Str("app-id")),
 			Path:  strings.TrimSpace(rctx.Str("path")),
 		}
+
+		meta := queryAppMeta(ctx, rctx, spec.AppID)
+
+		// doubao-html (app_type=7, arch_type=4): zip + TOS path
+		if meta != nil && meta.AppType == 7 && meta.ArchType == 4 {
+			tosClient := appsHTMLPublishTOSAPI{runtime: rctx}
+			out, err := runHTMLPublishTOS(ctx, rctx.FileIO(), tosClient, rctx, spec)
+			if err != nil {
+				return err
+			}
+			rctx.OutFormat(out, nil, func(w io.Writer) {
+				if url, ok := out["online_url"].(string); ok && url != "" {
+					fmt.Fprintf(w, "url: %s\n", url)
+				} else if rid, ok := out["release_id"].(string); ok {
+					fmt.Fprintf(w, "release_id: %s (still building)\n", rid)
+				}
+			})
+			return nil
+		}
+
+		// Legacy html or meta query failed: existing multipart path
 		client := appsHTMLPublishAPI{runtime: rctx}
 		out, err := runHTMLPublish(ctx, rctx.FileIO(), client, spec)
 		if err != nil {
@@ -253,6 +274,70 @@ func runHTMLPublish(ctx context.Context, fio fileio.FileIO, publisher appsHTMLPu
 	out := map[string]interface{}{}
 	if resp.URL != "" {
 		out["url"] = resp.URL
+	}
+	return out, nil
+}
+
+func runHTMLPublishTOS(ctx context.Context, fio fileio.FileIO, tosClient appsHTMLPublishTOSClient, rctx *common.RuntimeContext, spec appsHTMLPublishSpec) (map[string]interface{}, error) {
+	candidates, err := walkHTMLPublishCandidates(fio, spec.Path)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureIndexHTML(candidates); err != nil {
+		return nil, err
+	}
+	if hits := oversizeHTMLFiles(candidates); len(hits) > 0 {
+		return nil, oversizeHTMLFilesError(hits)
+	}
+	var rawTotal int64
+	for _, c := range candidates {
+		rawTotal += c.Size
+	}
+	if rawTotal > maxHTMLPublishRawBytes {
+		return nil, appsValidationParamError("--path",
+			"--path total raw bytes %d exceeds %d bytes limit (uncompressed pre-pack cap)", rawTotal, maxHTMLPublishRawBytes).
+			WithHint("reduce --path contents or choose a smaller subdirectory before packaging")
+	}
+
+	archive, err := buildHTMLPublishZip(fio, candidates)
+	if err != nil {
+		return nil, err
+	}
+	if archive.Size > maxHTMLPublishTarballBytes {
+		return nil, appsValidationParamError("--path",
+			"packed zip size %d bytes exceeds %d bytes limit", archive.Size, maxHTMLPublishTarballBytes).
+			WithHint("reduce --path contents, remove unrelated large files, then retry")
+	}
+
+	uploadURL, tosKey, err := tosClient.GetUploadURL(ctx, spec.AppID)
+	if err != nil {
+		return nil, err
+	}
+	if err := tosClient.UploadToTOS(ctx, uploadURL, archive); err != nil {
+		return nil, err
+	}
+	resp, err := tosClient.Deploy(ctx, spec.AppID, tosKey)
+	if err != nil {
+		return nil, err
+	}
+
+	out := map[string]interface{}{
+		"app_id": spec.AppID,
+		"status": resp.Status,
+	}
+	if resp.URL != "" {
+		out["online_url"] = resp.URL
+	}
+	if resp.Status == "building" && resp.ReleaseID != "" {
+		polled, pollErr := pollDeployStatus(ctx, rctx, spec.AppID, resp.ReleaseID)
+		if pollErr == nil && polled.Status == "finished" {
+			out["status"] = "finished"
+			out["online_url"] = polled.URL
+			return out, nil
+		}
+		out["release_id"] = resp.ReleaseID
+		out["hint"] = fmt.Sprintf("run `lark-cli apps +release-get --app-id %s --release-id %s` to check status",
+			spec.AppID, resp.ReleaseID)
 	}
 	return out, nil
 }
