@@ -92,7 +92,7 @@ python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentatio
 - 多个主体元素在同一区域重叠，而不是有意叠加背景。
 - 重要内容越过画布边界，或贴近底部超过 `y=500`。
 - 高密度页使用单个长 bullet list，没有分栏、表格或分组。
-- 标题、主视觉、正文的字号和颜色差异太弱，视觉层级不清。
+- 标题、主视觉、正文没有通过字号、字重、位置、留白、分组或小面积 `accent` 建立清晰层级。
 - 所有内容页都是同一套标题加 bullets 坐标。
 
 ## Verification Record

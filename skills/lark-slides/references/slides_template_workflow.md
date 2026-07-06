@@ -25,7 +25,7 @@ python3 skills/lark-slides/scripts/template_tool.py extract --template <template
 ```text
 Step 1: 需求澄清 & 读取知识
   - 澄清主题、受众、页数、风格
-  - 读取 xml-schema-quick-ref.md；新建 / 大幅改写时还要读取 design-rules.md
+  - 读取 xml-schema-quick-ref.md；新建 / 大幅改写时按 SKILL.md 的设计思路先锁定视觉系统
   - 按本文检索模板并给出候选
 
 Step 2: 生成大纲 -> 用户确认

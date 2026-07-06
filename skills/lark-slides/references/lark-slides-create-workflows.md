@@ -14,7 +14,7 @@ metadata:
 
 | 用户需求                                | 优先动作 | 关键文档 / 命令 |
 |-------------------------------------|----------|-----------------|
-| 新建 PPT                              | 先确定叙事、页序和视觉策略，再按复杂度选择一步或两步创建 | `design-rules.md`、`slides +create` |
+| 新建 PPT                              | 先确定叙事、页序和视觉策略，再按复杂度选择一步或两步创建 | `SKILL.md` 设计思路、`slides +create` |
 | 已有 PPT 大幅改写                         | 多页整页重建用 `+replace-pages`，单页局部编辑用 `+replace-slide` | `xml_presentations.get`、`lark-slides-replace-pages.md`、`lark-slides-edit-workflows.md` |
 | 编辑单个标题、文本块、图片或局部元素                  | 优先块级替换/插入，不改页序 | `slides +replace-slide`、`lark-slides-replace-slide.md` |
 | 读取或分析已有 PPT                         | 解析 slides/wiki token，回读全文或单页 XML，保存 `xml_presentation_id`、`slide_id`、`revision_id` | `xml_presentations.get`、`xml_presentation.slide.get` |
@@ -62,7 +62,6 @@ lark-cli auth login --domain slides
 高频只读：
 
 - [xml-schema-quick-ref.md](references/xml-schema-quick-ref.md)
-- [design-rules.md](references/design-rules.md)（新建 / 大幅改写）
 - [validation-checklist.md](references/validation-checklist.md)（创建 / 大幅改写后）
 
 按需再读：
@@ -135,7 +134,7 @@ lark-cli auth login --domain slides
 ```text
 Step 1: 需求澄清 & 读取知识
   - 澄清主题、受众、页数、风格
-  - 读取 xml-schema-quick-ref.md；新建 / 大幅改写时还要读取 design-rules.md
+  - 读取 xml-schema-quick-ref.md；新建 / 大幅改写时按 SKILL.md 的设计思路先锁定视觉系统
 
 Step 2: 生成大纲 → 用户确认
   - 生成结构化大纲供用户确认
