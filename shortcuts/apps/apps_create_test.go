@@ -273,3 +273,92 @@ func TestAppsCreate_FullstackDryRun(t *testing.T) {
 		t.Fatalf("dry-run should not contain message: %s", got)
 	}
 }
+
+func TestAppsCreate_WithAgentEnvVar(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_AGENT", "doubao")
+	factory, stdout, reg := newAppsExecuteFactory(t)
+	stub := &httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/spark/v1/apps",
+		Body: map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{
+				"app": map[string]interface{}{"app_id": "app_d", "name": "Demo"},
+			},
+		},
+	}
+	reg.Register(stub)
+
+	if err := runAppsShortcut(t, AppsCreate,
+		[]string{"+create", "--name", "Demo", "--app-type", "html", "--as", "user"},
+		factory, stdout); err != nil {
+		t.Fatalf("execute err=%v", err)
+	}
+
+	var sent map[string]interface{}
+	if err := json.Unmarshal(stub.CapturedBody, &sent); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if sent["app_source"] != "doubao" {
+		t.Fatalf("body.app_source = %v, want doubao", sent["app_source"])
+	}
+}
+
+func TestAppsCreate_WithoutAgentEnvVar(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_AGENT", "")
+	factory, stdout, reg := newAppsExecuteFactory(t)
+	stub := &httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/spark/v1/apps",
+		Body: map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{
+				"app": map[string]interface{}{"app_id": "app_d", "name": "Demo"},
+			},
+		},
+	}
+	reg.Register(stub)
+
+	if err := runAppsShortcut(t, AppsCreate,
+		[]string{"+create", "--name", "Demo", "--app-type", "html", "--as", "user"},
+		factory, stdout); err != nil {
+		t.Fatalf("execute err=%v", err)
+	}
+
+	var sent map[string]interface{}
+	if err := json.Unmarshal(stub.CapturedBody, &sent); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if _, present := sent["app_source"]; present {
+		t.Fatalf("app_source should not be present when env var is empty: %v", sent)
+	}
+}
+
+func TestAppsCreate_AgentEnvVarNotSet(t *testing.T) {
+	factory, stdout, reg := newAppsExecuteFactory(t)
+	stub := &httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/spark/v1/apps",
+		Body: map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{
+				"app": map[string]interface{}{"app_id": "app_d", "name": "Demo"},
+			},
+		},
+	}
+	reg.Register(stub)
+
+	if err := runAppsShortcut(t, AppsCreate,
+		[]string{"+create", "--name", "Demo", "--app-type", "html", "--as", "user"},
+		factory, stdout); err != nil {
+		t.Fatalf("execute err=%v", err)
+	}
+
+	var sent map[string]interface{}
+	if err := json.Unmarshal(stub.CapturedBody, &sent); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if _, present := sent["app_source"]; present {
+		t.Fatalf("app_source should not be present when env var is unset: %v", sent)
+	}
+}
