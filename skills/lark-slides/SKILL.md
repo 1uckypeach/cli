@@ -109,6 +109,108 @@ lark-cli auth login --domain slides
 - 封面、章节页、内容页、结尾页承担不同任务。章节页只做过渡，不承载多点论证；短 deck 不要机械加入 agenda、Q&A 或多个收尾页。
 - 数据页必须先写清 takeaway，再选择图表或数字呈现方式。不要把图表标题写成指标名，而要写成图表证明的结论。
 
+### Visual Planning：从 `slide_plan` 到 XML 几何
+
+新建演示文稿或大幅改写页面时，在 `slide_plan.json` 完成后、生成 XML 前，必须把 `layout_type`、`visual_focus`、`text_density` 落到真实页面几何里。默认按 `960 x 540` 画布规划；已有页面回读 XML 可以影响坐标，但不能覆盖这些原则：页面要有主视觉区域，文本要受密度约束，不同 `layout_type` 必须产生明显不同的坐标结构。
+
+- `layout_type` 必须改变几何：元素位置、区域大小、对齐方式和视觉节奏都要随页面类型变化。去掉 plan 里的 `layout_type` 标签后，页面仍应能被辨认为对应结构。
+- `visual_focus` 决定页面最大或最高对比区域，可以是图片、图表、指标、引语、表格、diagram，或与 `asset_need` 匹配的 shape placeholder。
+- `text_density` 限制可见文本量：`low` 只放标题 + 一句短陈述，或 1-3 个标签；`medium` 放标题 + 2-4 个短 bullet 或标注区域；`high` 用表格、分栏、分组标签或 annotation，不能退化成一个长 bullet 框。
+- 4 页及以上的 deck，在内容允许时至少使用 4 种不同布局结构；不要让所有内容页都是标题 + bullets。
+- 标准内容页外边距通常保持 `60-80` px。标题区一般是 `y=36..90`，主内容通常从 `y>=110` 开始；非背景内容不要挤到 `y>500`，除非它是页脚。
+- 优先使用更少、更大的对象，而不是许多细碎文本框。文字适配是布局约束，不是事后清理：文本框太小时，先删减、拆分或增加空间，再生成 XML。
+- 普通内容页默认复用同一个基础背景；封面、章节、强调和结论页可以变化，但必须共享主色、母题、边缘处理、字体或几何语言。背景和母题形状要先于内容元素插入，避免盖住文字、图片或 diagram。
+
+文字框高度按保守下限规划，中文、加粗、中英混排或较大行距都要增加高度：
+
+| 文本用途 | 常见字号 | 最小高度 |
+|----------|----------|----------|
+| Caption，1 行 | 10-12 | 18 |
+| Caption，2 行 | 10-12 | 30 |
+| Body，1 行 | 13-16 | 24 |
+| Body，2 行 | 13-16 | 40 |
+| Body，2 行加粗 | 15-18 | 48 |
+| Headline，1 行 | 24-32 | 42 |
+| Title，2 行 | 34-44 | 110 |
+
+- 不要把长中文句子或长英文短语放进 `height=18` 或 `height=22` 的文本框；这些高度只适合短标签。
+- 页脚和来源通常保持一行。若必须换行，应上移成真实 caption block，而不是挤在页脚区。
+- 底部结论条一行强调至少 `40` px 高，两行至少 `54` px 高。
+- 多个 `<p>` 的文本框必须按多行显式给高度，不要假设渲染器会自动撑开；中英混排要预留更宽空间。
+
+常用 `layout_type` 的几何约束：
+
+| `layout_type` | 几何要求 | 文本要求 |
+|---|---|---|
+| `title-cover` | 使用主标题块，常见 `x=70..120`、`y=150..250`、`width=700..820`；可用全幅背景、侧图、accent band 或抽象母题。若有右侧 diagram / 截图 / 母题簇，必须做明确 split composition，让标题区和视觉区分离。 | 只放一条 subtitle 或 context，默认 `low`，不要做 bullet list。 |
+| `section-divider` | 使用大号章节编号、chapter label、居中 claim、竖向 accent bar 或全宽 band；页面保持稀疏。 | 标题 + 一句短语，不放 bullets。 |
+| `two-column` | 主区域拆成两个均衡列，例如左 `x=60,width=400`、右 `x=500,width=400`；每列有自己的 heading 或视觉锚点。 | `medium` 每列 2-3 个短项；`high` 用 grouped rows 或 mini table。 |
+| `image-left-text-right` | 左侧视觉区约占宽度 `35-45%`，可全高或高裁切；右侧文本通常从 `x=420` 左右开始。密集截图、论文图、产品图可扩大到 `50-65%` 宽或至少 `320` px 高。 | 右侧只放强 headline + 短支持，最多 4 bullets；截图页优先用 2-3 个解读卡片或 callout。 |
+| `image-right-text-left` | 左侧文本从 `x=60..90` 开始，宽 `400..460`；右侧视觉区约占 `35-45%` 宽，并与正文块对齐。密集素材优先放大视觉区、减少文本。 | 一条主 claim + 2-3 个支持点；callout 要短且并行。 |
+| `big-number` | 最大对象留给指标，字号常见 `64-110`，区域至少 `300 x 120`；不要把数字埋进 bullet 或小卡片。 | `low` 或 `medium`；补充信息用小标签、legend、mini-card，不与数字抢焦点。 |
+| `timeline` | 3-6 个 milestone 沿水平或垂直 spine 排列，每个节点有 dot / card / date，并由线或箭头连接；标题与序列分离。 | 每个节点短标签 + 可选一行说明，不写段落。 |
+| `comparison` | 使用 2-3 个 panel、column 或 table-like 结构，heading 对齐；用颜色、边框、图标或标签突出首选项或关键差异。 | 各列措辞平行，避免长短严重不均。 |
+| `architecture-diagram` | 主区域必须是组件、依赖或系统流图；优先用 `<whiteboard>`，fallback 才用 `<shape>` + `<line>`。 | 节点标签 1-5 个词，最多一个短说明块；两行标签要给足节点和文本框高度。 |
+| `process-flow` | 用 3-5 个编号步骤 + 明显方向箭头 / 连线；步骤更多时分组为阶段。优先用 `<whiteboard>`。 | 每步用动词开头标签 + 最多一个短描述；长解释移到侧注或 notes。 |
+| `quote-highlight` | 引语或 claim 是最大文本对象，留大量空白，可加 attribution 或 context badge。 | 一个 statement / quote + 可选 attribution，不放 bullets。 |
+| `conclusion` | 用一个主 closing statement 或 call to action，可加最多 3 个 next-step card / checklist / owner-date label；可呼应封面背景。 | 结尾要易记，不做 recap overload。 |
+
+截图、论文图、真实图表和产品截屏必须按页面角色使用：
+
+- 只有在素材可读时才作为视觉焦点；过密时裁到相关区域、做 zoom detail，或用原生 shape 重画核心信息。
+- 不要把截图缩成装饰 thumbnail 后再包围密集正文。配 2-3 个解释性标注，告诉读者该看哪里。
+- 外部或论文来源的视觉必须有短 source caption。
+- 最终 XML 必须包含支持的 image token 或创建时本地 placeholder，不能留下不支持的外链。
+
+生成每页 XML 前逐页检查：主视觉是否最大或最突出；几何是否匹配 `layout_type`；`text_density` 是否限制了段落、bullet、标签和文本框数量；背景策略是否和 deck 级视觉系统一致；所有文本框高度是否足够；截图或论文图是否足够大且有简短解读。创建后回读时继续检查：页面是否拥挤、是否依赖长 bullet 框、主 claim / 支撑细节 / 主视觉是否有清晰层级，静态 XML 是否存在短框长文、多段高度不足、页脚换行、标签压线等 text-fit 风险。
+
+### Asset Planning：轻量资产规划
+
+新建演示文稿或大幅改写页面时，在写入 `slide_plan.json` 前后都可以规划 `asset_need`，让 agent 主动识别有价值的图、图标、图表、流程图、时序图、架构图、装饰图案、截图或示意图需求。`asset_need` 只定义轻量资产规划，不是素材采集流程。
+
+- `asset_need` 只是元数据，可以指导页面设计，但不能要求 web search、本地下载、媒体上传或外部工具。`suggested_query` 只是未来查找提示，除非用户另行要求真实素材，否则不要执行搜索。
+- 每个 planned asset 都必须有 `fallback_if_missing`，确保没有真实素材时也能用 XML shapes、文本、箭头、表格、简单图表、`<whiteboard>` diagram 或 placeholder region 完整生成页面。
+- 资产需求必须服务该页 `key_message` 和 `visual_focus`；不要为装饰而加素材。优先规划少数高价值资产，而不是每页机械放一个 asset。6 页左右的技术或商业 deck，在内容允许时至少 3 页有 meaningful asset plan。
+- 如果真实本地素材已经存在，或用户明确提供了素材，可以走正常 media-upload / image workflow，但 plan 里仍要保留 `fallback_if_missing`。
+- 最终 XML 不能留下空白图片框。真实素材缺失时，立即渲染 fallback，并让 fallback 满足 `visual_focus`，成为真实页面元素，而不是小装饰。
+
+`asset_need` 可以是单个对象；一页确实需要多个资产时才用数组。对象保持紧凑：
+
+```json
+{
+  "asset_type": "architecture_diagram",
+  "purpose": "Show how API gateway, planner, XML generator, and Slides API interact.",
+  "suggested_query": "agent native slides runtime architecture diagram",
+  "fallback_if_missing": "Draw grouped boxes connected by arrows with short labels."
+}
+```
+
+没有有意义资产需求的页面，显式写 `none`：
+
+```json
+{
+  "asset_type": "none",
+  "purpose": "No external or simulated asset needed; the page is text-led.",
+  "suggested_query": "",
+  "fallback_if_missing": "Use typography, spacing, and simple accent shapes only."
+}
+```
+
+支持的 `asset_type`：`paper_figure`、`architecture_diagram`、`icon`、`logo`、`chart`、`infographic`、`screenshot`、`flow_diagram`、`none`。不要随意发明新类型；接近这些类型时选择最接近的一种，并在 `purpose` 里说明细节。`<chart>` 不支持 funnel 或 scatter，这类需求生成时映射到 `<whiteboard>` SVG。
+
+资产类型要匹配页面角色：
+
+- `architecture-diagram` 通常配 `architecture_diagram` 或 `flow_diagram`。
+- `process-flow` 通常配 `flow_diagram`、`icon` 或 `infographic`。
+- `comparison` 通常配 `icon`、`chart` 或 `infographic`。
+- `timeline` 通常配 `icon`、`chart` 或 shape-based milestone markers。
+- `big-number` 只有在资产支持指标表达时才配 `chart` 或 `infographic`。
+- `image-left-text-right` / `image-right-text-left` 可以配 `screenshot`、`paper_figure`、`logo` 或 `infographic`；缺失时使用大型 placeholder diagram 或 stylized panel。
+
+`fallback_if_missing` 必须具体到可直接生成 XML，例如：简化 attention matrix、client -> gateway -> service 的三组盒子与箭头、4 根柱子的 mini bar chart、带产品区域标签的 bordered placeholder panel。不要写“Use a placeholder”“Find another image”“Leave blank if unavailable”或“Use generic decoration”。
+
+生成 XML 时按这个顺序执行：真实素材存在且流程支持时，放入计划的主视觉区域；否则立刻用 XML-native fallback 渲染；fallback 的尺寸和位置必须满足 `visual_focus`；不要用更长 bullet 文本补偿缺失素材；创建后回读并确认资产页不空白，且缺失素材时 planned fallback 可见。
+
 ### 视觉系统
 
 - 先根据内容主题、行业语境、受众和交付方式推导视觉方向，再确定配色、字体、图形语言和页面密度；不要套用通用高饱和模板色，也不要让用户在抽象风格词里做选择。
