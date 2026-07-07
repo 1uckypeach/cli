@@ -15,8 +15,6 @@ import (
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
-// newMetaTestRuntime creates a RuntimeContext wired to an httpmock.Registry
-// so queryAppType can be tested without a real server.
 func newMetaTestRuntime(t *testing.T) (*common.RuntimeContext, *httpmock.Registry) {
 	t.Helper()
 	cfg := &core.CliConfig{Brand: core.BrandFeishu, AppID: "cli_meta_test"}
@@ -33,11 +31,14 @@ func TestQueryAppType_Success(t *testing.T) {
 	rt, reg := newMetaTestRuntime(t)
 	reg.Register(&httpmock.Stub{
 		Method: "GET",
-		URL:    "/open-apis/spark/v1/apps/app_test/type",
+		URL:    "/open-apis/spark/v1/apps/app_test",
 		Body: map[string]interface{}{
 			"code": float64(0),
 			"data": map[string]interface{}{
-				"app_type": "modern_html",
+				"app": map[string]interface{}{
+					"app_id":   "app_test",
+					"app_type": "MODERN_HTML",
+				},
 			},
 		},
 	})
@@ -48,11 +49,55 @@ func TestQueryAppType_Success(t *testing.T) {
 	}
 }
 
+func TestQueryAppType_FullStack(t *testing.T) {
+	rt, reg := newMetaTestRuntime(t)
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/spark/v1/apps/app_fs",
+		Body: map[string]interface{}{
+			"code": float64(0),
+			"data": map[string]interface{}{
+				"app": map[string]interface{}{
+					"app_id":   "app_fs",
+					"app_type": "FULL_STACK",
+				},
+			},
+		},
+	})
+
+	result := queryAppType(context.Background(), rt, "app_fs")
+	if result != "full_stack" {
+		t.Errorf("queryAppType = %q, want full_stack", result)
+	}
+}
+
+func TestQueryAppType_Html(t *testing.T) {
+	rt, reg := newMetaTestRuntime(t)
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/spark/v1/apps/app_html",
+		Body: map[string]interface{}{
+			"code": float64(0),
+			"data": map[string]interface{}{
+				"app": map[string]interface{}{
+					"app_id":   "app_html",
+					"app_type": "HTML",
+				},
+			},
+		},
+	})
+
+	result := queryAppType(context.Background(), rt, "app_html")
+	if result != "html" {
+		t.Errorf("queryAppType = %q, want html", result)
+	}
+}
+
 func TestQueryAppType_APIError(t *testing.T) {
 	rt, reg := newMetaTestRuntime(t)
 	reg.Register(&httpmock.Stub{
 		Method: "GET",
-		URL:    "/open-apis/spark/v1/apps/app_bad/type",
+		URL:    "/open-apis/spark/v1/apps/app_bad",
 		Status: 500,
 		Body:   map[string]interface{}{"code": float64(99999), "msg": "internal error"},
 	})
@@ -63,11 +108,11 @@ func TestQueryAppType_APIError(t *testing.T) {
 	}
 }
 
-func TestQueryAppType_MissingField(t *testing.T) {
+func TestQueryAppType_MissingAppObject(t *testing.T) {
 	rt, reg := newMetaTestRuntime(t)
 	reg.Register(&httpmock.Stub{
 		Method: "GET",
-		URL:    "/open-apis/spark/v1/apps/app_no/type",
+		URL:    "/open-apis/spark/v1/apps/app_no",
 		Body: map[string]interface{}{
 			"code": float64(0),
 			"data": map[string]interface{}{},
@@ -76,6 +121,6 @@ func TestQueryAppType_MissingField(t *testing.T) {
 
 	result := queryAppType(context.Background(), rt, "app_no")
 	if result != "" {
-		t.Errorf("queryAppType = %q, want empty when field missing", result)
+		t.Errorf("queryAppType = %q, want empty when app object missing", result)
 	}
 }
