@@ -119,6 +119,13 @@ func prepareDocsV2WriteInput(runtime *common.RuntimeContext, input docsV2WriteIn
 	if err != nil {
 		return docsV2WriteInput{}, err
 	}
+	if err := validateWhiteboardWriteElementBodies(runtime.Str("doc-format"), content); err != nil {
+		return docsV2WriteInput{}, err
+	}
+	content, err = prepareWhiteboardInlineContent(runtime, runtime.Str("doc-format"), content)
+	if err != nil {
+		return docsV2WriteInput{}, err
+	}
 	if err := resolveReferenceMapPaths(runtime, html5RefMap); err != nil {
 		return docsV2WriteInput{}, err
 	}
