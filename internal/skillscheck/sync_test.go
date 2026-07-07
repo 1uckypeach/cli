@@ -44,6 +44,14 @@ func TestParseOfficialSkillsListAcceptsNonLarkOfficialNames(t *testing.T) {
 	}
 }
 
+func TestParseFlatSkillsTrimsDeduplicatesAndSorts(t *testing.T) {
+	got := ParseFlatSkills(" lark-doc, lark-im,,lark-doc, lark-base ")
+	want := []string{"lark-base", "lark-doc", "lark-im"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ParseFlatSkills() = %#v, want %#v", got, want)
+	}
+}
+
 func TestParseGlobalSkillsList(t *testing.T) {
 	input := `Global Skills
 
@@ -479,6 +487,34 @@ func TestSyncSkills_OfficialDiscoveryEmptyFallsBackToFullInstallWithReasons(t *t
 	}
 	if !strings.Contains(result.Detail, "official skills index contains no skills") || !strings.Contains(result.Detail, "official skills list returned no skills") {
 		t.Fatalf("SyncSkills() detail = %q, want both empty discovery reasons", result.Detail)
+	}
+}
+
+func TestSyncSkills_HybridOfficialDiscoveryFailureDoesNotFallback(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)
+	runner := &fakeSkillsRunner{
+		officialIndexErr: fmt.Errorf("index unavailable"),
+		officialErr:      fmt.Errorf("list unavailable"),
+	}
+
+	result := SyncSkills(SyncOptions{
+		Version: "1.0.33",
+		Layout:  LayoutHybrid,
+		Runner:  runner,
+		Now:     time.Now,
+	})
+	if result.Action != "failed" {
+		t.Fatalf("SyncSkills() action = %q, want failed", result.Action)
+	}
+	if result.Layout != LayoutHybrid {
+		t.Fatalf("SyncSkills() layout = %q, want %q", result.Layout, LayoutHybrid)
+	}
+	if result.Err == nil || !strings.Contains(result.Err.Error(), "failed to discover official skills for hybrid layout") {
+		t.Fatalf("SyncSkills() err = %v, want hybrid discovery failure", result.Err)
+	}
+	if runner.installedAll != 0 {
+		t.Fatalf("installedAll = %d, want 0", runner.installedAll)
 	}
 }
 
@@ -972,6 +1008,44 @@ metadata:
 	want := "飞书画板：查询和编辑飞书云文档中的画板。 当用户需要查看画板内容、导出画板图片、编辑画板时使用此 skill。"
 	if got != want {
 		t.Fatalf("skillDescription() = %q, want %q", got, want)
+	}
+}
+
+func TestAssembleSuiteLayoutSeparateIsNoop(t *testing.T) {
+	if err := assembleSuiteLayout(LayoutSeparate, []string{"lark-doc"}, false, nil); err != nil {
+		t.Fatalf("assembleSuiteLayout(separate) err = %v, want nil", err)
+	}
+}
+
+func TestAssembleSuiteLayoutMissingSuiteReturnsError(t *testing.T) {
+	err := assembleSuiteLayout(LayoutHybrid, []string{"lark-doc"}, false, []GlobalSkillInfo{
+		{Name: "lark-doc", Path: filepath.Join(t.TempDir(), "lark-doc")},
+	})
+	if err == nil || !strings.Contains(err.Error(), "lark-suite") {
+		t.Fatalf("assembleSuiteLayout() err = %v, want missing lark-suite error", err)
+	}
+}
+
+func TestCopyDirCopiesNestedFiles(t *testing.T) {
+	root := t.TempDir()
+	src := filepath.Join(root, "src")
+	dst := filepath.Join(root, "dst")
+	if err := os.MkdirAll(filepath.Join(src, "nested"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "nested", "file.txt"), []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := copyDir(src, dst); err != nil {
+		t.Fatalf("copyDir() err = %v, want nil", err)
+	}
+	got, err := os.ReadFile(filepath.Join(dst, "nested", "file.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "hello" {
+		t.Fatalf("copied file = %q, want hello", string(got))
 	}
 }
 
