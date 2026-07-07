@@ -341,20 +341,31 @@ func copyDir(src, dst string) error {
 	if err := vfs.RemoveAll(dst); err != nil {
 		return err
 	}
-	return filepath.WalkDir(src, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+	return copyDirEntries(src, dst)
+}
+
+func copyDirEntries(src, dst string) error {
+	if err := vfs.MkdirAll(dst, 0o755); err != nil {
+		return err
+	}
+	entries, err := vfs.ReadDir(src)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+		if entry.IsDir() {
+			if err := copyDirEntries(srcPath, dstPath); err != nil {
+				return err
+			}
+			continue
 		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
+		if err := copyFile(srcPath, dstPath); err != nil {
 			return err
 		}
-		target := filepath.Join(dst, rel)
-		if entry.IsDir() {
-			return vfs.MkdirAll(target, 0o755)
-		}
-		return copyFile(path, target)
-	})
+	}
+	return nil
 }
 
 func copyFile(src, dst string) error {
