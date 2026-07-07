@@ -23,6 +23,7 @@ const (
 var (
 	whiteboardStartTagPattern = regexp.MustCompile(`(?is)<whiteboard\b[^>]*>`)
 	whiteboardElementPattern  = regexp.MustCompile(`(?is)<whiteboard\b[^>]*>(.*?)</whiteboard>`)
+	whiteboardElementReplacer = regexp.MustCompile(`(?is)<whiteboard\b[^>]*>.*?</whiteboard>`)
 )
 
 type whiteboardAttr struct {
@@ -35,9 +36,6 @@ type whiteboardStartTag struct {
 	SelfClosing bool
 }
 
-// prepareWhiteboardInlineContent processes <whiteboard path="@relative/file"> tags in doc content,
-// reads the file and replaces the tag with the file content inside <whiteboard></whiteboard>.
-// Only processes XML format content; markdown is skipped.
 func prepareWhiteboardInlineContent(runtime *common.RuntimeContext, format string, content string) (string, error) {
 	if !strings.Contains(content, "<"+whiteboardTag) {
 		return content, nil
@@ -47,35 +45,32 @@ func prepareWhiteboardInlineContent(runtime *common.RuntimeContext, format strin
 		return content, nil
 	}
 
-	var (
-		rewriteErr error
-		out        string
-	)
-	out, rewriteErr = rewriteWhiteboardStartTags(content, func(raw string) (string, error) {
+	var rewriteErr error
+	out := whiteboardElementReplacer.ReplaceAllStringFunc(content, func(raw string) string {
 		if rewriteErr != nil {
-			return raw, rewriteErr
+			return raw
 		}
-		tag, err := parseWhiteboardStartTag(raw)
+		// Extract the opening tag part
+		openTagMatch := whiteboardStartTagPattern.FindString(raw)
+		if openTagMatch == "" {
+			return raw
+		}
+		tag, err := parseWhiteboardStartTag(openTagMatch)
 		if err != nil {
 			rewriteErr = common.ValidationErrorf("invalid whiteboard tag: %v", err).WithParam("whiteboard")
-			return raw, rewriteErr
+			return raw
 		}
 
 		pathValue, hasPath := tag.attr("path")
 		if !hasPath {
 			// no path attribute, leave as-is
-			return raw, nil
+			return raw
 		}
-
-		// We already matched the entire element, so if there was content between opening/closing,
-		// it means user specified both content and path — that's an error.
-		// (This check happens at the regexp level in prepareHTML5BlockWriteContent; we don't need
-		// it here because our caller already matches the full element.)
 
 		data, err := readWhiteboardPath(runtime, pathValue, "whiteboard path")
 		if err != nil {
 			rewriteErr = err
-			return raw, rewriteErr
+			return raw
 		}
 
 		// Infer type from extension if not present
@@ -84,7 +79,7 @@ func prepareWhiteboardInlineContent(runtime *common.RuntimeContext, format strin
 			docType = strings.TrimSpace(docType)
 			if !isValidWhiteboardType(docType) {
 				rewriteErr = common.ValidationErrorf("invalid whiteboard type %q; valid types: raw | plantuml | mermaid | svg", docType).WithParam("type")
-				return raw, rewriteErr
+				return raw
 			}
 		} else {
 			cleanPath := filepath.Clean(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(pathValue), "@")))
@@ -112,14 +107,13 @@ func prepareWhiteboardInlineContent(runtime *common.RuntimeContext, format strin
 		result.WriteString(tag.render(false))
 		result.WriteString(data)
 		result.WriteString("</whiteboard>")
-		return result.String(), nil
+		return result.String()
 	})
 
 	if rewriteErr != nil {
 		return "", rewriteErr
 	}
 	return out, nil
-	return content, nil
 }
 
 // validateWhiteboardWriteElementBodies ensures that whiteboard tags with path attribute
@@ -192,25 +186,6 @@ func readWhiteboardPath(runtime *common.RuntimeContext, pathValue, label string)
 		return "", fmt.Errorf("%s %q cannot be read from the current working directory; check that the file exists: %w", label, clean, err)
 	}
 	return string(data), nil
-}
-
-func rewriteWhiteboardStartTags(content string, fn func(raw string) (string, error)) (string, error) {
-	var rewriteErr error
-	out := whiteboardStartTagPattern.ReplaceAllStringFunc(content, func(raw string) string {
-		if rewriteErr != nil {
-			return raw
-		}
-		rewritten, err := fn(raw)
-		if err != nil {
-			rewriteErr = err
-			return raw
-		}
-		return rewritten
-	})
-	if rewriteErr != nil {
-		return "", rewriteErr
-	}
-	return out, nil
 }
 
 func parseWhiteboardStartTag(raw string) (whiteboardStartTag, error) {
