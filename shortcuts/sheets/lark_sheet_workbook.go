@@ -1175,10 +1175,14 @@ func parseWorkbookCreateResizeOps(v interface{}, path, dimension string) ([]work
 			}
 			return nil, common.ValidationErrorf("%s[%d].range %q must use %s", path, i, rangeStr, want)
 		}
+		typeHint := "pixel/standard"
+		if dimension == "row" {
+			typeHint = "pixel/standard/auto"
+		}
 		resizeType, _ := op["type"].(string)
 		resizeType = strings.TrimSpace(resizeType)
 		if resizeType == "" {
-			return nil, common.ValidationErrorf("%s[%d].type is required (pixel/standard%s)", path, i, autoSuffix(dimension))
+			return nil, common.ValidationErrorf("%s[%d].type is required (%s)", path, i, typeHint)
 		}
 		if dimension == "column" && resizeType == "auto" {
 			return nil, common.ValidationErrorf("%s[%d].type auto is rows-only", path, i)
@@ -1186,7 +1190,7 @@ func parseWorkbookCreateResizeOps(v interface{}, path, dimension string) ([]work
 		switch resizeType {
 		case "pixel", "standard", "auto":
 		default:
-			return nil, common.ValidationErrorf("%s[%d].type %q is invalid (want pixel/standard%s)", path, i, resizeType, autoSuffix(dimension))
+			return nil, common.ValidationErrorf("%s[%d].type %q is invalid (want %s)", path, i, resizeType, typeHint)
 		}
 		size := 0
 		if raw, ok := op["size"]; ok {

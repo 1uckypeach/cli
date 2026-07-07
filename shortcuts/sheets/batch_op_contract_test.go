@@ -102,8 +102,8 @@ func TestBatchOp_BodyMatchesStandalone(t *testing.T) {
 		{
 			shortcut: "+rows-resize",
 			sc:       RowsResize,
-			args:     []string{"--sheet-id", "sh1", "--range", "1", "--type", "pixel", "--size", "30"},
-			subInput: `{"sheet-id":"sh1","range":"1","type":"pixel","size":30}`,
+			args:     []string{"--sheet-id", "sh1", "--range", "1", "--height", "30"},
+			subInput: `{"sheet-id":"sh1","range":"1","height":30}`,
 		},
 		{
 			shortcut: "+cols-resize",
@@ -409,12 +409,12 @@ func TestBatchOp_ErrorEquivalence(t *testing.T) {
 			wantContains: "--count must be > 0",
 		},
 		{
-			name:         "+rows-resize --type pixel without --size",
+			name:         "+rows-resize --height with --type standard",
 			shortcut:     RowsResize,
-			args:         []string{"--sheet-id", "sh1", "--range", "1:2", "--type", "pixel"},
+			args:         []string{"--sheet-id", "sh1", "--range", "1:2", "--height", "30", "--type", "standard"},
 			subShortcut:  "+rows-resize",
-			subInput:     `{"sheet-id":"sh1","range":"1:2","type":"pixel"}`,
-			wantContains: "--type pixel requires --size",
+			subInput:     `{"sheet-id":"sh1","range":"1:2","height":30,"type":"standard"}`,
+			wantContains: "--height cannot be combined with --type standard",
 		},
 		{
 			name:         "+sheet-delete missing sheet selector",
@@ -611,10 +611,10 @@ func TestBatchOp_RejectsBadSubOpInput(t *testing.T) {
 			"--position is required",
 		},
 		{
-			"+rows-resize missing --type",
+			"+rows-resize missing both --height and --type",
 			"+rows-resize",
 			`{"sheet-id":"sh1","range":"1:1"}`,
-			"--type is required",
+			"give --height <px> for a pixel size, or --type standard / auto",
 		},
 		{
 			"+range-copy missing --target-range",
@@ -802,7 +802,7 @@ func TestBatchOp_DispatchCoversReportedBugs(t *testing.T) {
 	// bare single-element ranges.
 	body = parseDryRunBody(t, BatchUpdate, []string{
 		"--url", testURL,
-		"--operations", `[{"shortcut":"+rows-resize","input":{"sheet-id":"sh1","range":"23","type":"pixel","size":40}}]`,
+		"--operations", `[{"shortcut":"+rows-resize","input":{"sheet-id":"sh1","range":"23","height":40}}]`,
 		"--yes",
 	})
 	ops = decodeToolInput(t, body, "batch_update")["operations"].([]interface{})

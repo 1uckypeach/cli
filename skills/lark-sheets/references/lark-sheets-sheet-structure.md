@@ -192,7 +192,7 @@ lark-cli sheets +dim-move --url "..." --sheet-id "$SID" --source-range "C:F" --t
 
 > ⚠️ 这两条 shortcut 来自 `lark-sheets-range-operations` 的 `+rows-resize / +cols-resize` tool（分组在"工作表"是为了发现性）。详细参数和示例在 `lark-sheets-range-operations.md`。
 >
-> 行 vs 列底层 schema 有差异：`+rows-resize.--type` 支持 `pixel` / `standard` / `auto`，`+cols-resize.--type` 只支持 `pixel` / `standard`（列宽不支持自动适应）。
+> 常规写法：行高走 `--height <px>`、列宽走 `--width <px>`，无需再传 `--type`（等价于 `--type pixel`）。`--type standard` / `--type auto` 用于非像素模式，不能与 `--height`/`--width` 同时给。`+cols-resize.--type` 不接受 `auto`（列宽不支持自动适应）。
 
 ### `+dim-freeze`
 
@@ -207,6 +207,6 @@ lark-cli sheets +dim-freeze --url "..." --sheet-id "$SID" --dimension row --coun
 
 ### Validate / DryRun / Execute 约束
 
-- `Validate`：XOR 公共四件套；`--range` / `--source-range` 必须是合法 A1 闭区间（行用数字、列用字母，不可混用）；`+dim-insert` 的 `--count` > 0；`+dim-move` 的 `--target` 必须与 `--source-range` 同维度（行 vs 列）；`+dim-delete` 强制 `--yes` 或 `--dry-run`；`+rows-resize` / `+cols-resize` 的 `--type` 必填，`--type pixel` 时 `--size` 必填、其它 type 时 `--size` 会被忽略（传了无害）；`+rows-resize` / `+cols-resize` 的行 vs 列 `--type` 差异详见 `lark-sheets-range-operations.md`。
+- `Validate`：XOR 公共四件套；`--range` / `--source-range` 必须是合法 A1 闭区间（行用数字、列用字母，不可混用）；`+dim-insert` 的 `--count` > 0；`+dim-move` 的 `--target` 必须与 `--source-range` 同维度（行 vs 列）；`+dim-delete` 强制 `--yes` 或 `--dry-run`；`+rows-resize` / `+cols-resize` 至少给 `--height`/`--width` 或 `--type` 之一，`--type standard`/`--type auto` 不能与像素 flag 同时给（`--type pixel` 与像素 flag 共存 OK）；行 vs 列 `--type` 差异详见 `lark-sheets-range-operations.md`。
 - `DryRun`：写操作输出"将要 PATCH 的目标范围 + 目标参数"。
 - `Execute`：写后不自动回读；如需确认，自行调用 `+sheet-info --include row_heights,col_widths,hidden_rows,hidden_cols,groups,frozen` 查看受影响的范围。

@@ -2391,24 +2391,24 @@
         "desc": "Sheet name (XOR with `--sheet-id`)"
       },
       {
+        "name": "height",
+        "kind": "own",
+        "type": "int",
+        "required": "xor",
+        "desc": "Row height in pixels (e.g. 30 / 40 / 60). Passing --height implies pixel mode; --type may be omitted (or set to `pixel` — equivalent)",
+        "default": "0"
+      },
+      {
         "name": "type",
         "kind": "own",
         "type": "string",
-        "required": "required",
-        "desc": "Sizing mode: `pixel` (explicit px value, requires `--size`) / `standard` (reset to default row height) / `auto` (fit content)",
+        "required": "xor",
+        "desc": "Sizing mode: `pixel` (requires `--height`) / `standard` (reset to default row height) / `auto` (fit content). Passing --height alone is the common form; `--type standard` / `--type auto` cannot be combined with `--height`",
         "enum": [
           "pixel",
           "standard",
           "auto"
         ]
-      },
-      {
-        "name": "size",
-        "kind": "own",
-        "type": "int",
-        "required": "optional",
-        "desc": "Row height in pixels (e.g. 30 / 40 / 60); required when `--type pixel`, ignored otherwise",
-        "default": "0"
       },
       {
         "name": "range",
@@ -2458,23 +2458,23 @@
         "desc": "Sheet name (XOR with `--sheet-id`)"
       },
       {
+        "name": "width",
+        "kind": "own",
+        "type": "int",
+        "required": "xor",
+        "desc": "Column width in pixels (e.g. 80 / 120 / 200). Passing --width implies pixel mode; --type may be omitted (or set to `pixel` — equivalent)",
+        "default": "0"
+      },
+      {
         "name": "type",
         "kind": "own",
         "type": "string",
-        "required": "required",
-        "desc": "Sizing mode: `pixel` (explicit px value, requires `--size`) / `standard` (reset to default column width)",
+        "required": "xor",
+        "desc": "Sizing mode: `pixel` (requires `--width`) / `standard` (reset to default column width). Passing --width alone is the common form; `--type standard` cannot be combined with `--width`",
         "enum": [
           "pixel",
           "standard"
         ]
-      },
-      {
-        "name": "size",
-        "kind": "own",
-        "type": "int",
-        "required": "optional",
-        "desc": "Column width in pixels (e.g. 80 / 120 / 200); required when `--type pixel`, ignored otherwise",
-        "default": "0"
       },
       {
         "name": "range",

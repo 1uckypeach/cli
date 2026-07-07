@@ -210,22 +210,25 @@ func mergeInput(runtime flagView, token, sheetID, sheetName, op string, withMerg
 
 // resize_range exposes two CLI shortcuts:
 //
-//   +rows-resize / +cols-resize — set row heights / column widths. --type
-//   enum (pixel / standard / [auto]) controls how: --type pixel needs --size,
-//   --type standard restores the sheet default, --type auto auto-fits row
-//   heights (rows only). --range is an A1 closed range ("2:10" / "5" rows or
+//   +rows-resize / +cols-resize — set row heights / column widths. Common
+//   case: pass --height <px> / --width <px>; the pixel mode is implied so
+//   --type can be omitted (or set to `pixel` — equivalent). Non-pixel modes
+//   go through --type standard / --type auto (rows only) and cannot be
+//   combined with the pixel flag. At least one of {--height/--width, --type}
+//   must be given. --range is an A1 closed range ("2:10" / "5" rows or
 //   "A:E" / "C" columns); single-element form is expanded to "N:N" before
 //   send because resize_range rejects bare single-element ranges.
 //
 // Wire shape: resize_height / resize_width carries { type, value? }, e.g.
 //   { "type": "pixel", "value": 30 }  or  { "type": "standard" }.
 
-// RowsResize wraps resize_range for row heights. --type auto enables
-// auto-fit (rows only); --type pixel requires --size.
+// RowsResize wraps resize_range for row heights. Pass --height <px> for a
+// pixel value (--type may be omitted); --type standard/auto for non-pixel
+// modes.
 var RowsResize = common.Shortcut{
 	Service:     "sheets",
 	Command:     "+rows-resize",
-	Description: "Resize rows by pixel / standard / auto (--type pixel needs --size; --range is 1-based A1 like \"2:10\" or \"5\").",
+	Description: "Resize rows: --height <px> for a pixel height (--type optional), or --type standard/auto for non-pixel modes (--range is 1-based A1 like \"2:10\" or \"5\").",
 	Risk:        "write",
 	Scopes:      []string{"sheets:spreadsheet:write_only"},
 	AuthTypes:   []string{"user", "bot"},
@@ -260,12 +263,14 @@ var RowsResize = common.Shortcut{
 	},
 }
 
-// ColsResize wraps resize_range for column widths. Column widths do not
-// support auto-fit — --type only accepts pixel / standard.
+// ColsResize wraps resize_range for column widths. Pass --width <px> for a
+// pixel value (--type may be omitted); --type standard for the default
+// width. Column widths do not support auto-fit — --type does not accept
+// auto.
 var ColsResize = common.Shortcut{
 	Service:     "sheets",
 	Command:     "+cols-resize",
-	Description: "Resize columns by pixel / standard (--type pixel needs --size; --range is column letters like \"A:E\" or \"C\"; no auto for cols).",
+	Description: "Resize columns: --width <px> for a pixel width (--type optional), or --type standard to reset (--range is column letters like \"A:E\" or \"C\"; no auto for cols).",
 	Risk:        "write",
 	Scopes:      []string{"sheets:spreadsheet:write_only"},
 	AuthTypes:   []string{"user", "bot"},
@@ -316,12 +321,24 @@ func validateViaResize(dimension string) func(ctx context.Context, runtime *comm
 	}
 }
 
-// autoSuffix appends " / auto" to the enum hint for rows.
-func autoSuffix(dimension string) string {
+// nonPixelTypes lists the --type values a given dimension accepts (rows also
+// accept auto; columns only accept standard). Used to shape the hint printed
+// when --type is missing or invalid.
+func nonPixelTypes(dimension string) string {
 	if dimension == "row" {
-		return " / auto"
+		return "standard / auto"
 	}
-	return ""
+	return "standard"
+}
+
+// pixelFlag maps a dimension to its pixel-value flag name (--height for rows,
+// --width for cols). The wire block always emits "pixel" as the mode; the
+// per-dimension flag name is just the surface knob.
+func pixelFlag(dimension string) string {
+	if dimension == "row" {
+		return "height"
+	}
+	return "width"
 }
 
 // commandForDimension returns the shortcut command name a given dimension
@@ -339,6 +356,11 @@ func commandForDimension(dimension string) string {
 // dimension (row → digits like "2:10" / "5"; column → letters like "A:E" /
 // "C"). Single-element form is expanded to "N:N" because resize_range
 // rejects bare single-element ranges.
+//
+// Surface: pixel size goes through --height / --width (dimension-specific).
+// --type is optional when the pixel flag is present (defaults to "pixel");
+// explicit --type pixel is accepted and equivalent. --type standard / auto
+// select non-pixel modes and cannot be combined with the pixel flag.
 func resizeInput(runtime flagView, token, sheetID, sheetName, dimension string) (map[string]interface{}, error) {
 	if err := requireSheetSelector(sheetID, sheetName); err != nil {
 		return nil, err
@@ -361,29 +383,42 @@ func resizeInput(runtime flagView, token, sheetID, sheetName, dimension string) 
 	if !strings.Contains(rangeStr, ":") {
 		rangeStr = rangeStr + ":" + rangeStr
 	}
+
+	sizeFlag := pixelFlag(dimension)
+	hasSize := runtime.Changed(sizeFlag)
 	typ := strings.TrimSpace(runtime.Str("type"))
-	if typ == "" {
-		return nil, sheetsValidationForFlag("type", "--type is required (pixel / standard%s)", autoSuffix(dimension))
+	hasType := typ != ""
+
+	if !hasSize && !hasType {
+		return nil, common.ValidationErrorf("give --%s <px> for a pixel size, or --type %s", sizeFlag, nonPixelTypes(dimension)).WithParams(sheetsInvalidParam(sizeFlag, "required"), sheetsInvalidParam("type", "required"))
 	}
-	if dimension == "column" && typ == "auto" {
+	if hasSize && hasType && typ != "pixel" {
+		return nil, common.ValidationErrorf("--%s cannot be combined with --type %s", sizeFlag, typ).WithParams(sheetsInvalidParam(sizeFlag, "mutually exclusive"), sheetsInvalidParam("type", "mutually exclusive"))
+	}
+	if hasType && dimension == "column" && typ == "auto" {
 		return nil, sheetsValidationForFlag("type", "--type auto is rows-only (column widths do not support auto-fit); use +rows-resize")
 	}
-	hasSize := runtime.Changed("size") && runtime.Int("size") > 0
-	if typ == "pixel" && !hasSize {
-		return nil, common.ValidationErrorf("--type pixel requires --size <px>").WithParams(sheetsInvalidParam("type", "required"), sheetsInvalidParam("size", "required"))
+	if hasType && typ == "pixel" && !hasSize {
+		return nil, common.ValidationErrorf("--type pixel requires --%s <px>", sizeFlag).WithParams(sheetsInvalidParam("type", "required"), sheetsInvalidParam(sizeFlag, "required"))
 	}
-	if typ != "pixel" && hasSize {
-		return nil, common.ValidationErrorf("--size is only valid with --type pixel").WithParams(sheetsInvalidParam("size", "mutually exclusive"), sheetsInvalidParam("type", "mutually exclusive"))
+
+	sizeBlock := map[string]interface{}{}
+	if hasSize {
+		px := runtime.Int(sizeFlag)
+		if px <= 0 {
+			return nil, sheetsValidationForFlag(sizeFlag, "--%s must be > 0", sizeFlag)
+		}
+		sizeBlock["type"] = "pixel"
+		sizeBlock["value"] = px
+	} else {
+		sizeBlock["type"] = typ
 	}
+
 	input := map[string]interface{}{
 		"excel_id": token,
 		"range":    rangeStr,
 	}
 	sheetSelectorForToolInput(input, sheetID, sheetName)
-	sizeBlock := map[string]interface{}{"type": typ}
-	if typ == "pixel" {
-		sizeBlock["value"] = runtime.Int("size")
-	}
 	if dimension == "row" {
 		input["resize_height"] = sizeBlock
 	} else {

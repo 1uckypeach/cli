@@ -447,7 +447,7 @@ func TestBatchUpdate_ResizeNoOperationField(t *testing.T) {
 	t.Parallel()
 	body := parseDryRunBody(t, BatchUpdate, []string{
 		"--url", testURL,
-		"--operations", `[{"shortcut":"+rows-resize","input":{"sheet_id":"sh1","range":"1:3","type":"pixel","size":30}}]`,
+		"--operations", `[{"shortcut":"+rows-resize","input":{"sheet_id":"sh1","range":"1:3","height":30}}]`,
 		"--yes",
 	})
 	input := decodeToolInput(t, body, "batch_update")

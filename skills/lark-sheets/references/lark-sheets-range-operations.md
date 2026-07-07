@@ -128,8 +128,8 @@ _公共四件套 · 系统：`--dry-run`_
 
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `--type` | string | required | 尺寸方式 enum：`pixel`（指定 px 像素值，需配 `--size`）/ `standard`（重置为默认标准行高）/ `auto`（自动适应内容）（可选值：`pixel` / `standard` / `auto`） |
-| `--size` | int | optional | 行高（像素，例：30 / 40 / 60）；`--type pixel` 时必填，其它 type 忽略 |
+| `--height` | int | xor | 行高（像素，例：30 / 40 / 60）。传了 `--height` 就是像素模式，可以省略 `--type`；显式 `--type pixel` 也行（等价） |
+| `--type` | string | xor | 尺寸方式 enum：`pixel`（需配 `--height`）/ `standard`（重置为默认行高）/ `auto`（自动适应内容）。常规写法直接给 `--height` 即可省略本 flag；`--type standard` / `--type auto` 不能与 `--height` 同时给（可选值：`pixel` / `standard` / `auto`） |
 | `--range` | string | required | 要调整行高的行闭区间；1-based 行号如 `2:10` 或单行 `5` |
 
 ### `+cols-resize`
@@ -138,8 +138,8 @@ _公共四件套 · 系统：`--dry-run`_
 
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `--type` | string | required | 尺寸方式 enum：`pixel`（指定 px 像素值，需配 `--size`）/ `standard`（重置为默认标准列宽）（可选值：`pixel` / `standard`） |
-| `--size` | int | optional | 列宽（像素，例：80 / 120 / 200）；`--type pixel` 时必填，其它 type 忽略 |
+| `--width` | int | xor | 列宽（像素，例：80 / 120 / 200）。传了 `--width` 就是像素模式，可以省略 `--type`；显式 `--type pixel` 也行（等价） |
+| `--type` | string | xor | 尺寸方式 enum：`pixel`（需配 `--width`）/ `standard`（重置为默认列宽）。常规写法直接给 `--width` 即可省略本 flag；`--type standard` 不能与 `--width` 同时给（可选值：`pixel` / `standard`） |
 | `--range` | string | required | 要调整列宽的列闭区间；列字母如 `A:E` 或单列 `C` |
 
 ### `+range-move`
@@ -227,14 +227,14 @@ lark-cli sheets +cells-unmerge --url "..." --sheet-id "$SID" --range "A1:C100"
 
 ### `+rows-resize` / `+cols-resize`
 
-行高列宽分两条 shortcut，避免行 / 列在底层 schema 的差异（行支持 `auto`，列不支持）混在一起。每条 `--type` 必填：
+行高列宽分两条 shortcut，避免行 / 列在底层 schema 的差异（行支持 `auto`，列不支持）混在一起。默认写法是直接给像素值：行用 `--height`、列用 `--width`（省略 `--type`，等价于 `--type pixel`）。非像素模式走 `--type standard` / `--type auto`，此时不能再带 `--width`/`--height`：
 
 ```bash
-# 把第 2-10 行设为固定 30 px
-lark-cli sheets +rows-resize --url "..." --sheet-id "$SID" --range "2:10" --type pixel --size 30
+# 把第 2-10 行设为固定 30 px（默认写法：像素值直接进 --height）
+lark-cli sheets +rows-resize --url "..." --sheet-id "$SID" --range "2:10" --height 30
 
-# 把 A-C 列设为固定 120 px
-lark-cli sheets +cols-resize --url "..." --sheet-id "$SID" --range "A:C" --type pixel --size 120
+# 把 A-C 列设为固定 120 px（默认写法：像素值直接进 --width）
+lark-cli sheets +cols-resize --url "..." --sheet-id "$SID" --range "A:C" --width 120
 
 # 第 1 行行高自动适应内容（列宽不支持 auto）
 lark-cli sheets +rows-resize --url "..." --sheet-id "$SID" --range "1" --type auto
@@ -265,6 +265,6 @@ lark-cli sheets +range-sort --url "..." --sheet-id "$SID" --range "A1:E100" --ha
 
 ### Validate / DryRun / Execute 约束
 
-- `Validate`：XOR 公共四件套；`+cells-clear` 强制 `--yes` 或 `--dry-run`；`+range-*` 校验源 / 目标 range 在同一 spreadsheet；`+range-sort` 的 `--sort-keys` 必须合法 JSON 数组且 col 都在 `--range` 内；`+rows-resize` / `+cols-resize` 的 `--type` 必填，`--type pixel` 时 `--size` 必填、其它 type 时 `--size` 会被忽略（传了无害）；`+cols-resize.--type` 不接受 `auto`（只行高支持自适应）。
+- `Validate`：XOR 公共四件套；`+cells-clear` 强制 `--yes` 或 `--dry-run`；`+range-*` 校验源 / 目标 range 在同一 spreadsheet；`+range-sort` 的 `--sort-keys` 必须合法 JSON 数组且 col 都在 `--range` 内；`+rows-resize` / `+cols-resize` 必须至少给出 `--height` / `--width` 或 `--type` 之一（两者都不给会拒绝），`--type standard` / `--type auto` 不能与 `--height` / `--width` 同时给（`--type pixel` 与像素 flag 共存 OK）；`+cols-resize.--type` 只接受 `pixel` / `standard`（列宽不支持 `auto`）。
 - `DryRun`：所有写操作输出"将要 PATCH 的 range + 受影响 cell 数估算"。
 - `Execute`：写后不自动回读；如需确认，自行调用 `+cells-get --range <影响范围>` 抽样比对。

@@ -113,9 +113,9 @@ func TestRangeOperationsShortcuts_DryRun(t *testing.T) {
 			},
 		},
 		{
-			name:     "+rows-resize --range 1:5 pixel 200",
+			name:     "+rows-resize --range 1:5 --height 200",
 			sc:       RowsResize,
-			args:     []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "1:5", "--type", "pixel", "--size", "200"},
+			args:     []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "1:5", "--height", "200"},
 			toolName: "resize_range",
 			wantInput: map[string]interface{}{
 				"excel_id": testToken,
@@ -138,7 +138,7 @@ func TestRangeOperationsShortcuts_DryRun(t *testing.T) {
 			},
 		},
 		{
-			name:     "+cols-resize --range B:D standard",
+			name:     "+cols-resize --range B:D --type standard",
 			sc:       ColsResize,
 			args:     []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "B:D", "--type", "standard"},
 			toolName: "resize_range",
@@ -152,9 +152,22 @@ func TestRangeOperationsShortcuts_DryRun(t *testing.T) {
 			},
 		},
 		{
-			name:     "+cols-resize --range A:C pixel 120",
+			name:     "+cols-resize --range A:C --width 120",
 			sc:       ColsResize,
-			args:     []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "A:C", "--type", "pixel", "--size", "120"},
+			args:     []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "A:C", "--width", "120"},
+			toolName: "resize_range",
+			wantInput: map[string]interface{}{
+				"range": "A:C",
+				"resize_width": map[string]interface{}{
+					"type":  "pixel",
+					"value": float64(120),
+				},
+			},
+		},
+		{
+			name:     "+cols-resize --type pixel with --width 120 (explicit == implicit)",
+			sc:       ColsResize,
+			args:     []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "A:C", "--type", "pixel", "--width", "120"},
 			toolName: "resize_range",
 			wantInput: map[string]interface{}{
 				"range": "A:C",
@@ -305,22 +318,52 @@ func TestResize_TypeAndSizeGuards(t *testing.T) {
 		want string
 	}{
 		{
-			name: "+rows-resize --type pixel without --size",
+			name: "+rows-resize missing both --height and --type",
 			sc:   RowsResize,
-			args: []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "1:5", "--type", "pixel"},
-			want: "--type pixel requires --size",
+			args: []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "1:5"},
+			want: "give --height <px> for a pixel size, or --type standard / auto",
 		},
 		{
-			name: "+rows-resize --type standard with --size",
+			name: "+cols-resize missing both --width and --type",
+			sc:   ColsResize,
+			args: []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "A:C"},
+			want: "give --width <px> for a pixel size, or --type standard",
+		},
+		{
+			name: "+rows-resize --height rejects --type standard",
 			sc:   RowsResize,
-			args: []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "1:5", "--type", "standard", "--size", "30"},
-			want: "--size is only valid with --type pixel",
+			args: []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "1:5", "--height", "30", "--type", "standard"},
+			want: "--height cannot be combined with --type standard",
+		},
+		{
+			name: "+cols-resize --width rejects --type standard",
+			sc:   ColsResize,
+			args: []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "A:C", "--width", "120", "--type", "standard"},
+			want: "--width cannot be combined with --type standard",
+		},
+		{
+			name: "+rows-resize --type pixel without --height",
+			sc:   RowsResize,
+			args: []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "1:5", "--type", "pixel"},
+			want: "--type pixel requires --height",
+		},
+		{
+			name: "+cols-resize --type pixel without --width",
+			sc:   ColsResize,
+			args: []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "A:C", "--type", "pixel"},
+			want: "--type pixel requires --width",
+		},
+		{
+			name: "+rows-resize --height must be positive",
+			sc:   RowsResize,
+			args: []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "1:5", "--height", "0"},
+			want: "--height must be > 0",
 		},
 		{
 			name: "+cols-resize rejects --type auto",
 			sc:   ColsResize,
 			args: []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "A:C", "--type", "auto"},
-			want: "auto", // cobra Enum gate kicks first with "valid values are: pixel, standard"
+			want: "auto", // cobra Enum gate kicks first with "valid values are: standard"
 		},
 		{
 			name: "+rows-resize given column range",
