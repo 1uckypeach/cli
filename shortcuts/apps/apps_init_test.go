@@ -1646,18 +1646,22 @@ func TestRunScaffold_SubprocessFailureIsExternalTool(t *testing.T) {
 	}
 }
 
-func TestRunScaffold_StaticHtmlSkipped(t *testing.T) {
-	f := &fakeCommandRunner{}
+func TestRunScaffold_HtmlPassesTemplate(t *testing.T) {
+	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: ""}}}
 	withFakeRunner(t, f)
 	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "html", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if kind != scaffoldKindSkipped {
-		t.Errorf("kind = %q, want %q", kind, scaffoldKindSkipped)
+	if kind != scaffoldKindInit {
+		t.Errorf("kind = %q, want %q", kind, scaffoldKindInit)
 	}
-	if len(f.calls) != 0 {
-		t.Errorf("expected no calls for static html, got %d: %v", len(f.calls), f.calls)
+	c := findCall(f.calls, "npx", "-y")
+	if c == nil {
+		t.Fatal("npx not called")
+	}
+	if !containsAll(c, "--template", "html") {
+		t.Errorf("expected --template html in args: %v", c)
 	}
 }
 

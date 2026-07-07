@@ -36,7 +36,6 @@ const (
 const (
 	scaffoldKindInit    = "init"
 	scaffoldKindUpgrade = "upgrade"
-	scaffoldKindSkipped = "skipped"
 )
 
 const (
@@ -130,9 +129,6 @@ func defaultCloneDir(appID string) string {
 func resolveTemplate(rctx *common.RuntimeContext, appType string) string {
 	if t := strings.TrimSpace(rctx.Str("template")); t != "" {
 		return t
-	}
-	if appType == "html" {
-		return ""
 	}
 	if appType != "" {
 		return appType
@@ -329,11 +325,8 @@ func isEmptyRepo(ctx context.Context, dir string) (bool, error) {
 
 // runScaffold runs the npx scaffolding step inside the cloned repo (cwd=dir).
 // Empty repo -> `app init`; non-empty -> `app sync` + meta app_id patch +
-// conditional `skills sync`. Returns "init", "upgrade", or "skipped".
+// conditional `skills sync`. Returns "init" or "upgrade".
 func runScaffold(ctx context.Context, dir, appID, appType, explicitTemplate string) (string, error) {
-	if appType == "html" {
-		return scaffoldKindSkipped, nil
-	}
 	empty, err := isEmptyRepo(ctx, dir)
 	if err != nil {
 		return "", err
@@ -469,7 +462,6 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 	// Already-initialized short-circuit: a dir containing .spark/meta.json is an
 	// initialized app repo -> skip clone/scaffold/commit, but still refresh
 	// the local env so a re-run picks up the latest startup env vars.
-	// Static HTML apps skip env-pull (they have no env vars).
 	if isAlreadyInitialized(dir) {
 		initLogf(rctx, "Already initialized at %s — refreshing local environment", dir)
 		out := map[string]interface{}{
@@ -481,16 +473,6 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		}
 		if appType != "" {
 			out["app_type"] = appType
-		}
-		if appType == "html" {
-			out["env_pulled"] = false
-			out["env_pull_skipped"] = true
-			out["message"] = "Repository already initialized (static HTML app — no env pull needed)."
-			rctx.OutFormat(out, nil, func(w io.Writer) {
-				fmt.Fprintf(w, "✓ Already initialized at %s\n", dir)
-				fmt.Fprintln(w, "仓库已初始化完成，可以开始开发了。")
-			})
-			return nil
 		}
 		initLogf(rctx, "Pulling local environment variables...")
 		envFile, envPullErr := pullEnv(ctx, rctx, appID, dir)
@@ -522,11 +504,9 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		return appsFailedPreconditionError("git executable not found on PATH").
 			WithHint("install git and ensure it is on your PATH")
 	}
-	if appType != "html" {
-		if _, err := exec.LookPath("npx"); err != nil {
-			return appsFailedPreconditionError("npx executable not found on PATH").
-				WithHint("install Node.js (which provides npx) and ensure it is on your PATH")
-		}
+	if _, err := exec.LookPath("npx"); err != nil {
+		return appsFailedPreconditionError("npx executable not found on PATH").
+			WithHint("install Node.js (which provides npx) and ensure it is on your PATH")
 	}
 
 	if err := ensureEmptyDir(dir); err != nil {
@@ -582,36 +562,25 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		out["app_type"] = appType
 	}
 
-	var envFile string
-	var envPulled bool
-	if appType == "html" {
-		out["env_pulled"] = false
-		out["env_pull_skipped"] = true
+	initLogf(rctx, "Pulling local environment variables...")
+	envFile, envPullErr := pullEnv(ctx, rctx, appID, dir)
+	envPulled := envPullErr == ""
+	out["env_pulled"] = envPulled
+	if envPulled {
+		initLogf(rctx, "Local environment written to %s", envFile)
+		out["env_file"] = envFile
 	} else {
-		initLogf(rctx, "Pulling local environment variables...")
-		var envPullErr string
-		envFile, envPullErr = pullEnv(ctx, rctx, appID, dir)
-		envPulled = envPullErr == ""
-		out["env_pulled"] = envPulled
-		if envPulled {
-			initLogf(rctx, "Local environment written to %s", envFile)
-			out["env_file"] = envFile
-		} else {
-			initLogf(rctx, "Could not pull local env vars: %s", envPullErr)
-			out["env_pull_error"] = envPullErr
-			out["message"] = fmt.Sprintf("Repository initialized. Could not pull local env vars automatically — run `lark-cli apps +env-pull --app-id %s` to retry.", appID)
-		}
+		initLogf(rctx, "Could not pull local env vars: %s", envPullErr)
+		out["env_pull_error"] = envPullErr
+		out["message"] = fmt.Sprintf("Repository initialized. Could not pull local env vars automatically — run `lark-cli apps +env-pull --app-id %s` to retry.", appID)
 	}
 
 	rctx.OutFormat(out, nil, func(w io.Writer) {
 		fmt.Fprintf(w, "✓ Repository initialized at %s\n", dir)
 		fmt.Fprintf(w, "  branch: %s\n  scaffold: %s\n", defaultInitBranch, scaffold)
-		if appType == "html" {
-			fmt.Fprintln(w, "  (static HTML app — env pull skipped)")
-		} else if envPulled {
+		if envPulled {
 			fmt.Fprintf(w, "✓ Local environment written to %s\n", envFile)
 		} else {
-			envPullErr := out["env_pull_error"]
 			fmt.Fprintf(w, "⚠ Could not pull local env vars: %s\n", envPullErr)
 			fmt.Fprintf(w, "  run `lark-cli apps +env-pull --app-id %s` to retry\n", appID)
 		}

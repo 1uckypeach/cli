@@ -73,7 +73,7 @@ func buildAppsCreateBody(rctx *common.RuntimeContext) map[string]interface{} {
 		body["icon_url"] = icon
 	}
 	if agent := os.Getenv("LARKSUITE_CLI_AGENT"); agent != "" {
-		body["app_source"] = agent
+		body["source_agent"] = agent
 	}
 	return body
 }

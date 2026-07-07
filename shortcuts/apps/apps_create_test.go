@@ -299,8 +299,8 @@ func TestAppsCreate_WithAgentEnvVar(t *testing.T) {
 	if err := json.Unmarshal(stub.CapturedBody, &sent); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if sent["app_source"] != "doubao" {
-		t.Fatalf("body.app_source = %v, want doubao", sent["app_source"])
+	if sent["source_agent"] != "doubao" {
+		t.Fatalf("body.source_agent = %v, want doubao", sent["source_agent"])
 	}
 }
 
@@ -329,8 +329,8 @@ func TestAppsCreate_WithoutAgentEnvVar(t *testing.T) {
 	if err := json.Unmarshal(stub.CapturedBody, &sent); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if _, present := sent["app_source"]; present {
-		t.Fatalf("app_source should not be present when env var is empty: %v", sent)
+	if _, present := sent["source_agent"]; present {
+		t.Fatalf("source_agent should not be present when env var is empty: %v", sent)
 	}
 }
 
@@ -358,7 +358,7 @@ func TestAppsCreate_AgentEnvVarNotSet(t *testing.T) {
 	if err := json.Unmarshal(stub.CapturedBody, &sent); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if _, present := sent["app_source"]; present {
-		t.Fatalf("app_source should not be present when env var is unset: %v", sent)
+	if _, present := sent["source_agent"]; present {
+		t.Fatalf("source_agent should not be present when env var is unset: %v", sent)
 	}
 }
