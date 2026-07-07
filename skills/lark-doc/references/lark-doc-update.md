@@ -1,20 +1,40 @@
 
 # docs +update（更新飞书云文档）
 
-> **前置条件（MUST READ）：** 生成文档内容前，必须先用 Read 工具读取以下文件，缺一不可：
-> 1. [`lark-doc-xml.md`](lark-doc-xml.md) — XML 语法规则（使用 Markdown 格式时改读 [`lark-doc-md.md`](lark-doc-md.md)）
-> 2. [`lark-doc-style.md`](style/lark-doc-style.md) — 写作原则（默认段落、按体裁、组件克制）
-> 3. [`lark-doc-update-workflow.md`](style/lark-doc-update-workflow.md) — 改写增强工作流（Code-Act Loop、单 Agent 串行改写）
->
-> **未读完以上文件就生成内容会导致格式错误。**
-
 通过八种指令精确更新飞书云文档。支持字符串级别和 block 级别的操作。
 
+> **Authoring 前置条件：**语义改写、润色、重组、补写或排版必须已完成 [`lark-doc-authoring.md`](lark-doc-authoring.md) 的 Prepare 和 Draft 阶段，且 `Publish Gate = ready`，才能执行写入；写入后必须返回 Deliver 完成传输完整性验证。明确旧文本到新文本的替换、纯删除或纯移动可跳过 Authoring，但不得跳过本文件的 Observe 与写后 Verify。
+
 > **⚠️ 格式选择规则：**
-> - **局部精修**（`str_replace` / `block_insert_after` / `block_replace` / `block_delete` / `block_move_after`）：优先使用 XML（默认）。XML 能稳定表达 block 结构和样式，精准编辑更可控；不要因为 Markdown 写起来更简单就自行切换。
-> - **整段写入**（`append` / `overwrite`）：XML 和 Markdown 都可以。用户提供 `.md` 本地文件或明确要求 Markdown 时直接用 Markdown；否则默认 XML。
+> - **局部精修**：默认 XML。`str_replace` 行内匹配、`block_insert_after` 和 `block_replace` 都优先使用 XML；只有跨行 `str_replace` 等明确依赖 Markdown 的单次操作才使用 Markdown。delete / move / copy 不写内容。
+> - **整段写入**：`append` 和获授权的 `overwrite` 默认 XML；只有用户明确要求 Markdown 或保真写入 Markdown 来源时才使用 Markdown。
+> - **禁止混用**：每个 `--content` / `--pattern` payload 只能使用一种语法；不得在 Markdown 中嵌 XML，也不得在 XML 中混 Markdown。选择 XML 不授权新增无必要的 rich block。
 >
-> **Markdown 局限 & block ID 前提：** Markdown 不携带 block ID，也无样式（颜色、对齐、callout 等）。需要按 block ID 定位（`block_*` 指令的 `--block-id`）时，先 `docs +fetch --detail with-ids` **配合 `--scope`（`outline` / `range` / `keyword` / `section`）局部获取**目标段落，不要全量 fetch。拿到 block ID 后 `--content` 仍可用 Markdown，只是写入内容不带样式。
+> **Markdown 局限 & block ID 前提：** Markdown 不携带 block ID，也无样式（颜色、对齐、callout 等）。需要按 block ID 定位（`block_*` 指令的 `--block-id`）时，先 `docs +fetch --detail with-ids` **配合 `--scope`（`outline` / `range` / `keyword` / `section`）局部获取**目标段落，不要全量 fetch。拿到 block ID 后，`--content` 仍默认使用 XML；只有已命中 Markdown 例外时才使用 Markdown。
+
+## 本地内容隔离
+
+单次内容优先使用 `--content -` 从 stdin 读取。必须使用 `@file` 时，在当前工作目录下创建任务独占目录，并为每次写入创建名称唯一的临时 XML 文件；明确命中 Markdown 例外时才创建临时 Markdown 文件。不得复用固定文件名、已存在文件或其他任务的目录。`@file` 参数必须整体加引号，例如 `"@<任务独占目录>/<唯一文件名>.xml"`。完成写后 Verify / Deliver 后，只清理本任务创建的文件和目录，不得使用通配符清理。
+
+## Observe-Diagnose-Patch Loop
+
+适用于修改已有飞书文档：调整语气、精简冗余、增补章节、修复结构混乱、按领导意见修改，或在已有图片、引用、表格、评论、资源块的文档上做保真改写。
+
+> [!IMPORTANT]
+> 核心原则：先观察，再诊断，再局部 patch，最后 fetch 验证。这个流程比全文重写安全；除非用户明确要求完全重建，或文档确实已无保留价值，不要轻易使用 `overwrite`，否则会丢失评论和未支持的资源。
+> 每次 `docs +update` 后，都按 block ID 已发生变更处理。如果需要继续修改、重复修改同一处内容，或引用刚插入 / 替换后的内容，必须先重新 `docs +fetch --detail with-ids` 拉取最新内容和 block ID，再执行下一轮 patch。
+
+1. **Observe（读取现状）**：先 `docs +fetch` 读取当前文档状态，并按意图选择最小范围。
+   - 改某一节或大文档：先 `--scope outline --max-depth 2` 找章节，再 `--scope section --start-block-id <标题id> --detail with-ids`
+   - 精确跨节区间：用 `--scope range --start-block-id xxx --end-block-id yyy`
+   - 只有模糊关键词：用 `--scope keyword --keyword xxx --context-before 1 --context-after 1 --detail with-ids`
+   - 明确整篇重构才读 `--detail with-ids` 全文；只读摘要或确认事实时用更轻的 fetch
+2. **Diagnose（诊断问题）**：判断用户目标、当前结构、语气、重复、断流、事实口径和需要保留的资源；识别哪些 block 必须原样保留。
+3. **Patch Plan（制定局部计划）**：把修改拆成最小安全操作：简单行内替换用 `str_replace`；整段/整块重写用 `block_replace`；增补章节用 `block_insert_after`；删冗余用 `block_delete`；调整顺序用 `block_move_after`。
+4. **Patch（精确修改）**：按 block / section 执行局部命令。保护 `<cite>`、`<img>`、`<source>`、`<whiteboard>`、`<sheet>`、`<bitable>`、`<synced_reference>` 等 token 化内容，不要改成纯文本或占位符。同一 block 的多处修改合并成一次 `block_replace`。
+5. **Verify（fetch 验证）**：每轮写操作后按影响范围重新 fetch，检查用户要求、结构、语气、事实、资源块和 block ID 是否符合预期；不满足就基于最新 fetch 结果继续 Diagnose / Patch，不要沿用上一轮 block ID。
+
+复杂结构重组时，优先“先插入新结构，再删除旧 block”：用 `block_insert_after` 插入 grid / table / callout / 新章节，再用 `block_delete` 删除旧段落。这样比 `overwrite` 更能保住图片、评论、引用、资源块和不相关内容。`str_replace` 的匹配范围取决于格式：XML 模式只适合行内匹配；Markdown 模式可跨行和使用 `前缀...后缀`，但跨 block 或容器级重写仍优先用 block 指令。
 
 ## 参数
 
@@ -22,9 +42,9 @@
 |------|------|------|
 | `--doc` | 是 | 文档 URL 或 token |
 | `--command` | 是 | 操作指令（见下方指令速查表） |
-| `--doc-format` | 否 | 内容格式：`xml`（默认，始终优先使用）\| `markdown`（仅用户明确要求时） |
+| `--doc-format` | 否 | CLI 与写入默认 `xml`；仅用户明确要求、保真 Markdown 来源或跨行 `str_replace` 等必要操作时使用 `markdown`；单次 payload 禁止混用 |
 | `--content` | 视指令 | 写入内容（`str_replace` 传空字符串可实现删除） |
-| `--reference-map` | 否 | 结构化 `reference_map` JSON object；必须与 `--content` 一起使用。普通写入优先把结构写在正文里；该参数主要用于保留或回放已有 `document.reference_map`。支持直接 JSON、`@reference-map.json`（相对路径）或 `-` 从 stdin 读取。 |
+| `--reference-map` | 否 | 结构化 `reference_map` JSON object；必须与 `--content` 一起使用。普通写入优先把结构写在正文里；该参数主要用于保留或回放已有 `document.reference_map`。支持直接 JSON、任务独占目录内的相对 `@file`，或 `-` 从 stdin 读取。 |
 | `--pattern` | 视指令 | 匹配文本（str_replace） |
 | `--block-id` | 视指令 | 目标 block ID（block_* 操作），逗号分隔可批量删除，-1 表示末尾 |
 | `--src-block-ids` | 视指令 | 源 block ID（逗号分隔），用于 block_copy_insert_after / block_move_after |
@@ -45,12 +65,12 @@
 
 ## Block ID 生命周期
 
-写操作后不要默认复用之前 fetch 到的 block ID：
+安全规则：每次写操作后都按 block ID 已变更处理。需要连续修改、重复修改或操作新插入内容时，必须重新 fetch 最新内容和 block ID；不要默认复用之前 fetch 到的 block ID。
 
-- `overwrite` / `block_replace` / `block_delete`：受影响旧 ID 失效，继续 block 级操作前重新 fetch
-- `block_insert_after` / `append` / `block_copy_insert_after`：锚点 / 源 ID 通常保留，新内容是新 ID；要操作新内容先重新 fetch
-- `block_move_after`：被移动 ID 通常保留，但位置、章节、range 语义变化；后续依赖位置时重新 fetch
-- `str_replace`：简单行内替换通常不改变 ID；跨行 / 大段替换后如继续 block 级操作，先重新 fetch
+- `overwrite` / `block_replace` / `block_delete`：受影响旧 ID 失效，继续 block 级操作前必须重新 fetch
+- `block_insert_after` / `append` / `block_copy_insert_after`：新内容一定是新 ID；要操作新内容或继续编辑插入点附近内容，先重新 fetch
+- `block_move_after`：位置、章节、range 语义已变化；后续依赖位置或章节边界时重新 fetch
+- `str_replace`：即使是简单行内替换，也不要在后续 block 级操作中假设旧 ID 仍正确；跨行 / 大段替换后必须重新 fetch
 
 ## 指令示例
 
@@ -71,12 +91,12 @@ lark-cli docs +update --doc "<doc_id>" --command str_replace \
 lark-cli docs +update --doc "<doc_id>" --command str_replace \
   --pattern "旧链接" --content '<b>新链接</b> <a href="https://example.com">点击查看</a>'
 
-# 仅当用户明确要求时才使用 Markdown
+# 仅当用户明确要求或该次操作必须跨行匹配时才使用 Markdown
 lark-cli docs +update --doc "<doc_id>" --command str_replace \
   --doc-format markdown --pattern "旧内容" --content "新内容"
 
 # Markdown 模式下支持跨行匹配（--pattern 与 --content 都需要真实换行；"..."/'...' 里的 \n 是字面量）
-# 多行内容推荐 heredoc 或 --content @file.md，避免 shell 转义踩坑
+# 多行内容推荐 heredoc；必须落盘时使用 @"$CONTENT_FILE"，避免 shell 转义和并发串文件
 lark-cli docs +update --doc "<doc_id>" --command str_replace \
   --doc-format markdown \
   --pattern "$(printf '## 旧标题\n\n第一段原文\n\n第二段原文')" \
@@ -197,64 +217,8 @@ lark-cli docs +update --doc "<doc_id>" --command block_move_after \
 | `warnings` | 警告信息列表 |
 | `document.new_blocks` | 本次操作新增的 block 列表（如画板）。`block_id` 可用于后续精确编辑；`block_token` 是资源块 token（如画板）可交给 `lark-whiteboard` 等 skill 继续操作 |
 
-## 典型工作流
-
-### 精确 block 级更新
-
-1. **获取文档内容和 block ID**：
-   ```bash
-   lark-cli docs +fetch --doc "<doc_id>" --detail with-ids
-   ```
-
-2. **定位目标 block**：从返回的 XML 中找到要修改的 block 及其 `id` 属性
-
-3. **执行更新**：
-   ```bash
-   # 替换特定 block
-   lark-cli docs +update --doc "<doc_id>" --command block_replace \
-     --block-id "blkcnXXXX" --content "<p>新内容</p>"
-
-   # 在某 block 后插入
-   lark-cli docs +update --doc "<doc_id>" --command block_insert_after \
-     --block-id "blkcnXXXX" --content "<h2>追加的章节</h2>"
-   ```
-
-### 简单文本替换
-
-不需要 block ID，直接匹配替换：
-
-```bash
-lark-cli docs +update --doc "<doc_id>" --command str_replace \
-  --pattern "v1.0" --content "v2.0"
-```
-
 ## 画板处理
 
 > **`docs +update` 不能直接编辑已有画板的内容。** 本命令只能**新增**画板块；要修改已有画板，先用 `docs +fetch` 取到 `<whiteboard token="...">`，再按 [`lark-doc-whiteboard.md`](lark-doc-whiteboard.md) 启动 SubAgent 读取 [`lark-whiteboard`](../../lark-whiteboard/SKILL.md) 并写入。
 
-画板的语法选型与插入示例见 [`lark-doc-xml.md`](lark-doc-xml.md) 与 [`lark-doc-whiteboard.md`](lark-doc-whiteboard.md)。
-
-## 最佳实践
-
-- **精确操作优于全文覆盖**：使用 `block_replace`/`block_insert_after` 精确修改，避免 `overwrite` 全文覆盖
-- **str_replace 的匹配范围取决于格式**：
-  - **XML 模式（默认）**：`--pattern` 只支持**行内**匹配，不支持跨行 / 跨 block。段落、整块或容器级（列表、表格、分栏、引用块等）改动请改用 `block_replace` 指定 block_id 重建。
-  - **Markdown 模式**（`--doc-format markdown`）：`--pattern` 同时支持**行内和跨行**匹配，还支持 `前缀...后缀` 省略号语法（用 `...` 串联首尾片段匹配一大段内容），可以一次替换多行文本；但仍建议优先按最小片段匹配，跨 block 容器级重写仍优先用 `block_replace`，避免副作用。
-- **保护不可重建的内容**：图片、画板、电子表格等以 token 形式存储，替换时避开这些 block
-- **str_replace 的 replacement 支持富文本**：可以用行内标签 `<b>`、`<a>`、`<cite>`、`<latex>` 等替换普通文本为富文本
-- **同一 block 只能被 replace 一次**：多次修改同一 block 请合并为一次 block_replace
-- **block_delete 支持批量**：用逗号分隔多个 block_id 一次删除
-- **复杂结构重组**：将多个段落转换为 grid / table 等复杂布局时，分步操作比 overwrite 更安全：
-  1. 用 `block_insert_after` 在目标位置插入新的富文本结构
-  2. 用 `block_delete` 批量删除旧的 block
-  3. 这样可以保留文档中其他不相关的内容（图片、评论等）
-- **表达形式**：插入或替换内容时，优先沿用用户要求和已有文档风格；需要结构化表达时可参考 [`lark-doc-style.md`](style/lark-doc-style.md)，但不要为了固定丰富度主动添加组件
-
-## 参考
-
-- [`lark-doc-update-workflow.md`](style/lark-doc-update-workflow.md) — 改写增强工作流（Code-Act Loop、单 Agent 串行改写）
-- [`lark-doc-style.md`](style/lark-doc-style.md) — 文档写作原则（默认段落、按体裁、组件克制）
-- [`lark-doc-xml.md`](lark-doc-xml.md) — XML 语法规范
-- [`lark-doc-fetch.md`](lark-doc-fetch.md) — 获取文档
-- [`lark-doc-create.md`](lark-doc-create.md) — 创建文档
-- [`lark-doc-media-insert.md`](lark-doc-media-insert.md) — 插入图片/文件到文档
+新增画板的语法选型见 [`lark-doc-xml.md`](lark-doc-xml.md) 的资源块说明；插入和复杂画板处理见 [`lark-doc-whiteboard.md`](lark-doc-whiteboard.md)。

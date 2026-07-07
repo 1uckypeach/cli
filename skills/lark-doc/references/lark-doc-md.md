@@ -42,7 +42,7 @@
 **导出 → 更新 工作流示例：**
 
 1. `docs +fetch` 导出得到 `C:\\Users\\test\[1\]`
-2. 用 `str_replace --pattern 'C:\\Users\\test\[1\]'` 匹配（直接使用导出的转义形式）
+2. 用 `str_replace --pattern "C:\\Users\\test\[1\]"` 匹配（直接使用导出的转义形式）
 3. `--content` 中的替换内容也要保持转义：`C:\\Users\\prod\[2\]`
 
 自行构造 Markdown 内容写入时同理：如字面文本 `a]b` 应写为 `a\]b`，`C:\Users` 应写为 `C:\\Users`。
@@ -64,13 +64,9 @@ Markdown 格式支持通过 URL 插入网络图片，图片将自动从 HTTP 下
 ```
 - `alt text` 为图片描述（可选，可留空）
 - URL 支持 `http://` 和 `https://` 协议
-- 对应的 XML 格式为：`<img href="https://example.com/photo.png"/>`
 
 ## Markdown 不支持的 Block 类型
 
-非原生 Markdown 语法的内容（如下划线、高亮框(Callout)、勾选框、多维表格、画板、思维导图、电子表格、网格布局、引用(@文档/@人)、按钮、日期提醒、行内文件、文字颜色/背景色、同步块等）采用 XML 语法表示，详见 [`lark-doc-xml.md`](lark-doc-xml.md)。
-> **⚠️ XML 标签会被解析并生效**：即使在 `--doc-format markdown` 下，`<b>`、`<u>`、`<img>` 等 XML 标签也会被识别为对应的富文本节点，**不会**按字面量显示。如需字面量输出尖括号包裹的文本（例如示例中的 `<tag>`），必须转义左尖括号：`\<b>`、`\<img>`。
+Markdown 不支持下划线、高亮框（Callout）、勾选框、多维表格、画板、思维导图、电子表格、网格布局、引用（@文档 / @人）、按钮、日期提醒、行内文件、文字颜色 / 背景色、同步块等能力。需要其中任何一项时，不得在 Markdown 草稿中嵌入 XML；返回 Serialization Decision，将整份 release candidate 切换为 XML 后重新生成。
 
-## 参考
-
-- [`lark-doc-xml.md`](lark-doc-xml.md) — XML 语法规范
+> **⚠️ XML 标签会被解析并生效**：即使在 `--doc-format markdown` 下，意外出现的 `<b>`、`<u>`、`<img>` 等标签也会被识别为富文本节点，不会按字面量显示。Markdown 正文需要展示 `<tag>` 时，必须转义左尖括号，例如 `\<b>`、`\<img>`。
