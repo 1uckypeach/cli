@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	qdiff "github.com/larksuite/cli/internal/qualitygate/diff"
 	"github.com/larksuite/cli/internal/qualitygate/manifest"
@@ -69,7 +70,7 @@ func TestReferenceCommandSurfaceNormalizesShortcutDomain(t *testing.T) {
 }
 
 func TestRunRequiresCommandIndexToCoverManifest(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	manifestPath := filepath.Join(repo, "command-manifest.json")
 	indexPath := filepath.Join(repo, "command-index.json")
 	m := manifest.Manifest{SchemaVersion: 1, Commands: []manifest.Command{{
@@ -104,7 +105,7 @@ func TestRunRequiresCommandIndexToCoverManifest(t *testing.T) {
 }
 
 func TestRunReadsManifestFilesAndAcceptsServiceReferences(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "user.email", "test@example.com")
 	runGit(t, repo, "config", "user.name", "Test User")
@@ -190,7 +191,7 @@ description: Manage Drive comments with service command references.
 }
 
 func TestRunCollectsPublicContentFindingsIntoDiagnosticsAndFacts(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "user.email", "test@example.com")
 	runGit(t, repo, "config", "user.name", "Test User")
@@ -283,7 +284,7 @@ func TestRunCollectsPublicContentFindingsIntoDiagnosticsAndFacts(t *testing.T) {
 }
 
 func TestLoadBaseReferenceManifestReadsCommandGolden(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "user.email", "test@example.com")
 	runGit(t, repo, "config", "user.name", "Test User")
@@ -323,7 +324,7 @@ func TestLoadBaseReferenceManifestReadsCommandGolden(t *testing.T) {
 }
 
 func TestLoadBaseReferenceManifestReadsCommandIndexGolden(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "user.email", "test@example.com")
 	runGit(t, repo, "config", "user.name", "Test User")
@@ -364,7 +365,7 @@ func TestLoadBaseReferenceManifestReadsCommandIndexGolden(t *testing.T) {
 }
 
 func TestLoadBaseReferenceManifestRejectsEmptyGolden(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "user.email", "test@example.com")
 	runGit(t, repo, "config", "user.name", "Test User")
@@ -384,7 +385,7 @@ func TestLoadBaseReferenceManifestRejectsEmptyGolden(t *testing.T) {
 }
 
 func TestLoadBaseReferenceManifestRejectsInvalidGoldenKind(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "user.email", "test@example.com")
 	runGit(t, repo, "config", "user.name", "Test User")
@@ -605,4 +606,23 @@ func runGit(t *testing.T, repo string, args ...string) {
 	if err != nil {
 		t.Fatalf("git %v failed: %v\n%s", args, err, out)
 	}
+}
+
+// newGitTestRepo returns a temp dir for a test-created git repo. Git tooling
+// on this machine (trace2 hooks, etc.) can asynchronously write into a
+// repo's .git/ shortly after a git command runs, racing with t.TempDir's
+// automatic RemoveAll cleanup. Removing the tree ourselves first (retrying
+// past that transient window) makes the later t.TempDir cleanup a no-op.
+func newGitTestRepo(t *testing.T) string {
+	t.Helper()
+	repo := t.TempDir()
+	t.Cleanup(func() {
+		for i := 0; i < 10; i++ {
+			if err := os.RemoveAll(repo); err == nil {
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	})
+	return repo
 }

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestScopeIncludesChangedSkillAndRelatedDomain(t *testing.T) {
@@ -51,7 +52,7 @@ func TestFileAtRevisionMissingClassifier(t *testing.T) {
 }
 
 func TestChangedFilesIncludingWorktree(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "user.email", "test@example.com")
 	runGit(t, repo, "config", "user.name", "Test User")
@@ -83,7 +84,7 @@ func TestChangedFilesIncludingWorktree(t *testing.T) {
 }
 
 func TestChangedFilesHandlesWhitespacePaths(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "user.email", "test@example.com")
 	runGit(t, repo, "config", "user.name", "Test User")
@@ -138,4 +139,23 @@ func gitOutput(t *testing.T, repo string, args ...string) string {
 		t.Fatalf("git %v failed: %v", args, err)
 	}
 	return string(out[:len(out)-1])
+}
+
+// newGitTestRepo returns a temp dir for a test-created git repo. Git tooling
+// on this machine (trace2 hooks, etc.) can asynchronously write into a
+// repo's .git/ shortly after a git command runs, racing with t.TempDir's
+// automatic RemoveAll cleanup. Removing the tree ourselves first (retrying
+// past that transient window) makes the later t.TempDir cleanup a no-op.
+func newGitTestRepo(t *testing.T) string {
+	t.Helper()
+	repo := t.TempDir()
+	t.Cleanup(func() {
+		for i := 0; i < 10; i++ {
+			if err := os.RemoveAll(repo); err == nil {
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	})
+	return repo
 }

@@ -10,10 +10,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCollectScansOnlyCurrentContributionAndMetadata(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "user.email", "test@example.com")
 	runGit(t, repo, "config", "user.name", "Test User")
@@ -60,7 +61,7 @@ api_`+`key = "example-public-key"
 }
 
 func TestCollectScansOnlyChangedLinesInChangedFiles(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "user.email", "test@example.com")
 	runGit(t, repo, "config", "user.name", "Test User")
@@ -92,7 +93,7 @@ func TestCollectScansOnlyChangedLinesInChangedFiles(t *testing.T) {
 }
 
 func TestCollectSemanticCandidatesStoreSanitizedReviewText(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "user.email", "test@example.com")
 	runGit(t, repo, "config", "user.name", "Test User")
@@ -608,7 +609,7 @@ func TestCollectIgnoresDeletedPrivateKeyLine(t *testing.T) {
 }
 
 func TestCollectSkipsOnlyKnownQualityGateFixtureFiles(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "user.email", "test@example.com")
 	runGit(t, repo, "config", "user.name", "Test User")
@@ -699,7 +700,7 @@ func TestCollectScansAddedLinesInSpecialPathNames(t *testing.T) {
 }
 
 func TestCollectScansBranchNameAsWarning(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	metadataPath := filepath.Join(repo, "pr-metadata.json")
 	writeFile(t, metadataPath, `{"branch":"bot/public-doc-update"}`)
 	got, err := Collect(context.Background(), Options{
@@ -799,7 +800,7 @@ func TestAppendUniqueFindingsDeduplicatesByRuleFileLineAndSource(t *testing.T) {
 
 func newGitRepo(t *testing.T) string {
 	t.Helper()
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "user.email", "test@example.com")
 	runGit(t, repo, "config", "user.name", "Test User")
@@ -840,7 +841,7 @@ func requireFinding(t *testing.T, got []Finding, file, rule string) {
 }
 
 func TestCollectRequiresValidMetadataJSON(t *testing.T) {
-	repo := t.TempDir()
+	repo := newGitTestRepo(t)
 	metadataPath := filepath.Join(repo, "pr-metadata.json")
 	writeFile(t, metadataPath, `{"title":`)
 
@@ -872,6 +873,25 @@ func runGitOutput(t *testing.T, repo string, args ...string) []byte {
 		t.Fatalf("git %v failed: %v\n%s", args, err, out)
 	}
 	return out
+}
+
+// newGitTestRepo returns a temp dir for a test-created git repo. Git tooling
+// on this machine (trace2 hooks, etc.) can asynchronously write into a
+// repo's .git/ shortly after a git command runs, racing with t.TempDir's
+// automatic RemoveAll cleanup. Removing the tree ourselves first (retrying
+// past that transient window) makes the later t.TempDir cleanup a no-op.
+func newGitTestRepo(t *testing.T) string {
+	t.Helper()
+	repo := t.TempDir()
+	t.Cleanup(func() {
+		for i := 0; i < 10; i++ {
+			if err := os.RemoveAll(repo); err == nil {
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	})
+	return repo
 }
 
 func writeFile(t *testing.T, path, data string) {
