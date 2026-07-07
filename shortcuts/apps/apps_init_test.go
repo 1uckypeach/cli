@@ -1703,6 +1703,25 @@ func TestRunScaffold_EmptyAppTypeFallback(t *testing.T) {
 	}
 }
 
+func TestRunScaffold_FullStackPassesTemplate(t *testing.T) {
+	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: ""}}}
+	withFakeRunner(t, f)
+	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "full_stack", "", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if kind != scaffoldKindInit {
+		t.Errorf("kind = %q, want %q", kind, scaffoldKindInit)
+	}
+	c := findCall(f.calls, "npx", "-y")
+	if c == nil {
+		t.Fatal("npx not called")
+	}
+	if !containsAll(c, "--template", "full_stack") {
+		t.Errorf("expected --template full_stack in args: %v", c)
+	}
+}
+
 func TestRunScaffold_ExplicitTemplateOverride(t *testing.T) {
 	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: ""}}}
 	withFakeRunner(t, f)
