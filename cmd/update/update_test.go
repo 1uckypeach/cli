@@ -1137,21 +1137,14 @@ func TestValidateSkillsLayoutOptionsRejectsSuiteMode(t *testing.T) {
 	}
 }
 
-func TestValidateSkillsLayoutOptionsRejectsSharedFlatInHybrid(t *testing.T) {
+func TestValidateSkillsLayoutOptionsAllowsFlatSkillsFilteringAfterOfficialDiscovery(t *testing.T) {
 	err := validateSkillsLayoutOptions(&UpdateOptions{
 		SkillsLayout: skillscheck.LayoutHybrid,
-		FlatSkills:   "lark-shared",
+		FlatSkills:   "lark-shared,lark-unknown",
 		FlatSet:      true,
 	})
-	if err == nil {
-		t.Fatal("validateSkillsLayoutOptions() err = nil, want validation error")
-	}
-	var validation *errs.ValidationError
-	if !errors.As(err, &validation) {
-		t.Fatalf("errors.As(err, *ValidationError) = false for %T", err)
-	}
-	if validation.Param != "--flat-skills" {
-		t.Fatalf("validation.Param = %q, want --flat-skills", validation.Param)
+	if err != nil {
+		t.Fatalf("validateSkillsLayoutOptions() err = %v, want nil", err)
 	}
 }
 

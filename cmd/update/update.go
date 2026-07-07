@@ -358,15 +358,6 @@ func validateSkillsLayoutOptions(opts *UpdateOptions) errs.TypedError {
 	if _, ok := skillscheck.NormalizeLayout(opts.SkillsLayout); !ok {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--skills-layout must be one of separate or hybrid").WithParam("--skills-layout")
 	}
-	layout, flat := resolveSkillsSyncOptions(opts.SkillsLayout, opts.FlatSkills, opts.FlatSet)
-	if layout != skillscheck.LayoutHybrid {
-		return nil
-	}
-	for _, skill := range flat {
-		if skill == "lark-shared" {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "lark-shared cannot be selected by --flat-skills; it is managed automatically for lark-suite compatibility").WithParam("--flat-skills")
-		}
-	}
 	return nil
 }
 

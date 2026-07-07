@@ -166,10 +166,10 @@ func resolveHybridSkillSets(layout string, requestedFlat, official []string, ski
 	effectiveFlat := map[string]bool{}
 	for _, skill := range uniqueSorted(requestedFlat) {
 		if skill == sharedSkillName {
-			return nil, nil, fmt.Errorf("%s cannot be selected by --flat-skills", sharedSkillName)
+			continue
 		}
 		if !officialSet[skill] {
-			return nil, nil, fmt.Errorf("flat skill %q is not in official skills", skill)
+			continue
 		}
 		configuredFlat[skill] = true
 		if !deletedSet[skill] {

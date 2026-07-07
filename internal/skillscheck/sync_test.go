@@ -867,23 +867,39 @@ func TestSyncSkills_HybridWithNoFlatSkillsDoesNotKeepSharedTopLevel(t *testing.T
 	}
 }
 
-func TestSyncSkills_HybridRejectsSharedFlatSkill(t *testing.T) {
+func TestSyncSkills_HybridFiltersNonFlatOfficialSkills(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	paths := map[string]string{}
+	for _, name := range []string{"lark-calendar", "lark-shared", "lark-suite"} {
+		paths[name] = filepath.Join(dir, name)
+		writeTestSkill(t, paths[name], name)
+	}
+
 	runner := &fakeSkillsRunner{
 		officialIndexOut: officialSkillsIndexOutput("lark-calendar", "lark-shared"),
-		globalJSONOut:    globalSkillsJSONOutput("lark-calendar", "lark-shared"),
+		globalJSONOut:    globalSkillsJSONFromPaths(paths),
 	}
 
 	result := SyncSkills(SyncOptions{
 		Version:    "1.0.33",
 		Layout:     LayoutHybrid,
-		FlatSkills: []string{"lark-shared"},
+		FlatSkills: []string{"lark-calendar", "lark-missing", "lark-shared"},
 		Runner:     runner,
 		Now:        time.Now,
 	})
 
-	if result.Err == nil || !strings.Contains(result.Err.Error(), "lark-shared") {
-		t.Fatalf("SyncSkills() err = %v, want lark-shared validation error", result.Err)
+	if result.Err != nil {
+		t.Fatalf("SyncSkills() err = %v, want nil", result.Err)
 	}
+	assertStrings(t, result.Flat, []string{"lark-calendar"})
+
+	state, readable, err := ReadState()
+	if err != nil || !readable {
+		t.Fatalf("ReadState() = (_, %v, %v), want readable", readable, err)
+	}
+	assertStrings(t, state.FlatSkills, []string{"lark-calendar"})
 }
 
 func TestSyncSkills_ParseEmptyWithNonEmptyStdoutFallsBack(t *testing.T) {
