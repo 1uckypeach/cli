@@ -67,7 +67,7 @@ lark-cli slides xml_presentation.slide create --as user --params '<json_params>'
 </slide>
 ```
 
-详细格式请参考 [xml-format-guide.md](xml-format-guide.md) 和 [xml-schema-quick-ref.md](xml-schema-quick-ref.md)。
+详细格式请参考 [xml-schema-quick-ref.md](xml-schema-quick-ref.md)。
 
 ## 使用示例
 
@@ -216,5 +216,4 @@ done
 - [slides +create](lark-slides-create.md) - 创建空白 PPT
 - [xml_presentations get](lark-slides-xml-presentations-get.md) - 读取 PPT 内容
 - [xml_presentation.slide delete](lark-slides-xml-presentation-slide-delete.md) - 删除幻灯片页面
-- [xml-format-guide.md](xml-format-guide.md) - XML 格式详细规范
-- [xml-schema-quick-ref.md](xml-schema-quick-ref.md) - Schema 快速参考
+- [xml-schema-quick-ref.md](xml-schema-quick-ref.md) - XML Schema 快速参考
