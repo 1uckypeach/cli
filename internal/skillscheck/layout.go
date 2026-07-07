@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/larksuite/cli/internal/vfs"
 )
 
 const (
@@ -97,7 +99,7 @@ func installedSkillNamesFromInfos(infos []GlobalSkillInfo) []string {
 }
 
 func listSuiteSubskills(suitePath string) []string {
-	entries, err := os.ReadDir(filepath.Join(suitePath, "references", "subskills"))
+	entries, err := vfs.ReadDir(filepath.Join(suitePath, "references", "subskills"))
 	if err != nil {
 		return nil
 	}
@@ -213,10 +215,10 @@ func assembleSuiteLayout(layout string, collected []string, keepSharedTopLevel b
 	}
 
 	subskillsDir := filepath.Join(suiteInfo.Path, "references", "subskills")
-	if err := os.RemoveAll(subskillsDir); err != nil {
+	if err := vfs.RemoveAll(subskillsDir); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(subskillsDir, 0o755); err != nil {
+	if err := vfs.MkdirAll(subskillsDir, 0o755); err != nil {
 		return err
 	}
 
@@ -241,7 +243,7 @@ func assembleSuiteLayout(layout string, collected []string, keepSharedTopLevel b
 
 func renderSuiteRoutes(suitePath string, collected []string) error {
 	skillPath := filepath.Join(suitePath, "SKILL.md")
-	data, err := os.ReadFile(skillPath)
+	data, err := vfs.ReadFile(skillPath)
 	if err != nil {
 		return err
 	}
@@ -258,7 +260,7 @@ func renderSuiteRoutes(suitePath string, collected []string) error {
 		return fmt.Errorf("%s route placeholder not found", suiteSkillName)
 	}
 	text = strings.Replace(text, suiteRoutesPlaceholder, strings.Join(routes, "\n"), 1)
-	return os.WriteFile(skillPath, []byte(text), 0o644)
+	return vfs.WriteFile(skillPath, []byte(text), 0o644)
 }
 
 func normalizeSuiteTemplateText(text string) string {
@@ -269,7 +271,7 @@ func normalizeSuiteTemplateText(text string) string {
 }
 
 func skillDescription(path string) string {
-	data, err := os.ReadFile(path)
+	data, err := vfs.ReadFile(path)
 	if err != nil {
 		return ""
 	}
@@ -313,30 +315,30 @@ func isIndentedYAMLLine(line string) bool {
 }
 
 func moveDir(src, dst string) error {
-	if err := os.RemoveAll(dst); err != nil {
+	if err := vfs.RemoveAll(dst); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	if err := vfs.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
-	if err := os.Rename(src, dst); err == nil {
+	if err := vfs.Rename(src, dst); err == nil {
 		return nil
 	}
 	if err := copyDir(src, dst); err != nil {
 		return err
 	}
-	return os.RemoveAll(src)
+	return vfs.RemoveAll(src)
 }
 
 func copyDir(src, dst string) error {
-	info, err := os.Stat(src)
+	info, err := vfs.Stat(src)
 	if err != nil {
 		return err
 	}
 	if !info.IsDir() {
 		return fmt.Errorf("%s is not a directory", src)
 	}
-	if err := os.RemoveAll(dst); err != nil {
+	if err := vfs.RemoveAll(dst); err != nil {
 		return err
 	}
 	return filepath.WalkDir(src, func(path string, entry os.DirEntry, walkErr error) error {
@@ -349,26 +351,28 @@ func copyDir(src, dst string) error {
 		}
 		target := filepath.Join(dst, rel)
 		if entry.IsDir() {
-			return os.MkdirAll(target, 0o755)
+			return vfs.MkdirAll(target, 0o755)
 		}
 		return copyFile(path, target)
 	})
 }
 
 func copyFile(src, dst string) error {
-	in, err := os.Open(src)
+	in, err := vfs.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	if err := vfs.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	out, err := vfs.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
 }

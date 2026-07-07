@@ -220,19 +220,7 @@ func PlanSync(input SyncInput) SyncPlan {
 
 	officialSet := toSet(official)
 	installedOfficial := intersection(input.LocalSkills, officialSet)
-
-	previousOfficial := []string{}
-	if input.StateReadable && input.PreviousState != nil {
-		previousOfficial = input.PreviousState.OfficialSkills
-	}
-	previousSet := toSet(previousOfficial)
-
-	newAddedOfficial := []string{}
-	for _, skill := range official {
-		if !previousSet[skill] {
-			newAddedOfficial = append(newAddedOfficial, skill)
-		}
-	}
+	newAddedOfficial := newlyOfficialSkills(official, input.PreviousState, input.StateReadable)
 
 	updateSet := toSet(installedOfficial)
 	for _, skill := range newAddedOfficial {
@@ -245,7 +233,7 @@ func PlanSync(input SyncInput) SyncPlan {
 		Version:        input.Version,
 		OfficialSkills: official,
 		ToUpdate:       toUpdate,
-		Added:          uniqueSorted(newAddedOfficial),
+		Added:          newAddedOfficial,
 		SkippedDeleted: skippedDeleted,
 	}
 }
