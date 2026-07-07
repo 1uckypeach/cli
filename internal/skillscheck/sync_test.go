@@ -853,3 +853,65 @@ func TestSyncSkills_FallbackBreaksDegradationLoop(t *testing.T) {
 		t.Fatalf("second sync: installedAll = %d, want 0 (incremental, not fallback)", runner2.installedAll)
 	}
 }
+
+func TestSyncSkills_WritesLocalTimezoneUpdatedAt(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)
+
+	runner := &fakeSkillsRunner{
+		officialIndexOut: officialSkillsIndexOutput("lark-calendar", "lark-mail", "lark-new"),
+		officialOut:      officialSkillsOutput("lark-calendar", "lark-mail", "lark-new"),
+		globalJSONOut:    globalSkillsJSONOutput("lark-calendar"),
+		globalOut:        globalSkillsOutput("lark-mail"),
+	}
+	localZone := time.FixedZone("UTC+8", 8*60*60)
+	result := SyncSkills(SyncOptions{
+		Version: "1.0.33",
+		Runner:  runner,
+		Now:     func() time.Time { return time.Date(2026, 5, 18, 12, 0, 0, 0, localZone) },
+	})
+	if result.Err != nil {
+		t.Fatalf("SyncSkills() err = %v, want nil", result.Err)
+	}
+
+	state, readable, err := ReadState()
+	if err != nil || !readable {
+		t.Fatalf("ReadState() = (_, %v, %v), want readable", readable, err)
+	}
+	want := "2026-05-18T12:00:00+08:00"
+	if state.UpdatedAt != want {
+		t.Fatalf("state.UpdatedAt = %q, want %q (local timezone offset, not UTC Z-suffix)", state.UpdatedAt, want)
+	}
+}
+
+func TestSyncSkills_FallbackWritesLocalTimezoneUpdatedAt(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)
+
+	runner := &fakeSkillsRunner{
+		officialIndexOut: officialSkillsIndexOutput("lark-calendar", "lark-mail"),
+		officialOut:      officialSkillsOutput("lark-calendar", "lark-mail"),
+		globalJSONOut:    globalSkillsJSONOutput("lark-calendar", "lark-mail"),
+		globalOut:        globalSkillsOutput("lark-calendar", "lark-mail"),
+		installErr:       fmt.Errorf("incremental boom"),
+		installAllErr:    nil,
+	}
+	localZone := time.FixedZone("UTC+8", 8*60*60)
+	result := SyncSkills(SyncOptions{
+		Version: "1.0.33",
+		Runner:  runner,
+		Now:     func() time.Time { return time.Date(2026, 5, 18, 12, 0, 0, 0, localZone) },
+	})
+	if result.Action != "fallback_synced" {
+		t.Fatalf("SyncSkills() action = %q, want fallback_synced", result.Action)
+	}
+
+	state, readable, err := ReadState()
+	if err != nil || !readable {
+		t.Fatalf("ReadState() = (_, %v, %v), want readable", readable, err)
+	}
+	want := "2026-05-18T12:00:00+08:00"
+	if state.UpdatedAt != want {
+		t.Fatalf("state.UpdatedAt = %q, want %q (local timezone offset, not UTC Z-suffix)", state.UpdatedAt, want)
+	}
+}
