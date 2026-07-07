@@ -765,6 +765,75 @@ func TestSyncSkills_HybridAssemblesSuiteAndMovesCollectedSkills(t *testing.T) {
 	assertStrings(t, state.FlatSkills, []string{"lark-calendar"})
 }
 
+func TestSyncSkills_HybridCollectsNewOfficialSkillOnNextUpdate(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	paths := map[string]string{}
+	for _, name := range []string{"lark-calendar", "lark-doc", "lark-shared", "lark-suite"} {
+		paths[name] = filepath.Join(dir, name)
+		writeTestSkill(t, paths[name], name)
+	}
+
+	runner := &fakeSkillsRunner{
+		officialIndexOut: officialSkillsIndexOutput("lark-calendar", "lark-doc", "lark-shared"),
+		globalJSONOut:    globalSkillsJSONFromPaths(paths),
+	}
+	first := SyncSkills(SyncOptions{
+		Version:    "1.0.33",
+		Layout:     LayoutHybrid,
+		FlatSkills: []string{"lark-calendar"},
+		Runner:     runner,
+		Now:        time.Now,
+	})
+	if first.Err != nil {
+		t.Fatalf("first SyncSkills() err = %v, want nil", first.Err)
+	}
+
+	paths["lark-new"] = filepath.Join(dir, "lark-new")
+	for _, name := range []string{"lark-doc", "lark-new", "lark-shared", "lark-suite"} {
+		writeTestSkill(t, paths[name], name)
+	}
+	runner.officialIndexOut = officialSkillsIndexOutput("lark-calendar", "lark-doc", "lark-new", "lark-shared")
+	runner.globalJSONOut = globalSkillsJSONFromPaths(paths)
+
+	second := SyncSkills(SyncOptions{
+		Version:    "1.0.34",
+		Layout:     LayoutHybrid,
+		FlatSkills: []string{"lark-calendar"},
+		Runner:     runner,
+		Now:        time.Now,
+	})
+	if second.Err != nil {
+		t.Fatalf("second SyncSkills() err = %v, want nil", second.Err)
+	}
+	assertStrings(t, second.Added, []string{"lark-new"})
+	assertStrings(t, second.Flat, []string{"lark-calendar"})
+	assertStrings(t, second.Collected, []string{"lark-shared", "lark-doc", "lark-new"})
+
+	if _, err := os.Stat(filepath.Join(paths["lark-suite"], "references", "subskills", "lark-new", "SKILL.md")); err != nil {
+		t.Fatalf("suite lark-new missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(paths["lark-new"], "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("new official skill should be collected, top-level path err: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(paths["lark-suite"], "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read suite SKILL.md: %v", err)
+	}
+	if !strings.Contains(string(data), "- lark-new: lark-new description") {
+		t.Fatalf("suite SKILL.md missing lark-new route:\n%s", data)
+	}
+
+	state, readable, err := ReadState()
+	if err != nil || !readable {
+		t.Fatalf("ReadState() = (_, %v, %v), want readable", readable, err)
+	}
+	assertStrings(t, state.OfficialSkills, []string{"lark-calendar", "lark-doc", "lark-new", "lark-shared"})
+	assertStrings(t, state.AddedOfficialSkills, []string{"lark-new"})
+	assertStrings(t, state.FlatSkills, []string{"lark-calendar"})
+}
+
 func TestSyncSkills_HybridWithNoFlatSkillsDoesNotKeepSharedTopLevel(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
