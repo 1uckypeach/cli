@@ -261,7 +261,7 @@ func TestRunScaffold_EmptyRepo(t *testing.T) {
 		t.Run("ls="+ls, func(t *testing.T) {
 			f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: ls}}}
 			withFakeRunner(t, f)
-			kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "nestjs-react-fullstack")
+			kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "nestjs-react-fullstack", "")
 			if err != nil || kind != "init" {
 				t.Fatalf("ls=%q kind=%q err=%v, want init", ls, kind, err)
 			}
@@ -280,7 +280,7 @@ func TestRunScaffold_NonEmpty_SyncsWhenNoSteering(t *testing.T) {
 	dir := t.TempDir() // no steering dir, no meta.json
 	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: "src/x.ts\n"}}}
 	withFakeRunner(t, f)
-	kind, err := runScaffold(context.Background(), dir, "app_x", "", "nestjs-react-fullstack")
+	kind, err := runScaffold(context.Background(), dir, "app_x", "", "nestjs-react-fullstack", "")
 	if err != nil || kind != "upgrade" {
 		t.Fatalf("kind=%q err=%v, want upgrade", kind, err)
 	}
@@ -299,7 +299,7 @@ func TestRunScaffold_NonEmpty_SkipsSyncWhenSteeringExists(t *testing.T) {
 	os.MkdirAll(filepath.Join(dir, steeringRelPath), 0o755)
 	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: "src/x.ts\n"}}}
 	withFakeRunner(t, f)
-	if _, err := runScaffold(context.Background(), dir, "app_x", "", "nestjs-react-fullstack"); err != nil {
+	if _, err := runScaffold(context.Background(), dir, "app_x", "", "nestjs-react-fullstack", ""); err != nil {
 		t.Fatal(err)
 	}
 	if findCallArg(f.calls, "npx", "skills", "sync") != nil {
@@ -313,7 +313,7 @@ func TestRunScaffold_AppInitFailure(t *testing.T) {
 		"npx -y":       {stderr: "boom", err: errors.New("exit 1")},
 	}}
 	withFakeRunner(t, f)
-	if _, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "nestjs-react-fullstack"); err == nil {
+	if _, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "nestjs-react-fullstack", ""); err == nil {
 		t.Error("app init failure must propagate")
 	}
 }
@@ -1250,7 +1250,7 @@ func TestRunScaffold_NonEmpty_SyncFailure(t *testing.T) {
 		"git ls-files": {stdout: "src/x.ts\n"},
 		"npx -y":       {err: errors.New("sync boom")},
 	}})
-	if _, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "tpl"); err == nil {
+	if _, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "tpl", ""); err == nil {
 		t.Error("npx app sync failure must surface as an error")
 	}
 }
@@ -1630,7 +1630,7 @@ func TestRunScaffold_SubprocessFailureIsExternalTool(t *testing.T) {
 		"git ls-files": {stderr: "fatal: not a git repository", err: cause},
 	}}
 	withFakeRunner(t, f)
-	_, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "nestjs-react-fullstack")
+	_, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "nestjs-react-fullstack", "")
 	if err == nil {
 		t.Fatalf("expected error from failing git subprocess")
 	}
@@ -1649,7 +1649,7 @@ func TestRunScaffold_SubprocessFailureIsExternalTool(t *testing.T) {
 func TestRunScaffold_HtmlPassesTemplate(t *testing.T) {
 	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: ""}}}
 	withFakeRunner(t, f)
-	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "html", "")
+	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "html", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1668,7 +1668,7 @@ func TestRunScaffold_HtmlPassesTemplate(t *testing.T) {
 func TestRunScaffold_ModernHtmlPassesTemplate(t *testing.T) {
 	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: ""}}}
 	withFakeRunner(t, f)
-	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "modern_html", "")
+	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "modern_html", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1687,7 +1687,7 @@ func TestRunScaffold_ModernHtmlPassesTemplate(t *testing.T) {
 func TestRunScaffold_EmptyAppTypeFallback(t *testing.T) {
 	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: ""}}}
 	withFakeRunner(t, f)
-	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "")
+	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1706,7 +1706,7 @@ func TestRunScaffold_EmptyAppTypeFallback(t *testing.T) {
 func TestRunScaffold_ExplicitTemplateOverride(t *testing.T) {
 	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: ""}}}
 	withFakeRunner(t, f)
-	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "modern_html", "custom-template")
+	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "modern_html", "custom-template", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -77,6 +77,7 @@ var AppsInit = common.Shortcut{
 		{Name: "app-id", Desc: "app ID"},
 		{Name: "dir", Desc: "clone target directory; absolute or relative path (default ./<app-id>)"},
 		{Name: "template", Desc: "code-init template for an empty repo; optional — if omitted, derived from the app's tech stack"},
+		{Name: "source-path", Desc: "path to existing source files (e.g. HTML output from an agent) to incorporate into the initialized project"},
 	},
 	Validate: func(ctx context.Context, rctx *common.RuntimeContext) error {
 		if strings.TrimSpace(rctx.Str("app-id")) == "" {
@@ -326,13 +327,13 @@ func isEmptyRepo(ctx context.Context, dir string) (bool, error) {
 // runScaffold runs the npx scaffolding step inside the cloned repo (cwd=dir).
 // Empty repo -> `app init`; non-empty -> `app sync` + meta app_id patch +
 // conditional `skills sync`. Returns "init" or "upgrade".
-func runScaffold(ctx context.Context, dir, appID, appType, explicitTemplate string) (string, error) {
+func runScaffold(ctx context.Context, dir, appID, appType, explicitTemplate, sourcePath string) (string, error) {
 	empty, err := isEmptyRepo(ctx, dir)
 	if err != nil {
 		return "", err
 	}
 	if empty {
-		args := scaffoldInitArgs(appType, appID, explicitTemplate)
+		args := scaffoldInitArgs(appType, appID, explicitTemplate, sourcePath)
 		if _, stderr, err := initRunner.Run(ctx, dir, "npx", args...); err != nil {
 			return "", appsExternalToolError(err, "npx app init failed: %s", gitErr(stderr, err))
 		}
@@ -355,15 +356,20 @@ func runScaffold(ctx context.Context, dir, appID, appType, explicitTemplate stri
 // scaffoldInitArgs builds the npx argument list for `app init`. An explicit
 // template wins; otherwise, when appType is available, it is passed as
 // --template; empty appType falls back to --template defaultTemplate.
-func scaffoldInitArgs(appType, appID, explicitTemplate string) []string {
+// sourcePath is appended as --source-path when non-empty.
+func scaffoldInitArgs(appType, appID, explicitTemplate, sourcePath string) []string {
 	base := []string{"-y", "--prefer-online", miaodaCLIPkg, "app", "init"}
 	if explicitTemplate != "" {
-		return append(base, "--template", explicitTemplate, "--app-id", appID)
+		base = append(base, "--template", explicitTemplate, "--app-id", appID)
+	} else if appType != "" {
+		base = append(base, "--template", appType, "--app-id", appID)
+	} else {
+		base = append(base, "--template", defaultTemplate, "--app-id", appID)
 	}
-	if appType != "" {
-		return append(base, "--template", appType, "--app-id", appID)
+	if sourcePath != "" {
+		base = append(base, "--source-path", sourcePath)
 	}
-	return append(base, "--template", defaultTemplate, "--app-id", appID)
+	return base
 }
 
 // parseRepoURLFromEnvelope extracts data.repository_url from a lark-cli JSON
@@ -533,7 +539,8 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 
 	initLogf(rctx, "Initializing app code (running miaoda-cli)...")
 	explicitTemplate := strings.TrimSpace(rctx.Str("template"))
-	scaffold, err := runScaffold(ctx, dir, appID, appType, explicitTemplate)
+	sourcePath := strings.TrimSpace(rctx.Str("source-path"))
+	scaffold, err := runScaffold(ctx, dir, appID, appType, explicitTemplate, sourcePath)
 	if err != nil {
 		return err
 	}
