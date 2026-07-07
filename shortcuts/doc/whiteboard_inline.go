@@ -98,7 +98,9 @@ func prepareWhiteboardInlineContent(runtime *common.RuntimeContext, format strin
 
 		tag.removeAttrs("path")
 		if docType != "" {
-			// keep type attribute
+			if !tag.hasAttr("type") {
+				tag.Attrs = append(tag.Attrs, whiteboardAttr{Name: "type", Value: docType})
+			}
 		} else {
 			tag.removeAttrs("type")
 		}
