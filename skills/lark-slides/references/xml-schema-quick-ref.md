@@ -28,6 +28,12 @@
 </presentation>
 ```
 
+## 完整示例文件
+
+- [slides_demo.xml](slides_demo.xml) - 基础完整演示文稿示例
+- [slides_chart_demo.xml](slides_chart_demo.xml) - 原生 chart 与 whiteboard 图表示例
+- [slides_timeline_demo.xml](slides_timeline_demo.xml) - 8 页时间轴设计示例，展示线性、纵向、泳道、环形、阶段、分支与指标叠加等 timeline 表达；源码路径：`skills/lark-slides/references/slides_timeline_demo.xml`
+
 ## presentation 根元素
 
 | 属性 | 必需 | 说明 |
