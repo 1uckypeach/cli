@@ -50,67 +50,71 @@ type AgentCard struct {
 	Skills        []CardSkill    `json:"skills,omitempty"`
 }
 
-// NewCard fills in all fields known at registration time from the registration
-// info (Provider/ProviderLabel/Identity/AgentIDSource/empty Parameters); the
-// integrator only supplies the per-agent part (Capabilities, plus Name/
-// Description for catalog types). An unregistered scheme is a programming error
-// (a provider should only pass its own scheme), so it panics fail-fast.
-func NewCard(scheme, agentID string) *AgentCard {
-	info, ok := Info(scheme)
-	if !ok {
-		panic("agent: NewCard for unregistered scheme: " + scheme)
-	}
-	return &AgentCard{
-		Provider:      scheme,
-		ProviderLabel: info.Label,
-		AgentID:       agentID,
-		Identity:      info.Identities,
-		Parameters:    []CardParam{},
-		AgentIDSource: info.AgentIDSource,
-	}
-}
-
-// DeriveCapabilities computes the capability matrix from which Provider fields
+// DeriveCapabilities computes the capability matrix from which AgentSpec hooks
 // are wired — the single source of truth. The method-backed capabilities are
 // derived from the corresponding func field being non-nil (implement it =
 // support it); file_input / input_required are behavioral flags with no backing
-// method and are read straight from the struct. Send/GetTask are mandatory
-// (Register enforces), so task_get is always true.
-func DeriveCapabilities(p *Provider) Capabilities {
+// hook and are read straight from the spec. Send/GetTask are mandatory (Register
+// enforces), so task_get is always true.
+func DeriveCapabilities(s *AgentSpec) Capabilities {
 	return Capabilities{
-		TaskGet:          p.GetTask != nil,
-		TaskList:         p.ListTasks != nil,
-		TaskCancel:       p.CancelTask != nil,
-		ArtifactDownload: p.DownloadArtifact != nil,
-		MultiTurn:        p.ListContexts != nil,
-		FileInput:        p.FileInput,
-		InputRequired:    p.InputRequired,
+		TaskGet:          s.GetTask != nil,
+		TaskList:         s.ListTasks != nil,
+		TaskCancel:       s.CancelTask != nil,
+		ArtifactDownload: s.DownloadArtifact != nil,
+		MultiTurn:        s.ListContexts != nil,
+		FileInput:        s.FileInput,
+		InputRequired:    s.InputRequired,
 	}
 }
 
-// BuildCard synthesizes an agent's full Card: NewCard fills the
-// registration-time fields, DeriveCapabilities fills the matrix from the wired
-// fields, and Describe (if the provider set it) supplies the per-agent
-// Name/Description/Parameters/Skills and validates the agent_id. A provider
-// therefore never assembles its own card or declares its own capability bools.
-func BuildCard(ctx context.Context, scheme, agentID string, p *Provider) (*AgentCard, error) {
-	card := NewCard(scheme, agentID)
-	card.Capabilities = DeriveCapabilities(p)
-	if p.Describe != nil {
-		info, err := p.Describe(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if info != nil {
-			card.Name = info.Name
-			card.Description = info.Description
+// BuildCard synthesizes an agent's full Card: registration metadata from the
+// Provider, the capability matrix from DeriveCapabilities (wired hooks), and the
+// static per-agent metadata from the spec. When rt != nil AND the spec wires
+// Describe, it best-effort enriches Name/Description/Parameters/Skills from the
+// remote — a Describe error is swallowed so the card degrades to the offline
+// (caps + static) version rather than hard-failing (the caps matrix is the
+// primary value). Pass rt=nil for the guaranteed-offline path (card before
+// config init, dry-run). A provider never assembles its own card or declares its
+// own capability bools.
+func BuildCard(ctx context.Context, p Provider, s *AgentSpec, agentID string, rt Runtime) *AgentCard {
+	card := &AgentCard{
+		Provider:      p.Scheme,
+		ProviderLabel: p.Label,
+		AgentID:       agentID,
+		Name:          s.Name,
+		Description:   s.Description,
+		Capabilities:  DeriveCapabilities(s),
+		Identity:      p.Identities,
+		Parameters:    nonNilParams(s.Parameters),
+		AgentIDSource: p.AgentIDSource,
+		Skills:        s.Skills,
+	}
+	if rt != nil && s.Describe != nil {
+		if info, err := s.Describe(ctx, rt); err == nil && info != nil {
+			if info.Name != "" {
+				card.Name = info.Name
+			}
+			if info.Description != "" {
+				card.Description = info.Description
+			}
 			if info.Parameters != nil {
 				card.Parameters = info.Parameters
 			}
-			card.Skills = info.Skills
+			if info.Skills != nil {
+				card.Skills = info.Skills
+			}
 		}
 	}
-	return card, nil
+	return card
+}
+
+// nonNilParams keeps Parameters always emitted (empty is [], never null).
+func nonNilParams(p []CardParam) []CardParam {
+	if p == nil {
+		return []CardParam{}
+	}
+	return p
 }
 
 // CardParam is one input parameter declared by a Card (used for --param validation).

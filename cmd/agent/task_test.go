@@ -64,12 +64,17 @@ func taskTestOpts(t *testing.T, leaf string) (*taskOptions, *httpmock.Registry) 
 	}, reg
 }
 
-// TestTaskCancelUnsupportedGated pins that cancel against an agent whose
-// card declares task_cancel=false (example:echo) is gated on the Card
-// capability, so it returns an unsupported_capability validation error without
-// any Factory / network access.
+// TestTaskCancelUnsupportedGated pins that cancel against an agent whose spec
+// does not wire CancelTask (task_cancel=false, example:echo) is gated offline —
+// it returns an unsupported_capability validation error before any network
+// access (the httpmock registry has zero stubs, so any request would fail
+// differently).
 func TestTaskCancelUnsupportedGated(t *testing.T) {
-	err := agentTaskCancelRun(&taskOptions{Ref: "example:echo", TaskID: "t1"})
+	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
+	f, _, _, _ := cmdutil.TestFactory(t, cfg)
+	err := agentTaskCancelRun(&taskOptions{
+		Factory: f, Cmd: taskCmdCtx(t, "cancel"), Ref: "example:echo", TaskID: "t1", As: "bot",
+	})
 	if err == nil {
 		t.Fatal("task cancel with task_cancel=false should report unsupported_capability")
 	}
@@ -622,6 +627,26 @@ func TestFetchArtifactURL_MalformedURLBlocked(t *testing.T) {
 	}
 	if !errs.IsValidation(err) {
 		t.Fatalf("a malformed URL should be a validation error, got %T: %v", err, err)
+	}
+}
+
+// TestFetchArtifactURL_HttpRejected pins the https-only enforcement, distinct
+// from the SSRF guard: a PUBLIC http:// URL passes the SSRF check (routable,
+// http-family) but is still rejected because artifact bytes must travel over
+// https (no plaintext download). No request is made.
+func TestFetchArtifactURL_HttpRejected(t *testing.T) {
+	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
+	f, _, _, _ := cmdutil.TestFactory(t, cfg)
+
+	_, err := fetchArtifactURL(context.Background(), f, "http://203.0.113.7/artifacts/report.txt")
+	if err == nil {
+		t.Fatal("a public plain-http artifact URL should be rejected by the https-only check")
+	}
+	if !errs.IsValidation(err) {
+		t.Fatalf("https-only rejection should be a validation error, got %T: %v", err, err)
+	}
+	if !strings.Contains(err.Error(), "https") {
+		t.Errorf("error should state the https requirement, got %v", err)
 	}
 }
 

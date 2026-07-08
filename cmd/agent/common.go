@@ -41,29 +41,38 @@ var sleep = func(ctx context.Context, d time.Duration) bool {
 	}
 }
 
-// resolveProviderNoClient resolves the effective identity, enforces the
-// user|bot whitelist, and constructs the Provider addressed by ref WITHOUT
-// requiring a configured API client. It is the resolution path for the
-// API-free operations that always work — `agent card` (static synthesis) and
-// `agent send --dry-run` (client-side preview) — so they succeed even before
-// `lark-cli config init`. The provider's client is nil; only API-free methods
-// (Card) may be called on it. A malformed ref or unknown provider scheme is
-// wrapped into a validation typed error (subtype invalid_argument, exit 2), so
-// those surface before (not behind) the config gate.
-func resolveProviderNoClient(f *cmdutil.Factory, cmd *cobra.Command, ref, asStr string) (*iagent.Provider, core.Identity, error) {
+// resolveSpec is the fully-offline resolution path: it resolves the effective
+// identity, enforces the user|bot whitelist, and looks up the AgentSpec
+// addressed by ref — WITHOUT constructing a client or touching the network. It
+// is the FIRST step of every verb, so a malformed ref, an unknown scheme /
+// unknown catalog id, AND a capability gate all surface at exit 2 BEFORE the
+// config gate — an unconfigured user still gets the precise error, not
+// not_configured. A real API verb then calls runtimeFor to build the client.
+func resolveSpec(f *cmdutil.Factory, cmd *cobra.Command, ref, asStr string) (iagent.Provider, *iagent.AgentSpec, string, core.Identity, error) {
 	id := f.ResolveAs(cmd.Context(), cmd, core.Identity(asStr))
 	if err := f.CheckIdentity(id, supportedIdentities); err != nil {
-		return nil, "", err
+		return iagent.Provider{}, nil, "", "", err
 	}
-	p, err := iagent.Resolve(ref, iagent.Deps{As: id})
+	prov, spec, agentID, err := iagent.LookupSpec(ref)
 	if err != nil {
-		// ParseRef / unknown-scheme errors already carry the validation wording;
-		// promote them to a typed validation error (with a recovery hint)
-		// so RunE never returns a bare error and the exit code / subtype are
-		// stable.
-		return nil, "", wrapRefResolveError(err)
+		// ParseRef / unknown-scheme / unknown-id errors carry the validation
+		// wording; promote them to a typed validation error (with a recovery hint)
+		// so RunE never returns a bare error and the exit code / subtype are stable.
+		return iagent.Provider{}, nil, "", "", wrapRefResolveError(err)
 	}
-	return p, id, nil
+	return prov, spec, agentID, id, nil
+}
+
+// runtimeFor builds the identity-pinned Runtime for a verb that actually calls
+// the remote API. It requires a configured client (not_configured / exit 3 here
+// is correct for a real API call). agentID is the resolved agent this call
+// addresses (from the ref), exposed to hooks via rt.AgentID().
+func runtimeFor(f *cmdutil.Factory, id core.Identity, agentID string) (iagent.Runtime, error) {
+	apiClient, err := f.NewAPIClient()
+	if err != nil {
+		return nil, err
+	}
+	return &cmdRuntime{client: apiClient, as: id, agentID: agentID}, nil
 }
 
 // wrapRefResolveError promotes a ParseRef / provider-resolution error to a
@@ -78,33 +87,6 @@ func wrapRefResolveError(err error) error {
 		return e.WithHint("agent_ref 形如 <scheme>:<agent_id>，如 example:echo")
 	}
 	return e.WithHint("用 lark-cli agent list 查看可用 provider")
-}
-
-// resolveProvider resolves the identity and constructs the Provider addressed
-// by ref backed by a configured API client, for commands that actually call the
-// remote API. Ref/scheme validation runs first (via resolveProviderNoClient) so
-// a malformed ref or unknown scheme is a validation error (exit 2) surfaced
-// BEFORE the config gate — an unconfigured user still gets the precise error,
-// not not_configured. Only after the ref is valid does it require a
-// configured client (not_configured / exit 3 is correct for a real API call).
-//
-// Wiring rule: every verb that calls the real API MUST run preflightScopesForRef
-// right after this succeeds and before the API call, so a new verb is
-// never silently exempt from the local scope preflight.
-func resolveProvider(f *cmdutil.Factory, cmd *cobra.Command, ref, asStr string) (*iagent.Provider, core.Identity, error) {
-	_, id, err := resolveProviderNoClient(f, cmd, ref, asStr)
-	if err != nil {
-		return nil, "", err
-	}
-	apiClient, err := f.NewAPIClient()
-	if err != nil {
-		return nil, "", err
-	}
-	p, err := iagent.Resolve(ref, iagent.Deps{Client: apiClient, As: id})
-	if err != nil {
-		return nil, "", wrapRefResolveError(err)
-	}
-	return p, id, nil
 }
 
 // cardHint builds the "check the agent card" hint. The ref is user-echoed
@@ -260,12 +242,14 @@ func normalizeTaskSummaries(ts []iagent.TaskSummary) []iagent.TaskSummary {
 	return ts
 }
 
-// pollToStop polls GetTask with exponential backoff (1s → 5s cap) until the
+// pollToStop polls getTask with exponential backoff (1s → 5s cap) until the
 // task hits a stop condition (terminal, input_required, or auth_required)
 // or ctx is done. A timeout is not a failure: it returns the most recent
 // task with a nil error, letting the caller print the current state (exit 0). A
-// provider GetTask error is surfaced.
-func pollToStop(ctx context.Context, p *iagent.Provider, taskID string) (*iagent.AgentTask, error) {
+// provider GetTask error is surfaced. getTask is a bound closure over the
+// resolved spec + runtime (spec.GetTask(ctx, rt, id)), so pollToStop stays
+// provider-neutral and testable.
+func pollToStop(ctx context.Context, getTask func(context.Context, string) (*iagent.AgentTask, error), taskID string) (*iagent.AgentTask, error) {
 	const (
 		initialDelay = time.Second
 		maxDelay     = 5 * time.Second
@@ -273,7 +257,7 @@ func pollToStop(ctx context.Context, p *iagent.Provider, taskID string) (*iagent
 	var last *iagent.AgentTask
 	delay := initialDelay
 	for {
-		task, err := p.GetTask(ctx, taskID)
+		task, err := getTask(ctx, taskID)
 		if err != nil {
 			return last, err
 		}

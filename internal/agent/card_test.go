@@ -3,7 +3,24 @@
 
 package agent
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/larksuite/cli/errs"
+)
+
+// fakeRT is a no-op Runtime for exercising BuildCard's rt != nil path.
+type fakeRT struct{}
+
+func (fakeRT) AgentID() string { return "" }
+func (fakeRT) IsBot() bool     { return false }
+func (fakeRT) CallAPI(context.Context, string, string, map[string]string, any) (map[string]any, error) {
+	return nil, nil
+}
+func (fakeRT) CallMultipart(context.Context, string, string, map[string]string, []FilePart) (map[string]any, error) {
+	return nil, nil
+}
 
 func TestCardSupports(t *testing.T) {
 	c := &AgentCard{Capabilities: Capabilities{TaskCancel: false, MultiTurn: true}}
@@ -39,27 +56,90 @@ func TestCardSupports(t *testing.T) {
 	}
 }
 
-// TestNewCardFillsRegistrationFields pins that NewCard pre-fills every
-// registration-known field and panics on an unregistered scheme.
-func TestNewCardFillsRegistrationFields(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	info := testInfo("nc", okFactory())
-	info.Identities = []IdentitySpec{{Type: IdentityBot, Precondition: "需要白名单"}}
-	Register("nc", info)
+// TestDeriveCapabilities pins the crown jewel: capability = wired-hook presence.
+func TestDeriveCapabilities(t *testing.T) {
+	// Minimal (echo-like): only the core hooks + read verbs.
+	min := coreSpec("echo")
+	min.ListContexts = func(context.Context, Runtime) ([]ContextSummary, error) { return nil, nil }
+	c := DeriveCapabilities(&min)
+	if !c.TaskGet {
+		t.Error("task_get should be true (GetTask is a mandatory core hook)")
+	}
+	if !c.MultiTurn {
+		t.Error("multi_turn should be true (ListContexts wired)")
+	}
+	if c.TaskCancel || c.ArtifactDownload || c.TaskList || c.FileInput || c.InputRequired {
+		t.Errorf("unwired capabilities should be false, got %+v", c)
+	}
 
-	card := NewCard("nc", "agt_1")
-	if card.Provider != "nc" || card.AgentID != "agt_1" {
+	// Full (reporter-like): everything wired / declared.
+	full := coreSpec("reporter")
+	full.ListTasks = func(context.Context, Runtime, string) ([]TaskSummary, error) { return nil, nil }
+	full.CancelTask = func(context.Context, Runtime, string) error { return nil }
+	full.ListContexts = func(context.Context, Runtime) ([]ContextSummary, error) { return nil, nil }
+	full.DownloadArtifact = func(context.Context, Runtime, string, string) (*ArtifactData, error) { return nil, nil }
+	full.FileInput = true
+	full.InputRequired = true
+	c = DeriveCapabilities(&full)
+	if !(c.TaskGet && c.TaskList && c.TaskCancel && c.MultiTurn && c.ArtifactDownload && c.FileInput && c.InputRequired) {
+		t.Errorf("a fully-wired spec should have every capability true, got %+v", c)
+	}
+}
+
+// TestBuildCardOffline pins that BuildCard with rt=nil fills registration
+// metadata + derived caps + static per-agent metadata, always offline (Describe
+// is never invoked without a runtime).
+func TestBuildCardOffline(t *testing.T) {
+	prov := catalogProvider("nc", "a1")
+	prov.Identities = []IdentitySpec{{Type: IdentityBot, Precondition: "需要白名单"}}
+	prov.Catalog[0].Describe = func(context.Context, Runtime) (*CardInfo, error) {
+		return &CardInfo{Name: "REMOTE"}, nil // must NOT be called with rt=nil
+	}
+	spec := &prov.Catalog[0]
+
+	card := BuildCard(context.Background(), prov, spec, "a1", nil)
+	if card.Provider != "nc" || card.AgentID != "a1" {
 		t.Fatalf("provider/agent_id: %+v", card)
 	}
-	if card.ProviderLabel != info.Label || card.AgentIDSource != info.AgentIDSource {
+	if card.ProviderLabel != prov.Label || card.AgentIDSource != prov.AgentIDSource {
 		t.Fatalf("registration metadata should be pre-filled: %+v", card)
 	}
 	if len(card.Identity) != 1 || card.Identity[0].Type != IdentityBot {
-		t.Fatalf("identity should come from registration info: %+v", card.Identity)
+		t.Fatalf("identity should come from the provider: %+v", card.Identity)
 	}
 	if card.Parameters == nil || len(card.Parameters) != 0 {
 		t.Fatalf("parameters should be empty but non-nil (always emit []): %#v", card.Parameters)
 	}
+	if !card.Capabilities.TaskGet {
+		t.Error("task_get should be derived true")
+	}
+	if card.Name != "name-a1" {
+		t.Errorf("offline card should use the static spec Name (not the rt=nil Describe), got %q", card.Name)
+	}
+}
 
-	mustPanic(t, "unregistered scheme", func() { NewCard("ghost", "agt_1") })
+// TestBuildCardDynamicDescribe pins the rt != nil path: Describe enriches
+// Name/Description when it succeeds, and a Describe error is swallowed so the
+// card degrades to the offline version (best-effort).
+func TestBuildCardDynamicDescribe(t *testing.T) {
+	prov := instanceProvider("dyn") // instance spec: no static Name
+	prov.Instance.Describe = func(context.Context, Runtime) (*CardInfo, error) {
+		return &CardInfo{Name: "Remote Name", Description: "Remote Desc"}, nil
+	}
+	card := BuildCard(context.Background(), prov, prov.Instance, "agt_x", fakeRT{})
+	if card.Name != "Remote Name" || card.Description != "Remote Desc" {
+		t.Errorf("rt != nil + Describe should enrich the card, got name=%q desc=%q", card.Name, card.Description)
+	}
+
+	// A Describe error degrades to the offline card (no enrichment), never fails.
+	prov.Instance.Describe = func(context.Context, Runtime) (*CardInfo, error) {
+		return nil, errs.NewInternalError(errs.SubtypeUnknown, "describe boom")
+	}
+	card = BuildCard(context.Background(), prov, prov.Instance, "agt_x", fakeRT{})
+	if card.Name != "" {
+		t.Errorf("a Describe error should be swallowed → offline card (instance has no static Name), got name=%q", card.Name)
+	}
+	if !card.Capabilities.TaskGet {
+		t.Error("caps should still be present on the degraded card")
+	}
 }

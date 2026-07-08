@@ -103,43 +103,43 @@ func agentListRun(opts *listOptions) error {
 	return nil
 }
 
-// agentListSchemeRun runs `agent list <scheme>`: second-level discovery for one
-// provider. The Discoverer probe runs BEFORE any client construction so a
-// provider without discovery support returns its precise
-// unsupported_capability error even in an unconfigured environment — aligned
-// with the validation-before-config-gate principle. Only a provider that
-// does implement Discoverer needs a configured client for the real ListAgents
-// call.
+// agentListSchemeRun runs `agent list <scheme>`: second-level enumeration for
+// one provider. A catalog provider enumerates OFFLINE from its static set
+// (prov.ListCatalog). An instance provider enumerates ONLINE via its optional
+// ListAgents hook (needs a configured client); an instance provider without that
+// hook is not enumerable and returns unsupported_capability + the AgentIDSource
+// hint — surfaced before the client is built.
 func agentListSchemeRun(opts *listOptions) error {
 	f := opts.Factory
-	info, ok := iagent.Info(opts.Scheme)
+	prov, ok := iagent.Info(opts.Scheme)
 	if !ok {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument,
 			"未知的 agent provider '%s'，当前支持: %s",
 			opts.Scheme, iagent.KnownSchemes()).
 			WithHint("用 lark-cli agent list 查看可用 provider")
 	}
-	if !probeDiscoverer(info) {
-		return errs.NewValidationError(errs.SubtypeUnsupportedCapability,
-			"provider '%s' 暂不支持列举 agent", opts.Scheme).
-			WithHint("%s", info.AgentIDSource)
-	}
 
-	// The real ListAgents call carries the resolved identity, aligned with
-	// resolveProvider (common.go) — a provider must never see a zero As on an
-	// API-bound instance.
-	id := f.ResolveAs(opts.Cmd.Context(), opts.Cmd, "")
-	apiClient, err := f.NewAPIClient()
-	if err != nil {
-		return err
-	}
-	p, err := info.Factory(iagent.Deps{Client: apiClient, As: id}, "")
-	if err != nil {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", err.Error()).WithCause(err)
-	}
-	agents, err := p.ListAgents(opts.Cmd.Context())
-	if err != nil {
-		return err
+	var agents []iagent.AgentSummary
+	if prov.Kind() == iagent.KindCatalog {
+		agents = prov.ListCatalog() // offline
+	} else {
+		// instance: needs the online ListAgents hook. Absent ⇒ not enumerable.
+		if prov.ListAgents == nil {
+			return errs.NewValidationError(errs.SubtypeUnsupportedCapability,
+				"provider '%s' 暂不支持列举 agent", opts.Scheme).
+				WithHint("%s", prov.AgentIDSource)
+		}
+		// The enumeration call carries the resolved identity; agentID is empty
+		// (enumeration is not scoped to a single agent).
+		id := f.ResolveAs(opts.Cmd.Context(), opts.Cmd, "")
+		rt, err := runtimeFor(f, id, "")
+		if err != nil {
+			return err
+		}
+		agents, err = prov.ListAgents(opts.Cmd.Context(), rt)
+		if err != nil {
+			return err
+		}
 	}
 
 	// pretty is a human view only; a --jq expression implies structured JSON.
@@ -166,19 +166,6 @@ func agentListSchemeRun(opts *listOptions) error {
 	return nil
 }
 
-// probeDiscoverer reports whether the provider built by info can enumerate its
-// agents (wires ListAgents). The probe instance is constructed with empty Deps
-// and an empty agentID — no client is needed to read a field, which keeps the
-// probe usable before config init. A factory error means the capability cannot
-// be confirmed, so it degrades to not discoverable.
-func probeDiscoverer(info iagent.ProviderInfo) bool {
-	p, err := info.Factory(iagent.Deps{}, "")
-	if err != nil || p == nil {
-		return false
-	}
-	return p.ListAgents != nil
-}
-
 // listProviders builds the provider descriptors from the built-in registry so
 // the listing stays in sync with whatever adapters are registered.
 func listProviders() []providerInfo {
@@ -186,13 +173,13 @@ func listProviders() []providerInfo {
 	out := make([]providerInfo, 0, len(schemes))
 	for _, s := range schemes {
 		// s comes from RegisteredSchemes, so Info always succeeds.
-		info, _ := iagent.Info(s)
+		prov, _ := iagent.Info(s)
 		out = append(out, providerInfo{
 			Scheme:         s,
-			Label:          info.Label,
-			AgentRefFormat: info.AgentRefFormat,
-			Kind:           string(info.Kind),
-			AgentIDSource:  info.AgentIDSource,
+			Label:          prov.Label,
+			AgentRefFormat: prov.AgentRefFormat(),
+			Kind:           string(prov.Kind()),
+			AgentIDSource:  prov.AgentIDSource,
 		})
 	}
 	return out

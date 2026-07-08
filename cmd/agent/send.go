@@ -103,22 +103,15 @@ func agentSendRun(opts *sendOptions) error {
 	}
 
 	f := opts.Factory
-	// Card lookup + --param validation + --dry-run are API-free:
-	// resolve without a configured client so they work — and surface validation
-	// errors as exit 2 — before the config gate, even when unconfigured.
-	p, _, err := resolveProviderNoClient(f, opts.Cmd, opts.Ref, opts.As)
+	// Resolution + --param validation + --dry-run are fully offline, so they work
+	// (and surface validation as exit 2) before the config gate. The card is
+	// built with rt=nil: capability matrix + statically-declared parameters only,
+	// which is all the file gate and --param validation need.
+	prov, spec, agentID, id, err := resolveSpec(f, opts.Cmd, opts.Ref, opts.As)
 	if err != nil {
 		return err
 	}
-
-	r, err := iagent.ParseRef(opts.Ref)
-	if err != nil {
-		return wrapRefResolveError(err)
-	}
-	card, err := iagent.BuildCard(opts.Cmd.Context(), r.Scheme, r.AgentID, p)
-	if err != nil {
-		return err
-	}
+	card := iagent.BuildCard(opts.Cmd.Context(), prov, spec, agentID, nil)
 	params, err := parseAndValidateParams(opts.Params, card, opts.Ref)
 	if err != nil {
 		return err
@@ -158,21 +151,20 @@ func agentSendRun(opts *sendOptions) error {
 		}
 	}
 
-	// A real send calls the API, so it needs a configured client; resolve it now
-	// (not_configured / exit 3 here is correct for an actual API call).
-	pc, id, err := resolveProvider(f, opts.Cmd, opts.Ref, opts.As)
+	// A real send calls the API, so it needs a configured client; build the
+	// identity-pinned runtime now (not_configured / exit 3 here is correct).
+	rt, err := runtimeFor(f, id, agentID)
 	if err != nil {
 		return err
 	}
 
-	// Local scope preflight: after resolveProvider, before the API call.
-	// The check is all-or-nothing — any real API verb requires the provider's
-	// full scope set.
+	// Local scope preflight: after runtimeFor, before the API call. The check is
+	// all-or-nothing — any real API verb requires the provider's full scope set.
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
 
-	task, err := pc.Send(opts.Cmd.Context(), in)
+	task, err := spec.Send(opts.Cmd.Context(), rt, in)
 	if err != nil {
 		return err
 	}

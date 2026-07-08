@@ -220,30 +220,26 @@ func TestSemanticExitError(t *testing.T) {
 	}
 }
 
-// fakePollProvider drives pollToStop through a scripted state sequence. It is
-// not registered, so provider() only wires GetTask (the sole field pollToStop
-// touches); calls/err stay observable on the struct after the poll.
+// fakePollProvider drives pollToStop through a scripted state sequence. getTask
+// is the closure pollToStop takes (spec.GetTask bound to a runtime in
+// production); calls/err stay observable on the struct after the poll.
 type fakePollProvider struct {
 	states []iagent.TaskState
 	calls  int
 	err    error
 }
 
-func (f *fakePollProvider) provider() *iagent.Provider {
-	return &iagent.Provider{
-		GetTask: func(ctx context.Context, taskID string) (*iagent.AgentTask, error) {
-			if f.err != nil {
-				return nil, f.err
-			}
-			i := f.calls
-			if i >= len(f.states) {
-				i = len(f.states) - 1
-			}
-			f.calls++
-			s := f.states[i]
-			return &iagent.AgentTask{TaskID: taskID, State: s, IsTerminal: s.IsTerminal()}, nil
-		},
+func (f *fakePollProvider) getTask(ctx context.Context, taskID string) (*iagent.AgentTask, error) {
+	if f.err != nil {
+		return nil, f.err
 	}
+	i := f.calls
+	if i >= len(f.states) {
+		i = len(f.states) - 1
+	}
+	f.calls++
+	s := f.states[i]
+	return &iagent.AgentTask{TaskID: taskID, State: s, IsTerminal: s.IsTerminal()}, nil
 }
 
 // TestPollToStop_ReachesTerminal stops once a terminal state is observed.
@@ -252,7 +248,7 @@ func TestPollToStop_ReachesTerminal(t *testing.T) {
 	defer restore()
 
 	p := &fakePollProvider{states: []iagent.TaskState{iagent.StateWorking, iagent.StateWorking, iagent.StateCompleted}}
-	task, err := pollToStop(context.Background(), p.provider(), "chat_1")
+	task, err := pollToStop(context.Background(), p.getTask, "chat_1")
 	if err != nil {
 		t.Fatalf("should not error: %v", err)
 	}
@@ -270,7 +266,7 @@ func TestPollToStop_StopsOnInputRequired(t *testing.T) {
 	defer restore()
 
 	p := &fakePollProvider{states: []iagent.TaskState{iagent.StateWorking, iagent.StateInputRequired}}
-	task, err := pollToStop(context.Background(), p.provider(), "chat_1")
+	task, err := pollToStop(context.Background(), p.getTask, "chat_1")
 	if err != nil {
 		t.Fatalf("should not error: %v", err)
 	}
@@ -288,7 +284,7 @@ func TestPollToStop_ContextTimeoutNotFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // expire immediately
 	p := &fakePollProvider{states: []iagent.TaskState{iagent.StateWorking}}
-	task, err := pollToStop(ctx, p.provider(), "chat_1")
+	task, err := pollToStop(ctx, p.getTask, "chat_1")
 	if err != nil {
 		t.Fatalf("timeout should not be treated as failure: %v", err)
 	}
@@ -303,7 +299,7 @@ func TestPollToStop_GetTaskError(t *testing.T) {
 	defer restore()
 
 	p := &fakePollProvider{states: []iagent.TaskState{iagent.StateWorking}, err: errors.New("boom")}
-	if _, err := pollToStop(context.Background(), p.provider(), "chat_1"); err == nil {
+	if _, err := pollToStop(context.Background(), p.getTask, "chat_1"); err == nil {
 		t.Fatal("a GetTask error should propagate")
 	}
 }
@@ -354,7 +350,7 @@ func TestPollToStop_ClampsDelayToMax(t *testing.T) {
 		iagent.StateWorking, iagent.StateWorking, iagent.StateWorking,
 		iagent.StateWorking, iagent.StateWorking, iagent.StateCompleted,
 	}}
-	task, err := pollToStop(context.Background(), p.provider(), "chat_1")
+	task, err := pollToStop(context.Background(), p.getTask, "chat_1")
 	if err != nil {
 		t.Fatalf("should not error: %v", err)
 	}
@@ -384,7 +380,7 @@ func TestPollToStop_SleepCanceledDuringBackoff(t *testing.T) {
 	defer restore()
 
 	p := &fakePollProvider{states: []iagent.TaskState{iagent.StateWorking, iagent.StateCompleted}}
-	task, err := pollToStop(context.Background(), p.provider(), "chat_1")
+	task, err := pollToStop(context.Background(), p.getTask, "chat_1")
 	if err != nil {
 		t.Fatalf("an interrupted sleep should not be treated as failure: %v", err)
 	}
@@ -621,31 +617,34 @@ func resolveCmd(t *testing.T, asChanged bool, asVal string) *cobra.Command {
 	return leaf
 }
 
-// TestResolveProvider_Success resolves a valid example ref under an explicit bot
-// identity and returns a non-nil provider.
-func TestResolveProvider_Success(t *testing.T) {
+// TestResolveSpec_Success resolves a valid example ref under an explicit bot
+// identity and returns a non-nil spec offline (no client).
+func TestResolveSpec_Success(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
 	cmd := resolveCmd(t, true, "bot")
 
-	p, id, err := resolveProvider(f, cmd, "example:agt_x", "bot")
+	prov, spec, agentID, id, err := resolveSpec(f, cmd, "example:echo", "bot")
 	if err != nil {
 		t.Fatalf("a valid ref + bot should succeed: %v", err)
 	}
-	if p == nil {
-		t.Fatal("should return a non-nil provider")
+	if spec == nil || spec.Send == nil {
+		t.Fatal("should return a non-nil spec with core hooks")
+	}
+	if prov.Scheme != "example" || agentID != "echo" {
+		t.Errorf("provider/agent id: scheme=%q agentID=%q", prov.Scheme, agentID)
 	}
 	if id != core.AsBot {
 		t.Errorf("identity should be bot, got %s", id)
 	}
 }
 
-// TestResolveProvider_MalformedRef wraps a ParseRef failure into an
+// TestResolveSpec_MalformedRef wraps a ParseRef failure into an
 // invalid_argument validation error (exit 2).
-func TestResolveProvider_MalformedRef(t *testing.T) {
+func TestResolveSpec_MalformedRef(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
 	cmd := resolveCmd(t, true, "bot")
 
-	_, _, err := resolveProvider(f, cmd, "no-colon", "bot")
+	_, _, _, _, err := resolveSpec(f, cmd, "no-colon", "bot")
 	if err == nil {
 		t.Fatal("malformed ref should error")
 	}
@@ -656,58 +655,69 @@ func TestResolveProvider_MalformedRef(t *testing.T) {
 	if p == nil || p.Subtype != errs.SubtypeInvalidArgument {
 		t.Fatalf("subtype should be invalid_argument, got %+v", p)
 	}
-	// Hand-written validation errors carry a recovery hint. A malformed ref
-	// teaches the <scheme>:<agent_id> shape.
+	// A malformed ref teaches the <scheme>:<agent_id> shape.
 	if !strings.Contains(p.Hint, "<scheme>:<agent_id>") {
 		t.Errorf("malformed-ref hint should teach the ref shape, got %q", p.Hint)
 	}
 }
 
-// TestResolveProvider_UnknownScheme rejects an unregistered provider scheme.
-func TestResolveProvider_UnknownScheme(t *testing.T) {
+// TestResolveSpec_UnknownScheme rejects an unregistered provider scheme.
+func TestResolveSpec_UnknownScheme(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
 	cmd := resolveCmd(t, true, "bot")
 
-	_, _, err := resolveProvider(f, cmd, "nope:agt_x", "bot")
+	_, _, _, _, err := resolveSpec(f, cmd, "nope:agt_x", "bot")
 	if err == nil {
 		t.Fatal("an unknown scheme should error")
 	}
 	if !errs.IsValidation(err) {
 		t.Fatalf("should be a validation error, got %T", err)
 	}
-	// An unknown scheme points the caller at `agent list` for discovery.
 	p, _ := errs.ProblemOf(err)
 	if p == nil || !strings.Contains(p.Hint, "agent list") {
 		t.Errorf("unknown-scheme hint should point to `agent list`, got %+v", p)
 	}
 }
 
-// TestResolveProvider_IdentityRejected fails the user|bot whitelist when an
-// unsupported --as is explicitly requested; the provider is never constructed.
-func TestResolveProvider_IdentityRejected(t *testing.T) {
+// TestResolveSpec_UnknownCatalogID rejects an unknown catalog entry id — the
+// framework validates it offline (a change from the old construct-only path).
+func TestResolveSpec_UnknownCatalogID(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
-	cmd := resolveCmd(t, true, "admin")
+	cmd := resolveCmd(t, true, "bot")
 
-	p, _, err := resolveProvider(f, cmd, "example:agt_x", "admin")
-	if err == nil {
-		t.Fatal("an unsupported identity should error")
-	}
-	if p != nil {
-		t.Error("should not return a provider when identity validation fails")
+	_, spec, _, _, err := resolveSpec(f, cmd, "example:nope", "bot")
+	if err == nil || spec != nil {
+		t.Fatal("an unknown catalog id should error with a nil spec")
 	}
 	if !errs.IsValidation(err) {
 		t.Fatalf("should be a validation error, got %T", err)
 	}
 }
 
-// TestResolveProvider_APIClientError surfaces a NewAPIClient failure (Config
-// error) before any provider is built.
-func TestResolveProvider_APIClientError(t *testing.T) {
+// TestResolveSpec_IdentityRejected fails the user|bot whitelist when an
+// unsupported --as is explicitly requested; no spec is returned.
+func TestResolveSpec_IdentityRejected(t *testing.T) {
+	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
+	cmd := resolveCmd(t, true, "admin")
+
+	_, spec, _, _, err := resolveSpec(f, cmd, "example:echo", "admin")
+	if err == nil {
+		t.Fatal("an unsupported identity should error")
+	}
+	if spec != nil {
+		t.Error("should not return a spec when identity validation fails")
+	}
+	if !errs.IsValidation(err) {
+		t.Fatalf("should be a validation error, got %T", err)
+	}
+}
+
+// TestRuntimeFor_APIClientError surfaces a NewAPIClient failure (Config error).
+func TestRuntimeFor_APIClientError(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
 	f.Config = func() (*core.CliConfig, error) { return nil, errors.New("config boom") }
-	cmd := resolveCmd(t, true, "bot")
 
-	if _, _, err := resolveProvider(f, cmd, "example:agt_x", "bot"); err == nil {
+	if _, err := runtimeFor(f, core.AsBot, "echo"); err == nil {
 		t.Fatal("a Config error should propagate")
 	}
 }
@@ -722,35 +732,34 @@ func unconfiguredFactory(t *testing.T) *cmdutil.Factory {
 	return f
 }
 
-// TestResolveProviderNoClient_WorksWhenUnconfigured guards the acceptance
-// regression: the API-free resolution path must NOT touch NewAPIClient, so it
-// succeeds even when Config errors, while the client-backed resolveProvider
-// still fails at the config gate.
-func TestResolveProviderNoClient_WorksWhenUnconfigured(t *testing.T) {
+// TestResolveSpec_WorksWhenUnconfigured guards the acceptance regression: offline
+// resolution must NOT touch NewAPIClient, so it succeeds even when Config errors,
+// while runtimeFor (the client path) still fails at the config gate.
+func TestResolveSpec_WorksWhenUnconfigured(t *testing.T) {
 	f := unconfiguredFactory(t)
 	cmd := resolveCmd(t, true, "bot")
 
-	p, id, err := resolveProviderNoClient(f, cmd, "example:agt_x", "bot")
+	_, spec, _, id, err := resolveSpec(f, cmd, "example:echo", "bot")
 	if err != nil {
-		t.Fatalf("no-client resolution should succeed when unconfigured: %v", err)
+		t.Fatalf("offline resolution should succeed when unconfigured: %v", err)
 	}
-	if p == nil || id != core.AsBot {
-		t.Fatalf("should return provider + bot identity, got p=%v id=%s", p, id)
+	if spec == nil || id != core.AsBot {
+		t.Fatalf("should return spec + bot identity, got spec=%v id=%s", spec, id)
 	}
-	if _, _, err := resolveProvider(f, cmd, "example:agt_x", "bot"); err == nil {
-		t.Fatal("the client path should error when unconfigured (config gate)")
+	if _, err := runtimeFor(f, id, "echo"); err == nil {
+		t.Fatal("the client path (runtimeFor) should error when unconfigured (config gate)")
 	}
 }
 
-// TestResolveProviderNoClient_ValidatesRefBeforeConfig pins that a malformed
-// ref / unknown scheme is a validation error (exit 2) even when unconfigured —
-// it must not be masked by not_configured.
-func TestResolveProviderNoClient_ValidatesRefBeforeConfig(t *testing.T) {
+// TestResolveSpec_ValidatesRefBeforeConfig pins that a malformed ref / unknown
+// scheme is a validation error (exit 2) even when unconfigured — it must not be
+// masked by not_configured.
+func TestResolveSpec_ValidatesRefBeforeConfig(t *testing.T) {
 	f := unconfiguredFactory(t)
 	cmd := resolveCmd(t, true, "bot")
 
 	for _, ref := range []string{"no-colon", "nope:agt_x"} {
-		_, _, err := resolveProviderNoClient(f, cmd, ref, "bot")
+		_, _, _, _, err := resolveSpec(f, cmd, ref, "bot")
 		if err == nil {
 			t.Fatalf("ref %q should also report a validation error when unconfigured", ref)
 		}

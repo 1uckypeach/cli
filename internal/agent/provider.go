@@ -17,7 +17,7 @@ type SendInput struct {
 // CardInfo is the per-agent descriptive metadata a provider supplies for its
 // Card (everything the framework cannot fill from registration data or derive
 // from capabilities): the display Name/Description, declared input Parameters,
-// and Skills. It is returned by Provider.Describe.
+// and Skills. It is returned by AgentSpec.Describe.
 type CardInfo struct {
 	Name        string
 	Description string
@@ -25,65 +25,75 @@ type CardInfo struct {
 	Skills      []CardSkill
 }
 
-// Provider is a remote agent adapter: it translates the unified commands into a
-// specific vendor's OAPI. It is a struct of function fields rather than a fat
-// interface, mirroring the events KeyDefinition / shortcuts Shortcut convention:
-// a provider fills only the capabilities it supports, and a nil optional field
-// means "unsupported" — the command layer gates on it and returns a unified
-// unsupported_capability error before any network access, so a provider never
-// writes capability-refusal code itself. The Card capability matrix is derived
-// by the framework from which fields are non-nil (see BuildCard), so declaration
-// and behavior are single-sourced and cannot drift.
-//
-// Because a Provider is constructed per (deps, agentID) by its Factory, a
-// catalog provider whose agents differ in capability wires different fields per
-// agentID (see agent/example) — capability is expressed as code, not a
-// hand-maintained bool matrix.
+// Provider is one business domain (one scheme): registration metadata plus its
+// agent set. It is a declarative value — registered from agent/register.go, not
+// constructed via a factory. Exactly one of Catalog / Instance is set (Register
+// enforces), which encodes the kind, so there is no separate Kind field to keep
+// in sync.
 type Provider struct {
-	// ── Core (Register validates both non-nil for every provider) ──
+	Scheme         string         // ref prefix, e.g. "example"
+	Label          string         // `agent list` LABEL column
+	AgentIDSource  string         // where to get an agent_id (AI onboarding cue)
+	RequiredScopes []string       // flat set; preflight is all-or-nothing
+	Identities     []IdentitySpec // non-empty; Type ∈ {user,bot}
 
-	// Send sends one message, starting a new task or continuing an existing one.
-	Send func(ctx context.Context, in SendInput) (*AgentTask, error)
-	// GetTask queries a single task's state and artifacts.
-	GetTask func(ctx context.Context, taskID string) (*AgentTask, error)
+	// Exactly one of these is set:
+	Catalog  []AgentSpec // finite, offline-enumerable set (kind = catalog)
+	Instance *AgentSpec  // single template for any runtime agent_id (kind = instance)
 
-	// ── Optional capabilities (nil = unsupported; framework gates) ──
+	// ListAgents is the optional ONLINE enumeration hook — only meaningful for an
+	// instance provider whose platform has a "list my agents" endpoint. Wired ⇒
+	// `agent list <scheme>` enumerates via this call. A catalog provider leaves it
+	// nil (enumeration is derived offline from Catalog); an instance platform with
+	// only get-by-id and no list endpoint also leaves it nil (not enumerable).
+	// This is independent of AgentSpec.Describe: ListAgents = "which agents exist"
+	// (a list endpoint), Describe = "what one agent looks like" (get-by-id).
+	ListAgents func(ctx context.Context, rt Runtime) ([]AgentSummary, error)
+}
 
-	// ListTasks lists tasks, optionally filtered by contextID (empty = no filter).
-	// nil ⇒ card task_list=false.
-	ListTasks func(ctx context.Context, contextID string) ([]TaskSummary, error)
-	// CancelTask cancels (interrupts) a task. nil ⇒ card task_cancel=false.
-	CancelTask func(ctx context.Context, taskID string) error
-	// ListContexts lists multi-turn contexts. nil ⇒ card multi_turn=false (the
-	// multi_turn capability is derived from this, the enumeration entry point).
-	ListContexts func(ctx context.Context) ([]ContextSummary, error)
-	// GetContext returns a single context's detail. nil ⇒ context get unsupported.
-	GetContext func(ctx context.Context, ctxID string) (*ContextDetail, error)
-	// DeleteContext deletes a context (destructive). nil ⇒ context delete unsupported.
-	DeleteContext func(ctx context.Context, ctxID string) error
-	// DownloadArtifact fetches artifact data: the URL type returns URL, the inline
-	// type returns Bytes. nil ⇒ card artifact_download=false.
-	DownloadArtifact func(ctx context.Context, taskID, artifactID string) (*ArtifactData, error)
-	// ListAgents enumerates the provider's own agents (catalog discovery). nil ⇒
-	// `agent list <scheme>` reports the provider is not enumerable. A KindCatalog
-	// provider must wire it (asserted at Register time).
-	ListAgents func(ctx context.Context) ([]AgentSummary, error)
+// AgentSpec is the declarative unit for one agent: card metadata plus the verb
+// hooks it implements. Capability is derived from which hooks are non-nil
+// ("implement it = support it", see DeriveCapabilities), so the card and the
+// behavior are single-sourced and cannot drift.
+//
+//   - Catalog: each predefined agent is its own AgentSpec with its own wired
+//     hooks — two agents honestly differ in capability with zero bool matrix and
+//     zero per-id branching.
+//   - Instance: ONE template applied to every runtime agent_id; hooks read
+//     rt.AgentID() to know which agent they serve.
+type AgentSpec struct {
+	ID string // catalog: required + unique; instance: MUST be empty
 
-	// ── Optional descriptive metadata ──
+	// Per-agent card metadata (static, read offline).
+	Name        string
+	Description string
+	Parameters  []CardParam
+	Skills      []CardSkill
 
-	// Describe supplies the per-agent Card metadata (Name/Description/Parameters/
-	// Skills) and is the place to validate an unknown agent_id (return a typed
-	// error). nil ⇒ the card carries only registration fields + derived
-	// capabilities. Called at card-display time (may hit the network for an
-	// instance provider that fetches its card remotely).
-	Describe func(ctx context.Context) (*CardInfo, error)
-
-	// ── Behavioral flags (not derivable from method presence) ──
-
-	// FileInput reports whether Send accepts SendInput.Files (drives card
-	// file_input and the --file off-machine-upload confirmation gate).
-	FileInput bool
-	// InputRequired reports whether the agent may pause a task in the
-	// input_required state awaiting more input (drives card input_required).
+	// Behavioral flags with no backing hook (the only capability bits not derived
+	// from a hook).
+	FileInput     bool
 	InputRequired bool
+
+	// Core (Register asserts both non-nil for every spec).
+	Send    func(ctx context.Context, rt Runtime, in SendInput) (*AgentTask, error)
+	GetTask func(ctx context.Context, rt Runtime, taskID string) (*AgentTask, error)
+
+	// Optional capability hooks (nil = unsupported; the framework gates on the nil
+	// field and returns a unified unsupported_capability before any network call,
+	// and derives the card matrix from which of these are wired).
+	ListTasks        func(ctx context.Context, rt Runtime, contextID string) ([]TaskSummary, error)
+	CancelTask       func(ctx context.Context, rt Runtime, taskID string) error
+	ListContexts     func(ctx context.Context, rt Runtime) ([]ContextSummary, error)
+	GetContext       func(ctx context.Context, rt Runtime, ctxID string) (*ContextDetail, error)
+	DeleteContext    func(ctx context.Context, rt Runtime, ctxID string) error
+	DownloadArtifact func(ctx context.Context, rt Runtime, taskID, artifactID string) (*ArtifactData, error)
+
+	// Describe optionally supplies per-agent Card metadata (Name/Description/
+	// Parameters/Skills) and is the place to validate an unknown agent_id (return
+	// a typed error). It is invoked ONLY when a runtime is available (configured),
+	// so offline the card is always caps + registration metadata + the static
+	// fields above. A catalog spec typically leaves it nil and uses the static
+	// Name/Description; an instance provider wires it to fetch its card remotely.
+	Describe func(ctx context.Context, rt Runtime) (*CardInfo, error)
 }

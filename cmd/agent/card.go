@@ -65,20 +65,20 @@ func NewCmdAgentCard(f *cmdutil.Factory) *cobra.Command {
 // filters stdout.
 func agentCardRun(opts *cardOptions) error {
 	f := opts.Factory
-	// Card synthesis is API-free, so resolve without requiring a
-	// configured client: `agent card` must work offline / before config init.
-	p, id, err := resolveProviderNoClient(f, opts.Cmd, opts.Ref, opts.As)
+	// Resolution is fully offline (no client), so `agent card` works before
+	// config init. The capability matrix + static metadata are always available.
+	prov, spec, agentID, id, err := resolveSpec(f, opts.Cmd, opts.Ref, opts.As)
 	if err != nil {
 		return err
 	}
-	r, err := iagent.ParseRef(opts.Ref)
-	if err != nil {
-		return wrapRefResolveError(err)
+	// Best-effort remote enrichment: if a client is configured, pass a runtime so
+	// a provider's Describe can fill Name/Description from the platform; otherwise
+	// rt stays nil and BuildCard returns the offline (caps + static) card.
+	var rt iagent.Runtime
+	if r, rerr := runtimeFor(f, id, agentID); rerr == nil {
+		rt = r
 	}
-	card, err := iagent.BuildCard(opts.Cmd.Context(), r.Scheme, r.AgentID, p)
-	if err != nil {
-		return err
-	}
+	card := iagent.BuildCard(opts.Cmd.Context(), prov, spec, agentID, rt)
 
 	jq := jqExpr(opts.Cmd)
 	// pretty is a human view only; a --jq expression implies structured JSON,

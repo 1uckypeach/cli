@@ -8,152 +8,153 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/larksuite/cli/internal/client"
-	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/errs"
 )
 
-// Deps are the dependencies a provider factory needs (injected by the command
-// layer to avoid internal/agent depending on cmd).
-type Deps struct {
-	Client *client.APIClient
-	As     core.Identity
-}
-
-// Factory constructs a Provider from an agentID plus dependencies.
-type Factory func(deps Deps, agentID string) (*Provider, error)
-
-// ProviderKind is the closed set of provider forms (validated at Register time
-// to guard against cast typos).
+// ProviderKind is the closed set of provider forms, derived from whether a
+// Provider set Catalog or Instance (exposed via Provider.Kind()).
 type ProviderKind string
 
 const (
-	// KindCatalog is the catalog type: the full agent set is known at
-	// registration time, and it must wire Provider.ListAgents.
+	// KindCatalog: the full agent set is known offline (Provider.Catalog).
 	KindCatalog ProviderKind = "catalog"
-	// KindInstance is the instance type: agents are created by users on the
-	// platform and cannot be enumerated by the CLI in advance.
+	// KindInstance: agents are created on the platform at runtime, addressed by an
+	// unbounded agent_id (Provider.Instance).
 	KindInstance ProviderKind = "instance"
 )
 
-// ProviderInfo is a provider's registration contract: metadata beyond Factory
-// consumed by platform capabilities such as `agent list`, card synthesis, and
-// scope preflight. Everything except RequiredScopes is required (Register
-// validates fail-fast).
-type ProviderInfo struct {
-	// Factory constructs the Provider for this scheme. Factory must accept
-	// zero-value Deps and have no side effects during construction — this
-	// contract is enforced at registration time by Register's zero-value Deps
-	// probe (a violation panics), and agent list also constructs a probe
-	// instance with empty Deps to read the ListAgents capability
-	// (cmd/agent/list.go probeDiscoverer). Because the probe passes zero Deps and
-	// empty agentID, capability wiring must not depend on either.
-	Factory Factory
-	// Label is the user-facing provider name.
-	Label string
-	// AgentRefFormat is the written format of agent_ref, e.g. "example:<agent_id>";
-	// it must be prefixed with "<scheme>:" (validated by Register).
-	AgentRefFormat string
-	// AgentIDSource tells the user where to obtain the agent_id (key information
-	// for AI-guided onboarding).
-	AgentIDSource string
-	// Kind is the provider form: KindCatalog (catalog type) or KindInstance
-	// (instance type). Catalog types must wire Provider.ListAgents (asserted at
-	// Register time).
-	Kind ProviderKind
-	// RequiredScopes is the full (flat) set of scopes needed by any real API
-	// call this provider makes; preflight is all-or-nothing.
-	RequiredScopes []string
-	// Identities declares the supported calling identities and their
-	// preconditions; non-empty and Type ∈ {user, bot} (validated by Register).
-	Identities []IdentitySpec
-}
+var providerRegistry = map[string]Provider{}
 
-var providerRegistry = map[string]ProviderInfo{}
-
-// Register is called by each adapter package in its init() to register itself
-// (exported so adapter packages like example can call it across packages).
-// Missing / invalid metadata is an integrator coding error and panics fail-fast
-// (including duplicate registration, aligned with the sql.Register convention).
-// At registration time it also constructs a Provider once via a zero-value Deps
-// probe: Factory must accept zero-value Deps (returning an error panics), and a
-// KindCatalog instance must implement Discoverer.
-func Register(scheme string, info ProviderInfo) {
-	if scheme == "" {
-		panic("agent: provider registration with empty scheme")
-	}
-	if _, dup := providerRegistry[scheme]; dup {
-		panic("agent: Register called twice for scheme: " + scheme)
-	}
+// Register records a provider (called from the agent/register.go aggregator,
+// mirroring events/shortcuts). It is pure struct validation — no construction,
+// no probe. Missing / invalid metadata is an integrator coding error and panics
+// fail-fast (aligned with the sql.Register convention, including duplicate
+// registration).
+func Register(p Provider) {
 	switch {
-	case info.Factory == nil:
-		panic("agent: provider registration missing Factory: " + scheme)
-	case info.Label == "":
-		panic("agent: provider registration missing Label: " + scheme)
-	case info.AgentRefFormat == "":
-		panic("agent: provider registration missing AgentRefFormat: " + scheme)
-	case !strings.HasPrefix(info.AgentRefFormat, scheme+":"):
-		panic("agent: provider registration AgentRefFormat must start with \"" + scheme + ":\": " + scheme + ", got: " + info.AgentRefFormat)
-	case info.AgentIDSource == "":
-		panic("agent: provider registration missing AgentIDSource: " + scheme)
-	case info.Kind != KindCatalog && info.Kind != KindInstance:
-		panic("agent: provider registration invalid Kind (want catalog|instance): " + scheme + ", got: " + string(info.Kind))
-	case len(info.Identities) == 0:
-		panic("agent: provider registration missing Identities: " + scheme)
+	case p.Scheme == "":
+		panic("agent: provider registration with empty Scheme")
+	case p.Label == "":
+		panic("agent: provider missing Label: " + p.Scheme)
+	case p.AgentIDSource == "":
+		panic("agent: provider missing AgentIDSource: " + p.Scheme)
+	case len(p.Identities) == 0:
+		panic("agent: provider missing Identities: " + p.Scheme)
 	}
-	for _, id := range info.Identities {
+	if _, dup := providerRegistry[p.Scheme]; dup {
+		panic("agent: Register called twice for scheme: " + p.Scheme)
+	}
+	for _, id := range p.Identities {
 		if id.Type != IdentityUser && id.Type != IdentityBot {
-			panic("agent: provider registration invalid Identity Type (want user|bot): " + scheme + ", got: " + string(id.Type))
+			panic("agent: provider invalid Identity Type (want user|bot): " + p.Scheme + ", got: " + string(id.Type))
 		}
 	}
-	// Zero-value Deps construction probe: turns the Factory contract (see the
-	// ProviderInfo.Factory comment) from a pure convention into a
-	// registration-time enforcement, preventing capabilities from silently
-	// disappearing on the agent list probing path.
-	p, err := info.Factory(Deps{}, "")
+	hasCatalog, hasInstance := len(p.Catalog) > 0, p.Instance != nil
+	if hasCatalog == hasInstance {
+		panic("agent: provider must set exactly one of Catalog / Instance: " + p.Scheme)
+	}
+	if hasCatalog {
+		seen := make(map[string]bool, len(p.Catalog))
+		for i := range p.Catalog {
+			checkSpec(p.Scheme, &p.Catalog[i], true)
+			if seen[p.Catalog[i].ID] {
+				panic("agent: catalog duplicate entry ID for scheme " + p.Scheme + ": " + p.Catalog[i].ID)
+			}
+			seen[p.Catalog[i].ID] = true
+		}
+	} else {
+		checkSpec(p.Scheme, p.Instance, false)
+	}
+	providerRegistry[p.Scheme] = p
+}
+
+// checkSpec asserts the mandatory core hooks and the ID rule for one spec. The
+// command layer dispatches Send/GetTask without a nil-check, so they must exist.
+func checkSpec(scheme string, s *AgentSpec, catalog bool) {
+	if s.Send == nil {
+		panic("agent: spec missing core Send: " + scheme + ":" + s.ID)
+	}
+	if s.GetTask == nil {
+		panic("agent: spec missing core GetTask: " + scheme + ":" + s.ID)
+	}
+	if catalog && s.ID == "" {
+		panic("agent: catalog spec missing ID: " + scheme)
+	}
+	if !catalog && s.ID != "" {
+		panic("agent: instance template must have empty ID: " + scheme + ", got: " + s.ID)
+	}
+}
+
+// Info returns the registered provider for a scheme (ok=false if not registered).
+func Info(scheme string) (Provider, bool) {
+	p, ok := providerRegistry[scheme]
+	return p, ok
+}
+
+// LookupSpec resolves the AgentSpec addressed by ref, fully offline: it parses
+// the ref, finds the provider, and returns the matching spec (the instance
+// template, or the catalog entry whose ID matches) plus the parsed agent_id (so
+// callers need not re-parse for rt.AgentID() / the card). An unknown scheme or
+// unknown catalog id returns a typed error (the command layer promotes
+// ParseRef/scheme errors via wrapRefResolveError; the unknown-id error is
+// already typed).
+func LookupSpec(ref string) (Provider, *AgentSpec, string, error) {
+	r, err := ParseRef(ref)
 	if err != nil {
-		panic("agent: provider factory must accept zero-value Deps: " + scheme + ", got error: " + err.Error())
+		return Provider{}, nil, "", err
 	}
-	if p == nil {
-		panic("agent: provider factory returned nil Provider: " + scheme)
-	}
-	// Core capabilities are mandatory for every provider — a provider you cannot
-	// send to or read a task back from is not usable. The command layer relies on
-	// these never being nil (no nil-check before dispatch), so enforce it here.
-	switch {
-	case p.Send == nil:
-		panic("agent: provider missing core Send: " + scheme)
-	case p.GetTask == nil:
-		panic("agent: provider missing core GetTask: " + scheme)
-	}
-	// A catalog provider's full agent set is known offline, so it must be
-	// enumerable (wire ListAgents); an instance provider need not be.
-	if info.Kind == KindCatalog && p.ListAgents == nil {
-		panic("agent: catalog provider must wire ListAgents: " + scheme)
-	}
-	providerRegistry[scheme] = info
-}
-
-// Info returns the registration value for a scheme (the struct is returned by
-// value, but its slice fields share the underlying array with the registry, so
-// the caller must treat them as read-only); returns ok=false if not registered.
-func Info(scheme string) (ProviderInfo, bool) {
-	info, ok := providerRegistry[scheme]
-	return info, ok
-}
-
-// providerFor fetches the factory for a scheme and constructs a Provider. An
-// unknown scheme returns an error listing the available options.
-func providerFor(scheme, agentID string, deps Deps) (*Provider, error) {
-	info, ok := providerRegistry[scheme]
+	p, ok := providerRegistry[r.Scheme]
 	if !ok {
-		return nil, fmt.Errorf("未知的 agent provider '%s'，当前支持: %s", scheme, KnownSchemes())
+		return Provider{}, nil, "", fmt.Errorf("未知的 agent provider '%s'，当前支持: %s", r.Scheme, KnownSchemes())
 	}
-	return info.Factory(deps, agentID)
+	if p.Instance != nil {
+		return p, p.Instance, r.AgentID, nil
+	}
+	for i := range p.Catalog {
+		if p.Catalog[i].ID == r.AgentID {
+			return p, &p.Catalog[i], r.AgentID, nil
+		}
+	}
+	return p, nil, "", errs.NewValidationError(errs.SubtypeInvalidArgument,
+		"未知的 %s agent '%s'", r.Scheme, r.AgentID).
+		WithHint("运行 lark-cli agent list %s 查看可用 agent", r.Scheme)
+}
+
+// Kind reports the provider form derived from Catalog vs Instance.
+func (p Provider) Kind() ProviderKind {
+	if p.Instance != nil {
+		return KindInstance
+	}
+	return KindCatalog
+}
+
+// AgentRefFormat is the written form of an agent_ref for this provider, always
+// "<scheme>:<agent_id>" (derived, not stored).
+func (p Provider) AgentRefFormat() string {
+	return p.Scheme + ":<agent_id>"
+}
+
+// ListCatalog is the offline enumeration for a catalog provider (sorted by
+// AgentRef, stable). An instance provider has no static set and returns nil — the
+// command layer then falls back to the optional ListAgents online hook.
+func (p Provider) ListCatalog() []AgentSummary {
+	if p.Instance != nil {
+		return nil
+	}
+	out := make([]AgentSummary, 0, len(p.Catalog))
+	for _, s := range p.Catalog {
+		out = append(out, AgentSummary{
+			AgentRef:    p.Scheme + ":" + s.ID,
+			Name:        s.Name,
+			Description: s.Description,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].AgentRef < out[j].AgentRef })
+	return out
 }
 
 // KnownSchemes returns a comma-separated list of registered schemes (stably
-// sorted), or "(none)" when empty (exported: cmd/agent's unknown-scheme message
-// reuses the same implementation to avoid double-sourcing).
+// sorted), or "(none)" when empty (reused by cmd/agent's unknown-scheme message).
 func KnownSchemes() string {
 	s := RegisteredSchemes()
 	if len(s) == 0 {
@@ -162,16 +163,7 @@ func KnownSchemes() string {
 	return strings.Join(s, ", ")
 }
 
-// Resolve parses a ref and constructs the corresponding Provider (command-layer entry point).
-func Resolve(ref string, deps Deps) (*Provider, error) {
-	r, err := ParseRef(ref)
-	if err != nil {
-		return nil, err
-	}
-	return providerFor(r.Scheme, r.AgentID, deps)
-}
-
-// RegisteredSchemes lets `agent list` enumerate registered providers (exported for cmd/agent).
+// RegisteredSchemes lets `agent list` enumerate registered providers (sorted).
 func RegisteredSchemes() []string {
 	s := make([]string, 0, len(providerRegistry))
 	for k := range providerRegistry {

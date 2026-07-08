@@ -17,22 +17,21 @@ import (
 	"github.com/larksuite/cli/internal/output"
 )
 
-// newUnsupProvider builds a stub *Provider driving the command-layer
+// fakeUnsupSpec is a stub instance spec driving the command-layer
 // capability-gate wirings without any HTTP: ListContexts / DeleteContext are
 // left UNWIRED (nil), so the command layer's nil-gate must return the typed
 // unsupported_capability before any network access. GetTask is wired to return a
 // task whose IsTerminal deliberately mismatches its State (normalizeTask must
 // re-derive it). Send is wired (core, required by Register) but never called
-// here. There is no capability-refusal code in the provider — "unsupported" is
-// expressed purely by the absent fields.
-func newUnsupProvider() *iagent.Provider {
-	return &iagent.Provider{
-		Send: func(ctx context.Context, in iagent.SendInput) (*iagent.AgentTask, error) {
+// here. There is no capability-refusal code in the spec — "unsupported" is
+// expressed purely by the absent hooks.
+func fakeUnsupSpec() *iagent.AgentSpec {
+	return &iagent.AgentSpec{
+		Send: func(context.Context, iagent.Runtime, iagent.SendInput) (*iagent.AgentTask, error) {
 			panic("unsup provider: Send should not be called")
 		},
-		GetTask: func(ctx context.Context, taskID string) (*iagent.AgentTask, error) {
-			// Deliberate mismatch: State is terminal but IsTerminal=false (simulating
-			// a provider that forgot to set it or set it wrong).
+		GetTask: func(_ context.Context, _ iagent.Runtime, taskID string) (*iagent.AgentTask, error) {
+			// Deliberate mismatch: State is terminal but IsTerminal=false.
 			return &iagent.AgentTask{TaskID: taskID, State: iagent.StateCompleted, IsTerminal: false}, nil
 		},
 		// ListContexts / DeleteContext intentionally unwired ⇒ unsupported.
@@ -46,13 +45,12 @@ var registerFakeUnsupOnce sync.Once
 
 func registerFakeUnsup() {
 	registerFakeUnsupOnce.Do(func() {
-		iagent.Register("fakeunsup", iagent.ProviderInfo{
-			Factory:        func(deps iagent.Deps, agentID string) (*iagent.Provider, error) { return newUnsupProvider(), nil },
-			Label:          "test fake (unwired optional capabilities)",
-			AgentRefFormat: "fakeunsup:<agent_id>",
-			AgentIDSource:  "test only",
-			Kind:           iagent.KindInstance,
-			Identities:     []iagent.IdentitySpec{{Type: iagent.IdentityUser}, {Type: iagent.IdentityBot}},
+		iagent.Register(iagent.Provider{
+			Scheme:        "fakeunsup",
+			Label:         "test fake (unwired optional capabilities)",
+			AgentIDSource: "test only",
+			Identities:    []iagent.IdentitySpec{{Type: iagent.IdentityUser}, {Type: iagent.IdentityBot}},
+			Instance:      fakeUnsupSpec(),
 		})
 	})
 }
@@ -106,6 +104,54 @@ func TestContextDeleteUnsupportedGated(t *testing.T) {
 		Factory: f, Cmd: contextCmdCtx(t, "delete"), Ref: "fakeunsup:a1", CtxID: "c1", Yes: true, As: "bot", Format: "json",
 	}
 	assertUnsupportedCapability(t, agentContextDeleteRun(opts), "fakeunsup:a1")
+}
+
+// unsupFactory is a small helper for the capability-gate tests.
+func unsupFactory(t *testing.T) *cmdutil.Factory {
+	t.Helper()
+	registerFakeUnsup()
+	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
+	return f
+}
+
+// TestTaskListUnsupportedGated pins the task_list gate: fakeunsup does not wire
+// ListTasks, so `task list` returns unsupported_capability (exit 2) with no HTTP.
+func TestTaskListUnsupportedGated(t *testing.T) {
+	f := unsupFactory(t)
+	opts := &taskOptions{Factory: f, Cmd: taskCmdCtx(t, "list"), Ref: "fakeunsup:a1", As: "bot", Format: "json"}
+	assertUnsupportedCapability(t, agentTaskListRun(opts), "fakeunsup:a1")
+}
+
+// TestContextGetUnsupportedGated pins the context_get gate (GetContext unwired).
+func TestContextGetUnsupportedGated(t *testing.T) {
+	f := unsupFactory(t)
+	opts := &contextOptions{Factory: f, Cmd: contextCmdCtx(t, "get"), Ref: "fakeunsup:a1", CtxID: "c1", As: "bot", Format: "json"}
+	assertUnsupportedCapability(t, agentContextGetRun(opts), "fakeunsup:a1")
+}
+
+// TestArtifactDownloadUnsupportedGated pins the artifact_download gate: fakeunsup
+// does not wire DownloadArtifact, so `task get --artifact` returns
+// unsupported_capability (exit 2) before any download.
+func TestArtifactDownloadUnsupportedGated(t *testing.T) {
+	f := unsupFactory(t)
+	opts := &taskOptions{
+		Factory: f, Cmd: taskCmdCtx(t, "get"), Ref: "fakeunsup:a1", TaskID: "t1",
+		ArtifactID: "art_1", Output: "out_unsup.bin", As: "bot", Format: "json",
+	}
+	assertUnsupportedCapability(t, agentTaskGetRun(opts), "fakeunsup:a1")
+}
+
+// TestSendFileUnsupportedGated pins the --file capability gate: example:echo
+// declares file_input=false, so `send --file` returns unsupported_capability
+// (exit 2) — this gate answers BEFORE the --yes confirmation and before any
+// network, so no file is opened and no request is issued.
+func TestSendFileUnsupportedGated(t *testing.T) {
+	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
+	err := agentSendRun(&sendOptions{
+		Factory: f, Cmd: sendCmdCtx(t), Ref: "example:echo", Text: "hi",
+		Files: []string{"whatever.txt"}, As: "bot", Format: "json",
+	})
+	assertUnsupportedCapability(t, err, "example:echo")
 }
 
 // TestTaskGetDerivesIsTerminalFromState pins the normalizeTask wiring: a
