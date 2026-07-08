@@ -2395,8 +2395,15 @@
         "kind": "own",
         "type": "int",
         "required": "xor",
-        "desc": "Row height in pixels (e.g. 30 / 40 / 60). Passing --height implies pixel mode; --type may be omitted (or set to `pixel` — equivalent)",
+        "desc": "Uniform row height in pixels (e.g. 30 / 40 / 60; NOT points), used with `--range`. Passing --height implies pixel mode; --type may be omitted (or set to `pixel` — equivalent). For per-row heights use `--heights`",
         "default": "0"
+      },
+      {
+        "name": "heights",
+        "kind": "own",
+        "type": "string",
+        "required": "xor",
+        "desc": "Per-row height map — set different heights for many rows in one atomic call. Keys: single row (`\"1\"`) or closed range (`\"2:20\"`); values: pixel height (e.g. 30 / 50), `\"auto\"` (fit content) or `\"standard\"` (reset to default). Units are pixels, NOT points. Mutually exclusive with `--range` / `--height` / `--type`"
       },
       {
         "name": "type",
@@ -2414,8 +2421,8 @@
         "name": "range",
         "kind": "own",
         "type": "string",
-        "required": "required",
-        "desc": "Row closed range to resize; 1-based row numbers like `2:10` or `5` (single row)"
+        "required": "xor",
+        "desc": "Row closed range to resize; 1-based row numbers like `2:10` or `5` (single row). Required for the uniform form (with `--height` or `--type`); omit with the map form (`--heights`)"
       },
       {
         "name": "dry-run",
@@ -2462,8 +2469,15 @@
         "kind": "own",
         "type": "int",
         "required": "xor",
-        "desc": "Column width in pixels (e.g. 80 / 120 / 200). Passing --width implies pixel mode; --type may be omitted (or set to `pixel` — equivalent)",
+        "desc": "Uniform column width in pixels (e.g. 80 / 120 / 200; NOT Excel character units), used with `--range`. Passing --width implies pixel mode; --type may be omitted (or set to `pixel` — equivalent). For per-column widths use `--widths`",
         "default": "0"
+      },
+      {
+        "name": "widths",
+        "kind": "own",
+        "type": "string",
+        "required": "xor",
+        "desc": "Per-column width map — set different widths for many columns in one atomic call. Keys: single column (`\"A\"`) or closed range (`\"C:E\"`); values: pixel width (e.g. 80 / 120 / 200) or `\"standard\"` (reset to default). Units are pixels, NOT Excel character units (px ≈ chars × 8 + 16). Mutually exclusive with `--range` / `--width` / `--type`"
       },
       {
         "name": "type",
@@ -2480,8 +2494,8 @@
         "name": "range",
         "kind": "own",
         "type": "string",
-        "required": "required",
-        "desc": "Column closed range to resize; column letters like `A:E` or `C` (single column)"
+        "required": "xor",
+        "desc": "Column closed range to resize; column letters like `A:E` or `C` (single column). Required for the uniform form (with `--width` or `--type`); omit with the map form (`--widths`)"
       },
       {
         "name": "dry-run",

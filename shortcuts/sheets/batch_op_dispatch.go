@@ -118,10 +118,19 @@ var batchOpDispatch = map[string]batchOpMapping{
 	}},
 
 	// ─── 行高列宽 (resize_range, 无 operation 字段) ─────────────────
+	// The map form (--heights/--widths) fans out into its own batch_update
+	// and cannot nest inside +batch-update; sub-ops must use the uniform
+	// single-range form (range + height/width or type).
 	"+rows-resize": {"resize_range", func(fv flagView, token, sid, sname string) (map[string]interface{}, error) {
+		if err := rejectResizeMapInBatch(fv, "row"); err != nil {
+			return nil, err
+		}
 		return resizeInput(fv, token, sid, sname, "row")
 	}},
 	"+cols-resize": {"resize_range", func(fv flagView, token, sid, sname string) (map[string]interface{}, error) {
+		if err := rejectResizeMapInBatch(fv, "column"); err != nil {
+			return nil, err
+		}
 		return resizeInput(fv, token, sid, sname, "column")
 	}},
 

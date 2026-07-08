@@ -469,6 +469,34 @@ func TestBatchOp_ErrorEquivalence(t *testing.T) {
 	}
 }
 
+// TestBatchOp_RejectsResizeMapForm locks the nesting guard: the map form
+// (--widths/--heights) expands into its own batch_update, and batch_update
+// cannot nest, so a +batch-update sub-op carrying `widths`/`heights` must be
+// rejected with a pointer to the standalone form — it is standalone-valid,
+// so this case cannot live in the standalone-vs-batch equivalence table.
+func TestBatchOp_RejectsResizeMapForm(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		shortcut string
+		input    string
+	}{
+		{"+cols-resize", `{"sheet-id":"sh1","widths":{"A":100}}`},
+		{"+rows-resize", `{"sheet-id":"sh1","heights":{"1":50}}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.shortcut, func(t *testing.T) {
+			t.Parallel()
+			var subInput map[string]interface{}
+			if err := json.Unmarshal([]byte(tc.input), &subInput); err != nil {
+				t.Fatalf("bad input JSON: %v", err)
+			}
+			rawOp := map[string]interface{}{"shortcut": tc.shortcut, "input": subInput}
+			_, err := translateBatchOp(rawOp, testToken, 0)
+			requireValidation(t, err, "not supported inside +batch-update")
+		})
+	}
+}
+
 // TestBatchOp_RejectsWrongScalarType locks the type-check that closes the
 // silent-coercion gap: `operations` skips parse-time schema validation, and
 // mapFlagView coerces a mismatched scalar to its zero value, so a sub-op field

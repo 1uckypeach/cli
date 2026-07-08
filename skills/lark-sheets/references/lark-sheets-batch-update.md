@@ -18,9 +18,10 @@
 
 **⚠️ 何时必须使用 `+batch-update`（硬性要求）**：
 - 需要对**多个**不同区域执行 `+cells-{merge|unmerge}` 时（如按分组合并多列相同内容）
-- 需要对**多个**不同区域执行 `+rows-resize / +cols-resize` 时（如统一调整多列列宽或多行行高）
 - 需要先插入行列再写入数据时（`+dim-{insert|delete|hide|unhide|freeze|group|ungroup}` + `+cells-set`）
 - 需要对多个区域执行不同写入操作时（多次 `+cells-set` + `+cells-clear` 等组合）
+
+**行高列宽批量不走这里**：多行 / 多列不同尺寸直接用 `+rows-resize --heights` / `+cols-resize --widths` 的 map 形态（如 `--widths '{"A":100,"C:E":120}'`，见 `lark-sheets-range-operations`），一次调用原子完成；map 形态不可作为 `--operations` 子操作嵌入（子操作里仍可用单区间形态 `range` + `height`/`width`）。
 
 当同一工具需要对多个区域重复调用时，**必须**改用 `+batch-update` 合并为单次请求——`+batch-update` 是原子提交（要么全成功要么整批回滚）；逐个调用非原子，中途失败会留下半成品。
 

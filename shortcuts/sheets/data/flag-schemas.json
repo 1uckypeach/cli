@@ -4286,6 +4286,28 @@
         }
       }
     },
+    "+cols-resize": {
+      "widths": {
+        "type": "object",
+        "description": "列 → 宽度 map。键：单列（\"A\"）或列闭区间（\"C:E\"）；值：正整数像素宽（如 80 / 120 / 200；⚠️ 单位是像素，不是 Excel 字符单位，像素 ≈ 字符数×8+16）或 \"standard\"（重置为默认列宽）。列宽不支持 \"auto\"。",
+        "additionalProperties": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "description": "像素宽度（宽度 < 20px 会被 CLI 拒绝并提示疑似字符单位）"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "standard"
+              ],
+              "description": "重置为默认列宽"
+            }
+          ]
+        }
+      }
+    },
     "+cond-format-create": {
       "properties": {
         "description": "创建/更新的条件格式属性。",
@@ -7141,6 +7163,29 @@
           ]
         },
         "description": "排序条件列表（仅 sort 操作）。支持多级排序，靠前的条件优先级更高。"
+      }
+    },
+    "+rows-resize": {
+      "heights": {
+        "type": "object",
+        "description": "行 → 高度 map。键：单行（\"1\"）或行闭区间（\"2:20\"）；值：正整数像素高（如 30 / 50；⚠️ 单位是像素，不是磅/points）、\"auto\"（自适应内容）或 \"standard\"（重置为默认行高）。",
+        "additionalProperties": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "description": "像素高度"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "standard",
+                "auto"
+              ],
+              "description": "standard=重置默认行高；auto=自适应内容"
+            }
+          ]
+        }
       }
     },
     "+sparkline-create": {
