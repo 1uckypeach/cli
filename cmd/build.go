@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 
+	_ "github.com/larksuite/cli/agent"
 	"github.com/larksuite/cli/cmd/agent"
 	"github.com/larksuite/cli/cmd/api"
 	"github.com/larksuite/cli/cmd/auth"

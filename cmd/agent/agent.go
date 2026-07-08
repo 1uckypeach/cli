@@ -6,11 +6,6 @@ package agent
 import (
 	"github.com/spf13/cobra"
 
-	// example is the in-repo onboarding template and offline demo provider
-	// (in-memory mock, zero network). To add a new provider, add one matching
-	// blank import here.
-	_ "github.com/larksuite/cli/internal/agent/example" // registers the "example" demo/template provider scheme via init()
-
 	"github.com/larksuite/cli/internal/cmdutil"
 )
 
