@@ -129,7 +129,7 @@ _公共四件套 · 系统：`--dry-run`_
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `--height` | int | xor | 统一行高（像素，例：30 / 40 / 60；不是磅/points），配 `--range` 使用。传了 `--height` 就是像素模式，可以省略 `--type`；显式 `--type pixel` 也行（等价）。多行不同高用 `--heights` |
-| `--heights` | string | xor | 差异化行高 map，一次原子调用给多行设置不同高度：键为单行（`"1"`）或行闭区间（`"2:20"`），值为像素高（如 30 / 50）、`"auto"`（自适应内容）或 `"standard"`（重置默认）。⚠️ 单位是像素，不是磅/points。与 `--range` / `--height` / `--type` 互斥 |
+| `--heights` | string + File + Stdin（复合 JSON） | xor | 差异化行高 map，一次原子调用给多行设置不同高度：键为单行（`"1"`）或行闭区间（`"2:20"`），值为像素高（如 30 / 50）、`"auto"`（自适应内容）或 `"standard"`（重置默认）。⚠️ 单位是像素，不是磅/points。与 `--range` / `--height` / `--type` 互斥 |
 | `--type` | string | xor | 尺寸方式 enum：`pixel`（需配 `--height`）/ `standard`（重置为默认行高）/ `auto`（自动适应内容）。常规写法直接给 `--height` 即可省略本 flag；`--type standard` / `--type auto` 不能与 `--height` 同时给（可选值：`pixel` / `standard` / `auto`） |
 | `--range` | string | xor | 要调整行高的行闭区间；1-based 行号如 `2:10` 或单行 `5`。统一尺寸形态必填（配 `--height` 或 `--type`）；map 形态（`--heights`）不传 |
 
@@ -140,7 +140,7 @@ _公共四件套 · 系统：`--dry-run`_
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `--width` | int | xor | 统一列宽（像素，例：80 / 120 / 200；不是 Excel 字符单位），配 `--range` 使用。传了 `--width` 就是像素模式，可以省略 `--type`；显式 `--type pixel` 也行（等价）。多列不同宽用 `--widths` |
-| `--widths` | string | xor | 差异化列宽 map，一次原子调用给多列设置不同宽度：键为单列（`"A"`）或列闭区间（`"C:E"`），值为像素宽（如 80 / 120 / 200）或 `"standard"`（重置默认）。⚠️ 单位是像素，不是 Excel 字符单位（像素 ≈ 字符数×8+16）。与 `--range` / `--width` / `--type` 互斥 |
+| `--widths` | string + File + Stdin（复合 JSON） | xor | 差异化列宽 map，一次原子调用给多列设置不同宽度：键为单列（`"A"`）或列闭区间（`"C:E"`），值为像素宽（如 80 / 120 / 200）或 `"standard"`（重置默认）。⚠️ 单位是像素，不是 Excel 字符单位（像素 ≈ 字符数×8+16）。与 `--range` / `--width` / `--type` 互斥 |
 | `--type` | string | xor | 尺寸方式 enum：`pixel`（需配 `--width`）/ `standard`（重置为默认列宽）。常规写法直接给 `--width` 即可省略本 flag；`--type standard` 不能与 `--width` 同时给（可选值：`pixel` / `standard`） |
 | `--range` | string | xor | 要调整列宽的列闭区间；列字母如 `A:E` 或单列 `C`。统一尺寸形态必填（配 `--width` 或 `--type`）；map 形态（`--widths`）不传 |
 

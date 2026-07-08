@@ -160,7 +160,11 @@
         "type": "string",
         "required": "optional",
         "desc": "New sub-sheet type: sheet (spreadsheet) | bitable; default sheet. bitable creates an empty table only — edit its content via lark-base commands",
-        "default": "sheet"
+        "default": "sheet",
+        "enum": [
+          "sheet",
+          "bitable"
+        ]
       },
       {
         "name": "dry-run",
@@ -2403,7 +2407,11 @@
         "kind": "own",
         "type": "string",
         "required": "xor",
-        "desc": "Per-row height map — set different heights for many rows in one atomic call. Keys: single row (`\"1\"`) or closed range (`\"2:20\"`); values: pixel height (e.g. 30 / 50), `\"auto\"` (fit content) or `\"standard\"` (reset to default). Units are pixels, NOT points. Mutually exclusive with `--range` / `--height` / `--type`"
+        "desc": "Per-row height map — set different heights for many rows in one atomic call. Keys: single row (`\"1\"`) or closed range (`\"2:20\"`); values: pixel height (e.g. 30 / 50), `\"auto\"` (fit content) or `\"standard\"` (reset to default). Units are pixels, NOT points. Mutually exclusive with `--range` / `--height` / `--type`",
+        "input": [
+          "file",
+          "stdin"
+        ]
       },
       {
         "name": "type",
@@ -2477,7 +2485,11 @@
         "kind": "own",
         "type": "string",
         "required": "xor",
-        "desc": "Per-column width map — set different widths for many columns in one atomic call. Keys: single column (`\"A\"`) or closed range (`\"C:E\"`); values: pixel width (e.g. 80 / 120 / 200) or `\"standard\"` (reset to default). Units are pixels, NOT Excel character units (px ≈ chars × 8 + 16). Mutually exclusive with `--range` / `--width` / `--type`"
+        "desc": "Per-column width map — set different widths for many columns in one atomic call. Keys: single column (`\"A\"`) or closed range (`\"C:E\"`); values: pixel width (e.g. 80 / 120 / 200) or `\"standard\"` (reset to default). Units are pixels, NOT Excel character units (px ≈ chars × 8 + 16). Mutually exclusive with `--range` / `--width` / `--type`",
+        "input": [
+          "file",
+          "stdin"
+        ]
       },
       {
         "name": "type",

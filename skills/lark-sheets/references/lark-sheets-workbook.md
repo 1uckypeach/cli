@@ -77,7 +77,7 @@ _公共：URL/token（无 sheet 定位） · 系统：`--dry-run`_
 | `--index` | int | optional | 插入位置（0-based）；省略时附加到末尾 |
 | `--row-count` | int | optional | 初始行数（默认 200，上限 50000） |
 | `--col-count` | int | optional | 初始列数（默认 20，上限 200） |
-| `--type` | string | optional | 新子表类型：sheet（电子表格）\| bitable（多维表格）；默认 sheet。bitable 只建空表，内容编辑改用 lark-base 命令 |
+| `--type` | string | optional | 新子表类型：sheet（电子表格）\| bitable（多维表格）；默认 sheet。bitable 只建空表，内容编辑改用 lark-base 命令（可选值：`sheet` / `bitable`） |
 
 ### `+sheet-delete`
 
