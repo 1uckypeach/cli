@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -189,6 +190,54 @@ func emitTask(f *cmdutil.Factory, cmd *cobra.Command, task *iagent.AgentTask, ne
 		env.ContentSafetyAlert = scan.Alert
 	}
 
+	if jq := jqExpr(cmd); jq != "" {
+		if scan.Alert != nil {
+			output.WriteAlertWarning(errOut, scan.Alert)
+		}
+		return output.JqFilter(out, env, jq)
+	}
+	output.PrintJson(out, env)
+	return nil
+}
+
+// scanAndEmitData is the shared scan-then-emit path for the read leaves whose
+// payload now carries untrusted agent-authored text — task list
+// (TaskSummary.Summary), context list, and context get
+// (ContextDetail.ActiveTask.Summary). These used to PrintJson directly and so
+// BYPASSED content-safety; like emitTask they now run output.ScanForSafety on
+// the payload BEFORE emission on every path: a block returns the typed block
+// error, a warn attaches the alert to the JSON envelope (and prints a stderr
+// warning on the pretty / jq paths). data is the Envelope.Data payload (and what
+// is scanned); meta is an optional *output.Meta (list count, nil for a single
+// detail); pretty renders the --format pretty human view and is skipped when a
+// --jq expression forces structured JSON.
+func scanAndEmitData(f *cmdutil.Factory, cmd *cobra.Command, format string, data any, meta *output.Meta, pretty func(io.Writer)) error {
+	out := f.IOStreams.Out
+	errOut := f.IOStreams.ErrOut
+
+	scan := output.ScanForSafety(cmd.CommandPath(), data, errOut)
+	if scan.Blocked {
+		return scan.BlockErr
+	}
+
+	if format == "pretty" && jqExpr(cmd) == "" {
+		if scan.Alert != nil {
+			output.WriteAlertWarning(errOut, scan.Alert)
+		}
+		pretty(out)
+		return nil
+	}
+
+	env := output.Envelope{
+		OK:       true,
+		Identity: string(f.ResolvedIdentity),
+		Data:     data,
+		Meta:     meta,
+		Notice:   output.GetNotice(),
+	}
+	if scan.Alert != nil {
+		env.ContentSafetyAlert = scan.Alert
+	}
 	if jq := jqExpr(cmd); jq != "" {
 		if scan.Alert != nil {
 			output.WriteAlertWarning(errOut, scan.Alert)

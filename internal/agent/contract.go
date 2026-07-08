@@ -9,6 +9,8 @@ type AgentTask struct {
 	ContextID     string         `json:"context_id,omitempty"`
 	State         TaskState      `json:"state"`
 	IsTerminal    bool           `json:"is_terminal"`
+	CreatedAt     string         `json:"created_at,omitempty"` // ISO 8601; when the task was created (empty if the provider does not supply it)
+	UpdatedAt     string         `json:"updated_at,omitempty"` // ISO 8601; when the current status was recorded (aligns with A2A TaskStatus.timestamp)
 	Messages      []Message      `json:"messages,omitempty"`
 	Artifacts     []Artifact     `json:"artifacts,omitempty"`
 	InputRequired *InputRequired `json:"input_required,omitempty"`
@@ -58,27 +60,41 @@ type InputRequired struct {
 	Options []string `json:"options,omitempty"`
 }
 
-// TaskSummary is a single task summary in the task list output.
+// TaskSummary is a single task summary in the task list output (and in a
+// context's active_task). It carries just enough to triage without a full
+// task get: state + when it last changed + a one-line content digest.
 type TaskSummary struct {
 	TaskID     string    `json:"task_id"`
 	ContextID  string    `json:"context_id,omitempty"`
 	State      TaskState `json:"state"`
 	IsTerminal bool      `json:"is_terminal"`
+	UpdatedAt  string    `json:"updated_at,omitempty"` // ISO 8601; when the status was last recorded — the key for "most recent"
+	Summary    string    `json:"summary,omitempty"`    // last agent message, ANSI-stripped + flattened + truncated; for input_required it is the pending prompt
 }
 
-// ContextSummary is a single context summary in the context list output.
+// ContextSummary is a single context summary in the context list output. It is
+// the conversation-layer rollup used to pick which conversation needs attention.
 type ContextSummary struct {
-	ContextID string `json:"context_id"`
-	CreatedAt string `json:"created_at,omitempty"`
-	Title     string `json:"title,omitempty"`
+	ContextID     string `json:"context_id"`
+	CreatedAt     string `json:"created_at,omitempty"`
+	UpdatedAt     string `json:"updated_at,omitempty"` // ISO 8601; last activity across the context's tasks
+	Title         string `json:"title,omitempty"`
+	TaskCount     int    `json:"task_count"`               // number of tasks in the context
+	AwaitingInput bool   `json:"awaiting_input,omitempty"` // a task is paused in input_required/auth_required (needs the caller)
 }
 
-// ContextDetail is the context detail in the context get output (including its task list).
+// ContextDetail is the context detail in the context get output. It is the
+// conversation overview — metadata + a rollup + the single task the caller would
+// most likely act on. The full task enumeration lives in `agent task list
+// --context-id`, so ContextDetail deliberately does NOT embed the whole tasks[].
 type ContextDetail struct {
-	ContextID string        `json:"context_id"`
-	CreatedAt string        `json:"created_at,omitempty"`
-	Title     string        `json:"title,omitempty"`
-	Tasks     []TaskSummary `json:"tasks,omitempty"`
+	ContextID     string       `json:"context_id"`
+	CreatedAt     string       `json:"created_at,omitempty"`
+	UpdatedAt     string       `json:"updated_at,omitempty"`
+	Title         string       `json:"title,omitempty"`
+	TaskCount     int          `json:"task_count"`
+	AwaitingInput bool         `json:"awaiting_input,omitempty"`
+	ActiveTask    *TaskSummary `json:"active_task,omitempty"` // the task with the latest updated_at (nil for an empty context)
 }
 
 // ArtifactData is the return value of DownloadArtifact: the URL type gives URL,

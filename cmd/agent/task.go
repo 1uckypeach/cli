@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -283,7 +284,9 @@ func agentTaskGetRun(opts *taskOptions) error {
 }
 
 // agentTaskListRun runs `task list`: resolves the provider, lists tasks
-// (optionally filtered by --context-id) and emits {tasks:[...]} with meta.count.
+// (optionally filtered by --context-id), sorts them newest-first by UpdatedAt,
+// and emits {tasks:[...]} with meta.count through content-safety scanning (the
+// summaries carry untrusted agent text).
 func agentTaskListRun(opts *taskOptions) error {
 	f := opts.Factory
 	_, spec, agentID, id, err := resolveSpec(f, opts.Cmd, opts.Ref, opts.As)
@@ -308,23 +311,14 @@ func agentTaskListRun(opts *taskOptions) error {
 		return err
 	}
 	tasks = normalizeTaskSummaries(tasks)
-	// pretty is a human view only; a --jq expression implies structured JSON.
-	if opts.Format == "pretty" && jqExpr(opts.Cmd) == "" {
-		printTaskSummariesTSV(f.IOStreams.Out, tasks)
-		return nil
-	}
-	env := output.Envelope{
-		OK:       true,
-		Identity: string(id),
-		Data:     map[string]interface{}{"tasks": tasks},
-		Meta:     &output.Meta{Count: len(tasks)},
-		Notice:   output.GetNotice(),
-	}
-	if jq := jqExpr(opts.Cmd); jq != "" {
-		return output.JqFilter(f.IOStreams.Out, env, jq)
-	}
-	output.PrintJson(f.IOStreams.Out, env)
-	return nil
+	// Newest-first: sort by UpdatedAt (RFC3339 UTC) descending so the most
+	// recently active task heads the list; a stable sort preserves the provider's
+	// relative order for equal timestamps, and tasks with no timestamp sort last.
+	sort.SliceStable(tasks, func(i, j int) bool { return tasks[i].UpdatedAt > tasks[j].UpdatedAt })
+	return scanAndEmitData(f, opts.Cmd, opts.Format,
+		map[string]interface{}{"tasks": tasks},
+		&output.Meta{Count: len(tasks)},
+		func(w io.Writer) { printTaskSummariesTSV(w, tasks) })
 }
 
 // agentTaskCancelRun runs `task cancel`. Cancel is capability-gated offline

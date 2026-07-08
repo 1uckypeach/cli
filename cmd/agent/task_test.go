@@ -479,14 +479,16 @@ func TestTaskGetPrettyFormat(t *testing.T) {
 	}
 }
 
-// TestTaskListPrettyFormat pins list-class pretty: header TSV whose
-// columns mirror the json fields.
+// TestTaskListPrettyFormat pins list-class pretty: header TSV whose columns
+// mirror the json fields (now including UPDATED_AT + SUMMARY), and a data row
+// carrying the timestamp and (flattened) summary.
 func TestTaskListPrettyFormat(t *testing.T) {
 	opts, _ := taskTestOpts(t, "list")
 	opts.Format = "pretty"
 	setScripted(t, scriptedHooks{listTasks: func(string) ([]iagent.TaskSummary, error) {
 		return []iagent.TaskSummary{
-			{TaskID: "chat_1", ContextID: "sess_1", State: iagent.StateCompleted, IsTerminal: true},
+			{TaskID: "chat_1", ContextID: "sess_1", State: iagent.StateCompleted, IsTerminal: true,
+				UpdatedAt: "2026-07-05T12:00:00Z", Summary: "分析完成"},
 		}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
@@ -495,11 +497,53 @@ func TestTaskListPrettyFormat(t *testing.T) {
 		t.Fatalf("task list --format pretty should not error: %v", err)
 	}
 	text := string(out.Bytes())
-	if !strings.HasPrefix(text, "TASK_ID\tCONTEXT_ID\tSTATE\tIS_TERMINAL\n") {
+	if !strings.HasPrefix(text, "TASK_ID\tCONTEXT_ID\tSTATE\tIS_TERMINAL\tUPDATED_AT\tSUMMARY\n") {
 		t.Errorf("pretty output should start with a header row, got %q", text)
 	}
-	if !strings.Contains(text, "chat_1\tsess_1\tcompleted\ttrue") {
-		t.Errorf("pretty output should contain a data row, got %q", text)
+	if !strings.Contains(text, "chat_1\tsess_1\tcompleted\ttrue\t2026-07-05T12:00:00Z\t分析完成") {
+		t.Errorf("pretty output should contain a data row with updated_at + summary, got %q", text)
+	}
+}
+
+// TestTaskListSortedByUpdatedAtDesc pins the ordering + enriched-field
+// contract: the provider returns tasks out of order, and the command emits them
+// newest-first by updated_at while carrying updated_at + summary on each.
+func TestTaskListSortedByUpdatedAtDesc(t *testing.T) {
+	opts, _ := taskTestOpts(t, "list")
+	setScripted(t, scriptedHooks{listTasks: func(string) ([]iagent.TaskSummary, error) {
+		return []iagent.TaskSummary{
+			{TaskID: "old", State: iagent.StateCompleted, UpdatedAt: "2026-07-05T10:00:00Z", Summary: "第一轮"},
+			{TaskID: "new", State: iagent.StateInputRequired, UpdatedAt: "2026-07-05T12:00:00Z", Summary: "请补充"},
+			{TaskID: "mid", State: iagent.StateCompleted, UpdatedAt: "2026-07-05T11:00:00Z", Summary: "第二轮"},
+		}, nil
+	}})
+	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
+
+	if err := agentTaskListRun(opts); err != nil {
+		t.Fatalf("task list should not error: %v", err)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("output should be valid envelope JSON: %v (%s)", err, string(out.Bytes()))
+	}
+	data, _ := env.Data.(map[string]interface{})
+	tasks, ok := data["tasks"].([]interface{})
+	if !ok || len(tasks) != 3 {
+		t.Fatalf("data.tasks should have 3 entries, got %v", data["tasks"])
+	}
+	want := []string{"new", "mid", "old"}
+	for i, w := range want {
+		m, _ := tasks[i].(map[string]interface{})
+		if m["task_id"] != w {
+			t.Errorf("tasks[%d].task_id should be %q (newest-first), got %v", i, w, m["task_id"])
+		}
+	}
+	first, _ := tasks[0].(map[string]interface{})
+	if first["updated_at"] != "2026-07-05T12:00:00Z" {
+		t.Errorf("tasks[0].updated_at should be carried, got %v", first["updated_at"])
+	}
+	if first["summary"] != "请补充" {
+		t.Errorf("tasks[0].summary should be carried, got %v", first["summary"])
 	}
 }
 

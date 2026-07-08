@@ -185,6 +185,13 @@ func (s *memoryStore) createTask(agentID, ctxID string, build func(round int) ag
 			WithHint("运行 lark-cli agent context list example:%s 查看现有会话", agentID)
 	}
 	task := build(len(ctx.TaskIDs) + 1)
+	// Stamp lifecycle timestamps at creation. Example tasks are born terminal, so
+	// created_at == updated_at; a real provider bumps updated_at on every status
+	// change (see setTaskState). RFC3339 UTC strings are fixed-width, so their
+	// lexicographic order equals chronological order (relied on by the rollup).
+	now := time.Now().UTC().Format(time.RFC3339)
+	task.CreatedAt = now
+	task.UpdatedAt = now
 	s.NextSeq++
 	s.Tasks[task.TaskID] = &taskRecord{AgentID: agentID, Seq: s.NextSeq, Task: task}
 	ctx.TaskIDs = append(ctx.TaskIDs, task.TaskID)
@@ -218,6 +225,7 @@ func (s *memoryStore) setTaskState(taskID string, state agent.TaskState) error {
 	}
 	rec.Task.State = state
 	rec.Task.IsTerminal = state.IsTerminal()
+	rec.Task.UpdatedAt = time.Now().UTC().Format(time.RFC3339) // status changed ⇒ record when
 	return s.saveLocked()
 }
 
@@ -243,12 +251,7 @@ func (s *memoryStore) listTasks(agentID, contextID string) []agent.TaskSummary {
 	sort.Slice(recs, func(i, j int) bool { return recs[i].Seq < recs[j].Seq })
 	out := make([]agent.TaskSummary, 0, len(recs))
 	for _, rec := range recs {
-		out = append(out, agent.TaskSummary{
-			TaskID:     rec.Task.TaskID,
-			ContextID:  rec.Task.ContextID,
-			State:      rec.Task.State,
-			IsTerminal: rec.Task.IsTerminal,
-		})
+		out = append(out, taskSummaryOf(rec.Task))
 	}
 	return out
 }
@@ -267,16 +270,24 @@ func (s *memoryStore) listContexts(agentID string) []agent.ContextSummary {
 	sort.Slice(recs, func(i, j int) bool { return recs[i].Seq < recs[j].Seq })
 	out := make([]agent.ContextSummary, 0, len(recs))
 	for _, ctx := range recs {
+		updatedAt, taskCount, awaiting, _ := s.contextRollupLocked(ctx)
 		out = append(out, agent.ContextSummary{
-			ContextID: ctx.ContextID,
-			CreatedAt: ctx.CreatedAt,
-			Title:     ctx.Title,
+			ContextID:     ctx.ContextID,
+			CreatedAt:     ctx.CreatedAt,
+			UpdatedAt:     updatedAt,
+			Title:         ctx.Title,
+			TaskCount:     taskCount,
+			AwaitingInput: awaiting,
 		})
 	}
 	return out
 }
 
-// getContext returns a context's detail (including its task summaries, in creation order).
+// getContext returns a context's detail: metadata plus a rollup (updated_at,
+// task_count, awaiting_input) and the single most-actionable ActiveTask (the task
+// with the latest updated_at; nil for an empty context). It deliberately does NOT
+// enumerate every task — the full list is `listTasks(agentID, ctxID)` behind
+// `agent task list --context-id`.
 func (s *memoryStore) getContext(agentID, ctxID string) (*agent.ContextDetail, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -287,20 +298,18 @@ func (s *memoryStore) getContext(agentID, ctxID string) (*agent.ContextDetail, e
 			"未知的 context id '%s'（example:%s 名下不存在）", ctxID, agentID).
 			WithHint("运行 lark-cli agent context list example:%s 查看现有会话", agentID)
 	}
+	updatedAt, taskCount, awaiting, active := s.contextRollupLocked(ctx)
 	detail := &agent.ContextDetail{
-		ContextID: ctx.ContextID,
-		CreatedAt: ctx.CreatedAt,
-		Title:     ctx.Title,
+		ContextID:     ctx.ContextID,
+		CreatedAt:     ctx.CreatedAt,
+		UpdatedAt:     updatedAt,
+		Title:         ctx.Title,
+		TaskCount:     taskCount,
+		AwaitingInput: awaiting,
 	}
-	for _, tid := range ctx.TaskIDs {
-		if rec, ok := s.Tasks[tid]; ok {
-			detail.Tasks = append(detail.Tasks, agent.TaskSummary{
-				TaskID:     rec.Task.TaskID,
-				ContextID:  rec.Task.ContextID,
-				State:      rec.Task.State,
-				IsTerminal: rec.Task.IsTerminal,
-			})
-		}
+	if active != nil {
+		summary := taskSummaryOf(active.Task)
+		detail.ActiveTask = &summary
 	}
 	return detail, nil
 }
@@ -321,4 +330,89 @@ func (s *memoryStore) deleteContext(agentID, ctxID string) error {
 	}
 	delete(s.Contexts, ctxID)
 	return s.saveLocked()
+}
+
+// ── Derived rollups (the enriched-summary provider side) ──
+
+// summaryMaxRunes is the rune budget for a task Summary — a one-line content
+// digest, not full content. Truncation is rune-safe so a multibyte character is
+// never cut in half.
+const summaryMaxRunes = 100
+
+// contextRollupLocked derives a context's summary fields from its tasks (the
+// caller must already hold the lock). updatedAt is the newest task updated_at,
+// falling back to the context's created_at when it has no tasks; awaitingInput is
+// set when any task sits in input_required/auth_required; active is the task with
+// the latest updated_at (ties broken by creation order so it is deterministic),
+// nil when the context is empty.
+func (s *memoryStore) contextRollupLocked(ctx *contextRecord) (updatedAt string, taskCount int, awaitingInput bool, active *taskRecord) {
+	updatedAt = ctx.CreatedAt
+	for _, tid := range ctx.TaskIDs {
+		rec, ok := s.Tasks[tid]
+		if !ok {
+			continue
+		}
+		taskCount++
+		if rec.Task.UpdatedAt > updatedAt { // fixed-width RFC3339 UTC ⇒ lexicographic == chronological
+			updatedAt = rec.Task.UpdatedAt
+		}
+		if isAwaiting(rec.Task.State) {
+			awaitingInput = true
+		}
+		if active == nil || rec.Task.UpdatedAt > active.Task.UpdatedAt ||
+			(rec.Task.UpdatedAt == active.Task.UpdatedAt && rec.Seq > active.Seq) {
+			active = rec
+		}
+	}
+	return updatedAt, taskCount, awaitingInput, active
+}
+
+// isAwaiting reports whether a state is paused waiting on the caller (the
+// awaiting_input rollup bit).
+func isAwaiting(state agent.TaskState) bool {
+	return state == agent.StateInputRequired || state == agent.StateAuthRequired
+}
+
+// taskSummaryOf projects a stored task into its list/active summary, carrying the
+// timestamp and the one-line content digest alongside the identity fields.
+func taskSummaryOf(task agent.AgentTask) agent.TaskSummary {
+	return agent.TaskSummary{
+		TaskID:     task.TaskID,
+		ContextID:  task.ContextID,
+		State:      task.State,
+		IsTerminal: task.IsTerminal,
+		UpdatedAt:  task.UpdatedAt,
+		Summary:    taskSummaryText(task),
+	}
+}
+
+// taskSummaryText is the one-line content digest: the pending prompt for a task
+// awaiting input, otherwise the last agent message's text. It returns RAW text
+// (only rune-truncated) — ANSI-stripping + flattening for pretty/TSV is the
+// command layer's job, and it is empty when nothing is available.
+func taskSummaryText(task agent.AgentTask) string {
+	if task.InputRequired != nil && task.InputRequired.Prompt != "" {
+		return truncateRunes(task.InputRequired.Prompt, summaryMaxRunes)
+	}
+	for i := len(task.Messages) - 1; i >= 0; i-- {
+		if task.Messages[i].Role != "agent" {
+			continue
+		}
+		for _, p := range task.Messages[i].Parts {
+			if p.Type == "text" && p.Text != "" {
+				return truncateRunes(p.Text, summaryMaxRunes)
+			}
+		}
+	}
+	return ""
+}
+
+// truncateRunes cuts s to at most max runes (rune-safe, no character split). It
+// does not append an ellipsis: the Summary is meant to be raw text.
+func truncateRunes(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max])
 }

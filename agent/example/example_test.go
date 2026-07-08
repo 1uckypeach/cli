@@ -122,6 +122,20 @@ func TestEchoMultiTurn(t *testing.T) {
 	if len(tasks) != 2 {
 		t.Fatalf("the same context should have 2 tasks, got %d", len(tasks))
 	}
+	// Every summary carries the enriched fields: a status timestamp and the
+	// one-line digest (the last agent message). listTasks returns creation order,
+	// so tasks[0] is the first turn and tasks[1] the second.
+	for _, ts := range tasks {
+		if ts.UpdatedAt == "" {
+			t.Errorf("task summary should carry updated_at: %+v", ts)
+		}
+	}
+	if tasks[0].Summary != "hello" {
+		t.Errorf("first task summary should be the last agent message %q, got %q", "hello", tasks[0].Summary)
+	}
+	if tasks[1].Summary != "再来（第 2 轮）" {
+		t.Errorf("second task summary should carry the round marker, got %q", tasks[1].Summary)
+	}
 	ctxs, err := listContexts(ctx, rt)
 	if err != nil {
 		t.Fatal(err)
@@ -129,12 +143,33 @@ func TestEchoMultiTurn(t *testing.T) {
 	if len(ctxs) != 1 || ctxs[0].ContextID != t1.ContextID {
 		t.Fatalf("should have exactly 1 context with a matching id, got %+v", ctxs)
 	}
+	if ctxs[0].TaskCount != 2 || ctxs[0].AwaitingInput {
+		t.Errorf("context summary should roll up task_count=2, awaiting_input=false, got %+v", ctxs[0])
+	}
+	if ctxs[0].UpdatedAt == "" {
+		t.Error("context summary should carry updated_at")
+	}
+
+	// context get NO LONGER returns a full tasks[]: it is metadata + rollup + the
+	// single most-recent active_task (t2, the latest by updated_at).
 	detail, err := getContext(ctx, rt, t1.ContextID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(detail.Tasks) != 2 {
-		t.Fatalf("context detail should contain 2 tasks, got %+v", detail)
+	if detail.TaskCount != 2 {
+		t.Fatalf("context detail should report task_count=2, got %+v", detail)
+	}
+	if detail.AwaitingInput {
+		t.Errorf("both tasks are completed, awaiting_input should be false: %+v", detail)
+	}
+	if detail.ActiveTask == nil || detail.ActiveTask.TaskID != t2.TaskID {
+		t.Fatalf("active_task should be the most recent task (t2 %s), got %+v", t2.TaskID, detail.ActiveTask)
+	}
+	if detail.ActiveTask.Summary != "再来（第 2 轮）" {
+		t.Errorf("active_task.summary should be the last agent message, got %q", detail.ActiveTask.Summary)
+	}
+	if detail.ActiveTask.UpdatedAt == "" {
+		t.Error("active_task.updated_at should be populated")
 	}
 }
 
@@ -265,6 +300,91 @@ func TestDeleteContext(t *testing.T) {
 	if len(ctxs) != 0 {
 		t.Fatalf("no contexts should remain after deletion, got %+v", ctxs)
 	}
+}
+
+// TestContextRollupPicksLatestUpdated pins the enriched-summary rollup rule: the
+// active_task is the task with the LATEST updated_at (not the last created), the
+// rollup counts tasks and flags awaiting_input, and an input_required active
+// task's summary is its pending prompt. It seeds the store directly with
+// out-of-creation-order timestamps so "latest updated_at wins" is tested
+// independently of insertion order.
+func TestContextRollupPicksLatestUpdated(t *testing.T) {
+	swapStore(t)
+	store.loaded = true // seed in-memory directly; skip the (missing) snapshot load
+	store.Contexts["ctx_1"] = &contextRecord{
+		AgentID: "echo", ContextID: "ctx_1", CreatedAt: "2026-07-01T00:00:00Z",
+		Seq: 1, TaskIDs: []string{"t_a", "t_b", "t_c"},
+	}
+	store.Tasks["t_a"] = &taskRecord{AgentID: "echo", Seq: 2, Task: agent.AgentTask{
+		TaskID: "t_a", ContextID: "ctx_1", State: agent.StateCompleted, IsTerminal: true,
+		UpdatedAt: "2026-07-03T00:00:00Z", Messages: agentMessage("A 完成"),
+	}}
+	// t_b has the LATEST updated_at yet is created before t_c, and is input_required.
+	store.Tasks["t_b"] = &taskRecord{AgentID: "echo", Seq: 3, Task: agent.AgentTask{
+		TaskID: "t_b", ContextID: "ctx_1", State: agent.StateInputRequired,
+		UpdatedAt: "2026-07-05T00:00:00Z", InputRequired: &agent.InputRequired{Prompt: "按大区还是品类拆?"},
+	}}
+	store.Tasks["t_c"] = &taskRecord{AgentID: "echo", Seq: 4, Task: agent.AgentTask{
+		TaskID: "t_c", ContextID: "ctx_1", State: agent.StateCompleted, IsTerminal: true,
+		UpdatedAt: "2026-07-04T00:00:00Z", Messages: agentMessage("C 完成"),
+	}}
+
+	rt := fakeRuntime{"echo"}
+	detail, err := getContext(context.Background(), rt, "ctx_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.TaskCount != 3 {
+		t.Errorf("task_count should be 3, got %d", detail.TaskCount)
+	}
+	if !detail.AwaitingInput {
+		t.Error("awaiting_input should be true (t_b is input_required)")
+	}
+	if detail.ActiveTask == nil || detail.ActiveTask.TaskID != "t_b" {
+		t.Fatalf("active_task should be t_b (latest updated_at), not the last-created task, got %+v", detail.ActiveTask)
+	}
+	if detail.ActiveTask.Summary != "按大区还是品类拆?" {
+		t.Errorf("an input_required active task's summary should be its pending prompt, got %q", detail.ActiveTask.Summary)
+	}
+	if detail.UpdatedAt != "2026-07-05T00:00:00Z" {
+		t.Errorf("context updated_at should roll up to the latest task, got %q", detail.UpdatedAt)
+	}
+
+	// context list carries the same rollup.
+	ctxs, err := listContexts(context.Background(), rt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ctxs) != 1 {
+		t.Fatalf("expected 1 context, got %d", len(ctxs))
+	}
+	if ctxs[0].UpdatedAt != "2026-07-05T00:00:00Z" || ctxs[0].TaskCount != 3 || !ctxs[0].AwaitingInput {
+		t.Errorf("context summary rollup wrong: %+v", ctxs[0])
+	}
+}
+
+// TestTaskSummaryText pins the digest rule: rune-safe truncation to ~100 runes,
+// and that an input_required task prefers its pending prompt over the last agent
+// message.
+func TestTaskSummaryText(t *testing.T) {
+	long := strings.Repeat("字", 250)
+	got := taskSummaryText(agent.AgentTask{Messages: agentMessage(long)})
+	if n := len([]rune(got)); n != summaryMaxRunes {
+		t.Errorf("summary should be rune-truncated to %d runes, got %d", summaryMaxRunes, n)
+	}
+	prompt := taskSummaryText(agent.AgentTask{
+		State:         agent.StateInputRequired,
+		InputRequired: &agent.InputRequired{Prompt: "补充预算区间?"},
+		Messages:      agentMessage("忽略我"),
+	})
+	if prompt != "补充预算区间?" {
+		t.Errorf("input_required summary should be the pending prompt, got %q", prompt)
+	}
+}
+
+// agentMessage builds a single agent-role text message for seeding task fixtures.
+func agentMessage(text string) []agent.Message {
+	return []agent.Message{{Role: "agent", Parts: []agent.Part{{Type: "text", Text: text}}}}
 }
 
 // agentReply returns the first text reply from the agent role in the task.

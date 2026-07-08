@@ -109,27 +109,37 @@ func printTaskPretty(w io.Writer, task *iagent.AgentTask) {
 // consumption surface is json; pretty is for human inspection only, so leaving
 // them unescaped is acceptable.
 
-// printTaskSummariesTSV renders the list-class pretty view for tasks:
-// a header row naming the json fields, then one row per task.
+// printTaskSummariesTSV renders the list-class pretty view for tasks: a header
+// row naming the json fields, then one row per task. Summary is agent-controlled
+// text, so it is ANSI-stripped AND newline/tab-flattened via kvValue — an
+// unflattened tab/newline would otherwise break the column layout; the ids keep
+// plain stripANSI under the TSV no-escape exemption.
 func printTaskSummariesTSV(w io.Writer, tasks []iagent.TaskSummary) {
-	fmt.Fprintf(w, "TASK_ID\tCONTEXT_ID\tSTATE\tIS_TERMINAL\n")
+	fmt.Fprintf(w, "TASK_ID\tCONTEXT_ID\tSTATE\tIS_TERMINAL\tUPDATED_AT\tSUMMARY\n")
 	for _, t := range tasks {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%t\n", stripANSI(t.TaskID), stripANSI(t.ContextID), t.State, t.IsTerminal)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%t\t%s\t%s\n",
+			stripANSI(t.TaskID), stripANSI(t.ContextID), t.State, t.IsTerminal, t.UpdatedAt, kvValue(t.Summary))
 	}
 }
 
-// printContextsTSV renders the list-class pretty view for contexts. The
-// Title is agent-controlled and must be ANSI-stripped.
+// printContextsTSV renders the list-class pretty view for contexts. The Title is
+// agent-controlled and ANSI-stripped; TaskCount / AwaitingInput are the
+// conversation-layer rollup used to spot which session needs attention.
 func printContextsTSV(w io.Writer, contexts []iagent.ContextSummary) {
-	fmt.Fprintf(w, "CONTEXT_ID\tCREATED_AT\tTITLE\n")
+	fmt.Fprintf(w, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tTASK_COUNT\tAWAITING_INPUT\n")
 	for _, c := range contexts {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", stripANSI(c.ContextID), c.CreatedAt, stripANSI(c.Title))
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%t\n",
+			stripANSI(c.ContextID), c.CreatedAt, c.UpdatedAt, stripANSI(c.Title), c.TaskCount, c.AwaitingInput)
 	}
 }
 
-// printContextDetailPretty renders `context get --format pretty` as key: value
-// lines with the tasks count; the agent-controlled Title (and the id) go
-// through kvValue so they cannot forge adjacent field rows.
+// printContextDetailPretty renders `context get --format pretty` as a
+// conversation overview: metadata + the task_count / awaiting_input rollup, and
+// — when present — a one-line digest of the active task
+// (state · updated_at · summary). It deliberately does NOT expand the full task
+// list (that is `agent task list --context-id`). Agent-controlled strings (Title
+// and the active-task Summary) go through kvValue so they cannot forge adjacent
+// field rows.
 func printContextDetailPretty(w io.Writer, detail *iagent.ContextDetail) {
 	if detail == nil {
 		fmt.Fprintln(w, "(no context)")
@@ -139,10 +149,17 @@ func printContextDetailPretty(w io.Writer, detail *iagent.ContextDetail) {
 	if detail.CreatedAt != "" {
 		fmt.Fprintf(w, "created_at: %s\n", detail.CreatedAt)
 	}
+	if detail.UpdatedAt != "" {
+		fmt.Fprintf(w, "updated_at: %s\n", detail.UpdatedAt)
+	}
 	if detail.Title != "" {
 		fmt.Fprintf(w, "title: %s\n", kvValue(detail.Title))
 	}
-	fmt.Fprintf(w, "tasks: %d\n", len(detail.Tasks))
+	fmt.Fprintf(w, "task_count: %d\n", detail.TaskCount)
+	fmt.Fprintf(w, "awaiting_input: %t\n", detail.AwaitingInput)
+	if at := detail.ActiveTask; at != nil {
+		fmt.Fprintf(w, "active_task: %s · %s · %s\n", at.State, at.UpdatedAt, kvValue(at.Summary))
+	}
 }
 
 // usageHintOf builds the "用法: <command path> <positional shape>" hint from
