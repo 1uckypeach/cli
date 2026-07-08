@@ -124,3 +124,25 @@ func TestQueryAppType_MissingAppObject(t *testing.T) {
 		t.Errorf("queryAppType = %q, want empty when app object missing", result)
 	}
 }
+
+func TestQueryAppType_EmptyAppType(t *testing.T) {
+	rt, reg := newMetaTestRuntime(t)
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/spark/v1/apps/app_empty",
+		Body: map[string]interface{}{
+			"code": float64(0),
+			"data": map[string]interface{}{
+				"app": map[string]interface{}{
+					"app_id":   "app_empty",
+					"app_type": "",
+				},
+			},
+		},
+	})
+
+	result := queryAppType(context.Background(), rt, "app_empty")
+	if result != "" {
+		t.Errorf("queryAppType = %q, want empty when app_type is empty", result)
+	}
+}

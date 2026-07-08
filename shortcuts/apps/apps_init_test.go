@@ -20,6 +20,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -1675,5 +1676,121 @@ func TestRunScaffold_FullStackPassesTemplate(t *testing.T) {
 	}
 	if !containsAll(c, "--template", "full_stack") {
 		t.Errorf("expected --template full_stack in args: %v", c)
+	}
+}
+
+func TestScaffoldInitArgs_WithAppType(t *testing.T) {
+	args := scaffoldInitArgs("modern_html", "app_x", "")
+	if !containsAll(args, "--template", "modern_html", "--app-id", "app_x") {
+		t.Errorf("expected --template modern_html --app-id app_x, got %v", args)
+	}
+	for _, a := range args {
+		if a == "--source-path" {
+			t.Errorf("--source-path must not appear when sourcePath is empty: %v", args)
+		}
+	}
+}
+
+func TestScaffoldInitArgs_EmptyFallback(t *testing.T) {
+	args := scaffoldInitArgs("", "app_x", "")
+	if !containsAll(args, "--template", "full_stack", "--app-id", "app_x") {
+		t.Errorf("expected --template full_stack fallback, got %v", args)
+	}
+}
+
+func TestScaffoldInitArgs_WithSourcePath(t *testing.T) {
+	args := scaffoldInitArgs("modern_html", "app_x", "/path/to/src")
+	if !containsAll(args, "--template", "modern_html", "--app-id", "app_x", "--source-path", "/path/to/src") {
+		t.Errorf("expected --source-path /path/to/src, got %v", args)
+	}
+}
+
+func TestAppsInit_WithAppType_FreshClone(t *testing.T) {
+	f := &fakeCommandRunner{results: map[string]fakeCallResult{
+		"credential-init": credInitOK("http://u:t@h/app_typed.git"),
+		"git clone":       {},
+		"git checkout":    {},
+		"git ls-files":    {stdout: ""},
+		"git status":      {stdout: " A src/app.ts\n"},
+	}}
+	withFakeRunner(t, f)
+	factory, stdout, reg := newAppsExecuteFactory(t)
+
+	// Register a meta mock so queryAppType returns "modern_html"
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/spark/v1/apps/app_typed",
+		Body: map[string]interface{}{
+			"code": float64(0),
+			"data": map[string]interface{}{
+				"app": map[string]interface{}{
+					"app_id":   "app_typed",
+					"app_type": "MODERN_HTML",
+				},
+			},
+		},
+	})
+
+	dir := relCloneDir(t)
+	if err := runAppsShortcut(t, AppsInit, []string{"+init", "--app-id", "app_typed", "--dir", dir, "--as", "user"}, factory, stdout); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data := parseEnvelopeData(t, stdout)
+	if data["app_type"] != "modern_html" {
+		t.Errorf("app_type = %v, want modern_html", data["app_type"])
+	}
+	// Verify the scaffold used --template modern_html
+	c := findCall(f.calls, "npx", "-y")
+	if c == nil {
+		t.Fatal("npx not called")
+	}
+	if !containsAll(c, "--template", "modern_html") {
+		t.Errorf("expected --template modern_html, got %v", c)
+	}
+}
+
+func TestAppsInit_WithAppType_AlreadyInitialized(t *testing.T) {
+	dir := relCloneDir(t)
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(abs, ".spark"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(abs, metaRelPath), []byte(`{"app_id":"app_typed2"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	envFile := filepath.Join(abs, ".env.local")
+	f := &fakeCommandRunner{results: map[string]fakeCallResult{"env-pull": envPullOK(envFile)}}
+	withFakeRunner(t, f)
+	factory, stdout, reg := newAppsExecuteFactory(t)
+
+	// Register meta mock so queryAppType returns "html"
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/spark/v1/apps/app_typed2",
+		Body: map[string]interface{}{
+			"code": float64(0),
+			"data": map[string]interface{}{
+				"app": map[string]interface{}{
+					"app_id":   "app_typed2",
+					"app_type": "HTML",
+				},
+			},
+		},
+	})
+
+	if err := runAppsShortcut(t, AppsInit, []string{"+init", "--app-id", "app_typed2", "--dir", dir, "--as", "user"}, factory, stdout); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data := parseEnvelopeData(t, stdout)
+	if data["scaffold"] != "already_initialized" {
+		t.Errorf("scaffold = %v, want already_initialized", data["scaffold"])
+	}
+	if data["app_type"] != "html" {
+		t.Errorf("app_type = %v, want html", data["app_type"])
 	}
 }
