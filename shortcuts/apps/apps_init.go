@@ -39,7 +39,7 @@ const (
 )
 
 const (
-	miaodaCLIPkg    = "@lark-apaas/miaoda-cli@latest"
+	miaodaCLIPkg    = "@lark-apaas/miaoda-cli@0.1.20-alpha.dd573f8"
 	metaRelPath     = ".spark/meta.json"
 	steeringRelPath = ".agent/skills/steering"
 	seedReadme      = "README.md"
