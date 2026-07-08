@@ -5,6 +5,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 
@@ -30,7 +31,7 @@ type cmdRuntime struct {
 func (r *cmdRuntime) AgentID() string { return r.agentID }
 func (r *cmdRuntime) IsBot() bool     { return r.as == core.AsBot }
 
-func (r *cmdRuntime) CallAPI(ctx context.Context, method, path string, query map[string]string, body any) (map[string]any, error) {
+func (r *cmdRuntime) CallAPI(ctx context.Context, method, path string, query map[string]string, body any) (json.RawMessage, error) {
 	var params map[string]interface{}
 	if len(query) > 0 {
 		params = make(map[string]interface{}, len(query))
@@ -41,7 +42,7 @@ func (r *cmdRuntime) CallAPI(ctx context.Context, method, path string, query map
 	return r.do(ctx, client.RawApiRequest{Method: method, URL: path, Params: params, Data: body, As: r.as})
 }
 
-func (r *cmdRuntime) CallMultipart(ctx context.Context, method, path string, fields map[string]string, files []iagent.FilePart) (map[string]any, error) {
+func (r *cmdRuntime) CallMultipart(ctx context.Context, method, path string, fields map[string]string, files []iagent.FilePart) (json.RawMessage, error) {
 	fd := larkcore.NewFormdata()
 	for k, v := range fields {
 		fd.AddField(k, v)
@@ -71,9 +72,11 @@ func (r *cmdRuntime) CallMultipart(ctx context.Context, method, path string, fie
 }
 
 // do is the shared DoAPI → ParseJSONResponse → CheckResponse → unwrap-"data"
-// path. Identity is sealed in r.as and never handed out; any non-typed transport
-// error is classified here so hooks only ever see typed errs.* values.
-func (r *cmdRuntime) do(ctx context.Context, req client.RawApiRequest) (map[string]any, error) {
+// path. It returns the "data" sub-object as raw JSON (the typed Call[T]/
+// CallUpload[T] helpers decode it). Identity is sealed in r.as and never handed
+// out; any non-typed transport error is classified here so hooks only ever see
+// typed errs.* values.
+func (r *cmdRuntime) do(ctx context.Context, req client.RawApiRequest) (json.RawMessage, error) {
 	resp, err := r.client.DoAPI(ctx, req)
 	if err != nil {
 		if _, ok := errs.ProblemOf(err); ok {
@@ -92,6 +95,13 @@ func (r *cmdRuntime) do(ctx context.Context, req client.RawApiRequest) (map[stri
 		return nil, apiErr
 	}
 	top, _ := result.(map[string]interface{})
-	data, _ := top["data"].(map[string]interface{})
-	return data, nil
+	dataVal, ok := top["data"]
+	if !ok || dataVal == nil {
+		return nil, nil // no "data" (e.g. a pure write) — callers get the zero value
+	}
+	raw, err := json.Marshal(dataVal)
+	if err != nil {
+		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "api %s %s: re-encode data: %s", req.Method, req.URL, err).WithCause(err)
+	}
+	return raw, nil
 }

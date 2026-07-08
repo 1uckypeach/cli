@@ -5,6 +5,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/larksuite/cli/errs"
@@ -15,10 +16,10 @@ type fakeRT struct{}
 
 func (fakeRT) AgentID() string { return "" }
 func (fakeRT) IsBot() bool     { return false }
-func (fakeRT) CallAPI(context.Context, string, string, map[string]string, any) (map[string]any, error) {
+func (fakeRT) CallAPI(context.Context, string, string, map[string]string, any) (json.RawMessage, error) {
 	return nil, nil
 }
-func (fakeRT) CallMultipart(context.Context, string, string, map[string]string, []FilePart) (map[string]any, error) {
+func (fakeRT) CallMultipart(context.Context, string, string, map[string]string, []FilePart) (json.RawMessage, error) {
 	return nil, nil
 }
 

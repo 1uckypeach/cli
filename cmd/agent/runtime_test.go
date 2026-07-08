@@ -5,6 +5,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -85,17 +86,35 @@ func TestCmdRuntime_IdentityAndAgentID(t *testing.T) {
 }
 
 // TestCmdRuntime_CallAPI_UnwrapsData pins do(): a 200 OAPI envelope with code=0
-// returns the decoded "data" object (not the whole envelope).
+// returns the raw "data" object (not the whole envelope), and the typed Call[T]
+// helper decodes that raw data into a struct.
 func TestCmdRuntime_CallAPI_UnwrapsData(t *testing.T) {
 	rt := stubRoundTripper{respond: jsonResponse(200, `{"code":0,"msg":"ok","data":{"task_id":"t1","state":"completed"}}`)}
 	r := newTestCmdRuntime(rt, core.AsBot, "agt_1")
 
-	data, err := r.CallAPI(context.Background(), "GET", "/open-apis/example/v1/tasks/t1", nil, nil)
+	raw, err := r.CallAPI(context.Background(), "GET", "/open-apis/example/v1/tasks/t1", nil, nil)
 	if err != nil {
 		t.Fatalf("CallAPI should succeed: %v", err)
 	}
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		t.Fatalf("CallAPI should return the raw data object as valid JSON: %v", err)
+	}
 	if data["task_id"] != "t1" || data["state"] != "completed" {
 		t.Errorf("CallAPI should return the unwrapped data object, got %+v", data)
+	}
+
+	// The typed Call[T] helper decodes that same raw data into a struct — no
+	// map[string]any assertions at the call site.
+	got, err := iagent.Call[struct {
+		TaskID string `json:"task_id"`
+		State  string `json:"state"`
+	}](context.Background(), r, "GET", "/open-apis/example/v1/tasks/t1", nil, nil)
+	if err != nil {
+		t.Fatalf("Call[T] should succeed: %v", err)
+	}
+	if got.TaskID != "t1" || got.State != "completed" {
+		t.Errorf("Call[T] should decode data into the struct, got %+v", got)
 	}
 }
 
