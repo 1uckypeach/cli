@@ -43,7 +43,7 @@ func TestCardSupports(t *testing.T) {
 // registration-known field and panics on an unregistered scheme.
 func TestNewCardFillsRegistrationFields(t *testing.T) {
 	swapRegistry(t, map[string]ProviderInfo{})
-	info := testInfo("nc", func(Deps, string) (Provider, error) { return nil, nil })
+	info := testInfo("nc", okFactory())
 	info.Identities = []IdentitySpec{{Type: IdentityBot, Precondition: "需要白名单"}}
 	Register("nc", info)
 

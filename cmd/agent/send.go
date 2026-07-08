@@ -111,7 +111,11 @@ func agentSendRun(opts *sendOptions) error {
 		return err
 	}
 
-	card, err := p.Card(opts.Cmd.Context())
+	r, err := iagent.ParseRef(opts.Ref)
+	if err != nil {
+		return wrapRefResolveError(err)
+	}
+	card, err := iagent.BuildCard(opts.Cmd.Context(), r.Scheme, r.AgentID, p)
 	if err != nil {
 		return err
 	}
@@ -134,17 +138,24 @@ func agentSendRun(opts *sendOptions) error {
 		return emitDryRun(f, opts.Cmd, opts.Ref, in, opts.Format)
 	}
 
-	// --file exfiltrates local file content off this machine (the provider reads
-	// the file and uploads it to the remote agent). That is an irreversible,
-	// CLI-enforced high-risk write: a real send that would upload requires --yes,
-	// returning confirmation_required (exit 10) before any network access. Gated
-	// on the Card's file_input so a provider that cannot upload (the send would
-	// be rejected as unsupported anyway) does not prompt for a confirmation that
-	// buys nothing. dry-run above is exempt — it never uploads.
-	if len(in.Files) > 0 && card.Supports(iagent.CapFileInput) && !opts.Yes {
-		return errs.NewConfirmationRequiredError(errs.RiskHighRiskWrite, "agent send --file",
-			"--file 会把本地文件外发上传到远端 agent（内容离开本机，不可撤回）").
-			WithHint("确认要外发这些文件后，加 --yes 重发")
+	if len(in.Files) > 0 {
+		// An agent that does not declare file_input cannot take an upload, so
+		// --file against it is unsupported_capability — gated before any network
+		// access, so the user is not told "confirm the upload" for a send that
+		// would be rejected anyway.
+		if !card.Supports(iagent.CapFileInput) {
+			return capabilityError(opts.Ref, "send with --file", iagent.CapFileInput)
+		}
+		// --file exfiltrates local file content off this machine (the provider
+		// reads the file and uploads it to the remote agent). That is an
+		// irreversible, CLI-enforced high-risk write: a real send that would upload
+		// requires --yes, returning confirmation_required (exit 10) before any
+		// network access. dry-run above is exempt — it never uploads.
+		if !opts.Yes {
+			return errs.NewConfirmationRequiredError(errs.RiskHighRiskWrite, "agent send --file",
+				"--file 会把本地文件外发上传到远端 agent（内容离开本机，不可撤回）").
+				WithHint("确认要外发这些文件后，加 --yes 重发")
+		}
 	}
 
 	// A real send calls the API, so it needs a configured client; resolve it now
@@ -163,7 +174,7 @@ func agentSendRun(opts *sendOptions) error {
 
 	task, err := pc.Send(opts.Cmd.Context(), in)
 	if err != nil {
-		return convertUnsupported(opts.Ref, "send", err)
+		return err
 	}
 	normalizeTask(task)
 

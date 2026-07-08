@@ -12,7 +12,7 @@ import (
 )
 
 // scriptedHooks scripts a fake provider's behavior per test. Each hook maps to
-// one Provider method; an unset hook that gets called panics — a tripwire
+// one Provider func field; an unset hook that gets called panics — a tripwire
 // against a test reaching an unexpected provider path. This replaces the old
 // pattern of driving the (removed) real-OAPI adapter through httpmock stubs:
 // the command-layer contracts under test (envelope shape, watch exit codes,
@@ -21,14 +21,13 @@ type scriptedHooks struct {
 	send             func(in iagent.SendInput) (*iagent.AgentTask, error)
 	getTask          func(taskID string) (*iagent.AgentTask, error)
 	listTasks        func(contextID string) ([]iagent.TaskSummary, error)
-	cancelTask       func(taskID string) error
 	listContexts     func() ([]iagent.ContextSummary, error)
 	getContext       func(ctxID string) (*iagent.ContextDetail, error)
 	deleteContext    func(ctxID string) error
 	downloadArtifact func(taskID, artifactID string) (*iagent.ArtifactData, error)
 }
 
-// scripted is the package-level hook set shared by every scriptedProvider
+// scripted is the package-level hook set shared by every scripted provider
 // instance (the registry factory cannot be re-pointed per test, the hooks can).
 var scripted scriptedHooks
 
@@ -40,80 +39,59 @@ func setScripted(t *testing.T, h scriptedHooks) {
 	t.Cleanup(func() { scripted = scriptedHooks{} })
 }
 
-// scriptedProvider delegates every Provider method to the scripted hooks. Its
-// Card is synthesized statically (offline, zero-Deps safe) with a fixed honest
-// capability matrix: task_cancel=false so the command-layer cancel gate is
-// exercisable, everything else true except input_required.
-type scriptedProvider struct{ scheme string }
-
-func (p *scriptedProvider) Card(ctx context.Context) (*iagent.AgentCard, error) {
-	card := iagent.NewCard(p.scheme, "agt_x")
-	card.Capabilities = iagent.Capabilities{
-		TaskGet:          true,
-		TaskList:         true,
-		TaskCancel:       false,
-		InputRequired:    false,
-		FileInput:        true,
-		ArtifactDownload: true,
-		MultiTurn:        true,
+// newScriptedProvider builds a scripted *Provider. Its capability surface is
+// fixed by which fields are wired (the framework derives the card from this):
+// CancelTask is deliberately left unwired so task_cancel=false (the command
+// layer's cancel gate is exercised via example:echo); everything else the
+// command tests drive is wired, and FileInput=true so the --file gate/confirm
+// path is reachable. Each wired func delegates to the per-test hook and panics
+// if that hook was not set (tripwire against an unexpected provider path).
+func newScriptedProvider() *iagent.Provider {
+	return &iagent.Provider{
+		Send: func(ctx context.Context, in iagent.SendInput) (*iagent.AgentTask, error) {
+			if scripted.send == nil {
+				panic("scripted provider: Send hook not set")
+			}
+			return scripted.send(in)
+		},
+		GetTask: func(ctx context.Context, taskID string) (*iagent.AgentTask, error) {
+			if scripted.getTask == nil {
+				panic("scripted provider: GetTask hook not set")
+			}
+			return scripted.getTask(taskID)
+		},
+		ListTasks: func(ctx context.Context, contextID string) ([]iagent.TaskSummary, error) {
+			if scripted.listTasks == nil {
+				panic("scripted provider: ListTasks hook not set")
+			}
+			return scripted.listTasks(contextID)
+		},
+		ListContexts: func(ctx context.Context) ([]iagent.ContextSummary, error) {
+			if scripted.listContexts == nil {
+				panic("scripted provider: ListContexts hook not set")
+			}
+			return scripted.listContexts()
+		},
+		GetContext: func(ctx context.Context, ctxID string) (*iagent.ContextDetail, error) {
+			if scripted.getContext == nil {
+				panic("scripted provider: GetContext hook not set")
+			}
+			return scripted.getContext(ctxID)
+		},
+		DeleteContext: func(ctx context.Context, ctxID string) error {
+			if scripted.deleteContext == nil {
+				panic("scripted provider: DeleteContext hook not set")
+			}
+			return scripted.deleteContext(ctxID)
+		},
+		DownloadArtifact: func(ctx context.Context, taskID, artifactID string) (*iagent.ArtifactData, error) {
+			if scripted.downloadArtifact == nil {
+				panic("scripted provider: DownloadArtifact hook not set")
+			}
+			return scripted.downloadArtifact(taskID, artifactID)
+		},
+		FileInput: true,
 	}
-	return card, nil
-}
-
-func (p *scriptedProvider) Send(ctx context.Context, in iagent.SendInput) (*iagent.AgentTask, error) {
-	if scripted.send == nil {
-		panic("scripted provider: Send hook not set")
-	}
-	return scripted.send(in)
-}
-
-func (p *scriptedProvider) GetTask(ctx context.Context, taskID string) (*iagent.AgentTask, error) {
-	if scripted.getTask == nil {
-		panic("scripted provider: GetTask hook not set")
-	}
-	return scripted.getTask(taskID)
-}
-
-func (p *scriptedProvider) ListTasks(ctx context.Context, contextID string) ([]iagent.TaskSummary, error) {
-	if scripted.listTasks == nil {
-		panic("scripted provider: ListTasks hook not set")
-	}
-	return scripted.listTasks(contextID)
-}
-
-func (p *scriptedProvider) CancelTask(ctx context.Context, taskID string) error {
-	if scripted.cancelTask == nil {
-		panic("scripted provider: CancelTask hook not set")
-	}
-	return scripted.cancelTask(taskID)
-}
-
-func (p *scriptedProvider) ListContexts(ctx context.Context) ([]iagent.ContextSummary, error) {
-	if scripted.listContexts == nil {
-		panic("scripted provider: ListContexts hook not set")
-	}
-	return scripted.listContexts()
-}
-
-func (p *scriptedProvider) GetContext(ctx context.Context, ctxID string) (*iagent.ContextDetail, error) {
-	if scripted.getContext == nil {
-		panic("scripted provider: GetContext hook not set")
-	}
-	return scripted.getContext(ctxID)
-}
-
-func (p *scriptedProvider) DeleteContext(ctx context.Context, ctxID string) error {
-	if scripted.deleteContext == nil {
-		panic("scripted provider: DeleteContext hook not set")
-	}
-	return scripted.deleteContext(ctxID)
-}
-
-func (p *scriptedProvider) DownloadArtifact(ctx context.Context, taskID, artifactID string) (*iagent.ArtifactData, error) {
-	if scripted.downloadArtifact == nil {
-		panic("scripted provider: DownloadArtifact hook not set")
-	}
-	return scripted.downloadArtifact(taskID, artifactID)
 }
 
 // fakescopedAllScopes is the full RequiredScopes set of the fakescoped test
@@ -127,7 +105,7 @@ var fakescopedAllScopes = []string{
 }
 
 // fakeflowAgentIDSource is the AgentIDSource text of the fakeflow provider —
-// the non-Discoverer `agent list <scheme>` error surfaces it as the hint.
+// the non-enumerable `agent list <scheme>` error surfaces it as the hint.
 const fakeflowAgentIDSource = "在 fakeflow 测试控制台获取 agent_id（形如 agt_xxx）"
 
 // registerScripted registers the two scripted schemes exactly once (Register
@@ -144,8 +122,8 @@ var registerScriptedOnce sync.Once
 func registerScripted() {
 	registerScriptedOnce.Do(func() {
 		iagent.Register("fakeflow", iagent.ProviderInfo{
-			Factory: func(deps iagent.Deps, agentID string) (iagent.Provider, error) {
-				return &scriptedProvider{scheme: "fakeflow"}, nil
+			Factory: func(deps iagent.Deps, agentID string) (*iagent.Provider, error) {
+				return newScriptedProvider(), nil
 			},
 			Label:          "test fake (scripted flow)",
 			AgentRefFormat: "fakeflow:<agent_id>",
@@ -154,8 +132,8 @@ func registerScripted() {
 			Identities:     []iagent.IdentitySpec{{Type: iagent.IdentityUser}, {Type: iagent.IdentityBot}},
 		})
 		iagent.Register("fakescoped", iagent.ProviderInfo{
-			Factory: func(deps iagent.Deps, agentID string) (iagent.Provider, error) {
-				return &scriptedProvider{scheme: "fakescoped"}, nil
+			Factory: func(deps iagent.Deps, agentID string) (*iagent.Provider, error) {
+				return newScriptedProvider(), nil
 			},
 			Label:          "test fake (scoped)",
 			AgentRefFormat: "fakescoped:<agent_id>",

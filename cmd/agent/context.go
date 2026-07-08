@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	iagent "github.com/larksuite/cli/internal/agent"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/output"
 )
@@ -128,13 +129,18 @@ func agentContextListRun(opts *contextOptions) error {
 	if err != nil {
 		return err
 	}
+	// Capability gate before the API call: multi_turn is derived from ListContexts
+	// being wired, so a provider without it returns unsupported_capability.
+	if p.ListContexts == nil {
+		return capabilityError(opts.Ref, "context list", iagent.CapMultiTurn)
+	}
 	// Local scope preflight: after resolveProvider, before the API call.
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
 	contexts, err := p.ListContexts(opts.Cmd.Context())
 	if err != nil {
-		return convertUnsupported(opts.Ref, "context list", err)
+		return err
 	}
 	// pretty is a human view only; a --jq expression implies structured JSON.
 	if opts.Format == "pretty" && jqExpr(opts.Cmd) == "" {
@@ -163,13 +169,17 @@ func agentContextGetRun(opts *contextOptions) error {
 	if err != nil {
 		return err
 	}
+	// Capability gate before the API call.
+	if p.GetContext == nil {
+		return capabilityError(opts.Ref, "context get", iagent.CapMultiTurn)
+	}
 	// Local scope preflight: after resolveProvider, before the API call.
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
 	detail, err := p.GetContext(opts.Cmd.Context(), opts.CtxID)
 	if err != nil {
-		return convertUnsupported(opts.Ref, "context get", err)
+		return err
 	}
 	if detail != nil {
 		// Derive IsTerminal from State (single source of truth) for the embedded
@@ -208,12 +218,16 @@ func agentContextDeleteRun(opts *contextOptions) error {
 	if err != nil {
 		return err
 	}
+	// Capability gate before the API call.
+	if p.DeleteContext == nil {
+		return capabilityError(opts.Ref, "context delete", iagent.CapMultiTurn)
+	}
 	// Local scope preflight: after resolveProvider, before the API call.
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
 	if err := p.DeleteContext(opts.Cmd.Context(), opts.CtxID); err != nil {
-		return convertUnsupported(opts.Ref, "context delete", err)
+		return err
 	}
 	// pretty is a human view only; a --jq expression implies structured JSON.
 	if opts.Format == "pretty" && jqExpr(opts.Cmd) == "" {

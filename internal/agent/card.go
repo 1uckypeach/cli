@@ -3,6 +3,8 @@
 
 package agent
 
+import "context"
+
 // capability key constants (the JSON key names in capabilities, also the
 // capability identifiers used by Supports / capabilityError). Only capabilities
 // that "can change the AI's next command line and are currently deliverable" are
@@ -66,6 +68,49 @@ func NewCard(scheme, agentID string) *AgentCard {
 		Parameters:    []CardParam{},
 		AgentIDSource: info.AgentIDSource,
 	}
+}
+
+// DeriveCapabilities computes the capability matrix from which Provider fields
+// are wired — the single source of truth. The method-backed capabilities are
+// derived from the corresponding func field being non-nil (implement it =
+// support it); file_input / input_required are behavioral flags with no backing
+// method and are read straight from the struct. Send/GetTask are mandatory
+// (Register enforces), so task_get is always true.
+func DeriveCapabilities(p *Provider) Capabilities {
+	return Capabilities{
+		TaskGet:          p.GetTask != nil,
+		TaskList:         p.ListTasks != nil,
+		TaskCancel:       p.CancelTask != nil,
+		ArtifactDownload: p.DownloadArtifact != nil,
+		MultiTurn:        p.ListContexts != nil,
+		FileInput:        p.FileInput,
+		InputRequired:    p.InputRequired,
+	}
+}
+
+// BuildCard synthesizes an agent's full Card: NewCard fills the
+// registration-time fields, DeriveCapabilities fills the matrix from the wired
+// fields, and Describe (if the provider set it) supplies the per-agent
+// Name/Description/Parameters/Skills and validates the agent_id. A provider
+// therefore never assembles its own card or declares its own capability bools.
+func BuildCard(ctx context.Context, scheme, agentID string, p *Provider) (*AgentCard, error) {
+	card := NewCard(scheme, agentID)
+	card.Capabilities = DeriveCapabilities(p)
+	if p.Describe != nil {
+		info, err := p.Describe(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if info != nil {
+			card.Name = info.Name
+			card.Description = info.Description
+			if info.Parameters != nil {
+				card.Parameters = info.Parameters
+			}
+			card.Skills = info.Skills
+		}
+	}
+	return card, nil
 }
 
 // CardParam is one input parameter declared by a Card (used for --param validation).

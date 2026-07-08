@@ -11,23 +11,25 @@ import (
 )
 
 // CatalogEntry is the provider-neutral description of one predefined agent in a
-// catalog-type provider. It holds only fields the framework can consume
-// (enumeration / Card synthesis); a provider's private business fields (such as
-// the execution backend it points to) are maintained alongside in the
-// integrator's own package and do not enter framework types.
+// catalog-type provider. It holds only descriptive fields the framework can
+// consume (enumeration / Card metadata); capabilities are NOT declared here —
+// they are derived from which Provider func fields the integrator's Factory
+// wires for this agent (see agent/example). A provider's private business
+// fields (such as the execution backend it points to) are maintained alongside
+// in the integrator's own package and do not enter framework types.
 type CatalogEntry struct {
-	ID           string
-	Name         string
-	Description  string
-	Capabilities Capabilities
+	ID          string
+	Name        string
+	Description string
 }
 
 // StaticCatalog carries the common boilerplate of a catalog-type provider:
-// catalog enumeration (Discoverer semantics), per-agent rich Card (NewCard fills
-// in registration-time fields, the entry adds Name/Description/Capabilities), and
-// a typed validation error for unknown ids. Business differences (such as the
-// execution backend) are composed by the provider itself on the outer layer.
-// It is read-only after construction and safe for concurrent use.
+// catalog enumeration (the ListAgents field), per-agent Card metadata (Describe
+// returns the entry's Name/Description), and a typed validation error for
+// unknown ids. Capabilities are derived by the framework from the Provider
+// fields the integrator's Factory wires, not stored here. Business differences
+// (such as the execution backend) are composed by the provider itself on the
+// outer layer. It is read-only after construction and safe for concurrent use.
 type StaticCatalog struct {
 	scheme  string
 	entries map[string]CatalogEntry
@@ -61,20 +63,17 @@ func (c *StaticCatalog) ListAgents(ctx context.Context) ([]AgentSummary, error) 
 	return out, nil
 }
 
-// Card synthesizes the agent's rich card: NewCard fills in registration-time
-// fields (Provider/Label/Identity/AgentIDSource/empty Parameters), and the entry
-// adds the per-agent Name/Description/Capabilities. An unknown id returns the
-// typed error from Lookup.
-func (c *StaticCatalog) Card(agentID string) (*AgentCard, error) {
+// Describe returns the per-agent Card metadata (Name/Description) for agentID,
+// suitable as a Provider.Describe implementation: it validates the id (an
+// unknown id returns the typed error from Lookup) and leaves capability
+// derivation to the framework. Parameters/Skills are left empty; a provider
+// with declared parameters composes them on top.
+func (c *StaticCatalog) Describe(agentID string) (*CardInfo, error) {
 	e, err := c.Lookup(agentID)
 	if err != nil {
 		return nil, err
 	}
-	card := NewCard(c.scheme, agentID)
-	card.Name = e.Name
-	card.Description = e.Description
-	card.Capabilities = e.Capabilities
-	return card, nil
+	return &CardInfo{Name: e.Name, Description: e.Description}, nil
 }
 
 // Lookup fetches a catalog entry by id. An unknown id returns a typed

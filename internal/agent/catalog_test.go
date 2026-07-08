@@ -15,10 +15,8 @@ import (
 // testCatalogEntries is declared out of order to verify ListAgents sorting stability.
 func testCatalogEntries() []CatalogEntry {
 	return []CatalogEntry{
-		{ID: "zeta", Name: "Zeta 助手", Description: "z desc",
-			Capabilities: Capabilities{TaskGet: true}},
-		{ID: "alpha", Name: "Alpha 助手", Description: "a desc",
-			Capabilities: Capabilities{TaskGet: true, MultiTurn: true}},
+		{ID: "zeta", Name: "Zeta 助手", Description: "z desc"},
+		{ID: "alpha", Name: "Alpha 助手", Description: "a desc"},
 	}
 }
 
@@ -47,37 +45,21 @@ func TestStaticCatalogListAgentsSorted(t *testing.T) {
 	}
 }
 
-// TestStaticCatalogCard asserts Card = NewCard pre-filling registration-time fields
-// plus the entry filling in Name/Description/Capabilities.
-func TestStaticCatalogCard(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	Register("cattest", testInfo("cattest",
-		func(Deps, string) (Provider, error) { return &stubProvider{}, nil }))
-	info, _ := Info("cattest")
-
+// TestStaticCatalogDescribe asserts Describe returns the entry's per-agent
+// Name/Description (the framework fills registration fields and derives
+// capabilities from the wired Provider fields, so those are not Describe's job).
+func TestStaticCatalogDescribe(t *testing.T) {
 	c := NewStaticCatalog("cattest", testCatalogEntries())
-	card, err := c.Card("alpha")
+	info, err := c.Describe("alpha")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if card.Provider != "cattest" || card.AgentID != "alpha" {
-		t.Fatalf("provider/agent_id: %+v", card)
+	if info.Name != "Alpha 助手" || info.Description != "a desc" {
+		t.Fatalf("Describe should return the entry Name/Description, got %+v", info)
 	}
-	if card.ProviderLabel != info.Label || card.AgentIDSource != info.AgentIDSource {
-		t.Fatalf("registration-time fields should be pre-filled by NewCard: %+v", card)
-	}
-	if !reflect.DeepEqual(card.Identity, info.Identities) {
-		t.Fatalf("Identity should match the registered value: %+v", card.Identity)
-	}
-	if card.Parameters == nil {
-		t.Fatal("Parameters must not be nil (always emitted, empty is [])")
-	}
-	if card.Name != "Alpha 助手" || card.Description != "a desc" {
-		t.Fatalf("entry should fill in Name/Description: %+v", card)
-	}
-	wantCaps := Capabilities{TaskGet: true, MultiTurn: true}
-	if card.Capabilities != wantCaps {
-		t.Fatalf("entry should fill in Capabilities, want %+v got %+v", wantCaps, card.Capabilities)
+	// Describe carries no capabilities/parameters — those are the framework's job.
+	if len(info.Parameters) != 0 || len(info.Skills) != 0 {
+		t.Fatalf("Describe should not populate Parameters/Skills, got %+v", info)
 	}
 }
 
@@ -103,9 +85,9 @@ func TestStaticCatalogUnknownID(t *testing.T) {
 	if want := "运行 lark-cli agent list cattest 查看可用 agent"; ve.Hint != want {
 		t.Fatalf("hint should be %q, got %q", want, ve.Hint)
 	}
-	// Card goes through the same Lookup path.
-	if _, err := c.Card("nonexistent"); !errors.As(err, &ve) {
-		t.Fatalf("Card with an unknown id should return the same typed error, got %v", err)
+	// Describe goes through the same Lookup path.
+	if _, err := c.Describe("nonexistent"); !errors.As(err, &ve) {
+		t.Fatalf("Describe with an unknown id should return the same typed error, got %v", err)
 	}
 }
 

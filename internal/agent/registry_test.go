@@ -4,6 +4,7 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"strings"
@@ -18,6 +19,22 @@ func swapRegistry(t *testing.T, m map[string]ProviderInfo) {
 	saved := providerRegistry
 	providerRegistry = m
 	t.Cleanup(func() { providerRegistry = saved })
+}
+
+// okProvider is a minimal valid provider: it wires the two mandatory core fields
+// (Send/GetTask) so it passes Register's zero-Deps probe. Tests that need extra
+// capabilities set the fields on the returned struct.
+func okProvider() *Provider {
+	return &Provider{
+		Send:    func(context.Context, SendInput) (*AgentTask, error) { return nil, nil },
+		GetTask: func(context.Context, string) (*AgentTask, error) { return nil, nil },
+	}
+}
+
+// okFactory returns a Factory yielding okProvider — the default for cases that
+// only care about metadata/registry behavior, not capabilities.
+func okFactory() Factory {
+	return func(Deps, string) (*Provider, error) { return okProvider(), nil }
 }
 
 // testInfo builds a minimal ProviderInfo that passes Register validation
@@ -54,9 +71,9 @@ func mustPanic(t *testing.T, wantMsg string, fn func()) {
 // on metadata fields: missing Factory / Label / AgentRefFormat / AgentIDSource /
 // Identities, an invalid Kind, an invalid Identity Type, and an AgentRefFormat
 // that does not start with "<scheme>:" (panic messages must carry the actual
-// offending value).
+// offending value). Metadata validation runs before the probe, so a valid
+// okFactory keeps the probe from firing first.
 func TestRegisterPanicBranches(t *testing.T) {
-	nop := func(Deps, string) (Provider, error) { return nil, nil }
 	cases := []struct {
 		name    string
 		mutate  func(info *ProviderInfo)
@@ -78,7 +95,7 @@ func TestRegisterPanicBranches(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			swapRegistry(t, map[string]ProviderInfo{})
-			info := testInfo("bad", nop)
+			info := testInfo("bad", okFactory())
 			tc.mutate(&info)
 			mustPanic(t, tc.wantMsg, func() { Register("bad", info) })
 		})
@@ -88,39 +105,62 @@ func TestRegisterPanicBranches(t *testing.T) {
 // TestRegisterEmptyScheme pins the empty-scheme fail-fast branch.
 func TestRegisterEmptyScheme(t *testing.T) {
 	swapRegistry(t, map[string]ProviderInfo{})
-	nop := func(Deps, string) (Provider, error) { return nil, nil }
-	mustPanic(t, "empty scheme", func() { Register("", testInfo("", nop)) })
+	mustPanic(t, "empty scheme", func() { Register("", testInfo("", okFactory())) })
 }
 
 // TestRegisterDuplicateScheme pins the sql.Register-style dup panic.
 func TestRegisterDuplicateScheme(t *testing.T) {
 	swapRegistry(t, map[string]ProviderInfo{})
-	nop := func(Deps, string) (Provider, error) { return nil, nil }
-	Register("dup", testInfo("dup", nop))
-	mustPanic(t, "called twice for scheme: dup", func() { Register("dup", testInfo("dup", nop)) })
+	Register("dup", testInfo("dup", okFactory()))
+	mustPanic(t, "called twice for scheme: dup", func() { Register("dup", testInfo("dup", okFactory())) })
 }
 
 // TestRegisterFactoryZeroDepsProbe pins the registration-time zero-Deps probe:
 // a factory erroring under zero-value Deps is a contract violation and panics.
 func TestRegisterFactoryZeroDepsProbe(t *testing.T) {
 	swapRegistry(t, map[string]ProviderInfo{})
-	bad := func(Deps, string) (Provider, error) { return nil, errors.New("need client") }
+	bad := func(Deps, string) (*Provider, error) { return nil, errors.New("need client") }
 	mustPanic(t, "must accept zero-value Deps", func() { Register("zd", testInfo("zd", bad)) })
 }
 
-// TestRegisterCatalogRequiresDiscoverer pins the catalog-archetype MUST:
-// a KindCatalog provider whose probe instance lacks Discoverer panics.
-func TestRegisterCatalogRequiresDiscoverer(t *testing.T) {
+// TestRegisterNilProvider pins the probe's nil-Provider branch.
+func TestRegisterNilProvider(t *testing.T) {
 	swapRegistry(t, map[string]ProviderInfo{})
-	info := testInfo("cat", func(Deps, string) (Provider, error) { return &stubProvider{}, nil })
+	nilP := func(Deps, string) (*Provider, error) { return nil, nil }
+	mustPanic(t, "returned nil Provider", func() { Register("np", testInfo("np", nilP)) })
+}
+
+// TestRegisterMissingCore pins that the mandatory core fields are enforced at
+// registration: a provider missing Send or GetTask panics fail-fast.
+func TestRegisterMissingCore(t *testing.T) {
+	swapRegistry(t, map[string]ProviderInfo{})
+	noSend := func(Deps, string) (*Provider, error) {
+		return &Provider{GetTask: func(context.Context, string) (*AgentTask, error) { return nil, nil }}, nil
+	}
+	mustPanic(t, "missing core Send", func() { Register("ns", testInfo("ns", noSend)) })
+
+	swapRegistry(t, map[string]ProviderInfo{})
+	noGet := func(Deps, string) (*Provider, error) {
+		return &Provider{Send: func(context.Context, SendInput) (*AgentTask, error) { return nil, nil }}, nil
+	}
+	mustPanic(t, "missing core GetTask", func() { Register("ng", testInfo("ng", noGet)) })
+}
+
+// TestRegisterCatalogRequiresListAgents pins the catalog-archetype MUST:
+// a KindCatalog provider whose probe instance does not wire ListAgents panics.
+// The factory wires the core fields so the panic is specifically about ListAgents
+// (not a missing-core panic firing first).
+func TestRegisterCatalogRequiresListAgents(t *testing.T) {
+	swapRegistry(t, map[string]ProviderInfo{})
+	info := testInfo("cat", okFactory()) // okProvider wires Send/GetTask but not ListAgents
 	info.Kind = KindCatalog
-	mustPanic(t, "must implement Discoverer", func() { Register("cat", info) })
+	mustPanic(t, "must wire ListAgents", func() { Register("cat", info) })
 }
 
 func TestInfoReturnsRegisteredMetadata(t *testing.T) {
 	swapRegistry(t, map[string]ProviderInfo{})
 	Register("t1", ProviderInfo{
-		Factory:        func(Deps, string) (Provider, error) { return nil, nil },
+		Factory:        okFactory(),
 		Label:          "测试 provider",
 		AgentRefFormat: "t1:<agent_id>",
 		AgentIDSource:  "在 T1 控制台获取",
@@ -148,10 +188,12 @@ func TestRegistryUnknownScheme(t *testing.T) {
 
 func TestRegistryKnownScheme(t *testing.T) {
 	swapRegistry(t, map[string]ProviderInfo{})
-	// The factory passes the zero-value Deps probe (empty agentID) and only errors on a real construction, staying compatible with the registration-time probe.
-	Register("stub", testInfo("stub", func(f Deps, agentID string) (Provider, error) {
+	// The factory passes the zero-value Deps probe (empty agentID → a valid
+	// provider) and only errors on a real construction, staying compatible with
+	// the registration-time probe.
+	Register("stub", testInfo("stub", func(f Deps, agentID string) (*Provider, error) {
 		if agentID == "" {
-			return nil, nil
+			return okProvider(), nil
 		}
 		return nil, errors.New("stub called")
 	}))
@@ -170,11 +212,10 @@ func TestKnownSchemesEmpty(t *testing.T) {
 
 func TestRegisteredSchemesSorted(t *testing.T) {
 	swapRegistry(t, map[string]ProviderInfo{})
-	nop := func(Deps, string) (Provider, error) { return nil, nil }
 	// Register out of order to verify enumeration + sort stability.
-	Register("gamma", testInfo("gamma", nop))
-	Register("alpha", testInfo("alpha", nop))
-	Register("beta", testInfo("beta", nop))
+	Register("gamma", testInfo("gamma", okFactory()))
+	Register("alpha", testInfo("alpha", okFactory()))
+	Register("beta", testInfo("beta", okFactory()))
 	got := RegisteredSchemes()
 	want := []string{"alpha", "beta", "gamma"}
 	if !reflect.DeepEqual(got, want) {
@@ -209,10 +250,10 @@ func TestResolveUnknownScheme(t *testing.T) {
 
 func TestResolveSuccess(t *testing.T) {
 	swapRegistry(t, map[string]ProviderInfo{})
-	sentinel := &stubProvider{}
+	sentinel := okProvider()
 	var gotDeps Deps
 	var gotAgentID string
-	Register("demo", testInfo("demo", func(deps Deps, agentID string) (Provider, error) {
+	Register("demo", testInfo("demo", func(deps Deps, agentID string) (*Provider, error) {
 		gotDeps = deps
 		gotAgentID = agentID
 		return sentinel, nil
@@ -232,6 +273,3 @@ func TestResolveSuccess(t *testing.T) {
 		t.Fatalf("factory should receive the passed-in Deps, got %+v", gotDeps)
 	}
 }
-
-// stubProvider is an empty Provider implementation used only for Resolve success-path assertions.
-type stubProvider struct{ Provider }

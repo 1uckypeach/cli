@@ -71,7 +71,11 @@ func agentCardRun(opts *cardOptions) error {
 	if err != nil {
 		return err
 	}
-	card, err := p.Card(opts.Cmd.Context())
+	r, err := iagent.ParseRef(opts.Ref)
+	if err != nil {
+		return wrapRefResolveError(err)
+	}
+	card, err := iagent.BuildCard(opts.Cmd.Context(), r.Scheme, r.AgentID, p)
 	if err != nil {
 		return err
 	}

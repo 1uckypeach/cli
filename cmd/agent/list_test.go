@@ -231,15 +231,26 @@ func TestAgentListScheme_UnknownScheme(t *testing.T) {
 	}
 }
 
-// fakeDiscProvider is a test-only provider implementing Discoverer, to pin the
-// `agent list <scheme>` positive path without a real catalog provider.
-type fakeDiscProvider struct{ iagent.Provider }
+// stubCore wires the mandatory core fields onto a test *Provider; the list
+// tests never dispatch Send/GetTask (they only exercise ListAgents), but
+// Register requires both non-nil.
+func stubCore(p *iagent.Provider) *iagent.Provider {
+	p.Send = func(ctx context.Context, in iagent.SendInput) (*iagent.AgentTask, error) { return nil, nil }
+	p.GetTask = func(ctx context.Context, taskID string) (*iagent.AgentTask, error) { return nil, nil }
+	return p
+}
 
-func (p *fakeDiscProvider) ListAgents(ctx context.Context) ([]iagent.AgentSummary, error) {
-	return []iagent.AgentSummary{
-		{AgentRef: "fakedisc:a1", Name: "Agent One", Description: "第一个"},
-		{AgentRef: "fakedisc:a2", Name: "Agent Two"},
-	}, nil
+// newFakeDisc is a test-only enumerable provider (wires ListAgents), to pin the
+// `agent list <scheme>` positive path without a real catalog provider.
+func newFakeDisc() *iagent.Provider {
+	return stubCore(&iagent.Provider{
+		ListAgents: func(ctx context.Context) ([]iagent.AgentSummary, error) {
+			return []iagent.AgentSummary{
+				{AgentRef: "fakedisc:a1", Name: "Agent One", Description: "第一个"},
+				{AgentRef: "fakedisc:a2", Name: "Agent Two"},
+			}, nil
+		},
+	})
 }
 
 // registerFakeDisc registers the fakedisc scheme. Like fakepause in
@@ -248,7 +259,7 @@ func (p *fakeDiscProvider) ListAgents(ctx context.Context) ([]iagent.AgentSummar
 // provider set or provider count.
 func registerFakeDisc() {
 	iagent.Register("fakedisc", iagent.ProviderInfo{
-		Factory:        func(deps iagent.Deps, agentID string) (iagent.Provider, error) { return &fakeDiscProvider{}, nil },
+		Factory:        func(deps iagent.Deps, agentID string) (*iagent.Provider, error) { return newFakeDisc(), nil },
 		Label:          "test fake (discoverer)",
 		AgentRefFormat: "fakedisc:<agent_id>",
 		AgentIDSource:  "test only",
@@ -296,9 +307,9 @@ func TestAgentListScheme_DiscovererListsAgents(t *testing.T) {
 func TestAgentListScheme_PropagatesIdentity(t *testing.T) {
 	var captured iagent.Deps
 	iagent.Register("fakedeps", iagent.ProviderInfo{
-		Factory: func(deps iagent.Deps, agentID string) (iagent.Provider, error) {
+		Factory: func(deps iagent.Deps, agentID string) (*iagent.Provider, error) {
 			captured = deps
-			return &fakeDiscProvider{}, nil
+			return newFakeDisc(), nil
 		},
 		Label:          "test fake (deps capture)",
 		AgentRefFormat: "fakedeps:<agent_id>",
@@ -324,14 +335,16 @@ func TestAgentListScheme_PropagatesIdentity(t *testing.T) {
 	}
 }
 
-// dirtyNameProvider is a Discoverer whose agent names carry ANSI escapes, to
-// pin the pretty-path sanitization of agent-controlled fields.
-type dirtyNameProvider struct{ iagent.Provider }
-
-func (p *dirtyNameProvider) ListAgents(ctx context.Context) ([]iagent.AgentSummary, error) {
-	return []iagent.AgentSummary{
-		{AgentRef: "fakedirty:a1", Name: "\x1b[31mEvil\x1b[0m One", Description: "d\x1b[2Jesc"},
-	}, nil
+// newDirtyName is an enumerable provider whose agent names carry ANSI escapes,
+// to pin the pretty-path sanitization of agent-controlled fields.
+func newDirtyName() *iagent.Provider {
+	return stubCore(&iagent.Provider{
+		ListAgents: func(ctx context.Context) ([]iagent.AgentSummary, error) {
+			return []iagent.AgentSummary{
+				{AgentRef: "fakedirty:a1", Name: "\x1b[31mEvil\x1b[0m One", Description: "d\x1b[2Jesc"},
+			}, nil
+		},
+	})
 }
 
 // TestAgentListScheme_PrettyStripsANSI pins the Task 10 review item: `agent list
@@ -339,7 +352,7 @@ func (p *dirtyNameProvider) ListAgents(ctx context.Context) ([]iagent.AgentSumma
 // Name/Description before they reach the terminal.
 func TestAgentListScheme_PrettyStripsANSI(t *testing.T) {
 	iagent.Register("fakedirty", iagent.ProviderInfo{
-		Factory:        func(deps iagent.Deps, agentID string) (iagent.Provider, error) { return &dirtyNameProvider{}, nil },
+		Factory:        func(deps iagent.Deps, agentID string) (*iagent.Provider, error) { return newDirtyName(), nil },
 		Label:          "test fake (dirty names)",
 		AgentRefFormat: "fakedirty:<agent_id>",
 		AgentIDSource:  "test only",

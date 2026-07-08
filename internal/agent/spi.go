@@ -3,8 +3,6 @@
 
 package agent
 
-import "context"
-
 // IdentityType is the closed set of values for IdentitySpec.Type (validated at
 // Register time to guard against typos).
 type IdentityType string
@@ -25,13 +23,4 @@ type AgentSummary struct {
 	AgentRef    string `json:"agent_ref"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
-}
-
-// Discoverer is implemented by providers that can enumerate their own agents
-// (required for catalog types, asserted at Register time; instance types
-// implement it once the server-side List API is ready).
-// The implementer's factory must support construction with zero-value Deps
-// (a prerequisite for probing; see the ProviderInfo.Factory contract).
-type Discoverer interface {
-	ListAgents(ctx context.Context) ([]AgentSummary, error)
 }
