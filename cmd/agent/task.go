@@ -48,19 +48,23 @@ type taskOptions struct {
 // preflight, and fetches the artifact descriptor. Tests swap it to return
 // inline bytes without a Factory / network.
 var resolveDownload = func(opts *taskOptions) (*iagent.ArtifactData, error) {
-	p, id, err := resolveProvider(opts.Factory, opts.Cmd, opts.Ref, opts.As)
+	_, spec, agentID, id, err := resolveSpec(opts.Factory, opts.Cmd, opts.Ref, opts.As)
 	if err != nil {
 		return nil, err
 	}
-	// Capability gate before the API call: a provider that does not wire
+	// Capability gate before any network: a spec that does not wire
 	// DownloadArtifact (card artifact_download=false) returns unsupported_capability.
-	if p.DownloadArtifact == nil {
+	if spec.DownloadArtifact == nil {
 		return nil, capabilityError(opts.Ref, "artifact download", iagent.CapArtifactDownload)
+	}
+	rt, err := runtimeFor(opts.Factory, id, agentID)
+	if err != nil {
+		return nil, err
 	}
 	if err := preflightScopesForRef(opts.Factory, id, opts.Ref); err != nil {
 		return nil, err
 	}
-	return p.DownloadArtifact(opts.Cmd.Context(), opts.TaskID, opts.ArtifactID)
+	return spec.DownloadArtifact(opts.Cmd.Context(), rt, opts.TaskID, opts.ArtifactID)
 }
 
 // artifactFetch is the URL-download seam: it SSRF-validates rawURL and fetches
@@ -222,17 +226,21 @@ func agentTaskGetRun(opts *taskOptions) error {
 	}
 
 	f := opts.Factory
-	p, id, err := resolveProvider(f, opts.Cmd, opts.Ref, opts.As)
+	_, spec, agentID, id, err := resolveSpec(f, opts.Cmd, opts.Ref, opts.As)
 	if err != nil {
 		return err
 	}
-	// Local scope preflight: after resolveProvider, before the API call.
+	rt, err := runtimeFor(f, id, agentID)
+	if err != nil {
+		return err
+	}
+	// Local scope preflight: after runtimeFor, before the API call.
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
 
 	ctx := opts.Cmd.Context()
-	task, err := p.GetTask(ctx, opts.TaskID)
+	task, err := spec.GetTask(ctx, rt, opts.TaskID)
 	if err != nil {
 		return err
 	}
@@ -249,7 +257,9 @@ func agentTaskGetRun(opts *taskOptions) error {
 			pollCtx, cancel = context.WithTimeout(ctx, opts.Timeout)
 			defer cancel()
 		}
-		final, perr := pollToStop(pollCtx, p, opts.TaskID)
+		final, perr := pollToStop(pollCtx, func(c context.Context, tid string) (*iagent.AgentTask, error) {
+			return spec.GetTask(c, rt, tid)
+		}, opts.TaskID)
 		if perr != nil {
 			return perr
 		}
@@ -276,20 +286,24 @@ func agentTaskGetRun(opts *taskOptions) error {
 // (optionally filtered by --context-id) and emits {tasks:[...]} with meta.count.
 func agentTaskListRun(opts *taskOptions) error {
 	f := opts.Factory
-	p, id, err := resolveProvider(f, opts.Cmd, opts.Ref, opts.As)
+	_, spec, agentID, id, err := resolveSpec(f, opts.Cmd, opts.Ref, opts.As)
 	if err != nil {
 		return err
 	}
-	// Capability gate before the API call: a provider that does not wire
-	// ListTasks (card task_list=false) returns unsupported_capability.
-	if p.ListTasks == nil {
+	// Capability gate BEFORE building the client: a spec that does not wire
+	// ListTasks (card task_list=false) returns unsupported_capability offline.
+	if spec.ListTasks == nil {
 		return capabilityError(opts.Ref, "task list", iagent.CapTaskList)
 	}
-	// Local scope preflight: after resolveProvider, before the API call.
+	rt, err := runtimeFor(f, id, agentID)
+	if err != nil {
+		return err
+	}
+	// Local scope preflight: after runtimeFor, before the API call.
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
-	tasks, err := p.ListTasks(opts.Cmd.Context(), opts.ContextID)
+	tasks, err := spec.ListTasks(opts.Cmd.Context(), rt, opts.ContextID)
 	if err != nil {
 		return err
 	}
@@ -313,37 +327,32 @@ func agentTaskListRun(opts *taskOptions) error {
 	return nil
 }
 
-// agentTaskCancelRun runs `task cancel`. Cancel is capability-gated before any
-// network access: it resolves the (statically synthesized) Card for ref and, if
-// task_cancel is not supported, returns unsupported_capability without a Factory
-// or API call. Only a supporting provider reaches resolveProvider +
-// CancelTask.
+// agentTaskCancelRun runs `task cancel`. Cancel is capability-gated offline
+// (right after resolveSpec, before the client is built): a spec that does not
+// wire CancelTask (card task_cancel=false, e.g. example:echo) returns
+// unsupported_capability without any API access. Only a supporting spec reaches
+// runtimeFor + CancelTask.
 func agentTaskCancelRun(opts *taskOptions) error {
-	// Gate before requiring a Factory / network: resolve with zero Deps and read
-	// the CancelTask capability (a wired field == card task_cancel=true). An agent
-	// that does not support cancel (e.g. example:echo) returns
-	// unsupported_capability with no Factory or API access.
-	probe, err := iagent.Resolve(opts.Ref, iagent.Deps{})
-	if err != nil {
-		return wrapRefResolveError(err)
-	}
-	if probe.CancelTask == nil {
-		return capabilityError(opts.Ref, "task cancel", iagent.CapTaskCancel)
-	}
-
 	f := opts.Factory
-	p, id, err := resolveProvider(f, opts.Cmd, opts.Ref, opts.As)
+	_, spec, agentID, id, err := resolveSpec(f, opts.Cmd, opts.Ref, opts.As)
 	if err != nil {
 		return err
 	}
-	// Local scope preflight: after resolveProvider, before the API call.
-	// A task_cancel=false agent never reaches here (gated above); it is wired so
-	// a provider that supports cancel is not silently exempt from the
-	// all-or-nothing scope check.
+	if spec.CancelTask == nil {
+		return capabilityError(opts.Ref, "task cancel", iagent.CapTaskCancel)
+	}
+	rt, err := runtimeFor(f, id, agentID)
+	if err != nil {
+		return err
+	}
+	// Local scope preflight: after runtimeFor, before the API call. A
+	// task_cancel=false agent never reaches here (gated above); it is wired so a
+	// provider that supports cancel is not silently exempt from the all-or-nothing
+	// scope check.
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
-	if err := p.CancelTask(opts.Cmd.Context(), opts.TaskID); err != nil {
+	if err := spec.CancelTask(opts.Cmd.Context(), rt, opts.TaskID); err != nil {
 		return err
 	}
 	// pretty is a human view only; a --jq expression implies structured JSON.

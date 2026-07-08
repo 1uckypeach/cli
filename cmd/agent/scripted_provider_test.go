@@ -12,11 +12,10 @@ import (
 )
 
 // scriptedHooks scripts a fake provider's behavior per test. Each hook maps to
-// one Provider func field; an unset hook that gets called panics — a tripwire
-// against a test reaching an unexpected provider path. This replaces the old
-// pattern of driving the (removed) real-OAPI adapter through httpmock stubs:
-// the command-layer contracts under test (envelope shape, watch exit codes,
-// meta.next, pretty rendering, error propagation) are provider-neutral.
+// one AgentSpec verb; an unset hook that gets called panics — a tripwire against
+// a test reaching an unexpected provider path. The command-layer contracts under
+// test (envelope shape, watch exit codes, meta.next, pretty rendering, error
+// propagation) are provider-neutral, so the scripted hooks ignore the Runtime.
 type scriptedHooks struct {
 	send             func(in iagent.SendInput) (*iagent.AgentTask, error)
 	getTask          func(taskID string) (*iagent.AgentTask, error)
@@ -27,8 +26,8 @@ type scriptedHooks struct {
 	downloadArtifact func(taskID, artifactID string) (*iagent.ArtifactData, error)
 }
 
-// scripted is the package-level hook set shared by every scripted provider
-// instance (the registry factory cannot be re-pointed per test, the hooks can).
+// scripted is the package-level hook set shared by every scripted instance (the
+// registered provider is fixed per package run, the hooks can be re-pointed).
 var scripted scriptedHooks
 
 // setScripted installs the hooks for one test and restores the empty (panic
@@ -39,64 +38,63 @@ func setScripted(t *testing.T, h scriptedHooks) {
 	t.Cleanup(func() { scripted = scriptedHooks{} })
 }
 
-// newScriptedProvider builds a scripted *Provider. Its capability surface is
-// fixed by which fields are wired (the framework derives the card from this):
-// CancelTask is deliberately left unwired so task_cancel=false (the command
-// layer's cancel gate is exercised via example:echo); everything else the
-// command tests drive is wired, and FileInput=true so the --file gate/confirm
-// path is reachable. Each wired func delegates to the per-test hook and panics
-// if that hook was not set (tripwire against an unexpected provider path).
-func newScriptedProvider() *iagent.Provider {
-	return &iagent.Provider{
-		Send: func(ctx context.Context, in iagent.SendInput) (*iagent.AgentTask, error) {
+// scriptedSpec is the instance template whose capability surface is fixed by
+// which hooks are wired: CancelTask is deliberately left UNWIRED so
+// task_cancel=false (the cancel gate is exercised via example:echo); everything
+// else the command tests drive is wired, and FileInput=true so the --file
+// gate/confirm path is reachable. Each wired hook delegates to the per-test hook
+// and panics if it was not set.
+func scriptedSpec() *iagent.AgentSpec {
+	return &iagent.AgentSpec{
+		FileInput: true,
+		Send: func(_ context.Context, _ iagent.Runtime, in iagent.SendInput) (*iagent.AgentTask, error) {
 			if scripted.send == nil {
 				panic("scripted provider: Send hook not set")
 			}
 			return scripted.send(in)
 		},
-		GetTask: func(ctx context.Context, taskID string) (*iagent.AgentTask, error) {
+		GetTask: func(_ context.Context, _ iagent.Runtime, taskID string) (*iagent.AgentTask, error) {
 			if scripted.getTask == nil {
 				panic("scripted provider: GetTask hook not set")
 			}
 			return scripted.getTask(taskID)
 		},
-		ListTasks: func(ctx context.Context, contextID string) ([]iagent.TaskSummary, error) {
+		ListTasks: func(_ context.Context, _ iagent.Runtime, contextID string) ([]iagent.TaskSummary, error) {
 			if scripted.listTasks == nil {
 				panic("scripted provider: ListTasks hook not set")
 			}
 			return scripted.listTasks(contextID)
 		},
-		ListContexts: func(ctx context.Context) ([]iagent.ContextSummary, error) {
+		ListContexts: func(_ context.Context, _ iagent.Runtime) ([]iagent.ContextSummary, error) {
 			if scripted.listContexts == nil {
 				panic("scripted provider: ListContexts hook not set")
 			}
 			return scripted.listContexts()
 		},
-		GetContext: func(ctx context.Context, ctxID string) (*iagent.ContextDetail, error) {
+		GetContext: func(_ context.Context, _ iagent.Runtime, ctxID string) (*iagent.ContextDetail, error) {
 			if scripted.getContext == nil {
 				panic("scripted provider: GetContext hook not set")
 			}
 			return scripted.getContext(ctxID)
 		},
-		DeleteContext: func(ctx context.Context, ctxID string) error {
+		DeleteContext: func(_ context.Context, _ iagent.Runtime, ctxID string) error {
 			if scripted.deleteContext == nil {
 				panic("scripted provider: DeleteContext hook not set")
 			}
 			return scripted.deleteContext(ctxID)
 		},
-		DownloadArtifact: func(ctx context.Context, taskID, artifactID string) (*iagent.ArtifactData, error) {
+		DownloadArtifact: func(_ context.Context, _ iagent.Runtime, taskID, artifactID string) (*iagent.ArtifactData, error) {
 			if scripted.downloadArtifact == nil {
 				panic("scripted provider: DownloadArtifact hook not set")
 			}
 			return scripted.downloadArtifact(taskID, artifactID)
 		},
-		FileInput: true,
 	}
 }
 
 // fakescopedAllScopes is the full RequiredScopes set of the fakescoped test
-// provider, sorted — the all-or-nothing preflight requires every one of these
-// for any real API verb.
+// provider, sorted — the all-or-nothing preflight requires every one for any
+// real API verb.
 var fakescopedAllScopes = []string{
 	"fakescoped:agent_artifact:read",
 	"fakescoped:agent_attachment:write",
@@ -109,38 +107,30 @@ var fakescopedAllScopes = []string{
 const fakeflowAgentIDSource = "在 fakeflow 测试控制台获取 agent_id（形如 agt_xxx）"
 
 // registerScripted registers the two scripted schemes exactly once (Register
-// panics on duplicates). Like the other fakes they leak into the package-level
-// registry for the remaining tests of this package run — so no test in this
-// package may assert an exact provider set or provider count.
+// panics on duplicates). Both are instance-type (agent_id is arbitrary), and not
+// enumerable (no ListAgents hook). They leak into the package-level registry for
+// the rest of this package run — so no test may assert an exact provider set.
 //
-//   - fakeflow: instance kind, no RequiredScopes (preflight always passes) —
-//     the workhorse for send/task/context command-layer tests.
-//   - fakescoped: same behavior but declares a 4-scope RequiredScopes set, for
-//     the scope-preflight framework tests.
+//   - fakeflow: no RequiredScopes (preflight always passes) — the workhorse.
+//   - fakescoped: a 4-scope RequiredScopes set, for the scope-preflight tests.
 var registerScriptedOnce sync.Once
 
 func registerScripted() {
 	registerScriptedOnce.Do(func() {
-		iagent.Register("fakeflow", iagent.ProviderInfo{
-			Factory: func(deps iagent.Deps, agentID string) (*iagent.Provider, error) {
-				return newScriptedProvider(), nil
-			},
-			Label:          "test fake (scripted flow)",
-			AgentRefFormat: "fakeflow:<agent_id>",
-			AgentIDSource:  fakeflowAgentIDSource,
-			Kind:           iagent.KindInstance,
-			Identities:     []iagent.IdentitySpec{{Type: iagent.IdentityUser}, {Type: iagent.IdentityBot}},
+		iagent.Register(iagent.Provider{
+			Scheme:        "fakeflow",
+			Label:         "test fake (scripted flow)",
+			AgentIDSource: fakeflowAgentIDSource,
+			Identities:    []iagent.IdentitySpec{{Type: iagent.IdentityUser}, {Type: iagent.IdentityBot}},
+			Instance:      scriptedSpec(),
 		})
-		iagent.Register("fakescoped", iagent.ProviderInfo{
-			Factory: func(deps iagent.Deps, agentID string) (*iagent.Provider, error) {
-				return newScriptedProvider(), nil
-			},
+		iagent.Register(iagent.Provider{
+			Scheme:         "fakescoped",
 			Label:          "test fake (scoped)",
-			AgentRefFormat: "fakescoped:<agent_id>",
 			AgentIDSource:  "test only",
-			Kind:           iagent.KindInstance,
 			RequiredScopes: fakescopedAllScopes,
 			Identities:     []iagent.IdentitySpec{{Type: iagent.IdentityUser}, {Type: iagent.IdentityBot}},
+			Instance:       scriptedSpec(),
 		})
 	})
 }

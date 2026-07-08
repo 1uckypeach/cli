@@ -23,14 +23,14 @@ import (
 // scopedInfo fetches the registered fakescoped ProviderInfo (4 RequiredScopes,
 // see scripted_provider_test.go) — the all-or-nothing preflight requires every
 // one of fakescopedAllScopes for any real API verb.
-func scopedInfo(t *testing.T) iagent.ProviderInfo {
+func scopedInfo(t *testing.T) iagent.Provider {
 	t.Helper()
 	registerScripted()
-	info, ok := iagent.Info("fakescoped")
+	prov, ok := iagent.Info("fakescoped")
 	if !ok {
 		t.Fatal("fakescoped provider should be registered")
 	}
-	return info
+	return prov
 }
 
 // requirePreflightError asserts err is the missing_scope permission error
@@ -64,7 +64,7 @@ func TestPreflightReportsAllMissingWithMergedHint(t *testing.T) {
 	err := preflightScopes(preflightInput{
 		Identity:    core.AsUser,
 		TokenScopes: []string{"im:message", "fakescoped:agent_chat:write"},
-		Info:        scopedInfo(t),
+		Provider:    scopedInfo(t),
 	})
 	ve := requirePreflightError(t, err)
 
@@ -88,7 +88,7 @@ func TestPreflightBotSkipped(t *testing.T) {
 	err := preflightScopes(preflightInput{
 		Identity:    core.AsBot,
 		TokenScopes: nil,
-		Info:        scopedInfo(t),
+		Provider:    scopedInfo(t),
 	})
 	if err != nil {
 		t.Fatalf("bot identity should skip preflight, got %v", err)
@@ -102,7 +102,7 @@ func TestPreflightNoTokenScopesReturnsNil(t *testing.T) {
 	err := preflightScopes(preflightInput{
 		Identity:    core.AsUser,
 		TokenScopes: nil,
-		Info:        scopedInfo(t),
+		Provider:    scopedInfo(t),
 	})
 	if err != nil {
 		t.Fatalf("no token scope list should return nil, got %v", err)
@@ -113,7 +113,7 @@ func TestPreflightNoTokenScopesReturnsNil(t *testing.T) {
 // fakescoped scopes passes the all-or-nothing check.
 func TestPreflightAllScopesPresent(t *testing.T) {
 	if err := preflightScopes(preflightInput{
-		Identity: core.AsUser, TokenScopes: fakescopedAllScopes, Info: scopedInfo(t),
+		Identity: core.AsUser, TokenScopes: fakescopedAllScopes, Provider: scopedInfo(t),
 	}); err != nil {
 		t.Errorf("should pass when all scopes present, got %v", err)
 	}
@@ -130,7 +130,7 @@ func TestPreflightMissingAnyScopeFails(t *testing.T) {
 		TokenScopes: []string{
 			"fakescoped:agent_chat:write", "fakescoped:agent_chat:read", "fakescoped:agent_artifact:read",
 		},
-		Info: scopedInfo(t),
+		Provider: scopedInfo(t),
 	}))
 	if !reflect.DeepEqual(ve.MissingScopes, []string{"fakescoped:agent_attachment:write"}) {
 		t.Errorf("when only attachment is missing, missing_scopes should be [fakescoped:agent_attachment:write], got %v", ve.MissingScopes)
@@ -138,7 +138,7 @@ func TestPreflightMissingAnyScopeFails(t *testing.T) {
 
 	// Only the write scope → the other three are all reported.
 	ve = requirePreflightError(t, preflightScopes(preflightInput{
-		Identity: core.AsUser, TokenScopes: []string{"fakescoped:agent_chat:write"}, Info: scopedInfo(t),
+		Identity: core.AsUser, TokenScopes: []string{"fakescoped:agent_chat:write"}, Provider: scopedInfo(t),
 	}))
 	wantMissing := []string{"fakescoped:agent_artifact:read", "fakescoped:agent_attachment:write", "fakescoped:agent_chat:read"}
 	if !reflect.DeepEqual(ve.MissingScopes, wantMissing) {

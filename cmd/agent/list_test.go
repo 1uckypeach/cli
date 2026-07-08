@@ -60,25 +60,25 @@ func TestAgentListRun_ProviderFieldsV2(t *testing.T) {
 	if err := agentListRun(opts); err != nil {
 		t.Fatalf("list should not error: %v", err)
 	}
-	info, ok := iagent.Info("example")
+	prov, ok := iagent.Info("example")
 	if !ok {
-		t.Fatal("the example provider should already be registered (blank import in agent.go)")
+		t.Fatal("the example provider should already be registered (top-level agent blank import)")
 	}
 	p := findProvider(decodeProviders(t, out), "example")
 	if p == nil {
 		t.Fatalf("list should include the example provider: %s", out.String())
 	}
-	if p["label"] != info.Label {
-		t.Errorf("label should come from ProviderInfo.Label %q, got %v", info.Label, p["label"])
+	if p["label"] != prov.Label {
+		t.Errorf("label should come from Provider.Label %q, got %v", prov.Label, p["label"])
 	}
-	if p["agent_ref_format"] != info.AgentRefFormat {
-		t.Errorf("agent_ref_format should come from ProviderInfo.AgentRefFormat %q, got %v", info.AgentRefFormat, p["agent_ref_format"])
+	if p["agent_ref_format"] != prov.AgentRefFormat() {
+		t.Errorf("agent_ref_format should come from Provider.AgentRefFormat() %q, got %v", prov.AgentRefFormat(), p["agent_ref_format"])
 	}
-	if p["kind"] != string(info.Kind) {
-		t.Errorf("kind should come from ProviderInfo.Kind %q, got %v", info.Kind, p["kind"])
+	if p["kind"] != string(prov.Kind()) {
+		t.Errorf("kind should come from Provider.Kind() %q, got %v", prov.Kind(), p["kind"])
 	}
-	if p["agent_id_source"] != info.AgentIDSource {
-		t.Errorf("agent_id_source should come from ProviderInfo.AgentIDSource, got %v", p["agent_id_source"])
+	if p["agent_id_source"] != prov.AgentIDSource {
+		t.Errorf("agent_id_source should come from Provider.AgentIDSource, got %v", p["agent_id_source"])
 	}
 	if _, present := p["description"]; present {
 		t.Errorf("the old description field should be removed (double-source with label), got %v", p)
@@ -231,47 +231,37 @@ func TestAgentListScheme_UnknownScheme(t *testing.T) {
 	}
 }
 
-// stubCore wires the mandatory core fields onto a test *Provider; the list
-// tests never dispatch Send/GetTask (they only exercise ListAgents), but
-// Register requires both non-nil.
-func stubCore(p *iagent.Provider) *iagent.Provider {
-	p.Send = func(ctx context.Context, in iagent.SendInput) (*iagent.AgentTask, error) { return nil, nil }
-	p.GetTask = func(ctx context.Context, taskID string) (*iagent.AgentTask, error) { return nil, nil }
-	return p
+// catSpec builds a catalog AgentSpec with the mandatory core hooks (the list
+// tests only exercise enumeration, never Send/GetTask, but Register requires
+// both non-nil).
+func catSpec(id, name, desc string) iagent.AgentSpec {
+	return iagent.AgentSpec{
+		ID: id, Name: name, Description: desc,
+		Send:    func(context.Context, iagent.Runtime, iagent.SendInput) (*iagent.AgentTask, error) { return nil, nil },
+		GetTask: func(context.Context, iagent.Runtime, string) (*iagent.AgentTask, error) { return nil, nil },
+	}
 }
 
-// newFakeDisc is a test-only enumerable provider (wires ListAgents), to pin the
-// `agent list <scheme>` positive path without a real catalog provider.
-func newFakeDisc() *iagent.Provider {
-	return stubCore(&iagent.Provider{
-		ListAgents: func(ctx context.Context) ([]iagent.AgentSummary, error) {
-			return []iagent.AgentSummary{
-				{AgentRef: "fakedisc:a1", Name: "Agent One", Description: "第一个"},
-				{AgentRef: "fakedisc:a2", Name: "Agent Two"},
-			}, nil
+// registerFakeDisc registers a catalog scheme with two entries. Its enumeration
+// is derived offline from the static Catalog. It leaks into the package-level
+// registry for the rest of this package run.
+func registerFakeDisc() {
+	iagent.Register(iagent.Provider{
+		Scheme:        "fakedisc",
+		Label:         "test fake (catalog)",
+		AgentIDSource: "test only",
+		Identities:    []iagent.IdentitySpec{{Type: iagent.IdentityUser}},
+		Catalog: []iagent.AgentSpec{
+			catSpec("a1", "Agent One", "第一个"),
+			catSpec("a2", "Agent Two", ""),
 		},
 	})
 }
 
-// registerFakeDisc registers the fakedisc scheme. Like fakepause in
-// send_test.go this leaks into the package-level registry for the remaining
-// tests of this package run — so no test in this package may assert an exact
-// provider set or provider count.
-func registerFakeDisc() {
-	iagent.Register("fakedisc", iagent.ProviderInfo{
-		Factory:        func(deps iagent.Deps, agentID string) (*iagent.Provider, error) { return newFakeDisc(), nil },
-		Label:          "test fake (discoverer)",
-		AgentRefFormat: "fakedisc:<agent_id>",
-		AgentIDSource:  "test only",
-		Kind:           iagent.KindCatalog,
-		Identities:     []iagent.IdentitySpec{{Type: iagent.IdentityUser}},
-	})
-}
-
-// TestAgentListScheme_DiscovererListsAgents pins the positive path: a
-// provider implementing Discoverer yields {agents:[AgentSummary...]} plus
-// meta.count.
-func TestAgentListScheme_DiscovererListsAgents(t *testing.T) {
+// TestAgentListScheme_CatalogListsAgents pins the catalog positive path: a
+// catalog provider enumerates its static entries offline into
+// {agents:[AgentSummary...]} + meta.count (sorted by AgentRef).
+func TestAgentListScheme_CatalogListsAgents(t *testing.T) {
 	registerFakeDisc()
 	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
 	f, _, _, _ := cmdutil.TestFactory(t, cfg)
@@ -301,63 +291,58 @@ func TestAgentListScheme_DiscovererListsAgents(t *testing.T) {
 	}
 }
 
-// TestAgentListScheme_PropagatesIdentity pins the Task 10 review item: the
-// provider rebuilt for the real ListAgents call must carry the resolved
-// identity in its Deps (aligned with resolveProvider), not a zero As.
-func TestAgentListScheme_PropagatesIdentity(t *testing.T) {
-	var captured iagent.Deps
-	iagent.Register("fakedeps", iagent.ProviderInfo{
-		Factory: func(deps iagent.Deps, agentID string) (*iagent.Provider, error) {
-			captured = deps
-			return newFakeDisc(), nil
+// TestAgentListScheme_InstanceListAgentsOnline pins the instance online path: an
+// instance provider that wires the optional ListAgents hook enumerates via it,
+// and the hook receives an identity-pinned runtime (not nil).
+func TestAgentListScheme_InstanceListAgentsOnline(t *testing.T) {
+	var gotRT iagent.Runtime
+	spec := catSpec("", "", "")
+	iagent.Register(iagent.Provider{
+		Scheme:        "fakelive",
+		Label:         "test fake (instance live-enum)",
+		AgentIDSource: "test only",
+		Identities:    []iagent.IdentitySpec{{Type: iagent.IdentityUser}, {Type: iagent.IdentityBot}},
+		Instance:      &spec,
+		ListAgents: func(_ context.Context, rt iagent.Runtime) ([]iagent.AgentSummary, error) {
+			gotRT = rt
+			return []iagent.AgentSummary{{AgentRef: "fakelive:x", Name: "Live X"}}, nil
 		},
-		Label:          "test fake (deps capture)",
-		AgentRefFormat: "fakedeps:<agent_id>",
-		AgentIDSource:  "test only",
-		Kind:           iagent.KindCatalog,
-		Identities:     []iagent.IdentitySpec{{Type: iagent.IdentityUser}},
 	})
 
 	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
 	f, _, _, _ := cmdutil.TestFactory(t, cfg)
 	cmd := &cobra.Command{Use: "list"}
+	cmd.Flags().String("as", "", "identity")
 	cmd.SetContext(context.Background())
-	opts := &listOptions{Factory: f, Cmd: cmd, Format: "json", Scheme: "fakedeps"}
+	opts := &listOptions{Factory: f, Cmd: cmd, Format: "json", Scheme: "fakelive"}
+	out := f.IOStreams.Out.(interface{ Bytes() []byte })
 
 	if err := agentListRun(opts); err != nil {
-		t.Fatalf("list fakedeps should not error: %v", err)
+		t.Fatalf("list fakelive should not error: %v", err)
 	}
-	if captured.As == "" {
-		t.Error("the rebuilt provider's Deps.As should carry the resolved identity, got empty")
+	if gotRT == nil {
+		t.Error("the ListAgents hook should receive a non-nil identity-pinned runtime")
 	}
-	if captured.As != f.ResolvedIdentity {
-		t.Errorf("Deps.As should match the Factory's resolved identity, got %q vs %q", captured.As, f.ResolvedIdentity)
+	var env output.Envelope
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("output should be valid envelope JSON: %v (%s)", err, string(out.Bytes()))
+	}
+	data, _ := env.Data.(map[string]interface{})
+	if agents, _ := data["agents"].([]interface{}); len(agents) != 1 {
+		t.Fatalf("data.agents should have 1 entry, got %v", data["agents"])
 	}
 }
 
-// newDirtyName is an enumerable provider whose agent names carry ANSI escapes,
-// to pin the pretty-path sanitization of agent-controlled fields.
-func newDirtyName() *iagent.Provider {
-	return stubCore(&iagent.Provider{
-		ListAgents: func(ctx context.Context) ([]iagent.AgentSummary, error) {
-			return []iagent.AgentSummary{
-				{AgentRef: "fakedirty:a1", Name: "\x1b[31mEvil\x1b[0m One", Description: "d\x1b[2Jesc"},
-			}, nil
-		},
-	})
-}
-
-// TestAgentListScheme_PrettyStripsANSI pins the Task 10 review item: `agent list
-// <scheme> --format pretty` must strip ANSI escapes from the agent-controlled
-// Name/Description before they reach the terminal.
+// TestAgentListScheme_PrettyStripsANSI pins that `agent list <scheme> --format
+// pretty` strips ANSI escapes from agent-controlled Name/Description (here from
+// static catalog entries) before they reach the terminal.
 func TestAgentListScheme_PrettyStripsANSI(t *testing.T) {
-	iagent.Register("fakedirty", iagent.ProviderInfo{
-		Factory:        func(deps iagent.Deps, agentID string) (*iagent.Provider, error) { return newDirtyName(), nil },
-		Label:          "test fake (dirty names)",
-		AgentRefFormat: "fakedirty:<agent_id>",
-		AgentIDSource:  "test only",
-		Kind:           iagent.KindCatalog,
-		Identities:     []iagent.IdentitySpec{{Type: iagent.IdentityUser}},
+	iagent.Register(iagent.Provider{
+		Scheme:        "fakedirty",
+		Label:         "test fake (dirty names)",
+		AgentIDSource: "test only",
+		Identities:    []iagent.IdentitySpec{{Type: iagent.IdentityUser}},
+		Catalog:       []iagent.AgentSpec{catSpec("a1", "\x1b[31mEvil\x1b[0m One", "d\x1b[2Jesc")},
 	})
 
 	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}

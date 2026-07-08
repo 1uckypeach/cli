@@ -12,42 +12,51 @@ import (
 )
 
 // swapRegistry replaces the global providerRegistry with the given map (restored
-// automatically via t.Cleanup), for test isolation. It swaps the global variable
-// without a lock, so callers must not use t.Parallel.
-func swapRegistry(t *testing.T, m map[string]ProviderInfo) {
+// via t.Cleanup), for isolation. It swaps without a lock, so no t.Parallel.
+func swapRegistry(t *testing.T, m map[string]Provider) {
 	t.Helper()
 	saved := providerRegistry
 	providerRegistry = m
 	t.Cleanup(func() { providerRegistry = saved })
 }
 
-// okProvider is a minimal valid provider: it wires the two mandatory core fields
-// (Send/GetTask) so it passes Register's zero-Deps probe. Tests that need extra
-// capabilities set the fields on the returned struct.
-func okProvider() *Provider {
-	return &Provider{
-		Send:    func(context.Context, SendInput) (*AgentTask, error) { return nil, nil },
-		GetTask: func(context.Context, string) (*AgentTask, error) { return nil, nil },
+// coreSpec is a minimal valid spec: it wires the two mandatory core hooks so it
+// passes Register's checkSpec. Callers set extra hooks / ID on the returned value.
+func coreSpec(id string) AgentSpec {
+	return AgentSpec{
+		ID:      id,
+		Send:    func(context.Context, Runtime, SendInput) (*AgentTask, error) { return nil, nil },
+		GetTask: func(context.Context, Runtime, string) (*AgentTask, error) { return nil, nil },
 	}
 }
 
-// okFactory returns a Factory yielding okProvider — the default for cases that
-// only care about metadata/registry behavior, not capabilities.
-func okFactory() Factory {
-	return func(Deps, string) (*Provider, error) { return okProvider(), nil }
+// instanceProvider builds a minimal valid instance Provider for scheme.
+func instanceProvider(scheme string) Provider {
+	s := coreSpec("")
+	return Provider{
+		Scheme:        scheme,
+		Label:         "test provider",
+		AgentIDSource: "test source",
+		Identities:    []IdentitySpec{{Type: IdentityUser}},
+		Instance:      &s,
+	}
 }
 
-// testInfo builds a minimal ProviderInfo that passes Register validation
-// (AgentRefFormat is generated from the scheme so it satisfies the prefix check),
-// reused by cases that only care about the Factory.
-func testInfo(scheme string, f Factory) ProviderInfo {
-	return ProviderInfo{
-		Factory:        f,
-		Label:          "test provider",
-		AgentRefFormat: scheme + ":<agent_id>",
-		AgentIDSource:  "test source",
-		Kind:           KindInstance,
-		Identities:     []IdentitySpec{{Type: IdentityUser}},
+// catalogProvider builds a minimal valid catalog Provider for scheme with the
+// given entry ids.
+func catalogProvider(scheme string, ids ...string) Provider {
+	specs := make([]AgentSpec, 0, len(ids))
+	for _, id := range ids {
+		s := coreSpec(id)
+		s.Name = "name-" + id
+		specs = append(specs, s)
+	}
+	return Provider{
+		Scheme:        scheme,
+		Label:         "test provider",
+		AgentIDSource: "test source",
+		Identities:    []IdentitySpec{{Type: IdentityUser}},
+		Catalog:       specs,
 	}
 }
 
@@ -67,179 +76,125 @@ func mustPanic(t *testing.T, wantMsg string, fn func()) {
 	fn()
 }
 
-// TestRegisterPanicBranches table-drives the Register fail-fast panic branches
-// on metadata fields: missing Factory / Label / AgentRefFormat / AgentIDSource /
-// Identities, an invalid Kind, an invalid Identity Type, and an AgentRefFormat
-// that does not start with "<scheme>:" (panic messages must carry the actual
-// offending value). Metadata validation runs before the probe, so a valid
-// okFactory keeps the probe from firing first.
+// TestRegisterPanicBranches table-drives the Register fail-fast branches.
 func TestRegisterPanicBranches(t *testing.T) {
 	cases := []struct {
 		name    string
-		mutate  func(info *ProviderInfo)
+		mutate  func(p *Provider)
 		wantMsg string
 	}{
-		{"missing Factory", func(info *ProviderInfo) { info.Factory = nil }, "missing Factory"},
-		{"missing Label", func(info *ProviderInfo) { info.Label = "" }, "missing Label"},
-		{"missing AgentRefFormat", func(info *ProviderInfo) { info.AgentRefFormat = "" }, "missing AgentRefFormat"},
-		{"missing AgentIDSource", func(info *ProviderInfo) { info.AgentIDSource = "" }, "missing AgentIDSource"},
-		{"invalid Kind", func(info *ProviderInfo) { info.Kind = "weird" }, "got: weird"},
-		{"missing Identities", func(info *ProviderInfo) { info.Identities = nil }, "missing Identities"},
-		{"invalid Identity Type", func(info *ProviderInfo) {
-			info.Identities = []IdentitySpec{{Type: "robot"}}
-		}, "got: robot"},
-		{"AgentRefFormat wrong prefix", func(info *ProviderInfo) {
-			info.AgentRefFormat = "other:<agent_id>"
-		}, "must start with \"bad:\""},
+		{"empty Scheme", func(p *Provider) { p.Scheme = "" }, "empty Scheme"},
+		{"missing Label", func(p *Provider) { p.Label = "" }, "missing Label"},
+		{"missing AgentIDSource", func(p *Provider) { p.AgentIDSource = "" }, "missing AgentIDSource"},
+		{"missing Identities", func(p *Provider) { p.Identities = nil }, "missing Identities"},
+		{"invalid Identity Type", func(p *Provider) { p.Identities = []IdentitySpec{{Type: "robot"}} }, "got: robot"},
+		{"neither Catalog nor Instance", func(p *Provider) { p.Instance = nil }, "exactly one of Catalog / Instance"},
+		{"both Catalog and Instance", func(p *Provider) { p.Catalog = catalogProvider("x", "a").Catalog }, "exactly one of Catalog / Instance"},
+		{"instance template with ID", func(p *Provider) { p.Instance.ID = "oops" }, "instance template must have empty ID"},
+		{"missing core Send", func(p *Provider) { p.Instance.Send = nil }, "missing core Send"},
+		{"missing core GetTask", func(p *Provider) { p.Instance.GetTask = nil }, "missing core GetTask"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			swapRegistry(t, map[string]ProviderInfo{})
-			info := testInfo("bad", okFactory())
-			tc.mutate(&info)
-			mustPanic(t, tc.wantMsg, func() { Register("bad", info) })
+			swapRegistry(t, map[string]Provider{})
+			p := instanceProvider("bad")
+			tc.mutate(&p)
+			mustPanic(t, tc.wantMsg, func() { Register(p) })
 		})
 	}
 }
 
-// TestRegisterEmptyScheme pins the empty-scheme fail-fast branch.
-func TestRegisterEmptyScheme(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	mustPanic(t, "empty scheme", func() { Register("", testInfo("", okFactory())) })
+// TestRegisterCatalogIDPanics pins the catalog-specific ID rules.
+func TestRegisterCatalogIDPanics(t *testing.T) {
+	swapRegistry(t, map[string]Provider{})
+	missingID := catalogProvider("cat", "")
+	mustPanic(t, "catalog spec missing ID", func() { Register(missingID) })
+
+	swapRegistry(t, map[string]Provider{})
+	dup := catalogProvider("cat", "a", "a")
+	mustPanic(t, "duplicate entry ID", func() { Register(dup) })
 }
 
-// TestRegisterDuplicateScheme pins the sql.Register-style dup panic.
 func TestRegisterDuplicateScheme(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	Register("dup", testInfo("dup", okFactory()))
-	mustPanic(t, "called twice for scheme: dup", func() { Register("dup", testInfo("dup", okFactory())) })
+	swapRegistry(t, map[string]Provider{})
+	Register(instanceProvider("dup"))
+	mustPanic(t, "called twice for scheme: dup", func() { Register(instanceProvider("dup")) })
 }
 
-// TestRegisterFactoryZeroDepsProbe pins the registration-time zero-Deps probe:
-// a factory erroring under zero-value Deps is a contract violation and panics.
-func TestRegisterFactoryZeroDepsProbe(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	bad := func(Deps, string) (*Provider, error) { return nil, errors.New("need client") }
-	mustPanic(t, "must accept zero-value Deps", func() { Register("zd", testInfo("zd", bad)) })
-}
-
-// TestRegisterNilProvider pins the probe's nil-Provider branch.
-func TestRegisterNilProvider(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	nilP := func(Deps, string) (*Provider, error) { return nil, nil }
-	mustPanic(t, "returned nil Provider", func() { Register("np", testInfo("np", nilP)) })
-}
-
-// TestRegisterMissingCore pins that the mandatory core fields are enforced at
-// registration: a provider missing Send or GetTask panics fail-fast.
-func TestRegisterMissingCore(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	noSend := func(Deps, string) (*Provider, error) {
-		return &Provider{GetTask: func(context.Context, string) (*AgentTask, error) { return nil, nil }}, nil
-	}
-	mustPanic(t, "missing core Send", func() { Register("ns", testInfo("ns", noSend)) })
-
-	swapRegistry(t, map[string]ProviderInfo{})
-	noGet := func(Deps, string) (*Provider, error) {
-		return &Provider{Send: func(context.Context, SendInput) (*AgentTask, error) { return nil, nil }}, nil
-	}
-	mustPanic(t, "missing core GetTask", func() { Register("ng", testInfo("ng", noGet)) })
-}
-
-// TestRegisterCatalogRequiresListAgents pins the catalog-archetype MUST:
-// a KindCatalog provider whose probe instance does not wire ListAgents panics.
-// The factory wires the core fields so the panic is specifically about ListAgents
-// (not a missing-core panic firing first).
-func TestRegisterCatalogRequiresListAgents(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	info := testInfo("cat", okFactory()) // okProvider wires Send/GetTask but not ListAgents
-	info.Kind = KindCatalog
-	mustPanic(t, "must wire ListAgents", func() { Register("cat", info) })
-}
-
-func TestInfoReturnsRegisteredMetadata(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	Register("t1", ProviderInfo{
-		Factory:        okFactory(),
-		Label:          "测试 provider",
-		AgentRefFormat: "t1:<agent_id>",
-		AgentIDSource:  "在 T1 控制台获取",
-		Kind:           KindInstance,
-		RequiredScopes: []string{"t1:chat:write"},
-		Identities:     []IdentitySpec{{Type: IdentityUser}},
-	})
-	info, ok := Info("t1")
-	if !ok || info.Label != "测试 provider" || info.Kind != KindInstance {
-		t.Fatalf("Info(t1) = %+v, %v", info, ok)
+func TestInfoReturnsRegisteredProvider(t *testing.T) {
+	swapRegistry(t, map[string]Provider{})
+	p := instanceProvider("t1")
+	p.RequiredScopes = []string{"t1:chat:write"}
+	Register(p)
+	got, ok := Info("t1")
+	if !ok || got.Label != "test provider" || got.Kind() != KindInstance {
+		t.Fatalf("Info(t1) = %+v, %v", got, ok)
 	}
 	if _, ok := Info("nonexistent"); ok {
 		t.Fatal("Info(nonexistent) should return ok=false")
 	}
 }
 
-func TestRegistryUnknownScheme(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	// unknown scheme: the factory is never called, so deps value is irrelevant; use zero-value Deps{}.
-	_, err := providerFor("nosuch", "agt_x", Deps{})
-	if err == nil {
-		t.Fatal("unknown scheme should return an error")
+func TestKindAndAgentRefFormat(t *testing.T) {
+	swapRegistry(t, map[string]Provider{})
+	inst := instanceProvider("inst")
+	cat := catalogProvider("cat", "a")
+	if inst.Kind() != KindInstance {
+		t.Errorf("instance provider Kind should be instance, got %q", inst.Kind())
+	}
+	if cat.Kind() != KindCatalog {
+		t.Errorf("catalog provider Kind should be catalog, got %q", cat.Kind())
+	}
+	if got := inst.AgentRefFormat(); got != "inst:<agent_id>" {
+		t.Errorf("AgentRefFormat should be inst:<agent_id>, got %q", got)
 	}
 }
 
-func TestRegistryKnownScheme(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	// The factory passes the zero-value Deps probe (empty agentID → a valid
-	// provider) and only errors on a real construction, staying compatible with
-	// the registration-time probe.
-	Register("stub", testInfo("stub", func(f Deps, agentID string) (*Provider, error) {
-		if agentID == "" {
-			return okProvider(), nil
-		}
-		return nil, errors.New("stub called")
-	}))
-	_, err := providerFor("stub", "agt_x", Deps{})
-	if err == nil || err.Error() != "stub called" {
-		t.Fatalf("should reach the stub factory, got %v", err)
+func TestListCatalog(t *testing.T) {
+	// Catalog: sorted by AgentRef, stable, instance returns nil.
+	cat := catalogProvider("cat", "zeta", "alpha")
+	got := cat.ListCatalog()
+	if len(got) != 2 || got[0].AgentRef != "cat:alpha" || got[1].AgentRef != "cat:zeta" {
+		t.Fatalf("ListCatalog should be sorted by AgentRef, got %+v", got)
+	}
+	if instanceProvider("inst").ListCatalog() != nil {
+		t.Error("instance ListCatalog should be nil")
 	}
 }
 
 func TestKnownSchemesEmpty(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
+	swapRegistry(t, map[string]Provider{})
 	if got := KnownSchemes(); got != "(none)" {
 		t.Fatalf("an empty registry should return \"(none)\", got %q", got)
 	}
 }
 
 func TestRegisteredSchemesSorted(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	// Register out of order to verify enumeration + sort stability.
-	Register("gamma", testInfo("gamma", okFactory()))
-	Register("alpha", testInfo("alpha", okFactory()))
-	Register("beta", testInfo("beta", okFactory()))
+	swapRegistry(t, map[string]Provider{})
+	Register(instanceProvider("gamma"))
+	Register(instanceProvider("alpha"))
+	Register(instanceProvider("beta"))
 	got := RegisteredSchemes()
 	want := []string{"alpha", "beta", "gamma"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("RegisteredSchemes should enumerate and sort, want %v got %v", want, got)
 	}
-	// knownSchemes reuses RegisteredSchemes; verify the comma joining.
 	if s := KnownSchemes(); s != "alpha, beta, gamma" {
 		t.Fatalf("knownSchemes should be comma-joined, got %q", s)
 	}
 }
 
-func TestResolveInvalidRef(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	// Missing the <scheme>:<agent_id> separator, so ParseRef errors and Resolve propagates it as-is.
-	_, err := Resolve("no-colon", Deps{})
+func TestLookupSpecInvalidRef(t *testing.T) {
+	swapRegistry(t, map[string]Provider{})
+	_, _, _, err := LookupSpec("no-colon")
 	if !errors.Is(err, ErrInvalidRef) {
 		t.Fatalf("an invalid ref should propagate ErrInvalidRef, got %v", err)
 	}
 }
 
-func TestResolveUnknownScheme(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	// The ref is valid but the scheme is unregistered, so the error comes from providerFor.
-	_, err := Resolve("nosuch:agt_x", Deps{})
+func TestLookupSpecUnknownScheme(t *testing.T) {
+	swapRegistry(t, map[string]Provider{})
+	_, _, _, err := LookupSpec("nosuch:agt_x")
 	if err == nil {
 		t.Fatal("an unregistered scheme should return an error")
 	}
@@ -248,28 +203,34 @@ func TestResolveUnknownScheme(t *testing.T) {
 	}
 }
 
-func TestResolveSuccess(t *testing.T) {
-	swapRegistry(t, map[string]ProviderInfo{})
-	sentinel := okProvider()
-	var gotDeps Deps
-	var gotAgentID string
-	Register("demo", testInfo("demo", func(deps Deps, agentID string) (*Provider, error) {
-		gotDeps = deps
-		gotAgentID = agentID
-		return sentinel, nil
-	}))
-	deps := Deps{}
-	p, err := Resolve("demo:agt_42", deps)
+func TestLookupSpecInstance(t *testing.T) {
+	swapRegistry(t, map[string]Provider{})
+	Register(instanceProvider("demo"))
+	prov, spec, agentID, err := LookupSpec("demo:agt_42")
 	if err != nil {
-		t.Fatalf("a valid ref + registered scheme should succeed, got %v", err)
+		t.Fatalf("a valid instance ref should succeed, got %v", err)
 	}
-	if p != sentinel {
-		t.Fatalf("should return the Provider built by the factory, got %v", p)
+	if prov.Scheme != "demo" || spec == nil || spec.Send == nil {
+		t.Fatalf("should return the instance template, got prov=%+v spec=%v", prov, spec)
 	}
-	if gotAgentID != "agt_42" {
-		t.Fatalf("factory should receive the parsed agentID, got %q", gotAgentID)
+	if agentID != "agt_42" {
+		t.Fatalf("should echo the parsed agentID, got %q", agentID)
 	}
-	if gotDeps != deps {
-		t.Fatalf("factory should receive the passed-in Deps, got %+v", gotDeps)
+}
+
+func TestLookupSpecCatalog(t *testing.T) {
+	swapRegistry(t, map[string]Provider{})
+	Register(catalogProvider("cat", "alpha", "beta"))
+	_, spec, agentID, err := LookupSpec("cat:beta")
+	if err != nil {
+		t.Fatalf("a known catalog id should succeed, got %v", err)
+	}
+	if spec == nil || spec.ID != "beta" || agentID != "beta" {
+		t.Fatalf("should return the matching catalog entry, got %+v (id %q)", spec, agentID)
+	}
+	// Unknown id → typed validation error.
+	_, _, _, err = LookupSpec("cat:nope")
+	if err == nil {
+		t.Fatal("an unknown catalog id should return an error")
 	}
 }

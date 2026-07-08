@@ -1,0 +1,97 @@
+// Copyright (c) 2026 Lark Technologies Pte. Ltd.
+// SPDX-License-Identifier: MIT
+
+package agent
+
+import (
+	"context"
+
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
+
+	"github.com/larksuite/cli/errs"
+	iagent "github.com/larksuite/cli/internal/agent"
+	"github.com/larksuite/cli/internal/client"
+	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/validate"
+	"github.com/larksuite/cli/internal/vfs"
+)
+
+// cmdRuntime is the concrete iagent.Runtime: it routes provider hook calls
+// through the shared client.APIClient under a pinned identity (mirrors event's
+// consumeRuntime in cmd/event/runtime.go). Provider code never sees the client,
+// the identity resolution, or the response-envelope unwrap — that is exactly the
+// plumbing the old Deps struct leaked.
+type cmdRuntime struct {
+	client  *client.APIClient
+	as      core.Identity
+	agentID string
+}
+
+func (r *cmdRuntime) AgentID() string { return r.agentID }
+func (r *cmdRuntime) IsBot() bool     { return r.as == core.AsBot }
+
+func (r *cmdRuntime) CallAPI(ctx context.Context, method, path string, query map[string]string, body any) (map[string]any, error) {
+	var params map[string]interface{}
+	if len(query) > 0 {
+		params = make(map[string]interface{}, len(query))
+		for k, v := range query {
+			params[k] = v
+		}
+	}
+	return r.do(ctx, client.RawApiRequest{Method: method, URL: path, Params: params, Data: body, As: r.as})
+}
+
+func (r *cmdRuntime) CallMultipart(ctx context.Context, method, path string, fields map[string]string, files []iagent.FilePart) (map[string]any, error) {
+	fd := larkcore.NewFormdata()
+	for k, v := range fields {
+		fd.AddField(k, v)
+	}
+	for _, fp := range files {
+		// SafeInputPath is the framework-owned security check (no path traversal /
+		// outside CWD); a provider must never re-implement it.
+		resolved, err := validate.SafeInputPath(fp.Path)
+		if err != nil {
+			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--file: %v", err).
+				WithParam("--file").WithCause(err)
+		}
+		f, err := vfs.Open(resolved)
+		if err != nil {
+			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--file: 无法打开 %s: %v", fp.Path, err).
+				WithParam("--file").WithCause(err)
+		}
+		// Closed when CallMultipart returns, i.e. after do()'s request has read the
+		// body — deferring in the loop keeps every file open for the request.
+		defer f.Close()
+		fd.AddFile(fp.Field, f)
+	}
+	return r.do(ctx, client.RawApiRequest{
+		Method: method, URL: path, Data: fd, As: r.as,
+		ExtraOpts: []larkcore.RequestOptionFunc{larkcore.WithFileUpload()},
+	})
+}
+
+// do is the shared DoAPI → ParseJSONResponse → CheckResponse → unwrap-"data"
+// path. Identity is sealed in r.as and never handed out; any non-typed transport
+// error is classified here so hooks only ever see typed errs.* values.
+func (r *cmdRuntime) do(ctx context.Context, req client.RawApiRequest) (map[string]any, error) {
+	resp, err := r.client.DoAPI(ctx, req)
+	if err != nil {
+		if _, ok := errs.ProblemOf(err); ok {
+			return nil, err
+		}
+		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport, "api %s %s: %s", req.Method, req.URL, err).WithCause(err)
+	}
+	result, err := client.ParseJSONResponse(resp)
+	if err != nil {
+		if _, ok := errs.ProblemOf(err); ok {
+			return nil, err
+		}
+		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "api %s %s: %s", req.Method, req.URL, err).WithCause(err)
+	}
+	if apiErr := r.client.CheckResponse(result, r.as); apiErr != nil {
+		return nil, apiErr
+	}
+	top, _ := result.(map[string]interface{})
+	data, _ := top["data"].(map[string]interface{})
+	return data, nil
+}

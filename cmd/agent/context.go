@@ -125,20 +125,24 @@ func NewCmdAgentContextDelete(f *cmdutil.Factory) *cobra.Command {
 // and emits {contexts:[...]} with meta.count.
 func agentContextListRun(opts *contextOptions) error {
 	f := opts.Factory
-	p, id, err := resolveProvider(f, opts.Cmd, opts.Ref, opts.As)
+	_, spec, agentID, id, err := resolveSpec(f, opts.Cmd, opts.Ref, opts.As)
 	if err != nil {
 		return err
 	}
-	// Capability gate before the API call: multi_turn is derived from ListContexts
-	// being wired, so a provider without it returns unsupported_capability.
-	if p.ListContexts == nil {
+	// Capability gate BEFORE the client: multi_turn is derived from ListContexts
+	// being wired, so a spec without it returns unsupported_capability offline.
+	if spec.ListContexts == nil {
 		return capabilityError(opts.Ref, "context list", iagent.CapMultiTurn)
 	}
-	// Local scope preflight: after resolveProvider, before the API call.
+	rt, err := runtimeFor(f, id, agentID)
+	if err != nil {
+		return err
+	}
+	// Local scope preflight: after runtimeFor, before the API call.
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
-	contexts, err := p.ListContexts(opts.Cmd.Context())
+	contexts, err := spec.ListContexts(opts.Cmd.Context(), rt)
 	if err != nil {
 		return err
 	}
@@ -165,19 +169,23 @@ func agentContextListRun(opts *contextOptions) error {
 // context detail and emits it.
 func agentContextGetRun(opts *contextOptions) error {
 	f := opts.Factory
-	p, id, err := resolveProvider(f, opts.Cmd, opts.Ref, opts.As)
+	_, spec, agentID, id, err := resolveSpec(f, opts.Cmd, opts.Ref, opts.As)
 	if err != nil {
 		return err
 	}
-	// Capability gate before the API call.
-	if p.GetContext == nil {
+	// Capability gate BEFORE the client.
+	if spec.GetContext == nil {
 		return capabilityError(opts.Ref, "context get", iagent.CapMultiTurn)
 	}
-	// Local scope preflight: after resolveProvider, before the API call.
+	rt, err := runtimeFor(f, id, agentID)
+	if err != nil {
+		return err
+	}
+	// Local scope preflight: after runtimeFor, before the API call.
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
-	detail, err := p.GetContext(opts.Cmd.Context(), opts.CtxID)
+	detail, err := spec.GetContext(opts.Cmd.Context(), rt, opts.CtxID)
 	if err != nil {
 		return err
 	}
@@ -214,19 +222,23 @@ func agentContextDeleteRun(opts *contextOptions) error {
 	}
 
 	f := opts.Factory
-	p, id, err := resolveProvider(f, opts.Cmd, opts.Ref, opts.As)
+	_, spec, agentID, id, err := resolveSpec(f, opts.Cmd, opts.Ref, opts.As)
 	if err != nil {
 		return err
 	}
-	// Capability gate before the API call.
-	if p.DeleteContext == nil {
+	// Capability gate BEFORE the client.
+	if spec.DeleteContext == nil {
 		return capabilityError(opts.Ref, "context delete", iagent.CapMultiTurn)
 	}
-	// Local scope preflight: after resolveProvider, before the API call.
+	rt, err := runtimeFor(f, id, agentID)
+	if err != nil {
+		return err
+	}
+	// Local scope preflight: after runtimeFor, before the API call.
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
-	if err := p.DeleteContext(opts.Cmd.Context(), opts.CtxID); err != nil {
+	if err := spec.DeleteContext(opts.Cmd.Context(), rt, opts.CtxID); err != nil {
 		return err
 	}
 	// pretty is a human view only; a --jq expression implies structured JSON.

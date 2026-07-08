@@ -49,7 +49,7 @@ var storedUserScopes = func(f *cmdutil.Factory) []string {
 type preflightInput struct {
 	Identity    core.Identity
 	TokenScopes []string
-	Info        iagent.ProviderInfo
+	Provider    iagent.Provider
 }
 
 // preflightScopes runs the local scope check. It returns nil when the check
@@ -74,7 +74,7 @@ func preflightScopes(in preflightInput) error {
 	}
 
 	var missing []string
-	for _, scope := range in.Info.RequiredScopes {
+	for _, scope := range in.Provider.RequiredScopes {
 		if !granted[scope] {
 			missing = append(missing, scope)
 		}
@@ -86,11 +86,11 @@ func preflightScopes(in preflightInput) error {
 
 	// Merged re-auth scope set: existing grants ∪ the provider's FULL
 	// RequiredScopes, sorted for stability.
-	mergedSet := make(map[string]bool, len(in.TokenScopes)+len(in.Info.RequiredScopes))
+	mergedSet := make(map[string]bool, len(in.TokenScopes)+len(in.Provider.RequiredScopes))
 	for _, s := range in.TokenScopes {
 		mergedSet[s] = true
 	}
-	for _, s := range in.Info.RequiredScopes {
+	for _, s := range in.Provider.RequiredScopes {
 		mergedSet[s] = true
 	}
 	merged := make([]string, 0, len(mergedSet))
@@ -121,13 +121,13 @@ func preflightScopesForRef(f *cmdutil.Factory, id core.Identity, ref string) err
 	if err != nil {
 		return nil //nolint:nilerr // preflight is best-effort: resolveProvider already surfaced any real ref error
 	}
-	info, ok := iagent.Info(r.Scheme)
+	prov, ok := iagent.Info(r.Scheme)
 	if !ok {
 		return nil
 	}
 	return preflightScopes(preflightInput{
 		Identity:    id,
 		TokenScopes: storedUserScopes(f),
-		Info:        info,
+		Provider:    prov,
 	})
 }
