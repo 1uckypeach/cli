@@ -24,40 +24,13 @@ import (
 )
 
 // testRuntimeWithDir builds a *common.RuntimeContext whose backing cobra command
-// has string flags "dir" (=dirFlag) and "template" (=defaultTemplate) registered,
-// mirroring how +init reads them at runtime via rctx.Str.
+// has a string flag "dir" (=dirFlag) registered, mirroring how +init reads it
+// at runtime via rctx.Str.
 func testRuntimeWithDir(t *testing.T, dirFlag string) *common.RuntimeContext {
 	t.Helper()
 	cmd := &cobra.Command{Use: "init"}
 	cmd.Flags().String("dir", dirFlag, "")
-	cmd.Flags().String("template", defaultTemplate, "")
 	return common.TestNewRuntimeContext(cmd, nil)
-}
-
-// testRuntimeWithTemplate builds a *common.RuntimeContext with "dir" and
-// "template" string flags registered, mirroring +init's runtime flag set. The
-// template flag is registered with an empty default (matching the real flag,
-// which no longer carries Default: defaultTemplate); pass tpl="" to model an
-// omitted --template and a non-empty tpl to model an explicit one.
-func testRuntimeWithTemplate(t *testing.T, dirFlag, tpl string) *common.RuntimeContext {
-	t.Helper()
-	cmd := &cobra.Command{Use: "init"}
-	cmd.Flags().String("dir", dirFlag, "")
-	cmd.Flags().String("template", tpl, "")
-	return common.TestNewRuntimeContext(cmd, nil)
-}
-
-func TestResolveTemplate(t *testing.T) {
-	if got := resolveTemplate(testRuntimeWithTemplate(t, "", "foo"), ""); got != "foo" {
-		t.Errorf("explicit --template = %q, want foo", got)
-	}
-	if got := resolveTemplate(testRuntimeWithTemplate(t, "", ""), ""); got != defaultTemplate {
-		t.Errorf("omitted --template = %q, want fallback %q", got, defaultTemplate)
-	}
-	// Whitespace-only --template is treated as omitted -> fallback.
-	if got := resolveTemplate(testRuntimeWithTemplate(t, "", "   "), ""); got != defaultTemplate {
-		t.Errorf("whitespace --template = %q, want fallback %q", got, defaultTemplate)
-	}
 }
 
 func TestResolveTargetPath(t *testing.T) {
@@ -261,12 +234,12 @@ func TestRunScaffold_EmptyRepo(t *testing.T) {
 		t.Run("ls="+ls, func(t *testing.T) {
 			f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: ls}}}
 			withFakeRunner(t, f)
-			kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "nestjs-react-fullstack", "")
+			kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "")
 			if err != nil || kind != "init" {
 				t.Fatalf("ls=%q kind=%q err=%v, want init", ls, kind, err)
 			}
 			c := findCall(f.calls, "npx", "-y")
-			if c == nil || !containsAll(c, "-y", "--prefer-online", miaodaCLIPkg, "app", "init", "--template", "nestjs-react-fullstack", "--app-id", "app_x") {
+			if c == nil || !containsAll(c, "-y", "--prefer-online", miaodaCLIPkg, "app", "init", "--template", "full_stack", "--app-id", "app_x") {
 				t.Errorf("app init not invoked with expected args: %v", f.calls)
 			}
 			if c != nil && containsAll(c, "--local") {
@@ -280,7 +253,7 @@ func TestRunScaffold_NonEmpty_SyncsWhenNoSteering(t *testing.T) {
 	dir := t.TempDir() // no steering dir, no meta.json
 	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: "src/x.ts\n"}}}
 	withFakeRunner(t, f)
-	kind, err := runScaffold(context.Background(), dir, "app_x", "", "nestjs-react-fullstack", "")
+	kind, err := runScaffold(context.Background(), dir, "app_x", "", "")
 	if err != nil || kind != "upgrade" {
 		t.Fatalf("kind=%q err=%v, want upgrade", kind, err)
 	}
@@ -299,7 +272,7 @@ func TestRunScaffold_NonEmpty_SkipsSyncWhenSteeringExists(t *testing.T) {
 	os.MkdirAll(filepath.Join(dir, steeringRelPath), 0o755)
 	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: "src/x.ts\n"}}}
 	withFakeRunner(t, f)
-	if _, err := runScaffold(context.Background(), dir, "app_x", "", "nestjs-react-fullstack", ""); err != nil {
+	if _, err := runScaffold(context.Background(), dir, "app_x", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if findCallArg(f.calls, "npx", "skills", "sync") != nil {
@@ -313,7 +286,7 @@ func TestRunScaffold_AppInitFailure(t *testing.T) {
 		"npx -y":       {stderr: "boom", err: errors.New("exit 1")},
 	}}
 	withFakeRunner(t, f)
-	if _, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "nestjs-react-fullstack", ""); err == nil {
+	if _, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", ""); err == nil {
 		t.Error("app init failure must propagate")
 	}
 }
@@ -342,12 +315,12 @@ func TestAppsInit_EmptyRepo_EndToEnd(t *testing.T) {
 	if _, ok := data["npx_skipped"]; ok {
 		t.Error("npx_skipped must be removed")
 	}
-	// --template is omitted here, so resolveTemplate falls back to
-	// defaultTemplate and `app init` must still receive --template nestjs-react-fullstack.
+	// appType is empty, so scaffoldInitArgs falls back to "full_stack"
+	// and `app init` must still receive --template full_stack.
 	c := findCall(f.calls, "npx", "-y")
 	if c == nil {
 		t.Error("npx scaffold not invoked")
-	} else if !containsAll(c, "-y", "--prefer-online", miaodaCLIPkg, "app", "init", "--template", defaultTemplate, "--app-id", "app_x") {
+	} else if !containsAll(c, "-y", "--prefer-online", miaodaCLIPkg, "app", "init", "--template", "full_stack", "--app-id", "app_x") {
 		t.Errorf("app init missing expected --template fallback args: %v", c)
 	} else if containsAll(c, "--local") {
 		t.Errorf("app init must NOT carry --local: %v", c)
@@ -751,22 +724,6 @@ func newAppsExecuteFactoryWithStderr(t *testing.T) (*cmdutil.Factory, *bytes.Buf
 }
 
 func TestAppsInit_Req1_Wording(t *testing.T) {
-	var tmpl *common.Flag
-	for i := range AppsInit.Flags {
-		if AppsInit.Flags[i].Name == "template" {
-			tmpl = &AppsInit.Flags[i]
-		}
-	}
-	if tmpl == nil {
-		t.Fatal("--template flag missing")
-	}
-	if strings.Contains(strings.ToLower(tmpl.Desc), "scaffold") {
-		t.Errorf("--template Desc still mentions scaffold: %q", tmpl.Desc)
-	}
-	if !strings.Contains(strings.ToLower(tmpl.Desc), "code-init") {
-		t.Errorf("--template Desc should use code-init wording: %q", tmpl.Desc)
-	}
-
 	// The --dry-run output is a flat object (DryRunAPI marshals to top-level keys
 	// description/scaffold/api/...), NOT wrapped in {"data":...}, so parse stdout
 	// directly rather than via parseEnvelopeData.
@@ -787,9 +744,8 @@ func TestAppsInit_Req1_Wording(t *testing.T) {
 		t.Error("dry-run must keep machine-contract key `scaffold`")
 	} else if !strings.Contains(scaffold, "skills sync --local") {
 		t.Errorf("dry-run scaffold string must show --local on skills sync: %q", scaffold)
-	} else if strings.Contains(scaffold, "app init --template nestjs-react-fullstack --app-id app_x --local") ||
-		strings.Contains(scaffold, "app sync --local") {
-		t.Errorf("dry-run scaffold string must NOT show --local on app init / app sync: %q", scaffold)
+	} else if strings.Contains(scaffold, "app sync --local") {
+		t.Errorf("dry-run scaffold string must NOT show --local on app sync: %q", scaffold)
 	}
 
 	f := &fakeCommandRunner{results: map[string]fakeCallResult{
@@ -1250,7 +1206,7 @@ func TestRunScaffold_NonEmpty_SyncFailure(t *testing.T) {
 		"git ls-files": {stdout: "src/x.ts\n"},
 		"npx -y":       {err: errors.New("sync boom")},
 	}})
-	if _, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "tpl", ""); err == nil {
+	if _, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", ""); err == nil {
 		t.Error("npx app sync failure must surface as an error")
 	}
 }
@@ -1630,7 +1586,7 @@ func TestRunScaffold_SubprocessFailureIsExternalTool(t *testing.T) {
 		"git ls-files": {stderr: "fatal: not a git repository", err: cause},
 	}}
 	withFakeRunner(t, f)
-	_, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "nestjs-react-fullstack", "")
+	_, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "")
 	if err == nil {
 		t.Fatalf("expected error from failing git subprocess")
 	}
@@ -1649,7 +1605,7 @@ func TestRunScaffold_SubprocessFailureIsExternalTool(t *testing.T) {
 func TestRunScaffold_HtmlPassesTemplate(t *testing.T) {
 	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: ""}}}
 	withFakeRunner(t, f)
-	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "html", "", "")
+	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "html", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1668,7 +1624,7 @@ func TestRunScaffold_HtmlPassesTemplate(t *testing.T) {
 func TestRunScaffold_ModernHtmlPassesTemplate(t *testing.T) {
 	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: ""}}}
 	withFakeRunner(t, f)
-	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "modern_html", "", "")
+	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "modern_html", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1687,26 +1643,7 @@ func TestRunScaffold_ModernHtmlPassesTemplate(t *testing.T) {
 func TestRunScaffold_EmptyAppTypeFallback(t *testing.T) {
 	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: ""}}}
 	withFakeRunner(t, f)
-	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "", "")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if kind != scaffoldKindInit {
-		t.Errorf("kind = %q, want %q", kind, scaffoldKindInit)
-	}
-	c := findCall(f.calls, "npx", "-y")
-	if c == nil {
-		t.Fatal("npx not called")
-	}
-	if !containsAll(c, "--template", defaultTemplate) {
-		t.Errorf("expected --template %s in args: %v", defaultTemplate, c)
-	}
-}
-
-func TestRunScaffold_FullStackPassesTemplate(t *testing.T) {
-	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: ""}}}
-	withFakeRunner(t, f)
-	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "full_stack", "", "")
+	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1722,10 +1659,10 @@ func TestRunScaffold_FullStackPassesTemplate(t *testing.T) {
 	}
 }
 
-func TestRunScaffold_ExplicitTemplateOverride(t *testing.T) {
+func TestRunScaffold_FullStackPassesTemplate(t *testing.T) {
 	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: ""}}}
 	withFakeRunner(t, f)
-	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "modern_html", "custom-template", "")
+	kind, err := runScaffold(context.Background(), t.TempDir(), "app_x", "full_stack", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1736,7 +1673,7 @@ func TestRunScaffold_ExplicitTemplateOverride(t *testing.T) {
 	if c == nil {
 		t.Fatal("npx not called")
 	}
-	if !containsAll(c, "--template", "custom-template") {
-		t.Errorf("expected --template custom-template in args: %v", c)
+	if !containsAll(c, "--template", "full_stack") {
+		t.Errorf("expected --template full_stack in args: %v", c)
 	}
 }

@@ -39,9 +39,8 @@ const (
 )
 
 const (
-	miaodaCLIPkg    = "@lark-apaas/miaoda-cli@latest"
-	defaultTemplate = "nestjs-react-fullstack"
-	metaRelPath     = ".spark/meta.json"
+	miaodaCLIPkg = "@lark-apaas/miaoda-cli@latest"
+	metaRelPath  = ".spark/meta.json"
 	steeringRelPath = ".agent/skills/steering"
 	seedReadme      = "README.md"
 )
@@ -76,7 +75,6 @@ var AppsInit = common.Shortcut{
 		// check lives in Validate (typed validation error -> exit 2).
 		{Name: "app-id", Desc: "app ID"},
 		{Name: "dir", Desc: "clone target directory; absolute or relative path (default ./<app-id>)"},
-		{Name: "template", Desc: "code-init template for an empty repo; optional — if omitted, derived from the app's tech stack"},
 		{Name: "source-path", Desc: "path to existing source files (e.g. HTML output from an agent) to incorporate into the initialized project"},
 	},
 	Validate: func(ctx context.Context, rctx *common.RuntimeContext) error {
@@ -87,14 +85,13 @@ var AppsInit = common.Shortcut{
 	},
 	DryRun: func(ctx context.Context, rctx *common.RuntimeContext) *common.DryRunAPI {
 		appID := strings.TrimSpace(rctx.Str("app-id"))
-		template := resolveTemplate(rctx, "")
 		dry := common.NewDryRunAPI().
 			Desc("Initialize app code (credential-init, clone, checkout, npx code-init, optional commit/push)").
 			Set("credential_init", fmt.Sprintf("apps +git-credential-init --app-id %s --format json", appID)).
 			Set("checkout", "git checkout "+defaultInitBranch).
-			Set("scaffold", fmt.Sprintf("empty repo: npx -y --prefer-online %s app init --template %s --app-id %s; non-empty: npx -y --prefer-online %s app sync + .spark/meta.json app_id patch + conditional skills sync --local", miaodaCLIPkg, template, appID, miaodaCLIPkg)).
+			Set("scaffold", fmt.Sprintf("empty repo: npx -y --prefer-online %s app init --template <appType> --app-id %s; non-empty: npx -y --prefer-online %s app sync + .spark/meta.json app_id patch + conditional skills sync --local", miaodaCLIPkg, appID, miaodaCLIPkg)).
 			Set("commit_push", "conditional: git add -A + commit + push origin "+defaultInitBranch+" when the working tree has changes").
-			Set("template", template).
+			Set("template", "derived from queryAppType (fallback: full_stack)").
 			Set("env_pull", fmt.Sprintf("apps +env-pull --app-id %s --project-path <clone_path> --format json (after successful init)", appID))
 		dir, err := resolveTargetPath(rctx, appID)
 		if err != nil {
@@ -122,19 +119,6 @@ var AppsInit = common.Shortcut{
 // defaultCloneDir returns the default clone target (./<app-id>) for an app ID.
 func defaultCloneDir(appID string) string {
 	return filepath.Join(".", appID)
-}
-
-// resolveTemplate returns the scaffold template for an empty-repo `app init`.
-// An explicit --template wins. When appType is available the template is derived
-// from it; otherwise it falls back to defaultTemplate.
-func resolveTemplate(rctx *common.RuntimeContext, appType string) string {
-	if t := strings.TrimSpace(rctx.Str("template")); t != "" {
-		return t
-	}
-	if appType != "" {
-		return appType
-	}
-	return defaultTemplate
 }
 
 // initLogf writes a one-line progress message to stderr. stdout stays reserved
@@ -327,13 +311,13 @@ func isEmptyRepo(ctx context.Context, dir string) (bool, error) {
 // runScaffold runs the npx scaffolding step inside the cloned repo (cwd=dir).
 // Empty repo -> `app init`; non-empty -> `app sync` + meta app_id patch +
 // conditional `skills sync`. Returns "init" or "upgrade".
-func runScaffold(ctx context.Context, dir, appID, appType, explicitTemplate, sourcePath string) (string, error) {
+func runScaffold(ctx context.Context, dir, appID, appType, sourcePath string) (string, error) {
 	empty, err := isEmptyRepo(ctx, dir)
 	if err != nil {
 		return "", err
 	}
 	if empty {
-		args := scaffoldInitArgs(appType, appID, explicitTemplate, sourcePath)
+		args := scaffoldInitArgs(appType, appID, sourcePath)
 		if _, stderr, err := initRunner.Run(ctx, dir, "npx", args...); err != nil {
 			return "", appsExternalToolError(err, "npx app init failed: %s", gitErr(stderr, err))
 		}
@@ -353,19 +337,16 @@ func runScaffold(ctx context.Context, dir, appID, appType, explicitTemplate, sou
 	return scaffoldKindUpgrade, nil
 }
 
-// scaffoldInitArgs builds the npx argument list for `app init`. An explicit
-// template wins; otherwise, when appType is available, it is passed as
-// --template; empty appType falls back to --template defaultTemplate.
-// sourcePath is appended as --source-path when non-empty.
-func scaffoldInitArgs(appType, appID, explicitTemplate, sourcePath string) []string {
+// scaffoldInitArgs builds the npx argument list for `app init`.
+// appType from queryAppType is used as --template; falls back to "full_stack"
+// when empty. sourcePath is appended as --source-path when non-empty.
+func scaffoldInitArgs(appType, appID, sourcePath string) []string {
 	base := []string{"-y", "--prefer-online", miaodaCLIPkg, "app", "init"}
-	if explicitTemplate != "" {
-		base = append(base, "--template", explicitTemplate, "--app-id", appID)
-	} else if appType != "" {
-		base = append(base, "--template", appType, "--app-id", appID)
-	} else {
-		base = append(base, "--template", defaultTemplate, "--app-id", appID)
+	tpl := appType
+	if tpl == "" {
+		tpl = "full_stack"
 	}
+	base = append(base, "--template", tpl, "--app-id", appID)
 	if sourcePath != "" {
 		base = append(base, "--source-path", sourcePath)
 	}
@@ -538,9 +519,8 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 	}
 
 	initLogf(rctx, "Initializing app code (running miaoda-cli)...")
-	explicitTemplate := strings.TrimSpace(rctx.Str("template"))
 	sourcePath := strings.TrimSpace(rctx.Str("source-path"))
-	scaffold, err := runScaffold(ctx, dir, appID, appType, explicitTemplate, sourcePath)
+	scaffold, err := runScaffold(ctx, dir, appID, appType, sourcePath)
 	if err != nil {
 		return err
 	}
