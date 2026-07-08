@@ -4,10 +4,10 @@
 
 ## 两个 Skill 的职责边界
 
-| Skill             | 核心职责                                                      | 约束                              |
-|-------------------|-----------------------------------------------------------|---------------------------------|
-| `lark-doc`        | 识别画板机会、使用 Mermaid/SVG 创建图表、调度 SubAgent、插入简单 SVG 画板或复杂空白画板 | 主 Agent 不直接创作画板内容；              |
-| `lark-whiteboard` | 查询/导出已有画板；复杂图表生成（Mermaid/DSL/SVG 路由、场景选型、渲染验证）；写入已有/空白画板  | 仅特别复杂的图表或已有画板更新时由独立 SubAgent 读取 |
+| Skill | 核心职责 | 约束 |
+|---|---|---|
+| `lark-doc` | 识别画板机会、决定文档内嵌画板用 Mermaid / SVG / blank 哪条路径、直接插入简单 Mermaid 或简单自包含 SVG、在需要时创建空白画板并把后续创作切给 `lark-whiteboard` | 主 Agent 负责文档入口的选型和简单插入；不要把所有图都默认外包给 SubAgent |
+| `lark-whiteboard` | 查询 / 导出已有画板；处理复杂图表生成、DSL/场景选型、渲染验证；写入已有画板或空白画板 | 当图复杂、需要多轮打磨、需要 whiteboard 专属场景能力，或要更新已有画板内部内容时再切入 |
 
 ## 画板适用规则
 
@@ -19,49 +19,92 @@
 
 ### 步骤 1：识别画板机会
 
-| 场景                      | 入口                                                        |
-|-------------------------|-----------------------------------------------------------|
-| 文档中需要思维导图、时序图、类图、饼图、甘特图 | 步骤 2A:使用 mermaid 插入图表                                     |
-| 文档中需要插入其他图表/自定义图形       | 步骤 2B: 使用 SVG 插入图表                                        |
-| 已有画板需要更新内容              | 先 `docs +fetch` 获取 `board_token`，跳至步骤 3B |
-| 只查看 / 下载已有画板            | 切换至 `lark-whiteboard`，不走本流程                               |
+| 场景 | 入口 |
+|---|---|
+| 文档中需要思维导图、时序图、类图、饼图、甘特图，或用户明确给了 Mermaid 语法 | 优先看步骤 2A：使用 Mermaid 插入图表 |
+| 文档中需要组织结构、架构关系、泳道、对比、分层、漏斗、金字塔、飞轮、路线图、信息卡片式示意等更依赖形状表达的图 | 优先看步骤 2B：按复杂度选择直接插入 SVG 或先建空白画板 |
+| 已有画板需要更新内部内容 | 先 `docs +fetch` 获取 `board_token`，跳至步骤 3B |
+| 只查看 / 下载已有画板 | 切换至 `lark-whiteboard`，不走本流程 |
 
 > [!IMPORTANT]
-> ⚠️ **分别对每个图表进行决策**
+> **每个图单独决策，不按整篇文档一刀切。**
 
-如果有多个位置需要插入图表，你需要根据每个图表的内容**分别决定**采用步骤 2A 还是 2B
-中的方式插入这个图表。在需要插入思维导图、时序图、类图、饼图、甘特图的时候可以插入 mermaid 块，在需要插入其他类型图表时启动
-SubAgent 插入 SVG。
+先看图形语义，再看实现成本。不要把“哪种更好插入”当成第一判断标准：
 
-建议优先使用 SVG 插入图表，除非其属于思维导图、时序图、类图、饼图、甘特图这类可以直接使用 mermaid 语法描述，且不适宜用 SVG 绘制的图表
+- **结构即语义**的图，优先 Mermaid：例如思维导图、时序图、类图、饼图、甘特图，以及用户明确给出 Mermaid 文本的场景
+- **形状即语义**的图，优先 SVG / blank + `lark-whiteboard`：例如组织架构、流程分层、架构拓扑、泳道、漏斗、金字塔、飞轮、路线图、对比卡片
+- **已有画板内部内容修改**，不走文档重建，直接切 `lark-whiteboard`
 
-### 步骤 2A: 使用 mermaid 插入图表
+### 步骤 1.5：选型表
+
+| 图形语义 / 复杂度 | 推荐路径 | 说明 |
+|---|---|---|
+| Mermaid 原生强适配，且图不复杂 | 主 Agent 直接插入 `<whiteboard type="mermaid">` | 适合源码短、结构清晰、无需复杂视觉设计的图 |
+| SVG 更合适，但图简单、源码可控、主流程上下文足够 | 主 Agent 直接插入 `<whiteboard type="svg">` | 适合简单对比图、轻量架构示意、少量节点关系图 |
+| SVG 或 whiteboard scene 更合适，且图复杂、源码长、需要多轮修改或渲染校验 | 先插入 `<whiteboard type="blank"></whiteboard>`，再切 `lark-whiteboard` | 适合复杂流程、泳道、漏斗、金字塔、飞轮、大型架构图 |
+| 已有画板内部内容更新 | 切 `lark-whiteboard` | 这是画板内容编辑，不是文档 block 替换 |
+| 仅更换嵌入类型（mermaid / svg / blank 之间切换） | 用 `docs +update --command block_replace` 替换整个 `<whiteboard>` block | 这是文档层替换，不是画板内部编辑 |
+
+### 步骤 2A：使用 Mermaid 插入图表
 
 ```xml
-
 <whiteboard type="mermaid">
     mermaid 代码...
 </whiteboard>
 ```
 
-### 步骤 2B: SubAgent 使用 SVG 插入图表
+适用条件：
 
-主 Agent 启动 SubAgent，让它用 `docs +create` / `docs +update` 插入：
+- 图本身更适合 Mermaid 表达
+- Mermaid 文本较短，主流程可以稳定维护
+- 不需要复杂视觉编排或多轮渲染打磨
+
+### 步骤 2B：SVG 路径
+
+当图形语义更适合 SVG 表达时，不要默认一定启动 SubAgent，先判断复杂度与上下文预算。
+
+#### 2B-1：简单 SVG 由主 Agent 直接插入
 
 ```xml
-
 <whiteboard type="svg">
-    <svg...>...
-    </svg>
+    <svg ...>...</svg>
 </whiteboard>
 ```
 
-Sub Agent 需要携带以下的最小上下文，以及后续的 [SVG 设计 Workflow] 章节指南：
+适用条件：
+
+- 节点不多，结构清晰，SVG 源码规模可控
+- 不需要 whiteboard 专属 scene、复杂布局推演或多轮修图
+- 主流程保留该图上下文不会明显污染后续任务
+
+#### 2B-2：复杂图先建空白画板，再切 `lark-whiteboard`
+
+主 Agent 先在文档里插入：
+
+```xml
+<whiteboard type="blank"></whiteboard>
+```
+
+然后读取返回值里的 `block_token` / whiteboard token，切到 `lark-whiteboard` 完成写入。
+
+适用条件：
+
+- 图表复杂，源码长，或预期需要多轮修改
+- 需要 `lark-whiteboard` 的 DSL / scene / 渲染校验能力
+- 图对视觉质量要求高，主流程继续携带画图上下文成本过高
+
+切给 `lark-whiteboard` 时携带最小上下文：
 
 - doc token、插入位置（标题 / block_id / command）
+- board_token
 - 图表目标、受众、源段落或数据
-- 要求读取 `lark-doc-xml.md`；不需要读取 `lark-whiteboard`
+- 推荐画板类型或推荐 scene（如果已经判断出来）
+
+### 步骤 2C：直接插入 SVG 时的约束
+
 - SVG 必须完整自包含：包含 `<svg>` 根节点和 `viewBox`，不引用外部图片、脚本、远程资源
+- 直接插入 SVG 时仍需遵守下方的 [SVG 设计 Workflow] 与支持/不支持特性约束
+- 如果插入后发现设计方向不对或需要大改，不要在文档层反复硬改；改走 2B-2 或切 `lark-whiteboard`
 
 #### 画板 SVG 设计指南
 
@@ -125,24 +168,30 @@ lark-cli whiteboard +query \
   --output ./preview.png
 ```
 
-### 步骤 3B：编辑已有画板 — 启动 lark-whiteboard SubAgent
+### 步骤 3B：编辑已有画板或复杂空白画板
 
-复杂图和已有画板更新必须启动 SubAgent。主 Agent 只传最小上下文，不直接执行 `lark-whiteboard` 的渲染和写入流程。
+以下场景切 `lark-whiteboard`：
 
-复杂图 SubAgent 的最小上下文：
+- 更新已有画板内部内容
+- 已经插入 `<whiteboard type="blank"></whiteboard>`，需要继续填充
+- 复杂图需要 `lark-whiteboard` 的 DSL / scene / 渲染校验能力
+
+最小上下文：
 
 - board_token
 - 图表目标、推荐画板类型、受众
 - 与图表直接相关的源段落或数据
 - 要求读取 [`../../lark-whiteboard/SKILL.md`](../../lark-whiteboard/SKILL.md)，按其完整流程写入该 board_token
 
-多个画板互不依赖时，可并行启动多个 SubAgent；每个 SubAgent 只负责一个画板或一个 SVG 插入点，不要互相复用上下文。
+如果只是想把现有 `<whiteboard type="mermaid">` 换成 `<whiteboard type="svg">`，或从 `svg` 改成 `blank` 再重做，不走本步骤，回到文档层用 `docs +update --command block_replace` 替换整个画板 block。
 
 ### 步骤 4：完成校验
 
-- Mermaid: 确认插入的是 `<whiteboard type="mermaid">`，且内容 mermaid 语法完整
-- SVG: 确认插入的是 `<whiteboard type="svg">`，且内容是完整 `<svg ...>...</svg>`
-- 不保留空白占位画板；复杂路径只有空白画板而无内容视为任务未完成
+- Mermaid：确认插入的是 `<whiteboard type="mermaid">`，且 Mermaid 语法完整
+- 直接插入 SVG：确认插入的是 `<whiteboard type="svg">`，且内容是完整 `<svg ...>...</svg>`
+- blank 路径：确认空白画板后续已经由 `lark-whiteboard` 写入内容；只有占位空板视为任务未完成
+- 已有画板更新：确认走的是 `lark-whiteboard`，不是误用 `docs +update` 直接改内部内容
+- 类型切换：确认走的是文档层 `block_replace`，不是误当成画板内部编辑
 
 ---
 

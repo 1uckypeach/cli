@@ -39,7 +39,7 @@ lark-cli docs +update --doc "文档URL或token" --command append --content '<p>�
 - 连续执行多个文档写操作时，必须按 [`lark-doc-update.md`](references/lark-doc-update.md) 的「Block ID 生命周期」判断旧 block ID 是否还能复用；`overwrite` / `block_replace` / `block_delete` 后不要复用受影响的旧 ID，插入 / 复制后要重新 fetch 才能拿到新 block ID
 - 用户需要在文档内**创建、复制或移动**资源块（画板、电子表格、多维表格等）时，必须先读取 [`lark-doc-xml.md`](references/lark-doc-xml.md) 的「三、资源块」章节
 - 写文档时，由内容和用户意图决定表达形式；流程、架构、路线图、关键指标等信息可以使用画板，但不要默认把重要信息都画板化
-- 新增或更新画板时，按 [`lark-doc-whiteboard.md`](references/lark-doc-whiteboard.md) 选型；Mermaid 可由主 Agent 直接插入，SVG / 复杂图 / 已有画板更新按其中流程隔离到 SubAgent
+- 新增或更新画板时，按 [`lark-doc-whiteboard.md`](references/lark-doc-whiteboard.md) 选型；先按图形语义判断 Mermaid / SVG / blank 路径，再用复杂度与上下文预算决定是否隔离到 SubAgent。简单 Mermaid 和简单自包含 SVG 可由主 Agent 直接插入；复杂图或已有画板内容更新再切到 `lark-whiteboard`
 - 用户说"看一下文档里的图片/附件/素材""预览素材" → 用 `lark-cli docs +media-preview`
 - 用户明确说"下载素材" → 用 `lark-cli docs +media-download`
 - 用户想把文档回滚到某个 `revision_id` 或某一时刻 → 先读 [`lark-doc-history.md`](references/lark-doc-history.md)，按其中流程操作
