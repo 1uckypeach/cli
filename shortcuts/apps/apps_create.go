@@ -30,7 +30,7 @@ var AppsCreate = common.Shortcut{
 	HasFormat: true,
 	Flags: []common.Flag{
 		{Name: "name", Desc: "app display name", Required: true},
-		{Name: "app-type", Desc: "app type", Required: true, Enum: []string{"html", "full_stack"}},
+		{Name: "app-type", Desc: "app type", Required: true, Enum: []string{"html", "full_stack", "modern_html"}},
 		{Name: "description", Desc: "app description"},
 		{Name: "icon-url", Desc: "app icon URL (server uses default if omitted)"},
 	},

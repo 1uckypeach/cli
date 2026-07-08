@@ -240,7 +240,7 @@ func TestRunScaffold_EmptyRepo(t *testing.T) {
 				t.Fatalf("ls=%q kind=%q err=%v, want init", ls, kind, err)
 			}
 			c := findCall(f.calls, "npx", "-y")
-			if c == nil || !containsAll(c, "-y", "--prefer-online", miaodaCLIPkg, "app", "init", "--template", "full_stack", "--app-id", "app_x") {
+			if c == nil || !containsAll(c, "-y", "--prefer-online", miaodaCLIPkg, "app", "init", "--app-type", "full_stack", "--app-id", "app_x") {
 				t.Errorf("app init not invoked with expected args: %v", f.calls)
 			}
 			if c != nil && containsAll(c, "--local") {
@@ -321,7 +321,7 @@ func TestAppsInit_EmptyRepo_EndToEnd(t *testing.T) {
 	c := findCall(f.calls, "npx", "-y")
 	if c == nil {
 		t.Error("npx scaffold not invoked")
-	} else if !containsAll(c, "-y", "--prefer-online", miaodaCLIPkg, "app", "init", "--template", "full_stack", "--app-id", "app_x") {
+	} else if !containsAll(c, "-y", "--prefer-online", miaodaCLIPkg, "app", "init", "--app-type", "full_stack", "--app-id", "app_x") {
 		t.Errorf("app init missing expected --template fallback args: %v", c)
 	} else if containsAll(c, "--local") {
 		t.Errorf("app init must NOT carry --local: %v", c)
@@ -1617,7 +1617,7 @@ func TestRunScaffold_HtmlPassesTemplate(t *testing.T) {
 	if c == nil {
 		t.Fatal("npx not called")
 	}
-	if !containsAll(c, "--template", "html") {
+	if !containsAll(c, "--app-type", "html") {
 		t.Errorf("expected --template html in args: %v", c)
 	}
 }
@@ -1636,7 +1636,7 @@ func TestRunScaffold_ModernHtmlPassesTemplate(t *testing.T) {
 	if c == nil {
 		t.Fatal("npx not called")
 	}
-	if !containsAll(c, "--template", "modern_html") {
+	if !containsAll(c, "--app-type", "modern_html") {
 		t.Errorf("expected --template modern_html in args: %v", c)
 	}
 }
@@ -1655,7 +1655,7 @@ func TestRunScaffold_EmptyAppTypeFallback(t *testing.T) {
 	if c == nil {
 		t.Fatal("npx not called")
 	}
-	if !containsAll(c, "--template", "full_stack") {
+	if !containsAll(c, "--app-type", "full_stack") {
 		t.Errorf("expected --template full_stack in args: %v", c)
 	}
 }
@@ -1674,14 +1674,14 @@ func TestRunScaffold_FullStackPassesTemplate(t *testing.T) {
 	if c == nil {
 		t.Fatal("npx not called")
 	}
-	if !containsAll(c, "--template", "full_stack") {
+	if !containsAll(c, "--app-type", "full_stack") {
 		t.Errorf("expected --template full_stack in args: %v", c)
 	}
 }
 
 func TestScaffoldInitArgs_WithAppType(t *testing.T) {
 	args := scaffoldInitArgs("modern_html", "app_x", "")
-	if !containsAll(args, "--template", "modern_html", "--app-id", "app_x") {
+	if !containsAll(args, "--app-type", "modern_html", "--app-id", "app_x") {
 		t.Errorf("expected --template modern_html --app-id app_x, got %v", args)
 	}
 	for _, a := range args {
@@ -1693,14 +1693,14 @@ func TestScaffoldInitArgs_WithAppType(t *testing.T) {
 
 func TestScaffoldInitArgs_EmptyFallback(t *testing.T) {
 	args := scaffoldInitArgs("", "app_x", "")
-	if !containsAll(args, "--template", "full_stack", "--app-id", "app_x") {
+	if !containsAll(args, "--app-type", "full_stack", "--app-id", "app_x") {
 		t.Errorf("expected --template full_stack fallback, got %v", args)
 	}
 }
 
 func TestScaffoldInitArgs_WithSourcePath(t *testing.T) {
 	args := scaffoldInitArgs("modern_html", "app_x", "/path/to/src")
-	if !containsAll(args, "--template", "modern_html", "--app-id", "app_x", "--source-path", "/path/to/src") {
+	if !containsAll(args, "--app-type", "modern_html", "--app-id", "app_x", "--source-path", "/path/to/src") {
 		t.Errorf("expected --source-path /path/to/src, got %v", args)
 	}
 }
@@ -1745,7 +1745,7 @@ func TestAppsInit_WithAppType_FreshClone(t *testing.T) {
 	if c == nil {
 		t.Fatal("npx not called")
 	}
-	if !containsAll(c, "--template", "modern_html") {
+	if !containsAll(c, "--app-type", "modern_html") {
 		t.Errorf("expected --template modern_html, got %v", c)
 	}
 }

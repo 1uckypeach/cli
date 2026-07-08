@@ -89,7 +89,7 @@ var AppsInit = common.Shortcut{
 			Desc("Initialize app code (credential-init, clone, checkout, npx code-init, optional commit/push)").
 			Set("credential_init", fmt.Sprintf("apps +git-credential-init --app-id %s --format json", appID)).
 			Set("checkout", "git checkout "+defaultInitBranch).
-			Set("scaffold", fmt.Sprintf("empty repo: npx -y --prefer-online %s app init --template <appType> --app-id %s; non-empty: npx -y --prefer-online %s app sync + .spark/meta.json app_id patch + conditional skills sync --local", miaodaCLIPkg, appID, miaodaCLIPkg)).
+			Set("scaffold", fmt.Sprintf("empty repo: npx -y --prefer-online %s app init --app-type <appType> --app-id %s; non-empty: npx -y --prefer-online %s app sync + .spark/meta.json app_id patch + conditional skills sync --local", miaodaCLIPkg, appID, miaodaCLIPkg)).
 			Set("commit_push", "conditional: git add -A + commit + push origin "+defaultInitBranch+" when the working tree has changes").
 			Set("template", "derived from queryAppType (fallback: full_stack)").
 			Set("env_pull", fmt.Sprintf("apps +env-pull --app-id %s --project-path <clone_path> --format json (after successful init)", appID))
@@ -338,15 +338,15 @@ func runScaffold(ctx context.Context, dir, appID, appType, sourcePath string) (s
 }
 
 // scaffoldInitArgs builds the npx argument list for `app init`.
-// appType from queryAppType is used as --template; falls back to "full_stack"
+// appType from queryAppType is passed as --app-type; falls back to "full_stack"
 // when empty. sourcePath is appended as --source-path when non-empty.
 func scaffoldInitArgs(appType, appID, sourcePath string) []string {
 	base := []string{"-y", "--prefer-online", miaodaCLIPkg, "app", "init"}
-	tpl := appType
-	if tpl == "" {
-		tpl = "full_stack"
+	at := appType
+	if at == "" {
+		at = "full_stack"
 	}
-	base = append(base, "--template", tpl, "--app-id", appID)
+	base = append(base, "--app-type", at, "--app-id", appID)
 	if sourcePath != "" {
 		base = append(base, "--source-path", sourcePath)
 	}
