@@ -159,6 +159,52 @@ func TestContextListEmitsContexts(t *testing.T) {
 	}
 }
 
+// TestContextListSortedByUpdatedAtDesc pins the ordering + enriched-field
+// contract: the provider returns contexts out of order, and the command emits
+// them newest-first by updated_at while carrying the updated_at / task_count /
+// awaiting_input rollup for each.
+func TestContextListSortedByUpdatedAtDesc(t *testing.T) {
+	opts, _ := contextTestOpts(t, "list")
+	setScripted(t, scriptedHooks{listContexts: func() ([]iagent.ContextSummary, error) {
+		return []iagent.ContextSummary{
+			{ContextID: "old", UpdatedAt: "2026-07-05T10:00:00Z", TaskCount: 1},
+			{ContextID: "new", UpdatedAt: "2026-07-05T12:00:00Z", TaskCount: 3, AwaitingInput: true},
+			{ContextID: "mid", UpdatedAt: "2026-07-05T11:00:00Z", TaskCount: 2},
+		}, nil
+	}})
+	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
+
+	if err := agentContextListRun(opts); err != nil {
+		t.Fatalf("context list should not error: %v", err)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("output should be valid envelope JSON: %v (%s)", err, string(out.Bytes()))
+	}
+	data, _ := env.Data.(map[string]interface{})
+	contexts, ok := data["contexts"].([]interface{})
+	if !ok || len(contexts) != 3 {
+		t.Fatalf("data.contexts should have 3 entries, got %v", data["contexts"])
+	}
+	want := []string{"new", "mid", "old"}
+	for i, w := range want {
+		c, _ := contexts[i].(map[string]interface{})
+		if c["context_id"] != w {
+			t.Errorf("contexts[%d].context_id should be %q (newest-first), got %v", i, w, c["context_id"])
+		}
+	}
+	first, _ := contexts[0].(map[string]interface{})
+	if first["updated_at"] != "2026-07-05T12:00:00Z" {
+		t.Errorf("contexts[0].updated_at should be carried, got %v", first["updated_at"])
+	}
+	if first["task_count"] != float64(3) {
+		t.Errorf("contexts[0].task_count should be 3, got %v", first["task_count"])
+	}
+	if first["awaiting_input"] != true {
+		t.Errorf("contexts[0].awaiting_input should be true, got %v", first["awaiting_input"])
+	}
+}
+
 // TestContextListError surfaces a provider ListContexts failure.
 func TestContextListError(t *testing.T) {
 	opts, _ := contextTestOpts(t, "list")
@@ -182,13 +228,22 @@ func TestContextListInvalidRef(t *testing.T) {
 	}
 }
 
-// TestContextGetEmitsDetail pins that `context get` returns a single context
-// detail.
+// TestContextGetEmitsDetail pins the enriched `context get` shape: metadata +
+// the task_count / awaiting_input rollup + a single active_task — and NO longer
+// a full tasks[] array (that moved to `agent task list --context-id`). The
+// active task's is_terminal is derived from State (input_required ⇒ false).
 func TestContextGetEmitsDetail(t *testing.T) {
 	opts, _ := contextTestOpts(t, "get")
 	opts.CtxID = "sess_1"
 	setScripted(t, scriptedHooks{getContext: func(ctxID string) (*iagent.ContextDetail, error) {
-		return &iagent.ContextDetail{ContextID: ctxID, Title: "销售分析", CreatedAt: "2026-07-05T10:01:11+08:00"}, nil
+		return &iagent.ContextDetail{
+			ContextID: ctxID, Title: "销售分析", CreatedAt: "2026-07-05T10:01:11+08:00",
+			UpdatedAt: "2026-07-05T12:00:00+08:00", TaskCount: 2, AwaitingInput: true,
+			ActiveTask: &iagent.TaskSummary{
+				TaskID: "chat_2", State: iagent.StateInputRequired,
+				UpdatedAt: "2026-07-05T12:00:00+08:00", Summary: "请提供季度",
+			},
+		}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 
@@ -205,6 +260,28 @@ func TestContextGetEmitsDetail(t *testing.T) {
 	}
 	if data["title"] != "销售分析" {
 		t.Errorf("data.title should be echoed, got %v", data["title"])
+	}
+	if data["task_count"] != float64(2) {
+		t.Errorf("data.task_count should be 2, got %v", data["task_count"])
+	}
+	if data["awaiting_input"] != true {
+		t.Errorf("data.awaiting_input should be true, got %v", data["awaiting_input"])
+	}
+	if _, hasTasks := data["tasks"]; hasTasks {
+		t.Errorf("context get should no longer embed a tasks[] array, got %v", data["tasks"])
+	}
+	active, ok := data["active_task"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("data.active_task should be present, got %v", data["active_task"])
+	}
+	if active["task_id"] != "chat_2" {
+		t.Errorf("active_task.task_id should be chat_2, got %v", active["task_id"])
+	}
+	if active["is_terminal"] != false {
+		t.Errorf("active_task.is_terminal should be derived from State (input_required ⇒ false), got %v", active["is_terminal"])
+	}
+	if active["summary"] != "请提供季度" {
+		t.Errorf("active_task.summary should carry the pending prompt, got %v", active["summary"])
 	}
 }
 
@@ -260,7 +337,7 @@ func TestContextListPretty(t *testing.T) {
 		t.Fatalf("context list --format pretty should not error: %v", err)
 	}
 	s := string(out.Bytes())
-	if !strings.HasPrefix(s, "CONTEXT_ID\tCREATED_AT\tTITLE\n") {
+	if !strings.HasPrefix(s, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tTASK_COUNT\tAWAITING_INPUT\n") {
 		t.Errorf("pretty output should start with a header row, got %q", s)
 	}
 	if !strings.Contains(s, "sess_1") || !strings.Contains(s, "销售分析") {
@@ -296,8 +373,9 @@ func TestContextGetWithJq(t *testing.T) {
 	}
 }
 
-// TestContextGetPretty pins the added --format pretty branch on context get:
-// key: value lines with the tasks count, title ANSI-stripped.
+// TestContextGetPretty pins the --format pretty branch on context get: key:
+// value lines with the task_count / awaiting_input rollup + a one-line
+// active_task digest, title ANSI-stripped, and no full tasks[] list.
 func TestContextGetPretty(t *testing.T) {
 	opts, _ := contextTestOpts(t, "get")
 	opts.CtxID = "sess_1"
@@ -305,7 +383,10 @@ func TestContextGetPretty(t *testing.T) {
 	setScripted(t, scriptedHooks{getContext: func(ctxID string) (*iagent.ContextDetail, error) {
 		return &iagent.ContextDetail{
 			ContextID: ctxID, Title: "\x1b[31m销售分析\x1b[0m",
-			Tasks: []iagent.TaskSummary{{TaskID: "chat_1", State: iagent.StateCompleted, IsTerminal: true}},
+			TaskCount: 1, AwaitingInput: false,
+			ActiveTask: &iagent.TaskSummary{
+				TaskID: "chat_1", State: iagent.StateCompleted, IsTerminal: true, Summary: "分析完成",
+			},
 		}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
@@ -313,13 +394,16 @@ func TestContextGetPretty(t *testing.T) {
 		t.Fatalf("context get --format pretty should not error: %v", err)
 	}
 	s := string(out.Bytes())
-	for _, want := range []string{"context_id: sess_1", "title: 销售分析", "tasks: 1"} {
+	for _, want := range []string{"context_id: sess_1", "title: 销售分析", "task_count: 1", "active_task: completed"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("pretty output should contain %q, got %q", want, s)
 		}
 	}
 	if strings.Contains(s, "\x1b") {
 		t.Errorf("ANSI sequences in title must be stripped: %q", s)
+	}
+	if strings.Contains(s, "tasks:") {
+		t.Errorf("context get pretty should no longer render a tasks[] list, got %q", s)
 	}
 }
 

@@ -248,35 +248,40 @@ func TestPrintTaskPretty_NilTask(t *testing.T) {
 }
 
 // TestPrintTaskSummariesTSV pins the list-class pretty spec: a header row
-// naming the json fields, then one tab-separated row per task.
+// naming the json fields (now including UPDATED_AT + SUMMARY), then one
+// tab-separated row per task. Summary is agent-controlled, so it is
+// ANSI-stripped AND newline/tab-flattened via kvValue.
 func TestPrintTaskSummariesTSV(t *testing.T) {
 	out := &bytes.Buffer{}
 	printTaskSummariesTSV(out, []iagent.TaskSummary{
-		{TaskID: "chat_1", ContextID: "sess_1", State: iagent.StateCompleted, IsTerminal: true},
+		{TaskID: "chat_1", ContextID: "sess_1", State: iagent.StateCompleted, IsTerminal: true,
+			UpdatedAt: "2026-07-05T12:00:00Z", Summary: "分析\n完成\x1b[0m"},
 	})
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
 	if len(lines) != 2 {
 		t.Fatalf("should have a header + 1 data row, got %q", out.String())
 	}
-	if lines[0] != "TASK_ID\tCONTEXT_ID\tSTATE\tIS_TERMINAL" {
+	if lines[0] != "TASK_ID\tCONTEXT_ID\tSTATE\tIS_TERMINAL\tUPDATED_AT\tSUMMARY" {
 		t.Errorf("header columns should match the json field names, got %q", lines[0])
 	}
-	if lines[1] != "chat_1\tsess_1\tcompleted\ttrue" {
+	// Summary: ANSI escape stripped, newline flattened to a space.
+	if lines[1] != "chat_1\tsess_1\tcompleted\ttrue\t2026-07-05T12:00:00Z\t分析 完成" {
 		t.Errorf("data row mismatch, got %q", lines[1])
 	}
 }
 
-// TestPrintContextsTSV pins the context-list pretty spec: header row plus
-// rows, with the agent-controlled Title stripped of ANSI escapes (Task 10
-// review fix).
+// TestPrintContextsTSV pins the context-list pretty spec: header row (now
+// carrying the UPDATED_AT / TASK_COUNT / AWAITING_INPUT rollup columns) plus
+// rows, with the agent-controlled Title stripped of ANSI escapes.
 func TestPrintContextsTSV(t *testing.T) {
 	out := &bytes.Buffer{}
 	printContextsTSV(out, []iagent.ContextSummary{
-		{ContextID: "sess_1", CreatedAt: "2026-07-05T10:00:00+08:00", Title: "\x1b[2J销售分析"},
+		{ContextID: "sess_1", CreatedAt: "2026-07-05T10:00:00+08:00", UpdatedAt: "2026-07-05T12:00:00+08:00",
+			Title: "\x1b[2J销售分析", TaskCount: 3, AwaitingInput: true},
 	})
 	text := out.String()
-	if !strings.HasPrefix(text, "CONTEXT_ID\tCREATED_AT\tTITLE\n") {
-		t.Errorf("should have a header row, got %q", text)
+	if !strings.HasPrefix(text, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tTASK_COUNT\tAWAITING_INPUT\n") {
+		t.Errorf("should have a header row with the rollup columns, got %q", text)
 	}
 	if !strings.Contains(text, "销售分析") {
 		t.Errorf("should contain the title text, got %q", text)
@@ -284,26 +289,50 @@ func TestPrintContextsTSV(t *testing.T) {
 	if strings.Contains(text, "\x1b") {
 		t.Errorf("ANSI sequences in Title must be stripped: %q", text)
 	}
+	// The rollup columns (task_count + awaiting_input) trail the row.
+	if !strings.Contains(text, "\t3\ttrue") {
+		t.Errorf("should carry the task_count + awaiting_input rollup, got %q", text)
+	}
 }
 
-// TestPrintContextDetailPretty pins the context-get pretty rendering:
-// key: value lines with the tasks count, title ANSI-stripped.
+// TestPrintContextDetailPretty pins the context-get pretty rendering as a
+// conversation overview: metadata + the task_count / awaiting_input rollup and
+// a one-line active_task digest — NOT a full tasks[] list (that is `agent task
+// list --context-id`). Title and the active-task Summary are agent-controlled,
+// so both are ANSI-stripped + newline-flattened.
 func TestPrintContextDetailPretty(t *testing.T) {
 	out := &bytes.Buffer{}
 	printContextDetailPretty(out, &iagent.ContextDetail{
-		ContextID: "sess_1",
-		CreatedAt: "2026-07-05T10:00:00+08:00",
-		Title:     "\x1b[31m分析\x1b[0m",
-		Tasks:     []iagent.TaskSummary{{TaskID: "chat_1"}},
+		ContextID:     "sess_1",
+		CreatedAt:     "2026-07-05T10:00:00+08:00",
+		UpdatedAt:     "2026-07-05T12:00:00+08:00",
+		Title:         "\x1b[31m分析\x1b[0m",
+		TaskCount:     2,
+		AwaitingInput: true,
+		ActiveTask: &iagent.TaskSummary{
+			TaskID: "chat_2", State: iagent.StateInputRequired,
+			UpdatedAt: "2026-07-05T12:00:00+08:00", Summary: "请提供\n季度\x1b[0m",
+		},
 	})
 	text := out.String()
-	for _, want := range []string{"context_id: sess_1", "title: 分析", "tasks: 1"} {
+	for _, want := range []string{
+		"context_id: sess_1", "updated_at: 2026-07-05T12:00:00+08:00", "title: 分析",
+		"task_count: 2", "awaiting_input: true", "active_task: input_required",
+	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("pretty output should contain %q, got:\n%s", want, text)
 		}
 	}
+	// active-task Summary: newline flattened to a space.
+	if !strings.Contains(text, "请提供 季度") {
+		t.Errorf("active_task summary should be ANSI-stripped + newline-flattened, got:\n%s", text)
+	}
 	if strings.Contains(text, "\x1b") {
-		t.Errorf("ANSI sequences in title must be stripped: %q", text)
+		t.Errorf("ANSI sequences must be stripped: %q", text)
+	}
+	// The full task enumeration must NOT appear here anymore.
+	if strings.Contains(text, "tasks:") {
+		t.Errorf("context get should no longer render a tasks[] list, got:\n%s", text)
 	}
 }
 

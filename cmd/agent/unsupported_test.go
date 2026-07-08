@@ -183,7 +183,8 @@ func TestTaskGetDerivesIsTerminalFromState(t *testing.T) {
 }
 
 // TestNormalizeTaskSummaries_DerivesFromState pins the summary-side derivation
-// (task list / context get share this helper for their nested Tasks).
+// (task list runs its summaries through this helper; context get derives the
+// single active_task's flag inline the same way).
 func TestNormalizeTaskSummaries_DerivesFromState(t *testing.T) {
 	ts := normalizeTaskSummaries([]iagent.TaskSummary{
 		{TaskID: "t1", State: iagent.StateCompleted, IsTerminal: false}, // missing

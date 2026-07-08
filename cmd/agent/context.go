@@ -5,6 +5,8 @@ package agent
 
 import (
 	"fmt"
+	"io"
+	"sort"
 
 	"github.com/spf13/cobra"
 
@@ -121,8 +123,10 @@ func NewCmdAgentContextDelete(f *cmdutil.Factory) *cobra.Command {
 	return cmd
 }
 
-// agentContextListRun runs `context list`: resolves the provider, lists contexts
-// and emits {contexts:[...]} with meta.count.
+// agentContextListRun runs `context list`: resolves the provider, lists
+// contexts, sorts them newest-first by UpdatedAt, and emits {contexts:[...]}
+// with meta.count through content-safety scanning (the rollup is derived from
+// untrusted agent activity).
 func agentContextListRun(opts *contextOptions) error {
 	f := opts.Factory
 	_, spec, agentID, id, err := resolveSpec(f, opts.Cmd, opts.Ref, opts.As)
@@ -146,27 +150,20 @@ func agentContextListRun(opts *contextOptions) error {
 	if err != nil {
 		return err
 	}
-	// pretty is a human view only; a --jq expression implies structured JSON.
-	if opts.Format == "pretty" && jqExpr(opts.Cmd) == "" {
-		printContextsTSV(f.IOStreams.Out, contexts)
-		return nil
-	}
-	env := output.Envelope{
-		OK:       true,
-		Identity: string(id),
-		Data:     map[string]interface{}{"contexts": contexts},
-		Meta:     &output.Meta{Count: len(contexts)},
-		Notice:   output.GetNotice(),
-	}
-	if jq := jqExpr(opts.Cmd); jq != "" {
-		return output.JqFilter(f.IOStreams.Out, env, jq)
-	}
-	output.PrintJson(f.IOStreams.Out, env)
-	return nil
+	// Newest-first: sort by UpdatedAt (RFC3339 UTC) descending; a stable sort
+	// preserves the provider's relative order for equal timestamps, and contexts
+	// with no timestamp sort last.
+	sort.SliceStable(contexts, func(i, j int) bool { return contexts[i].UpdatedAt > contexts[j].UpdatedAt })
+	return scanAndEmitData(f, opts.Cmd, opts.Format,
+		map[string]interface{}{"contexts": contexts},
+		&output.Meta{Count: len(contexts)},
+		func(w io.Writer) { printContextsTSV(w, contexts) })
 }
 
 // agentContextGetRun runs `context get`: resolves the provider, fetches the
-// context detail and emits it.
+// context detail (metadata + rollup + the single active_task, NOT the full task
+// list), derives the active task's IsTerminal, and emits it through
+// content-safety scanning (active_task.Summary is untrusted agent text).
 func agentContextGetRun(opts *contextOptions) error {
 	f := opts.Factory
 	_, spec, agentID, id, err := resolveSpec(f, opts.Cmd, opts.Ref, opts.As)
@@ -189,27 +186,13 @@ func agentContextGetRun(opts *contextOptions) error {
 	if err != nil {
 		return err
 	}
-	if detail != nil {
-		// Derive IsTerminal from State (single source of truth) for the embedded
-		// task summaries before emission.
-		detail.Tasks = normalizeTaskSummaries(detail.Tasks)
+	if detail != nil && detail.ActiveTask != nil {
+		// Derive IsTerminal from State (single source of truth) for the active task
+		// summary before emission — the provider only fills State.
+		detail.ActiveTask.IsTerminal = detail.ActiveTask.State.IsTerminal()
 	}
-	// pretty is a human view only; a --jq expression implies structured JSON.
-	if opts.Format == "pretty" && jqExpr(opts.Cmd) == "" {
-		printContextDetailPretty(f.IOStreams.Out, detail)
-		return nil
-	}
-	env := output.Envelope{
-		OK:       true,
-		Identity: string(id),
-		Data:     detail,
-		Notice:   output.GetNotice(),
-	}
-	if jq := jqExpr(opts.Cmd); jq != "" {
-		return output.JqFilter(f.IOStreams.Out, env, jq)
-	}
-	output.PrintJson(f.IOStreams.Out, env)
-	return nil
+	return scanAndEmitData(f, opts.Cmd, opts.Format, detail, nil,
+		func(w io.Writer) { printContextDetailPretty(w, detail) })
 }
 
 // agentContextDeleteRun runs `context delete`. The --yes confirmation guard runs

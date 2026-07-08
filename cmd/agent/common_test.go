@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -594,6 +595,131 @@ func TestEmitTask_ContentSafetyBlocked(t *testing.T) {
 	}
 	if out.Len() > 0 {
 		t.Errorf("block mode should not write to stdout, got %q", out.String())
+	}
+}
+
+// noPretty is a no-op pretty renderer for the scanAndEmitData helper tests,
+// which exercise the json path only.
+func noPretty(io.Writer) {}
+
+// TestScanAndEmitData_PlainSuccess pins the shared list/context emit helper's
+// happy path: no alert + json ⇒ the full envelope (ok + identity + data + meta)
+// lands on stdout.
+func TestScanAndEmitData_PlainSuccess(t *testing.T) {
+	f, out, _ := emitFactory()
+	cmd := newEmitCmd("task", "")
+	data := map[string]interface{}{"tasks": []iagent.TaskSummary{{TaskID: "chat_1"}}}
+
+	if err := scanAndEmitData(f, cmd, "json", data, &output.Meta{Count: 1}, noPretty); err != nil {
+		t.Fatalf("emit should not error: %v", err)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("envelope should be valid JSON: %v (%s)", err, out.String())
+	}
+	if !env.OK || env.Identity != string(core.AsBot) {
+		t.Errorf("ok/identity mismatch: %+v", env)
+	}
+	if env.Meta == nil || env.Meta.Count != 1 {
+		t.Errorf("meta.count should be 1, got %+v", env.Meta)
+	}
+}
+
+// TestScanAndEmitData_ContentSafetyBlocked pins that the shared list/context
+// emit helper now runs content-safety scanning (these payloads carry untrusted
+// agent text): in block mode it returns the typed block error and writes
+// nothing.
+func TestScanAndEmitData_ContentSafetyBlocked(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	extcs.Register(&csProvider{alert: &extcs.Alert{Provider: "test", MatchedRules: []string{"r1"}}})
+	defer extcs.Register(nil)
+
+	f, out, _ := emitFactory()
+	cmd := newEmitCmd("task", "")
+	data := map[string]interface{}{"tasks": []iagent.TaskSummary{{TaskID: "chat_1", Summary: "leaked secret"}}}
+
+	err := scanAndEmitData(f, cmd, "json", data, &output.Meta{Count: 1}, noPretty)
+	if err == nil {
+		t.Fatal("block mode should return BlockErr")
+	}
+	if !errs.IsContentSafety(err) {
+		t.Errorf("should be a content-safety error, got %T", err)
+	}
+	if out.Len() > 0 {
+		t.Errorf("block mode should not write to stdout, got %q", out.String())
+	}
+}
+
+// TestScanAndEmitData_ContentSafetyAlertWarn pins that a warn-mode alert is
+// attached to the envelope without blocking output.
+func TestScanAndEmitData_ContentSafetyAlertWarn(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "warn")
+	extcs.Register(&csProvider{alert: &extcs.Alert{Provider: "test", MatchedRules: []string{"r1"}}})
+	defer extcs.Register(nil)
+
+	f, out, _ := emitFactory()
+	cmd := newEmitCmd("task", "")
+	data := map[string]interface{}{"tasks": []iagent.TaskSummary{{TaskID: "chat_1"}}}
+
+	if err := scanAndEmitData(f, cmd, "json", data, &output.Meta{Count: 1}, noPretty); err != nil {
+		t.Fatalf("warn mode should not error: %v", err)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("unmarshal: %v (%s)", err, out.String())
+	}
+	if env.ContentSafetyAlert == nil {
+		t.Error("warn mode should attach the alert to the envelope")
+	}
+}
+
+// TestTaskListContentSafetyBlocked pins the wiring at the task-list leaf: its
+// summaries carry untrusted agent text, so a block-mode content-safety hit
+// aborts the emit with the typed block error and writes nothing (task list used
+// to PrintJson directly and bypass scanning).
+func TestTaskListContentSafetyBlocked(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	extcs.Register(&csProvider{alert: &extcs.Alert{Provider: "test", MatchedRules: []string{"r1"}}})
+	defer extcs.Register(nil)
+
+	opts, _ := taskTestOpts(t, "list")
+	setScripted(t, scriptedHooks{listTasks: func(string) ([]iagent.TaskSummary, error) {
+		return []iagent.TaskSummary{{TaskID: "chat_1", State: iagent.StateCompleted, Summary: "untrusted"}}, nil
+	}})
+	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
+
+	err := agentTaskListRun(opts)
+	if err == nil || !errs.IsContentSafety(err) {
+		t.Fatalf("task list should block on a content-safety hit, got %T: %v", err, err)
+	}
+	if len(out.Bytes()) > 0 {
+		t.Errorf("block mode should not write to stdout, got %q", out.Bytes())
+	}
+}
+
+// TestContextGetContentSafetyBlocked pins the same wiring at context get, whose
+// active_task.Summary is untrusted agent text.
+func TestContextGetContentSafetyBlocked(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	extcs.Register(&csProvider{alert: &extcs.Alert{Provider: "test", MatchedRules: []string{"r1"}}})
+	defer extcs.Register(nil)
+
+	opts, _ := contextTestOpts(t, "get")
+	opts.CtxID = "sess_1"
+	setScripted(t, scriptedHooks{getContext: func(ctxID string) (*iagent.ContextDetail, error) {
+		return &iagent.ContextDetail{
+			ContextID: ctxID, TaskCount: 1,
+			ActiveTask: &iagent.TaskSummary{TaskID: "chat_1", State: iagent.StateCompleted, Summary: "untrusted"},
+		}, nil
+	}})
+	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
+
+	err := agentContextGetRun(opts)
+	if err == nil || !errs.IsContentSafety(err) {
+		t.Fatalf("context get should block on a content-safety hit, got %T: %v", err, err)
+	}
+	if len(out.Bytes()) > 0 {
+		t.Errorf("block mode should not write to stdout, got %q", out.Bytes())
 	}
 }
 
