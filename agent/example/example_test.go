@@ -5,6 +5,7 @@ package example
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -25,10 +26,10 @@ type fakeRuntime struct{ agentID string }
 
 func (r fakeRuntime) AgentID() string { return r.agentID }
 func (r fakeRuntime) IsBot() bool     { return false }
-func (r fakeRuntime) CallAPI(context.Context, string, string, map[string]string, any) (map[string]any, error) {
+func (r fakeRuntime) CallAPI(context.Context, string, string, map[string]string, any) (json.RawMessage, error) {
 	return nil, nil
 }
-func (r fakeRuntime) CallMultipart(context.Context, string, string, map[string]string, []agent.FilePart) (map[string]any, error) {
+func (r fakeRuntime) CallMultipart(context.Context, string, string, map[string]string, []agent.FilePart) (json.RawMessage, error) {
 	return nil, nil
 }
 
