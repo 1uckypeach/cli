@@ -52,6 +52,11 @@ var resolveDownload = func(opts *taskOptions) (*iagent.ArtifactData, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Capability gate before the API call: a provider that does not wire
+	// DownloadArtifact (card artifact_download=false) returns unsupported_capability.
+	if p.DownloadArtifact == nil {
+		return nil, capabilityError(opts.Ref, "artifact download", iagent.CapArtifactDownload)
+	}
 	if err := preflightScopesForRef(opts.Factory, id, opts.Ref); err != nil {
 		return nil, err
 	}
@@ -229,7 +234,7 @@ func agentTaskGetRun(opts *taskOptions) error {
 	ctx := opts.Cmd.Context()
 	task, err := p.GetTask(ctx, opts.TaskID)
 	if err != nil {
-		return convertUnsupported(opts.Ref, "task get", err)
+		return err
 	}
 
 	if opts.Watch && !task.State.ShouldStopPolling() {
@@ -246,7 +251,7 @@ func agentTaskGetRun(opts *taskOptions) error {
 		}
 		final, perr := pollToStop(pollCtx, p, opts.TaskID)
 		if perr != nil {
-			return convertUnsupported(opts.Ref, "task get", perr)
+			return perr
 		}
 		if final != nil {
 			task = final
@@ -275,13 +280,18 @@ func agentTaskListRun(opts *taskOptions) error {
 	if err != nil {
 		return err
 	}
+	// Capability gate before the API call: a provider that does not wire
+	// ListTasks (card task_list=false) returns unsupported_capability.
+	if p.ListTasks == nil {
+		return capabilityError(opts.Ref, "task list", iagent.CapTaskList)
+	}
 	// Local scope preflight: after resolveProvider, before the API call.
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
 	tasks, err := p.ListTasks(opts.Cmd.Context(), opts.ContextID)
 	if err != nil {
-		return convertUnsupported(opts.Ref, "task list", err)
+		return err
 	}
 	tasks = normalizeTaskSummaries(tasks)
 	// pretty is a human view only; a --jq expression implies structured JSON.
@@ -309,11 +319,15 @@ func agentTaskListRun(opts *taskOptions) error {
 // or API call. Only a supporting provider reaches resolveProvider +
 // CancelTask.
 func agentTaskCancelRun(opts *taskOptions) error {
-	card, err := cardForRef(opts.Ref)
+	// Gate before requiring a Factory / network: resolve with zero Deps and read
+	// the CancelTask capability (a wired field == card task_cancel=true). An agent
+	// that does not support cancel (e.g. example:echo) returns
+	// unsupported_capability with no Factory or API access.
+	probe, err := iagent.Resolve(opts.Ref, iagent.Deps{})
 	if err != nil {
-		return err
+		return wrapRefResolveError(err)
 	}
-	if !card.Supports(iagent.CapTaskCancel) {
+	if probe.CancelTask == nil {
 		return capabilityError(opts.Ref, "task cancel", iagent.CapTaskCancel)
 	}
 
@@ -330,10 +344,7 @@ func agentTaskCancelRun(opts *taskOptions) error {
 		return err
 	}
 	if err := p.CancelTask(opts.Cmd.Context(), opts.TaskID); err != nil {
-		// Belt-and-braces behind the card gate above: a provider that declares
-		// task_cancel=true but still returns the sentinel maps to the same typed
-		// unsupported_capability instead of the internal-error fallback.
-		return convertUnsupported(opts.Ref, "task cancel", err)
+		return err
 	}
 	// pretty is a human view only; a --jq expression implies structured JSON.
 	if opts.Format == "pretty" && jqExpr(opts.Cmd) == "" {
@@ -351,19 +362,6 @@ func agentTaskCancelRun(opts *taskOptions) error {
 	}
 	output.PrintJson(f.IOStreams.Out, env)
 	return nil
-}
-
-// cardForRef resolves the capability Card for ref without a Factory or network.
-// It relies on the adapter cards being statically synthesized (Card needs no
-// client), so capability gating can run before the API path is even built. A
-// malformed ref / unknown scheme is promoted to an invalid_argument validation
-// error (exit 2), matching resolveProvider's wrapping.
-func cardForRef(ref string) (*iagent.AgentCard, error) {
-	p, err := iagent.Resolve(ref, iagent.Deps{})
-	if err != nil {
-		return nil, wrapRefResolveError(err)
-	}
-	return p.Card(context.Background())
 }
 
 // downloadArtifact resolves the artifact descriptor and writes it to opts.Output
@@ -394,7 +392,7 @@ func downloadArtifact(opts *taskOptions) error {
 	ctx := opts.Cmd.Context()
 	art, err := resolveDownload(opts)
 	if err != nil {
-		return convertUnsupported(opts.Ref, "artifact download", err)
+		return err
 	}
 
 	data := art.Bytes

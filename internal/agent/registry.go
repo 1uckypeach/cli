@@ -4,7 +4,6 @@
 package agent
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -12,10 +11,6 @@ import (
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/core"
 )
-
-// ErrUnsupported indicates a capability is unsupported by the current provider
-// (converted by the command layer into an unsupported_capability typed error).
-var ErrUnsupported = errors.New("capability not supported")
 
 // Deps are the dependencies a provider factory needs (injected by the command
 // layer to avoid internal/agent depending on cmd).
@@ -25,7 +20,7 @@ type Deps struct {
 }
 
 // Factory constructs a Provider from an agentID plus dependencies.
-type Factory func(deps Deps, agentID string) (Provider, error)
+type Factory func(deps Deps, agentID string) (*Provider, error)
 
 // ProviderKind is the closed set of provider forms (validated at Register time
 // to guard against cast typos).
@@ -33,7 +28,7 @@ type ProviderKind string
 
 const (
 	// KindCatalog is the catalog type: the full agent set is known at
-	// registration time, and it must implement Discoverer.
+	// registration time, and it must wire Provider.ListAgents.
 	KindCatalog ProviderKind = "catalog"
 	// KindInstance is the instance type: agents are created by users on the
 	// platform and cannot be enumerated by the CLI in advance.
@@ -49,8 +44,9 @@ type ProviderInfo struct {
 	// zero-value Deps and have no side effects during construction — this
 	// contract is enforced at registration time by Register's zero-value Deps
 	// probe (a violation panics), and agent list also constructs a probe
-	// instance with empty Deps to assert the Discoverer capability
-	// (cmd/agent/list.go probeDiscoverer).
+	// instance with empty Deps to read the ListAgents capability
+	// (cmd/agent/list.go probeDiscoverer). Because the probe passes zero Deps and
+	// empty agentID, capability wiring must not depend on either.
 	Factory Factory
 	// Label is the user-facing provider name.
 	Label string
@@ -61,7 +57,7 @@ type ProviderInfo struct {
 	// for AI-guided onboarding).
 	AgentIDSource string
 	// Kind is the provider form: KindCatalog (catalog type) or KindInstance
-	// (instance type). Catalog types must implement Discoverer (asserted at
+	// (instance type). Catalog types must wire Provider.ListAgents (asserted at
 	// Register time).
 	Kind ProviderKind
 	// RequiredScopes is the full (flat) set of scopes needed by any real API
@@ -117,10 +113,22 @@ func Register(scheme string, info ProviderInfo) {
 	if err != nil {
 		panic("agent: provider factory must accept zero-value Deps: " + scheme + ", got error: " + err.Error())
 	}
-	if info.Kind == KindCatalog {
-		if _, ok := p.(Discoverer); !ok {
-			panic("agent: catalog provider must implement Discoverer: " + scheme)
-		}
+	if p == nil {
+		panic("agent: provider factory returned nil Provider: " + scheme)
+	}
+	// Core capabilities are mandatory for every provider — a provider you cannot
+	// send to or read a task back from is not usable. The command layer relies on
+	// these never being nil (no nil-check before dispatch), so enforce it here.
+	switch {
+	case p.Send == nil:
+		panic("agent: provider missing core Send: " + scheme)
+	case p.GetTask == nil:
+		panic("agent: provider missing core GetTask: " + scheme)
+	}
+	// A catalog provider's full agent set is known offline, so it must be
+	// enumerable (wire ListAgents); an instance provider need not be.
+	if info.Kind == KindCatalog && p.ListAgents == nil {
+		panic("agent: catalog provider must wire ListAgents: " + scheme)
 	}
 	providerRegistry[scheme] = info
 }
@@ -135,7 +143,7 @@ func Info(scheme string) (ProviderInfo, bool) {
 
 // providerFor fetches the factory for a scheme and constructs a Provider. An
 // unknown scheme returns an error listing the available options.
-func providerFor(scheme, agentID string, deps Deps) (Provider, error) {
+func providerFor(scheme, agentID string, deps Deps) (*Provider, error) {
 	info, ok := providerRegistry[scheme]
 	if !ok {
 		return nil, fmt.Errorf("未知的 agent provider '%s'，当前支持: %s", scheme, KnownSchemes())
@@ -155,7 +163,7 @@ func KnownSchemes() string {
 }
 
 // Resolve parses a ref and constructs the corresponding Provider (command-layer entry point).
-func Resolve(ref string, deps Deps) (Provider, error) {
+func Resolve(ref string, deps Deps) (*Provider, error) {
 	r, err := ParseRef(ref)
 	if err != nil {
 		return nil, err

@@ -220,25 +220,30 @@ func TestSemanticExitError(t *testing.T) {
 	}
 }
 
-// fakePollProvider drives pollToStop through a scripted state sequence.
+// fakePollProvider drives pollToStop through a scripted state sequence. It is
+// not registered, so provider() only wires GetTask (the sole field pollToStop
+// touches); calls/err stay observable on the struct after the poll.
 type fakePollProvider struct {
-	iagent.Provider
 	states []iagent.TaskState
 	calls  int
 	err    error
 }
 
-func (f *fakePollProvider) GetTask(ctx context.Context, taskID string) (*iagent.AgentTask, error) {
-	if f.err != nil {
-		return nil, f.err
+func (f *fakePollProvider) provider() *iagent.Provider {
+	return &iagent.Provider{
+		GetTask: func(ctx context.Context, taskID string) (*iagent.AgentTask, error) {
+			if f.err != nil {
+				return nil, f.err
+			}
+			i := f.calls
+			if i >= len(f.states) {
+				i = len(f.states) - 1
+			}
+			f.calls++
+			s := f.states[i]
+			return &iagent.AgentTask{TaskID: taskID, State: s, IsTerminal: s.IsTerminal()}, nil
+		},
 	}
-	i := f.calls
-	if i >= len(f.states) {
-		i = len(f.states) - 1
-	}
-	f.calls++
-	s := f.states[i]
-	return &iagent.AgentTask{TaskID: taskID, State: s, IsTerminal: s.IsTerminal()}, nil
 }
 
 // TestPollToStop_ReachesTerminal stops once a terminal state is observed.
@@ -247,7 +252,7 @@ func TestPollToStop_ReachesTerminal(t *testing.T) {
 	defer restore()
 
 	p := &fakePollProvider{states: []iagent.TaskState{iagent.StateWorking, iagent.StateWorking, iagent.StateCompleted}}
-	task, err := pollToStop(context.Background(), p, "chat_1")
+	task, err := pollToStop(context.Background(), p.provider(), "chat_1")
 	if err != nil {
 		t.Fatalf("should not error: %v", err)
 	}
@@ -265,7 +270,7 @@ func TestPollToStop_StopsOnInputRequired(t *testing.T) {
 	defer restore()
 
 	p := &fakePollProvider{states: []iagent.TaskState{iagent.StateWorking, iagent.StateInputRequired}}
-	task, err := pollToStop(context.Background(), p, "chat_1")
+	task, err := pollToStop(context.Background(), p.provider(), "chat_1")
 	if err != nil {
 		t.Fatalf("should not error: %v", err)
 	}
@@ -283,7 +288,7 @@ func TestPollToStop_ContextTimeoutNotFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // expire immediately
 	p := &fakePollProvider{states: []iagent.TaskState{iagent.StateWorking}}
-	task, err := pollToStop(ctx, p, "chat_1")
+	task, err := pollToStop(ctx, p.provider(), "chat_1")
 	if err != nil {
 		t.Fatalf("timeout should not be treated as failure: %v", err)
 	}
@@ -298,7 +303,7 @@ func TestPollToStop_GetTaskError(t *testing.T) {
 	defer restore()
 
 	p := &fakePollProvider{states: []iagent.TaskState{iagent.StateWorking}, err: errors.New("boom")}
-	if _, err := pollToStop(context.Background(), p, "chat_1"); err == nil {
+	if _, err := pollToStop(context.Background(), p.provider(), "chat_1"); err == nil {
 		t.Fatal("a GetTask error should propagate")
 	}
 }
@@ -349,7 +354,7 @@ func TestPollToStop_ClampsDelayToMax(t *testing.T) {
 		iagent.StateWorking, iagent.StateWorking, iagent.StateWorking,
 		iagent.StateWorking, iagent.StateWorking, iagent.StateCompleted,
 	}}
-	task, err := pollToStop(context.Background(), p, "chat_1")
+	task, err := pollToStop(context.Background(), p.provider(), "chat_1")
 	if err != nil {
 		t.Fatalf("should not error: %v", err)
 	}
@@ -379,7 +384,7 @@ func TestPollToStop_SleepCanceledDuringBackoff(t *testing.T) {
 	defer restore()
 
 	p := &fakePollProvider{states: []iagent.TaskState{iagent.StateWorking, iagent.StateCompleted}}
-	task, err := pollToStop(context.Background(), p, "chat_1")
+	task, err := pollToStop(context.Background(), p.provider(), "chat_1")
 	if err != nil {
 		t.Fatalf("an interrupted sleep should not be treated as failure: %v", err)
 	}

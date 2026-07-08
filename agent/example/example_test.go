@@ -5,7 +5,6 @@ package example
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -24,12 +23,12 @@ func swapStore(t *testing.T) {
 	t.Cleanup(func() { store = old })
 }
 
-// newProvider builds an example provider with zero-value Deps (the mock never needs a Client).
-func newProvider(t *testing.T, agentID string) agent.Provider {
+// buildProvider builds an example *Provider with zero-value Deps (the mock never needs a Client).
+func buildProvider(t *testing.T, agentID string) *agent.Provider {
 	t.Helper()
-	p, err := newExampleProvider(agent.Deps{}, agentID)
+	p, err := newProvider(agent.Deps{}, agentID)
 	if err != nil {
-		t.Fatalf("newExampleProvider: %v", err)
+		t.Fatalf("newProvider: %v", err)
 	}
 	return p
 }
@@ -50,15 +49,11 @@ func TestConformanceReporter(t *testing.T) {
 // capability matrices (the core of the teaching demo: honest capability declaration
 // plus task_cancel true for one and false for the other).
 func TestCapabilityMatrixDiverges(t *testing.T) {
-	echoCard, err := newProvider(t, "echo").Card(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	reporterCard, err := newProvider(t, "reporter").Card(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	ec, rc := echoCard.Capabilities, reporterCard.Capabilities
+	// The card matrix is derived from which Provider fields the Factory wires per
+	// agent, so DeriveCapabilities over the two constructed providers is the
+	// single source under test.
+	ec := agent.DeriveCapabilities(buildProvider(t, "echo"))
+	rc := agent.DeriveCapabilities(buildProvider(t, "reporter"))
 	if ec.ArtifactDownload || ec.FileInput || ec.TaskCancel {
 		t.Errorf("echo should be the minimal capability set (no artifact/file/cancel), got %+v", ec)
 	}
@@ -75,7 +70,7 @@ func TestCapabilityMatrixDiverges(t *testing.T) {
 // echoes with a turn marker.
 func TestEchoMultiTurn(t *testing.T) {
 	swapStore(t)
-	p := newProvider(t, "echo")
+	p := buildProvider(t, "echo")
 	ctx := context.Background()
 
 	t1, err := p.Send(ctx, agent.SendInput{Text: "hello"})
@@ -139,7 +134,7 @@ func TestEchoMultiTurn(t *testing.T) {
 // is still queryable -- the offline demo chain depends on this.
 func TestStateSurvivesReload(t *testing.T) {
 	swapStore(t)
-	p := newProvider(t, "echo")
+	p := buildProvider(t, "echo")
 	task, err := p.Send(context.Background(), agent.SendInput{Text: "persist"})
 	if err != nil {
 		t.Fatal(err)
@@ -159,7 +154,7 @@ func TestStateSurvivesReload(t *testing.T) {
 // and DownloadArtifact returns inline Bytes + suggested_name.
 func TestReporterArtifactFlow(t *testing.T) {
 	swapStore(t)
-	p := newProvider(t, "reporter")
+	p := buildProvider(t, "reporter")
 	ctx := context.Background()
 
 	task, err := p.Send(ctx, agent.SendInput{Text: "本季度报表"})
@@ -196,22 +191,20 @@ func TestReporterArtifactFlow(t *testing.T) {
 	}
 }
 
-// TestEchoCancelSentinel verifies the sentinel chain: echo (task_cancel=false)
-// returns agent.ErrUnsupported from CancelTask, which the command layer's
-// convertUnsupported recognizes via errors.Is. The same holds for echo's
-// DownloadArtifact and a Send with files.
-func TestEchoCancelSentinel(t *testing.T) {
-	swapStore(t)
-	p := newProvider(t, "echo")
-	ctx := context.Background()
-	if err := p.CancelTask(ctx, "task_whatever"); !errors.Is(err, agent.ErrUnsupported) {
-		t.Fatalf("echo CancelTask should return the ErrUnsupported sentinel, got %v", err)
+// TestEchoUnwiredCapabilities verifies the new capability model: echo (the
+// minimal set) simply leaves CancelTask / DownloadArtifact unwired and FileInput
+// false. There is no capability-refusal code — the command layer gates on the
+// nil fields and returns unsupported_capability before any provider method runs.
+func TestEchoUnwiredCapabilities(t *testing.T) {
+	p := buildProvider(t, "echo")
+	if p.CancelTask != nil {
+		t.Error("echo should not wire CancelTask (task_cancel=false)")
 	}
-	if _, err := p.DownloadArtifact(ctx, "task_x", "art_x"); !errors.Is(err, agent.ErrUnsupported) {
-		t.Fatalf("echo DownloadArtifact should return the ErrUnsupported sentinel, got %v", err)
+	if p.DownloadArtifact != nil {
+		t.Error("echo should not wire DownloadArtifact (artifact_download=false)")
 	}
-	if _, err := p.Send(ctx, agent.SendInput{Text: "hi", Files: []string{"a.txt"}}); !errors.Is(err, agent.ErrUnsupported) {
-		t.Fatalf("echo Send with --file should return the ErrUnsupported sentinel, got %v", err)
+	if p.FileInput {
+		t.Error("echo should not accept file input (file_input=false)")
 	}
 }
 
@@ -220,7 +213,7 @@ func TestEchoCancelSentinel(t *testing.T) {
 // as soon as it is sent).
 func TestReporterCancelTerminal(t *testing.T) {
 	swapStore(t)
-	p := newProvider(t, "reporter")
+	p := buildProvider(t, "reporter")
 	ctx := context.Background()
 	task, err := p.Send(ctx, agent.SendInput{Text: "报表"})
 	if err != nil {
@@ -229,9 +222,6 @@ func TestReporterCancelTerminal(t *testing.T) {
 	err = p.CancelTask(ctx, task.TaskID)
 	if err == nil {
 		t.Fatal("canceling a terminal task should return an error")
-	}
-	if errors.Is(err, agent.ErrUnsupported) {
-		t.Fatal("reporter supports cancel and should not return ErrUnsupported")
 	}
 	prob, ok := errs.ProblemOf(err)
 	if !ok {
@@ -246,10 +236,10 @@ func TestReporterCancelTerminal(t *testing.T) {
 // typed error (invalid_argument, with a hint pointing to agent list example).
 func TestUnknownCatalogID(t *testing.T) {
 	swapStore(t)
-	p := newProvider(t, "nonexistent")
+	p := buildProvider(t, "nonexistent")
 	ctx := context.Background()
-	if _, err := p.Card(ctx); err == nil {
-		t.Fatal("Card with an unknown catalog id should return an error")
+	if _, err := agent.BuildCard(ctx, scheme, "nonexistent", p); err == nil {
+		t.Fatal("BuildCard with an unknown catalog id should return an error (Describe validates the id)")
 	}
 	_, err := p.Send(ctx, agent.SendInput{Text: "hi"})
 	if err == nil {
@@ -265,7 +255,7 @@ func TestUnknownCatalogID(t *testing.T) {
 // semantics) and an unknown context id.
 func TestSendGuards(t *testing.T) {
 	swapStore(t)
-	p := newProvider(t, "echo")
+	p := buildProvider(t, "echo")
 	ctx := context.Background()
 
 	_, err := p.Send(ctx, agent.SendInput{Text: "hi", ContextID: "ctx_x", TaskID: "task_x"})
@@ -282,7 +272,7 @@ func TestSendGuards(t *testing.T) {
 // TestDeleteContext verifies deleting a context also cleans up the tasks under it.
 func TestDeleteContext(t *testing.T) {
 	swapStore(t)
-	p := newProvider(t, "echo")
+	p := buildProvider(t, "echo")
 	ctx := context.Background()
 	task, err := p.Send(ctx, agent.SendInput{Text: "bye"})
 	if err != nil {

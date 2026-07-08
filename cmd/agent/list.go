@@ -4,7 +4,6 @@
 package agent
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -138,17 +137,8 @@ func agentListSchemeRun(opts *listOptions) error {
 	if err != nil {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", err.Error()).WithCause(err)
 	}
-	agents, err := p.(iagent.Discoverer).ListAgents(opts.Cmd.Context())
+	agents, err := p.ListAgents(opts.Cmd.Context())
 	if err != nil {
-		// A Discoverer that still returns the agent.ErrUnsupported sentinel at
-		// call time maps to the same typed unsupported_capability as the
-		// probe-negative path above (SPI contract, internal/agent/registry.go).
-		if errors.Is(err, iagent.ErrUnsupported) {
-			return errs.NewValidationError(errs.SubtypeUnsupportedCapability,
-				"provider '%s' 暂不支持列举 agent", opts.Scheme).
-				WithCause(err).
-				WithHint("%s", info.AgentIDSource)
-		}
 		return err
 	}
 
@@ -176,9 +166,9 @@ func agentListSchemeRun(opts *listOptions) error {
 	return nil
 }
 
-// probeDiscoverer reports whether the provider built by info implements
-// Discoverer. The probe instance is constructed with empty Deps and an empty
-// agentID — no client is needed to answer a type assertion, which keeps the
+// probeDiscoverer reports whether the provider built by info can enumerate its
+// agents (wires ListAgents). The probe instance is constructed with empty Deps
+// and an empty agentID — no client is needed to read a field, which keeps the
 // probe usable before config init. A factory error means the capability cannot
 // be confirmed, so it degrades to not discoverable.
 func probeDiscoverer(info iagent.ProviderInfo) bool {
@@ -186,8 +176,7 @@ func probeDiscoverer(info iagent.ProviderInfo) bool {
 	if err != nil || p == nil {
 		return false
 	}
-	_, ok := p.(iagent.Discoverer)
-	return ok
+	return p.ListAgents != nil
 }
 
 // listProviders builds the provider descriptors from the built-in registry so

@@ -50,7 +50,7 @@ var sleep = func(ctx context.Context, d time.Duration) bool {
 // (Card) may be called on it. A malformed ref or unknown provider scheme is
 // wrapped into a validation typed error (subtype invalid_argument, exit 2), so
 // those surface before (not behind) the config gate.
-func resolveProviderNoClient(f *cmdutil.Factory, cmd *cobra.Command, ref, asStr string) (iagent.Provider, core.Identity, error) {
+func resolveProviderNoClient(f *cmdutil.Factory, cmd *cobra.Command, ref, asStr string) (*iagent.Provider, core.Identity, error) {
 	id := f.ResolveAs(cmd.Context(), cmd, core.Identity(asStr))
 	if err := f.CheckIdentity(id, supportedIdentities); err != nil {
 		return nil, "", err
@@ -91,7 +91,7 @@ func wrapRefResolveError(err error) error {
 // Wiring rule: every verb that calls the real API MUST run preflightScopesForRef
 // right after this succeeds and before the API call, so a new verb is
 // never silently exempt from the local scope preflight.
-func resolveProvider(f *cmdutil.Factory, cmd *cobra.Command, ref, asStr string) (iagent.Provider, core.Identity, error) {
+func resolveProvider(f *cmdutil.Factory, cmd *cobra.Command, ref, asStr string) (*iagent.Provider, core.Identity, error) {
 	_, id, err := resolveProviderNoClient(f, cmd, ref, asStr)
 	if err != nil {
 		return nil, "", err
@@ -240,24 +240,6 @@ func capabilityError(ref, capHuman, capKey string) error {
 	).WithHint("%s", cardHint(ref, "支持的能力"))
 }
 
-// convertUnsupported converts the agent.ErrUnsupported sentinel a provider
-// method may return (SPI contract, internal/agent/registry.go) into the typed
-// unsupported_capability validation error (exit 2), mirroring capabilityError's
-// wording: ref is the user-supplied agent_ref, action the human-facing verb
-// (e.g. "task cancel"). Any other error — including an already-typed one and
-// nil — passes through unchanged, so wrapping every provider call site is
-// side-effect free. Without this wiring a bare sentinel would fall through to
-// the internal-error fallback (exit 5) and break the documented semantics.
-func convertUnsupported(ref, action string, err error) error {
-	if err == nil || !errors.Is(err, iagent.ErrUnsupported) {
-		return err
-	}
-	return errs.NewValidationError(
-		errs.SubtypeUnsupportedCapability,
-		"agent '%s' 不支持 '%s'（provider 返回能力不支持）", ref, action,
-	).WithCause(err).WithHint("%s", cardHint(ref, "支持的能力"))
-}
-
 // normalizeTask derives the redundant IsTerminal flag from State — the single
 // source of truth — the moment a task enters the command layer, so a provider
 // that forgets (or mis-fills) the flag can never skew watch exit codes or an
@@ -283,7 +265,7 @@ func normalizeTaskSummaries(ts []iagent.TaskSummary) []iagent.TaskSummary {
 // or ctx is done. A timeout is not a failure: it returns the most recent
 // task with a nil error, letting the caller print the current state (exit 0). A
 // provider GetTask error is surfaced.
-func pollToStop(ctx context.Context, p iagent.Provider, taskID string) (*iagent.AgentTask, error) {
+func pollToStop(ctx context.Context, p *iagent.Provider, taskID string) (*iagent.AgentTask, error) {
 	const (
 		initialDelay = time.Second
 		maxDelay     = 5 * time.Second

@@ -65,6 +65,14 @@ func RunConformance(t *testing.T, scheme, sampleAgentID string) {
 		if p == nil {
 			t.Fatal("conformance: Factory must not return a nil provider")
 		}
+		// Core fields are mandatory (the command layer dispatches them without a
+		// nil-check); Register enforces this at registration, re-assert here.
+		if p.Send == nil {
+			t.Error("conformance: Provider.Send (core) must be wired")
+		}
+		if p.GetTask == nil {
+			t.Error("conformance: Provider.GetTask (core) must be wired")
+		}
 	})
 
 	t.Run("card", func(t *testing.T) {
@@ -74,9 +82,9 @@ func RunConformance(t *testing.T, scheme, sampleAgentID string) {
 			if err != nil {
 				t.Fatalf("conformance: Factory(zero-value Deps) returned error: %v", err)
 			}
-			card, err := p.Card(context.Background())
+			card, err := agent.BuildCard(context.Background(), scheme, sampleAgentID, p)
 			if err != nil {
-				t.Fatalf("conformance: Card should be available offline (expected nil error), got %v", err)
+				t.Fatalf("conformance: BuildCard should be available offline (expected nil error), got %v", err)
 			}
 			if card == nil {
 				t.Fatal("conformance: Card must not return nil")
@@ -115,11 +123,10 @@ func RunConformance(t *testing.T, scheme, sampleAgentID string) {
 			if err != nil {
 				t.Fatalf("conformance: Factory(zero-value Deps) returned error: %v", err)
 			}
-			d, ok := p.(agent.Discoverer)
-			if !ok {
-				t.Fatal("conformance: catalog-type provider instances must implement Discoverer")
+			if p.ListAgents == nil {
+				t.Fatal("conformance: catalog-type provider must wire ListAgents")
 			}
-			list, err := d.ListAgents(context.Background())
+			list, err := p.ListAgents(context.Background())
 			if err != nil {
 				t.Fatalf("conformance: catalog-type ListAgents should be available offline (expected nil error), got %v", err)
 			}
@@ -144,7 +151,7 @@ func RunConformance(t *testing.T, scheme, sampleAgentID string) {
 			if !found {
 				t.Errorf("conformance: sampleAgentID should appear in the enumeration (expected to contain %q), got %+v", wantRef, list)
 			}
-			list2, err := d.ListAgents(context.Background())
+			list2, err := p.ListAgents(context.Background())
 			if err != nil {
 				t.Fatalf("conformance: second ListAgents returned error: %v", err)
 			}
