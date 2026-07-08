@@ -54,13 +54,13 @@ func requirePreflightError(t *testing.T, err error) *errs.PermissionError {
 	return pe
 }
 
-// TestPreflightReportsAllMissingWithMergedHint is the all-or-nothing pin: the
-// check is all-or-nothing, so a user token holding only some of the provider's scopes fails
-// with EVERY missing scope named (sorted) in both the message and
-// missing_scopes, and a re-auth hint that merges the stored token scopes with
-// the provider's FULL RequiredScopes set (sorted, so re-running the login
-// command never drops an existing grant).
-func TestPreflightReportsAllMissingWithMergedHint(t *testing.T) {
+// TestPreflightReportsMissingWithIncrementalHint is the all-or-nothing pin: a
+// user token holding only some of the provider's scopes fails with EVERY missing
+// scope named (sorted) in both the message and missing_scopes, and a re-auth
+// hint listing ONLY the missing scopes (the open platform authorizes
+// incrementally, so re-login with just the missing keeps existing grants — no
+// merge needed, mirroring cmd/event).
+func TestPreflightReportsMissingWithIncrementalHint(t *testing.T) {
 	err := preflightScopes(preflightInput{
 		Identity:    core.AsUser,
 		TokenScopes: []string{"im:message", "fakescoped:agent_chat:write"},
@@ -75,23 +75,64 @@ func TestPreflightReportsAllMissingWithMergedHint(t *testing.T) {
 	if !reflect.DeepEqual(ve.MissingScopes, wantMissing) {
 		t.Errorf("missing_scopes should be %v (all missing, stable sort), got %v", wantMissing, ve.MissingScopes)
 	}
-	// Merged hint: existing token scopes ∪ FULL provider RequiredScopes, sorted.
-	wantScopeArg := `lark-cli auth login --scope "fakescoped:agent_artifact:read fakescoped:agent_attachment:write fakescoped:agent_chat:read fakescoped:agent_chat:write im:message"`
+	// Incremental hint: ONLY the missing scopes (not merged with existing grants).
+	wantScopeArg := `lark-cli auth login --scope "fakescoped:agent_artifact:read fakescoped:agent_attachment:write fakescoped:agent_chat:read"`
 	if !strings.Contains(ve.Hint, wantScopeArg) {
-		t.Errorf("hint should contain the merged full-scope command %q, got %q", wantScopeArg, ve.Hint)
+		t.Errorf("hint should contain only the missing scopes %q, got %q", wantScopeArg, ve.Hint)
+	}
+	// And must NOT re-list an already-granted scope.
+	if strings.Contains(ve.Hint, "im:message") {
+		t.Errorf("incremental hint must not re-request already-granted scopes, got %q", ve.Hint)
 	}
 }
 
-// TestPreflightBotSkipped pins that a bot token has no scope list concept, so
-// preflight is skipped entirely regardless of TokenScopes.
-func TestPreflightBotSkipped(t *testing.T) {
+// TestPreflightBotNoTenantScopesSkipped pins that with no available tenant scope
+// list (fetch failed / app unpublished → nil), the bot check downgrades to a
+// no-op, so the bus/API handshake owns the error.
+func TestPreflightBotNoTenantScopesSkipped(t *testing.T) {
 	err := preflightScopes(preflightInput{
 		Identity:    core.AsBot,
 		TokenScopes: nil,
 		Provider:    scopedInfo(t),
 	})
 	if err != nil {
-		t.Fatalf("bot identity should skip preflight, got %v", err)
+		t.Fatalf("bot with no tenant scope list should skip preflight, got %v", err)
+	}
+}
+
+// TestPreflightBotMissingScopes pins the bot branch: given the app's published
+// TenantScopes, a missing scope is reported with the BOT remediation hint (add
+// in the developer console + re-publish), NOT a user re-login.
+func TestPreflightBotMissingScopes(t *testing.T) {
+	// Tenant token carries 2 of the 4 fakescoped scopes.
+	err := preflightScopes(preflightInput{
+		Identity:    core.AsBot,
+		TokenScopes: []string{"fakescoped:agent_chat:read", "fakescoped:agent_chat:write"},
+		Provider:    scopedInfo(t),
+	})
+	ve := requirePreflightError(t, err)
+	wantMissing := []string{"fakescoped:agent_artifact:read", "fakescoped:agent_attachment:write"}
+	if !reflect.DeepEqual(ve.MissingScopes, wantMissing) {
+		t.Errorf("bot missing_scopes should be %v, got %v", wantMissing, ve.MissingScopes)
+	}
+	if ve.Identity != string(core.AsBot) {
+		t.Errorf("error identity should be bot, got %q", ve.Identity)
+	}
+	// Bot hint = console re-publish, NOT `auth login` (that is the user fix).
+	if strings.Contains(ve.Hint, "auth login") {
+		t.Errorf("bot hint must not suggest auth login (user-only), got %q", ve.Hint)
+	}
+	if !strings.Contains(ve.Hint, "developer console") {
+		t.Errorf("bot hint should point to the developer console, got %q", ve.Hint)
+	}
+}
+
+// TestPreflightBotAllScopesPresent pins the bot happy path.
+func TestPreflightBotAllScopesPresent(t *testing.T) {
+	if err := preflightScopes(preflightInput{
+		Identity: core.AsBot, TokenScopes: fakescopedAllScopes, Provider: scopedInfo(t),
+	}); err != nil {
+		t.Errorf("bot with all tenant scopes should pass, got %v", err)
 	}
 }
 
@@ -351,6 +392,34 @@ func TestTaskCancelPreflightWired(t *testing.T) {
 	p, ok := errs.ProblemOf(err)
 	if !ok || p.Subtype != errs.Subtype("unsupported_capability") {
 		t.Fatalf("want unsupported_capability (capability gate answers first), got %+v", p)
+	}
+}
+
+// swapBotTenantScopes swaps the botTenantScopes seam so no test touches the
+// app-version fetch / network.
+func swapBotTenantScopes(t *testing.T, scopes []string) {
+	t.Helper()
+	old := botTenantScopes
+	botTenantScopes = func(*cmdutil.Factory) []string { return scopes }
+	t.Cleanup(func() { botTenantScopes = old })
+}
+
+// TestTaskGetBotPreflightBlocksMissingScope pins the bot wiring end-to-end:
+// preflightScopesForRef gathers tenant scopes via the botTenantScopes seam (not
+// storedUserScopes) for a bot identity and blocks a missing scope.
+func TestTaskGetBotPreflightBlocksMissingScope(t *testing.T) {
+	swapBotTenantScopes(t, []string{"fakescoped:agent_chat:read"})
+	f, _ := userFactory(t)
+	err := agentTaskGetRun(&taskOptions{
+		Factory: f, Cmd: taskCmdCtx(t, "get"), // taskCmdCtx sets --as bot
+		Ref: "fakescoped:agt_x", TaskID: "t1", As: "bot",
+	})
+	ve := requirePreflightError(t, err)
+	if ve.Identity != string(core.AsBot) {
+		t.Errorf("preflight error identity should be bot, got %q", ve.Identity)
+	}
+	if !contains(ve.MissingScopes, "fakescoped:agent_artifact:read") {
+		t.Errorf("bot task get missing scopes should include fakescoped:agent_artifact:read, got %v", ve.MissingScopes)
 	}
 }
 
