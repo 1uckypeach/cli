@@ -15,8 +15,20 @@ type Envelope struct {
 
 // Meta carries optional metadata in envelope responses.
 type Meta struct {
-	Count    int    `json:"count,omitempty"`
-	Rollback string `json:"rollback,omitempty"`
+	Count    int          `json:"count,omitempty"`
+	Rollback string       `json:"rollback,omitempty"`
+	Next     []NextAction `json:"next,omitempty"`
+}
+
+// NextAction is a typed "suggested next command" that an AI caller can execute
+// directly.
+type NextAction struct {
+	Label   string `json:"label"`
+	Command string `json:"command"`
+	// Template, when true, marks a Command that contains <...> placeholders and
+	// must be fully substituted by the caller before execution; it is not
+	// directly executable as-is. Directly executable commands omit the field.
+	Template bool `json:"template,omitempty"`
 }
 
 // PendingNotice, if set, returns system-level notices to inject as the
