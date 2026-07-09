@@ -210,7 +210,7 @@ func cellsSetStyleInput(runtime flagView, token, sheetID, sheetName string) (map
 // tests. A char device is a terminal; anything else (pipe, redirect, /dev/null)
 // counts as piped input.
 var csvPutStdinIsPipe = func() bool {
-	fi, err := os.Stdin.Stat()
+	fi, err := os.Stdin.Stat() //nolint:forbidigo // pipe detection needs the real process fd; IOStreams.In is a plain io.Reader without Stat
 	if err != nil {
 		return false
 	}
