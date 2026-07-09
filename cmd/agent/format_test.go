@@ -17,6 +17,33 @@ import (
 	"github.com/larksuite/cli/internal/output"
 )
 
+// TestPrintTaskPrettyRendersDecision pins that printTaskPretty surfaces a
+// structured input_required decision (prompt + decision_id + options), with all
+// agent-controlled fields ANSI-stripped.
+func TestPrintTaskPrettyRendersDecision(t *testing.T) {
+	out := &bytes.Buffer{}
+	printTaskPretty(out, &iagent.AgentTask{
+		TaskID: "task_1", State: iagent.StateInputRequired,
+		InputRequired: &iagent.InputRequired{
+			DecisionID: "dec_7f3a",
+			Prompt:     "按大区还是品类\x1b[2J拆?",
+			Options: []iagent.Option{
+				{OptionID: "by_region", Label: "按大区"},
+				{OptionID: "by_category", Label: "按品类"},
+			},
+		},
+	})
+	text := out.String()
+	for _, want := range []string{"input_required:", "decision_id: dec_7f3a", "option by_region: 按大区", "option by_category: 按品类"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("pretty task should render decision part %q, got:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "\x1b") {
+		t.Errorf("ANSI in the decision prompt must be stripped, got %q", text)
+	}
+}
+
 // TestValidateFormat_Valid pins that json/pretty (and the zero value, which
 // only occurs when options structs are built directly in tests) pass.
 func TestValidateFormat_Valid(t *testing.T) {

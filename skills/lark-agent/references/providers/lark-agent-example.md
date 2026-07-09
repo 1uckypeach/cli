@@ -43,13 +43,14 @@ catalog 型必可枚举，`agent list example` 直接列全部 agent（含 name/
 | `task_cancel` | **false** | true | 对 echo 发 cancel 被命令层门控直接拒（见下方错误样例，不发任何请求）；对 reporter 的 cancel 会真正派发（但 mock 任务即时终态，见下方 failed_precondition 样例） |
 | `file_input` | **false** | true | echo 带 `--file` 报 `unsupported_capability`；reporter 接收附件并在回复里确认 |
 | `artifact_download` | **false** | true | 只有 reporter 产出 artifact（内联 CSV，`kind=text`，下载输出 `mime=text/csv`、`suggested_name=quarterly_report.csv`） |
-| `input_required` | false | true | 两者的任务都即时完成、实际不会停在 `input_required`；reporter 声明 true 属"声明了但用不到"（无害方向），echo 按最小集诚实声明 false |
+| `input_required` | false | true | echo/reporter 的任务都即时完成、实际不会停在 `input_required`；reporter 声明 true 属"声明了但用不到"（无害方向），echo 按最小集诚实声明 false。真正演示该态的是 `example:planner`（见下方行为特点）|
 
 行为特点：
 
-- **任务发出即完成**：send 返回的 `state` 恒为 `completed`（终态），`meta.next` 直接给"查看任务详情与产物"，不会推轮询命令——观察 `--watch` / 非终态行为要靠真实 provider。
+- **任务发出即完成（echo/reporter）**：send 返回的 `state` 恒为 `completed`（终态），`meta.next` 直接给"查看任务详情与产物"，不会推轮询命令——观察 `--watch` / 非终态行为要靠真实 provider 或 `example:planner`。
 - **多轮记忆可验证**：同一 `--context-id` 续发时，echo 的回复从第 2 轮起带轮次标记（如 `换个角度再说一遍（第 2 轮）`），跨命令证明上下文确实在工作。
-- **不支持向已有任务续发**：带 `--task-id` 续发报 `failed_precondition`（任务发出即终态），hint 引导去掉 `--task-id` 用 `--context-id` 起新一轮。
+- **echo/reporter 不支持向已有任务续发**：带 `--task-id` 续发报 `failed_precondition`（任务发出即终态），hint 引导去掉 `--task-id` 用 `--context-id` 起新一轮。
+- **HITL 决策链路（`example:planner`）**：首次 `send` 返回 `state=input_required` + 结构化决策（`decision_id`、`input_type=single_select`、`options=[by_region, by_category]`、`submitted=false`）；用 `send --context-id <ctx> --task-id <task> --decision-id <id> --option by_region` 应答后任务转 `completed`、决策标 `submitted=true`（`submitted_option_id=by_region`）；对已答决策再 `--option` 报 `conflict`——单进程 mock 里对多端仲裁的最小示范。
 
 ## 错误样例（真实输出）
 

@@ -105,6 +105,57 @@ func TestSendTaskIDRequiresContextID(t *testing.T) {
 	}
 }
 
+// TestSendAnswerDecisionByOption pins the structured input_required answer path:
+// --decision-id + --option needs no --text, and both reach the provider hook.
+func TestSendAnswerDecisionByOption(t *testing.T) {
+	opts := sendTestOpts(t)
+	opts.ContextID = "sess_1"
+	opts.TaskID = "task_1"
+	opts.DecisionID = "dec_7f3a"
+	opts.Options = []string{"by_region"}
+	// deliberately no opts.Text — the chosen option is the answer.
+	var got iagent.SendInput
+	setScripted(t, scriptedHooks{send: func(in iagent.SendInput) (*iagent.AgentTask, error) {
+		got = in
+		return &iagent.AgentTask{TaskID: "task_1", ContextID: "sess_1", State: iagent.StateCompleted}, nil
+	}})
+	if err := agentSendRun(opts); err != nil {
+		t.Fatalf("answering a decision by --option should not require --text: %v", err)
+	}
+	if got.DecisionID != "dec_7f3a" {
+		t.Errorf("SendInput.DecisionID should reach the hook, got %q", got.DecisionID)
+	}
+	if len(got.OptionIDs) != 1 || got.OptionIDs[0] != "by_region" {
+		t.Errorf("SendInput.OptionIDs should reach the hook, got %v", got.OptionIDs)
+	}
+}
+
+// TestSendOptionRequiresDecisionID pins that --option without --decision-id is a
+// validation error raised before any provider is built.
+func TestSendOptionRequiresDecisionID(t *testing.T) {
+	err := agentSendRun(&sendOptions{Ref: "example:agt_x", Text: "x", Options: []string{"by_region"}})
+	if err == nil {
+		t.Fatal("--option without --decision-id should error")
+	}
+	var verr *errs.ValidationError
+	if !errors.As(err, &verr) || verr.Param != "--option" {
+		t.Errorf("param should be --option, got %+v", verr)
+	}
+}
+
+// TestSendDecisionRequiresTaskContext pins that answering a decision needs the
+// task/context it belongs to.
+func TestSendDecisionRequiresTaskContext(t *testing.T) {
+	err := agentSendRun(&sendOptions{Ref: "example:agt_x", DecisionID: "dec_1", Options: []string{"by_region"}})
+	if err == nil {
+		t.Fatal("--decision-id without --context-id/--task-id should error")
+	}
+	var verr *errs.ValidationError
+	if !errors.As(err, &verr) || verr.Param != "--decision-id" {
+		t.Errorf("param should be --decision-id, got %+v", verr)
+	}
+}
+
 // workingTask is the canonical non-terminal task the scripted Send returns for
 // the happy-path tests.
 func workingTask() *iagent.AgentTask {

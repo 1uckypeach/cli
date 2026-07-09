@@ -53,11 +53,36 @@ type Artifact struct {
 	Text        string `json:"text,omitempty"`
 }
 
-// InputRequired describes the input a task requests from the user while in the
-// input_required state.
+// InputType is the closed set of ways an input_required decision can be
+// answered: pick one/several of Options, or supply free text.
+const (
+	InputTypeSingleSelect = "single_select"
+	InputTypeMultiSelect  = "multi_select"
+	InputTypeText         = "text"
+)
+
+// InputRequired is the structured decision a task requests while in the
+// input_required state. It carries enough to (a) correlate an answer to the
+// right decision (DecisionID), (b) answer unambiguously by id rather than fuzzy
+// text (Options[].OptionID), and (c) let multiple endpoints arbitrate a single
+// decision (Submitted). These fields ride an A2A DataPart on the wire and are
+// projected here into a typed shape; a provider hook fills this struct directly
+// (it never hands the framework a raw A2A message). InputType says HOW to
+// answer: single_select/multi_select pick from Options, text is free-form.
 type InputRequired struct {
-	Prompt  string   `json:"prompt"`
-	Options []string `json:"options,omitempty"`
+	DecisionID        string   `json:"decision_id,omitempty"`
+	Prompt            string   `json:"prompt"`
+	InputType         string   `json:"input_type,omitempty"`          // single_select | multi_select | text
+	Options           []Option `json:"options,omitempty"`             // present for *_select; empty for text
+	Submitted         bool     `json:"submitted,omitempty"`           // an endpoint has already answered (server-set; the CLI only reads it)
+	SubmittedOptionID string   `json:"submitted_option_id,omitempty"` // the winning option once Submitted, for display
+}
+
+// Option is one selectable choice in an input_required decision: OptionID is the
+// stable id an answer references; Label is the human-facing text.
+type Option struct {
+	OptionID string `json:"option_id"`
+	Label    string `json:"label"`
 }
 
 // TaskSummary is a single task summary in the task list output (and in a

@@ -186,6 +186,40 @@ func TestNextForTaskWatchNotWait(t *testing.T) {
 	}
 }
 
+// TestNextForTaskStructuredDecision pins that an input_required task carrying a
+// structured decision (decision_id + options) yields a next command that answers
+// by --decision-id/--option; a decision whose server-supplied decision_id fails
+// the safeNextID whitelist falls back to the free-text form (never interpolated).
+func TestNextForTaskStructuredDecision(t *testing.T) {
+	withDecision := nextForTask("example:planner", &iagent.AgentTask{
+		TaskID: "task_1", ContextID: "ctx_1", State: iagent.StateInputRequired,
+		InputRequired: &iagent.InputRequired{
+			DecisionID: "dec_7f3a",
+			Prompt:     "按大区还是品类?",
+			Options:    []iagent.Option{{OptionID: "by_region", Label: "按大区"}},
+		},
+	})
+	if len(withDecision) != 1 || !withDecision[0].Template {
+		t.Fatalf("structured decision next must be one template action, got %+v", withDecision)
+	}
+	for _, want := range []string{"--decision-id dec_7f3a", "--option <option_id>", "--task-id task_1"} {
+		if !strings.Contains(withDecision[0].Command, want) {
+			t.Errorf("structured decision command should contain %q, got %q", want, withDecision[0].Command)
+		}
+	}
+	// A decision_id with shell metacharacters must NOT be interpolated → fall back.
+	badID := nextForTask("example:planner", &iagent.AgentTask{
+		TaskID: "task_1", ContextID: "ctx_1", State: iagent.StateInputRequired,
+		InputRequired: &iagent.InputRequired{
+			DecisionID: "dec bad;rm", Prompt: "x",
+			Options: []iagent.Option{{OptionID: "o1", Label: "l1"}},
+		},
+	})
+	if len(badID) != 1 || strings.Contains(badID[0].Command, "--decision-id") || !strings.Contains(badID[0].Command, "--text") {
+		t.Errorf("a whitelist-failing decision_id should fall back to the --text form, got %+v", badID)
+	}
+}
+
 // TestNextForTaskTemplateFlag pins the template marker semantics: the
 // input_required continue hint carries a <你的答复> placeholder, so it must be
 // marked template=true (not directly executable); poll and terminal-detail

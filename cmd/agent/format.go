@@ -102,6 +102,20 @@ func printTaskPretty(w io.Writer, task *iagent.AgentTask) {
 		fmt.Fprintf(w, "text: %s\n", truncateRunes(kvValue(text), 120))
 	}
 	fmt.Fprintf(w, "artifacts: %d\n", len(task.Artifacts))
+	// input_required decision: prompt + selectable options + arbitration state.
+	// Every field is agent-controlled, so all go through kvValue.
+	if ir := task.InputRequired; ir != nil {
+		fmt.Fprintf(w, "input_required: %s\n", truncateRunes(kvValue(ir.Prompt), 120))
+		if ir.DecisionID != "" {
+			fmt.Fprintf(w, "  decision_id: %s\n", kvValue(ir.DecisionID))
+		}
+		if ir.Submitted {
+			fmt.Fprintf(w, "  submitted: true (%s)\n", kvValue(ir.SubmittedOptionID))
+		}
+		for _, o := range ir.Options {
+			fmt.Fprintf(w, "  option %s: %s\n", kvValue(o.OptionID), kvValue(o.Label))
+		}
+	}
 }
 
 // TSV renderers below intentionally do not escape tab/newline in cell values:

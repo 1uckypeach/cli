@@ -234,6 +234,82 @@ func TestStateSurvivesReload(t *testing.T) {
 	}
 }
 
+// TestPlannerDecisionFlow drives the input_required HITL loop end to end on the
+// reference provider: the first send opens a non-terminal decision, answering it
+// by option completes the task and records the winning option, and a second
+// answer to the same decision is a conflict (the arbitration path).
+func TestPlannerDecisionFlow(t *testing.T) {
+	swapStore(t)
+	rt := fakeRuntime{"planner"}
+	ctx := context.Background()
+
+	t1, err := plannerSend(ctx, rt, agent.SendInput{Text: "出个季度报表"})
+	if err != nil {
+		t.Fatalf("planner open send: %v", err)
+	}
+	if t1.State != agent.StateInputRequired || t1.InputRequired == nil {
+		t.Fatalf("first send should open an input_required decision, got %+v", t1)
+	}
+	ir := t1.InputRequired
+	if ir.DecisionID == "" || ir.InputType != agent.InputTypeSingleSelect || len(ir.Options) != 2 {
+		t.Fatalf("decision should carry id + single_select + 2 options, got %+v", ir)
+	}
+	if ir.Submitted {
+		t.Error("a freshly opened decision should not be submitted")
+	}
+
+	done, err := plannerSend(ctx, rt, agent.SendInput{
+		ContextID: t1.ContextID, TaskID: t1.TaskID,
+		DecisionID: ir.DecisionID, OptionIDs: []string{"by_region"},
+	})
+	if err != nil {
+		t.Fatalf("answering the decision: %v", err)
+	}
+	if done.State != agent.StateCompleted {
+		t.Fatalf("answered task should be completed, got %s", done.State)
+	}
+	if done.InputRequired == nil || !done.InputRequired.Submitted || done.InputRequired.SubmittedOptionID != "by_region" {
+		t.Errorf("decision should be marked submitted with the winning option, got %+v", done.InputRequired)
+	}
+
+	_, err = plannerSend(ctx, rt, agent.SendInput{
+		ContextID: t1.ContextID, TaskID: t1.TaskID,
+		DecisionID: ir.DecisionID, OptionIDs: []string{"by_category"},
+	})
+	if err == nil {
+		t.Fatal("answering an already-submitted decision should conflict")
+	}
+	if p, ok := errs.ProblemOf(err); !ok || p.Subtype != errs.SubtypeConflict {
+		t.Fatalf("re-answer should be a conflict, got %+v (%v)", p, err)
+	}
+}
+
+// TestPlannerRejectsUnknownOption pins that an option_id not in the decision is
+// invalid_argument and leaves the decision unanswered.
+func TestPlannerRejectsUnknownOption(t *testing.T) {
+	swapStore(t)
+	rt := fakeRuntime{"planner"}
+	ctx := context.Background()
+	t1, err := plannerSend(ctx, rt, agent.SendInput{Text: "出报表"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = plannerSend(ctx, rt, agent.SendInput{
+		ContextID: t1.ContextID, TaskID: t1.TaskID,
+		DecisionID: t1.InputRequired.DecisionID, OptionIDs: []string{"nonexistent"},
+	})
+	if p, ok := errs.ProblemOf(err); !ok || p.Subtype != errs.SubtypeInvalidArgument {
+		t.Fatalf("unknown option should be invalid_argument, got %+v (%v)", p, err)
+	}
+	got, err := getTask(ctx, rt, t1.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.State != agent.StateInputRequired || got.InputRequired.Submitted {
+		t.Errorf("a rejected option must not change the decision, got state=%s submitted=%v", got.State, got.InputRequired.Submitted)
+	}
+}
+
 // TestReporterArtifactFlow verifies the full artifact chain.
 func TestReporterArtifactFlow(t *testing.T) {
 	swapStore(t)

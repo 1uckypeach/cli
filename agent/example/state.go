@@ -229,6 +229,74 @@ func (s *memoryStore) setTaskState(taskID string, state agent.TaskState) error {
 	return s.saveLocked()
 }
 
+// answerDecision applies a structured answer to a task's pending input_required
+// decision: it validates the decision id + option, marks the decision submitted
+// (recording the winning option), and transitions the task to completed. It is
+// the mock's stand-in for server-side arbitration — a second answer to an
+// already-submitted decision returns a conflict (the "already arbitrated" path),
+// which is exactly the signal a real multi-endpoint backend would return.
+func (s *memoryStore) answerDecision(agentID, taskID, decisionID, optionID string) (agent.AgentTask, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadLocked()
+	rec, ok := s.Tasks[taskID]
+	if !ok || rec.AgentID != agentID {
+		return agent.AgentTask{}, errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"未知的 task id '%s'（example:%s 名下不存在）", taskID, agentID).
+			WithHint("运行 lark-cli agent task list example:%s 查看现有任务", agentID)
+	}
+	ir := rec.Task.InputRequired
+	if ir == nil {
+		return agent.AgentTask{}, errs.NewValidationError(errs.SubtypeFailedPrecondition,
+			"任务 '%s' 没有待答决策", taskID).
+			WithHint("用 lark-cli agent task get example:%s %s 查看当前状态", agentID, taskID)
+	}
+	if ir.DecisionID != decisionID {
+		return agent.AgentTask{}, errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"decision_id '%s' 与该任务当前决策 '%s' 不匹配", decisionID, ir.DecisionID)
+	}
+	// Already answered → conflict (the arbitration path). Checked BEFORE the state
+	// check, because answering moves the task to completed while keeping the
+	// submitted decision on record — a re-answer must read as "already decided",
+	// not "no longer awaiting input".
+	if ir.Submitted {
+		return agent.AgentTask{}, errs.NewAPIError(errs.SubtypeConflict,
+			"该决策已被答复（%s），多端仲裁已定，无需重复", ir.SubmittedOptionID).
+			WithHint("用 lark-cli agent task get example:%s %s 查看已定结果", agentID, taskID)
+	}
+	if rec.Task.State != agent.StateInputRequired {
+		return agent.AgentTask{}, errs.NewValidationError(errs.SubtypeFailedPrecondition,
+			"任务 '%s' 当前不在等待输入", taskID).
+			WithHint("用 lark-cli agent task get example:%s %s 查看当前状态", agentID, taskID)
+	}
+	label, ok := optionLabel(ir.Options, optionID)
+	if !ok {
+		return agent.AgentTask{}, errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"option_id '%s' 不在该决策的可选项中", optionID).
+			WithHint("用 lark-cli agent task get example:%s %s 查看 options", agentID, taskID)
+	}
+	ir.Submitted = true
+	ir.SubmittedOptionID = optionID
+	rec.Task.State = agent.StateCompleted
+	rec.Task.IsTerminal = true
+	rec.Task.Messages = append(rec.Task.Messages, agent.Message{
+		Role:  "agent",
+		Parts: []agent.Part{{Type: "text", Text: "已按「" + label + "」生成报表。"}},
+	})
+	rec.Task.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	return rec.Task, s.saveLocked()
+}
+
+// optionLabel returns the label of optionID within opts (ok=false if not found).
+func optionLabel(opts []agent.Option, optionID string) (string, bool) {
+	for _, o := range opts {
+		if o.OptionID == optionID {
+			return o.Label, true
+		}
+	}
+	return "", false
+}
+
 // listTasks lists an agent's task summaries, optionally filtered by contextID
 // (empty string means no filter), output in creation order. IsTerminal is
 // carried along here for convenience, but the command layer re-derives it from
