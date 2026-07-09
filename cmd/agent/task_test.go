@@ -847,28 +847,29 @@ func TestFetchArtifactURL_Success(t *testing.T) {
 	}
 }
 
-// TestFetchArtifactURL_LimitEnforced pins the io.LimitReader(maxArtifactBytes)
-// guard: an oversized body is truncated at exactly maxArtifactBytes so a
-// hostile host cannot stream an unbounded body onto disk. Uses a streaming
-// RoundTripper that would otherwise emit far more than the cap.
+// TestFetchArtifactURL_LimitEnforced pins the size-cap guard: a body larger than
+// maxArtifactBytes is REJECTED with a typed error rather than silently truncated
+// onto disk (the fetch reads max+1 to detect the overflow), so a hostile host can
+// neither stream an unbounded body nor slip a corrupt partial file past as
+// success. Uses a streaming RoundTripper that emits one byte past the cap.
 func TestFetchArtifactURL_LimitEnforced(t *testing.T) {
 	restore := swapHardenDownloadClient(passthroughClient)
 	defer restore()
 
 	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
 	f, _, _, _ := cmdutil.TestFactory(t, cfg)
-	// A body one byte longer than the cap; LimitReader must stop at the cap.
+	// A body one byte longer than the cap must be refused, not truncated.
 	oversized := int64(maxArtifactBytes) + 1
 	f.HttpClient = func() (*http.Client, error) {
 		return &http.Client{Transport: streamRoundTripper{n: oversized, b: 'A'}}, nil
 	}
 
-	got, err := fetchArtifactURL(context.Background(), f, publicArtifactURL)
-	if err != nil {
-		t.Fatalf("an oversized download should not error (should truncate, not fail): %v", err)
+	_, err := fetchArtifactURL(context.Background(), f, publicArtifactURL)
+	if err == nil {
+		t.Fatal("an oversized artifact should be rejected with an error, not truncated to a partial file")
 	}
-	if int64(len(got)) != int64(maxArtifactBytes) {
-		t.Fatalf("downloaded bytes should be truncated to %d, got %d", maxArtifactBytes, len(got))
+	if !errs.IsValidation(err) {
+		t.Fatalf("oversized artifact should be a validation error, got %T: %v", err, err)
 	}
 }
 

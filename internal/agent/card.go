@@ -16,18 +16,25 @@ const (
 	CapInputRequired    = "input_required"
 	CapFileInput        = "file_input"
 	CapArtifactDownload = "artifact_download"
-	CapMultiTurn        = "multi_turn"
+	// The three multi-turn (context) verbs are independently wired, so each has
+	// its own capability bit — a provider may support listing sessions without
+	// supporting get or delete. (There is no umbrella "multi_turn" bit: a single
+	// flag cannot honestly represent three separately-deliverable hooks.)
+	CapContextList   = "context_list"
+	CapContextGet    = "context_get"
+	CapContextDelete = "context_delete"
 )
 
 // Capabilities is the closed set of capabilities: making it a struct means an
 // omitted field is an explicit false and a typo is a compile error. Fields are
-// ordered by json tag alphabetically to keep the key order identical to the old
-// map serialization.
+// ordered by json tag alphabetically so the emitted key order is stable.
 type Capabilities struct {
 	ArtifactDownload bool `json:"artifact_download"`
+	ContextDelete    bool `json:"context_delete"`
+	ContextGet       bool `json:"context_get"`
+	ContextList      bool `json:"context_list"`
 	FileInput        bool `json:"file_input"`
 	InputRequired    bool `json:"input_required"`
-	MultiTurn        bool `json:"multi_turn"`
 	TaskCancel       bool `json:"task_cancel"`
 	TaskGet          bool `json:"task_get"`
 	TaskList         bool `json:"task_list"`
@@ -62,7 +69,9 @@ func DeriveCapabilities(s *AgentSpec) Capabilities {
 		TaskList:         s.ListTasks != nil,
 		TaskCancel:       s.CancelTask != nil,
 		ArtifactDownload: s.DownloadArtifact != nil,
-		MultiTurn:        s.ListContexts != nil,
+		ContextList:      s.ListContexts != nil,
+		ContextGet:       s.GetContext != nil,
+		ContextDelete:    s.DeleteContext != nil,
 		FileInput:        s.FileInput,
 		InputRequired:    s.InputRequired,
 	}
@@ -145,8 +154,12 @@ func (c *AgentCard) Supports(capKey string) bool {
 		return c.Capabilities.FileInput
 	case CapInputRequired:
 		return c.Capabilities.InputRequired
-	case CapMultiTurn:
-		return c.Capabilities.MultiTurn
+	case CapContextList:
+		return c.Capabilities.ContextList
+	case CapContextGet:
+		return c.Capabilities.ContextGet
+	case CapContextDelete:
+		return c.Capabilities.ContextDelete
 	case CapTaskCancel:
 		return c.Capabilities.TaskCancel
 	case CapTaskGet:

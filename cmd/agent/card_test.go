@@ -29,8 +29,8 @@ func cardTestOpts(t *testing.T, ref string) (*cardOptions, *core.CliConfig) {
 
 // TestAgentCardRun_ExampleStaticCard verifies that `agent card example:echo`
 // returns the statically synthesized capability card (no API), with
-// task_cancel gated off and multi_turn on, and the agent_id echoed from the
-// ref.
+// task_cancel gated off and the three context_* caps on, and the agent_id
+// echoed from the ref.
 func TestAgentCardRun_ExampleStaticCard(t *testing.T) {
 	opts, _ := cardTestOpts(t, "example:echo")
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
@@ -67,8 +67,8 @@ func TestAgentCardRun_ExampleStaticCard(t *testing.T) {
 	if caps["task_cancel"] != false {
 		t.Errorf("echo task_cancel should be false, got %v", caps["task_cancel"])
 	}
-	if caps["multi_turn"] != true {
-		t.Errorf("echo multi_turn should be true, got %v", caps["multi_turn"])
+	if caps["context_list"] != true || caps["context_get"] != true || caps["context_delete"] != true {
+		t.Errorf("echo should support the three context capabilities, got %v", caps)
 	}
 	// parameters / identity must serialize as non-null (guard against omitempty
 	// regression): parameters is always an array (empty [] for example),
@@ -110,8 +110,8 @@ func TestAgentCardRun_PrettyFormat(t *testing.T) {
 	if !strings.Contains(text, "echo") {
 		t.Errorf("pretty output should contain agent_id: %s", text)
 	}
-	// multi_turn is a declared capability of the echo card; it must appear.
-	if !strings.Contains(text, "multi_turn") {
+	// context_list is a declared capability of the echo card; it must appear.
+	if !strings.Contains(text, "context_list") {
 		t.Errorf("pretty output should list capabilities: %s", text)
 	}
 }
@@ -183,8 +183,8 @@ func TestPrintCardPretty_AllOptionalFields(t *testing.T) {
 			{Type: "bot", Precondition: "需加入渠道白名单"},
 		},
 		Capabilities: iagent.Capabilities{
-			MultiTurn:  true,
-			TaskCancel: false,
+			ContextList: true,
+			TaskCancel:  false,
 		},
 		Parameters: []iagent.CardParam{
 			{Name: "locale", Type: "string", Required: true, Desc: "reply locale"},

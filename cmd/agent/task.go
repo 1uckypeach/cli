@@ -471,9 +471,9 @@ func downloadArtifact(opts *taskOptions) error {
 }
 
 // fetchArtifactURL is the production URL fetch: it SSRF-validates rawURL, builds
-// a download-hardened HTTP client from the Factory and reads at most
-// maxArtifactBytes of the body. The artifact host is untrusted external content,
-// so both the URL and the redirect chain are guarded.
+// a download-hardened HTTP client from the Factory and reads the body up to
+// maxArtifactBytes, refusing anything larger. The artifact host is untrusted
+// external content, so both the URL and the redirect chain are guarded.
 func fetchArtifactURL(ctx context.Context, f *cmdutil.Factory, rawURL string) ([]byte, error) {
 	if err := validate.ValidateDownloadSourceURL(ctx, rawURL); err != nil {
 		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "被拦截的产物 URL: %v", err).
@@ -504,9 +504,18 @@ func fetchArtifactURL(ctx context.Context, f *cmdutil.Factory, rawURL string) ([
 	if resp.StatusCode != http.StatusOK {
 		return nil, errs.NewNetworkError(errs.SubtypeNetworkServer, "下载产物失败: HTTP %d", resp.StatusCode)
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxArtifactBytes))
+	// Read ONE byte past the cap so an oversized body is detected rather than
+	// silently truncated: io.LimitReader returns EOF (not an error) at the cap, so
+	// reading exactly maxArtifactBytes cannot distinguish "fits" from "overflowed".
+	// A body over the cap is refused with a typed error instead of writing a
+	// corrupt, partial file that would otherwise report success.
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxArtifactBytes+1))
 	if err != nil {
 		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport, "读取产物响应失败: %v", err).WithCause(err)
+	}
+	if int64(len(data)) > maxArtifactBytes {
+		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"产物超过大小上限 %d 字节，拒绝下载（避免写入被截断的残缺文件）", int64(maxArtifactBytes))
 	}
 	return data, nil
 }

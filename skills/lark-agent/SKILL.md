@@ -81,7 +81,7 @@ metadata:
   - `submitted` / `working` → 还在跑，稍后再 `task get`（或 `--watch`）
   - **停轮询条件** = `is_terminal`（∈{completed,failed,canceled,rejected}）为真 **或** state ∈ {`input_required`,`auth_required`}（后两者不是错误，是"该你续发了"）。
 - **artifact**：任务产出物（图/文件），列在 `data.artifacts[]`（每项含 `id` + 粗粒度 `kind` 提示）；用 `task get --artifact <id> -o <file>` 落盘。选 `-o` 后缀看 `kind`（下载前）与下载输出的 `suggested_name`（下载后，带扩展名）；两者仅参考，落盘以 `-o` 为准。
-- **能力门控**：card `capabilities` 共 7 键（`task_get/task_list/task_cancel/input_required/file_input/artifact_download/multi_turn`），为 false 的动词报 `unsupported_capability`，不静默降级。context 动词无独立键，由 `multi_turn` 伞形覆盖：`multi_turn=false` 时别调 `context list/get/delete`。card 无键的低频能力由运行时兜底——调用报 `unsupported_capability` 与 card 为 false 同样权威，别重试。能力以 `agent card` 实际输出为准；provider 特例见对应 provider 文件。
+- **能力门控**：card `capabilities` 共 9 键（`task_get/task_list/task_cancel/input_required/file_input/artifact_download/context_list/context_get/context_delete`），为 false 的动词报 `unsupported_capability`，不静默降级。context 三个动词各有独立能力位（`context_list/context_get/context_delete`）——一个 provider 可能能列会话却不能删会话，按需分别判断，别用单一位一概而论。card 无键的低频能力由运行时兜底——调用报 `unsupported_capability` 与 card 为 false 同样权威，别重试。能力以 `agent card` 实际输出为准；provider 特例见对应 provider 文件。
 
 ## 异步与轮询（子进程契约）
 
