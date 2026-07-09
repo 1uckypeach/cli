@@ -6,10 +6,21 @@ package apps
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
+
+	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/extension/fileio"
+	"github.com/larksuite/cli/internal/cmdutil"
+	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/shortcuts/common"
 )
 
 type fakeAppsHTMLPublishClient struct {
@@ -580,5 +591,218 @@ func TestRunHTMLPublish_IgnoresOversizeNonHTML(t *testing.T) {
 	}
 	if len(fake.calls) != 1 {
 		t.Fatalf("client should be called; calls=%v", fake.calls)
+	}
+}
+
+// ── runHTMLPublishTOS tests ──
+
+// permissiveFIOProvider wraps permissiveFIO as a fileio.Provider for tests
+// that call runHTMLPublishTOS (which obtains FileIO via rctx.FileIO()).
+type permissiveFIOProvider struct{}
+
+func (permissiveFIOProvider) Name() string                                { return "test-permissive" }
+func (permissiveFIOProvider) ResolveFileIO(context.Context) fileio.FileIO { return permissiveFIO{} }
+
+// newTOSTestRuntime builds a RuntimeContext with httpmock registry and a
+// permissive FileIO provider, ready for runHTMLPublishTOS unit tests.
+func newTOSTestRuntime(t *testing.T) (*common.RuntimeContext, *httpmock.Registry) {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	cfg := &core.CliConfig{
+		AppID:      "test-app-" + strings.ToLower(t.Name()),
+		AppSecret:  "test-secret",
+		Brand:      core.BrandFeishu,
+		UserOpenId: "ou_test",
+	}
+	factory, _, _, reg := cmdutil.TestFactory(t, cfg)
+	factory.FileIOProvider = permissiveFIOProvider{}
+	rt := common.TestNewRuntimeContextForAPI(
+		context.Background(),
+		&cobra.Command{Use: "+tos-test"},
+		cfg, factory, core.AsUser,
+	)
+	return rt, reg
+}
+
+func TestRunHTMLPublishTOS_Success(t *testing.T) {
+	site := writeAppsSampleSite(t)
+	rt, reg := newTOSTestRuntime(t)
+
+	// Start httptest server to accept the TOS upload.
+	tosServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("TOS upload method = %s, want POST", r.Method)
+		}
+		if ct := r.Header.Get("Content-Type"); ct != "application/gzip" {
+			t.Errorf("TOS upload Content-Type = %s, want application/gzip", ct)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer tosServer.Close()
+
+	// Register pre_release API stub.
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/spark/v1/apps/app_tos/pre_release",
+		Body: map[string]interface{}{
+			"code": float64(0),
+			"data": map[string]interface{}{
+				"params": map[string]interface{}{
+					"upload_url": tosServer.URL,
+					"tos_path":   "tos://bucket/key",
+				},
+			},
+		},
+	})
+
+	out, err := runHTMLPublishTOS(context.Background(), rt, appsHTMLPublishSpec{
+		AppID: "app_tos",
+		Path:  site,
+	})
+	if err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if out["app_id"] != "app_tos" {
+		t.Fatalf("app_id=%v, want app_tos", out["app_id"])
+	}
+	if out["tos_path"] != "tos://bucket/key" {
+		t.Fatalf("tos_path=%v, want tos://bucket/key", out["tos_path"])
+	}
+}
+
+func TestRunHTMLPublishTOS_MissingIndexHTML(t *testing.T) {
+	dir := t.TempDir()
+	// Create a file that is NOT named index.html.
+	if err := os.WriteFile(filepath.Join(dir, "foo.html"), []byte("<html></html>"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	rt, _ := newTOSTestRuntime(t)
+	_, err := runHTMLPublishTOS(context.Background(), rt, appsHTMLPublishSpec{
+		AppID: "app_tos",
+		Path:  dir,
+	})
+	if err == nil {
+		t.Fatalf("expected error for missing index.html")
+	}
+	if !strings.Contains(err.Error(), "index.html") {
+		t.Fatalf("error should mention index.html, got: %v", err)
+	}
+}
+
+func TestRunHTMLPublishTOS_PreReleaseError(t *testing.T) {
+	site := writeAppsSampleSite(t)
+	rt, reg := newTOSTestRuntime(t)
+
+	// Register pre_release API stub that returns an error code.
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/spark/v1/apps/app_tos/pre_release",
+		Body: map[string]interface{}{
+			"code": float64(99999),
+			"msg":  "internal server error",
+		},
+	})
+
+	_, err := runHTMLPublishTOS(context.Background(), rt, appsHTMLPublishSpec{
+		AppID: "app_tos",
+		Path:  site,
+	})
+	if err == nil {
+		t.Fatalf("expected error from pre_release API failure")
+	}
+}
+
+func TestRunHTMLPublishTOS_MissingParams(t *testing.T) {
+	site := writeAppsSampleSite(t)
+	rt, reg := newTOSTestRuntime(t)
+
+	// Register pre_release API stub that returns empty params.
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/spark/v1/apps/app_tos/pre_release",
+		Body: map[string]interface{}{
+			"code": float64(0),
+			"data": map[string]interface{}{
+				"params": map[string]interface{}{},
+			},
+		},
+	})
+
+	_, err := runHTMLPublishTOS(context.Background(), rt, appsHTMLPublishSpec{
+		AppID: "app_tos",
+		Path:  site,
+	})
+	if err == nil {
+		t.Fatalf("expected error for missing upload_url/tos_path")
+	}
+	problem := requireAppsProblem(t, err, errs.CategoryInternal)
+	if !strings.Contains(problem.Message, "upload_url") || !strings.Contains(problem.Message, "tos_path") {
+		t.Fatalf("error should mention missing upload_url or tos_path, got: %q", problem.Message)
+	}
+}
+
+func TestRunHTMLPublishTOS_MissingParamsObject(t *testing.T) {
+	site := writeAppsSampleSite(t)
+	rt, reg := newTOSTestRuntime(t)
+
+	// Register pre_release API stub that returns no params key at all.
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/spark/v1/apps/app_tos/pre_release",
+		Body: map[string]interface{}{
+			"code": float64(0),
+			"data": map[string]interface{}{},
+		},
+	})
+
+	_, err := runHTMLPublishTOS(context.Background(), rt, appsHTMLPublishSpec{
+		AppID: "app_tos",
+		Path:  site,
+	})
+	if err == nil {
+		t.Fatalf("expected error for missing params object")
+	}
+	problem := requireAppsProblem(t, err, errs.CategoryInternal)
+	if !strings.Contains(problem.Message, "no params") {
+		t.Fatalf("error should mention 'no params', got: %q", problem.Message)
+	}
+}
+
+func TestRunHTMLPublishTOS_UploadFails(t *testing.T) {
+	site := writeAppsSampleSite(t)
+	rt, reg := newTOSTestRuntime(t)
+
+	// Start httptest server that returns 500.
+	tosServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer tosServer.Close()
+
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/spark/v1/apps/app_tos/pre_release",
+		Body: map[string]interface{}{
+			"code": float64(0),
+			"data": map[string]interface{}{
+				"params": map[string]interface{}{
+					"upload_url": tosServer.URL,
+					"tos_path":   "tos://bucket/key",
+				},
+			},
+		},
+	})
+
+	_, err := runHTMLPublishTOS(context.Background(), rt, appsHTMLPublishSpec{
+		AppID: "app_tos",
+		Path:  site,
+	})
+	if err == nil {
+		t.Fatalf("expected error from TOS upload failure")
+	}
+	problem := requireAppsProblem(t, err, errs.CategoryNetwork)
+	if !strings.Contains(problem.Message, "500") {
+		t.Fatalf("error should mention HTTP 500, got: %q", problem.Message)
 	}
 }
