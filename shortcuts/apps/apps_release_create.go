@@ -76,7 +76,7 @@ func buildPublishBody(branch, tosPath string) map[string]interface{} {
 		body["branch"] = branch
 	}
 	if tosPath != "" {
-		body["tosPath"] = tosPath
+		body["tos_path"] = tosPath
 	}
 	return body
 }
