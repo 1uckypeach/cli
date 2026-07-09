@@ -227,6 +227,35 @@ func TestResolveInputFlags_DuplicateStdin(t *testing.T) {
 	}
 }
 
+// TestResolveInputFlags_FileErrorSuggestsStdin pins the recovery hint when
+// an @file path is rejected (typically an absolute /tmp path): flags that
+// also accept stdin must point at `--flag - < path` — never at cd'ing into
+// the target directory or copying the file into the project tree.
+func TestResolveInputFlags_FileErrorSuggestsStdin(t *testing.T) {
+	rctx := newTestRuntimeWithStdin(map[string]string{"csv": "@/tmp/does-not-exist.csv"}, "")
+	flags := []Flag{{Name: "csv", Input: []string{File, Stdin}}}
+
+	err := resolveInputFlags(rctx, flags)
+	if err == nil {
+		t.Fatal("expected error for rejected @file path")
+	}
+	vErr := assertValidationParam(t, err, "--csv")
+	if !strings.Contains(vErr.Hint, "--csv - < /tmp/does-not-exist.csv") {
+		t.Errorf("hint %q should show the stdin form of the same call", vErr.Hint)
+	}
+
+	// A flag without stdin support must not get the stdin hint.
+	rctx = newTestRuntimeWithStdin(map[string]string{"file": "@/tmp/does-not-exist.xlsx"}, "")
+	err = resolveInputFlags(rctx, []Flag{{Name: "file", Input: []string{File}}})
+	if err == nil {
+		t.Fatal("expected error for rejected @file path")
+	}
+	vErr = assertValidationParam(t, err, "--file")
+	if strings.Contains(vErr.Hint, "stdin") {
+		t.Errorf("hint %q must not suggest stdin for a file-only flag", vErr.Hint)
+	}
+}
+
 func TestStripUTF8BOM(t *testing.T) {
 	cases := []struct{ name, in, want string }{
 		{"leading BOM removed", "\uFEFFhello", "hello"},
