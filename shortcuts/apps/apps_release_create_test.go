@@ -19,7 +19,7 @@ import (
 
 func TestBuildPublishBody(t *testing.T) {
 	// branch included when non-empty; app_id is NOT in body (it's in the path)
-	b := buildPublishBody("feat/devops")
+	b := buildPublishBody("feat/devops", "")
 	if b["branch"] != "feat/devops" {
 		t.Errorf("body = %v", b)
 	}
@@ -27,7 +27,7 @@ func TestBuildPublishBody(t *testing.T) {
 		t.Errorf("app_id must not be in body, got %v", b)
 	}
 	// branch omitted when empty
-	b2 := buildPublishBody("")
+	b2 := buildPublishBody("", "")
 	if _, ok := b2["branch"]; ok {
 		t.Errorf("branch should be omitted when empty, got %v", b2)
 	}

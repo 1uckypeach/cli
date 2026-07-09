@@ -4,9 +4,11 @@
 package apps
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"path/filepath"
 	"strings"
 
@@ -119,6 +121,19 @@ var AppsHTMLPublish = common.Shortcut{
 			AppID: strings.TrimSpace(rctx.Str("app-id")),
 			Path:  strings.TrimSpace(rctx.Str("path")),
 		}
+
+		appType := queryAppType(ctx, rctx, spec.AppID)
+		if appType == "modern_html" {
+			out, err := runHTMLPublishTOS(ctx, rctx, spec)
+			if err != nil {
+				return err
+			}
+			rctx.OutFormat(out, nil, func(w io.Writer) {
+				fmt.Fprintf(w, "tos_path: %s\n", out["tos_path"])
+			})
+			return nil
+		}
+
 		client := appsHTMLPublishAPI{runtime: rctx}
 		out, err := runHTMLPublish(ctx, rctx.FileIO(), client, spec)
 		if err != nil {
@@ -255,4 +270,75 @@ func runHTMLPublish(ctx context.Context, fio fileio.FileIO, publisher appsHTMLPu
 		out["url"] = resp.URL
 	}
 	return out, nil
+}
+
+// runHTMLPublishTOS handles the modern_html publish path: validate → tar.gz →
+// call pre_release to get TOS upload URL → upload tar.gz to TOS → return
+// tos_path for +release-create --tos-path.
+func runHTMLPublishTOS(ctx context.Context, rctx *common.RuntimeContext, spec appsHTMLPublishSpec) (map[string]interface{}, error) {
+	candidates, err := walkHTMLPublishCandidates(rctx.FileIO(), spec.Path)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureIndexHTML(candidates); err != nil {
+		return nil, err
+	}
+	if hits := oversizeHTMLFiles(candidates); len(hits) > 0 {
+		return nil, oversizeHTMLFilesError(hits)
+	}
+	var rawTotal int64
+	for _, c := range candidates {
+		rawTotal += c.Size
+	}
+	if rawTotal > maxHTMLPublishRawBytes {
+		return nil, appsValidationParamError("--path",
+			"--path total raw bytes %d exceeds %d bytes limit (uncompressed pre-pack cap)", rawTotal, maxHTMLPublishRawBytes).
+			WithHint("reduce --path contents or choose a smaller subdirectory before packaging")
+	}
+
+	tarball, err := buildHTMLPublishTarball(rctx.FileIO(), candidates)
+	if err != nil {
+		return nil, err
+	}
+	if tarball.Size > maxHTMLPublishTarballBytes {
+		return nil, appsValidationParamError("--path",
+			"packed tar.gz size %d bytes exceeds %d bytes limit", tarball.Size, maxHTMLPublishTarballBytes).
+			WithHint("reduce --path contents, remove unrelated large files, then retry")
+	}
+
+	// Step 1: call pre_release to get TOS upload URL and tos_path.
+	preReleasePath := fmt.Sprintf("%s/apps/%s/pre_release", apiBasePath, validate.EncodePathSegment(spec.AppID))
+	preData, err := rctx.CallAPITyped("POST", preReleasePath, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	params, _ := preData["params"].(map[string]interface{})
+	if params == nil {
+		return nil, appsSubprocessEnvelopeError("pre_release returned no params")
+	}
+	uploadURL, _ := params["upload_url"].(string)
+	tosPath, _ := params["tos_path"].(string)
+	if uploadURL == "" || tosPath == "" {
+		return nil, appsSubprocessEnvelopeError("pre_release params missing upload_url or tos_path")
+	}
+
+	// Step 2: upload tar.gz to TOS.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, bytes.NewReader(tarball.Body))
+	if err != nil {
+		return nil, appsFileIOError(err, "create TOS upload request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/gzip")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, appsExternalToolError(err, "TOS upload failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, appsExternalToolError(nil, "TOS upload returned HTTP %d", resp.StatusCode)
+	}
+
+	return map[string]interface{}{
+		"app_id":   spec.AppID,
+		"tos_path": tosPath,
+	}, nil
 }
