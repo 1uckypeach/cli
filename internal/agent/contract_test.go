@@ -10,16 +10,36 @@ import (
 
 func TestAgentTaskJSON(t *testing.T) {
 	at := AgentTask{TaskID: "chat_1", ContextID: "sess_1", State: StateInputRequired,
-		IsTerminal:    false,
-		InputRequired: &InputRequired{Prompt: "按大区还是品类拆?", Options: []string{"region", "category"}}}
+		IsTerminal: false,
+		InputRequired: &InputRequired{
+			DecisionID: "dec_7f3a",
+			Prompt:     "按大区还是品类拆?",
+			InputType:  InputTypeSingleSelect,
+			Options:    []Option{{OptionID: "by_region", Label: "按大区"}, {OptionID: "by_category", Label: "按品类"}},
+		}}
 	b, _ := json.Marshal(at)
 	var m map[string]interface{}
 	_ = json.Unmarshal(b, &m)
 	if m["state"] != "input_required" {
 		t.Errorf("state=%v", m["state"])
 	}
-	if _, ok := m["input_required"]; !ok {
-		t.Error("input_required should appear in the input_required state")
+	ir, ok := m["input_required"].(map[string]interface{})
+	if !ok {
+		t.Fatal("input_required should appear as an object in the input_required state")
+	}
+	if ir["decision_id"] != "dec_7f3a" || ir["input_type"] != "single_select" {
+		t.Errorf("decision_id/input_type should serialize, got %v", ir)
+	}
+	opts, ok := ir["options"].([]interface{})
+	if !ok || len(opts) != 2 {
+		t.Fatalf("options should serialize as a 2-element array of {option_id,label}, got %v", ir["options"])
+	}
+	if o0, _ := opts[0].(map[string]interface{}); o0["option_id"] != "by_region" || o0["label"] != "按大区" {
+		t.Errorf("options[0] should be {option_id,label}, got %v", opts[0])
+	}
+	// submitted is false → omitted via omitempty.
+	if _, present := ir["submitted"]; present {
+		t.Errorf("unset submitted should be omitted via omitempty, got %v", ir["submitted"])
 	}
 	// unset artifacts should be omitted via omitempty
 	if _, ok := m["artifacts"]; ok {

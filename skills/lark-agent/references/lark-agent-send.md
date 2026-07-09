@@ -2,7 +2,7 @@
 
 > **前置条件：** 先读 [`../../lark-shared/SKILL.md`](../../lark-shared/SKILL.md)。调 send **前先读 [`agent card`](lark-agent-card.md)** 确认 `parameters`（空数组 = 无需 `--param`）；所需 scope 见对应 provider 文件（card 不含 scope），通用流程见 [前置准备](../SKILL.md)。
 
-向远程 agent 发一条消息：不带 `--context-id/--task-id` 起一个**新任务**；带 `--context-id`（可选 `--task-id`）向同一多轮上下文**续发**（含回应 `input_required`/`auth_required`）。写操作。
+向远程 agent 发一条消息：不带 `--context-id/--task-id` 起一个**新任务**；带 `--context-id`（可选 `--task-id`）向同一多轮上下文**续发**（含回应 `input_required`：结构化决策用 `--decision-id/--option` 按 `option_id` 答、开放决策用 `--text`）。写操作。
 
 > **`--file` 会把本地文件上传到远端 provider，内容离开本机、不可撤回。** CLI 强制确认门：真实 send 带 `--file` 须加 `--yes`，否则报 `confirmation_required`（exit 10）不上传；`--dry-run` 不上传、免 `--yes`。加 `--yes` 前先与用户确认。
 
@@ -17,8 +17,11 @@ lark-cli agent task get <provider>:<agent_id> <task-id> --watch --timeout 30s
 # 客户端预演：本地校验并打印将发的请求，不调 API（永远可用）
 lark-cli agent send <provider>:<agent_id> --text "x" --dry-run
 
-# 多轮续发（含回应 input_required）：向同一会话/任务续发
+# 多轮续发（开放 input_required / 自由文本追问）：向同一会话/任务续发
 lark-cli agent send <provider>:<agent_id> --context-id <ctx-id> --task-id <task-id> --text "<答复>"
+
+# 回应结构化决策（input_required 带 options[]）：按 option_id 选，无需 --text
+lark-cli agent send <provider>:<agent_id> --context-id <ctx-id> --task-id <task-id> --decision-id <decision_id> --option <option_id>
 
 # 带文件（外发到远端；上传成功后才发消息，任一文件失败即中止）
 lark-cli agent send <provider>:<agent_id> --text "看这份表" --file ./report.xlsx
@@ -29,12 +32,14 @@ lark-cli agent send <provider>:<agent_id> --text "看这份表" --file ./report.
 | 参数 | 必填 | 说明 |
 |------|------|------|
 | `<agent_ref>` | 是 | `<provider>:<agent_id>` |
-| `--text` | 是 | 消息正文（空则报 `invalid_argument`，exit 2） |
+| `--text` | 视情况 | 消息正文。起任务 / 开放决策必填（空报 `invalid_argument`，exit 2）；用 `--decision-id` + `--option` 回答选项决策时可省 |
 | `--param key=value` | 视 card | 可重复；据 card `parameters` 校验（声明为空时传任何 `--param` 都报未知参数） |
 | `--file <path>` | 否 | 可重复；**文件外发**到远端 provider（内容离机、不可撤回）。仅相对路径（限 CWD 内，约束见 lark-shared 安全规则）。真实 send 须配 `--yes`（见下）；`--dry-run` 时不上传、免 `--yes`，仅在 `would_send.files` 列出 |
 | `--yes` | 视上 | 确认 `--file` 外发；真实 send 带 `--file` 时必填，否则报 `confirmation_required`（exit 10）不上传 |
 | `--context-id` | 否 | 续同一会话；省略=新会话，结果回显新 `context_id` |
 | `--task-id` | 否 | 回应某任务；**须与 `--context-id` 同用**，否则报错 |
+| `--decision-id` | 否 | 回答 `input_required` 结构化决策的目标 `decision_id`（见 `agent task get` 的 `input_required`）；**须与 `--context-id/--task-id` 同用** |
+| `--option <option_id>` | 否 | 可重复；回答决策选中的 `option_id`（单选 1 个、多选多个）；**须配 `--decision-id`**。开放（无 options）决策改用 `--text` |
 | `--dry-run` | 否 | 本地校验+打印请求，不调 API（永远可用，且跳过 scope preflight 与 `--file` 确认门） |
 | `--as` / `--format json\|pretty` / `--jq` | 否 | 通用；默认 `json` |
 

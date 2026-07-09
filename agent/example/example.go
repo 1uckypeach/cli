@@ -36,7 +36,7 @@ func Provider() agent.Provider {
 		AgentIDSource: "运行 lark-cli agent list example 查看内置演示 agent 及其 agent_ref（无需任何平台配置）",
 		Identities:    []agent.IdentitySpec{{Type: agent.IdentityUser}, {Type: agent.IdentityBot}},
 		// RequiredScopes nil: the mock calls no OAPI, so scope preflight always passes.
-		Catalog: []agent.AgentSpec{echoSpec, reporterSpec},
+		Catalog: []agent.AgentSpec{echoSpec, reporterSpec, plannerSpec},
 	}
 }
 
@@ -74,6 +74,72 @@ var reporterSpec = agent.AgentSpec{
 	DeleteContext:    deleteContext,
 	CancelTask:       cancelTask,
 	DownloadArtifact: downloadArtifact,
+}
+
+// plannerSpec demonstrates the input_required HITL flow: the first send opens a
+// single-select decision and the task stays non-terminal in input_required;
+// answering it with --decision-id/--option completes the task, and a second
+// answer to the same decision returns a conflict (the "already arbitrated"
+// path). It wires the read verbs but not cancel/artifact.
+var plannerSpec = agent.AgentSpec{
+	ID:            "planner",
+	Name:          "报表规划器",
+	Description:   "先反问「按什么维度拆」（input_required 单选决策），你用 --decision-id/--option 选定后再出报表。示范 HITL 决策链路。",
+	InputRequired: true,
+	Send:          plannerSend,
+	GetTask:       getTask,
+	ListTasks:     listTasks,
+	ListContexts:  listContexts,
+	GetContext:    getContext,
+	DeleteContext: deleteContext,
+}
+
+// plannerSend opens a decision on a fresh request, or applies the answer when
+// --decision-id + --option is supplied (continuing the decision's task).
+func plannerSend(ctx context.Context, rt agent.Runtime, in agent.SendInput) (*agent.AgentTask, error) {
+	if in.DecisionID != "" {
+		if len(in.OptionIDs) != 1 {
+			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
+				"planner 的决策是单选，请用恰好一个 --option").WithParam("--option")
+		}
+		task, err := store.answerDecision(rt.AgentID(), in.TaskID, in.DecisionID, in.OptionIDs[0])
+		if err != nil {
+			return nil, err
+		}
+		return &task, nil
+	}
+	ctxID := in.ContextID
+	if ctxID == "" {
+		var err error
+		ctxID, err = store.createContext(rt.AgentID(), truncateTitle(in.Text))
+		if err != nil {
+			return nil, err
+		}
+	}
+	task, err := store.createTask(rt.AgentID(), ctxID, func(int) agent.AgentTask {
+		return agent.AgentTask{
+			TaskID:    newID("task"),
+			ContextID: ctxID,
+			State:     agent.StateInputRequired,
+			Messages: []agent.Message{
+				{Role: "user", Parts: []agent.Part{{Type: "text", Text: in.Text}}},
+				{Role: "agent", Parts: []agent.Part{{Type: "text", Text: "先确认口径：报表按什么维度拆分？"}}},
+			},
+			InputRequired: &agent.InputRequired{
+				DecisionID: newID("dec"),
+				Prompt:     "报表按什么维度拆分？",
+				InputType:  agent.InputTypeSingleSelect,
+				Options: []agent.Option{
+					{OptionID: "by_region", Label: "按大区"},
+					{OptionID: "by_category", Label: "按品类"},
+				},
+			},
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &task, nil
 }
 
 // ── Hooks: plain funcs. The addressed agent comes from rt.AgentID() (request

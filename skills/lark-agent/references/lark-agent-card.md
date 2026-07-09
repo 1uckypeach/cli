@@ -64,7 +64,7 @@ lark-cli agent card <provider>:<agent_id> --jq '.data.capabilities'
 
 ## 字段语义与消费方式
 
-- **`capabilities`**：7 键能力矩阵。为 `false` 的动词不要调——如 `task_cancel=false` 时 `agent task cancel` 直接报 `unsupported_capability`（exit 2），不发请求。`input_required=false` = 该 agent 不会进 `input_required` 态（追问的实际行为见 provider 文件）。`--dry-run` 是客户端行为，不在 capabilities 里，永远可用。
+- **`capabilities`**：9 键能力矩阵。为 `false` 的动词不要调——如 `task_cancel=false` 时 `agent task cancel` 直接报 `unsupported_capability`（exit 2），不发请求。`input_required=false` = 该 agent 不会进 `input_required` 态（追问的实际行为见 provider 文件）。`--dry-run` 是客户端行为，不在 capabilities 里，永远可用。
 - **`identity`**：支持的 `--as` 身份；带 `precondition` 的身份要先满足前置条件（典型是渠道白名单，见 provider 文件）。
 - **`parameters`**：`send --param` 的声明。空数组 = 不需要任何 `--param`；传未声明的 `--param` 会报 `invalid_argument`。
 - **`name` / `description`**：部分 provider（典型是 catalog 型）的 card 带每 agent 的名称与描述；没有则据 `provider_label` + `agent_id` 向用户描述。

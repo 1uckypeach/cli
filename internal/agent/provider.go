@@ -12,6 +12,15 @@ type SendInput struct {
 	Params    map[string]string
 	ContextID string
 	TaskID    string
+
+	// Structured answer to an input_required decision (see InputRequired). The
+	// caller echoes DecisionID and either picks OptionIDs (single/multi_select) or
+	// leaves them empty and answers via Text (input_type=text). An empty
+	// DecisionID means this send is not answering a decision. A provider
+	// serializes these into the reply message's A2A DataPart; the server
+	// arbitrates (and MAY reject an already-answered decision as a conflict).
+	DecisionID string
+	OptionIDs  []string
 }
 
 // CardInfo is the per-agent descriptive metadata a provider supplies for its

@@ -18,18 +18,20 @@ import (
 
 // sendOptions holds all inputs for `agent send <ref>`.
 type sendOptions struct {
-	Factory   *cmdutil.Factory
-	Cmd       *cobra.Command
-	Ref       string
-	Text      string
-	Files     []string
-	Params    []string
-	ContextID string
-	TaskID    string
-	DryRun    bool
-	Yes       bool
-	As        string
-	Format    string
+	Factory    *cmdutil.Factory
+	Cmd        *cobra.Command
+	Ref        string
+	Text       string
+	Files      []string
+	Params     []string
+	ContextID  string
+	TaskID     string
+	DecisionID string
+	Options    []string
+	DryRun     bool
+	Yes        bool
+	As         string
+	Format     string
 }
 
 // NewCmdAgentSend builds `agent send <agent_ref>`: send a message to a remote
@@ -68,6 +70,8 @@ func NewCmdAgentSend(f *cmdutil.Factory, runF func(*sendOptions) error) *cobra.C
 	cmd.Flags().StringArrayVar(&opts.Params, "param", nil, "agent 参数 key=value，可重复（据 card 的 parameters 决定）")
 	cmd.Flags().StringVar(&opts.ContextID, "context-id", "", "多轮上下文 id（续发同一会话）")
 	cmd.Flags().StringVar(&opts.TaskID, "task-id", "", "向已有任务续发（须与 --context-id 一起用）")
+	cmd.Flags().StringVar(&opts.DecisionID, "decision-id", "", "回答 input_required 决策：目标 decision_id（配合 --option 或 --text；须与 --context-id/--task-id 一起用）")
+	cmd.Flags().StringArrayVar(&opts.Options, "option", nil, "回答决策选中的 option_id，可重复（单选给 1 个、多选给多个）；自由文本决策改用 --text")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "只做本地校验并打印请求预览，不调用 API")
 	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "确认用 --file 把本地文件外发上传到远端（不加则 exit 10，不上传）")
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
@@ -90,10 +94,29 @@ func NewCmdAgentSend(f *cmdutil.Factory, runF func(*sendOptions) error) *cobra.C
 // and returns the current task immediately (exit 0); the caller polls progress
 // via the meta.next `task get ... --watch` hint.
 func agentSendRun(opts *sendOptions) error {
-	if opts.Text == "" {
+	// Answering an input_required decision by option needs no --text (the chosen
+	// option IS the answer); a text-typed decision answer, and any fresh send,
+	// still require --text.
+	answeringByOption := opts.DecisionID != "" && len(opts.Options) > 0
+	if opts.Text == "" && !answeringByOption {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--text 不能为空").
 			WithParam("--text").
-			WithHint(`补充 --text "<消息内容>" 后重发`)
+			WithHint(`补充 --text "<消息内容>" 后重发；若在回答决策，用 --option <option_id> 选择`)
+	}
+	// --option only means anything when answering a specific decision.
+	if len(opts.Options) > 0 && opts.DecisionID == "" {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"--option 需与 --decision-id 一起使用").
+			WithParam("--option").
+			WithHint("先用 agent task get 查看 input_required 的 decision_id，再 --decision-id <id> --option <option_id>")
+	}
+	// Answering a decision continues an existing task, so it needs the task and
+	// context the decision belongs to.
+	if opts.DecisionID != "" && (opts.ContextID == "" || opts.TaskID == "") {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"回答决策需同时提供 --context-id 与 --task-id").
+			WithParam("--decision-id").
+			WithHint("--decision-id 必须与该决策所属任务的 --context-id/--task-id 一起提供")
 	}
 	if opts.TaskID != "" && opts.ContextID == "" {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument,
@@ -118,11 +141,13 @@ func agentSendRun(opts *sendOptions) error {
 	}
 
 	in := iagent.SendInput{
-		Text:      opts.Text,
-		Files:     opts.Files,
-		Params:    params,
-		ContextID: opts.ContextID,
-		TaskID:    opts.TaskID,
+		Text:       opts.Text,
+		Files:      opts.Files,
+		Params:     params,
+		ContextID:  opts.ContextID,
+		TaskID:     opts.TaskID,
+		DecisionID: opts.DecisionID,
+		OptionIDs:  opts.Options,
 	}
 
 	// --dry-run is a client-side behavior: always available, never
@@ -198,6 +223,12 @@ func emitDryRun(f *cmdutil.Factory, cmd *cobra.Command, ref string, in iagent.Se
 		if in.TaskID != "" {
 			fmt.Fprintf(out, "task_id: %s\n", kvValue(in.TaskID))
 		}
+		if in.DecisionID != "" {
+			fmt.Fprintf(out, "decision_id: %s\n", kvValue(in.DecisionID))
+		}
+		if len(in.OptionIDs) > 0 {
+			fmt.Fprintf(out, "options: %d\n", len(in.OptionIDs))
+		}
 		return nil
 	}
 
@@ -216,6 +247,12 @@ func emitDryRun(f *cmdutil.Factory, cmd *cobra.Command, ref string, in iagent.Se
 	}
 	if in.TaskID != "" {
 		would["task_id"] = in.TaskID
+	}
+	if in.DecisionID != "" {
+		would["decision_id"] = in.DecisionID
+	}
+	if len(in.OptionIDs) > 0 {
+		would["option_ids"] = in.OptionIDs
 	}
 	env := output.Envelope{
 		OK:       true,
@@ -305,6 +342,17 @@ func nextForTask(ref string, task *iagent.AgentTask) []output.NextAction {
 			ctxID := task.ContextID
 			if ctxID == "" || !safeNextID(ctxID) {
 				ctxID = "<context_id>"
+			}
+			// If the agent supplied a structured decision (decision_id + options),
+			// point at answering it by option_id; the decision_id is server-supplied,
+			// so it must pass the safeNextID whitelist before interpolation. Fall back
+			// to a free-text continuation otherwise.
+			if ir := task.InputRequired; ir != nil && ir.DecisionID != "" && safeNextID(ir.DecisionID) && len(ir.Options) > 0 {
+				return []output.NextAction{{
+					Label:    "回答该 input_required 决策（从 options 里选一个 option_id）",
+					Command:  fmt.Sprintf("lark-cli agent send %s --context-id %s --task-id %s --decision-id %s --option <option_id>", ref, ctxID, task.TaskID, ir.DecisionID),
+					Template: true,
+				}}
 			}
 			return []output.NextAction{{
 				Label:    "补充输入后向同一任务续发",
