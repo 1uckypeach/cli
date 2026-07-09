@@ -159,11 +159,10 @@
         "kind": "own",
         "type": "string",
         "required": "optional",
-        "desc": "New sub-sheet type: sheet (spreadsheet) | bitable; default sheet. bitable creates an empty table only — edit its content via lark-base commands",
+        "desc": "New sub-sheet type: sheet (spreadsheet); default sheet.",
         "default": "sheet",
         "enum": [
-          "sheet",
-          "bitable"
+          "sheet"
         ]
       },
       {

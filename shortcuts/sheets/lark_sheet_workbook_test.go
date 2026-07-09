@@ -281,6 +281,12 @@ func TestWorkbook_Validation(t *testing.T) {
 			args:    []string{"--url", testURL, "--title", "X", "--row-count", "999999"},
 			wantMsg: "--row-count must be between",
 		},
+		{
+			name:    "+sheet-create rejects hidden bitable type",
+			sc:      SheetCreate,
+			args:    []string{"--url", testURL, "--title", "Tasks", "--type", "bitable"},
+			wantMsg: `invalid value "bitable" for --type`,
+		},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
