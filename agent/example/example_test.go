@@ -59,10 +59,10 @@ func TestCapabilityMatrixDiverges(t *testing.T) {
 	if ec.ArtifactDownload || ec.FileInput || ec.TaskCancel {
 		t.Errorf("echo should be the minimal set (no artifact/file/cancel), got %+v", ec)
 	}
-	if !ec.MultiTurn || !ec.TaskGet || !ec.TaskList {
-		t.Errorf("echo should support multi_turn/task_get/task_list, got %+v", ec)
+	if !ec.ContextList || !ec.ContextGet || !ec.ContextDelete || !ec.TaskGet || !ec.TaskList {
+		t.Errorf("echo should support context_list/get/delete + task_get/task_list, got %+v", ec)
 	}
-	if !(rc.ArtifactDownload && rc.FileInput && rc.TaskCancel && rc.InputRequired && rc.MultiTurn && rc.TaskGet && rc.TaskList) {
+	if !(rc.ArtifactDownload && rc.FileInput && rc.TaskCancel && rc.InputRequired && rc.ContextList && rc.ContextGet && rc.ContextDelete && rc.TaskGet && rc.TaskList) {
 		t.Errorf("reporter should have everything enabled, got %+v", rc)
 	}
 }

@@ -29,7 +29,8 @@ type contextOptions struct {
 }
 
 // NewCmdAgentContext builds the `agent context` command group: manage a remote
-// agent's multi-turn contexts (requires card multi_turn=true). It is a pure group with
+// agent's multi-turn contexts (each verb gated on its own capability:
+// context_list / context_get / context_delete). It is a pure group with
 // no RunE so an unknown subcommand is reported rather than silently swallowed.
 func NewCmdAgentContext(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
@@ -133,10 +134,10 @@ func agentContextListRun(opts *contextOptions) error {
 	if err != nil {
 		return err
 	}
-	// Capability gate BEFORE the client: multi_turn is derived from ListContexts
+	// Capability gate BEFORE the client: context_list is derived from ListContexts
 	// being wired, so a spec without it returns unsupported_capability offline.
 	if spec.ListContexts == nil {
-		return capabilityError(opts.Ref, "context list", iagent.CapMultiTurn)
+		return capabilityError(opts.Ref, "context list", iagent.CapContextList)
 	}
 	rt, err := runtimeFor(f, id, agentID)
 	if err != nil {
@@ -175,7 +176,7 @@ func agentContextGetRun(opts *contextOptions) error {
 	}
 	// Capability gate BEFORE the client.
 	if spec.GetContext == nil {
-		return capabilityError(opts.Ref, "context get", iagent.CapMultiTurn)
+		return capabilityError(opts.Ref, "context get", iagent.CapContextGet)
 	}
 	rt, err := runtimeFor(f, id, agentID)
 	if err != nil {
@@ -214,7 +215,7 @@ func agentContextDeleteRun(opts *contextOptions) error {
 	}
 	// Capability gate BEFORE the client.
 	if spec.DeleteContext == nil {
-		return capabilityError(opts.Ref, "context delete", iagent.CapMultiTurn)
+		return capabilityError(opts.Ref, "context delete", iagent.CapContextDelete)
 	}
 	rt, err := runtimeFor(f, id, agentID)
 	if err != nil {

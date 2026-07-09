@@ -24,32 +24,34 @@ func (fakeRT) CallMultipart(context.Context, string, string, map[string]string, 
 }
 
 func TestCardSupports(t *testing.T) {
-	c := &AgentCard{Capabilities: Capabilities{TaskCancel: false, MultiTurn: true}}
+	c := &AgentCard{Capabilities: Capabilities{TaskCancel: false, ContextList: true}}
 	if c.Supports(CapTaskCancel) {
 		t.Error("task_cancel should not be supported")
 	}
-	if !c.Supports(CapMultiTurn) {
-		t.Error("multi_turn should be supported")
+	if !c.Supports(CapContextList) {
+		t.Error("context_list should be supported")
 	}
 	if c.Supports("nonexistent") {
 		t.Error("unknown capability should be treated as unsupported")
 	}
 	// nil guard branch: a nil receiver is treated as unsupported; a zero-value Capabilities is all false.
 	var nilCard *AgentCard
-	if nilCard.Supports(CapMultiTurn) {
+	if nilCard.Supports(CapContextList) {
 		t.Error("nil card should be treated as unsupported")
 	}
-	if (&AgentCard{}).Supports(CapMultiTurn) {
+	if (&AgentCard{}).Supports(CapContextList) {
 		t.Error("zero-value Capabilities should be treated as unsupported")
 	}
 	// Each capability constant must map to its own struct field (the switch has no gaps or mismatches).
 	all := &AgentCard{Capabilities: Capabilities{
 		ArtifactDownload: true, FileInput: true, InputRequired: true,
-		MultiTurn: true, TaskCancel: true, TaskGet: true, TaskList: true,
+		ContextList: true, ContextGet: true, ContextDelete: true,
+		TaskCancel: true, TaskGet: true, TaskList: true,
 	}}
 	for _, k := range []string{
 		CapArtifactDownload, CapFileInput, CapInputRequired,
-		CapMultiTurn, CapTaskCancel, CapTaskGet, CapTaskList,
+		CapContextList, CapContextGet, CapContextDelete,
+		CapTaskCancel, CapTaskGet, CapTaskList,
 	} {
 		if !all.Supports(k) {
 			t.Errorf("Supports(%q) should be true when all Capabilities are true", k)
@@ -66,10 +68,12 @@ func TestDeriveCapabilities(t *testing.T) {
 	if !c.TaskGet {
 		t.Error("task_get should be true (GetTask is a mandatory core hook)")
 	}
-	if !c.MultiTurn {
-		t.Error("multi_turn should be true (ListContexts wired)")
+	if !c.ContextList {
+		t.Error("context_list should be true (ListContexts wired)")
 	}
-	if c.TaskCancel || c.ArtifactDownload || c.TaskList || c.FileInput || c.InputRequired {
+	// The three context caps are independent: only ListContexts is wired here, so
+	// context_get / context_delete stay false (no umbrella multi_turn bit).
+	if c.TaskCancel || c.ArtifactDownload || c.TaskList || c.FileInput || c.InputRequired || c.ContextGet || c.ContextDelete {
 		t.Errorf("unwired capabilities should be false, got %+v", c)
 	}
 
@@ -78,11 +82,13 @@ func TestDeriveCapabilities(t *testing.T) {
 	full.ListTasks = func(context.Context, Runtime, string) ([]TaskSummary, error) { return nil, nil }
 	full.CancelTask = func(context.Context, Runtime, string) error { return nil }
 	full.ListContexts = func(context.Context, Runtime) ([]ContextSummary, error) { return nil, nil }
+	full.GetContext = func(context.Context, Runtime, string) (*ContextDetail, error) { return nil, nil }
+	full.DeleteContext = func(context.Context, Runtime, string) error { return nil }
 	full.DownloadArtifact = func(context.Context, Runtime, string, string) (*ArtifactData, error) { return nil, nil }
 	full.FileInput = true
 	full.InputRequired = true
 	c = DeriveCapabilities(&full)
-	if !(c.TaskGet && c.TaskList && c.TaskCancel && c.MultiTurn && c.ArtifactDownload && c.FileInput && c.InputRequired) {
+	if !(c.TaskGet && c.TaskList && c.TaskCancel && c.ContextList && c.ContextGet && c.ContextDelete && c.ArtifactDownload && c.FileInput && c.InputRequired) {
 		t.Errorf("a fully-wired spec should have every capability true, got %+v", c)
 	}
 }

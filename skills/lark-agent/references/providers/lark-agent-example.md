@@ -39,7 +39,7 @@ catalog 型必可枚举，`agent list example` 直接列全部 agent（含 name/
 
 | capability | `example:echo` | `example:reporter` | 差异含义 |
 |---|---|---|---|
-| `task_get` / `task_list` / `multi_turn` | true | true | 两者都支持查任务、列任务、多轮会话 |
+| `task_get` / `task_list` / `context_list` / `context_get` / `context_delete` | true | true | 两者都支持查/列任务与多轮会话（列/查/删会话）|
 | `task_cancel` | **false** | true | 对 echo 发 cancel 被命令层门控直接拒（见下方错误样例，不发任何请求）；对 reporter 的 cancel 会真正派发（但 mock 任务即时终态，见下方 failed_precondition 样例） |
 | `file_input` | **false** | true | echo 带 `--file` 报 `unsupported_capability`；reporter 接收附件并在回复里确认 |
 | `artifact_download` | **false** | true | 只有 reporter 产出 artifact（内联 CSV，`kind=text`，下载输出 `mime=text/csv`、`suggested_name=quarterly_report.csv`） |

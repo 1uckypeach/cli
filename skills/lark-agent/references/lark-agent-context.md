@@ -2,7 +2,7 @@
 
 > **前置条件：** 先读 [`../../lark-shared/SKILL.md`](../../lark-shared/SKILL.md)（含高危 exit-10 确认机制）。
 
-管理远程 agent 的**多轮上下文（会话）**。一个 context（`context_id`）串起同一会话里的多个任务；需 card `multi_turn=true`。续发/追问在 [`agent send --context-id`](lark-agent-send.md)，不在此。三个动词都要求该 provider 的全部 scope（all-or-nothing；缺任一即本地报 `missing_scope`，照抄 hint 授权；scope 全集见 provider 文件）。
+管理远程 agent 的**多轮上下文（会话）**。一个 context（`context_id`）串起同一会话里的多个任务；三个动词各由 `context_list` / `context_get` / `context_delete` 能力位分别门控（provider 可能只支持其中一部分，以 `agent card` 为准）。续发/追问在 [`agent send --context-id`](lark-agent-send.md)，不在此。三个动词都要求该 provider 的全部 scope（all-or-nothing；缺任一即本地报 `missing_scope`，照抄 hint 授权；scope 全集见 provider 文件）。
 
 **分诊心法**：`context list`（哪个会话要处理）→ `context get`（该会话总览 + `active_task`）→ [`agent task list --context-id`](lark-agent-task.md)（该会话全部任务）→ [`agent task get`](lark-agent-task.md)（单任务完整详情）。
 

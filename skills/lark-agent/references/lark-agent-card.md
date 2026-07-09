@@ -43,9 +43,11 @@ lark-cli agent card <provider>:<agent_id> --jq '.data.capabilities'
     "description": "把你发的话原样复读一遍（同一会话续发时带轮次，证明上下文记忆）。最小能力集示范。",
     "capabilities": {
       "artifact_download": false,
+      "context_delete": true,
+      "context_get": true,
+      "context_list": true,
       "file_input": false,
       "input_required": false,
-      "multi_turn": true,
       "task_cancel": false,
       "task_get": true,
       "task_list": true

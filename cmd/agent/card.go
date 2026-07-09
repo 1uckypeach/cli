@@ -139,9 +139,11 @@ func printCardPretty(w io.Writer, card *iagent.AgentCard) {
 	// matching the sorted output of the earlier map-based representation.
 	for _, k := range []string{
 		iagent.CapArtifactDownload,
+		iagent.CapContextDelete,
+		iagent.CapContextGet,
+		iagent.CapContextList,
 		iagent.CapFileInput,
 		iagent.CapInputRequired,
-		iagent.CapMultiTurn,
 		iagent.CapTaskCancel,
 		iagent.CapTaskGet,
 		iagent.CapTaskList,
