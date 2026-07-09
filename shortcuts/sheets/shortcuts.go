@@ -35,6 +35,10 @@ func Shortcuts() []common.Shortcut {
 		if hasFlag(all[i].Flags, "spreadsheet-token") {
 			all[i].PostMount = withTokenAlias(all[i].PostMount)
 		}
+		// Sheets-scoped flag ergonomics (unknown-flag hints with the valid
+		// flags inlined, enum vocabulary normalization) ride the same
+		// PostMount composition, so no other domain's behavior shifts.
+		all[i].PostMount = withFlagErgonomics(all[i].PostMount)
 	}
 	return all
 }
