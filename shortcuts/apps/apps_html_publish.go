@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/validate"
@@ -323,19 +324,23 @@ func runHTMLPublishTOS(ctx context.Context, rctx *common.RuntimeContext, spec ap
 		return nil, appsSubprocessEnvelopeError("pre_release params missing upload_url or tos_path")
 	}
 
-	// Step 2: upload tar.gz to TOS.
+	// Step 2: upload tar.gz to TOS via presigned URL (bypasses Lark gateway).
+	//nolint:forbidigo // presigned TOS upload bypasses the Lark gateway — raw http is required; not a Lark API call, so RuntimeContext.DoAPI does not apply.
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, bytes.NewReader(tarball.Body))
 	if err != nil {
-		return nil, appsFileIOError(err, "create TOS upload request: %v", err)
+		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport, "build TOS upload request").WithCause(err)
 	}
 	req.Header.Set("Content-Type", "application/gzip")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := newFileTransferClient().Do(req) //nolint:forbidigo // presigned TOS upload, see above.
 	if err != nil {
-		return nil, appsExternalToolError(err, "TOS upload failed: %v", err)
+		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport, "TOS upload failed").WithCause(err).WithRetryable()
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, appsExternalToolError(nil, "TOS upload returned HTTP %d", resp.StatusCode)
+	if resp.StatusCode >= 400 {
+		if resp.StatusCode >= 500 {
+			return nil, errs.NewNetworkError(errs.SubtypeNetworkServer, "TOS upload failed: HTTP %d", resp.StatusCode).WithRetryable()
+		}
+		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport, "TOS upload failed: HTTP %d", resp.StatusCode)
 	}
 
 	return map[string]interface{}{
