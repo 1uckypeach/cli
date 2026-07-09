@@ -54,6 +54,67 @@ func TestTablePut_IsoDateToSerial(t *testing.T) {
 	}
 }
 
+// TestTablePut_EmptyDatePrescription pins the empty-cell branch: the error
+// must name the three ways out (drop rows / fill dates / object dtype)
+// instead of the generic "must be ISO" parse failure.
+func TestTablePut_EmptyDatePrescription(t *testing.T) {
+	t.Parallel()
+	for _, in := range []string{"", "   "} {
+		_, err := isoDateToSerial(in)
+		if err == nil {
+			t.Fatalf("isoDateToSerial(%q) should fail", in)
+		}
+		for _, want := range []string{"empty cell", "object (text)"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("isoDateToSerial(%q) error should contain %q, got %q", in, want, err.Error())
+			}
+		}
+	}
+}
+
+// TestTablePut_ColumnKeyHint pins the dtypes/formats unknown-column hint:
+// A1-style letter keys get the Excel-habit callout, and the declared column
+// names ride inline either way.
+func TestTablePut_ColumnKeyHint(t *testing.T) {
+	t.Parallel()
+	cols := []string{"姓名", "出生日期"}
+	got := columnKeyHint("dtypes", "A", cols)
+	for _, want := range []string{"not A1-style column letters", `"姓名", "出生日期"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("letter-key hint should contain %q, got %q", want, got)
+		}
+	}
+	got = columnKeyHint("formats", "出生 日期", cols)
+	if strings.Contains(got, "A1-style") {
+		t.Errorf("non-letter key must not get the letter callout, got %q", got)
+	}
+	if !strings.Contains(got, `"姓名", "出生日期"`) {
+		t.Errorf("hint should inline column names, got %q", got)
+	}
+
+	many := make([]string, 20)
+	for i := range many {
+		many[i] = fmt.Sprintf("col%02d", i)
+	}
+	got = columnKeyHint("dtypes", "X", many)
+	if !strings.Contains(got, ", …") || strings.Contains(got, "col19") {
+		t.Errorf("hint should truncate long column lists, got %q", got)
+	}
+}
+
+func TestIsColumnLetterKey(t *testing.T) {
+	t.Parallel()
+	cases := map[string]bool{
+		"A": true, "Z": true, "AA": true, "ABC": true,
+		"": false, "ABCD": false, "a": false, "A1": false, "姓名": false,
+	}
+	for in, want := range cases {
+		if got := isColumnLetterKey(in); got != want {
+			t.Errorf("isColumnLetterKey(%q) = %v, want %v", in, got, want)
+		}
+	}
+}
+
 func TestTablePut_BuildTypedCell(t *testing.T) {
 	t.Parallel()
 

@@ -317,15 +317,50 @@ func (in *tableSheetIn) normalize(idx int) (tableSheetSpec, error) {
 	// compare against the canonical set.
 	for k := range in.Dtypes {
 		if !seenCol[k] {
-			return tableSheetSpec{}, common.ValidationErrorf("--sheets[%d] %q: dtypes references unknown column %q", idx, in.Name, k)
+			return tableSheetSpec{}, common.ValidationErrorf("--sheets[%d] %q: dtypes references unknown column %q", idx, in.Name, k).
+				WithHint("%s", columnKeyHint("dtypes", k, in.Columns))
 		}
 	}
 	for k := range in.Formats {
 		if !seenCol[k] {
-			return tableSheetSpec{}, common.ValidationErrorf("--sheets[%d] %q: formats references unknown column %q", idx, in.Name, k)
+			return tableSheetSpec{}, common.ValidationErrorf("--sheets[%d] %q: formats references unknown column %q", idx, in.Name, k).
+				WithHint("%s", columnKeyHint("formats", k, in.Columns))
 		}
 	}
 	return spec, nil
+}
+
+// columnKeyHint explains a dtypes/formats key that matched no column. The
+// dominant failure is Excel habit — keying by column letter (A/B/AA) instead
+// of the column name — so call that out explicitly; either way, inline the
+// declared column names so the retry needs no second look at the payload.
+func columnKeyHint(field, key string, columns []string) string {
+	shown := columns
+	const maxShown = 12
+	suffix := ""
+	if len(shown) > maxShown {
+		shown = shown[:maxShown]
+		suffix = ", …"
+	}
+	list := `"` + strings.Join(shown, `", "`) + `"` + suffix
+	if isColumnLetterKey(key) {
+		return fmt.Sprintf("%s keys must be column names from `columns`, not A1-style column letters; this sheet's columns: %s", field, list)
+	}
+	return fmt.Sprintf("%s keys must exactly match a name in `columns`: %s", field, list)
+}
+
+// isColumnLetterKey reports whether key looks like an A1-style column letter
+// (A, B, AA, …) rather than a real column name.
+func isColumnLetterKey(key string) bool {
+	if key == "" || len(key) > 3 {
+		return false
+	}
+	for _, r := range key {
+		if r < 'A' || r > 'Z' {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *tablePayload) validate() error {
@@ -584,6 +619,12 @@ var excelEpoch = time.Date(1899, 12, 30, 0, 0, 0, 0, time.UTC)
 // parser still rejects it cleanly.
 func isoDateToSerial(s string) (int, error) {
 	s = strings.TrimSpace(s)
+	if s == "" {
+		// Empty cells in a date-typed column are the classic header/total-row
+		// clash with the column-wide dtype declaration; name the three ways
+		// out so the caller does not have to guess what "bad format" means.
+		return 0, fmt.Errorf("date column has an empty cell — drop the empty rows, fill real yyyy-mm-dd dates, or declare the column dtype as object (text)") //nolint:forbidigo // intermediate error; callers wrap it into a typed --sheets/--values validation error with row/column context
+	}
 	if i := strings.Index(s, "T"); i > 0 {
 		s = s[:i]
 	}
