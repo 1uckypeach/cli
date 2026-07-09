@@ -176,3 +176,32 @@ func TestCmdRuntime_CallMultipart_RejectsUnsafePath(t *testing.T) {
 		}
 	}
 }
+
+// TestCmdRuntime_CallUpload_PropagatesError pins the typed CallUpload[T] helper
+// (the multipart counterpart of Call[T]): when CallMultipart rejects an unsafe
+// --file path, CallUpload propagates that validation error and returns the zero
+// value of T without attempting a decode. Mirrors the Call[T] coverage in
+// TestCmdRuntime_CallAPI_UnwrapsData so both typed entry points a provider uses
+// are exercised, not just the JSON one.
+func TestCmdRuntime_CallUpload_PropagatesError(t *testing.T) {
+	rt := stubRoundTripper{respond: func(*http.Request) (*http.Response, error) {
+		t.Fatal("no request should be issued when the --file path is unsafe")
+		return nil, nil
+	}}
+	r := newTestCmdRuntime(rt, core.AsBot, "agt_1")
+
+	got, err := iagent.CallUpload[struct {
+		AttachmentID string `json:"attachment_id"`
+	}](context.Background(), r, "POST", "/open-apis/example/v1/attachments",
+		map[string]string{"type": "file"},
+		[]iagent.FilePart{{Field: "file", Path: "/etc/hosts"}})
+	if err == nil {
+		t.Fatal("CallUpload with an unsafe --file path should error")
+	}
+	if !errs.IsValidation(err) {
+		t.Fatalf("CallUpload should propagate the validation error, got %T: %v", err, err)
+	}
+	if got.AttachmentID != "" {
+		t.Errorf("CallUpload should return the zero value of T on error, got %+v", got)
+	}
+}
