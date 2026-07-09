@@ -39,6 +39,11 @@ var ImMessagesSend = common.Shortcut{
 		{Name: "video-cover", Desc: "video cover image key (img_xxx), URL, or cwd-relative local path (absolute paths and .. are rejected); required when using --video"},
 		{Name: "audio", Desc: audioMessageInputDesc},
 	},
+	Tips: []string{
+		`Example: lark-cli im +messages-send --chat-id <chat_id> --text "hello"`,
+		`Example: lark-cli im +messages-send --user-id <open_id> --text "hello"`,
+		`Example: lark-cli im +messages-send --chat-id <chat_id> --markdown "## update"`,
+	},
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
 		chatFlag := runtime.Str("chat-id")
 		userFlag := runtime.Str("user-id")
