@@ -385,12 +385,7 @@ var MailWatch = common.Shortcut{
 				}
 			}
 
-			switch outFormat {
-			case "json", "":
-				output.PrintNdjson(out, output.Envelope{OK: true, Identity: string(runtime.As()), Data: outputData})
-			case "data":
-				output.PrintNdjson(out, outputData)
-			}
+			output.PrintNdjson(out, watchOutputValue(outFormat, string(runtime.As()), outputData))
 		}
 
 		rawHandler := func(ctx context.Context, event *larkevent.EventReq) error {
@@ -685,6 +680,17 @@ func minimalWatchMessage(message map[string]interface{}) map[string]interface{} 
 		}
 	}
 	return out
+}
+
+// watchOutputValue selects the per-event value that +watch prints as NDJSON:
+// "data" emits the bare payload; every other format (json — the default) wraps
+// it in an ok/identity/data envelope. Extracted from Execute so the default
+// envelope behavior is unit-testable without a live WebSocket.
+func watchOutputValue(outFormat, identity string, outputData interface{}) interface{} {
+	if outFormat == "data" {
+		return outputData
+	}
+	return output.Envelope{OK: true, Identity: identity, Data: outputData}
 }
 
 func watchFetchFailureValue(messageID, fetchFormat string, err error, eventBody map[string]interface{}) map[string]interface{} {

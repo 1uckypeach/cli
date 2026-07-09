@@ -885,3 +885,59 @@ func dryRunAPIsForMailWatchTest(t *testing.T, dry *common.DryRunAPI) []struct {
 	}
 	return payload.API
 }
+
+// TestWatchOutputValueDefaultIsJSONEnvelope verifies +watch's default format
+// (json) wraps each event in an ok/identity/data envelope, while --format data
+// emits the bare payload. Covers the default-format behavior without a live
+// WebSocket (addresses the coderabbitai review ask).
+func TestWatchOutputValueDefaultIsJSONEnvelope(t *testing.T) {
+	payload := map[string]interface{}{"message": map[string]interface{}{"message_id": "m1"}}
+
+	// default (json) → ok/identity/data envelope
+	b, err := json.Marshal(watchOutputValue("json", "user", payload))
+	if err != nil {
+		t.Fatalf("marshal json value: %v", err)
+	}
+	var env map[string]interface{}
+	if err := json.Unmarshal(b, &env); err != nil {
+		t.Fatalf("unmarshal json value: %v", err)
+	}
+	if env["ok"] != true {
+		t.Fatalf("default json must have ok:true, got %s", b)
+	}
+	if env["identity"] != "user" {
+		t.Fatalf("default json must carry identity, got %s", b)
+	}
+	if _, ok := env["data"]; !ok {
+		t.Fatalf("default json must have data field, got %s", b)
+	}
+
+	// empty format (safety) also defaults to the json envelope
+	b3, err := json.Marshal(watchOutputValue("", "bot", payload))
+	if err != nil {
+		t.Fatalf("marshal empty-format value: %v", err)
+	}
+	var env3 map[string]interface{}
+	if err := json.Unmarshal(b3, &env3); err != nil {
+		t.Fatalf("unmarshal empty-format value: %v", err)
+	}
+	if env3["ok"] != true {
+		t.Fatalf("empty format should default to json envelope, got %s", b3)
+	}
+
+	// --format data → bare payload, no envelope
+	b2, err := json.Marshal(watchOutputValue("data", "user", payload))
+	if err != nil {
+		t.Fatalf("marshal data value: %v", err)
+	}
+	var bare map[string]interface{}
+	if err := json.Unmarshal(b2, &bare); err != nil {
+		t.Fatalf("unmarshal data value: %v", err)
+	}
+	if _, hasOK := bare["ok"]; hasOK {
+		t.Fatalf("--format data must be bare (no envelope), got %s", b2)
+	}
+	if _, hasMsg := bare["message"]; !hasMsg {
+		t.Fatalf("--format data payload should carry message, got %s", b2)
+	}
+}
