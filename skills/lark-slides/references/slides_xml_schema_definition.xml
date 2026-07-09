@@ -674,6 +674,19 @@
         <xs:attribute name="rotateWithShape" type="xs:boolean" use="optional" default="true"/>
     </xs:complexType>
 
+    <!-- 图标填充样式类型 -->
+    <xs:complexType name="IconFillType">
+        <xs:annotation>
+            <xs:documentation>
+                图标填充配置:
+                - fillColor: 颜色填充, 必填
+            </xs:documentation>
+        </xs:annotation>
+        <xs:all>
+            <xs:element name="fillColor" type="sml:FillColorType"/>
+        </xs:all>
+    </xs:complexType>
+
 
     <!-- 填充图片类型 -->
     <xs:complexType name="FillImgType">
@@ -1432,7 +1445,7 @@
                 - alpha: 不透明度[0,1]
 
                 子元素:
-                - fill: 填充样式, 无fill标签代表不填充, 空fill标签代表使用默认样式(默认颜色填充, 颜色为rgba(208, 211, 214, 1))
+                - fill: 填充样式, 无fill标签代表不填充, fill标签内必须包含fillColor
                 - border: 边框样式, 无border标签代表无边框, 空border标签代表使用默认样式(默认实线边框, 颜色为rgba(51, 51, 51, 1), 宽度为3)
                 - reflection: 倒影样式, 无reflection标签代表无倒影, 空reflection标签代表使用默认样式
                 - shadow: 阴影样式, 无shadow标签代表无阴影, 空shadow标签代表使用默认样式
@@ -1440,7 +1453,7 @@
         </xs:annotation>
         <xs:complexType>
             <xs:all>
-                <xs:element name="fill" type="sml:FillType" minOccurs="0"/>
+                <xs:element name="fill" type="sml:IconFillType" minOccurs="0"/>
                 <xs:element name="border" type="sml:BorderType" minOccurs="0"/>
                 <xs:element name="reflection" type="sml:ReflectionType" minOccurs="0"/>
                 <xs:element name="shadow" type="sml:ShadowType" minOccurs="0"/>
