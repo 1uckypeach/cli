@@ -174,6 +174,48 @@ func TestEchoMultiTurn(t *testing.T) {
 	}
 }
 
+// TestCrossAgentIsolation pins the load-bearing per-agent isolation guard: echo
+// and reporter share one package-global store, so a task/context created under
+// one agent MUST be invisible to the other agent's runtime (get/delete return a
+// not-found error; list returns nothing). Without this guard
+// `agent task get example:reporter <echo-task-id>` would leak echo's data.
+func TestCrossAgentIsolation(t *testing.T) {
+	swapStore(t)
+	ctx := context.Background()
+	echo := fakeRuntime{"echo"}
+	reporter := fakeRuntime{"reporter"}
+
+	t1, err := echoSend(ctx, echo, agent.SendInput{Text: "secret"})
+	if err != nil {
+		t.Fatalf("echo send: %v", err)
+	}
+
+	// reporter must not read/delete echo's task or context.
+	if _, err := getTask(ctx, reporter, t1.TaskID); err == nil {
+		t.Error("reporter must not read echo's task (cross-agent leak)")
+	}
+	if _, err := getContext(ctx, reporter, t1.ContextID); err == nil {
+		t.Error("reporter must not read echo's context (cross-agent leak)")
+	}
+	if err := deleteContext(ctx, reporter, t1.ContextID); err == nil {
+		t.Error("reporter must not delete echo's context (cross-agent leak)")
+	}
+	if tasks, _ := listTasks(ctx, reporter, ""); len(tasks) != 0 {
+		t.Errorf("reporter should see no echo tasks, got %d", len(tasks))
+	}
+	if ctxs, _ := listContexts(ctx, reporter); len(ctxs) != 0 {
+		t.Errorf("reporter should see no echo contexts, got %d", len(ctxs))
+	}
+
+	// echo still sees its own data, and its context survived reporter's delete.
+	if _, err := getTask(ctx, echo, t1.TaskID); err != nil {
+		t.Errorf("echo must still read its own task: %v", err)
+	}
+	if _, err := getContext(ctx, echo, t1.ContextID); err != nil {
+		t.Errorf("echo's context must survive a cross-agent delete attempt: %v", err)
+	}
+}
+
 // TestStateSurvivesReload pins the cross-process semantics via the shared snapshot.
 func TestStateSurvivesReload(t *testing.T) {
 	swapStore(t)

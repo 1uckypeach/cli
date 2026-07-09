@@ -245,6 +245,14 @@ func agentTaskGetRun(opts *taskOptions) error {
 	if err != nil {
 		return err
 	}
+	// A provider that decodes an empty "data" via Call[*AgentTask] legitimately
+	// returns (nil, nil) (see internal/agent decodeData). Surface that as a typed
+	// error rather than dereferencing task.State below (the --watch branch would
+	// otherwise panic; the sibling consumers all nil-guard).
+	if task == nil {
+		return errs.NewInternalError(errs.SubtypeInvalidResponse,
+			"provider 未返回任务数据（响应无 data）")
+	}
 
 	if opts.Watch && !task.State.ShouldStopPolling() {
 		// A positive --timeout bounds the poll: pollToStop returns the most recent
@@ -315,6 +323,9 @@ func agentTaskListRun(opts *taskOptions) error {
 	// recently active task heads the list; a stable sort preserves the provider's
 	// relative order for equal timestamps, and tasks with no timestamp sort last.
 	sort.SliceStable(tasks, func(i, j int) bool { return tasks[i].UpdatedAt > tasks[j].UpdatedAt })
+	if tasks == nil {
+		tasks = []iagent.TaskSummary{} // always emit [] not null (matches the Card.Parameters array convention)
+	}
 	return scanAndEmitData(f, opts.Cmd, opts.Format,
 		map[string]interface{}{"tasks": tasks},
 		&output.Meta{Count: len(tasks)},
@@ -396,6 +407,19 @@ func downloadArtifact(opts *taskOptions) error {
 	art, err := resolveDownload(opts)
 	if err != nil {
 		return err
+	}
+	// A provider decoding an empty "data" via Call[*ArtifactData] can return
+	// (nil, nil); and a non-nil descriptor with neither inline bytes nor a URL
+	// carries no downloadable content. Both are provider-response defects — fail
+	// with a typed error instead of dereferencing nil or writing a 0-byte file
+	// (which under --force would clobber an existing local file with emptiness).
+	if art == nil {
+		return errs.NewInternalError(errs.SubtypeInvalidResponse,
+			"provider 未返回产物数据（响应无 data）")
+	}
+	if len(art.Bytes) == 0 && art.URL == "" {
+		return errs.NewInternalError(errs.SubtypeInvalidResponse,
+			"产物 '%s' 无可下载内容（provider 既未提供内联字节也未提供下载 URL）", opts.ArtifactID)
 	}
 
 	data := art.Bytes

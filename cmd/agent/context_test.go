@@ -309,15 +309,52 @@ func TestContextGetInvalidRef(t *testing.T) {
 	}
 }
 
-// TestContextListWithJq exercises the --jq output branch for list.
+// TestContextListWithJq pins the --jq output branch for list: the filtered
+// value (not the full envelope) is what reaches stdout.
 func TestContextListWithJq(t *testing.T) {
 	opts, _ := contextTestOpts(t, "list")
 	opts.Cmd.Flags().String("jq", ".data.contexts | length", "")
 	setScripted(t, scriptedHooks{listContexts: func() ([]iagent.ContextSummary, error) {
 		return []iagent.ContextSummary{{ContextID: "sess_1"}}, nil
 	}})
+	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 	if err := agentContextListRun(opts); err != nil {
 		t.Fatalf("context list --jq should not error: %v", err)
+	}
+	got := strings.TrimSpace(string(out.Bytes()))
+	if got != "1" {
+		t.Errorf("--jq .data.contexts | length should output 1, got %q", got)
+	}
+	if strings.Contains(got, `"ok"`) {
+		t.Errorf("--jq output should be the filtered value, not the full envelope, got %q", got)
+	}
+}
+
+// TestContextListEmptyEmitsArray pins the array convention: an empty context
+// list serializes as [] (never null), matching Card.Parameters.
+func TestContextListEmptyEmitsArray(t *testing.T) {
+	opts, _ := contextTestOpts(t, "list")
+	setScripted(t, scriptedHooks{listContexts: func() ([]iagent.ContextSummary, error) {
+		return nil, nil
+	}})
+	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
+	if err := agentContextListRun(opts); err != nil {
+		t.Fatalf("context list should not error: %v", err)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("output should be valid envelope JSON: %v (%s)", err, string(out.Bytes()))
+	}
+	data, _ := env.Data.(map[string]interface{})
+	v, present := data["contexts"]
+	if !present {
+		t.Fatal("data.contexts key should be present")
+	}
+	if _, ok := v.([]interface{}); !ok {
+		t.Errorf("empty context list should emit a JSON array (not null), got %T: %v", v, v)
+	}
+	if env.Meta == nil || env.Meta.Count != 0 {
+		t.Errorf("meta.count should be 0, got %+v", env.Meta)
 	}
 }
 

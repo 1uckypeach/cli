@@ -279,6 +279,34 @@ func TestTaskListEmitsCount(t *testing.T) {
 	}
 }
 
+// TestTaskListEmptyEmitsArray pins the array convention: an empty task list
+// serializes as [] (never null), matching Card.Parameters.
+func TestTaskListEmptyEmitsArray(t *testing.T) {
+	opts, _ := taskTestOpts(t, "list")
+	setScripted(t, scriptedHooks{listTasks: func(string) ([]iagent.TaskSummary, error) {
+		return nil, nil
+	}})
+	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
+	if err := agentTaskListRun(opts); err != nil {
+		t.Fatalf("list should not error: %v", err)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("output should be valid envelope JSON: %v (%s)", err, string(out.Bytes()))
+	}
+	data, _ := env.Data.(map[string]interface{})
+	v, present := data["tasks"]
+	if !present {
+		t.Fatal("data.tasks key should be present")
+	}
+	if _, ok := v.([]interface{}); !ok {
+		t.Errorf("empty task list should emit a JSON array (not null), got %T: %v", v, v)
+	}
+	if env.Meta == nil || env.Meta.Count != 0 {
+		t.Errorf("meta.count should be 0, got %+v", env.Meta)
+	}
+}
+
 // TestTaskListError surfaces a provider ListTasks failure.
 func TestTaskListError(t *testing.T) {
 	opts, _ := taskTestOpts(t, "list")
@@ -502,6 +530,28 @@ func TestTaskListPrettyFormat(t *testing.T) {
 	}
 	if !strings.Contains(text, "chat_1\tsess_1\tcompleted\ttrue\t2026-07-05T12:00:00Z\t分析完成") {
 		t.Errorf("pretty output should contain a data row with updated_at + summary, got %q", text)
+	}
+}
+
+// TestTaskListPrettySanitizesStateAndTimestamp pins that the agent-controlled
+// State and UpdatedAt fields are ANSI-stripped on the pretty/TSV path, not just
+// the ids/summary — a malicious provider must not inject terminal escapes via a
+// forged state string or timestamp.
+func TestTaskListPrettySanitizesStateAndTimestamp(t *testing.T) {
+	opts, _ := taskTestOpts(t, "list")
+	opts.Format = "pretty"
+	setScripted(t, scriptedHooks{listTasks: func(string) ([]iagent.TaskSummary, error) {
+		return []iagent.TaskSummary{
+			{TaskID: "chat_1", State: iagent.TaskState("completed\x1b[2J"), IsTerminal: true,
+				UpdatedAt: "2026-07-05T12:00:00Z\x1b]0;pwned\x07"},
+		}, nil
+	}})
+	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
+	if err := agentTaskListRun(opts); err != nil {
+		t.Fatalf("task list --format pretty should not error: %v", err)
+	}
+	if text := string(out.Bytes()); strings.Contains(text, "\x1b") {
+		t.Errorf("ANSI/OSC sequences in State/UpdatedAt must be stripped, got %q", text)
 	}
 }
 
