@@ -338,10 +338,11 @@ func runHTMLPublishTOS(ctx context.Context, rctx *common.RuntimeContext, spec ap
 
 	// Step 2: upload tar.gz to TOS via presigned URL (bypasses Lark gateway).
 	//nolint:forbidigo // presigned TOS upload bypasses the Lark gateway — raw http is required; not a Lark API call, so RuntimeContext.DoAPI does not apply.
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, bytes.NewReader(tarball.Body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, uploadURL, bytes.NewReader(tarball.Body))
 	if err != nil {
 		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport, "build TOS upload request").WithCause(err)
 	}
+	req.ContentLength = tarball.Size
 	req.Header.Set("Content-Type", "application/gzip")
 	resp, err := newFileTransferClient().Do(req) //nolint:forbidigo // presigned TOS upload, see above.
 	if err != nil {
