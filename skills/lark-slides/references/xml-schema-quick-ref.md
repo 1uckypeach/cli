@@ -436,6 +436,7 @@ Mermaid 模式：内容用 `<![CDATA[...]]>` 包裹，避免 `[`、`>`、`-->` �
 
 - [slides_xml_schema_definition.xml](slides_xml_schema_definition.xml)
 - [slides_chart_demo.xml](slides_chart_demo.xml)
+- [slides_demo.xml](slides_demo.xml)
 
 ## Schema 版本信息
 
