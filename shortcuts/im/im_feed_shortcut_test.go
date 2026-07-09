@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/output"
@@ -307,6 +308,35 @@ func TestResolveIsHeader(t *testing.T) {
 				t.Fatalf("resolveIsHeader() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestResolveIsHeaderMutualExclusionHint(t *testing.T) {
+	// Locks the recovery hint on the --head/--tail conflict: an agent reading
+	// only the stderr envelope must be told which flag to drop, not just that
+	// the two are incompatible.
+	cmd := newFeedShortcutCreateCmd(t)
+	if err := cmd.Flags().Set("head", "true"); err != nil {
+		t.Fatalf("Set head error = %v", err)
+	}
+	if err := cmd.Flags().Set("tail", "true"); err != nil {
+		t.Fatalf("Set tail error = %v", err)
+	}
+	rt := &common.RuntimeContext{Cmd: cmd}
+
+	_, err := resolveIsHeader(rt)
+	if err == nil {
+		t.Fatal("want error when both --head and --tail are set")
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("want typed errs problem, got %T: %v", err, err)
+	}
+	if problem.Subtype != errs.SubtypeInvalidArgument {
+		t.Errorf("subtype = %q, want invalid_argument", problem.Subtype)
+	}
+	if !strings.Contains(problem.Hint, "--head") || !strings.Contains(problem.Hint, "--tail") {
+		t.Errorf("hint = %q, want explicit next action naming --head/--tail", problem.Hint)
 	}
 }
 

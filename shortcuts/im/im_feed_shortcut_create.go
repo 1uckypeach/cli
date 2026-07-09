@@ -88,7 +88,9 @@ func resolveIsHeader(rt *common.RuntimeContext) (bool, error) {
 	head := rt.Bool("head")
 	tail := rt.Bool("tail")
 	if head && tail {
-		return false, errs.NewValidationError(errs.SubtypeInvalidArgument, "--head and --tail are mutually exclusive")
+		return false, errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"--head and --tail are mutually exclusive").
+			WithHint("pass only one of --head or --tail; omitting both inserts at the head")
 	}
 	if tail {
 		return false, nil
