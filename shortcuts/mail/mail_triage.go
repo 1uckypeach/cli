@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strings"
@@ -55,7 +56,6 @@ var MailTriage = common.Shortcut{
 	Scopes:      []string{"mail:user_mailbox.message:readonly", "mail:user_mailbox.message.address:read", "mail:user_mailbox.message.subject:read", "mail:user_mailbox.message.body:read"},
 	AuthTypes:   []string{"user", "bot"},
 	Flags: []common.Flag{
-		{Name: "format", Default: "json", Enum: []string{"table", "json", "data"}, Desc: "output format: table | json | data (json/data output object with pagination fields)"},
 		{Name: "max", Type: "int", Default: "20", Desc: "maximum number of messages to fetch (1-400; auto-paginates internally)"},
 		{Name: "page-size", Type: "int", Desc: "alias for --max"},
 		{Name: "page-token", Desc: "pagination token from a previous response to fetch the next page"},
@@ -138,7 +138,6 @@ var MailTriage = common.Shortcut{
 		}
 		mailbox := resolveMailboxID(runtime)
 		hintIdentityFirst(runtime, mailbox)
-		outFormat := runtime.Str("format")
 		query := runtime.Str("query")
 		if query != "" {
 			if err := common.RejectDangerousCharsTyped("--query", query); err != nil {
@@ -277,26 +276,21 @@ var MailTriage = common.Shortcut{
 			msg["mailbox_id"] = mailbox
 		}
 
-		switch outFormat {
-		case "json", "data":
-			outData := map[string]interface{}{
-				"messages":   messages,
-				"mailbox_id": mailbox,
-				"count":      len(messages),
-				"has_more":   hasMore,
-				"page_token": nextPageToken,
-			}
-			if notice != "" {
-				outData["notice"] = notice
-			}
-			output.PrintJson(runtime.IO().Out, outData)
-		default: // "table"
-			if notice != "" {
-				fmt.Fprintf(runtime.IO().ErrOut, "notice: %s\n", notice)
-			}
+		// notice 一律走 stderr（不再随 json 带内返回）
+		if notice != "" {
+			fmt.Fprintf(runtime.IO().ErrOut, "notice: %s\n", notice)
+		}
+
+		// 标准信封输出：data = messages 数组（每条已含 mailbox_id），
+		// meta 带 count/has_more/page_token；--format pretty 走精排表格。
+		runtime.OutFormat(messages, &output.Meta{
+			Count:     len(messages),
+			HasMore:   hasMore,
+			PageToken: nextPageToken,
+		}, func(w io.Writer) {
 			if len(messages) == 0 {
-				fmt.Fprintln(runtime.IO().ErrOut, "No messages found.")
-				return nil
+				fmt.Fprintln(w, "No messages found.")
+				return
 			}
 			var rows []map[string]interface{}
 			for _, msg := range messages {
@@ -314,29 +308,33 @@ var MailTriage = common.Shortcut{
 				}
 				rows = append(rows, row)
 			}
-			output.PrintTable(runtime.IO().Out, rows)
-			fmt.Fprintf(runtime.IO().ErrOut, "\n%d message(s)\n", len(messages))
-			if hasMore && nextPageToken != "" {
-				var hint strings.Builder
-				hint.WriteString("next page: mail +triage")
-				if mailbox != "me" {
-					hint.WriteString(" --mailbox " + shellQuote(mailbox))
-				}
-				if query != "" {
-					hint.WriteString(" --query " + shellQuote(query))
-				}
-				if filterStr := runtime.Str("filter"); filterStr != "" {
-					hint.WriteString(" --filter " + shellQuote(filterStr))
-				}
-				hint.WriteString(" --page-token " + shellQuote(nextPageToken))
-				fmt.Fprintln(runtime.IO().ErrOut, hint.String())
-			}
+			output.PrintTable(w, rows)
+		})
+
+		// 人类导航提示走 stderr（不污染 stdout 的数据）
+		if mailbox != "me" || (hasMore && nextPageToken != "") {
+			fmt.Fprintf(runtime.IO().ErrOut, "%d message(s)\n", len(messages))
+		}
+		if hasMore && nextPageToken != "" {
+			var hint strings.Builder
+			hint.WriteString("next page: mail +triage")
 			if mailbox != "me" {
-				quotedMailbox := shellQuote(mailbox)
-				fmt.Fprintln(runtime.IO().ErrOut, "tip: read full content: single message use mail +message --mailbox "+quotedMailbox+" --message-id <id>; multiple messages use mail +messages --mailbox "+quotedMailbox+" --message-ids <id1>,<id2>,<id3>")
-			} else {
-				fmt.Fprintln(runtime.IO().ErrOut, "tip: read full content: single message use mail +message --message-id <id>; multiple messages use mail +messages --message-ids <id1>,<id2>,<id3>")
+				hint.WriteString(" --mailbox " + shellQuote(mailbox))
 			}
+			if query != "" {
+				hint.WriteString(" --query " + shellQuote(query))
+			}
+			if filterStr := runtime.Str("filter"); filterStr != "" {
+				hint.WriteString(" --filter " + shellQuote(filterStr))
+			}
+			hint.WriteString(" --page-token " + shellQuote(nextPageToken))
+			fmt.Fprintln(runtime.IO().ErrOut, hint.String())
+		}
+		if mailbox != "me" {
+			quotedMailbox := shellQuote(mailbox)
+			fmt.Fprintln(runtime.IO().ErrOut, "tip: read full content: single message use mail +message --mailbox "+quotedMailbox+" --message-id <id>; multiple messages use mail +messages --mailbox "+quotedMailbox+" --message-ids <id1>,<id2>,<id3>")
+		} else {
+			fmt.Fprintln(runtime.IO().ErrOut, "tip: read full content: single message use mail +message --message-id <id>; multiple messages use mail +messages --message-ids <id1>,<id2>,<id3>")
 		}
 		return nil
 	},
