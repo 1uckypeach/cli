@@ -605,6 +605,39 @@ func TestApplyNeedAuthorizationHint_ShortcutIncludesConditionalScopes(t *testing
 	}
 }
 
+func TestApplyNeedAuthorizationHint_ShortcutScopeGroupsAreAlternatives(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+	})
+	f.ResolvedIdentity = core.AsBot
+
+	root := &cobra.Command{Use: "lark-cli"}
+	serviceCmd := &cobra.Command{Use: "vc"}
+	shortcutCmd := &cobra.Command{Use: "+meeting-events"}
+	root.AddCommand(serviceCmd)
+	serviceCmd.AddCommand(shortcutCmd)
+	f.CurrentCommand = shortcutCmd
+
+	authErr := newAuthErrorWithNeedAuthMarker()
+	applyNeedAuthorizationHint(f, authErr)
+
+	for _, want := range []string{
+		"current command accepts one of these scope sets:",
+		"vc:meeting.meetingevent:read (UAT recommended)",
+		"vc:meeting.bot.join:write (TAT recommended)",
+		" OR ",
+	} {
+		if !strings.Contains(authErr.Hint, want) {
+			t.Fatalf("hint %q missing %q", authErr.Hint, want)
+		}
+	}
+	if strings.Contains(authErr.Hint, "current command requires scope(s): vc:meeting.meetingevent:read, vc:meeting.bot.join:write") {
+		t.Fatalf("hint should not present alternative query scopes as all-required: %q", authErr.Hint)
+	}
+}
+
 // TestApplyNeedAuthorizationHint_AppendsExistingHint pins that the
 // declared-scopes guidance is appended (separated by newline) when the typed
 // AuthenticationError already carries a Hint from elsewhere.

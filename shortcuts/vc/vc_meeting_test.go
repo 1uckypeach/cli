@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -608,9 +609,19 @@ func TestMeetingListActive_DryRun_UserIdentity(t *testing.T) {
 	}
 }
 
-func TestMeetingListActive_ScopeMatchesEventReadPermission(t *testing.T) {
-	if len(VCMeetingListActive.Scopes) != 1 || VCMeetingListActive.Scopes[0] != "vc:meeting.meetingevent:read" {
-		t.Fatalf("scopes = %#v, want [vc:meeting.meetingevent:read]", VCMeetingListActive.Scopes)
+func TestMeetingListActive_AcceptsDualCandidateScopes(t *testing.T) {
+	want := [][]string{
+		{"vc:meeting.meetingevent:read"},
+		{"vc:meeting.bot.join:write"},
+	}
+	if !reflect.DeepEqual(VCMeetingListActive.ScopeGroups, want) {
+		t.Fatalf("scope groups = %#v, want %#v", VCMeetingListActive.ScopeGroups, want)
+	}
+	if len(VCMeetingListActive.Scopes) != 0 {
+		t.Fatalf("Scopes = %#v, want empty so candidate groups are not all-required", VCMeetingListActive.Scopes)
+	}
+	if VCMeetingListActive.Risk != "read" {
+		t.Fatalf("Risk = %q, want read", VCMeetingListActive.Risk)
 	}
 }
 

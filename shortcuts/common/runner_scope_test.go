@@ -166,6 +166,105 @@ func TestCheckShortcutScopes_ReturnsTypedPermissionError(t *testing.T) {
 	}
 }
 
+func TestCheckShortcutScopeRequirements_AllowsAnyCandidateGroup(t *testing.T) {
+	tests := []struct {
+		name          string
+		grantedScopes string
+	}{
+		{"meetingevent_read", "vc:meeting.meetingevent:read"},
+		{"bot_join_write", "vc:meeting.bot.join:write"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &cmdutil.Factory{
+				Credential: credential.NewCredentialProvider(nil, nil, &scopeCheckTokenResolver{
+					result: &credential.TokenResult{Token: "t", Scopes: tt.grantedScopes},
+				}, nil),
+			}
+			shortcut := &Shortcut{
+				ScopeGroups: [][]string{
+					{"vc:meeting.meetingevent:read"},
+					{"vc:meeting.bot.join:write"},
+				},
+			}
+
+			err := checkShortcutScopeRequirements(f, context.Background(), core.AsBot, &core.CliConfig{AppID: "app-1"}, shortcut)
+			if err != nil {
+				t.Fatalf("checkShortcutScopeRequirements() error = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestCheckShortcutScopeRequirements_ErrorsWhenNoCandidateGroupMatches(t *testing.T) {
+	f := &cmdutil.Factory{
+		Credential: credential.NewCredentialProvider(nil, nil, &scopeCheckTokenResolver{
+			result: &credential.TokenResult{Token: "t", Scopes: "im:message:read"},
+		}, nil),
+	}
+	shortcut := &Shortcut{
+		ScopeGroups: [][]string{
+			{"vc:meeting.meetingevent:read"},
+			{"vc:meeting.bot.join:write"},
+		},
+		ScopeGroupHints: []string{"UAT recommended", "TAT recommended"},
+	}
+
+	err := checkShortcutScopeRequirements(f, context.Background(), core.AsBot, &core.CliConfig{AppID: "app-1"}, shortcut)
+	if err == nil {
+		t.Fatal("expected error when no candidate scope group matches")
+	}
+	var permErr *errs.PermissionError
+	if !errors.As(err, &permErr) {
+		t.Fatalf("expected *errs.PermissionError, got %T: %v", err, err)
+	}
+	for _, want := range []string{
+		"vc:meeting.meetingevent:read",
+		"vc:meeting.bot.join:write",
+		"UAT recommended",
+		"TAT recommended",
+		"OR",
+	} {
+		if !strings.Contains(permErr.Hint, want) {
+			t.Fatalf("hint %q missing %q", permErr.Hint, want)
+		}
+	}
+	wantMissing := map[string]bool{
+		"vc:meeting.meetingevent:read": true,
+		"vc:meeting.bot.join:write":    true,
+	}
+	for _, scope := range permErr.MissingScopes {
+		delete(wantMissing, scope)
+	}
+	if len(wantMissing) != 0 {
+		t.Fatalf("MissingScopes = %v, want to include %v", permErr.MissingScopes, wantMissing)
+	}
+}
+
+func TestCheckShortcutScopeRequirements_StillRequiresBaseScopes(t *testing.T) {
+	f := &cmdutil.Factory{
+		Credential: credential.NewCredentialProvider(nil, nil, &scopeCheckTokenResolver{
+			result: &credential.TokenResult{Token: "t", Scopes: "vc:meeting.bot.join:write"},
+		}, nil),
+	}
+	shortcut := &Shortcut{
+		Scopes:      []string{"im:message:read"},
+		ScopeGroups: [][]string{{"vc:meeting.bot.join:write"}},
+	}
+
+	err := checkShortcutScopeRequirements(f, context.Background(), core.AsBot, &core.CliConfig{AppID: "app-1"}, shortcut)
+	if err == nil {
+		t.Fatal("expected missing base scope error")
+	}
+	var permErr *errs.PermissionError
+	if !errors.As(err, &permErr) {
+		t.Fatalf("expected *errs.PermissionError, got %T: %v", err, err)
+	}
+	if got := strings.Join(permErr.MissingScopes, " "); got != "im:message:read" {
+		t.Fatalf("MissingScopes = %q, want im:message:read", got)
+	}
+}
+
 func TestCheckShortcutScopes_IgnoresNonContextTokenErrors(t *testing.T) {
 	f := &cmdutil.Factory{
 		Credential: credential.NewCredentialProvider(nil, nil, &scopeCheckTokenResolver{err: errors.New("token cache unavailable")}, nil),

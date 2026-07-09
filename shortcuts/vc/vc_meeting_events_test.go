@@ -418,6 +418,22 @@ func TestMeetingEvents_Validation_PageAllIgnoresInvalidPageSize(t *testing.T) {
 	}
 }
 
+func TestMeetingEvents_AcceptsDualCandidateScopes(t *testing.T) {
+	want := [][]string{
+		{"vc:meeting.meetingevent:read"},
+		{"vc:meeting.bot.join:write"},
+	}
+	if !reflect.DeepEqual(VCMeetingEvents.ScopeGroups, want) {
+		t.Fatalf("scope groups = %#v, want %#v", VCMeetingEvents.ScopeGroups, want)
+	}
+	if len(VCMeetingEvents.Scopes) != 0 {
+		t.Fatalf("Scopes = %#v, want empty so candidate groups are not all-required", VCMeetingEvents.Scopes)
+	}
+	if VCMeetingEvents.Risk != "read" {
+		t.Fatalf("Risk = %q, want read", VCMeetingEvents.Risk)
+	}
+}
+
 func TestMeetingEvents_Validation_InvalidPageSizeReturnsFlagError(t *testing.T) {
 	runtime := newMeetingEventsRuntime()
 	mustSetMeetingEventsFlag(t, runtime, "meeting-id", "7628568141510692381")

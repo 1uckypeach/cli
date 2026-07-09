@@ -4,6 +4,12 @@
 
 本 skill 对应 shortcut：`lark-cli vc +meeting-list-active`（调用 `GET /open-apis/vc/v1/bots/user_active_meeting`）。
 
+权限开通建议：
+
+- UAT 推荐开通 `vc:meeting.meetingevent:read`。
+- TAT 推荐开通 `vc:meeting.bot.join:write`。
+- 这两个权限是发现当前进行中会议的候选权限点位，CLI 本地预检满足任一项即可继续；服务端返回的数据范围仍取决于应用安装、可用范围、权限可访问的数据范围、会议状态，以及应用机器人是否已在目标会议中。
+
 ## 命令
 
 ```bash

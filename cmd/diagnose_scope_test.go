@@ -188,6 +188,36 @@ func TestDiagBuild_ShortcutIncludesConditionalScopes(t *testing.T) {
 	}
 }
 
+func TestDiagBuild_MeetingQueryShortcutsIncludeDualCandidateScopes(t *testing.T) {
+	out := diagBuild([]string{"vc"})
+	want := map[string]map[string]bool{
+		"+meeting-events": {
+			"vc:meeting.meetingevent:read": false,
+			"vc:meeting.bot.join:write":    false,
+		},
+		"+meeting-list-active": {
+			"vc:meeting.meetingevent:read": false,
+			"vc:meeting.bot.join:write":    false,
+		},
+	}
+	for _, method := range out.Methods {
+		scopes, ok := want[method.Method]
+		if !ok || method.Domain != "vc" || method.Type != "shortcut" {
+			continue
+		}
+		if _, ok := scopes[method.Scope]; ok {
+			scopes[method.Scope] = true
+		}
+	}
+	for method, scopes := range want {
+		for scope, saw := range scopes {
+			if !saw {
+				t.Fatalf("%s should advertise candidate scope %s in diagnose output", method, scope)
+			}
+		}
+	}
+}
+
 // ── Snapshot generation ───────────────────────────────────────────────
 //
 // Generates a JSON snapshot of all API methods and shortcuts with their

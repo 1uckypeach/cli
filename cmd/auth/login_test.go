@@ -260,6 +260,24 @@ func TestCollectScopesForDomains_NonexistentDomain(t *testing.T) {
 	}
 }
 
+func TestCollectScopesForDomains_VCMeetingQueriesIncludeDualCandidateScopes(t *testing.T) {
+	scopes := collectScopesForDomains([]string{"vc"}, "user", "")
+	want := map[string]bool{
+		"vc:meeting.meetingevent:read": false,
+		"vc:meeting.bot.join:write":    false,
+	}
+	for _, scope := range scopes {
+		if _, ok := want[scope]; ok {
+			want[scope] = true
+		}
+	}
+	for scope, saw := range want {
+		if !saw {
+			t.Fatalf("collectScopesForDomains([vc]) missing query candidate scope %s in %v", scope, scopes)
+		}
+	}
+}
+
 func TestGetDomainMetadata_IncludesFromMeta(t *testing.T) {
 	domains := getDomainMetadata("zh")
 	nameSet := make(map[string]bool)

@@ -20,6 +20,12 @@ import (
 	shortcutcommon "github.com/larksuite/cli/shortcuts/common"
 )
 
+type declaredScopeHint struct {
+	Scopes     []string
+	Groups     [][]string
+	GroupHints []string
+}
+
 // applyNeedAuthorizationHint augments a typed *errs.AuthenticationError with a
 // "current command requires scope(s): X, Y" hint when the underlying error is
 // a need_user_authorization signal AND the current command declares scopes
@@ -36,11 +42,11 @@ func applyNeedAuthorizationHint(f *cmdutil.Factory, err error) {
 	if !errors.As(err, &authErr) {
 		return
 	}
-	scopes := resolveDeclaredScopesForCurrentCommand(f)
-	if len(scopes) == 0 {
+	hint := resolveDeclaredScopeHintForCurrentCommand(f)
+	if len(hint.Scopes) == 0 && len(hint.Groups) == 0 {
 		return
 	}
-	scopeHint := fmt.Sprintf("current command requires scope(s): %s", strings.Join(scopes, ", "))
+	scopeHint := formatDeclaredScopeHint(hint)
 	if authErr.Hint == "" {
 		authErr.Hint = scopeHint
 		return
@@ -52,8 +58,12 @@ func applyNeedAuthorizationHint(f *cmdutil.Factory, err error) {
 // current command for the resolved identity, checking shortcuts first and then
 // service methods from local registry metadata.
 func resolveDeclaredScopesForCurrentCommand(f *cmdutil.Factory) []string {
+	return resolveDeclaredScopeHintForCurrentCommand(f).Scopes
+}
+
+func resolveDeclaredScopeHintForCurrentCommand(f *cmdutil.Factory) declaredScopeHint {
 	if f == nil || f.CurrentCommand == nil {
-		return nil
+		return declaredScopeHint{}
 	}
 
 	identity := string(f.ResolvedIdentity)
@@ -61,20 +71,24 @@ func resolveDeclaredScopesForCurrentCommand(f *cmdutil.Factory) []string {
 		identity = string(core.AsUser)
 	}
 	if identity != string(core.AsUser) && identity != string(core.AsBot) {
-		return nil
+		return declaredScopeHint{}
 	}
 
-	if scopes := resolveDeclaredShortcutScopes(f.CurrentCommand, identity); len(scopes) > 0 {
-		return scopes
+	if hint := resolveDeclaredShortcutScopeHint(f.CurrentCommand, identity); len(hint.Scopes) > 0 || len(hint.Groups) > 0 {
+		return hint
 	}
-	return resolveDeclaredServiceMethodScopes(f.CurrentCommand, identity)
+	return declaredScopeHint{Scopes: resolveDeclaredServiceMethodScopes(f.CurrentCommand, identity)}
 }
 
 // resolveDeclaredShortcutScopes returns the scopes declared by a mounted
 // shortcut command for the given identity.
 func resolveDeclaredShortcutScopes(cmd *cobra.Command, identity string) []string {
+	return resolveDeclaredShortcutScopeHint(cmd, identity).Scopes
+}
+
+func resolveDeclaredShortcutScopeHint(cmd *cobra.Command, identity string) declaredScopeHint {
 	if cmd == nil || cmd.Parent() == nil || !strings.HasPrefix(cmd.Name(), "+") {
-		return nil
+		return declaredScopeHint{}
 	}
 
 	service := cmd.Parent().Name()
@@ -83,12 +97,50 @@ func resolveDeclaredShortcutScopes(cmd *cobra.Command, identity string) []string
 			continue
 		}
 		scopes := sc.DeclaredScopesForIdentity(identity)
-		if len(scopes) == 0 {
-			return nil
+		groups := sc.ScopeGroupsForIdentity(identity)
+		if len(scopes) == 0 && len(groups) == 0 {
+			return declaredScopeHint{}
 		}
-		return append([]string(nil), scopes...)
+		return declaredScopeHint{
+			Scopes:     append([]string(nil), scopes...),
+			Groups:     cloneScopeGroups(groups),
+			GroupHints: append([]string(nil), sc.ScopeGroupHints...),
+		}
 	}
-	return nil
+	return declaredScopeHint{}
+}
+
+func formatDeclaredScopeHint(hint declaredScopeHint) string {
+	if len(hint.Groups) == 0 {
+		return fmt.Sprintf("current command requires scope(s): %s", strings.Join(hint.Scopes, ", "))
+	}
+	return fmt.Sprintf("current command accepts one of these scope sets: %s", formatScopeGroups(hint.Groups, hint.GroupHints))
+}
+
+func cloneScopeGroups(groups [][]string) [][]string {
+	out := make([][]string, 0, len(groups))
+	for _, group := range groups {
+		if len(group) == 0 {
+			continue
+		}
+		out = append(out, append([]string(nil), group...))
+	}
+	return out
+}
+
+func formatScopeGroups(groups [][]string, hints []string) string {
+	parts := make([]string, 0, len(groups))
+	for i, group := range groups {
+		if len(group) == 0 {
+			continue
+		}
+		part := strings.Join(group, " + ")
+		if i < len(hints) && strings.TrimSpace(hints[i]) != "" {
+			part += " (" + strings.TrimSpace(hints[i]) + ")"
+		}
+		parts = append(parts, part)
+	}
+	return strings.Join(parts, " OR ")
 }
 
 // resolveDeclaredServiceMethodScopes returns the scopes declared by a

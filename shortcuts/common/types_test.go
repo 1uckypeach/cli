@@ -89,6 +89,23 @@ func TestConditionalScopesForIdentity_FallbackAndOverrides(t *testing.T) {
 	}
 }
 
+func TestScopeGroupsForIdentity_FallbackAndOverrides(t *testing.T) {
+	s := Shortcut{
+		ScopeGroups:     [][]string{{"default-a"}, {"default-b"}},
+		UserScopeGroups: [][]string{{"user-a"}},
+		BotScopeGroups:  [][]string{{"bot-a"}, {"bot-b", "bot-c"}},
+	}
+	if got := s.ScopeGroupsForIdentity("user"); !reflect.DeepEqual(got, [][]string{{"user-a"}}) {
+		t.Errorf("expected user scope groups, got %v", got)
+	}
+	if got := s.ScopeGroupsForIdentity("bot"); !reflect.DeepEqual(got, [][]string{{"bot-a"}, {"bot-b", "bot-c"}}) {
+		t.Errorf("expected bot scope groups, got %v", got)
+	}
+	if got := s.ScopeGroupsForIdentity("tenant"); !reflect.DeepEqual(got, [][]string{{"default-a"}, {"default-b"}}) {
+		t.Errorf("expected default scope groups for unknown identity, got %v", got)
+	}
+}
+
 func TestDeclaredScopesForIdentity_MergesAndDeduplicates(t *testing.T) {
 	s := Shortcut{
 		Scopes:            []string{"base-a", "shared"},
@@ -96,6 +113,18 @@ func TestDeclaredScopesForIdentity_MergesAndDeduplicates(t *testing.T) {
 	}
 	if got := s.DeclaredScopesForIdentity("user"); !reflect.DeepEqual(got, []string{"base-a", "shared", "cond-b"}) {
 		t.Errorf("expected merged declared scopes, got %v", got)
+	}
+}
+
+func TestDeclaredScopesForIdentity_IncludesScopeGroups(t *testing.T) {
+	s := Shortcut{
+		Scopes:            []string{"base-a"},
+		ScopeGroups:       [][]string{{"candidate-a"}, {"candidate-b", "candidate-c"}},
+		ConditionalScopes: []string{"candidate-b", "cond-a"},
+	}
+	want := []string{"base-a", "candidate-a", "candidate-b", "candidate-c", "cond-a"}
+	if got := s.DeclaredScopesForIdentity("user"); !reflect.DeepEqual(got, want) {
+		t.Errorf("expected declared scopes %v, got %v", want, got)
 	}
 }
 

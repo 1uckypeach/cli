@@ -940,7 +940,7 @@ func runShortcut(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, botOnly bo
 	// Identity info is now included in the JSON envelope; skip stderr printing.
 	// cmdutil.PrintIdentity(f.IOStreams.ErrOut, as, config, false)
 
-	if err := checkShortcutScopes(f, cmd.Context(), as, config, s.ScopesForIdentity(string(as))); err != nil {
+	if err := checkShortcutScopeRequirements(f, cmd.Context(), as, config, s); err != nil {
 		return err
 	}
 
@@ -1010,6 +1010,93 @@ func checkShortcutScopes(f *cmdutil.Factory, ctx context.Context, as core.Identi
 		WithIdentity(string(as)).
 		WithMissingScopes(missing...).
 		WithHint("run `lark-cli auth login --scope \"%s\"` in the background. It blocks and outputs a verification URL — retrieve the URL and open it in a browser to complete login.", strings.Join(missing, " "))
+}
+
+func checkShortcutScopeRequirements(f *cmdutil.Factory, ctx context.Context, as core.Identity, config *core.CliConfig, s *Shortcut) error {
+	if s == nil {
+		return nil
+	}
+	identity := string(as)
+	if err := checkShortcutScopes(f, ctx, as, config, s.ScopesForIdentity(identity)); err != nil {
+		return err
+	}
+	return checkShortcutScopeGroups(f, ctx, as, config, s.ScopeGroupsForIdentity(identity), s.ScopeGroupHints)
+}
+
+func checkShortcutScopeGroups(f *cmdutil.Factory, ctx context.Context, as core.Identity, config *core.CliConfig, groups [][]string, hints []string) error {
+	groups = normalizeScopeGroups(groups)
+	if len(groups) == 0 {
+		return nil
+	}
+	var missingByGroup [][]string
+	for _, group := range groups {
+		missing, err := checkScopePrereqs(f, ctx, config.AppID, as, group)
+		if err != nil {
+			return err
+		}
+		if len(missing) == 0 {
+			return nil
+		}
+		missingByGroup = append(missingByGroup, missing)
+	}
+	missing := uniqueScopesFromGroups(missingByGroup)
+	groupHint := formatScopeGroups(groups, hints)
+	return errs.NewPermissionError(errs.SubtypeMissingScope,
+		"missing required scope group; grant one of: %s", groupHint).
+		WithIdentity(string(as)).
+		WithMissingScopes(missing...).
+		WithHint("run `lark-cli auth login --scope \"%s\"` for one of the acceptable scope sets: %s. It blocks and outputs a verification URL — retrieve the URL and open it in a browser to complete login.", strings.Join(missing, " "), groupHint)
+}
+
+func normalizeScopeGroups(groups [][]string) [][]string {
+	out := make([][]string, 0, len(groups))
+	for _, group := range groups {
+		seen := make(map[string]struct{}, len(group))
+		normalized := make([]string, 0, len(group))
+		for _, scope := range group {
+			scope = strings.TrimSpace(scope)
+			if scope == "" {
+				continue
+			}
+			if _, ok := seen[scope]; ok {
+				continue
+			}
+			seen[scope] = struct{}{}
+			normalized = append(normalized, scope)
+		}
+		if len(normalized) == 0 {
+			continue
+		}
+		out = append(out, normalized)
+	}
+	return out
+}
+
+func uniqueScopesFromGroups(groups [][]string) []string {
+	var out []string
+	seen := map[string]struct{}{}
+	for _, group := range groups {
+		for _, scope := range group {
+			if _, ok := seen[scope]; ok {
+				continue
+			}
+			seen[scope] = struct{}{}
+			out = append(out, scope)
+		}
+	}
+	return out
+}
+
+func formatScopeGroups(groups [][]string, hints []string) string {
+	parts := make([]string, 0, len(groups))
+	for i, group := range groups {
+		part := strings.Join(group, " + ")
+		if i < len(hints) && strings.TrimSpace(hints[i]) != "" {
+			part += " (" + strings.TrimSpace(hints[i]) + ")"
+		}
+		parts = append(parts, part)
+	}
+	return strings.Join(parts, " OR ")
 }
 
 func newRuntimeContext(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, config *core.CliConfig, as core.Identity, botOnly bool) (*RuntimeContext, error) {

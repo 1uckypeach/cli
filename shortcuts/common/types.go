@@ -37,6 +37,15 @@ type Shortcut struct {
 	UserScopes  []string // optional: user-identity unconditional scopes (overrides Scopes when non-empty)
 	BotScopes   []string // optional: bot-identity unconditional scopes (overrides Scopes when non-empty)
 
+	// ScopeGroups are alternative pre-flight scope groups. Each inner group is
+	// all-required, and any one group satisfying the token is enough. Use this
+	// only when an API accepts more than one safe permission point for the same
+	// shortcut; regular Scopes remain all-required.
+	ScopeGroups     [][]string // fallback when UserScopeGroups/BotScopeGroups are empty
+	UserScopeGroups [][]string // optional: user-identity alternative scope groups
+	BotScopeGroups  [][]string // optional: bot-identity alternative scope groups
+	ScopeGroupHints []string   // optional display hints aligned by index with the active scope groups
+
 	// ConditionalScopes are additional scopes that only some execution paths
 	// need (for example a default mode vs. a lighter --quick mode, or a
 	// destructive flag like --delete-remote). They are surfaced in metadata,
@@ -105,6 +114,23 @@ func (s *Shortcut) ScopesForIdentity(identity string) []string {
 	return s.Scopes
 }
 
+// ScopeGroupsForIdentity returns alternative all-required scope groups for the
+// given identity. Identity-specific groups override the default ScopeGroups
+// when present.
+func (s *Shortcut) ScopeGroupsForIdentity(identity string) [][]string {
+	switch identity {
+	case "user":
+		if len(s.UserScopeGroups) > 0 {
+			return s.UserScopeGroups
+		}
+	case "bot":
+		if len(s.BotScopeGroups) > 0 {
+			return s.BotScopeGroups
+		}
+	}
+	return s.ScopeGroups
+}
+
 // ConditionalScopesForIdentity returns additional flag/path-dependent scopes
 // for the given identity. Identity-specific conditional scopes override the
 // default ConditionalScopes when present.
@@ -127,13 +153,14 @@ func (s *Shortcut) ConditionalScopesForIdentity(identity string) []string {
 // any conditional scopes that some execution paths may require.
 func (s *Shortcut) DeclaredScopesForIdentity(identity string) []string {
 	base := s.ScopesForIdentity(identity)
+	groups := flattenScopeGroups(s.ScopeGroupsForIdentity(identity))
 	extra := s.ConditionalScopesForIdentity(identity)
-	if len(base) == 0 && len(extra) == 0 {
+	if len(base) == 0 && len(groups) == 0 && len(extra) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(base)+len(extra))
-	seen := make(map[string]struct{}, len(base)+len(extra))
-	for _, scope := range append(base, extra...) {
+	out := make([]string, 0, len(base)+len(groups)+len(extra))
+	seen := make(map[string]struct{}, len(base)+len(groups)+len(extra))
+	for _, scope := range append(append(base, groups...), extra...) {
 		if scope == "" {
 			continue
 		}
@@ -145,6 +172,14 @@ func (s *Shortcut) DeclaredScopesForIdentity(identity string) []string {
 	}
 	if len(out) == 0 {
 		return nil
+	}
+	return out
+}
+
+func flattenScopeGroups(groups [][]string) []string {
+	var out []string
+	for _, group := range groups {
+		out = append(out, group...)
 	}
 	return out
 }

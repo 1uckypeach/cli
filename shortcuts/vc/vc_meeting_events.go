@@ -52,9 +52,13 @@ var VCMeetingEvents = common.Shortcut{
 	Command:     "+meeting-events",
 	Description: "List meeting events by meeting ID",
 	Risk:        "read",
-	Scopes:      []string{"vc:meeting.meetingevent:read"},
-	AuthTypes:   []string{"user", "bot"},
-	HasFormat:   true,
+	ScopeGroups: [][]string{
+		{"vc:meeting.meetingevent:read"},
+		{"vc:meeting.bot.join:write"},
+	},
+	ScopeGroupHints: []string{"UAT recommended", "TAT recommended"},
+	AuthTypes:       []string{"user", "bot"},
+	HasFormat:       true,
 	Flags: []common.Flag{
 		{Name: "meeting-id", Required: true, Desc: "meeting ID to query"},
 		{Name: "start", Desc: "time lower bound (ISO 8601, YYYY-MM-DD, or Unix seconds)"},
