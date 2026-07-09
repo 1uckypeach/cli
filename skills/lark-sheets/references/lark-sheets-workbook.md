@@ -77,7 +77,7 @@ _公共：URL/token（无 sheet 定位） · 系统：`--dry-run`_
 | `--index` | int | optional | 插入位置（0-based）；省略时附加到末尾 |
 | `--row-count` | int | optional | 初始行数（默认 200，上限 50000） |
 | `--col-count` | int | optional | 初始列数（默认 20，上限 200） |
-| `--type` | string | optional | 新子表类型：sheet（电子表格）；默认 sheet。（可选值：`sheet`） |
+| `--type` | string | optional | 新子表类型：sheet（电子表格）\| bitable（多维表格）；默认 sheet。bitable 只建空表，内容编辑改用 lark-base 命令（可选值：`sheet` / `bitable`） |
 
 ### `+sheet-delete`
 
@@ -364,7 +364,16 @@ lark-cli sheets +sheet-create --url "https://example.feishu.cn/sheets/shtXXX" \
   --title "汇总" --index 0
 ```
 
+新建一张**多维表格（bitable）子表**：加 `--type bitable`（默认 `sheet`，即普通电子表格子表）。
+
+```bash
+lark-cli sheets +sheet-create --url "https://example.feishu.cn/sheets/shtXXX" \
+  --title "任务表" --type bitable
+```
+
 > 💡 `+sheet-create` 只建一张**空子表**。要在已有工作簿里建子表并一步写入 typed 数据和/或样式，用 `+table-put`（payload 里命名的子表缺则自动新建）配合它的 `--sheets` / `--styles`，省掉先建表再 `+cells-set` / `+cells-set-style` 的二次往返。
+
+> 💡 `--type bitable` 只建一张**空的多维表格子表**（默认表 + 网格视图 + 默认字段）。它的内容编辑（字段、记录、视图）走 `lark-cli base`：先用 `+workbook-info` 拿到该子表的 `bitable_app_token` + `bitable_table_id`，再用 `lark-cli base +record-list` / `+record-create` 等操作；sheets 侧的网格类命令（`+cells-get` / `+cells-set` 等）对 bitable 子表会被拒。
 
 ### `+sheet-delete`
 
