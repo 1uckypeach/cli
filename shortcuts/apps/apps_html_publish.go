@@ -314,14 +314,26 @@ func runHTMLPublishTOS(ctx context.Context, rctx *common.RuntimeContext, spec ap
 	if err != nil {
 		return nil, err
 	}
-	params, _ := preData["params"].(map[string]interface{})
-	if params == nil {
-		return nil, appsSubprocessEnvelopeError("pre_release returned no params")
+	kvs, _ := preData["kvs"].([]interface{})
+	if len(kvs) == 0 {
+		return nil, appsSubprocessEnvelopeError("pre_release returned no kvs")
 	}
-	uploadURL, _ := params["upload_url"].(string)
-	tosPath, _ := params["tos_path"].(string)
+	kvm := make(map[string]string, len(kvs))
+	for _, item := range kvs {
+		kv, _ := item.(map[string]interface{})
+		if kv == nil {
+			continue
+		}
+		k, _ := kv["key"].(string)
+		v, _ := kv["value"].(string)
+		if k != "" {
+			kvm[k] = v
+		}
+	}
+	uploadURL := kvm["upload_url"]
+	tosPath := kvm["tos_path"]
 	if uploadURL == "" || tosPath == "" {
-		return nil, appsSubprocessEnvelopeError("pre_release params missing upload_url or tos_path")
+		return nil, appsSubprocessEnvelopeError("pre_release kvs missing upload_url or tos_path")
 	}
 
 	// Step 2: upload tar.gz to TOS via presigned URL (bypasses Lark gateway).

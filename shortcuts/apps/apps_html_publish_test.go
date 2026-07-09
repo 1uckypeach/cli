@@ -648,9 +648,9 @@ func TestRunHTMLPublishTOS_Success(t *testing.T) {
 		Body: map[string]interface{}{
 			"code": float64(0),
 			"data": map[string]interface{}{
-				"params": map[string]interface{}{
-					"upload_url": tosServer.URL,
-					"tos_path":   "tos://bucket/key",
+				"kvs": []interface{}{
+					map[string]interface{}{"key": "upload_url", "value": tosServer.URL},
+					map[string]interface{}{"key": "tos_path", "value": "tos://bucket/key"},
 				},
 			},
 		},
@@ -718,14 +718,14 @@ func TestRunHTMLPublishTOS_MissingParams(t *testing.T) {
 	site := writeAppsSampleSite(t)
 	rt, reg := newTOSTestRuntime(t)
 
-	// Register pre_release API stub that returns empty params.
+	// Register pre_release API stub that returns empty kvs list.
 	reg.Register(&httpmock.Stub{
 		Method: "GET",
 		URL:    "/open-apis/spark/v1/apps/app_tos/pre_release",
 		Body: map[string]interface{}{
 			"code": float64(0),
 			"data": map[string]interface{}{
-				"params": map[string]interface{}{},
+				"kvs": []interface{}{},
 			},
 		},
 	})
@@ -735,11 +735,11 @@ func TestRunHTMLPublishTOS_MissingParams(t *testing.T) {
 		Path:  site,
 	})
 	if err == nil {
-		t.Fatalf("expected error for missing upload_url/tos_path")
+		t.Fatalf("expected error for empty kvs")
 	}
 	problem := requireAppsProblem(t, err, errs.CategoryInternal)
-	if !strings.Contains(problem.Message, "upload_url") || !strings.Contains(problem.Message, "tos_path") {
-		t.Fatalf("error should mention missing upload_url or tos_path, got: %q", problem.Message)
+	if !strings.Contains(problem.Message, "no kvs") {
+		t.Fatalf("error should mention 'no kvs', got: %q", problem.Message)
 	}
 }
 
@@ -747,7 +747,7 @@ func TestRunHTMLPublishTOS_MissingParamsObject(t *testing.T) {
 	site := writeAppsSampleSite(t)
 	rt, reg := newTOSTestRuntime(t)
 
-	// Register pre_release API stub that returns no params key at all.
+	// Register pre_release API stub that returns no kvs key at all.
 	reg.Register(&httpmock.Stub{
 		Method: "GET",
 		URL:    "/open-apis/spark/v1/apps/app_tos/pre_release",
@@ -762,11 +762,11 @@ func TestRunHTMLPublishTOS_MissingParamsObject(t *testing.T) {
 		Path:  site,
 	})
 	if err == nil {
-		t.Fatalf("expected error for missing params object")
+		t.Fatalf("expected error for missing kvs")
 	}
 	problem := requireAppsProblem(t, err, errs.CategoryInternal)
-	if !strings.Contains(problem.Message, "no params") {
-		t.Fatalf("error should mention 'no params', got: %q", problem.Message)
+	if !strings.Contains(problem.Message, "no kvs") {
+		t.Fatalf("error should mention 'no kvs', got: %q", problem.Message)
 	}
 }
 
@@ -786,9 +786,9 @@ func TestRunHTMLPublishTOS_UploadFails(t *testing.T) {
 		Body: map[string]interface{}{
 			"code": float64(0),
 			"data": map[string]interface{}{
-				"params": map[string]interface{}{
-					"upload_url": tosServer.URL,
-					"tos_path":   "tos://bucket/key",
+				"kvs": []interface{}{
+					map[string]interface{}{"key": "upload_url", "value": tosServer.URL},
+					map[string]interface{}{"key": "tos_path", "value": "tos://bucket/key"},
 				},
 			},
 		},
