@@ -93,7 +93,7 @@ func printTaskPretty(w io.Writer, task *iagent.AgentTask) {
 		fmt.Fprintln(w, "(no task)")
 		return
 	}
-	fmt.Fprintf(w, "state: %s\n", task.State)
+	fmt.Fprintf(w, "state: %s\n", kvValue(string(task.State)))
 	fmt.Fprintf(w, "task_id: %s\n", kvValue(task.TaskID))
 	if task.ContextID != "" {
 		fmt.Fprintf(w, "context_id: %s\n", kvValue(task.ContextID))
@@ -118,7 +118,7 @@ func printTaskSummariesTSV(w io.Writer, tasks []iagent.TaskSummary) {
 	fmt.Fprintf(w, "TASK_ID\tCONTEXT_ID\tSTATE\tIS_TERMINAL\tUPDATED_AT\tSUMMARY\n")
 	for _, t := range tasks {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%t\t%s\t%s\n",
-			stripANSI(t.TaskID), stripANSI(t.ContextID), t.State, t.IsTerminal, t.UpdatedAt, kvValue(t.Summary))
+			stripANSI(t.TaskID), stripANSI(t.ContextID), stripANSI(string(t.State)), t.IsTerminal, stripANSI(t.UpdatedAt), kvValue(t.Summary))
 	}
 }
 
@@ -129,7 +129,7 @@ func printContextsTSV(w io.Writer, contexts []iagent.ContextSummary) {
 	fmt.Fprintf(w, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tTASK_COUNT\tAWAITING_INPUT\n")
 	for _, c := range contexts {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%t\n",
-			stripANSI(c.ContextID), c.CreatedAt, c.UpdatedAt, stripANSI(c.Title), c.TaskCount, c.AwaitingInput)
+			stripANSI(c.ContextID), stripANSI(c.CreatedAt), stripANSI(c.UpdatedAt), stripANSI(c.Title), c.TaskCount, c.AwaitingInput)
 	}
 }
 
@@ -147,10 +147,10 @@ func printContextDetailPretty(w io.Writer, detail *iagent.ContextDetail) {
 	}
 	fmt.Fprintf(w, "context_id: %s\n", kvValue(detail.ContextID))
 	if detail.CreatedAt != "" {
-		fmt.Fprintf(w, "created_at: %s\n", detail.CreatedAt)
+		fmt.Fprintf(w, "created_at: %s\n", kvValue(detail.CreatedAt))
 	}
 	if detail.UpdatedAt != "" {
-		fmt.Fprintf(w, "updated_at: %s\n", detail.UpdatedAt)
+		fmt.Fprintf(w, "updated_at: %s\n", kvValue(detail.UpdatedAt))
 	}
 	if detail.Title != "" {
 		fmt.Fprintf(w, "title: %s\n", kvValue(detail.Title))
@@ -158,7 +158,7 @@ func printContextDetailPretty(w io.Writer, detail *iagent.ContextDetail) {
 	fmt.Fprintf(w, "task_count: %d\n", detail.TaskCount)
 	fmt.Fprintf(w, "awaiting_input: %t\n", detail.AwaitingInput)
 	if at := detail.ActiveTask; at != nil {
-		fmt.Fprintf(w, "active_task: %s · %s · %s\n", at.State, at.UpdatedAt, kvValue(at.Summary))
+		fmt.Fprintf(w, "active_task: %s · %s · %s\n", kvValue(string(at.State)), kvValue(at.UpdatedAt), kvValue(at.Summary))
 	}
 }
 

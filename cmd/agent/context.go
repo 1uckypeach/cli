@@ -154,6 +154,9 @@ func agentContextListRun(opts *contextOptions) error {
 	// preserves the provider's relative order for equal timestamps, and contexts
 	// with no timestamp sort last.
 	sort.SliceStable(contexts, func(i, j int) bool { return contexts[i].UpdatedAt > contexts[j].UpdatedAt })
+	if contexts == nil {
+		contexts = []iagent.ContextSummary{} // always emit [] not null (matches the Card.Parameters array convention)
+	}
 	return scanAndEmitData(f, opts.Cmd, opts.Format,
 		map[string]interface{}{"contexts": contexts},
 		&output.Meta{Count: len(contexts)},
@@ -198,7 +201,7 @@ func agentContextGetRun(opts *contextOptions) error {
 // agentContextDeleteRun runs `context delete`. The --yes confirmation guard runs
 // first so a missing confirmation returns confirmation_required (exit 10) before
 // any provider is built and holds even under a nil Factory. Only a
-// confirmed delete reaches resolveProvider + DeleteContext.
+// confirmed delete reaches resolveSpec + DeleteContext.
 func agentContextDeleteRun(opts *contextOptions) error {
 	if !opts.Yes {
 		return cmdutil.RequireConfirmation("agent context delete")

@@ -83,6 +83,14 @@ func runtimeFor(f *cmdutil.Factory, id core.Identity, agentID string) (iagent.Ru
 // shape; an unknown scheme points at `agent list` to discover the available
 // providers. Both hints are copy-pasteable next steps, not just wording.
 func wrapRefResolveError(err error) error {
+	// LookupSpec's unknown-catalog-id case is ALREADY a typed validation error
+	// carrying a scheme-scoped hint (`agent list <scheme>`); pass it through
+	// instead of flattening it via err.Error() and overwriting that hint with the
+	// generic provider-list one. Only the untyped ParseRef sentinel / unknown-
+	// scheme errors need wrapping.
+	if _, ok := errs.ProblemOf(err); ok {
+		return err
+	}
 	e := errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", err.Error()).WithCause(err)
 	if errors.Is(err, iagent.ErrInvalidRef) {
 		return e.WithHint("agent_ref 形如 <scheme>:<agent_id>，如 example:echo")

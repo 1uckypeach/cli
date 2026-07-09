@@ -135,7 +135,7 @@ func scopeRemediationHint(id core.Identity, missing []string) string {
 // seam, and runs the all-or-nothing preflight. Any gap in its own inputs (nil
 // Factory, unparsable ref, unregistered scheme) yields nil — the preflight is
 // an accelerator, never a new failure mode; the paths that validate ref/scheme
-// for real have already run inside resolveProvider.
+// for real have already run inside resolveSpec.
 func preflightScopesForRef(f *cmdutil.Factory, id core.Identity, ref string) error {
 	if f == nil {
 		return nil

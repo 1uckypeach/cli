@@ -134,11 +134,11 @@ type CardSkill struct {
 
 // Supports reports whether a capability is declared as supported (an unknown key
 // or a nil card is treated as unsupported).
-func (c *AgentCard) Supports(cap string) bool {
+func (c *AgentCard) Supports(capKey string) bool {
 	if c == nil {
 		return false
 	}
-	switch cap {
+	switch capKey {
 	case CapArtifactDownload:
 		return c.Capabilities.ArtifactDownload
 	case CapFileInput:

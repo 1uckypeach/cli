@@ -26,10 +26,9 @@ import (
 // naturally stateless; example is a pure mock and must manage state itself. Two
 // disciplines the integrator needs to know:
 //
-//  1. Concurrency safety: provider instances may be constructed / called
-//     concurrently (e.g. list's probe alongside the real call), so package-level
-//     mutable state must be locked. A single coarse-grained Mutex covers all
-//     reads and writes here — the mock does not chase throughput; correctness comes first.
+//  1. Concurrency safety: package-level mutable state must be locked. A single
+//     coarse-grained Mutex covers all reads and writes here — the mock does not
+//     chase throughput; correctness comes first.
 //  2. CLI process boundary: every lark-cli command is a fresh process, so a pure
 //     in-memory map does not survive a single command — after `send`, a
 //     `task get` would find nothing. So a lazy JSON snapshot layer sits beneath
@@ -38,9 +37,10 @@ import (
 //     have this layer — it is a mock-only demo device.
 //
 // Note that the snapshot is loaded lazily (only on the first real read/write of
-// state): Register's zero-value Deps probe constructs a provider once at
-// registration time, and construction must have no side effects (the registry.go
-// contract), so Factory / Card / ListAgents must not touch store.
+// state): provider registration is a pure declarative Register(Provider) call
+// (see agent/register.go) with no construction and no side effects, so nothing
+// touches store at registration time — the snapshot is read on the first hook
+// invocation, not at init.
 // ============================================================================
 
 // taskRecord is a task's storage form: a full AgentTask snapshot + owning agent

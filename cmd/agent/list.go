@@ -15,7 +15,7 @@ import (
 )
 
 // providerInfo describes a registered provider adapter in `agent list` output.
-// Every field is sourced from the registered iagent.ProviderInfo (the single
+// Every field is sourced from the registered iagent.Provider (the single
 // source of truth).
 type providerInfo struct {
 	Scheme         string `json:"scheme"`
@@ -36,9 +36,9 @@ type listOptions struct {
 // NewCmdAgentList builds `agent list [scheme]`. Without an argument it
 // enumerates the registered provider adapters with their metadata — a
 // pure, API-free listing. With a scheme it performs second-level discovery:
-// providers implementing Discoverer enumerate their agents;
-// others return unsupported_capability with the agent_id_source
-// guidance. Risk=read.
+// catalog providers enumerate offline from their static set; instance providers
+// enumerate via their optional ListAgents hook (absent ⇒ unsupported_capability
+// with the agent_id_source guidance). Risk=read.
 func NewCmdAgentList(f *cmdutil.Factory) *cobra.Command {
 	opts := &listOptions{Factory: f}
 	cmd := &cobra.Command{
@@ -120,6 +120,7 @@ func agentListSchemeRun(opts *listOptions) error {
 	}
 
 	var agents []iagent.AgentSummary
+	var identity string // set only on the online (instance) path, which resolves one
 	if prov.Kind() == iagent.KindCatalog {
 		agents = prov.ListCatalog() // offline
 	} else {
@@ -132,6 +133,7 @@ func agentListSchemeRun(opts *listOptions) error {
 		// The enumeration call carries the resolved identity; agentID is empty
 		// (enumeration is not scoped to a single agent).
 		id := f.ResolveAs(opts.Cmd.Context(), opts.Cmd, "")
+		identity = string(id)
 		rt, err := runtimeFor(f, id, "")
 		if err != nil {
 			return err
@@ -140,6 +142,9 @@ func agentListSchemeRun(opts *listOptions) error {
 		if err != nil {
 			return err
 		}
+	}
+	if agents == nil {
+		agents = []iagent.AgentSummary{} // always emit [] not null
 	}
 
 	// pretty is a human view only; a --jq expression implies structured JSON.
@@ -154,10 +159,11 @@ func agentListSchemeRun(opts *listOptions) error {
 	}
 
 	env := output.Envelope{
-		OK:     true,
-		Data:   map[string]interface{}{"agents": agents},
-		Meta:   &output.Meta{Count: len(agents)},
-		Notice: output.GetNotice(),
+		OK:       true,
+		Identity: identity, // empty for the offline catalog path (omitempty)
+		Data:     map[string]interface{}{"agents": agents},
+		Meta:     &output.Meta{Count: len(agents)},
+		Notice:   output.GetNotice(),
 	}
 	if jq := jqExpr(opts.Cmd); jq != "" {
 		return output.JqFilter(f.IOStreams.Out, env, jq)
