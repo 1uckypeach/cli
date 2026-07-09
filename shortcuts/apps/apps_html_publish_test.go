@@ -643,7 +643,7 @@ func TestRunHTMLPublishTOS_Success(t *testing.T) {
 
 	// Register pre_release API stub.
 	reg.Register(&httpmock.Stub{
-		Method: "POST",
+		Method: "GET",
 		URL:    "/open-apis/spark/v1/apps/app_tos/pre_release",
 		Body: map[string]interface{}{
 			"code": float64(0),
@@ -697,7 +697,7 @@ func TestRunHTMLPublishTOS_PreReleaseError(t *testing.T) {
 
 	// Register pre_release API stub that returns an error code.
 	reg.Register(&httpmock.Stub{
-		Method: "POST",
+		Method: "GET",
 		URL:    "/open-apis/spark/v1/apps/app_tos/pre_release",
 		Body: map[string]interface{}{
 			"code": float64(99999),
@@ -720,7 +720,7 @@ func TestRunHTMLPublishTOS_MissingParams(t *testing.T) {
 
 	// Register pre_release API stub that returns empty params.
 	reg.Register(&httpmock.Stub{
-		Method: "POST",
+		Method: "GET",
 		URL:    "/open-apis/spark/v1/apps/app_tos/pre_release",
 		Body: map[string]interface{}{
 			"code": float64(0),
@@ -749,7 +749,7 @@ func TestRunHTMLPublishTOS_MissingParamsObject(t *testing.T) {
 
 	// Register pre_release API stub that returns no params key at all.
 	reg.Register(&httpmock.Stub{
-		Method: "POST",
+		Method: "GET",
 		URL:    "/open-apis/spark/v1/apps/app_tos/pre_release",
 		Body: map[string]interface{}{
 			"code": float64(0),
@@ -781,7 +781,7 @@ func TestRunHTMLPublishTOS_UploadFails(t *testing.T) {
 	defer tosServer.Close()
 
 	reg.Register(&httpmock.Stub{
-		Method: "POST",
+		Method: "GET",
 		URL:    "/open-apis/spark/v1/apps/app_tos/pre_release",
 		Body: map[string]interface{}{
 			"code": float64(0),

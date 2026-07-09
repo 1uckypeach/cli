@@ -310,7 +310,7 @@ func runHTMLPublishTOS(ctx context.Context, rctx *common.RuntimeContext, spec ap
 
 	// Step 1: call pre_release to get TOS upload URL and tos_path.
 	preReleasePath := fmt.Sprintf("%s/apps/%s/pre_release", apiBasePath, validate.EncodePathSegment(spec.AppID))
-	preData, err := rctx.CallAPITyped("POST", preReleasePath, nil, nil)
+	preData, err := rctx.CallAPITyped("GET", preReleasePath, nil, nil)
 	if err != nil {
 		return nil, err
 	}
