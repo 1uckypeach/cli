@@ -123,25 +123,26 @@ var AppsHTMLPublish = common.Shortcut{
 		}
 
 		appType := queryAppType(ctx, rctx, spec.AppID)
-		if appType == "modern_html" {
-			out, err := runHTMLPublishTOS(ctx, rctx, spec)
-			if err != nil {
-				return err
-			}
-			rctx.OutFormat(out, nil, func(w io.Writer) {
-				fmt.Fprintf(w, "tos_path: %s\n", out["tos_path"])
-			})
-			return nil
-		}
 
-		client := appsHTMLPublishAPI{runtime: rctx}
-		out, err := runHTMLPublish(ctx, rctx.FileIO(), client, spec)
+		var out map[string]interface{}
+		var err error
+		if appType == "modern_html" {
+			out, err = runHTMLPublishTOS(ctx, rctx, spec)
+		} else {
+			client := appsHTMLPublishAPI{runtime: rctx}
+			out, err = runHTMLPublish(ctx, rctx.FileIO(), client, spec)
+		}
 		if err != nil {
 			return err
 		}
+		out["app_id"] = spec.AppID
 		rctx.OutFormat(out, nil, func(w io.Writer) {
+			fmt.Fprintf(w, "app_id: %s\n", spec.AppID)
 			if url, ok := out["url"].(string); ok && url != "" {
 				fmt.Fprintf(w, "url: %s\n", url)
+			}
+			if tosPath, ok := out["tos_path"].(string); ok && tosPath != "" {
+				fmt.Fprintf(w, "tos_path: %s\n", tosPath)
 			}
 		})
 		return nil
