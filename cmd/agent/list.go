@@ -11,6 +11,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	iagent "github.com/larksuite/cli/internal/agent"
 	"github.com/larksuite/cli/internal/cmdutil"
+	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/output"
 )
 
@@ -31,6 +32,7 @@ type listOptions struct {
 	Cmd     *cobra.Command
 	Scheme  string
 	Format  string
+	As      string
 }
 
 // NewCmdAgentList builds `agent list [scheme]`. Without an argument it
@@ -59,6 +61,10 @@ func NewCmdAgentList(f *cmdutil.Factory) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
 	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
+	// --as only matters for the online `list <scheme>` enumeration (an instance
+	// provider's ListAgents call); the no-scheme provider listing is offline and
+	// identity-independent, so it ignores --as.
+	addAsFlag(cmd, f, &opts.As)
 	cmdutil.SetRisk(cmd, cmdutil.RiskRead)
 	return cmd
 }
@@ -130,12 +136,21 @@ func agentListSchemeRun(opts *listOptions) error {
 				"provider '%s' 暂不支持列举 agent", opts.Scheme).
 				WithHint("%s", prov.AgentIDSource)
 		}
-		// The enumeration call carries the resolved identity; agentID is empty
-		// (enumeration is not scoped to a single agent).
-		id := f.ResolveAs(opts.Cmd.Context(), opts.Cmd, "")
+		// Enumeration is a real online call with no agent_id, so it runs the same
+		// two gates every ref-addressed online verb runs (via resolveSpec +
+		// preflightScopesForRef): the user|bot identity whitelist and the
+		// all-or-nothing scope preflight — keyed on the scheme since there is no ref.
+		// agentID is empty (enumeration is not scoped to a single agent).
+		id := f.ResolveAs(opts.Cmd.Context(), opts.Cmd, core.Identity(opts.As))
+		if err := f.CheckIdentity(id, supportedIdentities); err != nil {
+			return err
+		}
 		identity = string(id)
 		rt, err := runtimeFor(f, id, "")
 		if err != nil {
+			return err
+		}
+		if err := preflightScopesForScheme(f, id, opts.Scheme); err != nil {
 			return err
 		}
 		agents, err = prov.ListAgents(opts.Cmd.Context(), rt)

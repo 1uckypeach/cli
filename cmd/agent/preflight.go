@@ -130,21 +130,30 @@ func scopeRemediationHint(id core.Identity, missing []string) string {
 		strings.Join(missing, " "))
 }
 
-// preflightScopesForRef is the command-layer wiring: it resolves the provider
-// registration for ref's scheme, reads the stored user scopes through the
-// seam, and runs the all-or-nothing preflight. Any gap in its own inputs (nil
-// Factory, unparsable ref, unregistered scheme) yields nil — the preflight is
-// an accelerator, never a new failure mode; the paths that validate ref/scheme
-// for real have already run inside resolveSpec.
+// preflightScopesForRef is the ref-addressed wrapper: it parses ref for its
+// scheme and delegates to preflightScopesForScheme. An unparsable ref yields nil
+// — the preflight is an accelerator, never a new failure mode; the paths that
+// validate ref/scheme for real have already run inside resolveSpec.
 func preflightScopesForRef(f *cmdutil.Factory, id core.Identity, ref string) error {
-	if f == nil {
-		return nil
-	}
 	r, err := iagent.ParseRef(ref)
 	if err != nil {
 		return nil //nolint:nilerr // preflight is best-effort: resolveSpec already surfaced any real ref error
 	}
-	prov, ok := iagent.Info(r.Scheme)
+	return preflightScopesForScheme(f, id, r.Scheme)
+}
+
+// preflightScopesForScheme is the scheme-keyed core of the preflight, shared by
+// the ref-addressed verbs (via preflightScopesForRef) and the online
+// `agent list <scheme>` enumeration, which has no agent_id. It resolves the
+// provider registration for the scheme, reads the stored scopes through the
+// identity-appropriate seam, and runs the same all-or-nothing check against the
+// provider's full RequiredScopes. Any gap in its own inputs (nil Factory,
+// unregistered scheme, empty RequiredScopes) yields nil.
+func preflightScopesForScheme(f *cmdutil.Factory, id core.Identity, scheme string) error {
+	if f == nil {
+		return nil
+	}
+	prov, ok := iagent.Info(scheme)
 	if !ok || len(prov.RequiredScopes) == 0 {
 		return nil // no scopes to check (e.g. the example mock declares none)
 	}
