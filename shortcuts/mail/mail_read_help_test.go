@@ -94,7 +94,7 @@ func TestMailTriageTableHintRoutesSingleAndMultipleReads(t *testing.T) {
 	registerTriageReadHintStubs(reg)
 
 	err := runMountedMailShortcut(t, MailTriage, []string{
-		"+triage", "--max", "1",
+		"+triage", "--format", "table", "--max", "1",
 	}, f, stdout)
 	if err != nil {
 		t.Fatalf("triage returned error: %v", err)

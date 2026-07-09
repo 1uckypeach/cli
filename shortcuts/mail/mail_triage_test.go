@@ -1655,6 +1655,39 @@ func TestMailTriageMissingMessageMetadataStillGetsMailboxID(t *testing.T) {
 	}
 }
 
+// TestMailTriageDefaultFormatIsJSON verifies that with no --format flag the
+// command defaults to json and prints the paginated object to stdout, not the
+// human table.
+func TestMailTriageDefaultFormatIsJSON(t *testing.T) {
+	f, stdout, _, reg := mailShortcutTestFactory(t)
+	defer reg.Verify(t)
+
+	registerMailTriageListStub(reg, "me", []string{"msg_ok"}, false, "")
+	registerMailTriageBatchStub(reg, "me", []map[string]interface{}{
+		mailTriageBatchMessage("msg_ok", "Present"),
+	})
+
+	err := runMountedMailShortcut(t, MailTriage, []string{
+		"+triage",
+		"--filter", `{"folder_id":"INBOX"}`,
+	}, f, stdout)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data := decodeMailTriageJSONOutput(t, stdout) // fails to unmarshal if default were table
+	messages := mailTriageMessagesFromOutput(t, data)
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(messages))
+	}
+	if _, ok := data["count"]; !ok {
+		t.Fatalf("default json output missing count field: %#v", data)
+	}
+	if _, ok := data["has_more"]; !ok {
+		t.Fatalf("default json output missing has_more field: %#v", data)
+	}
+}
+
 // TestMailTriageTableOutputPreservesMailboxContext verifies public mailbox table hints.
 func TestMailTriageTableOutputPreservesMailboxContext(t *testing.T) {
 	tests := []struct {
@@ -1678,7 +1711,7 @@ func TestMailTriageTableOutputPreservesMailboxContext(t *testing.T) {
 				mailTriageBatchMessage("msg_001", "Table message"),
 			})
 
-			args := []string{"+triage", "--max", "1", "--filter", `{"folder_id":"INBOX"}`}
+			args := []string{"+triage", "--format", "table", "--max", "1", "--filter", `{"folder_id":"INBOX"}`}
 			if tt.mailbox != "me" {
 				args = append(args, "--mailbox", tt.mailbox)
 			}
@@ -1719,6 +1752,7 @@ func TestMailTriageDefaultTableOutputPrintsSearchNoticeToStderr(t *testing.T) {
 
 	if err := runMountedMailShortcut(t, MailTriage, []string{
 		"+triage",
+		"--format", "table",
 		"--query", strings.Repeat("q", 81),
 	}, f, stdout); err != nil {
 		t.Fatalf("unexpected error: %v", err)
