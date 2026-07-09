@@ -333,6 +333,83 @@ func TestAgentListScheme_InstanceListAgentsOnline(t *testing.T) {
 	}
 }
 
+// TestAgentListScheme_OnlineRunsScopePreflight pins #8: the online enumeration
+// path now runs the same all-or-nothing scope preflight every other online verb
+// runs. An instance provider with RequiredScopes, driven by a user whose token
+// lacks them, fails fast with missing_scope (exit 3) BEFORE ListAgents is called.
+func TestAgentListScheme_OnlineRunsScopePreflight(t *testing.T) {
+	called := false
+	spec := catSpec("", "", "")
+	iagent.Register(iagent.Provider{
+		Scheme:         "fakescopelive",
+		Label:          "test fake (scoped live-enum)",
+		AgentIDSource:  "test only",
+		RequiredScopes: []string{"live:read"},
+		Identities:     []iagent.IdentitySpec{{Type: iagent.IdentityUser}},
+		Instance:       &spec,
+		ListAgents: func(context.Context, iagent.Runtime) ([]iagent.AgentSummary, error) {
+			called = true
+			return nil, nil
+		},
+	})
+	// The stored user token holds an unrelated scope (non-empty so the preflight
+	// actually runs) but not the required one.
+	swapStoredScopes(t, []string{"unrelated:scope"})
+
+	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
+	f, _, _, _ := cmdutil.TestFactory(t, cfg)
+	opts := &listOptions{Factory: f, Cmd: resolveCmd(t, true, "user"), Format: "json", Scheme: "fakescopelive", As: "user"}
+
+	err := agentListRun(opts)
+	if err == nil {
+		t.Fatal("listing as a user missing the required scope should fail with missing_scope")
+	}
+	if code := output.ExitCodeOf(err); code != 3 {
+		t.Fatalf("missing scope should be exit 3, got %d (%v)", code, err)
+	}
+	p, ok := errs.ProblemOf(err)
+	if !ok || p.Subtype != errs.SubtypeMissingScope {
+		t.Fatalf("subtype should be missing_scope, got %+v", p)
+	}
+	if called {
+		t.Error("ListAgents must NOT be called when the scope preflight fails")
+	}
+}
+
+// TestAgentListScheme_OnlineChecksIdentity pins #8: the online enumeration path
+// enforces the user|bot identity whitelist. An explicitly unsupported --as is
+// rejected as a validation error before the online ListAgents call.
+func TestAgentListScheme_OnlineChecksIdentity(t *testing.T) {
+	called := false
+	spec := catSpec("", "", "")
+	iagent.Register(iagent.Provider{
+		Scheme:        "fakelivewl",
+		Label:         "test fake (identity-whitelist live-enum)",
+		AgentIDSource: "test only",
+		Identities:    []iagent.IdentitySpec{{Type: iagent.IdentityUser}, {Type: iagent.IdentityBot}},
+		Instance:      &spec,
+		ListAgents: func(context.Context, iagent.Runtime) ([]iagent.AgentSummary, error) {
+			called = true
+			return nil, nil
+		},
+	})
+
+	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
+	f, _, _, _ := cmdutil.TestFactory(t, cfg)
+	opts := &listOptions{Factory: f, Cmd: resolveCmd(t, true, "admin"), Format: "json", Scheme: "fakelivewl", As: "admin"}
+
+	err := agentListRun(opts)
+	if err == nil {
+		t.Fatal("an unsupported identity should be rejected before the online call")
+	}
+	if !errs.IsValidation(err) {
+		t.Fatalf("unsupported identity should be a validation error, got %T (%v)", err, err)
+	}
+	if called {
+		t.Error("ListAgents must NOT be called when the identity whitelist fails")
+	}
+}
+
 // TestAgentListScheme_PrettyStripsANSI pins that `agent list <scheme> --format
 // pretty` strips ANSI escapes from agent-controlled Name/Description (here from
 // static catalog entries) before they reach the terminal.
@@ -400,6 +477,9 @@ func TestNewCmdAgentList_ReadRisk(t *testing.T) {
 	}
 	if cmd.Flags().Lookup("jq") == nil {
 		t.Error("agent list should have a --jq flag")
+	}
+	if cmd.Flags().Lookup("as") == nil {
+		t.Error("agent list should register an --as flag (needed to pick the identity for online enumeration)")
 	}
 	if err := cmd.Args(cmd, []string{}); err != nil {
 		t.Errorf("agent list with no args should be valid: %v", err)
