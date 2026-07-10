@@ -101,8 +101,21 @@ func TestMailTriageRejectsRemovedDataFormat(t *testing.T) {
 		t.Fatal("expected validation error for removed --format data")
 	}
 	problem, ok := errs.ProblemOf(err)
-	if !ok || problem.Category != errs.CategoryValidation {
-		t.Fatalf("want validation error, got %T (%v)", err, err)
+	if !ok {
+		t.Fatalf("error = %T, want typed errs problem carrier", err)
+	}
+	if problem.Category != errs.CategoryValidation {
+		t.Fatalf("category = %q, want %q", problem.Category, errs.CategoryValidation)
+	}
+	if problem.Subtype != errs.SubtypeInvalidArgument {
+		t.Fatalf("subtype = %q, want %q", problem.Subtype, errs.SubtypeInvalidArgument)
+	}
+	var ve *errs.ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("error = %T, want *errs.ValidationError", err)
+	}
+	if ve.Param != "--format" {
+		t.Fatalf("param = %q, want --format", ve.Param)
 	}
 	if !strings.Contains(problem.Message, `invalid value "data" for --format`) {
 		t.Fatalf("message = %q, want data rejection", problem.Message)
