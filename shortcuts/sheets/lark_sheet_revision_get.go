@@ -42,7 +42,7 @@ var RevisionGet = common.Shortcut{
 		})
 	},
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		token, err := resolveSpreadsheetToken(runtime)
+		token, err := resolveSpreadsheetTokenExec(runtime)
 		if err != nil {
 			return err
 		}
