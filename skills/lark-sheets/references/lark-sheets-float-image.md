@@ -60,7 +60,7 @@ _公共四件套 · 系统：`--dry-run`_
 | --- | --- | --- | --- |
 | `--image-name` | string | required | 图片名称，含扩展名（如 `logo.png`） |
 | `--image-token` | string | xor | 图片 file_token（与 `--image-uri` 二选一）。常见来源：`+float-image-list` 返回的 `image_token` |
-| `--image-uri` | string | xor | 图片 reference_id（与 `--image-token` 二选一）；图片上传链路返回的 reference_id |
+| `--image-uri` | string | xor | 图片 URI（上传链路返回的句柄，非表内对象 reference_id；与 `--image-token` 二选一）；系统自动转换为 file_token |
 | `--position-row` | int | required | 图片左上角所在行（0-based） |
 | `--position-col` | string | required | 图片左上角所在列（列字母，如 `A` / `B`） |
 | `--size-width` | int | required | 图片宽度（像素） |
@@ -78,8 +78,8 @@ _公共四件套 · 系统：`--dry-run`_
 | --- | --- | --- | --- |
 | `--float-image-id` | string | required | 目标图片 id |
 | `--image-name` | string | required | 图片名称，含扩展名（如 `logo.png`） |
-| `--image-token` | string | xor | 图片 file_token（与 `--image-uri` 二选一）。常见来源：`+float-image-list` 返回的 `image_token` |
-| `--image-uri` | string | xor | 图片 reference_id（与 `--image-token` 二选一）；图片上传链路返回的 reference_id |
+| `--image-token` | string | optional | 可选图片 file_token；与 `--image-uri` 互斥，二者均省略时保留原图。常见来源：`+float-image-list` 返回的 `image_token` |
+| `--image-uri` | string | optional | 可选图片 URI（上传链路返回的句柄，非表内对象 reference_id）；与 `--image-token` 互斥，二者均省略时保留原图；系统自动转换为 file_token |
 | `--position-row` | int | required | 图片左上角所在行（0-based） |
 | `--position-col` | string | required | 图片左上角所在列（列字母，如 `A` / `B`） |
 | `--size-width` | int | required | 图片宽度（像素） |

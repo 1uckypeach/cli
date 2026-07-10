@@ -3,7 +3,11 @@
 
 package sheets
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/larksuite/cli/errs"
+)
 
 func TestRevisionGetProjectRevision(t *testing.T) {
 	t.Parallel()
@@ -24,14 +28,12 @@ func TestRevisionGetProjectRevision(t *testing.T) {
 
 	t.Run("errors when revision is absent", func(t *testing.T) {
 		out := map[string]interface{}{"sheets": []interface{}{}}
-		if _, err := projectRevision(out); err == nil {
-			t.Error("expected an error when revision is missing, got nil")
-		}
+		_, err := projectRevision(out)
+		requireProblem(t, err, errs.CategoryInternal, errs.SubtypeInvalidResponse, "revision")
 	})
 
 	t.Run("errors on a non-object output", func(t *testing.T) {
-		if _, err := projectRevision("not-an-object"); err == nil {
-			t.Error("expected an error for non-object output, got nil")
-		}
+		_, err := projectRevision("not-an-object")
+		requireProblem(t, err, errs.CategoryInternal, errs.SubtypeInvalidResponse, "non-object")
 	})
 }

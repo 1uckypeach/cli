@@ -915,3 +915,63 @@ func TestBatchOp_RequiredFlagParity(t *testing.T) {
 		})
 	}
 }
+
+func TestBatchOp_EnumParity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("canonical casing is normalized before translation", func(t *testing.T) {
+		t.Parallel()
+		got, err := translateBatchOp(map[string]interface{}{
+			"shortcut": "+cells-clear",
+			"input": map[string]interface{}{
+				"sheet-id": "sh1",
+				"range":    "A1:B2",
+				"scope":    "FORMATS",
+			},
+		}, testToken, 0)
+		if err != nil {
+			t.Fatalf("translateBatchOp: %v", err)
+		}
+		input, _ := got["input"].(map[string]interface{})
+		if input["clear_type"] != "formats" {
+			t.Fatalf("clear_type = %v, want formats", input["clear_type"])
+		}
+	})
+
+	tests := []struct {
+		name     string
+		shortcut string
+		input    map[string]interface{}
+		want     string
+	}{
+		{
+			name:     "invalid clear scope",
+			shortcut: "+cells-clear",
+			input: map[string]interface{}{
+				"sheet-id": "sh1", "range": "A1:B2", "scope": "formtas",
+			},
+			want: "invalid value \"formtas\" for --scope",
+		},
+		{
+			name:     "invalid copy paste type",
+			shortcut: "+range-copy",
+			input: map[string]interface{}{
+				"sheet-id": "sh1", "source-range": "A1:B2", "target-range": "D1", "paste-type": "valuez",
+			},
+			want: "invalid value \"valuez\" for --paste-type",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := translateBatchOp(map[string]interface{}{
+				"shortcut": tt.shortcut,
+				"input":    tt.input,
+			}, testToken, 0)
+			validationErr := requireValidation(t, err, tt.want)
+			if validationErr.Param != "--operations" {
+				t.Errorf("param = %q, want --operations", validationErr.Param)
+			}
+		})
+	}
+}

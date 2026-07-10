@@ -3,10 +3,7 @@
 
 package sheets
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 // TestChangesetGet_DryRun locks the get_changeset tool input: --end-revision
 // is only sent when explicitly provided, otherwise the server defaults to the
@@ -53,35 +50,37 @@ func TestChangesetGet_Validation(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name    string
-		args    []string
-		wantSub string
+		name      string
+		args      []string
+		wantMsg   string
+		wantParam string
 	}{
 		{
-			name:    "start-revision must be >= 1",
-			args:    []string{"--url", testURL, "--start-revision", "0"},
-			wantSub: "start-revision must be >= 1",
+			name:      "start-revision must be >= 1",
+			args:      []string{"--url", testURL, "--start-revision", "0"},
+			wantMsg:   "start-revision must be >= 1",
+			wantParam: "--start-revision",
 		},
 		{
-			name:    "end before start rejected",
-			args:    []string{"--url", testURL, "--start-revision", "100", "--end-revision", "50"},
-			wantSub: "end-revision",
+			name:      "end before start rejected",
+			args:      []string{"--url", testURL, "--start-revision", "100", "--end-revision", "50"},
+			wantMsg:   "end-revision",
+			wantParam: "--end-revision",
 		},
 		{
-			name:    "gap over 20 rejected",
-			args:    []string{"--url", testURL, "--start-revision", "1", "--end-revision", "30"},
-			wantSub: "version gap exceeds limit",
+			name:      "gap over 20 rejected",
+			args:      []string{"--url", testURL, "--start-revision", "1", "--end-revision", "30"},
+			wantMsg:   "version gap exceeds limit",
+			wantParam: "--end-revision",
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			stdout, stderr, err := runShortcutCapturingErr(t, ChangesetGet, append(c.args, "--dry-run"))
-			if err == nil {
-				t.Fatalf("expected validation error; stdout=%s stderr=%s", stdout, stderr)
-			}
-			if !strings.Contains(stdout+stderr+err.Error(), c.wantSub) {
-				t.Errorf("expected %q; got=%s|%s|%v", c.wantSub, stdout, stderr, err)
+			_, _, err := runShortcutCapturingErr(t, ChangesetGet, append(c.args, "--dry-run"))
+			validationErr := requireValidation(t, err, c.wantMsg)
+			if validationErr.Param != c.wantParam {
+				t.Errorf("param = %q, want %q", validationErr.Param, c.wantParam)
 			}
 		})
 	}

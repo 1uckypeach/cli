@@ -2860,7 +2860,7 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "Target ranges as a JSON array (e.g. `[\"Sheet1!A1:B2\",\"Sheet2!D1:D10\"]`, prefix written bare without quotes); each prefix must exactly match the sheet display name (case-sensitive), not the sheet reference_id; ranges may target different sheets; the same style is applied to every range",
+        "desc": "Target ranges as a JSON array (up to 100 items, e.g. `[\"Sheet1!A1:B2\",\"Sheet2!D1:D10\"]`, prefix written bare without quotes); each prefix must exactly match the sheet display name (case-sensitive), not the sheet reference_id; ranges may target different sheets; the same style is applied to every range",
         "input": [
           "file",
           "stdin"
@@ -3013,7 +3013,7 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "Target ranges as a JSON array (e.g. `[\"Sheet1!A2:A100\",\"Sheet1!C2:C100\"]`, prefix written bare without quotes); each item must include a sheet prefix; the prefix must exactly match the sheet display name (case-sensitive), not the sheet reference_id",
+        "desc": "Target ranges as a JSON array (up to 100 items, e.g. `[\"Sheet1!A2:A100\",\"Sheet1!C2:C100\"]`, prefix written bare without quotes); each item must include a sheet prefix; the prefix must exactly match the sheet display name (case-sensitive), not the sheet reference_id",
         "input": [
           "file",
           "stdin"
@@ -3137,7 +3137,7 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "Target ranges as a JSON array (e.g. `[\"Sheet1!A2:Z1000\",\"Sheet2!A2:Z1000\"]`, prefix written bare without quotes); each prefix must exactly match the sheet display name (case-sensitive), not the sheet reference_id; ranges may target different sheets; the same scope is cleared from every range",
+        "desc": "Target ranges as a JSON array (up to 100 items, e.g. `[\"Sheet1!A2:Z1000\",\"Sheet2!A2:Z1000\"]`, prefix written bare without quotes); each prefix must exactly match the sheet display name (case-sensitive), not the sheet reference_id; ranges may target different sheets; the same scope is cleared from every range",
         "input": [
           "file",
           "stdin"
@@ -4638,7 +4638,7 @@
         "kind": "own",
         "type": "string",
         "required": "xor",
-        "desc": "Image reference_id (XOR with `--image-token`); the reference_id returned by the image upload flow"
+        "desc": "Image URI handle returned by the upload flow (not a sheet object reference_id; XOR with `--image-token`); converted to file_token automatically"
       },
       {
         "name": "position-row",
@@ -4754,15 +4754,15 @@
         "name": "image-token",
         "kind": "own",
         "type": "string",
-        "required": "xor",
-        "desc": "Image file_token (XOR with `--image-uri`). Common source: `image_token` returned by `+float-image-list`"
+        "required": "optional",
+        "desc": "Optional image file_token; mutually exclusive with `--image-uri`; omit both to keep the current image. Common source: `image_token` returned by `+float-image-list`"
       },
       {
         "name": "image-uri",
         "kind": "own",
         "type": "string",
-        "required": "xor",
-        "desc": "Image reference_id (XOR with `--image-token`); the reference_id returned by the image upload flow"
+        "required": "optional",
+        "desc": "Optional image URI handle returned by the upload flow (not a sheet object reference_id); mutually exclusive with `--image-token`; omit both to keep the current image; converted to file_token automatically"
       },
       {
         "name": "position-row",

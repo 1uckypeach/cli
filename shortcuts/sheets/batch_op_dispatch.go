@@ -380,6 +380,9 @@ func translateBatchOp(raw interface{}, token string, index int) (map[string]inte
 	if err := fv.validateRawTypes(); err != nil {
 		return nil, sheetsValidationForFlag("operations", "operations[%d] (%s): %v", index, sc, err)
 	}
+	if err := fv.normalizeAndValidateEnums(); err != nil {
+		return nil, sheetsValidationForFlag("operations", "operations[%d] (%s): %v", index, sc, err)
+	}
 	sheetIDFlag, sheetNameFlag := sheetSelectorFlagsForSubOp(sc)
 	sheetID := strings.TrimSpace(fv.Str(sheetIDFlag))
 	sheetName := strings.TrimSpace(fv.Str(sheetNameFlag))
