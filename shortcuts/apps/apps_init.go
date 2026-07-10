@@ -462,6 +462,16 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		if appType != "" {
 			out["app_type"] = appType
 		}
+		if appType == "modern_html" {
+			out["env_pulled"] = false
+			out["env_pull_skipped"] = true
+			out["message"] = "Repository already initialized. You can start developing."
+			rctx.OutFormat(out, nil, func(w io.Writer) {
+				fmt.Fprintf(w, "✓ Already initialized at %s\n", dir)
+				fmt.Fprintln(w, "仓库已初始化完成，可以开始开发了。")
+			})
+			return nil
+		}
 		initLogf(rctx, "Pulling local environment variables...")
 		envFile, envPullErr := pullEnv(ctx, rctx, appID, dir)
 		envPulled := envPullErr == ""
@@ -550,25 +560,32 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		out["app_type"] = appType
 	}
 
-	initLogf(rctx, "Pulling local environment variables...")
-	envFile, envPullErr := pullEnv(ctx, rctx, appID, dir)
-	envPulled := envPullErr == ""
-	out["env_pulled"] = envPulled
-	if envPulled {
-		initLogf(rctx, "Local environment written to %s", envFile)
-		out["env_file"] = envFile
+	if appType == "modern_html" {
+		out["env_pulled"] = false
+		out["env_pull_skipped"] = true
 	} else {
-		initLogf(rctx, "Could not pull local env vars: %s", envPullErr)
-		out["env_pull_error"] = envPullErr
-		out["message"] = fmt.Sprintf("Repository initialized. Could not pull local env vars automatically — run `lark-cli apps +env-pull --app-id %s` to retry.", appID)
+		initLogf(rctx, "Pulling local environment variables...")
+		envFile, envPullErr := pullEnv(ctx, rctx, appID, dir)
+		envPulled := envPullErr == ""
+		out["env_pulled"] = envPulled
+		if envPulled {
+			initLogf(rctx, "Local environment written to %s", envFile)
+			out["env_file"] = envFile
+		} else {
+			initLogf(rctx, "Could not pull local env vars: %s", envPullErr)
+			out["env_pull_error"] = envPullErr
+			out["message"] = fmt.Sprintf("Repository initialized. Could not pull local env vars automatically — run `lark-cli apps +env-pull --app-id %s` to retry.", appID)
+		}
 	}
 
 	rctx.OutFormat(out, nil, func(w io.Writer) {
 		fmt.Fprintf(w, "✓ Repository initialized at %s\n", dir)
 		fmt.Fprintf(w, "  branch: %s\n  scaffold: %s\n", defaultInitBranch, scaffold)
-		if envPulled {
-			fmt.Fprintf(w, "✓ Local environment written to %s\n", envFile)
-		} else {
+		if appType == "modern_html" {
+			fmt.Fprintln(w, "  (env pull skipped)")
+		} else if envPulled, _ := out["env_pulled"].(bool); envPulled {
+			fmt.Fprintf(w, "✓ Local environment written to %s\n", out["env_file"])
+		} else if envPullErr, ok := out["env_pull_error"].(string); ok {
 			fmt.Fprintf(w, "⚠ Could not pull local env vars: %s\n", envPullErr)
 			fmt.Fprintf(w, "  run `lark-cli apps +env-pull --app-id %s` to retry\n", appID)
 		}
