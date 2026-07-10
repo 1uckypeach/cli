@@ -7,9 +7,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
+	"github.com/larksuite/cli/internal/envvars"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -72,7 +72,7 @@ func buildAppsCreateBody(rctx *common.RuntimeContext) map[string]interface{} {
 	if icon := strings.TrimSpace(rctx.Str("icon-url")); icon != "" {
 		body["icon_url"] = icon
 	}
-	if agent := os.Getenv("LARKSUITE_CLI_AGENT"); agent != "" {
+	if agent := envvars.AgentName(); agent != "" {
 		body["source_agent"] = agent
 	}
 	return body

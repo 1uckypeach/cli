@@ -275,7 +275,7 @@ func TestAppsCreate_FullstackDryRun(t *testing.T) {
 }
 
 func TestAppsCreate_WithAgentEnvVar(t *testing.T) {
-	t.Setenv("LARKSUITE_CLI_AGENT", "doubao")
+	t.Setenv("LARKSUITE_CLI_AGENT_NAME", "doubao")
 	factory, stdout, reg := newAppsExecuteFactory(t)
 	stub := &httpmock.Stub{
 		Method: "POST",
@@ -305,7 +305,7 @@ func TestAppsCreate_WithAgentEnvVar(t *testing.T) {
 }
 
 func TestAppsCreate_WithoutAgentEnvVar(t *testing.T) {
-	t.Setenv("LARKSUITE_CLI_AGENT", "")
+	t.Setenv("LARKSUITE_CLI_AGENT_NAME", "")
 	factory, stdout, reg := newAppsExecuteFactory(t)
 	stub := &httpmock.Stub{
 		Method: "POST",
