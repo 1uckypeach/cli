@@ -1750,6 +1750,98 @@ func TestAppsInit_WithAppType_FreshClone(t *testing.T) {
 	}
 }
 
+func TestAppsInit_ModernHtml_SkipsEnvPull(t *testing.T) {
+	f := &fakeCommandRunner{results: map[string]fakeCallResult{
+		"credential-init": credInitOK("https://git.test/app_mh.git"),
+		"git clone":       {},
+		"git checkout":    {},
+		"git ls-files":    {stdout: ""},
+		"npx -y":          {},
+		"git status":      {stdout: ""},
+	}}
+	withFakeRunner(t, f)
+	factory, stdout, reg := newAppsExecuteFactory(t)
+
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/spark/v1/apps/app_mh",
+		Body: map[string]interface{}{
+			"code": float64(0),
+			"data": map[string]interface{}{
+				"app": map[string]interface{}{
+					"app_id":   "app_mh",
+					"app_type": "MODERN_HTML",
+				},
+			},
+		},
+	})
+
+	dir := relCloneDir(t)
+	if err := runAppsShortcut(t, AppsInit, []string{"+init", "--app-id", "app_mh", "--dir", dir, "--as", "user"}, factory, stdout); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data := parseEnvelopeData(t, stdout)
+	if data["env_pull_skipped"] != true {
+		t.Errorf("env_pull_skipped = %v, want true", data["env_pull_skipped"])
+	}
+	if data["env_pulled"] != false {
+		t.Errorf("env_pulled = %v, want false", data["env_pulled"])
+	}
+	// Verify env-pull was NOT called
+	for _, c := range f.calls {
+		if len(c) >= 3 && c[2] == "apps" && len(c) >= 4 && c[3] == "+env-pull" {
+			t.Fatal("env-pull should not be called for modern_html")
+		}
+	}
+}
+
+func TestAppsInit_AlreadyInitialized_ModernHtml_SkipsEnvPull(t *testing.T) {
+	dir := relCloneDir(t)
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(abs, ".spark"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(abs, metaRelPath), []byte(`{"app_id":"app_mh2"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f := &fakeCommandRunner{}
+	withFakeRunner(t, f)
+	factory, stdout, reg := newAppsExecuteFactory(t)
+
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/spark/v1/apps/app_mh2",
+		Body: map[string]interface{}{
+			"code": float64(0),
+			"data": map[string]interface{}{
+				"app": map[string]interface{}{
+					"app_id":   "app_mh2",
+					"app_type": "MODERN_HTML",
+				},
+			},
+		},
+	})
+
+	if err := runAppsShortcut(t, AppsInit, []string{"+init", "--app-id", "app_mh2", "--dir", dir, "--as", "user"}, factory, stdout); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data := parseEnvelopeData(t, stdout)
+	if data["scaffold"] != "already_initialized" {
+		t.Errorf("scaffold = %v, want already_initialized", data["scaffold"])
+	}
+	if data["env_pull_skipped"] != true {
+		t.Errorf("env_pull_skipped = %v, want true", data["env_pull_skipped"])
+	}
+	if len(f.calls) != 0 {
+		t.Errorf("no commands should be called for already-initialized modern_html, got %v", f.calls)
+	}
+}
+
 func TestAppsInit_WithAppType_AlreadyInitialized(t *testing.T) {
 	dir := relCloneDir(t)
 	abs, err := filepath.Abs(dir)
