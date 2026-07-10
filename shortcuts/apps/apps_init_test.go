@@ -268,6 +268,18 @@ func TestRunScaffold_NonEmpty_SyncsWhenNoSteering(t *testing.T) {
 	}
 }
 
+func TestRunScaffold_NonEmpty_ModernHTML_SkipsSyncEvenWithoutSteering(t *testing.T) {
+	dir := t.TempDir() // no steering dir → sync would run for non-modern_html
+	f := &fakeCommandRunner{results: map[string]fakeCallResult{"git ls-files": {stdout: "src/x.ts\n"}}}
+	withFakeRunner(t, f)
+	if _, err := runScaffold(context.Background(), dir, "app_x", "modern_html", ""); err != nil {
+		t.Fatal(err)
+	}
+	if findCallArg(f.calls, "npx", "skills", "sync") != nil {
+		t.Error("skills sync must be skipped for modern_html regardless of steering dir")
+	}
+}
+
 func TestRunScaffold_NonEmpty_SkipsSyncWhenSteeringExists(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, steeringRelPath), 0o755)
@@ -1684,9 +1696,38 @@ func TestScaffoldInitArgs_WithAppType(t *testing.T) {
 	if !containsAll(args, "--app-type", "modern_html", "--app-id", "app_x") {
 		t.Errorf("expected --template modern_html --app-id app_x, got %v", args)
 	}
+	// modern_html skips dependency install.
+	if !containsAll(args, "--skip-install") {
+		t.Errorf("expected --skip-install for modern_html, got %v", args)
+	}
 	for _, a := range args {
 		if a == "--source-path" {
 			t.Errorf("--source-path must not appear when sourcePath is empty: %v", args)
+		}
+	}
+}
+
+func TestPolicyForAppType(t *testing.T) {
+	// modern_html decouples all control points: skip install, env-pull, skills sync.
+	if p := policyForAppType("modern_html"); !p.skipInstall || !p.skipEnvPull || !p.skipSkillsSync {
+		t.Errorf("modern_html policy = %+v, want all skip flags set", p)
+	}
+	// Unlisted types (including "") get the zero-value policy: everything runs.
+	for _, at := range []string{"full_stack", "", "backend"} {
+		if p := policyForAppType(at); p.skipInstall || p.skipEnvPull || p.skipSkillsSync {
+			t.Errorf("policy for %q = %+v, want zero value", at, p)
+		}
+	}
+}
+
+func TestScaffoldInitArgs_SkipInstallOnlyForModernHTML(t *testing.T) {
+	// Non-modern_html types run the install step (no --skip-install).
+	for _, at := range []string{"full_stack", "", "backend"} {
+		args := scaffoldInitArgs(at, "app_x", "")
+		for _, a := range args {
+			if a == "--skip-install" {
+				t.Errorf("--skip-install must not appear for app-type %q: %v", at, args)
+			}
 		}
 	}
 }

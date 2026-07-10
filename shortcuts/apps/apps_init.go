@@ -50,6 +50,38 @@ const (
 // can swap in a fakeCommandRunner. Production uses execCommandRunner.
 var initRunner commandRunner = execCommandRunner{}
 
+// appTypePolicy captures the per-app-type control points +init toggles, keeping
+// each knob out of the inline `appType == "..."` checks that would otherwise be
+// scattered through the flow. Add a field here (and set it in appTypePolicies)
+// for each new control point rather than threading another type comparison
+// through appsInitExecute.
+type appTypePolicy struct {
+	// skipInstall passes --skip-install to `npx ... app init`, so scaffolding
+	// runs no dependency install.
+	skipInstall bool
+	// skipEnvPull skips the post-init `+env-pull` step, on both the fresh-init
+	// tail and the already-initialized refresh path.
+	skipEnvPull bool
+	// skipSkillsSync skips the conditional `npx ... skills sync --local` step on
+	// the non-empty (`app sync`) scaffold path.
+	skipSkillsSync bool
+}
+
+// appTypePolicies maps an app_type to its +init control strategy. Types absent
+// from the map get the zero-value policy (install runs, env is pulled, skills
+// are synced).
+var appTypePolicies = map[string]appTypePolicy{
+	// modern_html is a static HTML site: no dependencies to install, no startup
+	// env vars to pull, and no steering skills to sync.
+	"modern_html": {skipInstall: true, skipEnvPull: true, skipSkillsSync: true},
+}
+
+// policyForAppType returns the +init control strategy for appType. Unlisted
+// types (including "") get the zero-value policy.
+func policyForAppType(appType string) appTypePolicy {
+	return appTypePolicies[appType]
+}
+
 // AppsInit initializes an app's code and local development environment.
 var AppsInit = common.Shortcut{
 	Service:     appsService,
@@ -330,7 +362,7 @@ func runScaffold(ctx context.Context, dir, appID, appType, sourcePath string) (s
 	if err := ensureMetaAppID(dir, appID); err != nil {
 		return "", err
 	}
-	if !hasSteeringSkills(dir) {
+	if !policyForAppType(appType).skipSkillsSync && !hasSteeringSkills(dir) {
 		if _, stderr, err := initRunner.Run(ctx, dir, "npx", "-y", "--prefer-online", "--registry", npmRegistry, miaodaCLIPkg, "skills", "sync", "--local"); err != nil {
 			return "", appsExternalToolError(err, "npx skills sync failed: %s", gitErr(stderr, err))
 		}
@@ -341,6 +373,9 @@ func runScaffold(ctx context.Context, dir, appID, appType, sourcePath string) (s
 // scaffoldInitArgs builds the npx argument list for `app init`.
 // appType from queryAppType is passed as --app-type; falls back to "full_stack"
 // when empty. sourcePath is appended as --source-path when non-empty.
+// --skip-install is appended per the app_type's policy (see appTypePolicy):
+// types whose policy sets skipInstall (e.g. modern_html) skip the dependency
+// install; others run it as usual.
 func scaffoldInitArgs(appType, appID, sourcePath string) []string {
 	base := []string{"-y", "--prefer-online", "--registry", npmRegistry, miaodaCLIPkg, "app", "init"}
 	at := appType
@@ -350,6 +385,9 @@ func scaffoldInitArgs(appType, appID, sourcePath string) []string {
 	base = append(base, "--app-type", at, "--app-id", appID)
 	if sourcePath != "" {
 		base = append(base, "--source-path", sourcePath)
+	}
+	if policyForAppType(appType).skipInstall {
+		base = append(base, "--skip-install")
 	}
 	return base
 }
@@ -446,6 +484,7 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 	}
 
 	appType := queryAppType(ctx, rctx, appID)
+	policy := policyForAppType(appType)
 
 	// Already-initialized short-circuit: a dir containing .spark/meta.json is an
 	// initialized app repo -> skip clone/scaffold/commit, but still refresh
@@ -462,7 +501,7 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		if appType != "" {
 			out["app_type"] = appType
 		}
-		if appType == "modern_html" {
+		if policy.skipEnvPull {
 			out["env_pulled"] = false
 			out["env_pull_skipped"] = true
 			out["message"] = "Repository already initialized. You can start developing."
@@ -560,7 +599,7 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		out["app_type"] = appType
 	}
 
-	if appType == "modern_html" {
+	if policy.skipEnvPull {
 		out["env_pulled"] = false
 		out["env_pull_skipped"] = true
 	} else {
@@ -581,7 +620,7 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 	rctx.OutFormat(out, nil, func(w io.Writer) {
 		fmt.Fprintf(w, "✓ Repository initialized at %s\n", dir)
 		fmt.Fprintf(w, "  branch: %s\n  scaffold: %s\n", defaultInitBranch, scaffold)
-		if appType == "modern_html" {
+		if policy.skipEnvPull {
 			fmt.Fprintln(w, "  (env pull skipped)")
 		} else if envPulled, _ := out["env_pulled"].(bool); envPulled {
 			fmt.Fprintf(w, "✓ Local environment written to %s\n", out["env_file"])
