@@ -40,6 +40,7 @@ const (
 
 const (
 	miaodaCLIPkg    = "@lark-apaas/miaoda-cli@0.1.20-alpha.dd573f8"
+	npmRegistry     = "https://registry.npmmirror.com"
 	metaRelPath     = ".spark/meta.json"
 	steeringRelPath = ".agent/skills/steering"
 	seedReadme      = "README.md"
@@ -323,14 +324,14 @@ func runScaffold(ctx context.Context, dir, appID, appType, sourcePath string) (s
 		}
 		return scaffoldKindInit, nil
 	}
-	if _, stderr, err := initRunner.Run(ctx, dir, "npx", "-y", "--prefer-online", miaodaCLIPkg, "app", "sync"); err != nil {
+	if _, stderr, err := initRunner.Run(ctx, dir, "npx", "-y", "--prefer-online", "--registry", npmRegistry, miaodaCLIPkg, "app", "sync"); err != nil {
 		return "", appsExternalToolError(err, "npx app sync failed: %s", gitErr(stderr, err))
 	}
 	if err := ensureMetaAppID(dir, appID); err != nil {
 		return "", err
 	}
 	if !hasSteeringSkills(dir) {
-		if _, stderr, err := initRunner.Run(ctx, dir, "npx", "-y", "--prefer-online", miaodaCLIPkg, "skills", "sync", "--local"); err != nil {
+		if _, stderr, err := initRunner.Run(ctx, dir, "npx", "-y", "--prefer-online", "--registry", npmRegistry, miaodaCLIPkg, "skills", "sync", "--local"); err != nil {
 			return "", appsExternalToolError(err, "npx skills sync failed: %s", gitErr(stderr, err))
 		}
 	}
@@ -341,7 +342,7 @@ func runScaffold(ctx context.Context, dir, appID, appType, sourcePath string) (s
 // appType from queryAppType is passed as --app-type; falls back to "full_stack"
 // when empty. sourcePath is appended as --source-path when non-empty.
 func scaffoldInitArgs(appType, appID, sourcePath string) []string {
-	base := []string{"-y", "--prefer-online", miaodaCLIPkg, "app", "init"}
+	base := []string{"-y", "--prefer-online", "--registry", npmRegistry, miaodaCLIPkg, "app", "init"}
 	at := appType
 	if at == "" {
 		at = "full_stack"

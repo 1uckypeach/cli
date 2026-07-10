@@ -631,8 +631,8 @@ func TestRunHTMLPublishTOS_Success(t *testing.T) {
 
 	// Start httptest server to accept the TOS upload.
 	tosServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			t.Errorf("TOS upload method = %s, want POST", r.Method)
+		if r.Method != http.MethodPut {
+			t.Errorf("TOS upload method = %s, want PUT", r.Method)
 		}
 		if ct := r.Header.Get("Content-Type"); ct != "application/gzip" {
 			t.Errorf("TOS upload Content-Type = %s, want application/gzip", ct)
