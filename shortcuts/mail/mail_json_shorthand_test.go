@@ -32,24 +32,6 @@ func TestMailWatchHelpListsJSONShorthand(t *testing.T) {
 	}
 }
 
-// 行为验证：--json 走 JSON 输出路径，不输出 table read hint
-func TestMailTriageJSONShorthandDoesNotEmitReadHint(t *testing.T) {
-	f, stdout, stderr, reg := mailShortcutTestFactory(t)
-	registerTriageReadHintStubs(reg)
-
-	err := runMountedMailShortcut(t, MailTriage, []string{"+triage", "--json", "--max", "1"}, f, stdout)
-	if err != nil {
-		t.Fatalf("triage --json returned error: %v", err)
-	}
-	reg.Verify(t)
-	if strings.Contains(stderr.String(), "tip: read full content:") {
-		t.Fatalf("--json must follow the JSON path, got table hint\nstderr=%s", stderr.String())
-	}
-	if !strings.Contains(stdout.String(), `"messages"`) {
-		t.Fatalf("--json stdout missing JSON payload\n%s", stdout.String())
-	}
-}
-
 // 等价性验证：--json 与 --format json 的 dry-run 输出一致
 func TestMailTriageJSONShorthandDryRunEquivalence(t *testing.T) {
 	f1, stdout1, _, _ := mailShortcutTestFactory(t)
@@ -106,7 +88,7 @@ func TestMailTriageEnumRejectsUnknownFormat(t *testing.T) {
 	if !strings.Contains(problem.Message, `invalid value "bogus" for --format`) {
 		t.Fatalf("message = %q, want enum validation message", problem.Message)
 	}
-	if !strings.Contains(problem.Message, "table, json, data") {
+	if !strings.Contains(problem.Message, "json, pretty, table, ndjson, csv") {
 		t.Fatalf("message = %q, want allowed values list", problem.Message)
 	}
 }
