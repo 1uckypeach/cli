@@ -92,3 +92,19 @@ func TestMailTriageEnumRejectsUnknownFormat(t *testing.T) {
 		t.Fatalf("message = %q, want allowed values list", problem.Message)
 	}
 }
+
+// 回归：`data` 曾是合法取值，envelope 化后从 Enum 移除，应被硬拒（而非静默降级）
+func TestMailTriageRejectsRemovedDataFormat(t *testing.T) {
+	f, stdout, _, _ := mailShortcutTestFactory(t)
+	err := runMountedMailShortcut(t, MailTriage, []string{"+triage", "--format", "data", "--max", "1", "--dry-run"}, f, stdout)
+	if err == nil {
+		t.Fatal("expected validation error for removed --format data")
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryValidation {
+		t.Fatalf("want validation error, got %T (%v)", err, err)
+	}
+	if !strings.Contains(problem.Message, `invalid value "data" for --format`) {
+		t.Fatalf("message = %q, want data rejection", problem.Message)
+	}
+}

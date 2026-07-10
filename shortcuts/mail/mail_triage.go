@@ -312,10 +312,8 @@ var MailTriage = common.Shortcut{
 			output.PrintTable(w, rows)
 		})
 
-		// 人类导航提示走 stderr（不污染 stdout 的数据）
-		if mailbox != "me" || (hasMore && nextPageToken != "") {
-			fmt.Fprintf(runtime.IO().ErrOut, "%d message(s)\n", len(messages))
-		}
+		// 人类导航提示走 stderr（所有格式一致，不污染 stdout 的数据）
+		fmt.Fprintf(runtime.IO().ErrOut, "%d message(s)\n", len(messages))
 		if hasMore && nextPageToken != "" {
 			var hint strings.Builder
 			hint.WriteString("next page: mail +triage")

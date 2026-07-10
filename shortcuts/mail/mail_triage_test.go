@@ -1574,7 +1574,7 @@ func TestMailTriageStructuredOutputPreservesMailboxID(t *testing.T) {
 			wantNotice: "The query is too long and has been truncated to the first 50 characters for search.",
 		},
 		{
-			name:    "empty list json keeps top-level mailbox",
+			name:    "empty list json returns empty data array with count 0",
 			mailbox: "me",
 			format:  "json",
 			args:    []string{"--filter", `{"folder_id":"INBOX"}`},
