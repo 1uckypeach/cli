@@ -24,14 +24,17 @@ var ErrAlreadyLoaded = registry.ErrMetaAlreadyLoaded
 //
 // It must be called before any registry consumption — cmd.Build, cmd.Execute,
 // schema resolution, or scope discovery — typically at the top of main() or
-// from an init() function; any package init in the embedder's dependency tree
-// runs early enough. Calling it after the metadata has been parsed returns
-// ErrAlreadyLoaded.
+// from an init() function — early enough provided no other init in the process
+// has already triggered registry consumption. Calling it after the metadata has
+// been parsed returns ErrAlreadyLoaded.
 //
 // data must parse as lark-cli API metadata and declare at least one service;
 // otherwise an error is returned and the existing state (the empty stub, or
-// the compiled-in metadata of an official build) is left unchanged. Calling
-// SetEmbedded multiple times before the first parse is allowed: the last
+// the compiled-in metadata of an official build) is left unchanged.
+//
+// data is copied on success; the caller may reuse or modify the buffer afterwards.
+//
+// Calling SetEmbedded multiple times before the first parse is allowed: the last
 // successful call wins, mirroring ordinary Go process-init trust — whoever
 // links code into the binary controls its metadata.
 func SetEmbedded(data []byte) error {

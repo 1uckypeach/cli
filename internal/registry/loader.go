@@ -4,6 +4,7 @@
 package registry
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -66,7 +67,7 @@ func SetEmbeddedMeta(data []byte) error {
 	if embeddedParsed {
 		return ErrMetaAlreadyLoaded
 	}
-	embeddedMetaJSON = data
+	embeddedMetaJSON = bytes.Clone(data)
 	return nil
 }
 
