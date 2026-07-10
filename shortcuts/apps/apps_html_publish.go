@@ -19,11 +19,11 @@ import (
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
-// AppsHTMLPublish packs --path as tar.gz and uploads + publishes via one multipart POST.
+// AppsHTMLPublish packs --path as tar.gz and publishes an HTML app.
 var AppsHTMLPublish = common.Shortcut{
 	Service:     appsService,
 	Command:     "+html-publish",
-	Description: "Publish HTML to an app (single multipart POST returns the access URL)",
+	Description: "Publish HTML to an app (returns url or release_id depending on app type)",
 	Risk:        "write",
 	Tips: []string{
 		"Example: lark-cli apps +html-publish --app-id <app_id> --path ./dist",
@@ -73,7 +73,7 @@ var AppsHTMLPublish = common.Shortcut{
 		appID := strings.TrimSpace(rctx.Str("app-id"))
 		path := strings.TrimSpace(rctx.Str("path"))
 		dry := common.NewDryRunAPI()
-		dry.Desc("Upload tar.gz + publish HTML (multipart, returns url)")
+		dry.Desc("Upload tar.gz + publish HTML (returns url or release_id depending on app type)")
 		dry.POST(fmt.Sprintf("%s/apps/%s/upload_and_release_html_code", apiBasePath, validate.EncodePathSegment(appID))).
 			Set("content_type", "multipart/form-data")
 
