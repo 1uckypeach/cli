@@ -32,11 +32,11 @@ lark-cli mail +triage --filter '{"label":"important"}'
 lark-cli mail +triage --filter '{"label":"重要邮件"}'
 
 # json/data 格式可配合 jq 处理
-lark-cli mail +triage --format json | jq '.messages[].subject'
+lark-cli mail +triage --format json | jq '.data[].subject'
 
 # 分页：先取 10 条，再用 page_token 翻页
 lark-cli mail +triage --max 10 --format json
-# 输出中包含 page_token，传入下一次请求
+# 输出 meta 中包含 page_token，传入下一次请求
 lark-cli mail +triage --page-token 'list:FfccvoqPd...' --max 10 --format json
 
 # --page-size 是 --max 的别名
@@ -49,7 +49,7 @@ lark-cli mail +triage --page-size 10
 |------|------|------|
 | `--filter <json>` | — | 筛选条件（见下方字段说明） |
 | `--query <text>` | — | 全文搜索关键词 |
-| `--format <mode>` | `json` | `json`（默认，输出含分页信息的对象）/ `data`（同 `json`）/ `table`（人类可读表格） |
+| `--format <mode>` | `json` | `json`（默认，`{ok,data,meta}` 信封）/ `pretty`（人类表格）/ `table`·`csv`·`ndjson`（通用渲染）；非 Enum 值报错 |
 | `--max <n>` | `20` | 最大返回条数（1-400），内部自动分页拉取 |
 | `--page-size <n>` | — | `--max` 的别名，两者含义相同；同时指定时 `--page-size` 优先 |
 | `--page-token <token>` | — | 上一次响应返回的分页令牌，传入后从该位置继续拉取。令牌带 `search:` 或 `list:` 前缀，标识来源路径，不可混用 |
@@ -78,13 +78,14 @@ lark-cli mail +triage --page-size 10
 
 ## 输出
 
-### `--format json` / `--format data`
+### `--format json`（默认）
 
-两者输出格式相同，均为含分页信息的对象：
+标准 `{ok,data,meta}` 信封；`data` 为 message 数组（每条含 `mailbox_id`），分页信息在 `meta`：
 
 ```json
 {
-  "messages": [
+  "ok": true,
+  "data": [
     {
       "message_id": "SEU2...",
       "mailbox_id": "me",
@@ -94,32 +95,25 @@ lark-cli mail +triage --page-size 10
       "labels": "INBOX,UNREAD"
     }
   ],
-  "mailbox_id": "me",
-  "count": 20,
-  "has_more": true,
-  "page_token": "list:FfccvoqPd_loLhtcRx8cx..."
+  "meta": { "count": 20, "has_more": true, "page_token": "list:FfccvoqPd_loLhtcRx8cx..." }
 }
 ```
 
-- `mailbox_id`：当前邮箱标识，用于传递给 `mail +message --mailbox` 以保持公共邮箱上下文
-- `has_more`：是否还有下一页
-- `page_token`：传入 `--page-token` 可获取下一页；为空字符串表示已到末尾
-- token 前缀 `search:` / `list:` 标识来源 API 路径，不可混用
+- `data[].mailbox_id`：邮箱标识，传给 `mail +message --mailbox` 以保持公共邮箱上下文
+- `meta.count`：本次返回条数
+- `meta.has_more`：是否还有下一页（无更多时字段省略）
+- `meta.page_token`：传入 `--page-token` 获取下一页（无更多时省略）；前缀 `search:` / `list:` 标识来源路径，不可混用
+- **迁移**：旧的顶层 `.messages` / `.count` / `.has_more` / `.page_token` 已迁到 `.data` / `.meta.*`；`--format data` 已移除（用默认或 `--format json`）
 
-### `table` 格式
+### `pretty` / `table` / `csv` / `ndjson`
 
-`page_token` 信息输出在 stderr，自动携带 `--query`/`--filter`/`--mailbox` 参数方便续页：
+`--format pretty` 输出精排人类表格；`--format table` / `csv` / `ndjson` 用通用格式化器把 `data` 渲染成表格 / CSV / NDJSON。导航提示（计数、下一页、读全文 tip）统一输出到 **stderr**（所有格式一致，不污染 stdout 数据）：
 ```text
 15 message(s)
 next page: mail +triage --query '合同审批' --page-token 'search:abc123...'
 tip: read full content: single message use mail +message --message-id <id>; multiple messages use mail +messages --message-ids <id1>,<id2>,<id3>
 ```
-
-公共邮箱场景下，`--mailbox` 会自动出现在续页和 tip 中：
-```text
-next page: mail +triage --mailbox 'shared@example.com' --query '合同审批' --page-token 'search:abc123...'
-tip: read full content: single message use mail +message --mailbox 'shared@example.com' --message-id <id>; multiple messages use mail +messages --mailbox 'shared@example.com' --message-ids <id1>,<id2>,<id3>
-```
+公共邮箱场景下，`--mailbox` 会自动出现在续页和 tip 中。
 
 ### 搜索分页注意事项
 
