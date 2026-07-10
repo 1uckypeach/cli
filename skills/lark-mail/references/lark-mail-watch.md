@@ -10,7 +10,7 @@
 ## 命令
 
 ```bash
-# 默认：表格输出 message 元数据
+# 默认：json 信封（NDJSON 流）输出 message 元数据
 lark-cli mail +watch
 
 # 仅输出 message 数据（jq 友好）
