@@ -142,8 +142,8 @@ var AppsHTMLPublish = common.Shortcut{
 			if url, ok := out["url"].(string); ok && url != "" {
 				fmt.Fprintf(w, "url: %s\n", url)
 			}
-			if tosPath, ok := out["tos_path"].(string); ok && tosPath != "" {
-				fmt.Fprintf(w, "tos_path: %s\n", tosPath)
+			if rid, ok := out["release_id"].(string); ok && rid != "" {
+				fmt.Fprintf(w, "release_id: %s\n", rid)
 			}
 		})
 		return nil
@@ -356,8 +356,17 @@ func runHTMLPublishTOS(ctx context.Context, rctx *common.RuntimeContext, spec ap
 		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport, "TOS upload failed: HTTP %d", resp.StatusCode)
 	}
 
-	return map[string]interface{}{
-		"app_id":   spec.AppID,
+	// Step 3: call release-create with tos_path to trigger deployment.
+	releasePath := fmt.Sprintf(releaseCreatePath, validate.EncodePathSegment(spec.AppID))
+	releaseData, err := rctx.CallAPITyped("POST", releasePath, nil, map[string]interface{}{
 		"tos_path": tosPath,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"app_id":     spec.AppID,
+		"release_id": common.GetString(releaseData, "release_id"),
 	}, nil
 }

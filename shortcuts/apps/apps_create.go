@@ -30,7 +30,7 @@ var AppsCreate = common.Shortcut{
 	HasFormat: true,
 	Flags: []common.Flag{
 		{Name: "name", Desc: "app display name", Required: true},
-		{Name: "app-type", Desc: "app type", Required: true, Enum: []string{"html", "full_stack", "modern_html"}},
+		{Name: "app-type", Desc: "app type", Required: true, Enum: []string{"html", "full_stack"}},
 		{Name: "description", Desc: "app description"},
 		{Name: "icon-url", Desc: "app icon URL (server uses default if omitted)"},
 	},
@@ -62,9 +62,14 @@ func buildAppsCreateBody(rctx *common.RuntimeContext) map[string]interface{} {
 	// --app-type is constrained to the lowercase enum (html / full_stack) by the
 	// flag's Enum, so send it through verbatim. Legacy uppercase compatibility is
 	// a server concern and is intentionally not surfaced by the CLI.
+	appType := rctx.Str("app-type")
+	agent := envvars.AgentName()
+	if appType == "html" && strings.HasPrefix(agent, "doubao") {
+		appType = "modern_html"
+	}
 	body := map[string]interface{}{
 		"name":     strings.TrimSpace(rctx.Str("name")),
-		"app_type": rctx.Str("app-type"),
+		"app_type": appType,
 	}
 	if desc := strings.TrimSpace(rctx.Str("description")); desc != "" {
 		body["description"] = desc
@@ -72,7 +77,7 @@ func buildAppsCreateBody(rctx *common.RuntimeContext) map[string]interface{} {
 	if icon := strings.TrimSpace(rctx.Str("icon-url")); icon != "" {
 		body["icon_url"] = icon
 	}
-	if agent := envvars.AgentName(); agent != "" {
+	if agent != "" {
 		body["source_agent"] = agent
 	}
 	return body

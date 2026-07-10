@@ -656,6 +656,19 @@ func TestRunHTMLPublishTOS_Success(t *testing.T) {
 		},
 	})
 
+	// Register release-create API stub.
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/spark/v1/apps/app_tos/releases",
+		Body: map[string]interface{}{
+			"code": float64(0),
+			"data": map[string]interface{}{
+				"release_id": "rel_123",
+				"status":     "publishing",
+			},
+		},
+	})
+
 	out, err := runHTMLPublishTOS(context.Background(), rt, appsHTMLPublishSpec{
 		AppID: "app_tos",
 		Path:  site,
@@ -666,8 +679,8 @@ func TestRunHTMLPublishTOS_Success(t *testing.T) {
 	if out["app_id"] != "app_tos" {
 		t.Fatalf("app_id=%v, want app_tos", out["app_id"])
 	}
-	if out["tos_path"] != "tos://bucket/key" {
-		t.Fatalf("tos_path=%v, want tos://bucket/key", out["tos_path"])
+	if out["release_id"] != "rel_123" {
+		t.Fatalf("release_id=%v, want rel_123", out["release_id"])
 	}
 }
 
