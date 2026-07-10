@@ -510,13 +510,15 @@ func resizeMapInput(runtime flagView, token, sheetID, sheetName, dimension strin
 	}
 
 	type resizeOp struct {
-		start int
-		input map[string]interface{}
+		start    int
+		end      int
+		rangeKey string
+		input    map[string]interface{}
 	}
 	ops := make([]resizeOp, 0, len(entries))
 	seen := make(map[string]string, len(entries)) // normalized range → original key
 	for key, raw := range entries {
-		parsedDim, startIdx, _, err := parseA1Range(key)
+		parsedDim, startIdx, endIdx, err := parseA1Range(key)
 		if err != nil {
 			return nil, sheetsValidationForFlag(mapFlag, "--%s key %q: %v", mapFlag, key, err)
 		}
@@ -571,10 +573,29 @@ func resizeMapInput(runtime flagView, token, sheetID, sheetName, dimension strin
 		} else {
 			opInput["resize_width"] = sizeBlock
 		}
-		ops = append(ops, resizeOp{start: startIdx, input: opInput})
+		ops = append(ops, resizeOp{
+			start:    startIdx,
+			end:      endIdx,
+			rangeKey: normalized,
+			input:    opInput,
+		})
 	}
 
-	sort.Slice(ops, func(i, j int) bool { return ops[i].start < ops[j].start })
+	sort.Slice(ops, func(i, j int) bool {
+		if ops[i].start != ops[j].start {
+			return ops[i].start < ops[j].start
+		}
+		return ops[i].end < ops[j].end
+	})
+	for i := 1; i < len(ops); i++ {
+		if ops[i].start <= ops[i-1].end {
+			return nil, sheetsValidationForFlag(
+				mapFlag,
+				"--%s ranges %q and %q overlap; use non-overlapping ranges",
+				mapFlag, ops[i-1].rangeKey, ops[i].rangeKey,
+			)
+		}
+	}
 	operations := make([]interface{}, 0, len(ops))
 	for _, op := range ops {
 		operations = append(operations, map[string]interface{}{

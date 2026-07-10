@@ -424,6 +424,18 @@ func TestResize_MapFormGuards(t *testing.T) {
 			want: "target the same range A:A",
 		},
 		{
+			name: "--widths rejects overlapping ranges with the same start",
+			sc:   ColsResize,
+			args: []string{"--url", testURL, "--sheet-id", testSheetID, "--widths", `{"A:C": 100, "A:F": 120}`},
+			want: `ranges "A:C" and "A:F" overlap`,
+		},
+		{
+			name: "--heights rejects overlapping ranges with different starts",
+			sc:   RowsResize,
+			args: []string{"--url", testURL, "--sheet-id", testSheetID, "--heights", `{"2:10": 30, "5:20": 40}`},
+			want: `ranges "2:10" and "5:20" overlap`,
+		},
+		{
 			name: "--widths char-unit width rejected with conversion hint",
 			sc:   ColsResize,
 			args: []string{"--url", testURL, "--sheet-id", testSheetID, "--widths", `{"A": 10}`},
