@@ -676,9 +676,6 @@ func TestRunHTMLPublishTOS_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err=%v", err)
 	}
-	if out["app_id"] != "app_tos" {
-		t.Fatalf("app_id=%v, want app_tos", out["app_id"])
-	}
 	if out["release_id"] != "rel_123" {
 		t.Fatalf("release_id=%v, want rel_123", out["release_id"])
 	}

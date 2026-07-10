@@ -136,9 +136,7 @@ var AppsHTMLPublish = common.Shortcut{
 		if err != nil {
 			return err
 		}
-		out["app_id"] = spec.AppID
 		rctx.OutFormat(out, nil, func(w io.Writer) {
-			fmt.Fprintf(w, "app_id: %s\n", spec.AppID)
 			if url, ok := out["url"].(string); ok && url != "" {
 				fmt.Fprintf(w, "url: %s\n", url)
 			}
@@ -366,7 +364,6 @@ func runHTMLPublishTOS(ctx context.Context, rctx *common.RuntimeContext, spec ap
 	}
 
 	return map[string]interface{}{
-		"app_id":     spec.AppID,
 		"release_id": common.GetString(releaseData, "release_id"),
 	}, nil
 }
