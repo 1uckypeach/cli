@@ -29,7 +29,6 @@ var AppsReleaseCreate = common.Shortcut{
 	Flags: []common.Flag{
 		{Name: "app-id", Desc: "app ID", Required: true},
 		{Name: "branch", Desc: "release branch (server uses default if omitted)"},
-		{Name: "tos-path", Desc: "TOS file path from +html-publish; when provided, deploys from TOS instead of git branch"},
 	},
 	Validate: func(ctx context.Context, rctx *common.RuntimeContext) error {
 		if strings.TrimSpace(rctx.Str("app-id")) == "" {
@@ -40,19 +39,17 @@ var AppsReleaseCreate = common.Shortcut{
 	DryRun: func(ctx context.Context, rctx *common.RuntimeContext) *common.DryRunAPI {
 		appID := strings.TrimSpace(rctx.Str("app-id"))
 		branch := strings.TrimSpace(rctx.Str("branch"))
-		tosPath := strings.TrimSpace(rctx.Str("tos-path"))
 		dry := common.NewDryRunAPI()
 		dry.POST(fmt.Sprintf(releaseCreatePath, validate.EncodePathSegment(appID))).
 			Desc("Create a release").
-			Body(buildPublishBody(branch, tosPath))
+			Body(buildPublishBody(branch))
 		return dry
 	},
 	Execute: func(ctx context.Context, rctx *common.RuntimeContext) error {
 		appID := strings.TrimSpace(rctx.Str("app-id"))
 		branch := strings.TrimSpace(rctx.Str("branch"))
-		tosPath := strings.TrimSpace(rctx.Str("tos-path"))
 		path := fmt.Sprintf(releaseCreatePath, validate.EncodePathSegment(appID))
-		data, err := rctx.CallAPITyped("POST", path, nil, buildPublishBody(branch, tosPath))
+		data, err := rctx.CallAPITyped("POST", path, nil, buildPublishBody(branch))
 		if err != nil {
 			return withAppsHint(err, "if the push was rejected (non-fast-forward), sync first with `git pull --rebase origin sprint/default` then retry; inspect the failure via `lark-cli apps +release-get --app-id "+appID+" --release-id <release_id>`")
 		}
@@ -70,13 +67,10 @@ var AppsReleaseCreate = common.Shortcut{
 
 // buildPublishBody builds the create-release request body. app_id is in the
 // path, not the body. branch is included only when non-empty.
-func buildPublishBody(branch, tosPath string) map[string]interface{} {
+func buildPublishBody(branch string) map[string]interface{} {
 	body := map[string]interface{}{}
 	if branch != "" {
 		body["branch"] = branch
-	}
-	if tosPath != "" {
-		body["tos_path"] = tosPath
 	}
 	return body
 }
