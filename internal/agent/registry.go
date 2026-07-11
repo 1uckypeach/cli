@@ -117,11 +117,18 @@ func checkSpec(scheme string, s *AgentSpec, catalog bool) {
 var paramNameRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 
 // paramTypes is the closed Type vocabulary (empty normalizes to "string").
-var paramTypes = map[string]bool{"string": true, "integer": true, "number": true, "boolean": true}
+// "object" is declaration-only: it carries Fields and no value constraints of
+// its own.
+var paramTypes = map[string]bool{"string": true, "integer": true, "number": true, "boolean": true, "object": true}
 
 // checkParams fail-fast validates one operation's parameter declarations
-// (where names the operation for the panic message).
+// (where names the operation for the panic message). Object params recurse one
+// level into their Fields (scalar leaves only).
 func checkParams(where string, params []CardParam) {
+	checkParamsLevel(where, params, true)
+}
+
+func checkParamsLevel(where string, params []CardParam, allowObject bool) {
 	seen := make(map[string]bool, len(params))
 	for _, cp := range params {
 		at := where + " param " + cp.Name
@@ -136,6 +143,24 @@ func checkParams(where string, params []CardParam) {
 		typ := cp.Type
 		if typ == "" {
 			typ = "string"
+		}
+		if typ == "object" {
+			if !allowObject {
+				panic("agent: nested object fields are not supported (flatten or wait for the schema slot): " + at)
+			}
+			if len(cp.Fields) == 0 {
+				panic("agent: object param must declare non-empty Fields: " + at)
+			}
+			// An object declares nothing but its Fields: requiredness/constraints
+			// live on the leaves, so a stray setting here is a coding error.
+			if cp.Required || len(cp.Enum) > 0 || cp.Default != "" || cp.Min != nil || cp.Max != nil {
+				panic("agent: object param must not set Required/Enum/Default/Min/Max (declare them on leaves): " + at)
+			}
+			checkParamsLevel(at, cp.Fields, false)
+			continue
+		}
+		if len(cp.Fields) > 0 {
+			panic("agent: Fields is only valid on Type \"object\": " + at)
 		}
 		if !paramTypes[typ] {
 			panic("agent: param Type must be one of string|integer|number|boolean: " + at + ", got: " + cp.Type)
@@ -251,11 +276,13 @@ func trimFloat(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
 // (currently: empty Type ⇒ "string"), so every downstream consumer reads a
 // canonical form.
 func normalizeSpecParams(s *AgentSpec) {
-	normalize := func(ps []CardParam) {
+	var normalize func(ps []CardParam)
+	normalize = func(ps []CardParam) {
 		for i := range ps {
 			if ps[i].Type == "" {
 				ps[i].Type = "string"
 			}
+			normalize(ps[i].Fields)
 		}
 	}
 	normalize(s.Send.Params)

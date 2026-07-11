@@ -131,6 +131,89 @@ func TestBindParams(t *testing.T) {
 	}
 }
 
+// TestParamObjectAndNestedBind pins the object consumption seam: ParamObject
+// assembles "name.*" leaves; a nested tagged struct in BindParams does the
+// same inline; ok=false when no leaf exists.
+func TestParamObjectAndNestedBind(t *testing.T) {
+	type Filter struct {
+		Region    string  `param:"region"`
+		MinAmount float64 `param:"min_amount"`
+		Active    bool    `param:"active"`
+	}
+	rt := fakeParamsRT{p: map[string]string{
+		"workspace_id": "ws_42", "filter.region": "east", "filter.min_amount": "100", "filter.active": "true",
+	}}
+	f, ok, err := ParamObject[Filter](rt, "filter")
+	if err != nil || !ok {
+		t.Fatalf("ParamObject should assemble: ok=%v err=%v", ok, err)
+	}
+	if f.Region != "east" || f.MinAmount != 100 || !f.Active {
+		t.Fatalf("assembled values wrong: %+v", f)
+	}
+	if _, ok, _ := ParamObject[Filter](rt, "absent_obj"); ok {
+		t.Error("ParamObject on an absent object should be ok=false")
+	}
+
+	type Top struct {
+		WS     string `param:"workspace_id"`
+		Filter Filter `param:"filter"`
+	}
+	top, err := BindParams[Top](rt)
+	if err != nil {
+		t.Fatalf("nested BindParams should decode: %v", err)
+	}
+	if top.WS != "ws_42" || top.Filter.Region != "east" || top.Filter.MinAmount != 100 {
+		t.Fatalf("nested decode wrong: %+v", top)
+	}
+}
+
+// TestRegisterObjectRules table-drives the object declaration rules.
+func TestRegisterObjectRules(t *testing.T) {
+	mk := func(params []CardParam) Provider {
+		return Provider{
+			Scheme: "objrules", Label: "x", AgentIDSource: "x",
+			Identities: []IdentitySpec{{Type: IdentityUser}},
+			Instance: &AgentSpec{
+				Send:    SendOp{Params: params, Handler: func(context.Context, Runtime, SendInput) (*AgentTask, error) { return nil, nil }},
+				GetTask: TaskGetOp{Handler: func(context.Context, Runtime, string) (*AgentTask, error) { return nil, nil }},
+			},
+		}
+	}
+	cases := []struct {
+		name   string
+		params []CardParam
+		panics string
+	}{
+		{"object without fields", []CardParam{{Name: "f", Type: "object"}}, "non-empty Fields"},
+		{"object with required", []CardParam{{Name: "f", Type: "object", Required: true,
+			Fields: []CardParam{{Name: "a"}}}}, "must not set Required"},
+		{"object with default", []CardParam{{Name: "f", Type: "object", Default: "x",
+			Fields: []CardParam{{Name: "a"}}}}, "must not set Required/Enum/Default"},
+		{"nested object", []CardParam{{Name: "f", Type: "object",
+			Fields: []CardParam{{Name: "g", Type: "object", Fields: []CardParam{{Name: "a"}}}}}}, "nested object"},
+		{"fields on scalar", []CardParam{{Name: "s", Fields: []CardParam{{Name: "a"}}}}, "only valid on Type"},
+		{"leaf rules recurse", []CardParam{{Name: "f", Type: "object",
+			Fields: []CardParam{{Name: "a", Type: "integer", Enum: []string{"x"}}}}}, "must parse as integer"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				r := recover()
+				if r == nil {
+					t.Fatalf("Register should panic (%s)", tc.panics)
+				}
+				if msg, _ := r.(string); !strings.Contains(msg, tc.panics) {
+					t.Fatalf("panic should contain %q, got %v", tc.panics, r)
+				}
+			}()
+			Register(mk(tc.params))
+		})
+	}
+	// legal object registers fine (fresh scheme per test binary run)
+	Register(mk([]CardParam{{Name: "render", Type: "object",
+		Fields: []CardParam{{Name: "theme", Enum: []string{"light", "dark"}, Default: "light"}}}}))
+}
+
 // TestParamHelpers pins ParamInt/ParamBool presence semantics and the
 // programmer-error panic on drift.
 func TestParamHelpers(t *testing.T) {

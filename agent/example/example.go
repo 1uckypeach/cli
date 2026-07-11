@@ -66,6 +66,14 @@ var echoSpec = agent.AgentSpec{
 type reporterSendParams struct {
 	ReportFormat string `param:"report_format"`
 	Quarters     int64  `param:"quarters"`
+	// Render binds the object param's leaves（点路径/JSON 两通道归一后的
+	// "render.*" 键）——嵌套 struct + tag 即完成拼装。
+	Render renderOpts `param:"render"`
+}
+
+type renderOpts struct {
+	Theme     string `param:"theme"`
+	Watermark bool   `param:"watermark"`
 }
 
 var reporterSpec = agent.AgentSpec{
@@ -85,6 +93,13 @@ var reporterSpec = agent.AgentSpec{
 				Desc: "报表输出格式"},
 			{Name: "quarters", Type: "integer", Min: agent.Float(1), Max: agent.Float(12), Default: "4",
 				Desc: "回溯季度数"},
+			// object 参数演示：点路径 --param render.theme=dark 或 JSON 整值
+			// --param render='{"theme":"dark"}' 两通道等价，框架归一后 hook 只见
+			// 平铺 "render.*" 键。
+			{Name: "render", Type: "object", Desc: "渲染选项", Fields: []agent.CardParam{
+				{Name: "theme", Enum: []string{"light", "dark"}, Default: "light", Desc: "配色主题"},
+				{Name: "watermark", Type: "boolean", Default: "false", Desc: "是否加水印"},
+			}},
 		},
 		Handler: reporterSend,
 	},
@@ -197,6 +212,9 @@ func reporterSend(ctx context.Context, rt agent.Runtime, in agent.SendInput) (*a
 		if p.ReportFormat != "" && p.ReportFormat != "csv" {
 			reply = fmt.Sprintf("报表已生成（%s 格式，回溯 %d 个季度）：quarterly_report.%s（见 artifacts，用 task get --artifact <id> -o <path> 下载）",
 				p.ReportFormat, p.Quarters, p.ReportFormat)
+		}
+		if p.Render.Watermark {
+			reply = fmt.Sprintf("%s（%s 主题，含水印）", reply, p.Render.Theme)
 		}
 		if n := len(in.Files); n > 0 {
 			reply = fmt.Sprintf("已收到 %d 个附件；%s", n, reply)

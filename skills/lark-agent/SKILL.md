@@ -51,7 +51,7 @@ metadata:
 
 ## 工作流（先读 card，再调）
 
-1. `agent card <agent_ref>` 看 `capabilities` + `has_parameters`——capabilities 决定能调什么动词；`has_parameters` 列出**需要带 `--param` 的动词**（不在列表里的动词不用带任何参数）。要调的动词在列表里 → 先 `agent card <agent_ref> --operation <动词>` 查该动词的参数（name/type/required/enum/default + 命令形态）；要调 2+ 个动词 → `--operation all` 一次拿全。偷懒直接调也行：参数错误一次报全且每条带完整声明，失败一次就能修对。能力为 false 的动词直接报 `unsupported_capability`，不要试。card **不含 scope**——scope 见「前置准备」，缺时命令本地报 `missing_scope`（照抄 hint）。
+1. `agent card <agent_ref>` 看 `capabilities` + `has_parameters`——capabilities 决定能调什么动词；`has_parameters` 列出**需要带 `--param` 的动词**（不在列表里的动词不用带任何参数）。要调的动词在列表里 → 先 `agent card <agent_ref> --operation <动词>` 查该动词的参数（name/type/required/enum/default + 命令形态）；要调 2+ 个动词 → `--operation all` 一次拿全。`type:"object"` 的参数按点路径逐字段传（`--param filter.region=east`）。偷懒直接调也行：参数错误一次报全且每条带完整声明，失败一次就能修对。能力为 false 的动词直接报 `unsupported_capability`，不要试。card **不含 scope**——scope 见「前置准备」，缺时命令本地报 `missing_scope`（照抄 hint）。
 2. `agent send <agent_ref> --text "..."` 起任务。send 只 fire、立即返回 `{task_id, context_id, state}`。`meta.next` 是**建议命令**：`template:true` 的先把 `<...>` 占位符整体替换再执行；无 `template` 字段的可直接照抄；执行报错时对照本 skill 参数表。
 3. 轮询到结果：`agent task get <agent_ref> <task-id> --watch --timeout 30s`（唯一轮询入口；send 只 fire，不阻塞），`--timeout` 语义见「异步与轮询」。
 4. 多轮 / 补输入：`state=input_required` 时向**同一任务**续发。带结构化决策（`input_required.decision_id` + `options[].option_id`）时按 id 选：`agent send <agent_ref> --context-id <ctx> --task-id <task> --decision-id <decision_id> --option <option_id>`（多选给多个 `--option`）；无 `options` 的开放决策仍用 `--text <答复>`。`meta.next` 会直接给对应命令。已被别端答复的决策（`submitted=true`）无需重复答，重复答会报 `conflict`。（该态是否会出现见 provider 文件的能力特例。）

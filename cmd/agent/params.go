@@ -9,9 +9,11 @@
 package agent
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -19,6 +21,37 @@ import (
 	"github.com/larksuite/cli/errs"
 	iagent "github.com/larksuite/cli/internal/agent"
 )
+
+// flatParams expands declarations to value-bearing leaves: scalars keep their
+// name, an object contributes one leaf per Field under "obj.field" dotted
+// names (leaf attributes rule). The object entry itself is NOT value-bearing
+// and is excluded. Order is declaration order (meta.next determinism).
+func flatParams(declared []iagent.CardParam) []iagent.CardParam {
+	out := make([]iagent.CardParam, 0, len(declared))
+	for _, cp := range declared {
+		if cp.Type == "object" {
+			for _, f := range cp.Fields {
+				leaf := f
+				leaf.Name = cp.Name + "." + f.Name
+				out = append(out, leaf)
+			}
+			continue
+		}
+		out = append(out, cp)
+	}
+	return out
+}
+
+// objectDecls indexes the top-level object params by name.
+func objectDecls(declared []iagent.CardParam) map[string]iagent.CardParam {
+	out := map[string]iagent.CardParam{}
+	for _, cp := range declared {
+		if cp.Type == "object" {
+			out[cp.Name] = cp
+		}
+	}
+	return out
+}
 
 // validatedParams is the engine's product: Resolved is what the runtime hands
 // to the provider hook (defaults backfilled); Given is only what the caller
@@ -41,17 +74,25 @@ func addParamFlag(cmd *cobra.Command, params *[]string) {
 // reverse lookup on unknown keys ("它声明在: send") and may be nil (agent list
 // path). Passing validation backfills declaration defaults into Resolved.
 func validateParams(kvs []string, declared []iagent.CardParam, verb string, spec *iagent.AgentSpec, ref string) (validatedParams, error) {
-	decl := make(map[string]iagent.CardParam, len(declared))
-	for _, p := range declared {
+	// decl indexes the value-bearing leaves: scalars by name, object fields by
+	// dotted "obj.field" names — the canonical flat form every downstream
+	// consumer (Resolved, meta.next, rt.Params()) speaks.
+	leaves := flatParams(declared)
+	decl := make(map[string]iagent.CardParam, len(leaves))
+	for _, p := range leaves {
 		decl[p.Name] = p
 	}
+	objects := objectDecls(declared)
 
 	// seen 记录“这个 key 在 argv 里出现过”（重复检测 + 抑制误报的 missing-
 	// required 都看它）；given 只收录通过校验的值（Resolved/meta.next 都看它）。
 	// 两张表必须分开：值校验失败的 key 若不进 seen，重复提供会漏报、缺必填会误报
 	// （参数明明给了、只是值不对，再报一条“缺少必填”是自相矛盾的指令）。
+	// objChannel 记录每个对象走的通道（dotted|json），同一对象混用两通道报错，
+	// 不做静默合并。
 	seen := map[string]bool{}
 	given := map[string]string{}
+	objChannel := map[string]string{}
 	var viols []errs.InvalidParam
 
 	addViol := func(name, reason string, spec *iagent.CardParam, suggestions ...string) {
@@ -74,9 +115,54 @@ func validateParams(kvs []string, declared []iagent.CardParam, verb string, spec
 			continue
 		}
 		seen[k] = true
+
+		// ── 对象的 JSON 整值通道：key 恰是对象名 ──
+		if obj, isObj := objects[k]; isObj {
+			if objChannel[k] == "dotted" {
+				addViol(k, fmt.Sprintf("参数 %s 以 JSON 与点路径混合提供（同一对象只能选一种通道）", k), nil)
+				continue
+			}
+			objChannel[k] = "json"
+			validateObjectJSON(k, val, obj, verb, seen, given, addViol)
+			continue
+		}
+
+		// ── 点路径通道：key 带 "."，指向对象的某个叶子 ──
+		if top, leaf, dotted := strings.Cut(k, "."); dotted {
+			obj, isObj := objects[top]
+			if !isObj {
+				reason, sugg := unknownParamReason(k, verb, leaves, spec)
+				addViol(k, reason, nil, sugg...)
+				continue
+			}
+			if objChannel[top] == "json" {
+				addViol(k, fmt.Sprintf("参数 %s 以 JSON 与点路径混合提供（同一对象只能选一种通道）", top), nil)
+				continue
+			}
+			objChannel[top] = "dotted"
+			cp, known := decl[k]
+			if !known {
+				addViol(k, fmt.Sprintf("未知参数 %s（%s 可用字段: %s）", k, top, fieldNames(obj)), nil, obj.FieldNamesList()...)
+				continue
+			}
+			_ = leaf
+			if val == "" {
+				if cp.Required {
+					addViol(k, fmt.Sprintf("必填参数 %s 不能为空值（%s 必填）", k, verb), &cp)
+				}
+				continue
+			}
+			if err := iagent.ValidateValue(cp, val); err != nil {
+				addViol(k, fmt.Sprintf("参数 %s %s", k, err.Error()), &cp, cp.Enum...)
+				continue
+			}
+			given[k] = val
+			continue
+		}
+
 		cp, known := decl[k]
 		if !known {
-			reason, sugg := unknownParamReason(k, verb, declared, spec)
+			reason, sugg := unknownParamReason(k, verb, leaves, spec)
 			addViol(k, reason, nil, sugg...)
 			continue
 		}
@@ -96,9 +182,9 @@ func validateParams(kvs []string, declared []iagent.CardParam, verb string, spec
 		given[k] = val
 	}
 
-	// ── missing required（对着声明反查；argv 里出现过的 key 不再重复报——
+	// ── missing required（对着平铺声明反查；argv 里出现过的 key 不再重复报——
 	// 它要么已通过、要么已带着更精确的违规）──
-	for _, cp := range declared {
+	for _, cp := range leaves {
 		if !cp.Required || seen[cp.Name] {
 			continue
 		}
@@ -115,7 +201,7 @@ func validateParams(kvs []string, declared []iagent.CardParam, verb string, spec
 	for k, v := range given {
 		resolved[k] = v
 	}
-	for _, cp := range declared {
+	for _, cp := range leaves {
 		if cp.Default == "" {
 			continue
 		}
@@ -124,6 +210,70 @@ func validateParams(kvs []string, declared []iagent.CardParam, verb string, spec
 		}
 	}
 	return validatedParams{Resolved: resolved, Given: given}, nil
+}
+
+// validateObjectJSON is the JSON fallback channel: parse the value as a JSON
+// object, validate each member against the declared Fields with the SAME leaf
+// rules as the dotted channel, and normalize accepted members into flat dotted
+// keys — a provider never sees which channel the caller used. Numbers decode
+// via json.Number so "100" stays "100" (no float re-rendering).
+func validateObjectJSON(name, val string, obj iagent.CardParam, verb string, seen map[string]bool, given map[string]string, addViol func(string, string, *iagent.CardParam, ...string)) {
+	if val == "" {
+		return // `obj=` 空值 = 未提供（与标量语义一致）
+	}
+	dec := json.NewDecoder(strings.NewReader(val))
+	dec.UseNumber()
+	var raw map[string]any
+	if err := dec.Decode(&raw); err != nil {
+		addViol(name, fmt.Sprintf("参数 %s 的 JSON 无法解析（%v）；也可用点路径逐字段传：--param %s.<field>=<value>", name, err, name), nil)
+		return
+	}
+	fields := map[string]iagent.CardParam{}
+	for _, f := range obj.Fields {
+		fields[f.Name] = f
+	}
+	for fk, fv := range raw {
+		full := name + "." + fk
+		seen[full] = true
+		cp, ok := fields[fk]
+		if !ok {
+			addViol(full, fmt.Sprintf("未知参数 %s（%s 可用字段: %s）", full, name, fieldNames(obj)), nil, obj.FieldNamesList()...)
+			continue
+		}
+		var sval string
+		switch tv := fv.(type) {
+		case string:
+			sval = tv
+		case json.Number:
+			sval = tv.String()
+		case bool:
+			sval = strconv.FormatBool(tv)
+		case nil:
+			continue // null = 未提供
+		default:
+			addViol(full, fmt.Sprintf("参数 %s 不支持嵌套结构（对象字段只能是标量）", full), &cp)
+			continue
+		}
+		if sval == "" {
+			if cp.Required {
+				c := cp
+				c.Name = fk
+				addViol(full, fmt.Sprintf("必填参数 %s 不能为空值（%s 必填）", full, verb), &c)
+			}
+			continue
+		}
+		if err := iagent.ValidateValue(cp, sval); err != nil {
+			c := cp
+			addViol(full, fmt.Sprintf("参数 %s %s", full, err.Error()), &c, cp.Enum...)
+			continue
+		}
+		given[full] = sval
+	}
+}
+
+// fieldNames renders an object's field list for teaching errors.
+func fieldNames(obj iagent.CardParam) string {
+	return strings.Join(obj.FieldNamesList(), ", ")
 }
 
 // unknownParamReason builds the teaching sentence for an undeclared key: if
@@ -136,7 +286,7 @@ func unknownParamReason(key, verb string, declared []iagent.CardParam, spec *iag
 			if o.Verb == verb || !o.Wired {
 				continue
 			}
-			for _, p := range o.Params {
+			for _, p := range flatParams(o.Params) {
 				if p.Name == key {
 					elsewhere = append(elsewhere, o.Verb)
 					break
@@ -216,9 +366,16 @@ func paramArgsFor(spec *iagent.AgentSpec, verb string, given map[string]string) 
 		return "", false
 	}
 	var b strings.Builder
-	for _, p := range op.Params {
+	for _, p := range flatParams(op.Params) {
 		v, has := given[p.Name]
 		switch {
+		case p.NoCarry:
+			// 每次调用应给新值的参数：给过也不字面上链；必填的降级占位，提醒
+			// 调用方填一个新值（而不是复用上一次的）。
+			if p.Required {
+				fmt.Fprintf(&b, " --param %s=<%s>", p.Name, p.Name)
+				templated = true
+			}
 		case has && v != "" && safeNextID(v):
 			fmt.Fprintf(&b, " --param %s=%s", p.Name, v)
 		case p.Required:

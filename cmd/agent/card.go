@@ -258,8 +258,18 @@ func printParamPretty(w io.Writer, p iagent.CardParam) {
 	if p.Default != "" {
 		attrs = append(attrs, "默认: "+stripANSI(p.Default))
 	}
+	if p.NoCarry {
+		attrs = append(attrs, "不入链传（每次调用给新值）")
+	}
 	if len(attrs) > 0 {
 		fmt.Fprintf(w, "        %s\n", strings.Join(attrs, " · "))
+	}
+	// object：叶子逐个缩进渲染（点路径写法直接可见）
+	for _, f := range p.Fields {
+		leaf := f
+		leaf.Name = p.Name + "." + f.Name
+		fmt.Fprint(w, "    ")
+		printParamPretty(w, leaf)
 	}
 }
 

@@ -169,6 +169,26 @@ type CardParam struct {
 	// Min/Max bound numeric types (closed interval, either side optional).
 	Min *float64 `json:"min,omitempty"`
 	Max *float64 `json:"max,omitempty"`
+
+	// Fields declares an object parameter's members (Type MUST be "object", and
+	// an object declares nothing else: no Required/Enum/Default/Min/Max on the
+	// object itself — requiredness, defaults and constraints all live on the
+	// scalar leaves). Leaves are ordinary CardParams (scalars only — no nested
+	// objects this round; a shape that needs deeper nesting should flatten or
+	// wait for the schema evolution slot). On the wire an object travels either
+	// as dotted-path leaves (--param filter.region=east, the primary channel)
+	// or as one JSON value (--param filter='{"region":"east"}', the fallback);
+	// both normalize to flat dotted keys in rt.Params(), so a provider never
+	// sees which channel the caller used.
+	Fields []CardParam `json:"fields,omitempty"`
+
+	// NoCarry opts this parameter out of the meta.next carry: a suggested next
+	// command never carries its given value literally (a required NoCarry param
+	// degrades to a placeholder so the caller supplies a FRESH value). Declare
+	// it on per-call parameters (trace tags, one-shot tokens) that are shared
+	// across operations but must not ride the chain — the carry rule's
+	// same-resource continuity assumption does not hold for them.
+	NoCarry bool `json:"no_carry,omitempty"`
 	// NOTE(reserved): Repeated bool — multi-value parameters (same key given
 	// several times, aggregated in argv order). Not implemented this round; the
 	// duplicate-key error wording is already scoped per-parameter so activating
@@ -180,6 +200,16 @@ type CardSkill struct {
 	ID       string   `json:"id"`
 	Name     string   `json:"name,omitempty"`
 	Examples []string `json:"examples,omitempty"`
+}
+
+// FieldNamesList returns an object param's field names in declaration order
+// (teaching errors and suggestions).
+func (p CardParam) FieldNamesList() []string {
+	out := make([]string, 0, len(p.Fields))
+	for _, f := range p.Fields {
+		out = append(out, f.Name)
+	}
+	return out
 }
 
 // Supports reports whether a capability is declared as supported (an unknown key

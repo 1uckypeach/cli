@@ -190,6 +190,146 @@ func TestValidateParams_NoFalseMissingOnInvalidValue(t *testing.T) {
 	}
 }
 
+// objSpec is the object-param test bed: send declares a filter object
+// (required enum leaf + optional ranged leaf + defaulted bool leaf) and a
+// NoCarry trace param shared with task_get.
+func objSpec() *iagent.AgentSpec {
+	trace := iagent.CardParam{Name: "trace_tag", NoCarry: true, Required: true, Desc: "调用链标记（每次新值）"}
+	return &iagent.AgentSpec{
+		Send: iagent.SendOp{
+			Params: []iagent.CardParam{
+				trace,
+				{Name: "filter", Type: "object", Desc: "过滤条件", Fields: []iagent.CardParam{
+					{Name: "region", Enum: []string{"east", "west"}, Required: true},
+					{Name: "min_amount", Type: "number", Min: iagent.Float(0)},
+					{Name: "active", Type: "boolean", Default: "true"},
+				}},
+			},
+			Handler: func(context.Context, iagent.Runtime, iagent.SendInput) (*iagent.AgentTask, error) { return nil, nil },
+		},
+		GetTask: iagent.TaskGetOp{
+			Params:  []iagent.CardParam{trace},
+			Handler: func(context.Context, iagent.Runtime, string) (*iagent.AgentTask, error) { return nil, nil },
+		},
+	}
+}
+
+// TestValidateParams_ObjectDottedChannel pins the primary object transport:
+// dotted leaves validate with leaf rules, defaults backfill per leaf, and the
+// canonical Resolved form is flat dotted keys.
+func TestValidateParams_ObjectDottedChannel(t *testing.T) {
+	spec := objSpec()
+	vp, err := validateParams(
+		[]string{"trace_tag=t1", "filter.region=east", "filter.min_amount=100"},
+		spec.Send.Params, iagent.VerbSend, spec, "acme:reporter")
+	if err != nil {
+		t.Fatalf("valid dotted set should pass: %v", err)
+	}
+	if vp.Resolved["filter.region"] != "east" || vp.Resolved["filter.min_amount"] != "100" {
+		t.Errorf("dotted leaves should land flat in Resolved, got %v", vp.Resolved)
+	}
+	if vp.Resolved["filter.active"] != "true" {
+		t.Errorf("leaf default should backfill, got %v", vp.Resolved)
+	}
+
+	// leaf teaching errors carry the dotted path
+	_, err = validateParams([]string{"trace_tag=t1", "filter.region=north"}, spec.Send.Params, iagent.VerbSend, spec, "acme:reporter")
+	if err == nil || !strings.Contains(err.Error(), "filter.region") || !strings.Contains(err.Error(), "east|west") {
+		t.Fatalf("leaf enum violation should carry the dotted path + full set, got %v", err)
+	}
+	// unknown leaf lists the object's field set
+	_, err = validateParams([]string{"trace_tag=t1", "filter.region=east", "filter.regoin=east"}, spec.Send.Params, iagent.VerbSend, spec, "acme:reporter")
+	if err == nil || !strings.Contains(err.Error()+errHint(err), "filter 可用字段") {
+		t.Fatalf("unknown leaf should list the field set, got %v", err)
+	}
+	// missing required leaf reported with dotted name
+	_, err = validateParams([]string{"trace_tag=t1"}, spec.Send.Params, iagent.VerbSend, spec, "acme:reporter")
+	if err == nil || !strings.Contains(err.Error(), "filter.region") {
+		t.Fatalf("missing required leaf should be reported by dotted name, got %v", err)
+	}
+}
+
+// TestValidateParams_ObjectJSONChannel pins the fallback transport: a JSON
+// value validates per leaf and NORMALIZES into the same flat dotted keys — the
+// provider cannot tell which channel the caller used. Mixing channels for one
+// object is rejected.
+func TestValidateParams_ObjectJSONChannel(t *testing.T) {
+	spec := objSpec()
+	vp, err := validateParams(
+		[]string{"trace_tag=t1", `filter={"region":"east","min_amount":100}`},
+		spec.Send.Params, iagent.VerbSend, spec, "acme:reporter")
+	if err != nil {
+		t.Fatalf("valid JSON object should pass: %v", err)
+	}
+	if vp.Resolved["filter.region"] != "east" || vp.Resolved["filter.min_amount"] != "100" {
+		t.Errorf("JSON members should normalize to flat dotted keys (numbers literal), got %v", vp.Resolved)
+	}
+	if vp.Resolved["filter.active"] != "true" {
+		t.Errorf("leaf default should backfill on the JSON channel too, got %v", vp.Resolved)
+	}
+
+	// invalid JSON → teaching error pointing at the dotted alternative（多违规时
+	// 摘要在 message、明细在 params[]，用 listReasons 断言）
+	_, err = validateParams([]string{"trace_tag=t1", "filter={not json"}, spec.Send.Params, iagent.VerbSend, spec, "acme:reporter")
+	if err == nil || !strings.Contains(listReasons(err), "JSON 无法解析") {
+		t.Fatalf("bad JSON should teach, got %v", err)
+	}
+	if !strings.Contains(listReasons(err), "点路径") {
+		t.Fatalf("bad JSON error should point at the dotted alternative, got %v", listReasons(err))
+	}
+	// member enum violation carries the dotted path
+	_, err = validateParams([]string{"trace_tag=t1", `filter={"region":"north"}`}, spec.Send.Params, iagent.VerbSend, spec, "acme:reporter")
+	if err == nil || !strings.Contains(err.Error(), "filter.region") {
+		t.Fatalf("JSON member violation should carry the dotted path, got %v", err)
+	}
+	// unknown member listed against the field set
+	_, err = validateParams([]string{"trace_tag=t1", `filter={"region":"east","foo":1}`}, spec.Send.Params, iagent.VerbSend, spec, "acme:reporter")
+	if err == nil || !strings.Contains(err.Error()+errHint(err), "filter 可用字段") {
+		t.Fatalf("unknown JSON member should list fields, got %v", err)
+	}
+	// channel mixing rejected
+	_, err = validateParams([]string{"trace_tag=t1", `filter={"region":"east"}`, "filter.active=false"}, spec.Send.Params, iagent.VerbSend, spec, "acme:reporter")
+	if err == nil || !strings.Contains(err.Error()+listReasons(err), "混合提供") {
+		t.Fatalf("channel mixing should be rejected, got %v", err)
+	}
+}
+
+// listReasons flattens all violation reasons for containment asserts.
+func listReasons(err error) string {
+	var verr *errs.ValidationError
+	if !errors.As(err, &verr) {
+		return ""
+	}
+	var b strings.Builder
+	for _, v := range verr.Params {
+		b.WriteString(v.Reason)
+	}
+	return b.String()
+}
+
+// TestParamArgsFor_ObjectAndNoCarry pins the carry semantics: object leaves
+// carry as ordinary scalars; NoCarry params never ride literally — required
+// ones degrade to placeholders so the caller supplies a FRESH value.
+func TestParamArgsFor_ObjectAndNoCarry(t *testing.T) {
+	spec := objSpec()
+	given := map[string]string{"trace_tag": "t1", "filter.region": "east", "filter.min_amount": "100"}
+	args, tpl := paramArgsFor(spec, iagent.VerbSend, given)
+	if strings.Contains(args, "trace_tag=t1") {
+		t.Errorf("NoCarry param must never ride literally, got %q", args)
+	}
+	if !strings.Contains(args, "--param trace_tag=<trace_tag>") || !tpl {
+		t.Errorf("required NoCarry should degrade to a placeholder, got %q tpl=%v", args, tpl)
+	}
+	if !strings.Contains(args, "--param filter.region=east") || !strings.Contains(args, "--param filter.min_amount=100") {
+		t.Errorf("object leaves should carry as ordinary scalars, got %q", args)
+	}
+	// target verb without the object (task_get) → only its own declaration carries
+	args, _ = paramArgsFor(spec, iagent.VerbTaskGet, given)
+	if strings.Contains(args, "filter") {
+		t.Errorf("params undeclared on the target verb must not carry, got %q", args)
+	}
+}
+
 func errHint(err error) string {
 	if p, ok := errs.ProblemOf(err); ok {
 		return p.Hint
@@ -337,8 +477,8 @@ func TestCardOperationSubquery(t *testing.T) {
 		t.Errorf("contract should carry the command template, got %v", data["command"])
 	}
 	params, _ := data["parameters"].([]any)
-	if len(params) != 2 {
-		t.Fatalf("reporter send declares 2 demo params, got %v", data["parameters"])
+	if len(params) != 3 {
+		t.Fatalf("reporter send declares 3 demo params (2 scalars + render object), got %v", data["parameters"])
 	}
 	first, _ := params[0].(map[string]any)
 	if first["name"] != "report_format" || first["default"] != "csv" {
@@ -429,8 +569,8 @@ func TestCardOperationAll(t *testing.T) {
 	if send["supported"] != true {
 		t.Errorf("reporter send should be supported, got %v", send)
 	}
-	if ps, _ := send["parameters"].([]any); len(ps) != 2 {
-		t.Errorf("reporter send should carry its 2 demo params, got %v", send["parameters"])
+	if ps, _ := send["parameters"].([]any); len(ps) != 3 {
+		t.Errorf("reporter send should carry its 3 demo params, got %v", send["parameters"])
 	}
 }
 
