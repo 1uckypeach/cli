@@ -22,10 +22,14 @@ func init() { agent.Register(Provider()) }
 
 // fakeRuntime is the offline test runtime: it supplies the addressed agent_id
 // and no-ops the network methods (the mock hooks only ever read AgentID()).
-type fakeRuntime struct{ agentID string }
+type fakeRuntime struct {
+	agentID string
+	params  map[string]string
+}
 
-func (r fakeRuntime) AgentID() string { return r.agentID }
-func (r fakeRuntime) IsBot() bool     { return false }
+func (r fakeRuntime) AgentID() string           { return r.agentID }
+func (r fakeRuntime) IsBot() bool               { return false }
+func (r fakeRuntime) Params() map[string]string { return r.params }
 func (r fakeRuntime) CallAPI(context.Context, string, string, map[string]string, any) (json.RawMessage, error) {
 	return nil, nil
 }
@@ -70,10 +74,10 @@ func TestCapabilityMatrixDiverges(t *testing.T) {
 // TestEchoUnwiredCapabilities verifies the new model: echo simply leaves
 // CancelTask / DownloadArtifact unwired and FileInput false — no refusal code.
 func TestEchoUnwiredCapabilities(t *testing.T) {
-	if echoSpec.CancelTask != nil {
+	if echoSpec.CancelTask.Handler != nil {
 		t.Error("echo should not wire CancelTask (task_cancel=false)")
 	}
-	if echoSpec.DownloadArtifact != nil {
+	if echoSpec.DownloadArtifact.Handler != nil {
 		t.Error("echo should not wire DownloadArtifact (artifact_download=false)")
 	}
 	if echoSpec.FileInput {
@@ -84,7 +88,7 @@ func TestEchoUnwiredCapabilities(t *testing.T) {
 // TestEchoMultiTurn verifies multi-turn context memory across the read verbs.
 func TestEchoMultiTurn(t *testing.T) {
 	swapStore(t)
-	rt := fakeRuntime{"echo"}
+	rt := fakeRuntime{agentID: "echo"}
 	ctx := context.Background()
 
 	t1, err := echoSend(ctx, rt, agent.SendInput{Text: "hello"})
@@ -182,8 +186,8 @@ func TestEchoMultiTurn(t *testing.T) {
 func TestCrossAgentIsolation(t *testing.T) {
 	swapStore(t)
 	ctx := context.Background()
-	echo := fakeRuntime{"echo"}
-	reporter := fakeRuntime{"reporter"}
+	echo := fakeRuntime{agentID: "echo"}
+	reporter := fakeRuntime{agentID: "reporter"}
 
 	t1, err := echoSend(ctx, echo, agent.SendInput{Text: "secret"})
 	if err != nil {
@@ -219,7 +223,7 @@ func TestCrossAgentIsolation(t *testing.T) {
 // TestStateSurvivesReload pins the cross-process semantics via the shared snapshot.
 func TestStateSurvivesReload(t *testing.T) {
 	swapStore(t)
-	rt := fakeRuntime{"echo"}
+	rt := fakeRuntime{agentID: "echo"}
 	task, err := echoSend(context.Background(), rt, agent.SendInput{Text: "persist"})
 	if err != nil {
 		t.Fatal(err)
@@ -240,7 +244,7 @@ func TestStateSurvivesReload(t *testing.T) {
 // answer to the same decision is a conflict (the arbitration path).
 func TestPlannerDecisionFlow(t *testing.T) {
 	swapStore(t)
-	rt := fakeRuntime{"planner"}
+	rt := fakeRuntime{agentID: "planner"}
 	ctx := context.Background()
 
 	t1, err := plannerSend(ctx, rt, agent.SendInput{Text: "出个季度报表"})
@@ -288,7 +292,7 @@ func TestPlannerDecisionFlow(t *testing.T) {
 // invalid_argument and leaves the decision unanswered.
 func TestPlannerRejectsUnknownOption(t *testing.T) {
 	swapStore(t)
-	rt := fakeRuntime{"planner"}
+	rt := fakeRuntime{agentID: "planner"}
 	ctx := context.Background()
 	t1, err := plannerSend(ctx, rt, agent.SendInput{Text: "出报表"})
 	if err != nil {
@@ -310,10 +314,46 @@ func TestPlannerRejectsUnknownOption(t *testing.T) {
 	}
 }
 
+// TestReporterParamsBinding locks the declaration↔consumption contract: the
+// reporterSendParams struct tags must reference params declared on send with
+// compatible kinds (a renamed/retyped declaration fails here in CI, not as a
+// silent zero value at runtime).
+func TestReporterParamsBinding(t *testing.T) {
+	agenttest.CheckParamsBinding[reporterSendParams](t, &reporterSpec, agent.VerbSend)
+}
+
+// TestReporterConsumesParams drives reporterSend with framework-style resolved
+// params (defaults backfilled) and pins that BindParams feeds the reply: the
+// default shape keeps the historical reply, a non-default format changes it.
+func TestReporterConsumesParams(t *testing.T) {
+	swapStore(t)
+	ctx := context.Background()
+
+	// defaults → historical reply, byte-identical
+	rt := fakeRuntime{agentID: "reporter", params: map[string]string{"report_format": "csv", "quarters": "4"}}
+	task, err := reporterSend(ctx, rt, agent.SendInput{Text: "报表"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := agentReply(t, task); !strings.HasPrefix(got, "报表已生成：quarterly_report.csv") {
+		t.Fatalf("default params should keep the historical reply, got %q", got)
+	}
+
+	// non-default format → the reply reflects the params
+	rt2 := fakeRuntime{agentID: "reporter", params: map[string]string{"report_format": "xlsx", "quarters": "6"}}
+	task2, err := reporterSend(ctx, rt2, agent.SendInput{Text: "报表"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := agentReply(t, task2); !strings.Contains(got, "xlsx") || !strings.Contains(got, "6 个季度") {
+		t.Fatalf("params should feed the reply, got %q", got)
+	}
+}
+
 // TestReporterArtifactFlow verifies the full artifact chain.
 func TestReporterArtifactFlow(t *testing.T) {
 	swapStore(t)
-	rt := fakeRuntime{"reporter"}
+	rt := fakeRuntime{agentID: "reporter"}
 	ctx := context.Background()
 
 	task, err := reporterSend(ctx, rt, agent.SendInput{Text: "本季度报表"})
@@ -350,7 +390,7 @@ func TestReporterArtifactFlow(t *testing.T) {
 // for a terminal task (the mock task is completed the moment it is sent).
 func TestReporterCancelTerminal(t *testing.T) {
 	swapStore(t)
-	rt := fakeRuntime{"reporter"}
+	rt := fakeRuntime{agentID: "reporter"}
 	ctx := context.Background()
 	task, err := reporterSend(ctx, rt, agent.SendInput{Text: "报表"})
 	if err != nil {
@@ -383,7 +423,7 @@ func TestUnknownCatalogID(t *testing.T) {
 // unknown context id.
 func TestSendGuards(t *testing.T) {
 	swapStore(t)
-	rt := fakeRuntime{"echo"}
+	rt := fakeRuntime{agentID: "echo"}
 	ctx := context.Background()
 
 	_, err := echoSend(ctx, rt, agent.SendInput{Text: "hi", ContextID: "ctx_x", TaskID: "task_x"})
@@ -400,7 +440,7 @@ func TestSendGuards(t *testing.T) {
 // TestDeleteContext verifies deleting a context also cleans up its tasks.
 func TestDeleteContext(t *testing.T) {
 	swapStore(t)
-	rt := fakeRuntime{"echo"}
+	rt := fakeRuntime{agentID: "echo"}
 	ctx := context.Background()
 	task, err := echoSend(ctx, rt, agent.SendInput{Text: "bye"})
 	if err != nil {
@@ -448,7 +488,7 @@ func TestContextRollupPicksLatestUpdated(t *testing.T) {
 		UpdatedAt: "2026-07-04T00:00:00Z", Messages: agentMessage("C 完成"),
 	}}
 
-	rt := fakeRuntime{"echo"}
+	rt := fakeRuntime{agentID: "echo"}
 	detail, err := getContext(context.Background(), rt, "ctx_1")
 	if err != nil {
 		t.Fatal(err)

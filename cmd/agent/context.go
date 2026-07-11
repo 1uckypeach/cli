@@ -23,6 +23,7 @@ type contextOptions struct {
 	Cmd     *cobra.Command
 	Ref     string
 	CtxID   string
+	Params  []string
 	Yes     bool
 	As      string
 	Format  string
@@ -62,6 +63,7 @@ func NewCmdAgentContextList(f *cmdutil.Factory) *cobra.Command {
 			return agentContextListRun(opts)
 		},
 	}
+	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
 	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
 	addAsFlag(cmd, f, &opts.As)
@@ -88,6 +90,7 @@ func NewCmdAgentContextGet(f *cmdutil.Factory) *cobra.Command {
 			return agentContextGetRun(opts)
 		},
 	}
+	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
 	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
 	addAsFlag(cmd, f, &opts.As)
@@ -117,6 +120,7 @@ func NewCmdAgentContextDelete(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "确认删除（高危操作，不加则返回 exit 10）")
+	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
 	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
 	addAsFlag(cmd, f, &opts.As)
@@ -136,10 +140,14 @@ func agentContextListRun(opts *contextOptions) error {
 	}
 	// Capability gate BEFORE the client: context_list is derived from ListContexts
 	// being wired, so a spec without it returns unsupported_capability offline.
-	if spec.ListContexts == nil {
+	if spec.ListContexts.Handler == nil {
 		return capabilityError(opts.Ref, "context list", iagent.CapContextList)
 	}
-	rt, err := runtimeFor(f, id, agentID)
+	vp, err := validateParams(opts.Params, spec.ListContexts.Params, iagent.VerbContextList, spec, opts.Ref)
+	if err != nil {
+		return err
+	}
+	rt, err := runtimeFor(f, id, agentID, vp.Resolved)
 	if err != nil {
 		return err
 	}
@@ -147,7 +155,7 @@ func agentContextListRun(opts *contextOptions) error {
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
-	contexts, err := spec.ListContexts(opts.Cmd.Context(), rt)
+	contexts, err := spec.ListContexts.Handler(opts.Cmd.Context(), rt)
 	if err != nil {
 		return err
 	}
@@ -175,10 +183,14 @@ func agentContextGetRun(opts *contextOptions) error {
 		return err
 	}
 	// Capability gate BEFORE the client.
-	if spec.GetContext == nil {
+	if spec.GetContext.Handler == nil {
 		return capabilityError(opts.Ref, "context get", iagent.CapContextGet)
 	}
-	rt, err := runtimeFor(f, id, agentID)
+	vp, err := validateParams(opts.Params, spec.GetContext.Params, iagent.VerbContextGet, spec, opts.Ref)
+	if err != nil {
+		return err
+	}
+	rt, err := runtimeFor(f, id, agentID, vp.Resolved)
 	if err != nil {
 		return err
 	}
@@ -186,7 +198,7 @@ func agentContextGetRun(opts *contextOptions) error {
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
-	detail, err := spec.GetContext(opts.Cmd.Context(), rt, opts.CtxID)
+	detail, err := spec.GetContext.Handler(opts.Cmd.Context(), rt, opts.CtxID)
 	if err != nil {
 		return err
 	}
@@ -214,10 +226,14 @@ func agentContextDeleteRun(opts *contextOptions) error {
 		return err
 	}
 	// Capability gate BEFORE the client.
-	if spec.DeleteContext == nil {
+	if spec.DeleteContext.Handler == nil {
 		return capabilityError(opts.Ref, "context delete", iagent.CapContextDelete)
 	}
-	rt, err := runtimeFor(f, id, agentID)
+	vp, err := validateParams(opts.Params, spec.DeleteContext.Params, iagent.VerbContextDelete, spec, opts.Ref)
+	if err != nil {
+		return err
+	}
+	rt, err := runtimeFor(f, id, agentID, vp.Resolved)
 	if err != nil {
 		return err
 	}
@@ -225,7 +241,7 @@ func agentContextDeleteRun(opts *contextOptions) error {
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
-	if err := spec.DeleteContext(opts.Cmd.Context(), rt, opts.CtxID); err != nil {
+	if err := spec.DeleteContext.Handler(opts.Cmd.Context(), rt, opts.CtxID); err != nil {
 		return err
 	}
 	// pretty is a human view only; a --jq expression implies structured JSON.

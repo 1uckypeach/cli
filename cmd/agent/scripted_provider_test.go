@@ -47,48 +47,48 @@ func setScripted(t *testing.T, h scriptedHooks) {
 func scriptedSpec() *iagent.AgentSpec {
 	return &iagent.AgentSpec{
 		FileInput: true,
-		Send: func(_ context.Context, _ iagent.Runtime, in iagent.SendInput) (*iagent.AgentTask, error) {
+		Send: iagent.SendOp{Handler: func(_ context.Context, _ iagent.Runtime, in iagent.SendInput) (*iagent.AgentTask, error) {
 			if scripted.send == nil {
 				panic("scripted provider: Send hook not set")
 			}
 			return scripted.send(in)
-		},
-		GetTask: func(_ context.Context, _ iagent.Runtime, taskID string) (*iagent.AgentTask, error) {
+		}},
+		GetTask: iagent.TaskGetOp{Handler: func(_ context.Context, _ iagent.Runtime, taskID string) (*iagent.AgentTask, error) {
 			if scripted.getTask == nil {
 				panic("scripted provider: GetTask hook not set")
 			}
 			return scripted.getTask(taskID)
-		},
-		ListTasks: func(_ context.Context, _ iagent.Runtime, contextID string) ([]iagent.TaskSummary, error) {
+		}},
+		ListTasks: iagent.TaskListOp{Handler: func(_ context.Context, _ iagent.Runtime, contextID string) ([]iagent.TaskSummary, error) {
 			if scripted.listTasks == nil {
 				panic("scripted provider: ListTasks hook not set")
 			}
 			return scripted.listTasks(contextID)
-		},
-		ListContexts: func(_ context.Context, _ iagent.Runtime) ([]iagent.ContextSummary, error) {
+		}},
+		ListContexts: iagent.ContextListOp{Handler: func(_ context.Context, _ iagent.Runtime) ([]iagent.ContextSummary, error) {
 			if scripted.listContexts == nil {
 				panic("scripted provider: ListContexts hook not set")
 			}
 			return scripted.listContexts()
-		},
-		GetContext: func(_ context.Context, _ iagent.Runtime, ctxID string) (*iagent.ContextDetail, error) {
+		}},
+		GetContext: iagent.ContextGetOp{Handler: func(_ context.Context, _ iagent.Runtime, ctxID string) (*iagent.ContextDetail, error) {
 			if scripted.getContext == nil {
 				panic("scripted provider: GetContext hook not set")
 			}
 			return scripted.getContext(ctxID)
-		},
-		DeleteContext: func(_ context.Context, _ iagent.Runtime, ctxID string) error {
+		}},
+		DeleteContext: iagent.ContextDeleteOp{Handler: func(_ context.Context, _ iagent.Runtime, ctxID string) error {
 			if scripted.deleteContext == nil {
 				panic("scripted provider: DeleteContext hook not set")
 			}
 			return scripted.deleteContext(ctxID)
-		},
-		DownloadArtifact: func(_ context.Context, _ iagent.Runtime, taskID, artifactID string) (*iagent.ArtifactData, error) {
+		}},
+		DownloadArtifact: iagent.ArtifactDownloadOp{Handler: func(_ context.Context, _ iagent.Runtime, taskID, artifactID string) (*iagent.ArtifactData, error) {
 			if scripted.downloadArtifact == nil {
 				panic("scripted provider: DownloadArtifact hook not set")
 			}
 			return scripted.downloadArtifact(taskID, artifactID)
-		},
+		}},
 	}
 }
 

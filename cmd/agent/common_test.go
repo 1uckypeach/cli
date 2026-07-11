@@ -23,147 +23,6 @@ import (
 	"github.com/larksuite/cli/internal/output"
 )
 
-func TestValidateParamsAgainstCard(t *testing.T) {
-	// Card mixes a required and an optional param so both loop branches run:
-	// the optional param must be skipped (the `!p.Required continue` path) while
-	// the required one is still enforced.
-	card := &iagent.AgentCard{Parameters: []iagent.CardParam{
-		{Name: "app_id", Required: true},
-		{Name: "locale", Required: false},
-	}}
-	// missing required
-	if _, err := parseAndValidateParams([]string{}, card, "example:agt_x"); err == nil {
-		t.Error("missing required app_id should error")
-	}
-	// provide required, omit optional: the optional param is skipped and must not error
-	m, err := parseAndValidateParams([]string{"app_id=app_sales"}, card, "example:agt_x")
-	if err != nil || m["app_id"] != "app_sales" {
-		t.Fatalf("should parse app_id and allow omitting optional locale: %v %v", m, err)
-	}
-	if _, ok := m["locale"]; ok {
-		t.Errorf("an optional param that was not provided should not appear in the result: %v", m)
-	}
-	// invalid format
-	if _, err := parseAndValidateParams([]string{"noequals"}, card, "example:agt_x"); err == nil {
-		t.Error("--param without = should error")
-	}
-}
-
-// TestParseParams_ValueWithEquals ensures values may themselves contain '='
-// (only the first '=' splits key from value).
-func TestParseParams_ValueWithEquals(t *testing.T) {
-	card := &iagent.AgentCard{Parameters: []iagent.CardParam{{Name: "filter"}}}
-	m, err := parseAndValidateParams([]string{"filter=a=b"}, card, "example:agt_x")
-	if err != nil {
-		t.Fatalf("a value containing = should not error: %v", err)
-	}
-	if m["filter"] != "a=b" {
-		t.Fatalf("value should preserve =, got %q", m["filter"])
-	}
-}
-
-// TestParseParams_EmptyKey rejects an empty key (leading '=').
-func TestParseParams_EmptyKey(t *testing.T) {
-	if _, err := parseAndValidateParams([]string{"=v"}, &iagent.AgentCard{}, "example:agt_x"); err == nil {
-		t.Error("empty key should error")
-	}
-}
-
-// TestParseParams_UnknownKeyRejected pins that a --param key not declared in the
-// card's Parameters is a validation error (subtype invalid_argument, param
-// "param:<key>") whose hint points at `agent card`; a declared optional key
-// still passes.
-func TestParseParams_UnknownKeyRejected(t *testing.T) {
-	card := &iagent.AgentCard{Parameters: []iagent.CardParam{{Name: "foo"}}}
-	m, err := parseAndValidateParams([]string{"foo=1"}, card, "example:agt_x")
-	if err != nil || m["foo"] != "1" {
-		t.Fatalf("a declared optional param should pass: %v %v", m, err)
-	}
-
-	_, err = parseAndValidateParams([]string{"bar=1"}, card, "example:agt_x")
-	if err == nil {
-		t.Fatal("an undeclared --param should error")
-	}
-	if !errs.IsValidation(err) {
-		t.Fatalf("should be a validation error, got %T", err)
-	}
-	var verr *errs.ValidationError
-	if !errors.As(err, &verr) || verr.Param != "param:bar" {
-		t.Fatalf("param should be param:bar, got %+v", verr)
-	}
-	p, ok := errs.ProblemOf(err)
-	if !ok || p.Subtype != errs.SubtypeInvalidArgument {
-		t.Fatalf("subtype should be invalid_argument, got %+v", p)
-	}
-	if !strings.Contains(p.Hint, "agent card example:agt_x") {
-		t.Fatalf("hint should point to agent card, got %q", p.Hint)
-	}
-}
-
-// TestParseParams_NilCard tolerates a nil card (no required/unknown-param check).
-func TestParseParams_NilCard(t *testing.T) {
-	m, err := parseAndValidateParams([]string{"k=v"}, nil, "example:agt_x")
-	if err != nil || m["k"] != "v" {
-		t.Fatalf("nil card should parse normally: %v %v", m, err)
-	}
-}
-
-// TestParseParams_MissingRequiredIsValidation confirms the missing-required
-// error is a validation typed error with subtype invalid_argument, its param
-// carries the param: prefix, and its hint points at agent card (Task 2 review
-// leftover).
-func TestParseParams_MissingRequiredIsValidation(t *testing.T) {
-	card := &iagent.AgentCard{Parameters: []iagent.CardParam{{Name: "app_id", Required: true}}}
-	_, err := parseAndValidateParams([]string{}, card, "example:agt_x")
-	if err == nil {
-		t.Fatal("missing required should error")
-	}
-	if !errs.IsValidation(err) {
-		t.Fatalf("should be a validation error, got %T", err)
-	}
-	p, _ := errs.ProblemOf(err)
-	if p == nil || p.Subtype != errs.SubtypeInvalidArgument {
-		t.Fatalf("subtype should be invalid_argument, got %+v", p)
-	}
-	var verr *errs.ValidationError
-	if !errors.As(err, &verr) || verr.Param != "param:app_id" {
-		t.Fatalf("param should be param:app_id, got %+v", verr)
-	}
-	if !strings.Contains(p.Hint, "agent card example:agt_x") {
-		t.Fatalf("hint should point to agent card, got %q", p.Hint)
-	}
-}
-
-// TestParseParams_UnsafeRefDegradesHint pins the ref-interpolation whitelist on
-// the hint side: a ref that fails the <charset>:<charset> whitelist must not be
-// echoed into the hint command; the hint degrades to plain guidance instead.
-func TestParseParams_UnsafeRefDegradesHint(t *testing.T) {
-	dirtyRef := "example:agt x; rm -rf /"
-	card := &iagent.AgentCard{Parameters: []iagent.CardParam{{Name: "app_id", Required: true}}}
-
-	_, err := parseAndValidateParams([]string{}, card, dirtyRef)
-	if err == nil {
-		t.Fatal("missing required should error")
-	}
-	p, _ := errs.ProblemOf(err)
-	if p == nil || p.Hint == "" {
-		t.Fatalf("hint should degrade to plain-text guidance rather than be emptied, got %+v", p)
-	}
-	if strings.Contains(p.Hint, dirtyRef) {
-		t.Fatalf("an unsafe ref must not be interpolated into the hint, got %q", p.Hint)
-	}
-
-	// the unknown-param path is handled the same way.
-	_, err = parseAndValidateParams([]string{"app_id=1", "bogus=1"}, card, dirtyRef)
-	if err == nil {
-		t.Fatal("an undeclared param should error")
-	}
-	p, _ = errs.ProblemOf(err)
-	if p == nil || p.Hint == "" || strings.Contains(p.Hint, dirtyRef) {
-		t.Fatalf("unknown-param hint should degrade and not contain the unsafe ref, got %+v", p)
-	}
-}
-
 // TestCapabilityError_UnsafeRefDegradesHint pins the same whitelist on the
 // capability-gate hint: an unsafe ref degrades the hint to plain guidance.
 func TestCapabilityError_UnsafeRefDegradesHint(t *testing.T) {
@@ -753,7 +612,7 @@ func TestResolveSpec_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a valid ref + bot should succeed: %v", err)
 	}
-	if spec == nil || spec.Send == nil {
+	if spec == nil || spec.Send.Handler == nil {
 		t.Fatal("should return a non-nil spec with core hooks")
 	}
 	if prov.Scheme != "example" || agentID != "echo" {
@@ -843,7 +702,7 @@ func TestRuntimeFor_APIClientError(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
 	f.Config = func() (*core.CliConfig, error) { return nil, errors.New("config boom") }
 
-	if _, err := runtimeFor(f, core.AsBot, "echo"); err == nil {
+	if _, err := runtimeFor(f, core.AsBot, "echo", nil); err == nil {
 		t.Fatal("a Config error should propagate")
 	}
 }
@@ -872,7 +731,7 @@ func TestResolveSpec_WorksWhenUnconfigured(t *testing.T) {
 	if spec == nil || id != core.AsBot {
 		t.Fatalf("should return spec + bot identity, got spec=%v id=%s", spec, id)
 	}
-	if _, err := runtimeFor(f, id, "echo"); err == nil {
+	if _, err := runtimeFor(f, id, "echo", nil); err == nil {
 		t.Fatal("the client path (runtimeFor) should error when unconfigured (config gate)")
 	}
 }

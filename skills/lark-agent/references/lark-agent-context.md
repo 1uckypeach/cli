@@ -63,6 +63,7 @@ lark-cli agent context delete <provider>:<agent_id> <ctx-id> --yes
 |------|------|------|
 | `<agent_ref> <ctx-id>` | 是 | 两个位置参数 |
 | `--yes` | 是（删除） | 确认高危操作；不加则 exit 10 |
+| `--param key=value` | 视声明 | 可重复；按当前动词（context_list / context_get / context_delete）的参数声明校验，声明用 `agent card <ref> --operation <动词>` 查看；错误一次报全且每条带完整声明 |
 | `--as` / `--format json\|pretty` / `--jq` | 否 | 通用；默认 `json` |
 
 删除成功输出 `{ context_id, deleted: true }`。删除后再 get 该会话报 not_found。

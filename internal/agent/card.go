@@ -40,10 +40,13 @@ type Capabilities struct {
 	TaskList         bool `json:"task_list"`
 }
 
-// AgentCard is a remote agent's capability card (schema v2): provider metadata,
-// the supported capability matrix, identity precondition declarations, and
-// parameter / skill declarations (scopes are not in the card; they are internal
-// registration data for preflight only).
+// AgentCard is a remote agent's capability card (schema v3, lean): provider
+// metadata, the supported capability matrix, identity precondition
+// declarations, and the has_parameters cue. Parameter DETAILS are deliberately
+// not embedded — they are fetched per operation via `agent card <ref>
+// --operation <verb>` (or all at once with --operation all); HasParameters
+// tells the caller which operations need that lookup. Scopes are not in the
+// card; they are internal registration data for preflight only.
 type AgentCard struct {
 	Provider      string         `json:"provider"`
 	ProviderLabel string         `json:"provider_label"`
@@ -52,40 +55,64 @@ type AgentCard struct {
 	Description   string         `json:"description,omitempty"`
 	Capabilities  Capabilities   `json:"capabilities"`
 	Identity      []IdentitySpec `json:"identity"`
-	Parameters    []CardParam    `json:"parameters"` // always emitted (empty is [])
-	AgentIDSource string         `json:"agent_id_source"`
-	Skills        []CardSkill    `json:"skills,omitempty"`
+	// HasParameters lists the verbs that declare business parameters (always
+	// emitted; empty is []). A verb absent here takes no --param at all.
+	HasParameters []string `json:"has_parameters"`
+	// ParametersSource is "template" for an instance provider: the parameter
+	// declarations are template-level approximations shared by every runtime
+	// agent_id — the platform's actual per-agent contract may differ. Empty for
+	// catalog providers (declarations are exact).
+	ParametersSource string      `json:"parameters_source,omitempty"`
+	AgentIDSource    string      `json:"agent_id_source"`
+	Skills           []CardSkill `json:"skills,omitempty"`
 }
 
-// DeriveCapabilities computes the capability matrix from which AgentSpec hooks
-// are wired — the single source of truth. The method-backed capabilities are
-// derived from the corresponding func field being non-nil (implement it =
-// support it); file_input / input_required are behavioral flags with no backing
-// hook and are read straight from the spec. Send/GetTask are mandatory (Register
-// enforces), so task_get is always true.
+// DeriveCapabilities computes the capability matrix from which AgentSpec
+// operations are wired — the single source of truth ("implement it = support
+// it"), enumerated through Ops() so the verb↔capability mapping lives in one
+// table. file_input / input_required are behavioral flags with no backing
+// operation and are read straight from the spec. Send/GetTask are mandatory
+// (Register enforces), so task_get is always true.
 func DeriveCapabilities(s *AgentSpec) Capabilities {
+	w := make(map[string]bool, 8)
+	for _, o := range s.Ops() {
+		w[o.Verb] = o.Wired
+	}
 	return Capabilities{
-		TaskGet:          s.GetTask != nil,
-		TaskList:         s.ListTasks != nil,
-		TaskCancel:       s.CancelTask != nil,
-		ArtifactDownload: s.DownloadArtifact != nil,
-		ContextList:      s.ListContexts != nil,
-		ContextGet:       s.GetContext != nil,
-		ContextDelete:    s.DeleteContext != nil,
+		TaskGet:          w[VerbTaskGet],
+		TaskList:         w[VerbTaskList],
+		TaskCancel:       w[VerbTaskCancel],
+		ArtifactDownload: w[VerbArtifactDownload],
+		ContextList:      w[VerbContextList],
+		ContextGet:       w[VerbContextGet],
+		ContextDelete:    w[VerbContextDelete],
 		FileInput:        s.FileInput,
 		InputRequired:    s.InputRequired,
 	}
 }
 
-// BuildCard synthesizes an agent's full Card: registration metadata from the
-// Provider, the capability matrix from DeriveCapabilities (wired hooks), and the
-// static per-agent metadata from the spec. When rt != nil AND the spec wires
-// Describe, it best-effort enriches Name/Description/Parameters/Skills from the
-// remote — a Describe error is swallowed so the card degrades to the offline
-// (caps + static) version rather than hard-failing (the caps matrix is the
-// primary value). Pass rt=nil for the guaranteed-offline path (card before
-// config init, dry-run). A provider never assembles its own card or declares its
-// own capability bools.
+// HasParameters lists the wired verbs that declare at least one business
+// parameter (fixed verb order, never nil) — the card's "which operations need
+// a parameter lookup" cue.
+func HasParameters(s *AgentSpec) []string {
+	out := []string{}
+	for _, o := range s.Ops() {
+		if o.Wired && len(o.Params) > 0 {
+			out = append(out, o.Verb)
+		}
+	}
+	return out
+}
+
+// BuildCard synthesizes an agent's lean Card: registration metadata from the
+// Provider, the capability matrix from DeriveCapabilities (wired operations),
+// the has_parameters cue, and the static per-agent metadata from the spec.
+// When rt != nil AND the spec wires Describe, it best-effort enriches
+// Name/Description/Skills from the remote — a Describe error is swallowed so
+// the card degrades to the offline (caps + static) version rather than
+// hard-failing (the caps matrix is the primary value). Pass rt=nil for the
+// guaranteed-offline path (card before config init, dry-run). A provider never
+// assembles its own card or declares its own capability bools.
 func BuildCard(ctx context.Context, p Provider, s *AgentSpec, agentID string, rt Runtime) *AgentCard {
 	card := &AgentCard{
 		Provider:      p.Scheme,
@@ -95,9 +122,14 @@ func BuildCard(ctx context.Context, p Provider, s *AgentSpec, agentID string, rt
 		Description:   s.Description,
 		Capabilities:  DeriveCapabilities(s),
 		Identity:      p.Identities,
-		Parameters:    nonNilParams(s.Parameters),
+		HasParameters: HasParameters(s),
 		AgentIDSource: p.AgentIDSource,
 		Skills:        s.Skills,
+	}
+	if p.Kind() == KindInstance {
+		// Honesty label: an instance template's parameter declarations are shared
+		// by every runtime agent_id — approximate, not per-agent exact.
+		card.ParametersSource = "template"
 	}
 	if rt != nil && s.Describe != nil {
 		if info, err := s.Describe(ctx, rt); err == nil && info != nil {
@@ -107,9 +139,6 @@ func BuildCard(ctx context.Context, p Provider, s *AgentSpec, agentID string, rt
 			if info.Description != "" {
 				card.Description = info.Description
 			}
-			if info.Parameters != nil {
-				card.Parameters = info.Parameters
-			}
 			if info.Skills != nil {
 				card.Skills = info.Skills
 			}
@@ -118,20 +147,32 @@ func BuildCard(ctx context.Context, p Provider, s *AgentSpec, agentID string, rt
 	return card
 }
 
-// nonNilParams keeps Parameters always emitted (empty is [], never null).
-func nonNilParams(p []CardParam) []CardParam {
-	if p == nil {
-		return []CardParam{}
-	}
-	return p
-}
-
-// CardParam is one input parameter declared by a Card (used for --param validation).
+// CardParam declares one business parameter of one operation (used for --param
+// validation, `agent card --operation` discovery, and error teaching).
 type CardParam struct {
-	Name     string `json:"name"`
+	// Name must match ^[a-z][a-z0-9_]{0,63}$ (Register panics otherwise). The
+	// charset is a subset of the meta.next interpolation whitelist, so the key
+	// side of a carried `--param k=v` is safe by construction, and snake→kebab
+	// mapping stays bijective should native flags ever be generated.
+	Name string `json:"name"`
+	// Type is one of string|integer|number|boolean; empty is normalized to
+	// "string" at Register time. It participates in real validation.
 	Type     string `json:"type"`
-	Required bool   `json:"required"`
+	Required bool   `json:"required"` // required on THIS operation; empty value (`k=`) does not count as provided
 	Desc     string `json:"desc,omitempty"`
+	// Enum restricts the value to a closed set (string and integer types only;
+	// for integer every member must parse). Mutually exclusive with Min/Max.
+	Enum []string `json:"enum,omitempty"`
+	// Default is backfilled into rt.Params() when the parameter is absent.
+	// Mutually exclusive with Required; must satisfy Type/Enum/Min/Max.
+	Default string `json:"default,omitempty"`
+	// Min/Max bound numeric types (closed interval, either side optional).
+	Min *float64 `json:"min,omitempty"`
+	Max *float64 `json:"max,omitempty"`
+	// NOTE(reserved): Repeated bool — multi-value parameters (same key given
+	// several times, aggregated in argv order). Not implemented this round; the
+	// duplicate-key error wording is already scoped per-parameter so activating
+	// it later cannot contradict published error semantics.
 }
 
 // CardSkill is one skill / scenario declared by a Card (with example usages).

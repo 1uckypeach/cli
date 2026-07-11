@@ -27,13 +27,13 @@ import (
 // expressed purely by the absent hooks.
 func fakeUnsupSpec() *iagent.AgentSpec {
 	return &iagent.AgentSpec{
-		Send: func(context.Context, iagent.Runtime, iagent.SendInput) (*iagent.AgentTask, error) {
+		Send: iagent.SendOp{Handler: func(context.Context, iagent.Runtime, iagent.SendInput) (*iagent.AgentTask, error) {
 			panic("unsup provider: Send should not be called")
-		},
-		GetTask: func(_ context.Context, _ iagent.Runtime, taskID string) (*iagent.AgentTask, error) {
+		}},
+		GetTask: iagent.TaskGetOp{Handler: func(_ context.Context, _ iagent.Runtime, taskID string) (*iagent.AgentTask, error) {
 			// Deliberate mismatch: State is terminal but IsTerminal=false.
 			return &iagent.AgentTask{TaskID: taskID, State: iagent.StateCompleted, IsTerminal: false}, nil
-		},
+		}},
 		// ListContexts / DeleteContext intentionally unwired ⇒ unsupported.
 	}
 }

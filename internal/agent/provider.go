@@ -5,11 +5,12 @@ package agent
 
 import "context"
 
-// SendInput is the input to send (Params has already passed Card validation).
+// SendInput is the input to send. Business parameters are NOT here — they ride
+// Runtime.Params() like every other operation, so send and the other seven
+// verbs share one parameter model.
 type SendInput struct {
 	Text      string
 	Files     []string
-	Params    map[string]string
 	ContextID string
 	TaskID    string
 
@@ -24,13 +25,13 @@ type SendInput struct {
 }
 
 // CardInfo is the per-agent descriptive metadata a provider supplies for its
-// Card (everything the framework cannot fill from registration data or derive
-// from capabilities): the display Name/Description, declared input Parameters,
-// and Skills. It is returned by AgentSpec.Describe.
+// Card (the display Name/Description and Skills). It is returned by
+// AgentSpec.Describe. It deliberately does NOT carry parameters: offline
+// validation only trusts the static per-operation declarations, and dynamic
+// per-agent parameter contracts belong to the future overlay phase.
 type CardInfo struct {
 	Name        string
 	Description string
-	Parameters  []CardParam
 	Skills      []CardSkill
 }
 
@@ -58,17 +59,27 @@ type Provider struct {
 	// This is independent of AgentSpec.Describe: ListAgents = "which agents exist"
 	// (a list endpoint), Describe = "what one agent looks like" (get-by-id).
 	ListAgents func(ctx context.Context, rt Runtime) ([]AgentSummary, error)
+
+	// ListParams declares the business parameters of `agent list <scheme>` itself
+	// (list is a provider-level discovery operation, so its parameters live here,
+	// not on any single agent's spec). Discovered via `agent list` (no scheme)
+	// output's providers[].list_parameters. Register panics when ListParams is
+	// declared without a ListAgents hook.
+	ListParams []CardParam
 }
 
-// AgentSpec is the declarative unit for one agent: card metadata plus the verb
-// hooks it implements. Capability is derived from which hooks are non-nil
-// ("implement it = support it", see DeriveCapabilities), so the card and the
-// behavior are single-sourced and cannot drift.
+// AgentSpec is the declarative unit for one agent: card metadata plus the
+// operations it implements. Each operation is an Op unit binding the business
+// parameters it accepts to the handler that serves it — parameters physically
+// cannot be declared on an unimplemented operation. Capability is derived from
+// which handlers are wired ("implement it = support it", see
+// DeriveCapabilities), so the card and the behavior are single-sourced and
+// cannot drift.
 //
 //   - Catalog: each predefined agent is its own AgentSpec with its own wired
-//     hooks — two agents honestly differ in capability with zero bool matrix and
-//     zero per-id branching.
-//   - Instance: ONE template applied to every runtime agent_id; hooks read
+//     operations — two agents honestly differ in capability with zero bool
+//     matrix and zero per-id branching.
+//   - Instance: ONE template applied to every runtime agent_id; handlers read
 //     rt.AgentID() to know which agent they serve.
 type AgentSpec struct {
 	ID string // catalog: required + unique; instance: MUST be empty
@@ -76,33 +87,33 @@ type AgentSpec struct {
 	// Per-agent card metadata (static, read offline).
 	Name        string
 	Description string
-	Parameters  []CardParam
 	Skills      []CardSkill
 
-	// Behavioral flags with no backing hook (the only capability bits not derived
-	// from a hook).
+	// Behavioral flags with no backing operation (the only capability bits not
+	// derived from a handler).
 	FileInput     bool
 	InputRequired bool
 
-	// Core (Register asserts both non-nil for every spec).
-	Send    func(ctx context.Context, rt Runtime, in SendInput) (*AgentTask, error)
-	GetTask func(ctx context.Context, rt Runtime, taskID string) (*AgentTask, error)
+	// Core operations (Register asserts both handlers non-nil for every spec).
+	Send    SendOp
+	GetTask TaskGetOp
 
-	// Optional capability hooks (nil = unsupported; the framework gates on the nil
-	// field and returns a unified unsupported_capability before any network call,
-	// and derives the card matrix from which of these are wired).
-	ListTasks        func(ctx context.Context, rt Runtime, contextID string) ([]TaskSummary, error)
-	CancelTask       func(ctx context.Context, rt Runtime, taskID string) error
-	ListContexts     func(ctx context.Context, rt Runtime) ([]ContextSummary, error)
-	GetContext       func(ctx context.Context, rt Runtime, ctxID string) (*ContextDetail, error)
-	DeleteContext    func(ctx context.Context, rt Runtime, ctxID string) error
-	DownloadArtifact func(ctx context.Context, rt Runtime, taskID, artifactID string) (*ArtifactData, error)
+	// Optional operations (zero-value Op = unsupported; the command layer gates
+	// on the unwired handler and returns a unified unsupported_capability before
+	// any network call, and derives the card matrix from which are wired).
+	ListTasks        TaskListOp
+	CancelTask       TaskCancelOp
+	ListContexts     ContextListOp
+	GetContext       ContextGetOp
+	DeleteContext    ContextDeleteOp
+	DownloadArtifact ArtifactDownloadOp
 
 	// Describe optionally supplies per-agent Card metadata (Name/Description/
-	// Parameters/Skills) and is the place to validate an unknown agent_id (return
-	// a typed error). It is invoked ONLY when a runtime is available (configured),
-	// so offline the card is always caps + registration metadata + the static
-	// fields above. A catalog spec typically leaves it nil and uses the static
+	// Skills) and is the place to validate an unknown agent_id (return a typed
+	// error). It is invoked ONLY when a runtime is available (configured), so
+	// offline the card is always caps + registration metadata + the static
+	// fields above. It is card enrichment, not an operation, so it stays a plain
+	// func. A catalog spec typically leaves it nil and uses the static
 	// Name/Description; an instance provider wires it to fetch its card remotely.
 	Describe func(ctx context.Context, rt Runtime) (*CardInfo, error)
 }

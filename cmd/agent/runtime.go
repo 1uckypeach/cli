@@ -26,10 +26,21 @@ type cmdRuntime struct {
 	client  *client.APIClient
 	as      core.Identity
 	agentID string
+	params  map[string]string // validated business params (defaults backfilled)
 }
 
 func (r *cmdRuntime) AgentID() string { return r.agentID }
 func (r *cmdRuntime) IsBot() bool     { return r.as == core.AsBot }
+
+// Params returns a copy of the validated business parameters, so a hook cannot
+// corrupt framework state (see the Runtime.Params contract in internal/agent).
+func (r *cmdRuntime) Params() map[string]string {
+	out := make(map[string]string, len(r.params))
+	for k, v := range r.params {
+		out[k] = v
+	}
+	return out
+}
 
 func (r *cmdRuntime) CallAPI(ctx context.Context, method, path string, query map[string]string, body any) (json.RawMessage, error) {
 	var params map[string]interface{}

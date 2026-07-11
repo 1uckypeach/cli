@@ -86,6 +86,11 @@ lark-cli agent list --format pretty
 | 未知 scheme（如 `agent list nosuch`） | invalid_argument | 2 | `未知的 agent provider 'nosuch'，当前支持: example`——message 列出当前已注册 scheme 全集；hint `用 lark-cli agent list 查看可用 provider` |
 | `agent list <scheme>`（该 provider 不支持枚举） | unsupported_capability | 2 | 见上方「二级发现」说明 |
 
+## `agent list <scheme>` 的业务参数
+
+- `--param key=value`（可重复）：**仅在带 scheme 时有意义**；按该 provider 声明的 `list_parameters` 校验（在无 scheme 的 `agent list` 输出 `providers[]` 里查看——list 时你手上还没有 agent_ref，参数发现面就在这里）。无 scheme 带 `--param` 报 `invalid_argument`；catalog 型 provider 的枚举是纯离线操作、不接受任何 `--param`。
+- 参数错误一次报全（`params[]` 每条带原因），hint 指向 `providers[].list_parameters`。
+
 ## 参考
 
 - [lark-agent](../SKILL.md) — agent 全部动词

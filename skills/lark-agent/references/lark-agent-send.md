@@ -1,6 +1,6 @@
 # agent send
 
-> **前置条件：** 先读 [`../../lark-shared/SKILL.md`](../../lark-shared/SKILL.md)。调 send **前先读 [`agent card`](lark-agent-card.md)** 确认 `parameters`（空数组 = 无需 `--param`）；所需 scope 见对应 provider 文件（card 不含 scope），通用流程见 [前置准备](../SKILL.md)。
+> **前置条件：** 先读 [`../../lark-shared/SKILL.md`](../../lark-shared/SKILL.md)。调 send **前先查参数**：card 的 `has_parameters` 含 `send` 时，跑 `agent card <ref> --operation send` 拿参数声明（不含则无需任何 `--param`）；所需 scope 见对应 provider 文件（card 不含 scope），通用流程见 [前置准备](../SKILL.md)。
 
 向远程 agent 发一条消息：不带 `--context-id/--task-id` 起一个**新任务**；带 `--context-id`（可选 `--task-id`）向同一多轮上下文**续发**（含回应 `input_required`：结构化决策用 `--decision-id/--option` 按 `option_id` 答、开放决策用 `--text`）。写操作。
 
@@ -33,7 +33,7 @@ lark-cli agent send <provider>:<agent_id> --text "看这份表" --file ./report.
 |------|------|------|
 | `<agent_ref>` | 是 | `<provider>:<agent_id>` |
 | `--text` | 视情况 | 消息正文。起任务 / 开放决策必填（空报 `invalid_argument`，exit 2）；用 `--decision-id` + `--option` 回答选项决策时可省 |
-| `--param key=value` | 视 card | 可重复；据 card `parameters` 校验（声明为空时传任何 `--param` 都报未知参数） |
+| `--param key=value` | 视声明 | 可重复；按 **send 这个动词**的参数声明校验（`--operation send` 查看）。类型/enum/范围/必填全部离线校验、错误一次报全且每条带完整声明；同 key 重复报错；`key=` 空值不算提供必填；带 default 的参数可省（框架回填，dry-run 可见终值） |
 | `--file <path>` | 否 | 可重复；**文件外发**到远端 provider（内容离机、不可撤回）。仅相对路径（限 CWD 内，约束见 lark-shared 安全规则）。真实 send 须配 `--yes`（见下）；`--dry-run` 时不上传、免 `--yes`，仅在 `would_send.files` 列出 |
 | `--yes` | 视上 | 确认 `--file` 外发；真实 send 带 `--file` 时必填，否则报 `confirmation_required`（exit 10）不上传 |
 | `--context-id` | 否 | 续同一会话；省略=新会话，结果回显新 `context_id` |
@@ -71,7 +71,9 @@ send 立即返回当前任务。示例（example，真实输出，`agent send ex
 |---|---|---|---|
 | 缺 `--text` | invalid_argument | 2 | `--text 不能为空`；hint `补充 --text "<消息内容>" 后重发` |
 | `--task-id` 缺 `--context-id` | invalid_argument | 2 | `--task-id 需与 --context-id 一起使用` |
-| 传了未声明的 `--param` | invalid_argument | 2 | `未知参数 foo（该 agent 未声明此参数）`；hint 指向 `agent card`；`param` 字段为 `param:foo` |
+| 传了未声明的 `--param` | invalid_argument | 2 | `未知参数 foo（send 可用参数: ...）`；参数声明在别的动词上时报 `不适用于 send（它声明在: task_list）`；`param` 字段为 `param:foo` |
+| 多处参数问题 | invalid_argument | 2 | 一次报全：message 为 `send 参数校验失败：N 处问题`，`params[]` 每条含 `{name, reason, spec?}`（已声明参数的违规带 spec = 完整声明，可据此直接修；未知/重复/格式错的条目看 reason/suggestions） |
+| enum / 类型 / 范围violation | invalid_argument | 2 | `取值须为 low\|normal\|high` / `需为 integer` / `须在 1..100 范围内`——错误消息即修复指令 |
 | 未知 scheme | invalid_argument | 2 | `未知的 agent provider '<scheme>'，当前支持: example`——message 列出当前已注册 scheme 全集；hint 指向 `agent list` |
 | `--file` 真实 send 缺 `--yes` | confirmation_required | 10 | `--file 会把本地文件外发上传到远端 agent（内容离开本机，不可撤回）`；hint `确认要外发这些文件后，加 --yes 重发`。仅在 provider 支持 file_input 时触发；`--dry-run` 免此门 |
 | user 身份缺 scope | missing_scope | 3 | all-or-nothing：token 缺任一 scope 即报 `当前 user 身份缺少本命令所需 scope: <逗号分隔的全部缺失>`；附 `missing_scopes`（该 agent 缺失的全部 scope）、hint = 可照抄的 `auth login --scope`（hint 语义见 [SKILL.md 前置准备](../SKILL.md)）。bot 身份与 `--dry-run` 跳过此检查 |

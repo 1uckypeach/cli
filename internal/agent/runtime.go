@@ -27,6 +27,16 @@ type Runtime interface {
 	// on it. Identity resolution itself stays hidden.
 	IsBot() bool
 
+	// Params returns this call's validated business parameters (a copy — a hook
+	// cannot corrupt framework state). Contract, guaranteed on every verb
+	// command path BEFORE a handler runs: the current operation's Required keys
+	// are present and non-empty; keys with a Default are present (backfilled);
+	// every value passed Type/Enum/Min-Max validation — handlers read directly,
+	// no re-validation, no nil-checking. The card Describe path and a ListAgents
+	// call without ListParams declarations see an empty map. Prefer the typed
+	// accessors (BindParams[T] / ParamInt / ParamBool) over raw map lookups.
+	Params() map[string]string
+
 	// CallAPI issues one JSON OAPI request under the pinned identity and returns
 	// the raw "data" object (the response envelope's data field, already unwrapped
 	// and error-checked) or a typed errs.* error — a hook never does envelope
