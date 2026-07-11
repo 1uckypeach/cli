@@ -46,6 +46,15 @@ const (
 	seedReadme      = "README.md"
 )
 
+// Fallback committer identity written to the cloned repo's LOCAL git config when
+// no user.name/user.email is resolvable (from local, global, or system config).
+// The scaffold's `git commit` would otherwise fail with "please tell me who you
+// are"; an existing identity (e.g. the developer's global config) is respected.
+const (
+	defaultGitUserName  = "lark-cli-bot"
+	defaultGitUserEmail = "lark-cli-bot@miaoda.com"
+)
+
 // initRunner is the commandRunner used by +init. Package-level so unit tests
 // can swap in a fakeCommandRunner. Production uses execCommandRunner.
 var initRunner commandRunner = execCommandRunner{}
@@ -312,6 +321,34 @@ func ensureMetaAppID(dir, appID string) error {
 	return nil
 }
 
+// ensureGitIdentity guarantees the cloned repo has a committer identity so the
+// scaffold's `git commit` cannot fail with "please tell me who you are". It sets
+// the repo-LOCAL user.name/user.email to the lark-cli-bot defaults ONLY when
+// each is not already resolvable from local/global/system config, so a
+// developer's existing identity is never overwritten. Each key is handled
+// independently (a machine with only user.name set still gets a default email).
+func ensureGitIdentity(ctx context.Context, dir string) error {
+	if err := ensureGitConfigValue(ctx, dir, "user.name", defaultGitUserName); err != nil {
+		return err
+	}
+	return ensureGitConfigValue(ctx, dir, "user.email", defaultGitUserEmail)
+}
+
+// ensureGitConfigValue sets <key>=fallback in the repo-local git config when key
+// resolves to no value. `git config --get` exits non-zero (or prints nothing)
+// when the key is unset at every scope; any resolved value (including one
+// inherited from global/system) is left untouched.
+func ensureGitConfigValue(ctx context.Context, dir, key, fallback string) error {
+	stdout, _, err := initRunner.Run(ctx, dir, "git", "config", "--get", key)
+	if err == nil && strings.TrimSpace(stdout) != "" {
+		return nil // already configured at some scope — respect it
+	}
+	if _, stderr, e := initRunner.Run(ctx, dir, "git", "config", key, fallback); e != nil {
+		return appsExternalToolError(e, "git config %s failed: %s", key, gitErr(stderr, e))
+	}
+	return nil
+}
+
 // hasSteeringSkills reports whether <dir>/.agent/skills/steering exists as a dir.
 func hasSteeringSkills(dir string) bool {
 	info, err := os.Stat(filepath.Join(dir, steeringRelPath)) //nolint:forbidigo // shortcuts cannot import internal/vfs (depguard rule shortcuts-no-vfs); path is under the validated clone dir, and FileIO.Stat rejects absolute paths.
@@ -473,6 +510,16 @@ func validateRepoURLScheme(repoURL string) error {
 func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 	appID := strings.TrimSpace(rctx.Str("app-id"))
 
+	// Per-step timing: wrap the active runner so every git/npx/subprocess call is
+	// timed in order, without threading a timer through the helpers. Restored on
+	// return. Non-command steps (queryAppType, skipped env-pull) are timed
+	// explicitly below. Only the success paths embed the timings (attachTimings);
+	// early error returns skip it, which is fine — they carry a typed error.
+	timer := newInitTimer()
+	prevRunner := initRunner
+	initRunner = timingRunner{inner: prevRunner, timer: timer}
+	defer func() { initRunner = prevRunner }()
+
 	dir, err := resolveTargetPath(rctx, appID)
 	if err != nil {
 		return err
@@ -483,7 +530,9 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		return err
 	}
 
+	stopQuery := timer.span("query_app_type")
 	appType := queryAppType(ctx, rctx, appID)
+	stopQuery()
 	policy := policyForAppType(appType)
 
 	// Already-initialized short-circuit: a dir containing .spark/meta.json is an
@@ -505,6 +554,8 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 			out["env_pulled"] = false
 			out["env_pull_skipped"] = true
 			out["message"] = "Repository already initialized. You can start developing."
+			timer.skip("env_pull")
+			attachTimings(rctx, out, timer)
 			rctx.OutFormat(out, nil, func(w io.Writer) {
 				fmt.Fprintf(w, "✓ Already initialized at %s\n", dir)
 				fmt.Fprintln(w, "仓库已初始化完成，可以开始开发了。")
@@ -524,6 +575,7 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 			out["env_pull_error"] = envPullErr
 			out["message"] = fmt.Sprintf("Repository already initialized. Could not pull local env vars automatically — run `lark-cli apps +env-pull --app-id %s` to retry.", appID)
 		}
+		attachTimings(rctx, out, timer)
 		rctx.OutFormat(out, nil, func(w io.Writer) {
 			fmt.Fprintf(w, "✓ Already initialized at %s\n", dir)
 			if envPulled {
@@ -568,6 +620,12 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		return appsExternalToolError(err, "git checkout %s failed: %s", defaultInitBranch, gitErr(stderr, err))
 	}
 
+	// Ensure a committer identity exists before the scaffold commit; only sets
+	// repo-local defaults when none is configured (existing identity is kept).
+	if err := ensureGitIdentity(ctx, dir); err != nil {
+		return err
+	}
+
 	initLogf(rctx, "Initializing app code (running miaoda-cli)...")
 	sourcePath := strings.TrimSpace(rctx.Str("source-path"))
 	scaffold, err := runScaffold(ctx, dir, appID, appType, sourcePath)
@@ -602,6 +660,7 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 	if policy.skipEnvPull {
 		out["env_pulled"] = false
 		out["env_pull_skipped"] = true
+		timer.skip("env_pull")
 	} else {
 		initLogf(rctx, "Pulling local environment variables...")
 		envFile, envPullErr := pullEnv(ctx, rctx, appID, dir)
@@ -617,6 +676,7 @@ func appsInitExecute(ctx context.Context, rctx *common.RuntimeContext) error {
 		}
 	}
 
+	attachTimings(rctx, out, timer)
 	rctx.OutFormat(out, nil, func(w io.Writer) {
 		fmt.Fprintf(w, "✓ Repository initialized at %s\n", dir)
 		fmt.Fprintf(w, "  branch: %s\n  scaffold: %s\n", defaultInitBranch, scaffold)
