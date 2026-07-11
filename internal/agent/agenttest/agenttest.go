@@ -29,14 +29,21 @@ func CheckParamsBinding[T any](t *testing.T, spec *agent.AgentSpec, verb string)
 	if !ok {
 		t.Fatalf("params binding: unknown verb %q", verb)
 	}
-	declared := make(map[string]agent.CardParam, len(op.Params))
-	for _, p := range op.Params {
-		declared[p.Name] = p
-	}
 	var zero T
 	rt := reflect.TypeOf(zero)
 	if rt == nil || rt.Kind() != reflect.Struct {
 		t.Fatalf("params binding: %T is not a struct", zero)
+	}
+	checkBindingLevel(t, rt, op.Params, verb, "")
+}
+
+// checkBindingLevel walks one struct level against one declaration level; a
+// nested struct field recurses into the matching object param's Fields.
+func checkBindingLevel(t *testing.T, rt reflect.Type, declaredParams []agent.CardParam, verb, where string) {
+	t.Helper()
+	declared := make(map[string]agent.CardParam, len(declaredParams))
+	for _, p := range declaredParams {
+		declared[p.Name] = p
 	}
 	for i := 0; i < rt.NumField(); i++ {
 		f := rt.Field(i)
@@ -45,12 +52,20 @@ func CheckParamsBinding[T any](t *testing.T, spec *agent.AgentSpec, verb string)
 			continue
 		}
 		if !f.IsExported() {
-			t.Errorf("params binding: field %s is unexported but tagged param %q (BindParams cannot set it)", f.Name, tag)
+			t.Errorf("params binding: field %s%s is unexported but tagged param %q (BindParams cannot set it)", where, f.Name, tag)
 			continue
 		}
 		cp, ok := declared[tag]
 		if !ok {
-			t.Errorf("params binding: field %s tags param %q which %s does not declare", f.Name, tag, verb)
+			t.Errorf("params binding: field %s%s tags param %q which %s does not declare", where, f.Name, tag, verb)
+			continue
+		}
+		if f.Type.Kind() == reflect.Struct {
+			if cp.Type != "object" {
+				t.Errorf("params binding: field %s%s is a struct but param %q is declared %q (want object)", where, f.Name, tag, cp.Type)
+				continue
+			}
+			checkBindingLevel(t, f.Type, cp.Fields, verb, where+tag+".")
 			continue
 		}
 		typ := cp.Type
@@ -70,7 +85,7 @@ func CheckParamsBinding[T any](t *testing.T, spec *agent.AgentSpec, verb string)
 			}
 		}
 		if !okKind {
-			t.Errorf("params binding: field %s (%s) is incompatible with param %q declared type %q", f.Name, f.Type.Kind(), tag, typ)
+			t.Errorf("params binding: field %s%s (%s) is incompatible with param %q declared type %q", where, f.Name, f.Type.Kind(), tag, typ)
 		}
 	}
 }

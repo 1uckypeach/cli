@@ -33,7 +33,7 @@ lark-cli agent send <provider>:<agent_id> --text "看这份表" --file ./report.
 |------|------|------|
 | `<agent_ref>` | 是 | `<provider>:<agent_id>` |
 | `--text` | 视情况 | 消息正文。起任务 / 开放决策必填（空报 `invalid_argument`，exit 2）；用 `--decision-id` + `--option` 回答选项决策时可省 |
-| `--param key=value` | 视声明 | 可重复；按 **send 这个动词**的参数声明校验（`--operation send` 查看）。类型/enum/范围/必填全部离线校验、错误一次报全且每条带完整声明；同 key 重复报错；`key=` 空值不算提供必填；带 default 的参数可省（框架回填，dry-run 可见终值） |
+| `--param key=value` | 视声明 | 可重复；按 **send 这个动词**的参数声明校验（`--operation send` 查看）。类型/enum/范围/必填全部离线校验、错误一次报全且每条带完整声明；同 key 重复报错；`key=` 空值不算提供必填；带 default 的参数可省（框架回填，dry-run 可见终值）。**object 参数**按点路径逐字段（`--param filter.region=east`，主路）或 JSON 整值（`--param filter='{...}'`，兜底）；同一对象两通道不可混用 |
 | `--file <path>` | 否 | 可重复；**文件外发**到远端 provider（内容离机、不可撤回）。仅相对路径（限 CWD 内，约束见 lark-shared 安全规则）。真实 send 须配 `--yes`（见下）；`--dry-run` 时不上传、免 `--yes`，仅在 `would_send.files` 列出 |
 | `--yes` | 视上 | 确认 `--file` 外发；真实 send 带 `--file` 时必填，否则报 `confirmation_required`（exit 10）不上传 |
 | `--context-id` | 否 | 续同一会话；省略=新会话，结果回显新 `context_id` |

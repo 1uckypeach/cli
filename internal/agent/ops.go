@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/larksuite/cli/errs"
 )
@@ -169,11 +170,49 @@ func ParamBool(rt Runtime, name string) (bool, bool) {
 func BindParams[T any](rt Runtime) (T, error) {
 	var out T
 	v := reflect.ValueOf(&out).Elem()
-	t := v.Type()
-	if t.Kind() != reflect.Struct {
-		return out, errs.NewInternalError(errs.SubtypeUnknown, "BindParams: %s 不是 struct", t)
+	if v.Kind() != reflect.Struct {
+		return out, errs.NewInternalError(errs.SubtypeUnknown, "BindParams: %s 不是 struct", v.Type())
 	}
-	p := rt.Params()
+	if err := bindStruct(v, rt.Params(), ""); err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+// ParamObject assembles an object parameter's leaves (the flat "name.field"
+// keys in rt.Params()) into a typed struct via `param:"field"` tags. ok=false
+// when no leaf of the object is present at all (the object was not provided
+// and no field declares a Default). Same contract as BindParams: values were
+// validated leaf-by-leaf before the handler ran; a conversion failure means
+// declaration/struct drift.
+func ParamObject[T any](rt Runtime, name string) (T, bool, error) {
+	var out T
+	v := reflect.ValueOf(&out).Elem()
+	if v.Kind() != reflect.Struct {
+		return out, false, errs.NewInternalError(errs.SubtypeUnknown, "ParamObject: %s 不是 struct", v.Type())
+	}
+	prefix := name + "."
+	sub := map[string]string{}
+	for k, val := range rt.Params() {
+		if strings.HasPrefix(k, prefix) {
+			sub[strings.TrimPrefix(k, prefix)] = val
+		}
+	}
+	if len(sub) == 0 {
+		return out, false, nil
+	}
+	if err := bindStruct(v, sub, name+"."); err != nil {
+		return out, true, err
+	}
+	return out, true, nil
+}
+
+// bindStruct is the shared tag-driven decoder: params keys are matched against
+// `param` tags; a nested struct field with a tag recurses with its "tag."
+// prefix stripped (object params). where prefixes error messages with the
+// dotted path context.
+func bindStruct(v reflect.Value, params map[string]string, where string) error {
+	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
 		tag := f.Tag.Get("param")
@@ -184,41 +223,58 @@ func BindParams[T any](rt Runtime) (T, error) {
 			// reflect cannot Set an unexported field — surface the coding error as
 			// a typed error instead of a runtime panic (CheckParamsBinding flags
 			// the same mistake in CI).
-			return out, errs.NewInternalError(errs.SubtypeUnknown,
+			return errs.NewInternalError(errs.SubtypeUnknown,
 				"BindParams: 字段 %s 未导出但带 param tag（无法赋值）", f.Name)
 		}
-		raw, ok := p[tag]
+		// Nested struct = object param: bind its leaves from the "tag." prefix.
+		if f.Type.Kind() == reflect.Struct {
+			prefix := tag + "."
+			sub := map[string]string{}
+			for k, val := range params {
+				if strings.HasPrefix(k, prefix) {
+					sub[strings.TrimPrefix(k, prefix)] = val
+				}
+			}
+			if len(sub) > 0 {
+				if err := bindStruct(v.Field(i), sub, where+prefix); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+		raw, ok := params[tag]
 		if !ok {
 			continue // absent optional → zero value
 		}
+		full := where + tag
 		switch f.Type.Kind() {
 		case reflect.String:
 			v.Field(i).SetString(raw)
 		case reflect.Int, reflect.Int64:
 			n, err := strconv.ParseInt(raw, 10, 64)
 			if err != nil {
-				return out, errs.NewInternalError(errs.SubtypeUnknown,
-					"BindParams: 参数 %s 的值 %q 无法解析为 %s（声明与消费漂移）", tag, raw, f.Type.Kind()).WithCause(err)
+				return errs.NewInternalError(errs.SubtypeUnknown,
+					"BindParams: 参数 %s 的值 %q 无法解析为 %s（声明与消费漂移）", full, raw, f.Type.Kind()).WithCause(err)
 			}
 			v.Field(i).SetInt(n)
 		case reflect.Float64:
 			fl, err := strconv.ParseFloat(raw, 64)
 			if err != nil {
-				return out, errs.NewInternalError(errs.SubtypeUnknown,
-					"BindParams: 参数 %s 的值 %q 无法解析为 float64（声明与消费漂移）", tag, raw).WithCause(err)
+				return errs.NewInternalError(errs.SubtypeUnknown,
+					"BindParams: 参数 %s 的值 %q 无法解析为 float64（声明与消费漂移）", full, raw).WithCause(err)
 			}
 			v.Field(i).SetFloat(fl)
 		case reflect.Bool:
 			b, err := strconv.ParseBool(raw)
 			if err != nil {
-				return out, errs.NewInternalError(errs.SubtypeUnknown,
-					"BindParams: 参数 %s 的值 %q 无法解析为 bool（声明与消费漂移）", tag, raw).WithCause(err)
+				return errs.NewInternalError(errs.SubtypeUnknown,
+					"BindParams: 参数 %s 的值 %q 无法解析为 bool（声明与消费漂移）", full, raw).WithCause(err)
 			}
 			v.Field(i).SetBool(b)
 		default:
-			return out, errs.NewInternalError(errs.SubtypeUnknown,
-				"BindParams: 字段 %s 的类型 %s 不受支持（支持 string/int/int64/float64/bool）", f.Name, f.Type.Kind())
+			return errs.NewInternalError(errs.SubtypeUnknown,
+				"BindParams: 字段 %s 的类型 %s 不受支持（支持 string/int/int64/float64/bool 或嵌套 struct）", f.Name, f.Type.Kind())
 		}
 	}
-	return out, nil
+	return nil
 }

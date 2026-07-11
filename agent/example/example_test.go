@@ -350,6 +350,24 @@ func TestReporterConsumesParams(t *testing.T) {
 	}
 }
 
+// TestReporterRenderObject drives the object param end to end on the reference
+// provider: framework-style resolved leaves reach the hook, the nested struct
+// binds, and the reply reflects them.
+func TestReporterRenderObject(t *testing.T) {
+	swapStore(t)
+	rt := fakeRuntime{agentID: "reporter", params: map[string]string{
+		"report_format": "csv", "quarters": "4",
+		"render.theme": "dark", "render.watermark": "true",
+	}}
+	task, err := reporterSend(context.Background(), rt, agent.SendInput{Text: "报表"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := agentReply(t, task); !strings.Contains(got, "dark 主题，含水印") {
+		t.Fatalf("render object should feed the reply, got %q", got)
+	}
+}
+
 // TestReporterArtifactFlow verifies the full artifact chain.
 func TestReporterArtifactFlow(t *testing.T) {
 	swapStore(t)
