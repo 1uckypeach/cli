@@ -237,8 +237,8 @@ func TestAgentListScheme_UnknownScheme(t *testing.T) {
 func catSpec(id, name, desc string) iagent.AgentSpec {
 	return iagent.AgentSpec{
 		ID: id, Name: name, Description: desc,
-		Send:    func(context.Context, iagent.Runtime, iagent.SendInput) (*iagent.AgentTask, error) { return nil, nil },
-		GetTask: func(context.Context, iagent.Runtime, string) (*iagent.AgentTask, error) { return nil, nil },
+		Send:    iagent.SendOp{Handler: func(context.Context, iagent.Runtime, iagent.SendInput) (*iagent.AgentTask, error) { return nil, nil }},
+		GetTask: iagent.TaskGetOp{Handler: func(context.Context, iagent.Runtime, string) (*iagent.AgentTask, error) { return nil, nil }},
 	}
 }
 

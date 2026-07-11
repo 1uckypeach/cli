@@ -30,6 +30,7 @@ lark-cli agent task get <provider>:<agent_id> <task-id> --artifact <artifact-id>
 | `--artifact <id>` | 否 | 下载该产物，不打印任务详情；**须配 `-o`** |
 | `-o/--output <file>` | 视上 | 落盘路径（相对、限 CWD 内）。目标已存在时**默认拒绝覆盖**，须加 `--force`（见下） |
 | `--force` | 视上 | 允许覆盖 `-o` 已存在的目标文件；不加则报 `confirmation_required`（exit 10）、不下载、不动原文件 |
+| `--param key=value` | 视声明 | 可重复；按当前动词（task_get / task_list / task_cancel / artifact_download（--artifact 时按 artifact_download 校验））的参数声明校验，声明用 `agent card <ref> --operation <动词>` 查看；错误一次报全且每条带完整声明 |
 | `--as` / `--format json\|pretty` / `--jq` | 否 | 通用；默认 `json` |
 
 **退出码**：单次 get 观察到任意状态 → `0`；API/资源错误按对应错误码（如 `not_found` → `1`）。`--watch` 观察到终态 `completed` → `0`，`failed`/`rejected`/`canceled` → `1`（任务真失败）；轮询被中断或 `--timeout` 到点打印当前状态 → `0`。

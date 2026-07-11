@@ -36,6 +36,7 @@ type taskOptions struct {
 	TaskID     string
 	ContextID  string
 	ArtifactID string
+	Params     []string
 	Output     string
 	Force      bool
 	Watch      bool
@@ -55,17 +56,25 @@ var resolveDownload = func(opts *taskOptions) (*iagent.ArtifactData, error) {
 	}
 	// Capability gate before any network: a spec that does not wire
 	// DownloadArtifact (card artifact_download=false) returns unsupported_capability.
-	if spec.DownloadArtifact == nil {
+	if spec.DownloadArtifact.Handler == nil {
 		return nil, capabilityError(opts.Ref, "artifact download", iagent.CapArtifactDownload)
 	}
-	rt, err := runtimeFor(opts.Factory, id, agentID)
+	// --artifact switches this command to the artifact_download operation, so
+	// params validate STRICTLY against its declaration (a task_get-only param
+	// here gets the cross-operation teaching error), and rt.Params() carries
+	// only artifact_download keys — the executing hook's own contract.
+	vp, err := validateParams(opts.Params, spec.DownloadArtifact.Params, iagent.VerbArtifactDownload, spec, opts.Ref)
+	if err != nil {
+		return nil, err
+	}
+	rt, err := runtimeFor(opts.Factory, id, agentID, vp.Resolved)
 	if err != nil {
 		return nil, err
 	}
 	if err := preflightScopesForRef(opts.Factory, id, opts.Ref); err != nil {
 		return nil, err
 	}
-	return spec.DownloadArtifact(opts.Cmd.Context(), rt, opts.TaskID, opts.ArtifactID)
+	return spec.DownloadArtifact.Handler(opts.Cmd.Context(), rt, opts.TaskID, opts.ArtifactID)
 }
 
 // artifactFetch is the URL-download seam: it SSRF-validates rawURL and fetches
@@ -127,6 +136,7 @@ func NewCmdAgentTaskGet(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&opts.ArtifactID, "artifact", "", "下载指定产物 id（须配合 -o 指定落盘路径），不打印任务详情")
 	cmd.Flags().StringVarP(&opts.Output, "output", "o", "", "产物落盘路径（仅 --artifact 时使用）")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "允许覆盖已存在的 -o 目标文件（默认拒绝覆盖，防止误毁本地文件）")
+	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
 	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
 	addAsFlag(cmd, f, &opts.As)
@@ -154,6 +164,7 @@ func NewCmdAgentTaskList(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&opts.ContextID, "context-id", "", "按多轮上下文 id 过滤任务")
+	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
 	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
 	addAsFlag(cmd, f, &opts.As)
@@ -183,6 +194,7 @@ func NewCmdAgentTaskCancel(f *cmdutil.Factory) *cobra.Command {
 			return agentTaskCancelRun(opts)
 		},
 	}
+	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
 	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
 	addAsFlag(cmd, f, &opts.As)
@@ -231,7 +243,11 @@ func agentTaskGetRun(opts *taskOptions) error {
 	if err != nil {
 		return err
 	}
-	rt, err := runtimeFor(f, id, agentID)
+	vp, err := validateParams(opts.Params, spec.GetTask.Params, iagent.VerbTaskGet, spec, opts.Ref)
+	if err != nil {
+		return err
+	}
+	rt, err := runtimeFor(f, id, agentID, vp.Resolved)
 	if err != nil {
 		return err
 	}
@@ -241,7 +257,7 @@ func agentTaskGetRun(opts *taskOptions) error {
 	}
 
 	ctx := opts.Cmd.Context()
-	task, err := spec.GetTask(ctx, rt, opts.TaskID)
+	task, err := spec.GetTask.Handler(ctx, rt, opts.TaskID)
 	if err != nil {
 		return err
 	}
@@ -267,7 +283,7 @@ func agentTaskGetRun(opts *taskOptions) error {
 			defer cancel()
 		}
 		final, perr := pollToStop(pollCtx, func(c context.Context, tid string) (*iagent.AgentTask, error) {
-			return spec.GetTask(c, rt, tid)
+			return spec.GetTask.Handler(c, rt, tid)
 		}, opts.TaskID)
 		if perr != nil {
 			return perr
@@ -280,7 +296,7 @@ func agentTaskGetRun(opts *taskOptions) error {
 	// Derive IsTerminal from State (single source of truth) before any consumer
 	// — emitTask's output and semanticExitError below both read the flag.
 	normalizeTask(task)
-	if err := emitTask(f, opts.Cmd, task, nextForTask(opts.Ref, task), opts.Format); err != nil {
+	if err := emitTask(f, opts.Cmd, task, nextForTask(opts.Ref, task, spec, vp.Given), opts.Format); err != nil {
 		return err
 	}
 	// Under --watch a non-successful terminal state signals exit 1; a
@@ -303,10 +319,14 @@ func agentTaskListRun(opts *taskOptions) error {
 	}
 	// Capability gate BEFORE building the client: a spec that does not wire
 	// ListTasks (card task_list=false) returns unsupported_capability offline.
-	if spec.ListTasks == nil {
+	if spec.ListTasks.Handler == nil {
 		return capabilityError(opts.Ref, "task list", iagent.CapTaskList)
 	}
-	rt, err := runtimeFor(f, id, agentID)
+	vp, err := validateParams(opts.Params, spec.ListTasks.Params, iagent.VerbTaskList, spec, opts.Ref)
+	if err != nil {
+		return err
+	}
+	rt, err := runtimeFor(f, id, agentID, vp.Resolved)
 	if err != nil {
 		return err
 	}
@@ -314,7 +334,7 @@ func agentTaskListRun(opts *taskOptions) error {
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
-	tasks, err := spec.ListTasks(opts.Cmd.Context(), rt, opts.ContextID)
+	tasks, err := spec.ListTasks.Handler(opts.Cmd.Context(), rt, opts.ContextID)
 	if err != nil {
 		return err
 	}
@@ -343,10 +363,14 @@ func agentTaskCancelRun(opts *taskOptions) error {
 	if err != nil {
 		return err
 	}
-	if spec.CancelTask == nil {
+	if spec.CancelTask.Handler == nil {
 		return capabilityError(opts.Ref, "task cancel", iagent.CapTaskCancel)
 	}
-	rt, err := runtimeFor(f, id, agentID)
+	vp, err := validateParams(opts.Params, spec.CancelTask.Params, iagent.VerbTaskCancel, spec, opts.Ref)
+	if err != nil {
+		return err
+	}
+	rt, err := runtimeFor(f, id, agentID, vp.Resolved)
 	if err != nil {
 		return err
 	}
@@ -357,7 +381,7 @@ func agentTaskCancelRun(opts *taskOptions) error {
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
-	if err := spec.CancelTask(opts.Cmd.Context(), rt, opts.TaskID); err != nil {
+	if err := spec.CancelTask.Handler(opts.Cmd.Context(), rt, opts.TaskID); err != nil {
 		return err
 	}
 	// pretty is a human view only; a --jq expression implies structured JSON.

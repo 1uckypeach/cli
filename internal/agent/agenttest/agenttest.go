@@ -16,6 +16,65 @@ import (
 	"github.com/larksuite/cli/internal/agent"
 )
 
+// CheckParamsBinding locks the declaration↔consumption contract for one
+// operation: every `param:"name"` tag on T must reference a parameter declared
+// on that verb, and the field kind must be compatible with the declared Type
+// (string↔string, int/int64↔integer, float64↔number, bool↔boolean). A provider
+// using BindParams[T] calls this once per binding struct in its own tests, so
+// a renamed/retyped declaration fails CI instead of silently zero-valuing at
+// runtime.
+func CheckParamsBinding[T any](t *testing.T, spec *agent.AgentSpec, verb string) {
+	t.Helper()
+	op, ok := spec.Op(verb)
+	if !ok {
+		t.Fatalf("params binding: unknown verb %q", verb)
+	}
+	declared := make(map[string]agent.CardParam, len(op.Params))
+	for _, p := range op.Params {
+		declared[p.Name] = p
+	}
+	var zero T
+	rt := reflect.TypeOf(zero)
+	if rt == nil || rt.Kind() != reflect.Struct {
+		t.Fatalf("params binding: %T is not a struct", zero)
+	}
+	for i := 0; i < rt.NumField(); i++ {
+		f := rt.Field(i)
+		tag := f.Tag.Get("param")
+		if tag == "" || tag == "-" {
+			continue
+		}
+		if !f.IsExported() {
+			t.Errorf("params binding: field %s is unexported but tagged param %q (BindParams cannot set it)", f.Name, tag)
+			continue
+		}
+		cp, ok := declared[tag]
+		if !ok {
+			t.Errorf("params binding: field %s tags param %q which %s does not declare", f.Name, tag, verb)
+			continue
+		}
+		typ := cp.Type
+		if typ == "" {
+			typ = "string"
+		}
+		compatible := map[string][]reflect.Kind{
+			"string":  {reflect.String},
+			"integer": {reflect.Int, reflect.Int64},
+			"number":  {reflect.Float64},
+			"boolean": {reflect.Bool},
+		}[typ]
+		okKind := false
+		for _, k := range compatible {
+			if f.Type.Kind() == k {
+				okKind = true
+			}
+		}
+		if !okKind {
+			t.Errorf("params binding: field %s (%s) is incompatible with param %q declared type %q", f.Name, f.Type.Kind(), tag, typ)
+		}
+	}
+}
+
 // RunConformance runs the full set of conformance assertions against a
 // registered scheme. sampleAgentID must be a valid agent id (catalog: an id from
 // the Catalog; instance: any non-empty id).
@@ -68,12 +127,12 @@ func RunConformance(t *testing.T, scheme, sampleAgentID string) {
 		if agentID != sampleAgentID {
 			t.Errorf("conformance: LookupSpec should echo the agent id %q, got %q", sampleAgentID, agentID)
 		}
-		// Core hooks are mandatory (the command layer dispatches them without a
-		// nil-check); Register enforces this at registration, re-assert here.
-		if spec.Send == nil {
+		// Core operations are mandatory (the command layer dispatches them without
+		// a nil-check); Register enforces this at registration, re-assert here.
+		if spec.Send.Handler == nil {
 			t.Error("conformance: spec.Send (core) must be wired")
 		}
-		if spec.GetTask == nil {
+		if spec.GetTask.Handler == nil {
 			t.Error("conformance: spec.GetTask (core) must be wired")
 		}
 	})
@@ -105,8 +164,8 @@ func RunConformance(t *testing.T, scheme, sampleAgentID string) {
 		if card.AgentIDSource != prov.AgentIDSource {
 			t.Errorf("conformance: Card.AgentIDSource should equal the registered value %q, got %q", prov.AgentIDSource, card.AgentIDSource)
 		}
-		if card.Parameters == nil {
-			t.Error("conformance: Card.Parameters must not be nil (always emitted, empty is [])")
+		if card.HasParameters == nil {
+			t.Error("conformance: Card.HasParameters must not be nil (always emitted, empty is [])")
 		}
 		if !card.Capabilities.TaskGet {
 			t.Error("conformance: task_get must be true (GetTask is a mandatory core hook)")
@@ -114,6 +173,24 @@ func RunConformance(t *testing.T, scheme, sampleAgentID string) {
 		// Single-sourcing: two independent offline builds must DeepEqual.
 		if card2 := buildCard(); !reflect.DeepEqual(card, card2) {
 			t.Errorf("conformance: two offline BuildCard results should DeepEqual (single source), got\n%+v\nvs\n%+v", card, card2)
+		}
+	})
+
+	t.Run("params", func(t *testing.T) {
+		_, spec, _, err := agent.LookupSpec(scheme + ":" + sampleAgentID)
+		if err != nil {
+			t.Fatalf("conformance: LookupSpec returned error: %v", err)
+		}
+		// has_parameters must agree with the per-op declarations (single source).
+		has := map[string]bool{}
+		for _, v := range agent.HasParameters(spec) {
+			has[v] = true
+		}
+		for _, o := range spec.Ops() {
+			if want := o.Wired && len(o.Params) > 0; has[o.Verb] != want {
+				t.Errorf("conformance: has_parameters[%s]=%v disagrees with the op declaration (wired=%v, %d params)",
+					o.Verb, has[o.Verb], o.Wired, len(o.Params))
+			}
 		}
 	})
 

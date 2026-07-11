@@ -1,0 +1,230 @@
+// Copyright (c) 2026 Lark Technologies Pte. Ltd.
+// SPDX-License-Identifier: MIT
+
+// This file is the per-verb business-parameter engine: --param k=v parsing,
+// collect-all validation against one operation's declared set (every violation
+// reported in one pass, each self-contained enough to fix without a discovery
+// round-trip), default backfill, and the meta.next carry rule.
+
+package agent
+
+import (
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/spf13/cobra"
+
+	"github.com/larksuite/cli/errs"
+	iagent "github.com/larksuite/cli/internal/agent"
+)
+
+// validatedParams is the engine's product: Resolved is what the runtime hands
+// to the provider hook (defaults backfilled); Given is only what the caller
+// explicitly provided (no defaults) — the meta.next carry rule reads Given so
+// backfilled defaults never turn into command-line noise.
+type validatedParams struct {
+	Resolved map[string]string
+	Given    map[string]string
+}
+
+// addParamFlag registers the shared --param flag on a leaf (two-line helper,
+// same style as addAsFlag).
+func addParamFlag(cmd *cobra.Command, params *[]string) {
+	cmd.Flags().StringArrayVar(params, "param", nil, "业务参数 key=value，可重复（各命令所需参数见 lark-cli agent card <agent_ref> --operation <verb>）")
+}
+
+// validateParams parses --param pairs and validates them against ONE
+// operation's declared parameter set, collecting ALL violations into a single
+// typed invalid_argument error (exit 2). spec is used for the cross-operation
+// reverse lookup on unknown keys ("它声明在: send") and may be nil (agent list
+// path). Passing validation backfills declaration defaults into Resolved.
+func validateParams(kvs []string, declared []iagent.CardParam, verb string, spec *iagent.AgentSpec, ref string) (validatedParams, error) {
+	decl := make(map[string]iagent.CardParam, len(declared))
+	for _, p := range declared {
+		decl[p.Name] = p
+	}
+
+	// seen 记录“这个 key 在 argv 里出现过”（重复检测 + 抑制误报的 missing-
+	// required 都看它）；given 只收录通过校验的值（Resolved/meta.next 都看它）。
+	// 两张表必须分开：值校验失败的 key 若不进 seen，重复提供会漏报、缺必填会误报
+	// （参数明明给了、只是值不对，再报一条“缺少必填”是自相矛盾的指令）。
+	seen := map[string]bool{}
+	given := map[string]string{}
+	var viols []errs.InvalidParam
+
+	addViol := func(name, reason string, spec *iagent.CardParam, suggestions ...string) {
+		v := errs.InvalidParam{Name: name, Reason: reason, Suggestions: suggestions}
+		if spec != nil {
+			v.Spec = *spec
+		}
+		viols = append(viols, v)
+	}
+
+	// ── parse + per-key checks（一次收集全部）──
+	for _, kv := range kvs {
+		k, val, ok := strings.Cut(kv, "=")
+		if !ok || k == "" {
+			addViol(kv, fmt.Sprintf("--param 格式应为 key=value，得到 %q", kv), nil)
+			continue
+		}
+		if seen[k] {
+			addViol(k, fmt.Sprintf("参数 %s 重复提供（该参数不可重复）", k), nil)
+			continue
+		}
+		seen[k] = true
+		cp, known := decl[k]
+		if !known {
+			reason, sugg := unknownParamReason(k, verb, declared, spec)
+			addViol(k, reason, nil, sugg...)
+			continue
+		}
+		if val == "" {
+			// `k=` 空值统一按“未提供”处理（不进 given ⇒ 不遮蔽 Default 回填、
+			// 不把未过 Type/Enum/Range 校验的 "" 交给 hook——rt.Params() 契约）。
+			// 必填参数额外报专属违规；可选参数省略即得默认值，无需报错。
+			if cp.Required {
+				addViol(k, fmt.Sprintf("必填参数 %s 不能为空值（%s 必填）", k, verb), &cp)
+			}
+			continue
+		}
+		if err := iagent.ValidateValue(cp, val); err != nil {
+			addViol(k, fmt.Sprintf("参数 %s %s", k, err.Error()), &cp, cp.Enum...)
+			continue
+		}
+		given[k] = val
+	}
+
+	// ── missing required（对着声明反查；argv 里出现过的 key 不再重复报——
+	// 它要么已通过、要么已带着更精确的违规）──
+	for _, cp := range declared {
+		if !cp.Required || seen[cp.Name] {
+			continue
+		}
+		c := cp
+		addViol(cp.Name, fmt.Sprintf("缺少必填参数 %s（%s 必填）", cp.Name, verb), &c)
+	}
+
+	if len(viols) > 0 {
+		return validatedParams{}, paramsError(viols, verb, ref)
+	}
+
+	// ── default 回填（只作用于完全缺席的键）──
+	resolved := make(map[string]string, len(given))
+	for k, v := range given {
+		resolved[k] = v
+	}
+	for _, cp := range declared {
+		if cp.Default == "" {
+			continue
+		}
+		if _, ok := resolved[cp.Name]; !ok {
+			resolved[cp.Name] = cp.Default
+		}
+	}
+	return validatedParams{Resolved: resolved, Given: given}, nil
+}
+
+// unknownParamReason builds the teaching sentence for an undeclared key: if
+// another operation of the same spec declares it, name those operations（改动
+// 词就能修）；otherwise list this operation's own parameter set（改拼写就能修）.
+func unknownParamReason(key, verb string, declared []iagent.CardParam, spec *iagent.AgentSpec) (string, []string) {
+	if spec != nil {
+		var elsewhere []string
+		for _, o := range spec.Ops() {
+			if o.Verb == verb || !o.Wired {
+				continue
+			}
+			for _, p := range o.Params {
+				if p.Name == key {
+					elsewhere = append(elsewhere, o.Verb)
+					break
+				}
+			}
+		}
+		if len(elsewhere) > 0 {
+			sort.Strings(elsewhere)
+			return fmt.Sprintf("参数 %s 不适用于 %s（它声明在: %s）", key, verb, strings.Join(elsewhere, ", ")), elsewhere
+		}
+	}
+	known := make([]string, 0, len(declared))
+	for _, p := range declared {
+		known = append(known, p.Name)
+	}
+	if len(known) == 0 {
+		return fmt.Sprintf("未知参数 %s（%s 不接受任何业务参数）", key, verb), nil
+	}
+	return fmt.Sprintf("未知参数 %s（%s 可用参数: %s）", key, verb, strings.Join(known, ", ")), known
+}
+
+// paramsError folds collected violations into one typed error: a single
+// violation keeps its sentence as the message (continuity with the old
+// one-error style); several get a count summary, with every violation carried
+// structurally in params[].
+func paramsError(viols []errs.InvalidParam, verb, ref string) error {
+	msg := viols[0].Reason
+	if len(viols) > 1 {
+		msg = fmt.Sprintf("%s 参数校验失败：%d 处问题（详见 params）", verb, len(viols))
+	}
+	e := errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", msg).
+		WithParam("param:" + viols[0].Name).
+		WithParams(viols...)
+	return e.WithHint("%s", opHint(ref, verb))
+}
+
+// validateListParams is the `agent list <scheme>` variant of validateParams:
+// list is a provider-level operation with no agent_ref yet, so there is no
+// spec for cross-operation reverse lookup, and the discovery hint points at
+// the provider listing's list_parameters instead of an agent card.
+func validateListParams(kvs []string, declared []iagent.CardParam, scheme string) (validatedParams, error) {
+	vp, err := validateParams(kvs, declared, "list", nil, "")
+	if err != nil {
+		var verr *errs.ValidationError
+		if errors.As(err, &verr) {
+			verr.Hint = fmt.Sprintf("按 params 逐条修正后重发；agent list %s 的可用参数见 lark-cli agent list 输出的 providers[].list_parameters", scheme)
+		}
+		return validatedParams{}, err
+	}
+	return vp, nil
+}
+
+// opHint is the operation-scoped discovery hint（ref 过白名单才内插命令）.
+func opHint(ref, verb string) string {
+	if safeNextRef(ref) {
+		return fmt.Sprintf("按 params 逐条修正后重发；或运行 lark-cli agent card %s --operation %s 查看参数声明", ref, verb)
+	}
+	return "按 params 逐条修正后重发；或用 agent card 的 --operation 子查询查看参数声明"
+}
+
+// paramArgsFor renders the meta.next carry for target verb V per the
+// three-way rule, in declaration order:
+//  1. given + value passes the whitelist → carry literally;
+//  2. given + value fails the whitelist → required degrades to a placeholder
+//     (template), optional is dropped（宁缺毋歧义）;
+//  3. absent but required on V → placeholder (template) — the cross-verb hole:
+//     without this, "链上不丢必填" only holds when the previous verb happened
+//     to share the parameter.
+//
+// Defaults are NOT carried (the next hop deterministically re-backfills).
+func paramArgsFor(spec *iagent.AgentSpec, verb string, given map[string]string) (args string, templated bool) {
+	if spec == nil {
+		return "", false
+	}
+	op, ok := spec.Op(verb)
+	if !ok {
+		return "", false
+	}
+	var b strings.Builder
+	for _, p := range op.Params {
+		v, has := given[p.Name]
+		switch {
+		case has && v != "" && safeNextID(v):
+			fmt.Fprintf(&b, " --param %s=%s", p.Name, v)
+		case p.Required:
+			fmt.Fprintf(&b, " --param %s=<%s>", p.Name, p.Name)
+			templated = true
+		}
+	}
+	return b.String(), templated
+}

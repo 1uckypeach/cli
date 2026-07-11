@@ -5,7 +5,10 @@ package agent
 
 import (
 	"fmt"
+	"math"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
@@ -65,17 +68,29 @@ func Register(p Provider) {
 	} else {
 		checkSpec(p.Scheme, p.Instance, false)
 	}
+	// ListParams declares the parameters of `agent list <scheme>` — meaningless
+	// without an online enumeration hook to consume them.
+	if len(p.ListParams) > 0 && p.ListAgents == nil {
+		panic("agent: provider declares ListParams without a ListAgents hook: " + p.Scheme)
+	}
+	checkParams(p.Scheme+": agent list", p.ListParams)
+	for i := range p.ListParams {
+		if p.ListParams[i].Type == "" {
+			p.ListParams[i].Type = "string"
+		}
+	}
 	providerRegistry[p.Scheme] = p
 }
 
-// checkSpec asserts the mandatory core hooks and the ID rule for one spec. The
-// command layer dispatches Send/GetTask without a nil-check, so they must exist.
+// checkSpec asserts the mandatory core operations, the ID rule, and every
+// operation's parameter declarations for one spec. The command layer
+// dispatches Send/GetTask without a nil-check, so they must be wired.
 func checkSpec(scheme string, s *AgentSpec, catalog bool) {
-	if s.Send == nil {
-		panic("agent: spec missing core Send: " + scheme + ":" + s.ID)
+	if !s.Send.wired() {
+		panic("agent: spec missing core Send handler: " + scheme + ":" + s.ID)
 	}
-	if s.GetTask == nil {
-		panic("agent: spec missing core GetTask: " + scheme + ":" + s.ID)
+	if !s.GetTask.wired() {
+		panic("agent: spec missing core GetTask handler: " + scheme + ":" + s.ID)
 	}
 	if catalog && s.ID == "" {
 		panic("agent: catalog spec missing ID: " + scheme)
@@ -83,6 +98,174 @@ func checkSpec(scheme string, s *AgentSpec, catalog bool) {
 	if !catalog && s.ID != "" {
 		panic("agent: instance template must have empty ID: " + scheme + ", got: " + s.ID)
 	}
+	for _, o := range s.Ops() {
+		where := scheme + ":" + s.ID + " " + o.Verb
+		// Params physically live on the Op, so the only declared-without-handler
+		// mistake left is a non-empty Params next to a nil Handler.
+		if len(o.Params) > 0 && !o.Wired {
+			panic("agent: params declared on an unwired operation: " + where)
+		}
+		checkParams(where, o.Params)
+	}
+	normalizeSpecParams(s)
+}
+
+// paramNameRe is the parameter-name charset: a strict subset of the meta.next
+// interpolation whitelist ([A-Za-z0-9_-]), so a declared name is safe to
+// splice into a suggested command by construction, and snake→kebab mapping
+// stays bijective for a future native-flag projection.
+var paramNameRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
+
+// paramTypes is the closed Type vocabulary (empty normalizes to "string").
+var paramTypes = map[string]bool{"string": true, "integer": true, "number": true, "boolean": true}
+
+// checkParams fail-fast validates one operation's parameter declarations
+// (where names the operation for the panic message).
+func checkParams(where string, params []CardParam) {
+	seen := make(map[string]bool, len(params))
+	for _, cp := range params {
+		at := where + " param " + cp.Name
+		if !paramNameRe.MatchString(cp.Name) {
+			panic("agent: param name must match ^[a-z][a-z0-9_]{0,63}$: " + at)
+		}
+		if seen[cp.Name] {
+			panic("agent: duplicate param name within one operation: " + at)
+		}
+		seen[cp.Name] = true
+
+		typ := cp.Type
+		if typ == "" {
+			typ = "string"
+		}
+		if !paramTypes[typ] {
+			panic("agent: param Type must be one of string|integer|number|boolean: " + at + ", got: " + cp.Type)
+		}
+		if len(cp.Enum) > 0 {
+			if typ != "string" && typ != "integer" {
+				panic("agent: Enum is only valid on string|integer params: " + at)
+			}
+			if cp.Min != nil || cp.Max != nil {
+				panic("agent: Enum and Min/Max are mutually exclusive: " + at)
+			}
+			ev := make(map[string]bool, len(cp.Enum))
+			for _, e := range cp.Enum {
+				if e == "" {
+					panic("agent: Enum member must be non-empty: " + at)
+				}
+				if ev[e] {
+					panic("agent: duplicate Enum member: " + at + ", member: " + e)
+				}
+				ev[e] = true
+				if typ == "integer" {
+					if _, err := strconv.ParseInt(e, 10, 64); err != nil {
+						panic("agent: integer Enum member must parse as integer: " + at + ", member: " + e)
+					}
+				}
+			}
+		}
+		if cp.Min != nil || cp.Max != nil {
+			if typ != "integer" && typ != "number" {
+				panic("agent: Min/Max are only valid on integer|number params: " + at)
+			}
+			if cp.Min != nil && cp.Max != nil && *cp.Min > *cp.Max {
+				panic("agent: Min must be <= Max: " + at)
+			}
+		}
+		if cp.Default != "" {
+			if cp.Required {
+				panic("agent: Default and Required are mutually exclusive: " + at)
+			}
+			if err := ValidateValue(cp, cp.Default); err != nil {
+				panic("agent: Default violates the param's own declaration: " + at + ": " + err.Error())
+			}
+		}
+	}
+}
+
+// ValidateValue validates one value against a declaration's Type/Enum/Min/Max
+// (shared by Register's Default check and the command layer's per-call
+// validation).
+func ValidateValue(cp CardParam, val string) error {
+	typ := cp.Type
+	if typ == "" {
+		typ = "string"
+	}
+	switch typ {
+	case "integer":
+		n, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return fmt.Errorf("需为 integer，得到 %q", val)
+		}
+		if cp.Min != nil && float64(n) < *cp.Min {
+			return fmt.Errorf("须在 %s 范围内，得到 %s", rangeText(cp), val)
+		}
+		if cp.Max != nil && float64(n) > *cp.Max {
+			return fmt.Errorf("须在 %s 范围内，得到 %s", rangeText(cp), val)
+		}
+	case "number":
+		f, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			return fmt.Errorf("需为 number，得到 %q", val)
+		}
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			return fmt.Errorf("需为有限 number，得到 %q", val)
+		}
+		if cp.Min != nil && f < *cp.Min {
+			return fmt.Errorf("须在 %s 范围内，得到 %s", rangeText(cp), val)
+		}
+		if cp.Max != nil && f > *cp.Max {
+			return fmt.Errorf("须在 %s 范围内，得到 %s", rangeText(cp), val)
+		}
+	case "boolean":
+		if _, err := strconv.ParseBool(val); err != nil {
+			return fmt.Errorf("需为 boolean，得到 %q", val)
+		}
+	}
+	if len(cp.Enum) > 0 {
+		for _, e := range cp.Enum {
+			if val == e {
+				return nil
+			}
+		}
+		return fmt.Errorf("取值须为 %s，得到 %q", strings.Join(cp.Enum, "|"), val)
+	}
+	return nil
+}
+
+// rangeText renders a Min/Max declaration for error messages ("1..100",
+// ">=1", "<=100").
+func rangeText(cp CardParam) string {
+	switch {
+	case cp.Min != nil && cp.Max != nil:
+		return trimFloat(*cp.Min) + ".." + trimFloat(*cp.Max)
+	case cp.Min != nil:
+		return ">=" + trimFloat(*cp.Min)
+	default:
+		return "<=" + trimFloat(*cp.Max)
+	}
+}
+
+func trimFloat(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
+
+// normalizeSpecParams normalizes declarations in place after validation
+// (currently: empty Type ⇒ "string"), so every downstream consumer reads a
+// canonical form.
+func normalizeSpecParams(s *AgentSpec) {
+	normalize := func(ps []CardParam) {
+		for i := range ps {
+			if ps[i].Type == "" {
+				ps[i].Type = "string"
+			}
+		}
+	}
+	normalize(s.Send.Params)
+	normalize(s.GetTask.Params)
+	normalize(s.ListTasks.Params)
+	normalize(s.CancelTask.Params)
+	normalize(s.ListContexts.Params)
+	normalize(s.GetContext.Params)
+	normalize(s.DeleteContext.Params)
+	normalize(s.DownloadArtifact.Params)
 }
 
 // Info returns the registered provider for a scheme (ok=false if not registered).

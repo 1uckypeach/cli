@@ -70,13 +70,16 @@ func TestAgentCardRun_ExampleStaticCard(t *testing.T) {
 	if caps["context_list"] != true || caps["context_get"] != true || caps["context_delete"] != true {
 		t.Errorf("echo should support the three context capabilities, got %v", caps)
 	}
-	// parameters / identity must serialize as non-null (guard against omitempty
-	// regression): parameters is always an array (empty [] for example),
-	// identity is a non-empty array.
-	if params, ok := data["parameters"].([]interface{}); !ok {
-		t.Errorf("parameters should be a non-null array, got %T (%v)", data["parameters"], data["parameters"])
-	} else if len(params) != 0 {
-		t.Errorf("example parameters should be an empty array, got %v", params)
+	// The lean card embeds NO parameter details; has_parameters is the always-
+	// emitted (non-null) cue. echo declares no params ⇒ []; the old parameters
+	// field must be gone entirely.
+	if hp, ok := data["has_parameters"].([]interface{}); !ok {
+		t.Errorf("has_parameters should be a non-null array, got %T (%v)", data["has_parameters"], data["has_parameters"])
+	} else if len(hp) != 0 {
+		t.Errorf("echo has_parameters should be empty, got %v", hp)
+	}
+	if _, present := data["parameters"]; present {
+		t.Errorf("the lean card must not embed a parameters field (use --operation), got %v", data["parameters"])
 	}
 	if ids, ok := data["identity"].([]interface{}); !ok || len(ids) == 0 {
 		t.Errorf("identity should be a non-null non-empty array, got %T (%v)", data["identity"], data["identity"])
@@ -186,9 +189,7 @@ func TestPrintCardPretty_AllOptionalFields(t *testing.T) {
 			ContextList: true,
 			TaskCancel:  false,
 		},
-		Parameters: []iagent.CardParam{
-			{Name: "locale", Type: "string", Required: true, Desc: "reply locale"},
-		},
+		HasParameters: []string{"send"},
 		Skills: []iagent.CardSkill{
 			{ID: "sk_1", Name: "Sales Analysis"},
 			{ID: "sk_2"}, // no Name → falls back to ID
@@ -203,7 +204,7 @@ func TestPrintCardPretty_AllOptionalFields(t *testing.T) {
 		"a helpful demo agent",  // Description branch
 		"identity: user, bot",   // IdentitySpec types are joined
 		"需加入渠道白名单",              // identity precondition must be visible in pretty (Task 11 wrap-up)
-		"locale",                // Parameters branch
+		"parameters: send",      // has_parameters cue + --operation pointer
 		"skills:",               // Skills block header
 		"Sales Analysis",        // skill with a Name
 		"sk_2",                  // skill without a Name → id fallback

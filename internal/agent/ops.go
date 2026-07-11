@@ -1,0 +1,224 @@
+// Copyright (c) 2026 Lark Technologies Pte. Ltd.
+// SPDX-License-Identifier: MIT
+
+package agent
+
+import (
+	"context"
+	"fmt"
+	"reflect"
+	"strconv"
+
+	"github.com/larksuite/cli/errs"
+)
+
+// Op is one declared operation: the business parameters it accepts bound to
+// the handler that serves it. Attaching Params to the handler (rather than an
+// agent-global table) makes "parameters declared on an unimplemented
+// operation" impossible by construction. A zero-value Op means the operation
+// is not supported.
+type Op[H any] struct {
+	Params  []CardParam
+	Handler H
+}
+
+// The eight operation shapes. Each is an alias to an instantiated Op — the
+// handler signatures are exactly the former hook signatures, so a provider
+// migrates by wrapping `Send: f` into `Send: SendOp{Handler: f}`.
+type (
+	SendOp             = Op[func(ctx context.Context, rt Runtime, in SendInput) (*AgentTask, error)]
+	TaskGetOp          = Op[func(ctx context.Context, rt Runtime, taskID string) (*AgentTask, error)]
+	TaskListOp         = Op[func(ctx context.Context, rt Runtime, contextID string) ([]TaskSummary, error)]
+	TaskCancelOp       = Op[func(ctx context.Context, rt Runtime, taskID string) error]
+	ContextListOp      = Op[func(ctx context.Context, rt Runtime) ([]ContextSummary, error)]
+	ContextGetOp       = Op[func(ctx context.Context, rt Runtime, ctxID string) (*ContextDetail, error)]
+	ContextDeleteOp    = Op[func(ctx context.Context, rt Runtime, ctxID string) error]
+	ArtifactDownloadOp = Op[func(ctx context.Context, rt Runtime, taskID, artifactID string) (*ArtifactData, error)]
+)
+
+// wired reports whether the operation has a handler. IMPLEMENTATION
+// CONSTRAINT: H is a func type parameter, so `any(o.Handler) != nil` would box
+// a typed nil into a non-nil interface and report every unwired operation as
+// supported — reflect.Value.IsNil is the only correct generic path (verified
+// by test on the zero value).
+func (o Op[H]) wired() bool {
+	v := reflect.ValueOf(o.Handler)
+	return v.Kind() == reflect.Func && !v.IsNil()
+}
+
+func (o Op[H]) params() []CardParam { return o.Params }
+
+// Verb constants: the operation vocabulary is the capability key set plus
+// "send" — the AI reads one set of words for both "which verbs exist"
+// (capabilities) and "what parameters each verb takes" (--operation).
+const (
+	VerbSend             = "send"
+	VerbTaskGet          = CapTaskGet          // "task_get"
+	VerbTaskList         = CapTaskList         // "task_list"
+	VerbTaskCancel       = CapTaskCancel       // "task_cancel"
+	VerbContextList      = CapContextList      // "context_list"
+	VerbContextGet       = CapContextGet       // "context_get"
+	VerbContextDelete    = CapContextDelete    // "context_delete"
+	VerbArtifactDownload = CapArtifactDownload // "artifact_download" (task get --artifact)
+)
+
+// OpInfo is one operation's declaration as seen by framework consumers
+// (card --operation, has_parameters, per-verb validation).
+type OpInfo struct {
+	Verb   string
+	Wired  bool
+	Params []CardParam
+}
+
+// opDecl is the single-enumeration seam: every Op instantiation satisfies it,
+// so Ops() is the one place that knows the verb↔field mapping. All framework
+// consumers (capabilities, has_parameters, --operation, validation) enumerate
+// through it — adding a ninth operation means extending exactly this table.
+type opDecl interface {
+	wired() bool
+	params() []CardParam
+}
+
+// Ops enumerates the spec's eight operations in fixed verb order.
+func (s *AgentSpec) Ops() []OpInfo {
+	decls := []struct {
+		verb string
+		op   opDecl
+	}{
+		{VerbSend, s.Send},
+		{VerbTaskGet, s.GetTask},
+		{VerbTaskList, s.ListTasks},
+		{VerbTaskCancel, s.CancelTask},
+		{VerbContextList, s.ListContexts},
+		{VerbContextGet, s.GetContext},
+		{VerbContextDelete, s.DeleteContext},
+		{VerbArtifactDownload, s.DownloadArtifact},
+	}
+	out := make([]OpInfo, 0, len(decls))
+	for _, d := range decls {
+		out = append(out, OpInfo{Verb: d.verb, Wired: d.op.wired(), Params: d.op.params()})
+	}
+	return out
+}
+
+// Op looks up one operation by verb (ok=false for a word outside the verb
+// vocabulary).
+func (s *AgentSpec) Op(verb string) (OpInfo, bool) {
+	for _, o := range s.Ops() {
+		if o.Verb == verb {
+			return o, true
+		}
+	}
+	return OpInfo{}, false
+}
+
+// Verbs returns the fixed verb vocabulary (declaration order of Ops).
+func Verbs() []string {
+	return []string{
+		VerbSend, VerbTaskGet, VerbTaskList, VerbTaskCancel,
+		VerbContextList, VerbContextGet, VerbContextDelete, VerbArtifactDownload,
+	}
+}
+
+// Float is a literal helper for CardParam.Min/Max.
+func Float(v float64) *float64 { return &v }
+
+// ── Typed parameter access for provider handlers ──
+//
+// The framework validates every parameter against its declaration BEFORE a
+// handler runs (rt.Params() contract), so the typed helpers treat a parse
+// failure as provider coding drift, not user error.
+
+// ParamInt returns the named integer parameter (ok=false when absent). The
+// framework has already validated the value against Type "integer", so a parse
+// failure is a programmer error (reading a non-integer param as int) and panics
+// like Register does.
+func ParamInt(rt Runtime, name string) (int64, bool) {
+	raw, ok := rt.Params()[name]
+	if !ok {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		panic(fmt.Sprintf("agent: ParamInt(%q) on a non-integer value %q — declaration/consumption drift", name, raw))
+	}
+	return n, true
+}
+
+// ParamBool returns the named boolean parameter (ok=false when absent).
+func ParamBool(rt Runtime, name string) (bool, bool) {
+	raw, ok := rt.Params()[name]
+	if !ok {
+		return false, false
+	}
+	b, err := strconv.ParseBool(raw)
+	if err != nil {
+		panic(fmt.Sprintf("agent: ParamBool(%q) on a non-boolean value %q — declaration/consumption drift", name, raw))
+	}
+	return b, true
+}
+
+// BindParams decodes rt.Params() into a provider struct via `param:"name"`
+// tags, so the consumption side is compile-checked instead of stringly map
+// lookups. Absent optional parameters leave the zero value (required ones are
+// guaranteed present by the rt.Params() contract). Supported field kinds:
+// string, int/int64, float64, bool. A conversion failure or unsupported field
+// kind indicates declaration/struct drift (a provider coding error) and
+// returns a typed internal error; agenttest.CheckParamsBinding catches the
+// same drift in CI before it can happen at runtime.
+func BindParams[T any](rt Runtime) (T, error) {
+	var out T
+	v := reflect.ValueOf(&out).Elem()
+	t := v.Type()
+	if t.Kind() != reflect.Struct {
+		return out, errs.NewInternalError(errs.SubtypeUnknown, "BindParams: %s 不是 struct", t)
+	}
+	p := rt.Params()
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		tag := f.Tag.Get("param")
+		if tag == "" || tag == "-" {
+			continue
+		}
+		if !f.IsExported() {
+			// reflect cannot Set an unexported field — surface the coding error as
+			// a typed error instead of a runtime panic (CheckParamsBinding flags
+			// the same mistake in CI).
+			return out, errs.NewInternalError(errs.SubtypeUnknown,
+				"BindParams: 字段 %s 未导出但带 param tag（无法赋值）", f.Name)
+		}
+		raw, ok := p[tag]
+		if !ok {
+			continue // absent optional → zero value
+		}
+		switch f.Type.Kind() {
+		case reflect.String:
+			v.Field(i).SetString(raw)
+		case reflect.Int, reflect.Int64:
+			n, err := strconv.ParseInt(raw, 10, 64)
+			if err != nil {
+				return out, errs.NewInternalError(errs.SubtypeUnknown,
+					"BindParams: 参数 %s 的值 %q 无法解析为 %s（声明与消费漂移）", tag, raw, f.Type.Kind()).WithCause(err)
+			}
+			v.Field(i).SetInt(n)
+		case reflect.Float64:
+			fl, err := strconv.ParseFloat(raw, 64)
+			if err != nil {
+				return out, errs.NewInternalError(errs.SubtypeUnknown,
+					"BindParams: 参数 %s 的值 %q 无法解析为 float64（声明与消费漂移）", tag, raw).WithCause(err)
+			}
+			v.Field(i).SetFloat(fl)
+		case reflect.Bool:
+			b, err := strconv.ParseBool(raw)
+			if err != nil {
+				return out, errs.NewInternalError(errs.SubtypeUnknown,
+					"BindParams: 参数 %s 的值 %q 无法解析为 bool（声明与消费漂移）", tag, raw).WithCause(err)
+			}
+			v.Field(i).SetBool(b)
+		default:
+			return out, errs.NewInternalError(errs.SubtypeUnknown,
+				"BindParams: 字段 %s 的类型 %s 不受支持（支持 string/int/int64/float64/bool）", f.Name, f.Type.Kind())
+		}
+	}
+	return out, nil
+}

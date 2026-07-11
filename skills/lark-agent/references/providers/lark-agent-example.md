@@ -50,6 +50,7 @@ catalog 型必可枚举，`agent list example` 直接列全部 agent（含 name/
 - **任务发出即完成（echo/reporter）**：send 返回的 `state` 恒为 `completed`（终态），`meta.next` 直接给"查看任务详情与产物"，不会推轮询命令——观察 `--watch` / 非终态行为要靠真实 provider 或 `example:planner`。
 - **多轮记忆可验证**：同一 `--context-id` 续发时，echo 的回复从第 2 轮起带轮次标记（如 `换个角度再说一遍（第 2 轮）`），跨命令证明上下文确实在工作。
 - **echo/reporter 不支持向已有任务续发**：带 `--task-id` 续发报 `failed_precondition`（任务发出即终态），hint 引导去掉 `--task-id` 用 `--context-id` 起新一轮。
+- **参数声明演示（`example:reporter` 的 send）**：声明了两个可选参数作 copy-start 模板——`report_format`（enum: `csv|xlsx`，默认 `csv`）、`quarters`（integer，范围 1..12，默认 `4`）。`agent card example:reporter --operation send` 可看到完整契约；不带参数时行为与历史一致（默认值回填），`--param report_format=xlsx` 会改变回复文案；`--param report_format=pdf` 触发 enum 教学错误（离线、exit 2、列出合法值全集）。
 - **HITL 决策链路（`example:planner`）**：首次 `send` 返回 `state=input_required` + 结构化决策（`decision_id`、`input_type=single_select`、`options=[by_region, by_category]`、`submitted=false`）；用 `send --context-id <ctx> --task-id <task> --decision-id <id> --option by_region` 应答后任务转 `completed`、决策标 `submitted=true`（`submitted_option_id=by_region`）；对已答决策再 `--option` 报 `conflict`——单进程 mock 里对多端仲裁的最小示范。
 
 ## 错误样例（真实输出）

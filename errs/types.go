@@ -81,6 +81,11 @@ type InvalidParam struct {
 	// parameter (e.g. did-you-mean flags or subcommands), so an agent can retry
 	// without parsing the human-facing hint. Omitted when there are none.
 	Suggestions []string `json:"suggestions,omitempty"`
+	// Spec optionally embeds the parameter's full declaration (type, enum,
+	// default, description, ...) so the error is self-contained: a caller can
+	// fix the value without a discovery round-trip. Producers pass a
+	// JSON-marshalable declaration struct; omitted when not applicable.
+	Spec any `json:"spec,omitempty"`
 }
 
 // Unwrap exposes the wrapped cause so errors.Unwrap / errors.Is can traverse

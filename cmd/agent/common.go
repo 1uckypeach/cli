@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -67,13 +66,16 @@ func resolveSpec(f *cmdutil.Factory, cmd *cobra.Command, ref, asStr string) (iag
 // runtimeFor builds the identity-pinned Runtime for a verb that actually calls
 // the remote API. It requires a configured client (not_configured / exit 3 here
 // is correct for a real API call). agentID is the resolved agent this call
-// addresses (from the ref), exposed to hooks via rt.AgentID().
-func runtimeFor(f *cmdutil.Factory, id core.Identity, agentID string) (iagent.Runtime, error) {
+// addresses (from the ref), exposed to hooks via rt.AgentID(); params is the
+// validated business-parameter map (defaults backfilled) exposed via
+// rt.Params() — pass nil on paths that carry no business params (card's
+// Describe enrichment).
+func runtimeFor(f *cmdutil.Factory, id core.Identity, agentID string, params map[string]string) (iagent.Runtime, error) {
 	apiClient, err := f.NewAPIClient()
 	if err != nil {
 		return nil, err
 	}
-	return &cmdRuntime{client: apiClient, as: id, agentID: agentID}, nil
+	return &cmdRuntime{client: apiClient, as: id, agentID: agentID, params: params}, nil
 }
 
 // wrapRefResolveError promotes a ParseRef / provider-resolution error to a
@@ -108,57 +110,6 @@ func cardHint(ref, what string) string {
 		return fmt.Sprintf("运行 lark-cli agent card %s 查看%s", ref, what)
 	}
 	return fmt.Sprintf("查看该 agent 的能力卡片（agent card 命令）确认%s", what)
-}
-
-// parseAndValidateParams parses `key=value` --param pairs and validates them
-// against the card's Parameters declaration: every Required parameter must be
-// present, and every provided key must be declared (an undeclared key
-// would otherwise be silently dropped by the provider). A pair without '=' (or
-// an empty key), a missing required parameter, or an unknown key returns a
-// validation typed error (subtype invalid_argument, param "param:<key>")
-// whose hint points at `agent card <ref>`. A nil card skips both
-// card-driven checks.
-func parseAndValidateParams(kvs []string, card *iagent.AgentCard, ref string) (map[string]string, error) {
-	m := make(map[string]string, len(kvs))
-	for _, kv := range kvs {
-		k, v, ok := strings.Cut(kv, "=")
-		if !ok || k == "" {
-			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
-				"--param 格式应为 key=value，得到 %q", kv).
-				WithParam("--param").
-				WithHint("以 --param key=value 形式重发")
-		}
-		m[k] = v
-	}
-	if card != nil {
-		declared := make(map[string]bool, len(card.Parameters))
-		for _, p := range card.Parameters {
-			declared[p.Name] = true
-		}
-		// Unknown keys are checked in input order so the reported key is
-		// deterministic when several are undeclared.
-		for _, kv := range kvs {
-			k, _, _ := strings.Cut(kv, "=")
-			if !declared[k] {
-				return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
-					"未知参数 %s（该 agent 未声明此参数）", k).
-					WithParam("param:"+k).
-					WithHint("%s", cardHint(ref, " parameters 声明"))
-			}
-		}
-		for _, p := range card.Parameters {
-			if !p.Required {
-				continue
-			}
-			if _, ok := m[p.Name]; !ok {
-				return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
-					"缺少必填参数 %s（该 agent 要求）", p.Name).
-					WithParam("param:"+p.Name).
-					WithHint("%s", cardHint(ref, " parameters 声明"))
-			}
-		}
-	}
-	return m, nil
 }
 
 // emitTask writes a task result: the standard success envelope carrying

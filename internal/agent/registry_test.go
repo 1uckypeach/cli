@@ -25,8 +25,8 @@ func swapRegistry(t *testing.T, m map[string]Provider) {
 func coreSpec(id string) AgentSpec {
 	return AgentSpec{
 		ID:      id,
-		Send:    func(context.Context, Runtime, SendInput) (*AgentTask, error) { return nil, nil },
-		GetTask: func(context.Context, Runtime, string) (*AgentTask, error) { return nil, nil },
+		Send:    SendOp{Handler: func(context.Context, Runtime, SendInput) (*AgentTask, error) { return nil, nil }},
+		GetTask: TaskGetOp{Handler: func(context.Context, Runtime, string) (*AgentTask, error) { return nil, nil }},
 	}
 }
 
@@ -91,8 +91,8 @@ func TestRegisterPanicBranches(t *testing.T) {
 		{"neither Catalog nor Instance", func(p *Provider) { p.Instance = nil }, "exactly one of Catalog / Instance"},
 		{"both Catalog and Instance", func(p *Provider) { p.Catalog = catalogProvider("x", "a").Catalog }, "exactly one of Catalog / Instance"},
 		{"instance template with ID", func(p *Provider) { p.Instance.ID = "oops" }, "instance template must have empty ID"},
-		{"missing core Send", func(p *Provider) { p.Instance.Send = nil }, "missing core Send"},
-		{"missing core GetTask", func(p *Provider) { p.Instance.GetTask = nil }, "missing core GetTask"},
+		{"missing core Send", func(p *Provider) { p.Instance.Send = SendOp{} }, "missing core Send"},
+		{"missing core GetTask", func(p *Provider) { p.Instance.GetTask = TaskGetOp{} }, "missing core GetTask"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -210,7 +210,7 @@ func TestLookupSpecInstance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a valid instance ref should succeed, got %v", err)
 	}
-	if prov.Scheme != "demo" || spec == nil || spec.Send == nil {
+	if prov.Scheme != "demo" || spec == nil || spec.Send.Handler == nil {
 		t.Fatalf("should return the instance template, got prov=%+v spec=%v", prov, spec)
 	}
 	if agentID != "agt_42" {

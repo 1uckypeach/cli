@@ -14,8 +14,9 @@ import (
 // fakeRT is a no-op Runtime for exercising BuildCard's rt != nil path.
 type fakeRT struct{}
 
-func (fakeRT) AgentID() string { return "" }
-func (fakeRT) IsBot() bool     { return false }
+func (fakeRT) AgentID() string           { return "" }
+func (fakeRT) IsBot() bool               { return false }
+func (fakeRT) Params() map[string]string { return nil }
 func (fakeRT) CallAPI(context.Context, string, string, map[string]string, any) (json.RawMessage, error) {
 	return nil, nil
 }
@@ -63,7 +64,7 @@ func TestCardSupports(t *testing.T) {
 func TestDeriveCapabilities(t *testing.T) {
 	// Minimal (echo-like): only the core hooks + read verbs.
 	min := coreSpec("echo")
-	min.ListContexts = func(context.Context, Runtime) ([]ContextSummary, error) { return nil, nil }
+	min.ListContexts = ContextListOp{Handler: func(context.Context, Runtime) ([]ContextSummary, error) { return nil, nil }}
 	c := DeriveCapabilities(&min)
 	if !c.TaskGet {
 		t.Error("task_get should be true (GetTask is a mandatory core hook)")
@@ -79,12 +80,12 @@ func TestDeriveCapabilities(t *testing.T) {
 
 	// Full (reporter-like): everything wired / declared.
 	full := coreSpec("reporter")
-	full.ListTasks = func(context.Context, Runtime, string) ([]TaskSummary, error) { return nil, nil }
-	full.CancelTask = func(context.Context, Runtime, string) error { return nil }
-	full.ListContexts = func(context.Context, Runtime) ([]ContextSummary, error) { return nil, nil }
-	full.GetContext = func(context.Context, Runtime, string) (*ContextDetail, error) { return nil, nil }
-	full.DeleteContext = func(context.Context, Runtime, string) error { return nil }
-	full.DownloadArtifact = func(context.Context, Runtime, string, string) (*ArtifactData, error) { return nil, nil }
+	full.ListTasks = TaskListOp{Handler: func(context.Context, Runtime, string) ([]TaskSummary, error) { return nil, nil }}
+	full.CancelTask = TaskCancelOp{Handler: func(context.Context, Runtime, string) error { return nil }}
+	full.ListContexts = ContextListOp{Handler: func(context.Context, Runtime) ([]ContextSummary, error) { return nil, nil }}
+	full.GetContext = ContextGetOp{Handler: func(context.Context, Runtime, string) (*ContextDetail, error) { return nil, nil }}
+	full.DeleteContext = ContextDeleteOp{Handler: func(context.Context, Runtime, string) error { return nil }}
+	full.DownloadArtifact = ArtifactDownloadOp{Handler: func(context.Context, Runtime, string, string) (*ArtifactData, error) { return nil, nil }}
 	full.FileInput = true
 	full.InputRequired = true
 	c = DeriveCapabilities(&full)
@@ -114,8 +115,8 @@ func TestBuildCardOffline(t *testing.T) {
 	if len(card.Identity) != 1 || card.Identity[0].Type != IdentityBot {
 		t.Fatalf("identity should come from the provider: %+v", card.Identity)
 	}
-	if card.Parameters == nil || len(card.Parameters) != 0 {
-		t.Fatalf("parameters should be empty but non-nil (always emit []): %#v", card.Parameters)
+	if card.HasParameters == nil || len(card.HasParameters) != 0 {
+		t.Fatalf("has_parameters should be empty but non-nil (always emit []): %#v", card.HasParameters)
 	}
 	if !card.Capabilities.TaskGet {
 		t.Error("task_get should be derived true")

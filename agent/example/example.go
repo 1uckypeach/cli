@@ -48,32 +48,53 @@ var echoSpec = agent.AgentSpec{
 	ID:            "echo",
 	Name:          "复读机",
 	Description:   "把你发的话原样复读一遍（同一会话续发时带轮次，证明上下文记忆）。最小能力集示范。",
-	Send:          echoSend,
-	GetTask:       getTask,
-	ListTasks:     listTasks,
-	ListContexts:  listContexts,
-	GetContext:    getContext,
-	DeleteContext: deleteContext,
+	Send:          agent.SendOp{Handler: echoSend},
+	GetTask:       agent.TaskGetOp{Handler: getTask},
+	ListTasks:     agent.TaskListOp{Handler: listTasks},
+	ListContexts:  agent.ContextListOp{Handler: listContexts},
+	GetContext:    agent.ContextGetOp{Handler: getContext},
+	DeleteContext: agent.ContextDeleteOp{Handler: deleteContext},
 }
 
 // reporterSpec is the full set: it additionally wires CancelTask +
 // DownloadArtifact and declares the FileInput/InputRequired behavioral flags. The
 // difference between the two agents is data you read top-to-bottom, not a branch
 // inside a Factory.
+// reporterSendParams is reporter's typed view of its send params — the
+// BindParams copy-start template. agenttest.CheckParamsBinding locks the tags
+// against the declaration below in example_test.go.
+type reporterSendParams struct {
+	ReportFormat string `param:"report_format"`
+	Quarters     int64  `param:"quarters"`
+}
+
 var reporterSpec = agent.AgentSpec{
-	ID:               "reporter",
-	Name:             "报表生成器",
-	Description:      "对任意请求产出一份内联 CSV 报表 artifact，示范 artifact 下载与任务取消链路。",
-	FileInput:        true,
-	InputRequired:    true,
-	Send:             reporterSend,
-	GetTask:          getTask,
-	ListTasks:        listTasks,
-	ListContexts:     listContexts,
-	GetContext:       getContext,
-	DeleteContext:    deleteContext,
-	CancelTask:       cancelTask,
-	DownloadArtifact: downloadArtifact,
+	ID:            "reporter",
+	Name:          "报表生成器",
+	Description:   "对任意请求产出一份内联 CSV 报表 artifact，示范 artifact 下载与任务取消链路。",
+	FileInput:     true,
+	InputRequired: true,
+	// Send declares demo business params covering the whole declaration
+	// surface: enum + default (report_format), integer + min/max + default
+	// (quarters). Both optional with defaults, so a bare send behaves exactly
+	// like before — the params exist to be a copy-start template and to make
+	// the validation/card/meta.next chain exercisable offline.
+	Send: agent.SendOp{
+		Params: []agent.CardParam{
+			{Name: "report_format", Enum: []string{"csv", "xlsx"}, Default: "csv",
+				Desc: "报表输出格式"},
+			{Name: "quarters", Type: "integer", Min: agent.Float(1), Max: agent.Float(12), Default: "4",
+				Desc: "回溯季度数"},
+		},
+		Handler: reporterSend,
+	},
+	GetTask:          agent.TaskGetOp{Handler: getTask},
+	ListTasks:        agent.TaskListOp{Handler: listTasks},
+	ListContexts:     agent.ContextListOp{Handler: listContexts},
+	GetContext:       agent.ContextGetOp{Handler: getContext},
+	DeleteContext:    agent.ContextDeleteOp{Handler: deleteContext},
+	CancelTask:       agent.TaskCancelOp{Handler: cancelTask},
+	DownloadArtifact: agent.ArtifactDownloadOp{Handler: downloadArtifact},
 }
 
 // plannerSpec demonstrates the input_required HITL flow: the first send opens a
@@ -86,12 +107,12 @@ var plannerSpec = agent.AgentSpec{
 	Name:          "报表规划器",
 	Description:   "先反问「按什么维度拆」（input_required 单选决策），你用 --decision-id/--option 选定后再出报表。示范 HITL 决策链路。",
 	InputRequired: true,
-	Send:          plannerSend,
-	GetTask:       getTask,
-	ListTasks:     listTasks,
-	ListContexts:  listContexts,
-	GetContext:    getContext,
-	DeleteContext: deleteContext,
+	Send:          agent.SendOp{Handler: plannerSend},
+	GetTask:       agent.TaskGetOp{Handler: getTask},
+	ListTasks:     agent.TaskListOp{Handler: listTasks},
+	ListContexts:  agent.ContextListOp{Handler: listContexts},
+	GetContext:    agent.ContextGetOp{Handler: getContext},
+	DeleteContext: agent.ContextDeleteOp{Handler: deleteContext},
 }
 
 // plannerSend opens a decision on a fresh request, or applies the answer when
@@ -160,10 +181,23 @@ func echoSend(ctx context.Context, rt agent.Runtime, in agent.SendInput) (*agent
 	})
 }
 
-// reporterSend produces a fixed inline CSV artifact for any request.
+// reporterSend produces a fixed inline CSV artifact for any request. It reads
+// its demo params through BindParams — the typed, compile-checked consumption
+// template (rt.Params() raw lookups work too but are typo-prone). With the
+// declaration defaults (csv/4) the reply is byte-identical to the historical
+// one; a hook invoked outside the framework (unit tests calling it directly)
+// sees an empty param map and the same historical reply.
 func reporterSend(ctx context.Context, rt agent.Runtime, in agent.SendInput) (*agent.AgentTask, error) {
+	p, err := agent.BindParams[reporterSendParams](rt)
+	if err != nil {
+		return nil, err
+	}
 	return newTurn(rt.AgentID(), in, func(round int) (string, []agent.Artifact) {
 		reply := "报表已生成：quarterly_report.csv（见 artifacts，用 task get --artifact <id> -o <path> 下载）"
+		if p.ReportFormat != "" && p.ReportFormat != "csv" {
+			reply = fmt.Sprintf("报表已生成（%s 格式，回溯 %d 个季度）：quarterly_report.%s（见 artifacts，用 task get --artifact <id> -o <path> 下载）",
+				p.ReportFormat, p.Quarters, p.ReportFormat)
+		}
 		if n := len(in.Files); n > 0 {
 			reply = fmt.Sprintf("已收到 %d 个附件；%s", n, reply)
 		}

@@ -6,35 +6,58 @@ package agent
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/errs"
 	iagent "github.com/larksuite/cli/internal/agent"
 	"github.com/larksuite/cli/internal/cmdutil"
+	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/output"
 )
 
 // cardOptions holds all inputs for `agent card <ref>`.
 type cardOptions struct {
-	Factory *cmdutil.Factory
-	Cmd     *cobra.Command
-	Ref     string
-	As      string
-	Format  string
+	Factory   *cmdutil.Factory
+	Cmd       *cobra.Command
+	Ref       string
+	Operation string
+	As        string
+	Format    string
 }
 
-// NewCmdAgentCard builds `agent card <ref>`: fetch and display an agent's
-// capability card. Adapters synthesize the card statically from their known
-// capability matrix — no API call is made, and the command works offline /
-// under mock. Risk=read.
+// verbCommandTemplate maps each operation verb to the human command that
+// executes it — surfaced in `--operation` output so the verb↔command mapping
+// is a lookup, not something the caller memorizes (artifact_download being the
+// one non-obvious row). Templates carry <...> placeholders and are never
+// executable verbatim.
+var verbCommandTemplate = map[string]string{
+	iagent.VerbSend:             "lark-cli agent send <agent_ref> --text <text> [--param k=v ...]",
+	iagent.VerbTaskGet:          "lark-cli agent task get <agent_ref> <task-id> [--watch --timeout 30s] [--param k=v ...]",
+	iagent.VerbTaskList:         "lark-cli agent task list <agent_ref> [--context-id <ctx-id>] [--param k=v ...]",
+	iagent.VerbTaskCancel:       "lark-cli agent task cancel <agent_ref> <task-id> [--param k=v ...]",
+	iagent.VerbContextList:      "lark-cli agent context list <agent_ref> [--param k=v ...]",
+	iagent.VerbContextGet:       "lark-cli agent context get <agent_ref> <ctx-id> [--param k=v ...]",
+	iagent.VerbContextDelete:    "lark-cli agent context delete <agent_ref> <ctx-id> --yes [--param k=v ...]",
+	iagent.VerbArtifactDownload: "lark-cli agent task get <agent_ref> <task-id> --artifact <artifact-id> -o <output> [--param k=v ...]",
+}
+
+// NewCmdAgentCard builds `agent card <ref>`: show an agent's capability card
+// (lean by default: capabilities + has_parameters), or — with --operation —
+// one operation's full parameter contract (--operation all returns every
+// operation at once). Resolution is offline; Describe enrichment is
+// best-effort when a client is configured. Risk=read.
 func NewCmdAgentCard(f *cmdutil.Factory) *cobra.Command {
 	opts := &cardOptions{Factory: f}
 	cmd := &cobra.Command{
 		Use:   "card <agent_ref>",
-		Short: "Show a remote agent's capability card (capabilities / parameters / identity)",
-		Long:  "Fetch and show an agent's capability card. Use its capabilities to decide which verbs are available and its parameters to decide the --param a send needs. Some providers synthesize the card statically without calling the remote API.",
-		Args:  exactArgsWithUsage(1),
+		Short: "Show a remote agent's capability card, or one operation's parameter contract",
+		Long: "Fetch and show an agent's capability card. The default card is lean: capabilities decide which verbs are available, " +
+			"has_parameters lists the verbs that need a parameter lookup. Use --operation <verb> to fetch one operation's full parameter " +
+			"contract (name/type/required/enum/default + the command shape), or --operation all for every operation at once.",
+		Args: exactArgsWithUsage(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateFormat(opts.Format); err != nil {
 				return err
@@ -44,6 +67,7 @@ func NewCmdAgentCard(f *cmdutil.Factory) *cobra.Command {
 			return agentCardRun(opts)
 		},
 	}
+	cmd.Flags().StringVar(&opts.Operation, "operation", "", "查询某操作的参数契约：动词（capabilities 键名 + send），或 all 一次拿全")
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
 	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
 	if f != nil {
@@ -57,12 +81,11 @@ func NewCmdAgentCard(f *cmdutil.Factory) *cobra.Command {
 	return cmd
 }
 
-// agentCardRun resolves the provider addressed by ref and emits its capability
-// card. The card is first-party static data (not agent-generated content), so
-// it bypasses content-safety scanning. The JSON success envelope is the
-// default; --format pretty opts into the human-readable listing. A --jq
-// expression forces JSON (jq operates on the envelope) and, when present,
-// filters stdout.
+// agentCardRun resolves the provider addressed by ref and emits either the
+// lean capability card or (--operation) a parameter-contract subquery. The
+// card is first-party static data (not agent-generated content), so it
+// bypasses content-safety scanning. The JSON success envelope is the default;
+// --format pretty opts into the human-readable listing; --jq forces JSON.
 func agentCardRun(opts *cardOptions) error {
 	f := opts.Factory
 	// Resolution is fully offline (no client), so `agent card` works before
@@ -71,11 +94,16 @@ func agentCardRun(opts *cardOptions) error {
 	if err != nil {
 		return err
 	}
+
+	if opts.Operation != "" {
+		return agentCardOperationRun(opts, prov, spec, id)
+	}
+
 	// Best-effort remote enrichment: if a client is configured, pass a runtime so
 	// a provider's Describe can fill Name/Description from the platform; otherwise
 	// rt stays nil and BuildCard returns the offline (caps + static) card.
 	var rt iagent.Runtime
-	if r, rerr := runtimeFor(f, id, agentID); rerr == nil {
+	if r, rerr := runtimeFor(f, id, agentID, nil); rerr == nil {
 		rt = r
 	}
 	card := iagent.BuildCard(opts.Cmd.Context(), prov, spec, agentID, rt)
@@ -101,13 +129,159 @@ func agentCardRun(opts *cardOptions) error {
 	return nil
 }
 
-// printCardPretty writes a compact human-readable view of an agent card:
+// operationContract is one operation's parameter contract in `card
+// --operation` output. Parameters is always an array (empty is [], never
+// null); Command is the human command shape (a template, never executable
+// verbatim) and is omitted for unwired operations.
+type operationContract struct {
+	Operation  string             `json:"operation"`
+	Supported  bool               `json:"supported"`
+	Command    string             `json:"command,omitempty"`
+	Parameters []iagent.CardParam `json:"parameters"`
+	// ParametersSource is "template" on instance providers (both the single-verb
+	// and the all forms), mirroring the lean card's honesty label.
+	ParametersSource string `json:"parameters_source,omitempty"`
+}
+
+// contractFor projects one OpInfo into its output contract.
+func contractFor(o iagent.OpInfo) operationContract {
+	c := operationContract{Operation: o.Verb, Supported: o.Wired, Parameters: []iagent.CardParam{}}
+	if o.Wired {
+		c.Command = verbCommandTemplate[o.Verb]
+		if o.Params != nil {
+			c.Parameters = o.Params
+		}
+	}
+	return c
+}
+
+// agentCardOperationRun serves `card --operation <verb|all>`: the parameter
+// contract subquery. Everything is offline static data. Edge behaviors are
+// deterministic: an unknown verb is invalid_argument listing the vocabulary;
+// an unwired verb answers supported:false; a wired zero-param verb answers
+// supported:true + parameters:[] ("nothing to pass" — not "not found").
+func agentCardOperationRun(opts *cardOptions, prov iagent.Provider, spec *iagent.AgentSpec, id core.Identity) error {
+	f := opts.Factory
+	verb := opts.Operation
+
+	var data any
+	var prettyFn func(io.Writer)
+
+	if verb == "all" {
+		all := map[string]operationContract{}
+		for _, o := range spec.Ops() {
+			all[o.Verb] = contractFor(o)
+		}
+		if prov.Kind() == iagent.KindInstance {
+			data = map[string]any{"operations": all, "parameters_source": "template"}
+		} else {
+			data = map[string]any{"operations": all}
+		}
+		prettyFn = func(w io.Writer) {
+			for _, o := range spec.Ops() {
+				printOperationPretty(w, contractFor(o))
+			}
+		}
+	} else {
+		o, ok := spec.Op(verb)
+		if !ok {
+			return errs.NewValidationError(errs.SubtypeInvalidArgument,
+				"未知操作 %q，合法值: %s, all", verb, strings.Join(iagent.Verbs(), ", ")).
+				WithParam("--operation").
+				WithHint("--operation 的动词与 capabilities 键名一致（外加 send）；all 一次拿全")
+		}
+		c := contractFor(o)
+		if prov.Kind() == iagent.KindInstance {
+			c.ParametersSource = "template" // struct 复用：不为 unwired 操作凭空造出 command:"" 键
+		}
+		data = c
+		prettyFn = func(w io.Writer) { printOperationPretty(w, c) }
+	}
+
+	if opts.Format == "pretty" && jqExpr(opts.Cmd) == "" {
+		prettyFn(f.IOStreams.Out)
+		return nil
+	}
+	env := output.Envelope{
+		OK:       true,
+		Identity: string(id),
+		Data:     data,
+		Notice:   output.GetNotice(),
+	}
+	if jq := jqExpr(opts.Cmd); jq != "" {
+		return output.JqFilter(f.IOStreams.Out, env, jq)
+	}
+	output.PrintJson(f.IOStreams.Out, env)
+	return nil
+}
+
+// printOperationPretty renders one operation contract as a human block.
+func printOperationPretty(w io.Writer, c operationContract) {
+	if !c.Supported {
+		fmt.Fprintf(w, "operation: %s (不支持)\n", c.Operation)
+		return
+	}
+	fmt.Fprintf(w, "operation: %s\n", c.Operation)
+	if c.Command != "" {
+		fmt.Fprintf(w, "  command: %s\n", c.Command)
+	}
+	if len(c.Parameters) == 0 {
+		fmt.Fprintln(w, "  parameters: （无业务参数）")
+		return
+	}
+	fmt.Fprintln(w, "  parameters:")
+	for _, p := range c.Parameters {
+		printParamPretty(w, p)
+	}
+}
+
+// printParamPretty renders one declaration: the familiar "name: type
+// (required) — desc" first line plus an attribute line (enum / range /
+// default) when present. Desc/enum are provider-authored strings → stripANSI.
+func printParamPretty(w io.Writer, p iagent.CardParam) {
+	req := ""
+	if p.Required {
+		req = " (required)"
+	}
+	fmt.Fprintf(w, "    %s: %s%s", p.Name, p.Type, req)
+	if p.Desc != "" {
+		fmt.Fprintf(w, " — %s", stripANSI(p.Desc))
+	}
+	fmt.Fprintln(w)
+	var attrs []string
+	if len(p.Enum) > 0 {
+		attrs = append(attrs, "取值: "+stripANSI(strings.Join(p.Enum, " | ")))
+	}
+	if p.Min != nil || p.Max != nil {
+		attrs = append(attrs, "范围: "+rangePretty(p))
+	}
+	if p.Default != "" {
+		attrs = append(attrs, "默认: "+stripANSI(p.Default))
+	}
+	if len(attrs) > 0 {
+		fmt.Fprintf(w, "        %s\n", strings.Join(attrs, " · "))
+	}
+}
+
+// rangePretty renders Min/Max for the pretty view.
+func rangePretty(p iagent.CardParam) string {
+	trim := func(f float64) string { return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%f", f), "0"), ".") }
+	switch {
+	case p.Min != nil && p.Max != nil:
+		return trim(*p.Min) + ".." + trim(*p.Max)
+	case p.Min != nil:
+		return ">=" + trim(*p.Min)
+	default:
+		return "<=" + trim(*p.Max)
+	}
+}
+
+// printCardPretty writes a compact human-readable view of the lean card:
 // identity header (with per-identity preconditions), the sorted capability
-// matrix, declared parameters and skills — the key constraints an AI reads
-// from json must also be visible to a human. Remote cards carry
-// agent-controlled Name/Description/Desc
-// strings, so every such field is ANSI-stripped before hitting the terminal.
-// Nil cards degrade to a placeholder line rather than panicking.
+// matrix, the has_parameters cue and declared skills. Remote cards carry
+// agent-controlled Name/Description strings, so every such field is
+// ANSI-stripped before hitting the terminal. Nil cards degrade to a
+// placeholder line rather than panicking.
 func printCardPretty(w io.Writer, card *iagent.AgentCard) {
 	if card == nil {
 		fmt.Fprintln(w, "(no card)")
@@ -135,9 +309,8 @@ func printCardPretty(w io.Writer, card *iagent.AgentCard) {
 	}
 
 	fmt.Fprintln(w, "  capabilities:")
-	// Capabilities is a closed struct; iterate in fixed alphabetical key order,
-	// matching the sorted output of the earlier map-based representation.
-	for _, k := range []string{
+	// Capabilities is a closed struct; iterate in fixed alphabetical key order.
+	keys := []string{
 		iagent.CapArtifactDownload,
 		iagent.CapContextDelete,
 		iagent.CapContextGet,
@@ -147,7 +320,9 @@ func printCardPretty(w io.Writer, card *iagent.AgentCard) {
 		iagent.CapTaskCancel,
 		iagent.CapTaskGet,
 		iagent.CapTaskList,
-	} {
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
 		mark := "no"
 		if card.Supports(k) {
 			mark = "yes"
@@ -155,19 +330,13 @@ func printCardPretty(w io.Writer, card *iagent.AgentCard) {
 		fmt.Fprintf(w, "    %-20s %s\n", k, mark)
 	}
 
-	if len(card.Parameters) > 0 {
-		fmt.Fprintln(w, "  parameters:")
-		for _, pr := range card.Parameters {
-			req := ""
-			if pr.Required {
-				req = " (required)"
-			}
-			fmt.Fprintf(w, "    %s: %s%s", pr.Name, pr.Type, req)
-			if pr.Desc != "" {
-				fmt.Fprintf(w, " — %s", stripANSI(pr.Desc))
-			}
-			fmt.Fprintln(w)
-		}
+	if len(card.HasParameters) > 0 {
+		fmt.Fprintf(w, "  parameters: %s\n", strings.Join(card.HasParameters, ", "))
+		fmt.Fprintf(w, "    （用 --operation <verb> 查看详情，如: lark-cli agent card %s --operation %s）\n",
+			safeRefOrPlaceholder(card), card.HasParameters[0])
+	}
+	if card.ParametersSource != "" {
+		fmt.Fprintf(w, "  parameters_source: %s（模板级声明，具体 agent 以平台为准）\n", card.ParametersSource)
 	}
 
 	if len(card.Skills) > 0 {
@@ -180,4 +349,14 @@ func printCardPretty(w io.Writer, card *iagent.AgentCard) {
 			fmt.Fprintf(w, "    %s\n", stripANSI(name))
 		}
 	}
+}
+
+// safeRefOrPlaceholder reconstructs the card's ref for the pretty hint when it
+// passes the interpolation whitelist, else a placeholder.
+func safeRefOrPlaceholder(card *iagent.AgentCard) string {
+	ref := card.Provider + ":" + card.AgentID
+	if safeNextRef(ref) {
+		return ref
+	}
+	return "<agent_ref>"
 }

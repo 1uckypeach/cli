@@ -24,6 +24,11 @@ type providerInfo struct {
 	AgentRefFormat string `json:"agent_ref_format"`
 	Kind           string `json:"kind"`
 	AgentIDSource  string `json:"agent_id_source"`
+	// ListParams documents the business parameters `agent list <scheme>` itself
+	// takes — surfaced HERE (the offline, always-reachable provider listing)
+	// because at list time the caller holds no agent_ref yet, so a card-based
+	// hint would point at an unreachable road.
+	ListParams []iagent.CardParam `json:"list_parameters,omitempty"`
 }
 
 // listOptions holds all inputs for `agent list [scheme]`.
@@ -31,6 +36,7 @@ type listOptions struct {
 	Factory *cmdutil.Factory
 	Cmd     *cobra.Command
 	Scheme  string
+	Params  []string
 	Format  string
 	As      string
 }
@@ -59,6 +65,7 @@ func NewCmdAgentList(f *cmdutil.Factory) *cobra.Command {
 			return agentListRun(opts)
 		},
 	}
+	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
 	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
 	// --as only matters for the online `list <scheme>` enumeration (an instance
@@ -75,6 +82,15 @@ func NewCmdAgentList(f *cmdutil.Factory) *cobra.Command {
 func agentListRun(opts *listOptions) error {
 	if opts.Scheme != "" {
 		return agentListSchemeRun(opts)
+	}
+	// The no-scheme form is a pure offline registry listing — business params
+	// have no target operation, so reject explicitly rather than silently
+	// ignoring what the caller thought they were passing.
+	if len(opts.Params) > 0 {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"--param 仅在 agent list <scheme> 时有意义（无 scheme 的列表是纯本地枚举）").
+			WithParam("--param").
+			WithHint("补充 scheme 重发，如 lark-cli agent list <scheme> --param k=v；各 provider 的 list 参数见本命令输出的 list_parameters")
 	}
 
 	f := opts.Factory
@@ -128,6 +144,12 @@ func agentListSchemeRun(opts *listOptions) error {
 	var agents []iagent.AgentSummary
 	var identity string // set only on the online (instance) path, which resolves one
 	if prov.Kind() == iagent.KindCatalog {
+		// Offline catalog enumeration takes no business params (ListParams
+		// requires a ListAgents hook); validate against the empty set so a stray
+		// --param is rejected with the same teaching error instead of ignored.
+		if _, err := validateListParams(opts.Params, nil, opts.Scheme); err != nil {
+			return err
+		}
 		agents = prov.ListCatalog() // offline
 	} else {
 		// instance: needs the online ListAgents hook. Absent ⇒ not enumerable.
@@ -146,7 +168,15 @@ func agentListSchemeRun(opts *listOptions) error {
 			return err
 		}
 		identity = string(id)
-		rt, err := runtimeFor(f, id, "")
+		// list is a provider-level operation: params validate against ListParams
+		// (no spec, so no cross-operation reverse lookup); the error hint points
+		// at `agent list` output's list_parameters, not at an agent card the
+		// caller cannot address yet (it holds no agent_ref at list time).
+		vp, err := validateListParams(opts.Params, prov.ListParams, opts.Scheme)
+		if err != nil {
+			return err
+		}
+		rt, err := runtimeFor(f, id, "", vp.Resolved)
 		if err != nil {
 			return err
 		}
@@ -201,6 +231,7 @@ func listProviders() []providerInfo {
 			AgentRefFormat: prov.AgentRefFormat(),
 			Kind:           string(prov.Kind()),
 			AgentIDSource:  prov.AgentIDSource,
+			ListParams:     prov.ListParams,
 		})
 	}
 	return out

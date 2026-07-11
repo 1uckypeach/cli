@@ -46,7 +46,7 @@ func TestNextForTaskCommandsParseAgainstRealTree(t *testing.T) {
 				State:      state,
 				IsTerminal: state.IsTerminal(),
 			}
-			next := nextForTask("example:agent_x", task)
+			next := nextForTask("example:agent_x", task, nil, nil)
 			if len(next) == 0 {
 				t.Fatalf("state %s (ctx %q): legit task must produce next hints", state, ctxID)
 			}
@@ -91,7 +91,7 @@ func TestNextForTaskRejectsInjectionIDs(t *testing.T) {
 	for _, bad := range []string{"chat_1; rm -rf /", "chat `x`", "chat 1", `chat"1"`, "chat$(x)", "chat|x"} {
 		for _, state := range allTaskStates {
 			task := &iagent.AgentTask{TaskID: bad, State: state}
-			if next := nextForTask("example:agent_x", task); len(next) != 0 {
+			if next := nextForTask("example:agent_x", task, nil, nil); len(next) != 0 {
 				t.Fatalf("injection task_id %q (state %s) must suppress next, got %+v", bad, state, next)
 			}
 		}
@@ -106,11 +106,11 @@ func TestNextForTaskRejectsInjectionIDs(t *testing.T) {
 func TestNextForTaskRejectsUnsafeRef(t *testing.T) {
 	task := &iagent.AgentTask{TaskID: "chat_1", State: iagent.StateWorking}
 	for _, bad := range []string{"example:agent x", "example:x;rm -rf /", "example", "a:b:c", "example:$(x)", `example:"x"`, ":x", "example:"} {
-		if next := nextForTask(bad, task); len(next) != 0 {
+		if next := nextForTask(bad, task, nil, nil); len(next) != 0 {
 			t.Errorf("unsafe ref %q should suppress the whole next, got %+v", bad, next)
 		}
 	}
-	if next := nextForTask("example:agent_x", task); len(next) == 0 {
+	if next := nextForTask("example:agent_x", task, nil, nil); len(next) == 0 {
 		t.Error("valid ref example:agent_x should keep next")
 	}
 }
@@ -127,7 +127,7 @@ func TestNextForTaskDegradesInjectionContextID(t *testing.T) {
 		ContextID: dirty,
 		State:     iagent.StateInputRequired,
 	}
-	next := nextForTask("example:agent_x", task)
+	next := nextForTask("example:agent_x", task, nil, nil)
 	if len(next) != 1 {
 		t.Fatalf("dirty context_id must degrade, not drop the hint, got %+v", next)
 	}
@@ -149,7 +149,7 @@ func TestNextForTaskDegradesInjectionContextID(t *testing.T) {
 // send hint.
 func TestNextForTaskAuthRequiredPointsToAuth(t *testing.T) {
 	task := &iagent.AgentTask{TaskID: "chat_1", ContextID: "conv_1", State: iagent.StateAuthRequired}
-	next := nextForTask("example:agent_x", task)
+	next := nextForTask("example:agent_x", task, nil, nil)
 	if len(next) != 1 {
 		t.Fatalf("auth_required should produce 1 next, got %+v", next)
 	}
@@ -173,7 +173,7 @@ func TestNextForTaskAuthRequiredPointsToAuth(t *testing.T) {
 // BOUNDED watch (`--watch --timeout <default>`) so an AI caller neither blocks
 // forever on a long task nor self-hammers with unbounded polls.
 func TestNextForTaskWatchNotWait(t *testing.T) {
-	next := nextForTask("example:agent_x", &iagent.AgentTask{TaskID: "chat_1", State: iagent.StateWorking})
+	next := nextForTask("example:agent_x", &iagent.AgentTask{TaskID: "chat_1", State: iagent.StateWorking}, nil, nil)
 	if len(next) == 0 {
 		t.Fatal("working task must produce a poll next")
 	}
@@ -198,7 +198,7 @@ func TestNextForTaskStructuredDecision(t *testing.T) {
 			Prompt:     "按大区还是品类?",
 			Options:    []iagent.Option{{OptionID: "by_region", Label: "按大区"}},
 		},
-	})
+	}, nil, nil)
 	if len(withDecision) != 1 || !withDecision[0].Template {
 		t.Fatalf("structured decision next must be one template action, got %+v", withDecision)
 	}
@@ -214,7 +214,7 @@ func TestNextForTaskStructuredDecision(t *testing.T) {
 			DecisionID: "dec bad;rm", Prompt: "x",
 			Options: []iagent.Option{{OptionID: "o1", Label: "l1"}},
 		},
-	})
+	}, nil, nil)
 	if len(badID) != 1 || strings.Contains(badID[0].Command, "--decision-id") || !strings.Contains(badID[0].Command, "--text") {
 		t.Errorf("a whitelist-failing decision_id should fall back to the --text form, got %+v", badID)
 	}
@@ -228,14 +228,14 @@ func TestNextForTaskTemplateFlag(t *testing.T) {
 	// input_required with a known context: placeholder in --text → template.
 	cont := nextForTask("example:agent_x", &iagent.AgentTask{
 		TaskID: "chat_1", ContextID: "conv_1", State: iagent.StateInputRequired,
-	})
+	}, nil, nil)
 	if len(cont) != 1 || !cont[0].Template {
 		t.Fatalf("input_required next must be template=true, got %+v", cont)
 	}
 	// input_required without a context id: <context_id> placeholder → template.
 	contNoCtx := nextForTask("example:agent_x", &iagent.AgentTask{
 		TaskID: "chat_1", State: iagent.StateInputRequired,
-	})
+	}, nil, nil)
 	if len(contNoCtx) != 1 || !contNoCtx[0].Template {
 		t.Fatalf("input_required (no ctx) next must be template=true, got %+v", contNoCtx)
 	}
@@ -244,7 +244,7 @@ func TestNextForTaskTemplateFlag(t *testing.T) {
 		{TaskID: "chat_1", State: iagent.StateWorking},
 		{TaskID: "chat_1", State: iagent.StateCompleted, IsTerminal: true},
 	} {
-		next := nextForTask("example:agent_x", task)
+		next := nextForTask("example:agent_x", task, nil, nil)
 		if len(next) != 1 || next[0].Template {
 			t.Fatalf("state %s next must be executable (template unset), got %+v", task.State, next)
 		}

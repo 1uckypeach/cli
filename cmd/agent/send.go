@@ -67,7 +67,7 @@ func NewCmdAgentSend(f *cmdutil.Factory, runF func(*sendOptions) error) *cobra.C
 	}
 	cmd.Flags().StringVar(&opts.Text, "text", "", "消息正文（必填）")
 	cmd.Flags().StringArrayVar(&opts.Files, "file", nil, "随消息外发的本地文件路径，可重复；文件会被上传到远端 provider（内容离开本机）")
-	cmd.Flags().StringArrayVar(&opts.Params, "param", nil, "agent 参数 key=value，可重复（据 card 的 parameters 决定）")
+	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.ContextID, "context-id", "", "多轮上下文 id（续发同一会话）")
 	cmd.Flags().StringVar(&opts.TaskID, "task-id", "", "向已有任务续发（须与 --context-id 一起用）")
 	cmd.Flags().StringVar(&opts.DecisionID, "decision-id", "", "回答 input_required 决策：目标 decision_id（配合 --option 或 --text；须与 --context-id/--task-id 一起用）")
@@ -87,55 +87,88 @@ func NewCmdAgentSend(f *cmdutil.Factory, runF func(*sendOptions) error) *cobra.C
 	return cmd
 }
 
-// agentSendRun validates the send inputs, resolves the provider, and either
-// prints a dry-run preview or dispatches the message. The two client-side input
-// guards (empty --text; --task-id without --context-id) run first so they never
-// touch the network and hold even under a nil Factory. A send fires once
-// and returns the current task immediately (exit 0); the caller polls progress
-// via the meta.next `task get ... --watch` hint.
-func agentSendRun(opts *sendOptions) error {
-	// Answering an input_required decision by option needs no --text (the chosen
-	// option IS the answer); a text-typed decision answer, and any fresh send,
-	// still require --text.
-	answeringByOption := opts.DecisionID != "" && len(opts.Options) > 0
-	if opts.Text == "" && !answeringByOption {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--text 不能为空").
-			WithParam("--text").
-			WithHint(`补充 --text "<消息内容>" 后重发；若在回答决策，用 --option <option_id> 选择`)
-	}
+// sendMode is send's semantic mode, derived from the flags by a fixed priority
+// (the user never passes a mode). The discriminator formalizes what the guards
+// enforce: answer needs the decision's task+context and takes --option in
+// place of --text; continue/start need --text.
+type sendMode string
+
+const (
+	modeStart    sendMode = "start"    // no context/task/decision — a fresh task
+	modeContinue sendMode = "continue" // has context (optionally task) — same conversation
+	modeAnswer   sendMode = "answer"   // has decision — structured input_required reply
+)
+
+// deriveSendMode classifies the send and runs the per-mode client-side guards
+// (all offline, all holding under a nil Factory). Guard errors are the
+// long-standing typed messages; conflicting combinations never silently fall
+// back to another mode. Guard PRECEDENCE is deliberate mode-first: with several
+// simultaneous mistakes the mode-defining flag's guard wins (e.g. --option
+// without --decision-id reports the option guard, not the missing --text) —
+// the caller learns which MODE it got wrong before which field it forgot.
+func deriveSendMode(opts *sendOptions) (sendMode, error) {
 	// --option only means anything when answering a specific decision.
 	if len(opts.Options) > 0 && opts.DecisionID == "" {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument,
+		return "", errs.NewValidationError(errs.SubtypeInvalidArgument,
 			"--option 需与 --decision-id 一起使用").
 			WithParam("--option").
 			WithHint("先用 agent task get 查看 input_required 的 decision_id，再 --decision-id <id> --option <option_id>")
 	}
-	// Answering a decision continues an existing task, so it needs the task and
-	// context the decision belongs to.
-	if opts.DecisionID != "" && (opts.ContextID == "" || opts.TaskID == "") {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"回答决策需同时提供 --context-id 与 --task-id").
-			WithParam("--decision-id").
-			WithHint("--decision-id 必须与该决策所属任务的 --context-id/--task-id 一起提供")
+	if opts.DecisionID != "" {
+		// answer: continues the decision's own task, so both ids are required.
+		if opts.ContextID == "" || opts.TaskID == "" {
+			return "", errs.NewValidationError(errs.SubtypeInvalidArgument,
+				"回答决策需同时提供 --context-id 与 --task-id").
+				WithParam("--decision-id").
+				WithHint("--decision-id 必须与该决策所属任务的 --context-id/--task-id 一起提供")
+		}
+		// Answering by option needs no --text (the chosen option IS the answer);
+		// a text-typed decision answer still requires --text.
+		if opts.Text == "" && len(opts.Options) == 0 {
+			return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "--text 不能为空").
+				WithParam("--text").
+				WithHint(`补充 --text "<消息内容>" 后重发；若在回答决策，用 --option <option_id> 选择`)
+		}
+		return modeAnswer, nil
 	}
 	if opts.TaskID != "" && opts.ContextID == "" {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument,
+		return "", errs.NewValidationError(errs.SubtypeInvalidArgument,
 			"--task-id 需与 --context-id 一起使用").
 			WithParam("--task-id").
 			WithHint("--task-id 必须与 --context-id 同时提供")
+	}
+	if opts.Text == "" {
+		return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "--text 不能为空").
+			WithParam("--text").
+			WithHint(`补充 --text "<消息内容>" 后重发；若在回答决策，用 --option <option_id> 选择`)
+	}
+	if opts.ContextID != "" {
+		return modeContinue, nil
+	}
+	return modeStart, nil
+}
+
+// agentSendRun validates the send inputs, resolves the provider, and either
+// prints a dry-run preview or dispatches the message. The mode guards run
+// first so they never touch the network and hold even under a nil Factory. A
+// send fires once and returns the current task immediately (exit 0); the
+// caller polls progress via the meta.next `task get ... --watch` hint.
+func agentSendRun(opts *sendOptions) error {
+	if _, err := deriveSendMode(opts); err != nil {
+		return err
 	}
 
 	f := opts.Factory
 	// Resolution + --param validation + --dry-run are fully offline, so they work
 	// (and surface validation as exit 2) before the config gate. The card is
-	// built with rt=nil: capability matrix + statically-declared parameters only,
-	// which is all the file gate and --param validation need.
+	// built with rt=nil (capability matrix only) for the file gate; --param
+	// validation reads the send operation's own declaration.
 	prov, spec, agentID, id, err := resolveSpec(f, opts.Cmd, opts.Ref, opts.As)
 	if err != nil {
 		return err
 	}
 	card := iagent.BuildCard(opts.Cmd.Context(), prov, spec, agentID, nil)
-	params, err := parseAndValidateParams(opts.Params, card, opts.Ref)
+	vp, err := validateParams(opts.Params, spec.Send.Params, iagent.VerbSend, spec, opts.Ref)
 	if err != nil {
 		return err
 	}
@@ -143,7 +176,6 @@ func agentSendRun(opts *sendOptions) error {
 	in := iagent.SendInput{
 		Text:       opts.Text,
 		Files:      opts.Files,
-		Params:     params,
 		ContextID:  opts.ContextID,
 		TaskID:     opts.TaskID,
 		DecisionID: opts.DecisionID,
@@ -153,7 +185,7 @@ func agentSendRun(opts *sendOptions) error {
 	// --dry-run is a client-side behavior: always available, never
 	// gated by the Card's dry_run capability, and never touches the API.
 	if opts.DryRun {
-		return emitDryRun(f, opts.Cmd, opts.Ref, in, opts.Format)
+		return emitDryRun(f, opts.Cmd, opts.Ref, in, vp.Resolved, opts.Format)
 	}
 
 	if len(in.Files) > 0 {
@@ -178,7 +210,7 @@ func agentSendRun(opts *sendOptions) error {
 
 	// A real send calls the API, so it needs a configured client; build the
 	// identity-pinned runtime now (not_configured / exit 3 here is correct).
-	rt, err := runtimeFor(f, id, agentID)
+	rt, err := runtimeFor(f, id, agentID, vp.Resolved)
 	if err != nil {
 		return err
 	}
@@ -189,7 +221,7 @@ func agentSendRun(opts *sendOptions) error {
 		return err
 	}
 
-	task, err := spec.Send(opts.Cmd.Context(), rt, in)
+	task, err := spec.Send.Handler(opts.Cmd.Context(), rt, in)
 	if err != nil {
 		return err
 	}
@@ -198,14 +230,14 @@ func agentSendRun(opts *sendOptions) error {
 	// A send fires and returns the current task immediately (exit 0). Progress is
 	// polled separately via the meta.next `task get <agent_ref> <task-id> --watch`
 	// hint — send no longer blocks on the task reaching a stop condition.
-	return emitTask(f, opts.Cmd, task, nextForTask(opts.Ref, task), opts.Format)
+	return emitTask(f, opts.Cmd, task, nextForTask(opts.Ref, task, spec, vp.Given), opts.Format)
 }
 
 // emitDryRun writes the dry-run preview: {dry_run:true, would_send:{…}}
 // reconstructed from the validated input, so a caller can inspect exactly what
 // a real send would post without contacting the agent. format=pretty (no --jq)
 // renders the same fields as key: value lines instead of the envelope.
-func emitDryRun(f *cmdutil.Factory, cmd *cobra.Command, ref string, in iagent.SendInput, format string) error {
+func emitDryRun(f *cmdutil.Factory, cmd *cobra.Command, ref string, in iagent.SendInput, params map[string]string, format string) error {
 	if format == "pretty" && jqExpr(cmd) == "" {
 		out := f.IOStreams.Out
 		fmt.Fprintln(out, "dry_run: true")
@@ -214,8 +246,8 @@ func emitDryRun(f *cmdutil.Factory, cmd *cobra.Command, ref string, in iagent.Se
 		if len(in.Files) > 0 {
 			fmt.Fprintf(out, "files: %d\n", len(in.Files))
 		}
-		if len(in.Params) > 0 {
-			fmt.Fprintf(out, "params: %d\n", len(in.Params))
+		if len(params) > 0 {
+			fmt.Fprintf(out, "params: %d\n", len(params))
 		}
 		if in.ContextID != "" {
 			fmt.Fprintf(out, "context_id: %s\n", kvValue(in.ContextID))
@@ -239,8 +271,9 @@ func emitDryRun(f *cmdutil.Factory, cmd *cobra.Command, ref string, in iagent.Se
 	if len(in.Files) > 0 {
 		would["files"] = in.Files
 	}
-	if len(in.Params) > 0 {
-		would["params"] = in.Params
+	if len(params) > 0 {
+		// Default 回填后的终值：预演即所得。
+		would["params"] = params
 	}
 	if in.ContextID != "" {
 		would["context_id"] = in.ContextID
@@ -311,7 +344,15 @@ func safeNextRef(ref string) bool {
 // which keeps the hint while interpolating nothing untrusted. A hint whose
 // command carries <...> placeholders is marked Template so callers know it
 // needs substitution before execution.
-func nextForTask(ref string, task *iagent.AgentTask) []output.NextAction {
+// nextForTask additionally carries business parameters for the TARGET verb of
+// each suggested command per the three-way rule (see paramArgsFor): given
+// values that pass the whitelist ride literally, whitelist failures degrade
+// required params to placeholders, and target-verb-required params the caller
+// never provided are added as placeholders — so a required parameter is
+// structurally incapable of falling off the chain. given is what the caller
+// explicitly provided this call (never backfilled defaults); spec may be nil
+// in construction-time tests (no params are carried then).
+func nextForTask(ref string, task *iagent.AgentTask, spec *iagent.AgentSpec, given map[string]string) []output.NextAction {
 	if !safeNextRef(ref) {
 		return nil
 	}
@@ -327,8 +368,11 @@ func nextForTask(ref string, task *iagent.AgentTask) []output.NextAction {
 			// agent's declared scope set (see the lark-agent skill's prerequisites), so --scope is a
 			// placeholder → Template. ref/task_id are already whitelisted above, so
 			// echoing the re-check command in the label is safe.
+			// label 内嵌的重查命令按三分规则补 task_get 的参数携带——auth_required
+			// 是唯一不指向 agent 子树的 next，链传规则同样不许在这条路上丢必填。
+			recheckArgs, _ := paramArgsFor(spec, iagent.VerbTaskGet, given)
 			return []output.NextAction{{
-				Label:    fmt.Sprintf("完成重新授权后重查任务（据该 agent 所需 scope 定；重查: lark-cli agent task get %s %s）", ref, task.TaskID),
+				Label:    fmt.Sprintf("完成重新授权后重查任务（据该 agent 所需 scope 定；重查: lark-cli agent task get %s %s%s）", ref, task.TaskID, recheckArgs),
 				Command:  `lark-cli auth login --scope "<required_scopes>"`,
 				Template: true,
 			}}
@@ -347,29 +391,66 @@ func nextForTask(ref string, task *iagent.AgentTask) []output.NextAction {
 			// point at answering it by option_id; the decision_id is server-supplied,
 			// so it must pass the safeNextID whitelist before interpolation. Fall back
 			// to a free-text continuation otherwise.
+			sendArgs, _ := paramArgsFor(spec, iagent.VerbSend, given)
 			if ir := task.InputRequired; ir != nil && ir.DecisionID != "" && safeNextID(ir.DecisionID) && len(ir.Options) > 0 {
 				return []output.NextAction{{
 					Label:    "回答该 input_required 决策（从 options 里选一个 option_id）",
-					Command:  fmt.Sprintf("lark-cli agent send %s --context-id %s --task-id %s --decision-id %s --option <option_id>", ref, ctxID, task.TaskID, ir.DecisionID),
+					Command:  fmt.Sprintf("lark-cli agent send %s --context-id %s --task-id %s --decision-id %s --option <option_id>%s", ref, ctxID, task.TaskID, ir.DecisionID, sendArgs),
 					Template: true,
 				}}
 			}
 			return []output.NextAction{{
 				Label:    "补充输入后向同一任务续发",
-				Command:  fmt.Sprintf("lark-cli agent send %s --context-id %s --task-id %s --text <你的答复>", ref, ctxID, task.TaskID),
+				Command:  fmt.Sprintf("lark-cli agent send %s --context-id %s --task-id %s --text <你的答复>%s", ref, ctxID, task.TaskID, sendArgs),
 				Template: true,
 			}}
 		}
-		// Terminal: suggest reading the final detail / artifacts.
-		return []output.NextAction{{
-			Label:   "查看任务详情与产物",
-			Command: fmt.Sprintf("lark-cli agent task get %s %s", ref, task.TaskID),
+		// Terminal: suggest reading the final detail, plus a ready-made download
+		// command per artifact (so the AI never has to hand-craft the
+		// `task get --artifact` form itself; -o stays a placeholder → template).
+		getArgs, getTpl := paramArgsFor(spec, iagent.VerbTaskGet, given)
+		next := []output.NextAction{{
+			Label:    "查看任务详情与产物",
+			Command:  fmt.Sprintf("lark-cli agent task get %s %s%s", ref, task.TaskID, getArgs),
+			Template: getTpl,
 		}}
+		next = append(next, artifactNext(ref, task, spec, given)...)
+		return next
 	}
+	getArgs, getTpl := paramArgsFor(spec, iagent.VerbTaskGet, given)
 	return []output.NextAction{{
-		Label:   "轮询任务直到停轮询条件（有界；到点未终止照此再 watch）",
-		Command: fmt.Sprintf("lark-cli agent task get %s %s --watch --timeout %s", ref, task.TaskID, defaultWatchTimeout),
+		Label:    "轮询任务直到停轮询条件（有界；到点未终止照此再 watch）",
+		Command:  fmt.Sprintf("lark-cli agent task get %s %s --watch --timeout %s%s", ref, task.TaskID, defaultWatchTimeout, getArgs),
+		Template: getTpl,
 	}}
+}
+
+// artifactNext builds one ready-made download command per artifact of a
+// terminal task: only when the spec wires DownloadArtifact, only for artifact
+// ids that pass the whitelist (a failing id skips just that artifact), always
+// template (the -o save path is the caller's choice). Params carry per the
+// three-way rule against the artifact_download declaration.
+func artifactNext(ref string, task *iagent.AgentTask, spec *iagent.AgentSpec, given map[string]string) []output.NextAction {
+	if spec == nil || !task.IsTerminal || len(task.Artifacts) == 0 {
+		return nil
+	}
+	if op, ok := spec.Op(iagent.VerbArtifactDownload); !ok || !op.Wired {
+		return nil
+	}
+	dlArgs, _ := paramArgsFor(spec, iagent.VerbArtifactDownload, given)
+	var next []output.NextAction
+	for _, a := range task.Artifacts {
+		if a.ID == "" || !safeNextID(a.ID) {
+			continue // 服务端 id 过不了白名单 → 跳过该产物，不冒注入险
+		}
+		next = append(next, output.NextAction{
+			// label 只内插已过白名单的 id；产物名是 agent 可控文本，不进 label。
+			Label:    fmt.Sprintf("下载产物 %s", a.ID),
+			Command:  fmt.Sprintf("lark-cli agent task get %s %s --artifact %s -o <保存路径>%s", ref, task.TaskID, a.ID, dlArgs),
+			Template: true,
+		})
+	}
+	return next
 }
 
 // defaultWatchTimeout is the bounded poll window meta.next suggests for a
