@@ -5,7 +5,9 @@ package agent
 
 import (
 	"fmt"
+	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -14,6 +16,7 @@ import (
 	iagent "github.com/larksuite/cli/internal/agent"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/validate"
 )
 
 // sendOptions holds all inputs for `agent send <ref>`.
@@ -135,7 +138,7 @@ func deriveSendMode(opts *sendOptions) (sendMode, error) {
 		return "", errs.NewValidationError(errs.SubtypeInvalidArgument,
 			"--task-id 需与 --context-id 一起使用").
 			WithParam("--task-id").
-			WithHint("--task-id 必须与 --context-id 同时提供")
+			WithHint("补充 --context-id <ctx-id> 后重发；该任务所属会话可用 lark-cli agent task get <agent_ref> <task-id> 输出的 context_id 确认")
 	}
 	if opts.Text == "" {
 		return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "--text 不能为空").
@@ -155,6 +158,9 @@ func deriveSendMode(opts *sendOptions) (sendMode, error) {
 // caller polls progress via the meta.next `task get ... --watch` hint.
 func agentSendRun(opts *sendOptions) error {
 	if _, err := deriveSendMode(opts); err != nil {
+		return err
+	}
+	if err := validateSendFiles(opts.Files); err != nil {
 		return err
 	}
 
@@ -230,7 +236,39 @@ func agentSendRun(opts *sendOptions) error {
 	// A send fires and returns the current task immediately (exit 0). Progress is
 	// polled separately via the meta.next `task get <agent_ref> <task-id> --watch`
 	// hint — send no longer blocks on the task reaching a stop condition.
-	return emitTask(f, opts.Cmd, task, nextForTask(opts.Ref, task, spec, vp.Given), opts.Format)
+	return emitTask(f, opts.Cmd, task, nextForTask(opts.Ref, task, spec, vp.Given, iagent.VerbSend), opts.Format)
+}
+
+// validateSendFiles is the local gate on --file paths, running before any
+// capability/confirmation gate or network access (dry-run included): every
+// path must be a relative-within-CWD (the lark-shared safety rule the docs
+// promise) EXISTING regular file. Violations are collected and reported in one
+// pass, mirroring the --param collect-all style, so a multi-file send is fixed
+// in one round-trip. Without this gate a bad path used to be discovered only
+// by the provider (or worse, silently "uploaded").
+func validateSendFiles(files []string) error {
+	var viols []string
+	for _, p := range files {
+		abs, err := validate.SafeInputPath(p)
+		if err != nil {
+			viols = append(viols, fmt.Sprintf("%s（仅接受 CWD 内的相对路径）", p))
+			continue
+		}
+		st, err := os.Stat(abs)
+		switch {
+		case err != nil:
+			viols = append(viols, fmt.Sprintf("%s（文件不存在或不可读）", p))
+		case st.IsDir():
+			viols = append(viols, fmt.Sprintf("%s（是目录，--file 只接受文件）", p))
+		}
+	}
+	if len(viols) == 0 {
+		return nil
+	}
+	return errs.NewValidationError(errs.SubtypeInvalidArgument,
+		"非法的 --file 路径: %s", strings.Join(viols, "；")).
+		WithParam("--file").
+		WithHint("--file 只接受当前目录内的相对路径且文件必须存在，逐条修正后重发")
 }
 
 // emitDryRun writes the dry-run preview: {dry_run:true, would_send:{…}}
@@ -352,7 +390,11 @@ func safeNextRef(ref string) bool {
 // structurally incapable of falling off the chain. given is what the caller
 // explicitly provided this call (never backfilled defaults); spec may be nil
 // in construction-time tests (no params are carried then).
-func nextForTask(ref string, task *iagent.AgentTask, spec *iagent.AgentSpec, given map[string]string) []output.NextAction {
+// caller is the verb that produced this output: a terminal task viewed via
+// task get must NOT suggest the very command the caller just ran (a naive AI
+// following meta.next verbatim would loop on itself); the artifact downloads
+// remain the only genuine increment there.
+func nextForTask(ref string, task *iagent.AgentTask, spec *iagent.AgentSpec, given map[string]string, caller string) []output.NextAction {
 	if !safeNextRef(ref) {
 		return nil
 	}
@@ -408,12 +450,18 @@ func nextForTask(ref string, task *iagent.AgentTask, spec *iagent.AgentSpec, giv
 		// Terminal: suggest reading the final detail, plus a ready-made download
 		// command per artifact (so the AI never has to hand-craft the
 		// `task get --artifact` form itself; -o stays a placeholder → template).
-		getArgs, getTpl := paramArgsFor(spec, iagent.VerbTaskGet, given)
-		next := []output.NextAction{{
-			Label:    "查看任务详情与产物",
-			Command:  fmt.Sprintf("lark-cli agent task get %s %s%s", ref, task.TaskID, getArgs),
-			Template: getTpl,
-		}}
+		// When the caller IS task get, the detail suggestion would be a self-loop
+		// (the exact command just executed) — drop it and keep only the artifact
+		// increments.
+		var next []output.NextAction
+		if caller != iagent.VerbTaskGet {
+			getArgs, getTpl := paramArgsFor(spec, iagent.VerbTaskGet, given)
+			next = append(next, output.NextAction{
+				Label:    "查看任务详情与产物",
+				Command:  fmt.Sprintf("lark-cli agent task get %s %s%s", ref, task.TaskID, getArgs),
+				Template: getTpl,
+			})
+		}
 		next = append(next, artifactNext(ref, task, spec, given)...)
 		return next
 	}

@@ -389,18 +389,18 @@ func TestNextForTaskCarriesParams(t *testing.T) {
 	spec := paramSpec()
 	task := &iagent.AgentTask{TaskID: "task_1", State: iagent.StateWorking}
 	// task_get declares no params on this spec → nothing to carry for the poll
-	next := nextForTask("acme:reporter", task, spec, map[string]string{"workspace_id": "ws_42"})
+	next := nextForTask("acme:reporter", task, spec, map[string]string{"workspace_id": "ws_42"}, iagent.VerbSend)
 	if len(next) != 1 || strings.Contains(next[0].Command, "--param") {
 		t.Fatalf("task_get declares no params, poll hint should carry none: %+v", next)
 	}
 	// give task_get a required param → the poll hint must carry it
 	spec.GetTask.Params = []iagent.CardParam{{Name: "workspace_id", Type: "string", Required: true}}
-	next = nextForTask("acme:reporter", task, spec, map[string]string{"workspace_id": "ws_42"})
+	next = nextForTask("acme:reporter", task, spec, map[string]string{"workspace_id": "ws_42"}, iagent.VerbSend)
 	if !strings.Contains(next[0].Command, "--param workspace_id=ws_42") {
 		t.Fatalf("poll hint should carry the given required param: %+v", next)
 	}
 	// absent → placeholder + template
-	next = nextForTask("acme:reporter", task, spec, nil)
+	next = nextForTask("acme:reporter", task, spec, nil, iagent.VerbSend)
 	if !strings.Contains(next[0].Command, "--param workspace_id=<workspace_id>") || !next[0].Template {
 		t.Fatalf("absent required should degrade to placeholder+template: %+v", next)
 	}
@@ -419,7 +419,7 @@ func TestArtifactNext(t *testing.T) {
 		TaskID: "task_1", State: iagent.StateCompleted, IsTerminal: true,
 		Artifacts: []iagent.Artifact{{ID: "art_1"}, {ID: "bad;id"}, {ID: "art_2"}},
 	}
-	next := nextForTask("acme:reporter", task, spec, map[string]string{"workspace_id": "ws_42"})
+	next := nextForTask("acme:reporter", task, spec, map[string]string{"workspace_id": "ws_42"}, iagent.VerbSend)
 	var downloads []string
 	for _, n := range next {
 		if strings.Contains(n.Command, "--artifact") {

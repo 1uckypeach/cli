@@ -353,8 +353,8 @@ func TestContextListEmptyEmitsArray(t *testing.T) {
 	if _, ok := v.([]interface{}); !ok {
 		t.Errorf("empty context list should emit a JSON array (not null), got %T: %v", v, v)
 	}
-	if env.Meta == nil || env.Meta.Count != 0 {
-		t.Errorf("meta.count should be 0, got %+v", env.Meta)
+	if env.Meta != nil {
+		t.Errorf("empty list should omit meta entirely (no ambiguous {} shape), got %+v", env.Meta)
 	}
 }
 

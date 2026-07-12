@@ -2,7 +2,7 @@
 
 > **前置条件：** 先读 [`../../lark-shared/SKILL.md`](../../lark-shared/SKILL.md)（含高危 exit-10 确认机制）。
 
-管理远程 agent 的**多轮上下文（会话）**。一个 context（`context_id`）串起同一会话里的多个任务；三个动词各由 `context_list` / `context_get` / `context_delete` 能力位分别门控（provider 可能只支持其中一部分，以 `agent card` 为准）。续发/追问在 [`agent send --context-id`](lark-agent-send.md)，不在此。三个动词都要求该 provider 的全部 scope（all-or-nothing；缺任一即本地报 `missing_scope`，照抄 hint 授权；scope 全集见 provider 文件）。
+管理远程 agent 的**多轮上下文（会话）**。一个 context（`context_id`）串起同一会话里的多个任务；三个动词各由 `context_list` / `context_get` / `context_delete` 能力位分别门控（provider 可能只支持其中一部分，以 `agent card` 为准）。续发/追问在 [`agent send --context-id`](lark-agent-send.md)，不在此。三个动词都过 scope preflight（语义见 [SKILL.md 前置准备](../SKILL.md)；scope 全集见 provider 文件）。
 
 **分诊心法**：`context list`（哪个会话要处理）→ `context get`（该会话总览 + `active_task`）→ [`agent task list --context-id`](lark-agent-task.md)（该会话全部任务）→ [`agent task get`](lark-agent-task.md)（单任务完整详情）。
 
@@ -13,7 +13,7 @@ lark-cli agent context list <provider>:<agent_id>                    # 默认 JS
 lark-cli agent context list <provider>:<agent_id> --format pretty    # 带表头 TSV
 ```
 
-输出 `{ contexts: [ { context_id, created_at?, updated_at?, title?, task_count, awaiting_input? } ] }`，`meta.count`。只读。按 `updated_at` 降序（最近活动在前；无时间戳排最后）。`task_count` 是该会话任务数；`awaiting_input=true` 表示有任务停在 `input_required`/`auth_required` 等你续答——挑"哪个会话要先处理"就看它。
+输出 `{ contexts: [ { context_id, created_at?, updated_at?, title?, task_count, awaiting_input? } ] }`，`meta.count`（**空列表时整个 `meta` 省略**，用 `.meta.count // 0` 消费）。只读。按 `updated_at` 降序（最近活动在前；无时间戳排最后）。`task_count` 是该会话任务数；`awaiting_input=true` 表示有任务停在 `input_required`/`auth_required` 等你续答——挑"哪个会话要先处理"就看它。
 
 **单页语义**：只返回服务端第一页，分页未透出——会话很多时结果会静默截断，找不到目标 context 别据此断言不存在。
 
@@ -51,8 +51,8 @@ lark-cli agent context delete <provider>:<agent_id> <ctx-id> --yes
   "error": {
     "type": "confirmation",
     "subtype": "confirmation_required",
-    "message": "agent context delete requires confirmation",
-    "hint": "add --yes to confirm",
+    "message": "删除会话将不可逆地移除该会话及其名下全部任务记录",
+    "hint": "确认要删除后，加 --yes 重发",
     "risk": "high-risk-write",
     "action": "agent context delete"
   }
@@ -63,17 +63,17 @@ lark-cli agent context delete <provider>:<agent_id> <ctx-id> --yes
 |------|------|------|
 | `<agent_ref> <ctx-id>` | 是 | 两个位置参数 |
 | `--yes` | 是（删除） | 确认高危操作；不加则 exit 10 |
-| `--param key=value` | 视声明 | 可重复；按当前动词（context_list / context_get / context_delete）的参数声明校验，声明用 `agent card <ref> --operation <动词>` 查看；错误一次报全且每条带完整声明 |
+| `--param key=value` | 视声明 | 可重复；按当前动词（context_list / context_get / context_delete）的声明校验；声明查询与传法的权威见 [card](lark-agent-card.md) |
 | `--as` / `--format json\|pretty` / `--jq` | 否 | 通用；默认 `json` |
 
-删除成功输出 `{ context_id, deleted: true }`。删除后再 get 该会话报 not_found。
+删除成功输出 `{ context_id, deleted: true }`。删除后再 get 该会话按下方「ctx id 不存在」行处置（example 报 `invalid_argument` exit 2，真实 provider 通常 `not_found` exit 1）。
 
 ## 错误目录
 
 | 触发 | subtype | exit | message（示例） |
 |---|---|---|---|
 | `context delete` 缺 `--yes` | confirmation_required | 10 | 见上方真实输出 |
-| user 身份缺 scope | missing_scope | 3 | all-or-nothing：缺该 provider scope 全集里任一即本地报，`missing_scopes` 列全部缺失；照抄 hint 授权 |
+| 缺 scope | missing_scope | 3 | 本地 preflight；语义与修复路径的唯一权威见 [SKILL.md 前置准备](../SKILL.md) |
 | ctx id 不存在 | 依 provider | 1 或 2 | 本地目录型（example）报 `invalid_argument`（exit 2，hint 指回 `context list`）；真实 provider 服务端资源不存在通常为 `not_found`（exit 1）。先 `context list <agent_ref>` 核对 |
 | 未知 scheme / 非法 agent_ref | invalid_argument | 2 | 见 [send 错误目录](lark-agent-send.md) |
 

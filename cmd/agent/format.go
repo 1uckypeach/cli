@@ -71,10 +71,27 @@ func truncateRunes(s string, max int) string {
 }
 
 // firstTextOf returns the first text Part carried by the task's messages
-// (the first text message), or "".
+// (typically the caller's request), or "".
 func firstTextOf(task *iagent.AgentTask) string {
 	for _, m := range task.Messages {
 		for _, p := range m.Parts {
+			if p.Type == "text" && p.Text != "" {
+				return p.Text
+			}
+		}
+	}
+	return ""
+}
+
+// lastAgentTextOf returns the last agent-authored text Part — the task's
+// current RESULT line, the same word the task-list SUMMARY column uses. The
+// single-task pretty view must show the outcome, not just echo the request.
+func lastAgentTextOf(task *iagent.AgentTask) string {
+	for i := len(task.Messages) - 1; i >= 0; i-- {
+		if task.Messages[i].Role != "agent" {
+			continue
+		}
+		for _, p := range task.Messages[i].Parts {
 			if p.Type == "text" && p.Text != "" {
 				return p.Text
 			}
@@ -98,8 +115,11 @@ func printTaskPretty(w io.Writer, task *iagent.AgentTask) {
 	if task.ContextID != "" {
 		fmt.Fprintf(w, "context_id: %s\n", kvValue(task.ContextID))
 	}
-	if text := firstTextOf(task); text != "" {
-		fmt.Fprintf(w, "text: %s\n", truncateRunes(kvValue(text), 120))
+	if req := firstTextOf(task); req != "" {
+		fmt.Fprintf(w, "request: %s\n", truncateRunes(kvValue(req), 120))
+	}
+	if reply := lastAgentTextOf(task); reply != "" {
+		fmt.Fprintf(w, "reply: %s\n", truncateRunes(kvValue(reply), 120))
 	}
 	fmt.Fprintf(w, "artifacts: %d\n", len(task.Artifacts))
 	// input_required decision: prompt + selectable options + arbitration state.

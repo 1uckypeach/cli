@@ -241,7 +241,7 @@ func TestPrintTaskPretty_NewlineForgeryNeutralized(t *testing.T) {
 	if !strings.Contains(out.String(), "state: failed") {
 		t.Errorf("the real state line should remain, got:\n%s", out.String())
 	}
-	if !strings.Contains(out.String(), "text: done state: completed ok") {
+	if !strings.Contains(out.String(), "reply: done state: completed ok") {
 		t.Errorf("\\n/\\t in the body should be replaced by spaces, got:\n%s", out.String())
 	}
 }

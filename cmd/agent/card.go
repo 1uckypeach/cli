@@ -188,7 +188,7 @@ func agentCardOperationRun(opts *cardOptions, prov iagent.Provider, spec *iagent
 			return errs.NewValidationError(errs.SubtypeInvalidArgument,
 				"未知操作 %q，合法值: %s, all", verb, strings.Join(iagent.Verbs(), ", ")).
 				WithParam("--operation").
-				WithHint("--operation 的动词与 capabilities 键名一致（外加 send）；all 一次拿全")
+				WithHint("--operation 的合法动词见 message 列表（即 8 个操作名；capabilities 里的 file_input/input_required 是行为位、不是动词）；all 一次拿全")
 		}
 		c := contractFor(o)
 		if prov.Kind() == iagent.KindInstance {

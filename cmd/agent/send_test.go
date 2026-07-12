@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
@@ -42,6 +43,24 @@ func sendCmdCtx(t *testing.T) *cobra.Command {
 // Factory's httpmock registry holds zero stubs, so any HTTP attempt fails the
 // test — everything under test here is command-layer behavior over the
 // scripted provider.
+// mkSendFile chdirs to a temp dir and creates name there, so --file passes the
+// relative-within-CWD + existence gate (validateSendFiles) in tests.
+func mkSendFile(t *testing.T, name string) {
+	t.Helper()
+	dir := t.TempDir()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+	if err := os.WriteFile(name, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func sendTestOpts(t *testing.T) *sendOptions {
 	t.Helper()
 	registerScripted()
@@ -449,6 +468,7 @@ func TestNewCmdAgentSend_RunFOverride(t *testing.T) {
 // confirmation_required (exit 10) BEFORE reaching the provider — the unset send
 // hook is a tripwire that would panic if the gate let the upload through.
 func TestSend_FileRequiresYes(t *testing.T) {
+	mkSendFile(t, "local.txt")
 	opts := sendTestOpts(t)
 	opts.Text = "hi"
 	opts.Files = []string{"local.txt"} // no --yes
@@ -466,6 +486,7 @@ func TestSend_FileRequiresYes(t *testing.T) {
 // TestSend_FileWithYesProceeds pins that --yes satisfies the --file gate: the
 // send reaches the provider, which receives the file path.
 func TestSend_FileWithYesProceeds(t *testing.T) {
+	mkSendFile(t, "local.txt")
 	opts := sendTestOpts(t)
 	sent := false
 	setScripted(t, scriptedHooks{send: func(in iagent.SendInput) (*iagent.AgentTask, error) {
@@ -491,6 +512,7 @@ func TestSend_FileWithYesProceeds(t *testing.T) {
 // gate (dry-run never uploads), so it needs no --yes and never reaches the
 // provider (unset send hook stays a tripwire).
 func TestSend_FileDryRunNotGated(t *testing.T) {
+	mkSendFile(t, "local.txt")
 	opts := sendTestOpts(t)
 	opts.Text = "hi"
 	opts.Files = []string{"local.txt"}

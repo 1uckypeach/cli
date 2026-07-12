@@ -142,7 +142,7 @@ func validateParams(kvs []string, declared []iagent.CardParam, verb string, spec
 			objChannel[top] = "dotted"
 			cp, known := decl[k]
 			if !known {
-				addViol(k, fmt.Sprintf("未知参数 %s（%s 可用字段: %s）", k, top, fieldNames(obj)), nil, obj.FieldNamesList()...)
+				addViol(k, fmt.Sprintf("未知参数 %s（%s 可用字段: %s）", k, top, fieldNames(obj)), nil, dottedFieldNames(obj)...)
 				continue
 			}
 			_ = leaf
@@ -156,7 +156,7 @@ func validateParams(kvs []string, declared []iagent.CardParam, verb string, spec
 				addViol(k, fmt.Sprintf("参数 %s %s", k, err.Error()), &cp, cp.Enum...)
 				continue
 			}
-			given[k] = val
+			given[k] = canonicalValue(cp, val)
 			continue
 		}
 
@@ -179,7 +179,7 @@ func validateParams(kvs []string, declared []iagent.CardParam, verb string, spec
 			addViol(k, fmt.Sprintf("参数 %s %s", k, err.Error()), &cp, cp.Enum...)
 			continue
 		}
-		given[k] = val
+		given[k] = canonicalValue(cp, val)
 	}
 
 	// ── missing required（对着平铺声明反查；argv 里出现过的 key 不再重复报——
@@ -223,9 +223,16 @@ func validateObjectJSON(name, val string, obj iagent.CardParam, verb string, see
 	}
 	dec := json.NewDecoder(strings.NewReader(val))
 	dec.UseNumber()
-	var raw map[string]any
-	if err := dec.Decode(&raw); err != nil {
+	var anyVal any
+	if err := dec.Decode(&anyVal); err != nil {
 		addViol(name, fmt.Sprintf("参数 %s 的 JSON 无法解析（%v）；也可用点路径逐字段传：--param %s.<field>=<value>", name, err, name), nil)
+		return
+	}
+	raw, isObj := anyVal.(map[string]any)
+	if !isObj {
+		// 语法合法但不是对象（数组/字符串/数字/布尔/null）——用调用方词汇描述，
+		// 不泄漏 Go 反序列化的内部类型文案。
+		addViol(name, fmt.Sprintf(`参数 %s 需为 JSON 对象（如 {"k":"v"}），得到 %s；也可用点路径逐字段传：--param %s.<field>=<value>`, name, jsonKindName(anyVal), name), nil)
 		return
 	}
 	fields := map[string]iagent.CardParam{}
@@ -267,7 +274,7 @@ func validateObjectJSON(name, val string, obj iagent.CardParam, verb string, see
 			addViol(full, fmt.Sprintf("参数 %s %s", full, err.Error()), &c, cp.Enum...)
 			continue
 		}
-		given[full] = sval
+		given[full] = canonicalValue(cp, sval)
 	}
 }
 
@@ -295,7 +302,9 @@ func unknownParamReason(key, verb string, declared []iagent.CardParam, spec *iag
 		}
 		if len(elsewhere) > 0 {
 			sort.Strings(elsewhere)
-			return fmt.Sprintf("参数 %s 不适用于 %s（它声明在: %s）", key, verb, strings.Join(elsewhere, ", ")), elsewhere
+			// suggestions 保持单一语义（可直接替换的参数名候选）：动词名不是参数，
+			// 不进 suggestions——「声明在: X」的教学已在 reason 里。
+			return fmt.Sprintf("参数 %s 不适用于 %s（它声明在: %s）", key, verb, strings.Join(elsewhere, ", ")), nil
 		}
 	}
 	known := make([]string, 0, len(declared))
@@ -305,7 +314,116 @@ func unknownParamReason(key, verb string, declared []iagent.CardParam, spec *iag
 	if len(known) == 0 {
 		return fmt.Sprintf("未知参数 %s（%s 不接受任何业务参数）", key, verb), nil
 	}
-	return fmt.Sprintf("未知参数 %s（%s 可用参数: %s）", key, verb, strings.Join(known, ", ")), known
+	// suggestions 按编辑距离给「可直接替换」的近似候选（typo 一步可修）；
+	// 没有近似命中时退回声明序全集。message 始终列全集（发现面完整）。
+	sugg := nearestNames(key, known, 2)
+	if len(sugg) == 0 {
+		sugg = known
+	}
+	return fmt.Sprintf("未知参数 %s（%s 可用参数: %s）", key, verb, strings.Join(known, ", ")), sugg
+}
+
+// nearestNames returns the candidates within maxDist Levenshtein distance of
+// key, nearest first (stable for ties by candidate order).
+func nearestNames(key string, candidates []string, maxDist int) []string {
+	type scored struct {
+		name string
+		d    int
+	}
+	var hits []scored
+	for _, c := range candidates {
+		if d := levenshtein(key, c); d <= maxDist {
+			hits = append(hits, scored{c, d})
+		}
+	}
+	sort.SliceStable(hits, func(i, j int) bool { return hits[i].d < hits[j].d })
+	out := make([]string, 0, len(hits))
+	for _, h := range hits {
+		out = append(out, h.name)
+	}
+	return out
+}
+
+// levenshtein is the classic two-row edit distance over runes.
+func levenshtein(a, b string) int {
+	ra, rb := []rune(a), []rune(b)
+	prev := make([]int, len(rb)+1)
+	cur := make([]int, len(rb)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(ra); i++ {
+		cur[0] = i
+		for j := 1; j <= len(rb); j++ {
+			cost := 1
+			if ra[i-1] == rb[j-1] {
+				cost = 0
+			}
+			cur[j] = min(min(cur[j-1]+1, prev[j]+1), prev[j-1]+cost)
+		}
+		prev, cur = cur, prev
+	}
+	return prev[len(rb)]
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// jsonKindName names a decoded JSON value's kind in caller vocabulary.
+func jsonKindName(v any) string {
+	switch v.(type) {
+	case []any:
+		return "数组"
+	case string:
+		return "字符串"
+	case json.Number:
+		return "数字"
+	case bool:
+		return "布尔值"
+	case nil:
+		return "null"
+	default:
+		return "非对象值"
+	}
+}
+
+// canonicalValue normalizes an ACCEPTED scalar to its canonical wire form so a
+// provider receives one deterministic literal regardless of the input variant
+// or channel: boolean TRUE/1/t → true|false, integer +5/04 → 5/4. The JSON
+// channel already produces canonical literals for native types; this closes
+// the dotted-path (and JSON string-member) variants to the same form. Values
+// that reach here have passed ValidateValue, so parse errors are impossible;
+// the input is returned unchanged as a defensive fallback.
+func canonicalValue(cp iagent.CardParam, val string) string {
+	switch cp.Type {
+	case "boolean":
+		if b, err := strconv.ParseBool(val); err == nil {
+			return strconv.FormatBool(b)
+		}
+	case "integer":
+		if n, err := strconv.ParseInt(val, 10, 64); err == nil {
+			return strconv.FormatInt(n, 10)
+		}
+	case "number":
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			return strconv.FormatFloat(f, 'g', -1, 64)
+		}
+	}
+	return val
+}
+
+// dottedFieldNames returns an object's field names in their full dotted form
+// (directly substitutable --param keys).
+func dottedFieldNames(obj iagent.CardParam) []string {
+	out := make([]string, 0, len(obj.Fields))
+	for _, f := range obj.Fields {
+		out = append(out, obj.Name+"."+f.Name)
+	}
+	return out
 }
 
 // paramsError folds collected violations into one typed error: a single

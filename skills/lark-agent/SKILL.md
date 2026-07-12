@@ -22,7 +22,7 @@ metadata:
 
 ## Provider 目录
 
-框架层（本文件 + 动词 references）只描述框架契约；provider 的业务事实（scope 全集、bot 前置、能力特例、服务端错误码目录、真实样例）都在对应 provider 文件里（或由其显式转发）。**接入新 provider = 新增一个 `references/providers/lark-agent-<scheme>.md`，本文件与动词 references 不变。**
+本文件 + 动词 references 只描述框架契约（对所有 provider 恒成立）；provider 的业务事实（scope 全集、bot 前置、能力特例、服务端错误码目录、真实样例）**查下表对应的 provider 文件**——命中哪个 scheme 就读哪个文件，别凭框架契约推断业务事实。
 
 | scheme | kind | 一句话 | 详见 |
 |---|---|---|---|
@@ -31,9 +31,9 @@ metadata:
 ## 前置准备（首次调用某 agent 前过一遍）
 
 1. **拿 agent_id**：`kind=catalog` 的 provider 用 `agent list <scheme>` 枚举（含 name/description）；`kind=instance` 的照 `agent list` 输出里该 provider 的 `agent_id_source` 获取。agent_ref = `<provider>:<agent_id>`。
-2. **user 身份补 scope**——agent scope **不走 `--domain`**，只能 `auth login --scope` 显式授权。缺 scope 时命令会**本地**报 `missing_scope`（exit 3，不发请求）：scope 列表照抄错误里的 hint 即可——hint 已合并存量授权，照抄不丢权限；但发起授权按 lark-shared「Agent 代理发起认证」的 split-flow（命令加 `--no-wait --json`，把 `verification_url` 交给用户），避免阻塞式 auth login 在 harness 里吞掉授权 URL。要最小权限也可只补 `missing_scopes` 中当前动词所需项。各 provider 的 scope 全集见其 provider 文件。
+2. **user 身份补 scope**——agent scope **不走 `--domain`**，只能 `auth login --scope` 显式授权。缺 scope 时命令会**本地**报 `missing_scope`（exit 3，不发请求，all-or-nothing：缺该 provider scope 全集中任一即报，`missing_scopes` 列出全部缺失）：scope 列表照抄错误里的 hint 即可——hint 只列**缺失**的 scope；开放平台按增量授权，重登不覆盖已授 scope，照抄不丢权限。发起授权按 lark-shared「Agent 代理发起认证」的 split-flow（命令加 `--no-wait --json`，把 `verification_url` 交给用户），避免阻塞式 auth login 在 harness 里吞掉授权 URL。各 provider 的 scope 全集见其 provider 文件。（本段是 missing_scope 语义的唯一权威，动词 references 只引用。）
    - **CAUTION**：其它业务域 scope（如 `spark:*`）**都不是** agent scope——`auth status` 里有别的域的 scope **不代表**能调 agent，别据此判定"已具备权限"，以 preflight 实际结果为准。
-3. **bot 身份前置**：见 card `identity` 里 bot 条目的 `precondition` 与对应 provider 文件（典型是渠道白名单）。bot 无本地 preflight，出错按「服务端错误」节处置。
+3. **bot 身份前置**：见 card `identity` 里 bot 条目的 `precondition` 与对应 provider 文件（典型是渠道白名单）。bot 身份**也有本地 scope preflight**（best-effort：读应用已发布版本的 TenantScopes，拉取失败时自动降级为跳过），缺 scope 同样本地报 `missing_scope`（exit 3）——但修复路径与 user 不同：**去开发者后台给应用加 scope 并重新发布**（不是 `auth login`，见 lark-shared「bot 缺少权限」条）。
 4. **身份选择**：`--as user|bot`。card `identity` 声明支持的身份及前置条件（`precondition`）。默认按 lark-shared 的身份选择原则；用 bot 身份时任务归属 bot 主体。
 
 ## 命令速查
@@ -52,7 +52,7 @@ metadata:
 ## 工作流（先读 card，再调）
 
 1. `agent card <agent_ref>` 看 `capabilities` + `has_parameters`——capabilities 决定能调什么动词；`has_parameters` 列出**需要带 `--param` 的动词**（不在列表里的动词不用带任何参数）。要调的动词在列表里 → 先 `agent card <agent_ref> --operation <动词>` 查该动词的参数（name/type/required/enum/default + 命令形态）；要调 2+ 个动词 → `--operation all` 一次拿全。`type:"object"` 的参数按点路径逐字段传（`--param filter.region=east`）。偷懒直接调也行：参数错误一次报全且每条带完整声明，失败一次就能修对。能力为 false 的动词直接报 `unsupported_capability`，不要试。card **不含 scope**——scope 见「前置准备」，缺时命令本地报 `missing_scope`（照抄 hint）。
-2. `agent send <agent_ref> --text "..."` 起任务。send 只 fire、立即返回 `{task_id, context_id, state}`。`meta.next` 是**建议命令**：`template:true` 的先把 `<...>` 占位符整体替换再执行；无 `template` 字段的可直接照抄；执行报错时对照本 skill 参数表。
+2. `agent send <agent_ref> --text "..."` 起任务。send 只 fire、立即返回 `{task_id, context_id, state}`。`meta.next` 是**建议命令**（你显式传过 `--as` 时会带同身份，别自行改换；没传则不带、照常走默认身份）：`template:true` 的先把 `<...>` 占位符整体替换再执行；无 `template` 字段的可直接照抄；执行报错时对照本 skill 参数表。
 3. 轮询到结果：`agent task get <agent_ref> <task-id> --watch --timeout 30s`（唯一轮询入口；send 只 fire，不阻塞），`--timeout` 语义见「异步与轮询」。
 4. 多轮 / 补输入：`state=input_required` 时向**同一任务**续发。带结构化决策（`input_required.decision_id` + `options[].option_id`）时按 id 选：`agent send <agent_ref> --context-id <ctx> --task-id <task> --decision-id <decision_id> --option <option_id>`（多选给多个 `--option`）；无 `options` 的开放决策仍用 `--text <答复>`。`meta.next` 会直接给对应命令。已被别端答复的决策（`submitted=true`）无需重复答，重复答会报 `conflict`。（该态是否会出现见 provider 文件的能力特例。）
 
@@ -65,7 +65,7 @@ metadata:
 | "有哪些 agent 能用 / agent_ref 怎么写" | `agent list`（**发现层**） | 手上还没具体 `agent_id` 时是发现问题——读 `providers[].agent_ref_format` / `agent_id_source` 告诉用户引用写法与获取路径。**别用 `agent card` 做发现**（card 需要一个具体 agent_ref，属能力层）。 |
 | "列出某 provider 下所有 agent" | `agent list <scheme>`（scheme 作位置参数） | `kind=catalog` 必可枚举；`kind=instance` 且不支持枚举的会本地报 `unsupported_capability`——**别编清单、别反复重试**，把 hint 里的 agent_id 获取路径**原样转达用户**，告知拿到后按 `agent_ref_format` 引用；别只叫用户把 URL 发回来。 |
 | "这个 agent 能做什么"（已知 agent_ref） | `agent card <agent_ref>`（**能力层**） | 读 `capabilities` 决定能调什么、`has_parameters` 决定哪些动词要先查参数。 |
-| "某动词要带哪些参数" | `agent card <agent_ref> --operation <动词>`（all=一次拿全） | 输出含参数声明 + 该动词的命令形态（command 字段），照着构造即可。动词词汇 = capabilities 键名 + `send`；`artifact_download` 对应 `task get --artifact`。 |
+| "某动词要带哪些参数" | `agent card <agent_ref> --operation <动词>`（all=一次拿全） | 输出含参数声明 + 该动词的命令形态（command 字段），照着构造即可。合法动词共 8 个 = 7 个操作型 capability 键 + `send`（capabilities 里的 `file_input`/`input_required` 是行为位、**不是动词**）；`artifact_download` 对应 `task get --artifact`。 |
 | "先不真发 / 只预演" | `agent send ... --dry-run` | `--dry-run` 是**客户端行为**（本地校验 + 打印将发请求，不调 API），**永远可用**，card 无对应能力键，无需查 card。 |
 | 报错"未知参数 X / 缺参数 / 不适用于" | 先读错误的 `params[]`——**已声明参数**的违规（缺必填/空值/类型/enum/范围）自带完整参数声明（spec），通常不用回查 card 就能修；未知/重复/格式错的条目看 `reason` 与 `suggestions` | 一次错误列出全部问题；"不适用于 X（它声明在: Y）"= 参数用错了动词。修完重发；别删 `--text`、别换命令。 |
 | "看任务跑完没 / 有没有结果"（已有 task_id） | `agent task get <agent_ref> <task-id>` | 查进度**不是再 send**（只有 `input_required` 才用 send 续答）。要持续盯用 `--watch`。 |
@@ -74,7 +74,7 @@ metadata:
 ## 核心概念（影响命令选择的才列）
 
 - **message / task / context**：`send` 发一条 message 产生一个 task（`task_id`）；task 归属一个 context（`context_id`，多轮会话）。首轮 context 由远端创建并回传。
-- **任务状态机（本节是唯一权威，其它处只引用）**：9 态 + 兜底 `unknown`。
+- **任务状态机（本节是唯一权威，其它处只引用）**：共 9 态（8 个实义态 + 兜底 `unknown`）。
   - `completed` → 已跑完，去 `data.artifacts[]` 取产物（`task get --artifact <id> -o <file>` 落盘）
   - `failed` / `rejected` / `canceled` → 终态但非成功，别重试
   - `input_required` → 不是错误，agent 在等你补信息。带 `options[]` 的结构化决策按 id 答：`send --context-id <ctx> --task-id <task> --decision-id <decision_id> --option <option_id>`；无 `options` 的开放决策用 `--text <答复>`。card `input_required=false` 的 agent **不会进此态**——追问同样以 completed 文本返回，直接用多轮 send 续问即可（各 provider 实况见其 provider 文件）。

@@ -219,7 +219,13 @@ func reporterSend(ctx context.Context, rt agent.Runtime, in agent.SendInput) (*a
 		if n := len(in.Files); n > 0 {
 			reply = fmt.Sprintf("已收到 %d 个附件；%s", n, reply)
 		}
-		return reply, []agent.Artifact{{ID: newID("art"), Kind: "text"}}
+		// Name/Mime 在 GetTask 阶段就可见（下载前），调用方能直接据此定 -o 后缀，
+		// 不必先猜再靠下载后的 suggested_name 纠正——真实 provider 应尽量同样前置。
+		ext, mime := "csv", "text/csv"
+		if p.ReportFormat == "xlsx" {
+			ext, mime = "xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+		}
+		return reply, []agent.Artifact{{ID: newID("art"), Kind: "text", Name: "quarterly_report." + ext, Mime: mime}}
 	})
 }
 

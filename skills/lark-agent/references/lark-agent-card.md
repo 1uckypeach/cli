@@ -30,7 +30,7 @@ lark-cli agent card <provider>:<agent_id> --operation all
 | 参数 | 必填 | 说明 |
 |------|------|------|
 | `<agent_ref>` | 是 | `<provider>:<agent_id>` |
-| `--operation <动词\|all>` | 否 | 参数契约子查询；动词 = capabilities 键名 + `send`，拼错报 `invalid_argument` 并列出全集 |
+| `--operation <动词\|all>` | 否 | 参数契约子查询；合法动词 8 个 = 7 个操作型 capability 键 + `send`（`file_input`/`input_required` 是行为位、不是动词），拼错报 `invalid_argument` 并列出全集 |
 | `--format json\|pretty` | 否 | 默认 `json`；`--jq` 会强制 JSON；其余值报 `invalid_argument` |
 | `--as user\|bot` | 否 | 身份 |
 
@@ -71,7 +71,7 @@ lark-cli agent card <provider>:<agent_id> --operation all
 
 ## 字段语义与消费方式
 
-- **`capabilities`**：9 键能力矩阵。为 `false` 的动词不要调——如 `task_cancel=false` 时 `agent task cancel` 直接报 `unsupported_capability`（exit 2），不发请求。`input_required=false` = 该 agent 不会进 `input_required` 态（追问的实际行为见 provider 文件）。`--dry-run` 是客户端行为，不在 capabilities 里，永远可用。
+- **`capabilities`**：9 键能力矩阵 = 7 个操作位（对应可调动词）+ 2 个行为位（`file_input`/`input_required`，不是动词）。为 `false` 的动词不要调——如 `task_cancel=false` 时 `agent task cancel` 直接报 `unsupported_capability`（exit 2），不发请求。`input_required=false` = 该 agent 不会进 `input_required` 态（追问的实际行为见 provider 文件）。`--dry-run` 是客户端行为，不在 capabilities 里，永远可用。
 - **`identity`**：支持的 `--as` 身份；带 `precondition` 的身份要先满足前置条件（典型是渠道白名单，见 provider 文件）。
 - **`has_parameters`**：需要带 `--param` 的动词列表（如 `["send","task_list"]`）。不在列表里的动词零参数、直接调；在列表里的先用 `--operation <动词>` 查明细。空数组 = 全部动词都不需要参数。
 - **object 参数（`type:"object"`）**：带 `fields` 数组（每个字段又是一份完整声明：type/required/enum/default/min/max）。传参按点路径逐字段：`--param filter.region=east`；或 JSON 整值兜底：`--param filter='{"region":"east"}'`——两通道等价（同一对象不可混用），必填/默认值都声明在字段上。
@@ -89,7 +89,7 @@ lark-cli agent card <provider>:<agent_id> --operation all
 |---|---|---|---|
 | 畸形 agent_ref（如 `agent card no-colon`） | invalid_argument | 2 | `agent_ref 格式应为 <provider>:<agent_id>`；hint `agent_ref 形如 <scheme>:<agent_id>，如 example:echo` |
 | 非法 `--format`（如 `--format xml`） | invalid_argument | 2 | `不支持的 --format 值 "xml"`；hint `合法值: json \| pretty`；`param` 字段为 `--format` |
-| catalog 型未知 agent_id | invalid_argument | 2 | 真实样例见 [provider-example「错误样例」](providers/lark-agent-example.md) |
+| catalog 型未知 agent_id | invalid_argument | 2 | 真实样例见 [provider-example「服务端错误码目录」](providers/lark-agent-example.md) |
 
 ## 参考
 

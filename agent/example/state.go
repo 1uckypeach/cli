@@ -261,7 +261,7 @@ func (s *memoryStore) answerDecision(agentID, taskID, decisionID, optionID strin
 	// not "no longer awaiting input".
 	if ir.Submitted {
 		return agent.AgentTask{}, errs.NewAPIError(errs.SubtypeConflict,
-			"该决策已被答复（%s），多端仲裁已定，无需重复", ir.SubmittedOptionID).
+			"该决策已在其它入口被答复（%s），无需重复应答", ir.SubmittedOptionID).
 			WithHint("用 lark-cli agent task get example:%s %s 查看已定结果", agentID, taskID)
 	}
 	if rec.Task.State != agent.StateInputRequired {
