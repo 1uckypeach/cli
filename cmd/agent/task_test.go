@@ -302,8 +302,8 @@ func TestTaskListEmptyEmitsArray(t *testing.T) {
 	if _, ok := v.([]interface{}); !ok {
 		t.Errorf("empty task list should emit a JSON array (not null), got %T: %v", v, v)
 	}
-	if env.Meta == nil || env.Meta.Count != 0 {
-		t.Errorf("meta.count should be 0, got %+v", env.Meta)
+	if env.Meta != nil {
+		t.Errorf("empty list should omit meta entirely (no ambiguous {} shape), got %+v", env.Meta)
 	}
 }
 
@@ -493,7 +493,7 @@ func TestTaskGetPrettyFormat(t *testing.T) {
 		t.Fatalf("task get --format pretty should not error: %v", err)
 	}
 	text := string(out.Bytes())
-	for _, want := range []string{"state: completed", "task_id: chat_1", "context_id: sess_1", "text: 分析完成", "artifacts: 1"} {
+	for _, want := range []string{"state: completed", "task_id: chat_1", "context_id: sess_1", "reply: 分析完成", "artifacts: 1"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("pretty output should contain %q, got:\n%s", want, text)
 		}

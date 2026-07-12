@@ -46,9 +46,13 @@ func swapStore(t *testing.T) {
 	t.Cleanup(func() { store = old })
 }
 
-// TestConformance runs the shared conformance suite for both catalog entries.
+// TestConformance runs the shared conformance suite for every catalog entry.
 func TestConformance(t *testing.T) {
 	agenttest.RunConformance(t, "example", "echo")
+}
+
+func TestConformancePlanner(t *testing.T) {
+	agenttest.RunConformance(t, "example", "planner")
 }
 
 func TestConformanceReporter(t *testing.T) {

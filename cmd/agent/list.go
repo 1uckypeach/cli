@@ -116,6 +116,7 @@ func agentListRun(opts *listOptions) error {
 	env := output.Envelope{
 		OK:     true,
 		Data:   map[string]interface{}{"providers": providers},
+		Meta:   listMeta(len(providers)),
 		Notice: output.GetNotice(),
 	}
 	if jq := jqExpr(opts.Cmd); jq != "" {
@@ -207,7 +208,7 @@ func agentListSchemeRun(opts *listOptions) error {
 		OK:       true,
 		Identity: identity, // empty for the offline catalog path (omitempty)
 		Data:     map[string]interface{}{"agents": agents},
-		Meta:     &output.Meta{Count: len(agents)},
+		Meta:     listMeta(len(agents)),
 		Notice:   output.GetNotice(),
 	}
 	if jq := jqExpr(opts.Cmd); jq != "" {

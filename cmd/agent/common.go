@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -143,6 +144,23 @@ func emitTask(f *cmdutil.Factory, cmd *cobra.Command, task *iagent.AgentTask, ne
 		Notice:   output.GetNotice(),
 	}
 	if len(next) > 0 {
+		// Identity carry follows the CLI-family convention (shortcuts never pin
+		// --as into suggested commands): only when the caller EXPLICITLY passed
+		// --as does the suggestion carry the resolved identity — an explicit
+		// non-default identity would otherwise fall back to the default on
+		// verbatim replay and look up another principal's task store. An
+		// implicit (default/auto) identity stays unpinned: the next command
+		// re-resolves to the same answer in the same environment. Only
+		// agent-subtree commands take --as (auth login does not).
+		if cmd.Flags().Changed("as") {
+			if id := string(f.ResolvedIdentity); id != "" {
+				for i := range next {
+					if strings.HasPrefix(next[i].Command, "lark-cli agent ") {
+						next[i].Command += " --as " + id
+					}
+				}
+			}
+		}
 		env.Meta = &output.Meta{Next: next}
 	}
 	if scan.Alert != nil {
@@ -303,4 +321,17 @@ func semanticExitError(task *iagent.AgentTask) error {
 	default:
 		return nil
 	}
+}
+
+// listMeta builds the list-class meta: count for a non-empty list, nil (no
+// meta at all) for an empty one. Count is omitempty at the shared envelope
+// level, so an empty list would otherwise degrade to the ambiguous "meta": {}
+// third shape; absent-with-documented-rule beats an empty object. (Emitting an
+// explicit "count": 0 would need the shared Meta.Count to become a pointer —
+// a repo-wide change deliberately out of this package's blast radius.)
+func listMeta(n int) *output.Meta {
+	if n == 0 {
+		return nil
+	}
+	return &output.Meta{Count: n}
 }

@@ -235,7 +235,7 @@ func agentTaskGetRun(opts *taskOptions) error {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument,
 			"--timeout 需与 --watch 一起使用").
 			WithParam("--timeout").
-			WithHint("--timeout 需与 --watch 一起使用")
+			WithHint("加上 --watch（如 --watch --timeout 30s）做有界轮询；或去掉 --timeout 做单次查询")
 	}
 
 	f := opts.Factory
@@ -296,7 +296,7 @@ func agentTaskGetRun(opts *taskOptions) error {
 	// Derive IsTerminal from State (single source of truth) before any consumer
 	// — emitTask's output and semanticExitError below both read the flag.
 	normalizeTask(task)
-	if err := emitTask(f, opts.Cmd, task, nextForTask(opts.Ref, task, spec, vp.Given), opts.Format); err != nil {
+	if err := emitTask(f, opts.Cmd, task, nextForTask(opts.Ref, task, spec, vp.Given, iagent.VerbTaskGet), opts.Format); err != nil {
 		return err
 	}
 	// Under --watch a non-successful terminal state signals exit 1; a
@@ -348,7 +348,7 @@ func agentTaskListRun(opts *taskOptions) error {
 	}
 	return scanAndEmitData(f, opts.Cmd, opts.Format,
 		map[string]interface{}{"tasks": tasks},
-		&output.Meta{Count: len(tasks)},
+		listMeta(len(tasks)),
 		func(w io.Writer) { printTaskSummariesTSV(w, tasks) })
 }
 

@@ -42,7 +42,8 @@ lark-cli agent list --format pretty
         "agent_id_source": "运行 lark-cli agent list example 查看内置演示 agent 及其 agent_ref（无需任何平台配置）"
       }
     ]
-  }
+  },
+  "meta": { "count": 1 }
 }
 ```
 
@@ -54,7 +55,7 @@ lark-cli agent list --format pretty
 
 ## 二级发现（`agent list <scheme>`）
 
-- provider 支持枚举（catalog 型必支持）→ 返回 `{"agents": [{agent_ref, name, description?}]}`，`meta.count`。示例（example，真实输出）：
+- provider 支持枚举（catalog 型必支持）→ 返回 `{"agents": [{agent_ref, name, description?}]}`，`meta.count`（空列表时整个 `meta` 省略，用 `.meta.count // 0` 消费）。示例（example，真实输出）：
 
 ```json
 {
@@ -67,13 +68,18 @@ lark-cli agent list --format pretty
         "description": "把你发的话原样复读一遍（同一会话续发时带轮次，证明上下文记忆）。最小能力集示范。"
       },
       {
+        "agent_ref": "example:planner",
+        "name": "报表规划器",
+        "description": "先反问「按什么维度拆」（input_required 单选决策），你用 --decision-id/--option 选定后再出报表。示范 HITL 决策链路。"
+      },
+      {
         "agent_ref": "example:reporter",
         "name": "报表生成器",
         "description": "对任意请求产出一份内联 CSV 报表 artifact，示范 artifact 下载与任务取消链路。"
       }
     ]
   },
-  "meta": { "count": 2 }
+  "meta": { "count": 3 }
 }
 ```
 
@@ -83,12 +89,12 @@ lark-cli agent list --format pretty
 
 | 触发 | subtype | exit | message / hint（真实输出） |
 |---|---|---|---|
-| 未知 scheme（如 `agent list nosuch`） | invalid_argument | 2 | `未知的 agent provider 'nosuch'，当前支持: example`——message 列出当前已注册 scheme 全集；hint `用 lark-cli agent list 查看可用 provider` |
+| 未知 scheme（如 `agent list nosuch`） | invalid_argument | 2 | message 形如 `未知的 agent provider 'nosuch'，当前支持: <已注册 scheme 全集>`（列表随注册变化，勿硬编码断言）；hint `用 lark-cli agent list 查看可用 provider` |
 | `agent list <scheme>`（该 provider 不支持枚举） | unsupported_capability | 2 | 见上方「二级发现」说明 |
 
 ## `agent list <scheme>` 的业务参数
 
-- `--param key=value`（可重复）：**仅在带 scheme 时有意义**；按该 provider 声明的 `list_parameters` 校验（在无 scheme 的 `agent list` 输出 `providers[]` 里查看——list 时你手上还没有 agent_ref，参数发现面就在这里）。无 scheme 带 `--param` 报 `invalid_argument`；catalog 型 provider 的枚举是纯离线操作、不接受任何 `--param`。
+- `--param key=value`（可重复）：**仅在带 scheme 时有意义**；按该 provider 声明的 `list_parameters` 校验（在无 scheme 的 `agent list` 输出 `providers[]` 里查看——list 时你手上还没有 agent_ref，参数发现面就在这里；`list_parameters` 是 omitempty 字段，只有声明了 list 参数的 provider 才带，上方示例里 example 没有该字段即零参数）。无 scheme 带 `--param` 报 `invalid_argument`；catalog 型 provider 的枚举是纯离线操作、不接受任何 `--param`。
 - 参数错误一次报全（`params[]` 每条带原因），hint 指向 `providers[].list_parameters`。
 
 ## 参考

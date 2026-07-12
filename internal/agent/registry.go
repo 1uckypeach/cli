@@ -4,6 +4,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -219,6 +220,14 @@ func ValidateValue(cp CardParam, val string) error {
 	case "integer":
 		n, err := strconv.ParseInt(val, 10, 64)
 		if err != nil {
+			// 超出 int64 是"范围"问题不是"类型"问题——消息必须与事实一致，
+			// 否则调用方会误改类型而不是改数值。
+			if errors.Is(err, strconv.ErrRange) {
+				if cp.Min != nil || cp.Max != nil {
+					return fmt.Errorf("须在 %s 范围内，得到 %s", rangeText(cp), val)
+				}
+				return fmt.Errorf("超出 integer 可表示范围（int64），得到 %q", val)
+			}
 			return fmt.Errorf("需为 integer，得到 %q", val)
 		}
 		if cp.Min != nil && float64(n) < *cp.Min {

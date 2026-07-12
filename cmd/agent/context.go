@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/errs"
 	iagent "github.com/larksuite/cli/internal/agent"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/output"
@@ -168,7 +169,7 @@ func agentContextListRun(opts *contextOptions) error {
 	}
 	return scanAndEmitData(f, opts.Cmd, opts.Format,
 		map[string]interface{}{"contexts": contexts},
-		&output.Meta{Count: len(contexts)},
+		listMeta(len(contexts)),
 		func(w io.Writer) { printContextsTSV(w, contexts) })
 }
 
@@ -217,7 +218,13 @@ func agentContextGetRun(opts *contextOptions) error {
 // confirmed delete reaches resolveSpec + DeleteContext.
 func agentContextDeleteRun(opts *contextOptions) error {
 	if !opts.Yes {
-		return cmdutil.RequireConfirmation("agent context delete")
+		// Not the generic English RequireConfirmation: deletion is the most
+		// destructive gate in the agent tree, so the message must state the
+		// irreversible blast radius in the same voice (Chinese, self-contained)
+		// as the other two exit-10 gates.
+		return errs.NewConfirmationRequiredError(errs.RiskHighRiskWrite, "agent context delete",
+			"删除会话将不可逆地移除该会话及其名下全部任务记录").
+			WithHint("确认要删除后，加 --yes 重发")
 	}
 
 	f := opts.Factory
