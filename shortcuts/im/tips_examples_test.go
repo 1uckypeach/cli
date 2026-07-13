@@ -18,6 +18,14 @@ var tipsExampleTargets = []string{
 	"+messages-send", "+messages-search", "+chat-messages-list", "+messages-reply",
 	"+chat-search", "+chat-list", "+messages-mget", "+threads-messages-list",
 	"+messages-resources-download", "+chat-create", "+chat-update", "+chat-members-list",
+	// Extension beyond the original high-frequency 12: feed/flag shortcuts with a
+	// real guessing surface (oc_-only chat ids, --head/--tail exclusivity,
+	// message- vs feed-layer flag types, ofg_ id sourcing). Pagination-only
+	// shortcuts (+feed-shortcut-list, +feed-group-list, +flag-list) are
+	// intentionally exempt — an example there would only restate flag Desc.
+	"+feed-shortcut-create", "+feed-shortcut-remove",
+	"+feed-group-list-item", "+feed-group-query-item",
+	"+flag-create", "+flag-cancel",
 }
 
 var exampleFlagTokenRe = regexp.MustCompile(`--[a-z][a-z0-9-]*`)
