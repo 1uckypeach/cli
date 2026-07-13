@@ -26,6 +26,7 @@ metadata:
 
 | scheme | kind | 一句话 | 详见 |
 |---|---|---|---|
+| `base` | catalog | 固定 Base 助手，自动路由建表、仪表盘、工作流与问数能力 | [provider-base](references/providers/lark-agents-base.md) |
 | `example` | catalog | 内置离线演示 agent（内存 mock，零网络），`agents list example` 可枚举 | [provider-example](references/providers/lark-agents-example.md) |
 
 ## 前置准备（首次调用某 agent 前过一遍）

@@ -13,12 +13,14 @@
 package agents
 
 import (
+	"github.com/larksuite/cli/agents/base"
 	"github.com/larksuite/cli/agents/example"
 	iagents "github.com/larksuite/cli/internal/agents"
 )
 
 func init() {
 	for _, p := range []iagents.Provider{
+		base.Provider(),
 		example.Provider(),
 	} {
 		iagents.Register(p)
