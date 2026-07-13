@@ -53,7 +53,8 @@ type Account struct {
 	ProfileName string
 	// OpenID is the optional user open_id hint. If a UAT is available, the
 	// user_info API result takes precedence unless OpenIDVerified is set.
-	OpenID string
+	OpenID              string
+	SupportedIdentities IdentitySupport // zero = provider did not declare; treat as no restriction
 	// OpenIDVerified marks OpenID as an identity assertion the provider has
 	// already verified. When true and OpenID is non-empty, the CLI skips the
 	// startup user_info verification call and uses OpenID as-is wherever the
@@ -63,8 +64,10 @@ type Account struct {
 	// manages the token supply, and whoami will display the injected,
 	// unverified value on this path. Setting OpenIDVerified with an empty
 	// OpenID is treated as unasserted and falls back to normal verification.
-	OpenIDVerified      bool
-	SupportedIdentities IdentitySupport // zero = provider did not declare; treat as no restriction
+	//
+	// Appended at the end of the struct so adding it does not shift the
+	// positions of existing fields for unkeyed struct literals.
+	OpenIDVerified bool
 }
 
 // Token holds a resolved access token and optional metadata.
