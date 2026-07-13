@@ -531,7 +531,7 @@ func resolveDocxDocumentID(runtime *common.RuntimeContext, input string) (string
 	case "docx":
 		return docRef.Token, nil
 	case "doc":
-		return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "docs +media-insert only supports docx documents; use a docx token/URL or a wiki URL that resolves to docx").WithParam("--doc")
+		return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "this document operation only supports docx documents; use a docx token/URL or a wiki URL that resolves to docx").WithParam("--doc")
 	case "wiki":
 		fmt.Fprintf(runtime.IO().ErrOut, "Resolving wiki node: %s\n", common.MaskToken(docRef.Token))
 		data, err := runtime.CallAPITyped(
@@ -551,13 +551,13 @@ func resolveDocxDocumentID(runtime *common.RuntimeContext, input string) (string
 			return "", errs.NewInternalError(errs.SubtypeInvalidResponse, "wiki get_node returned incomplete node data")
 		}
 		if objType != "docx" {
-			return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "wiki resolved to %q, but docs +media-insert only supports docx documents", objType).WithParam("--doc")
+			return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "wiki resolved to %q, but this document operation only supports docx documents", objType).WithParam("--doc")
 		}
 
 		fmt.Fprintf(runtime.IO().ErrOut, "Resolved wiki to docx: %s\n", common.MaskToken(objToken))
 		return objToken, nil
 	default:
-		return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "docs +media-insert only supports docx documents").WithParam("--doc")
+		return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "this document operation only supports docx documents").WithParam("--doc")
 	}
 }
 

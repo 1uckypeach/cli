@@ -76,7 +76,14 @@ func extractDocumentFragment(raw string) string {
 // CallAPITyped lifts the x-tt-logid response header onto the typed error so log_id
 // surfaces for support escalations even when the body omits it.
 func doDocAPI(runtime *common.RuntimeContext, method, apiPath string, body interface{}) (map[string]interface{}, error) {
-	return runtime.CallAPITyped(method, apiPath, nil, body)
+	data, err := runtime.CallAPITyped(method, apiPath, nil, body)
+	if err != nil {
+		return data, err
+	}
+	if data == nil {
+		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "document API returned an empty data object")
+	}
+	return data, nil
 }
 
 func docsSceneFromContext(ctx context.Context) string {

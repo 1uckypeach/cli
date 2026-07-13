@@ -26,8 +26,8 @@ p, h1-h9, ul, ol, li, table, thead, tbody, tr, th, td, blockquote, pre, code, hr
 | `<cite type="user">` | @人 | XML 导入时必须显式传入 `user-id`：`<cite type="user" user-id="userID"></cite>` |
 | `<cite type="doc">` | @文档 | `<cite type="doc" doc-id="docx_token"></cite>` |
 | `<latex>` | 行内公式 | `<latex>E = mc^2</latex>` |
-| `<img>` | 图片（可独立成块或内联） | `<img width="800" height="600" caption="说明" name="图.png" href="http 或 https"/>` |
-| `<source>` | 文件附件（可独立成块或内联） | `<source name="报告.pdf"/>` |
+| `<img>` | 图片（可独立成块或内联） | 网络图片：`<img href="https://..."/>`；当前目录内本地图片：`<img path="@images/a.png"/>` |
+| `<source>` | 文件附件（可独立成块或内联） | 当前目录内本地文件：`<source path="@files/report.pdf" name="报告.pdf"/>` |
 | `<a type="url-preview">` | 预览卡片 | `<a type="url-preview" href="...">标题</a>` |
 | `<button>` | 操作按钮 | `background-color`、`src`，必须包含 `action=OpenLink\|DuplicatePage\|FollowPage` |
 | `<time>` | 提醒 | 必包含 `expire-time`、`notify-time`（毫秒时间戳）、`should-notify=true\|false` |
@@ -41,6 +41,9 @@ p, h1-h9, ul, ol, li, table, thead, tbody, tr, th, td, blockquote, pre, code, hr
 文档中可嵌入外部资源块（属于容器标签的特殊形式），需要额外语法创建：
 
 - `<img>` — `<img href="https://..."/>` 上传网络图片
+- `<img path="@relative/path.png" caption="说明"/>` — 在 `docs +create`，或 `docs +update --command append/block_insert_after` 中直接插入本地图片；`path` 必须是当前工作目录内的相对路径，不能与 `src` / `href` / `token` / `img_key` 同时使用。CLI 会先创建占位 block，再上传并回填真实 token；同一文件出现多次会分别上传、分别挂载。兼容旧写法 `alt="说明"`：未显式提供 `caption` 时 CLI 会将 `alt` 映射为 caption。
+- `<source path="@relative/report.pdf" name="自定义文件名.pdf"/>` — 直接插入本地附件；路径与来源互斥规则同本地图片。`name` 可选，提供时会作为上传后的附件名；附件没有额外的 Markdown 简写，应在 XML 或 Markdown 正文中使用这个原始 XML 标签。
+- XML/HTML 注释与 CDATA 中的 `<img path>` / `<source path>` 仅作为字面内容，不会触发本地文件读取或上传。
 - `<whiteboard>` — 简单图由 SubAgent 直接插入 `<whiteboard type="svg">完整自包含 SVG</whiteboard>`；也可用本地文件简写 `<whiteboard type="svg" path="@diagram.svg"></whiteboard>`、`<whiteboard type="mermaid" path="@flow.mmd"></whiteboard>`、`<whiteboard type="plantuml" path="@sequence.puml"></whiteboard>`，CLI 会写入前展开为内联内容；复杂图使用 `<whiteboard type="blank"></whiteboard>` 先创建空白画板，再按 [`lark-doc-whiteboard.md`](lark-doc-whiteboard.md) 启动 SubAgent 调用 `lark-whiteboard` 写入；
 - `<sheet>` — `<sheet type="blank"></sheet>` 空白；`<sheet sheet-id="SID" token="TOKEN"></sheet>` 复制已有
 - `<task>` — `<task task-id="GUID"></task>`，必传 task-id（任务 guid）
@@ -167,8 +170,10 @@ p, h1-h9, ul, ol, li, table, thead, tbody, tr, th, td, blockquote, pre, code, hr
 <hr/>
 
 <source name="文件名.pdf"/>
+<source path="@files/报告.pdf" name="报告.pdf"/>
 <img src="IMG_TOKEN" width="800" height="400" caption="说明" name="图.png"/>
 <img href="https://example.com/photo.png"/>
+<img path="@images/photo.png" width="800" align="center" caption="说明"/>
 
 <button action="OpenLink" src="https://example.com">按钮文字</button>
 

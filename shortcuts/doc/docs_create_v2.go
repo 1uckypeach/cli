@@ -46,14 +46,19 @@ func validateCreateV2(_ context.Context, runtime *common.RuntimeContext) error {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--content is required unless --title is provided").WithParam("--content")
 	}
 	if runtime.Str("content") != "" {
-		_, err := resolveDocsV2ContentReferenceMap(runtime)
-		return err
+		input, err := resolveDocsV2ContentReferenceMap(runtime)
+		if err != nil {
+			return err
+		}
+		if len(input.LocalResources) > 0 {
+			return runtime.EnsureScopes(docsCreateLocalResourceScopes)
+		}
 	}
 	return nil
 }
 
 func dryRunCreateV2(_ context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
-	body, err := buildCreateBodyWithHTML5ReferenceMap(runtime)
+	body, resources, err := buildCreateBodyWithPreparedInput(runtime)
 	if err != nil {
 		return common.NewDryRunAPI().Set("error", err.Error())
 	}
@@ -61,14 +66,15 @@ func dryRunCreateV2(_ context.Context, runtime *common.RuntimeContext) *common.D
 	if runtime.IsBot() {
 		desc += ". After document creation succeeds in bot mode, the CLI will also try to grant the current CLI user full_access on the new document."
 	}
-	return common.NewDryRunAPI().
+	dry := common.NewDryRunAPI().
 		POST("/open-apis/docs_ai/v1/documents").
 		Desc(desc).
 		Body(body)
+	return appendLocalDocResourcesDryRun(dry, "<created_document_id>", resources)
 }
 
 func executeCreateV2(_ context.Context, runtime *common.RuntimeContext) error {
-	body, err := buildCreateBodyWithHTML5ReferenceMap(runtime)
+	body, resources, err := buildCreateBodyWithPreparedInput(runtime)
 	if err != nil {
 		return err
 	}
@@ -80,6 +86,12 @@ func executeCreateV2(_ context.Context, runtime *common.RuntimeContext) error {
 
 	augmentDocsCreatePermission(runtime, data)
 	fallbackDocsCreateURLV2(runtime, data)
+	if len(resources) > 0 {
+		doc, _ := data["document"].(map[string]interface{})
+		if err := finalizeLocalDocResources(runtime, strings.TrimSpace(common.GetString(doc, "document_id")), data, resources); err != nil {
+			return err
+		}
+	}
 	runtime.OutRaw(data, nil)
 	return nil
 }

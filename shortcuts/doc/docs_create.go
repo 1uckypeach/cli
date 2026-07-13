@@ -14,14 +14,21 @@ func v1CreateFlags() []common.Flag {
 	return docsLegacyFlagDefinitions(docsCreateLegacyFlags())
 }
 
+var docsCreateLocalResourceScopes = []string{
+	"docs:document.media:upload",
+	"docx:document:write_only",
+	"docx:document:readonly",
+}
+
 var DocsCreate = common.Shortcut{
-	Service:     "docs",
-	Command:     "+create",
-	Description: "Create a Lark document",
-	Risk:        "write",
-	AuthTypes:   []string{"user", "bot"},
-	Scopes:      []string{"docx:document:create"},
-	PostMount:   installDocsShortcutHelp("+create"),
+	Service:           "docs",
+	Command:           "+create",
+	Description:       "Create a Lark document",
+	Risk:              "write",
+	AuthTypes:         []string{"user", "bot"},
+	Scopes:            []string{"docx:document:create"},
+	ConditionalScopes: docsCreateLocalResourceScopes,
+	PostMount:         installDocsShortcutHelp("+create"),
 	Flags: concatFlags(
 		[]common.Flag{
 			docsAPIVersionCompatFlag(),

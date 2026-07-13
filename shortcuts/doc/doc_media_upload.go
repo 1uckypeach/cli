@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"time"
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
@@ -138,6 +139,9 @@ type UploadDocMediaFileConfig struct {
 	ParentType string
 	ParentNode string
 	DocID      string
+	// MinRequestInterval serializes the prepare/part/finish requests of a
+	// multipart upload. Zero preserves the generic uploader's existing behavior.
+	MinRequestInterval time.Duration
 }
 
 func uploadDocMediaFile(runtime *common.RuntimeContext, cfg UploadDocMediaFileConfig) (string, error) {
@@ -164,13 +168,14 @@ func uploadDocMediaFile(runtime *common.RuntimeContext, cfg UploadDocMediaFileCo
 		})
 	}
 	return common.UploadDriveMediaMultipartTyped(runtime, common.DriveMediaMultipartUploadConfig{
-		FilePath:   cfg.FilePath,
-		Reader:     cfg.Reader,
-		FileName:   cfg.FileName,
-		FileSize:   cfg.FileSize,
-		ParentType: cfg.ParentType,
-		ParentNode: cfg.ParentNode,
-		Extra:      extra,
+		FilePath:           cfg.FilePath,
+		Reader:             cfg.Reader,
+		FileName:           cfg.FileName,
+		FileSize:           cfg.FileSize,
+		ParentType:         cfg.ParentType,
+		ParentNode:         cfg.ParentNode,
+		Extra:              extra,
+		MinRequestInterval: cfg.MinRequestInterval,
 	})
 }
 

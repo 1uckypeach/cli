@@ -66,6 +66,19 @@ Markdown 格式支持通过 URL 插入网络图片，图片将自动从 HTTP 下
 - URL 支持 `http://` 和 `https://` 协议
 - 对应的 XML 格式为：`<img href="https://example.com/photo.png"/>`
 
+也支持直接引用当前工作目录内的本地图片：
+```markdown
+![alt text](@images/photo.png)
+![带空格的路径](<@images/product shot.png>)
+```
+- 路径必须以 `@` 开头，并且是当前工作目录内的相对路径；绝对路径、目录穿越、逃逸到目录外的符号链接、目录和空文件都会在写文档前被拒绝。
+- `![alt]` 的描述会作为图片 caption 落盘，后续导出 Markdown 时仍会恢复为图片 alt。
+- 代码围栏、行内代码、四空格/Tab 缩进代码、HTML/XML 注释和 CDATA 中的图片或附件语法不会被处理。
+- 本地图片暂不支持引用式写法（如 `![alt][ref]` + `[ref]: @image.png`）；请改用上面的行内写法。
+- 本地附件没有 Markdown 原生简写；使用 `<source path="@files/report.pdf"/>`。
+- 在 `docs +update` 中，本地图片和附件只允许配合 `append` 或 `block_insert_after`，其他写入指令会在 API 调用前被拒绝。
+- CLI 不会把本地路径发送给文档服务。写入成功后返回的 `document.new_blocks[].block_token` 是真实媒体 token；如果部分资源失败，正文和已成功资源会保留，失败占位会尽力清理并通过结构化 `summary/items` 报告。
+
 ## Markdown 不支持的 Block 类型
 
 非原生 Markdown 语法的内容（如下划线、高亮框(Callout)、勾选框、多维表格、画板、思维导图、电子表格、网格布局、引用(@文档/@人)、按钮、日期提醒、行内文件、文字颜色/背景色、同步块等）采用 XML 语法表示，详见 [`lark-doc-xml.md`](lark-doc-xml.md)。

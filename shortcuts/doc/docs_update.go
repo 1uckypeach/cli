@@ -14,14 +14,31 @@ func v1UpdateFlags() []common.Flag {
 	return docsLegacyFlagDefinitions(docsUpdateLegacyFlags())
 }
 
+var docsUpdateLocalResourceScopes = []string{
+	"docs:document.media:upload",
+}
+
+var docsUpdateWikiLocalResourceScopes = []string{
+	"docs:document.media:upload",
+	"wiki:node:retrieve",
+}
+
+func docsUpdateLocalResourceScopesFor(ref documentRef) []string {
+	if ref.Kind == "wiki" {
+		return docsUpdateWikiLocalResourceScopes
+	}
+	return docsUpdateLocalResourceScopes
+}
+
 var DocsUpdate = common.Shortcut{
-	Service:     "docs",
-	Command:     "+update",
-	Description: "Update a Lark document",
-	Risk:        "write",
-	Scopes:      []string{"docx:document:write_only", "docx:document:readonly"},
-	AuthTypes:   []string{"user", "bot"},
-	PostMount:   installDocsShortcutHelp("+update"),
+	Service:           "docs",
+	Command:           "+update",
+	Description:       "Update a Lark document",
+	Risk:              "write",
+	Scopes:            []string{"docx:document:write_only", "docx:document:readonly"},
+	ConditionalScopes: docsUpdateWikiLocalResourceScopes,
+	AuthTypes:         []string{"user", "bot"},
+	PostMount:         installDocsShortcutHelp("+update"),
 	Flags: concatFlags(
 		[]common.Flag{
 			docsAPIVersionCompatFlag(),

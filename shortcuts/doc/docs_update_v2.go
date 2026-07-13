@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -50,7 +51,8 @@ func validateUpdateV2(_ context.Context, runtime *common.RuntimeContext) error {
 	if err := validateDocsV2Only(runtime, "+update", docsUpdateLegacyFlags()); err != nil {
 		return err
 	}
-	if _, err := parseDocumentRef(runtime.Str("doc")); err != nil {
+	docRef, err := parseDocumentRef(runtime.Str("doc"))
+	if err != nil {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --doc: %v", err).WithParam("--doc")
 	}
 	cmd := runtime.Str("command")
@@ -118,8 +120,16 @@ func validateUpdateV2(_ context.Context, runtime *common.RuntimeContext) error {
 		}
 	}
 	if content != "" {
-		_, err := resolveDocsV2ContentReferenceMap(runtime)
-		return err
+		input, err := resolveDocsV2ContentReferenceMap(runtime)
+		if err != nil {
+			return err
+		}
+		if len(input.LocalResources) > 0 {
+			if err := validateLocalDocResourceUpdateCommand(cmd, input.LocalResources); err != nil {
+				return err
+			}
+			return runtime.EnsureScopes(docsUpdateLocalResourceScopesFor(docRef))
+		}
 	}
 	return nil
 }
@@ -127,32 +137,50 @@ func validateUpdateV2(_ context.Context, runtime *common.RuntimeContext) error {
 func dryRunUpdateV2(_ context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
 	// Validate has already accepted --doc; parseDocumentRef cannot fail here.
 	ref, _ := parseDocumentRef(runtime.Str("doc"))
-	body, err := buildUpdateBodyWithHTML5ReferenceMap(runtime)
+	body, resources, err := buildUpdateBodyWithPreparedInput(runtime)
 	if err != nil {
 		return common.NewDryRunAPI().Set("error", err.Error())
 	}
-	apiPath := fmt.Sprintf("/open-apis/docs_ai/v1/documents/%s", ref.Token)
-	return common.NewDryRunAPI().
-		PUT(apiPath).
+	documentID := ref.Token
+	dry := common.NewDryRunAPI()
+	if len(resources) > 0 && ref.Kind == "wiki" {
+		documentID = "<resolved_docx_token>"
+		dry.GET("/open-apis/wiki/v2/spaces/get_node").
+			Desc("Resolve wiki node to its docx document before writing local resources").
+			Params(map[string]interface{}{"token": ref.Token})
+	}
+	apiPath := fmt.Sprintf("/open-apis/docs_ai/v1/documents/%s", validate.EncodePathSegment(documentID))
+	dry.PUT(apiPath).
 		Desc("OpenAPI: update document").
 		Body(body).
-		Set("document_id", ref.Token)
+		Set("document_id", documentID)
+	return appendLocalDocResourcesDryRun(dry, documentID, resources)
 }
 
 func executeUpdateV2(_ context.Context, runtime *common.RuntimeContext) error {
 	ref, _ := parseDocumentRef(runtime.Str("doc"))
 
-	apiPath := fmt.Sprintf("/open-apis/docs_ai/v1/documents/%s", ref.Token)
-	body, err := buildUpdateBodyWithHTML5ReferenceMap(runtime)
+	body, resources, err := buildUpdateBodyWithPreparedInput(runtime)
 	if err != nil {
 		return err
 	}
+	documentID := ref.Token
+	if len(resources) > 0 && ref.Kind == "wiki" {
+		documentID, err = resolveDocxDocumentID(runtime, runtime.Str("doc"))
+		if err != nil {
+			return err
+		}
+	}
+	apiPath := fmt.Sprintf("/open-apis/docs_ai/v1/documents/%s", validate.EncodePathSegment(documentID))
 
 	data, err := doDocAPI(runtime, "PUT", apiPath, body)
 	if err != nil {
 		return err
 	}
 
+	if err := finalizeLocalDocResources(runtime, documentID, data, resources); err != nil {
+		return err
+	}
 	runtime.OutRaw(data, nil)
 	return nil
 }

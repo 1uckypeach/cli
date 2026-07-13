@@ -56,6 +56,8 @@
 
 ### str_replace — 全文文本替换
 
+> 本地图片和附件只允许用于 `append` 或 `block_insert_after`。`str_replace` 不会创建资源 block，而 `block_replace` / `overwrite` 一旦在后续上传绑定失败会先破坏旧内容，因此 CLI 会在写文档前拒绝这些组合。
+
 > **匹配范围：**
 > - **XML 模式（默认）**：`--pattern` 只支持**行内匹配**，不能跨 block / 跨段落匹配。涉及整段或多 block 的改动，请改用 `block_replace`。
 > - **Markdown 模式**（`--doc-format markdown`）：`--pattern` 同时支持**行内和跨行匹配**，可以用多行字符串匹配并替换一整段内容。
@@ -144,6 +146,10 @@ lark-cli docs +update --doc "<doc_id>" --command overwrite \
 ```bash
 lark-cli docs +update --doc "<doc_id>" --command append \
   --content '<h2>新增章节</h2><p>追加的内容</p>'
+
+# 追加当前目录内的本地图片和附件；wiki URL 会先解析为实际 docx token
+lark-cli docs +update --doc "<doc_id或wiki_url>" --command append \
+  --content '<img path="@images/chart.png"/><source path="@files/report.pdf"/>'
 ```
 
 > 等价于 `block_insert_after --block-id -1`，无需先获取 block ID。
@@ -197,6 +203,8 @@ lark-cli docs +update --doc "<doc_id>" --command block_move_after \
 | `warnings` | 警告信息列表 |
 | `document.new_blocks` | 本次操作新增的 block 列表（如画板）。`block_id` 可用于后续精确编辑；`block_token` 是资源块 token（如画板）可交给 `lark-whiteboard` 等 skill 继续操作 |
 
+仅 `append` / `block_insert_after` 可写入本地图片或附件。CLI 会使用本次 `new_blocks` 中的占位标记严格关联 block，完成上传和 token 回填；wiki URL 会先通过 `wiki:node:retrieve` 解析为实际 docx token，再执行写入、上传和绑定。路径不会发送到服务端；全部成功时仍使用上面的既有输出结构，部分失败时增加结构化 `summary/items`，保留正文和已经成功的资源，并清理确认仍为空的失败占位。
+
 ## 典型工作流
 
 ### 精确 block 级更新
@@ -241,7 +249,7 @@ lark-cli docs +update --doc "<doc_id>" --command str_replace \
   - **XML 模式（默认）**：`--pattern` 只支持**行内**匹配，不支持跨行 / 跨 block。段落、整块或容器级（列表、表格、分栏、引用块等）改动请改用 `block_replace` 指定 block_id 重建。
   - **Markdown 模式**（`--doc-format markdown`）：`--pattern` 同时支持**行内和跨行**匹配，还支持 `前缀...后缀` 省略号语法（用 `...` 串联首尾片段匹配一大段内容），可以一次替换多行文本；但仍建议优先按最小片段匹配，跨 block 容器级重写仍优先用 `block_replace`，避免副作用。
 - **保护不可重建的内容**：图片、画板、电子表格等以 token 形式存储，替换时避开这些 block
-- **str_replace 的 replacement 支持富文本**：可以用行内标签 `<b>`、`<a>`、`<cite>`、`<latex>` 等替换普通文本为富文本
+- **str_replace 的 replacement 支持行内富文本**：可以用 `<b>`、`<a>`、`<cite>`、`<latex>` 等替换普通文本为富文本，但不支持需要新建 block 的本地图片或附件
 - **同一 block 只能被 replace 一次**：多次修改同一 block 请合并为一次 block_replace
 - **block_delete 支持批量**：用逗号分隔多个 block_id 一次删除
 - **复杂结构重组**：将多个段落转换为 grid / table 等复杂布局时，分步操作比 overwrite 更安全：

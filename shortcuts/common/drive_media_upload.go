@@ -5,9 +5,11 @@ package common
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 
@@ -50,6 +52,9 @@ type DriveMediaMultipartUploadConfig struct {
 	ParentType string
 	ParentNode string
 	Extra      string
+	// MinRequestInterval is an optional caller-owned pacing interval between
+	// prepare, part, and finish requests for APIs that disallow concurrency.
+	MinRequestInterval time.Duration
 	// Reader mirrors DriveMediaUploadAllConfig.Reader for chunked uploads.
 	Reader io.Reader
 }
@@ -128,12 +133,32 @@ func UploadDriveMediaMultipartTyped(runtime *RuntimeContext, cfg DriveMediaMulti
 		return "", err
 	}
 	fmt.Fprintf(runtime.IO().ErrOut, "Multipart upload initialized: %d chunks x %s\n", session.BlockNum, FormatSize(session.BlockSize))
+	if err := waitDriveMediaMultipartRequest(runtime.Ctx(), cfg.MinRequestInterval); err != nil {
+		return "", err
+	}
 
 	if err = uploadDriveMediaMultipartPartsTyped(runtime, cfg, session); err != nil {
 		return "", err
 	}
 
+	if err := waitDriveMediaMultipartRequest(runtime.Ctx(), cfg.MinRequestInterval); err != nil {
+		return "", err
+	}
 	return finishDriveMediaMultipartUploadTyped(runtime, session.UploadID, session.BlockNum)
+}
+
+func waitDriveMediaMultipartRequest(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // prefixDriveMediaUploadProblem prepends the upload action to a typed error's
@@ -206,6 +231,11 @@ func uploadDriveMediaMultipartPartsTyped(runtime *RuntimeContext, cfg DriveMedia
 	// Follow the server-declared block plan exactly; upload_finish expects the
 	// same block count returned by upload_prepare.
 	for seq := 0; seq < session.BlockNum; seq++ {
+		if seq > 0 {
+			if err := waitDriveMediaMultipartRequest(runtime.Ctx(), cfg.MinRequestInterval); err != nil {
+				return err
+			}
+		}
 		chunkSize := session.BlockSize
 		if remaining > 0 && chunkSize > remaining {
 			chunkSize = remaining

@@ -49,8 +49,9 @@ type html5BlockReferenceEntry struct {
 type html5BlockReferenceMap map[string]map[string]html5BlockReferenceEntry
 
 type docsV2WriteInput struct {
-	Content      string
-	ReferenceMap map[string]interface{}
+	Content        string
+	ReferenceMap   map[string]interface{}
+	LocalResources []localDocResource
 }
 
 type html5BlockAttr struct {
@@ -69,26 +70,39 @@ type whiteboardStartTag struct {
 }
 
 func buildCreateBodyWithHTML5ReferenceMap(runtime *common.RuntimeContext) (map[string]interface{}, error) {
+	body, _, err := buildCreateBodyWithPreparedInput(runtime)
+	return body, err
+}
+
+func buildCreateBodyWithPreparedInput(runtime *common.RuntimeContext) (map[string]interface{}, []localDocResource, error) {
 	body := buildCreateBody(runtime)
 	if runtime.Str("content") == "" && !runtime.Changed("reference-map") {
-		return body, nil
+		return body, nil, nil
 	}
 	input, err := resolveDocsV2ContentReferenceMap(runtime)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	body["content"] = buildCreateContentWithBody(runtime, input.Content)
 	if len(input.ReferenceMap) > 0 {
 		body["reference_map"] = input.ReferenceMap
 	}
-	return body, nil
+	return body, input.LocalResources, nil
 }
 
 func buildUpdateBodyWithHTML5ReferenceMap(runtime *common.RuntimeContext) (map[string]interface{}, error) {
+	body, _, err := buildUpdateBodyWithPreparedInput(runtime)
+	return body, err
+}
+
+func buildUpdateBodyWithPreparedInput(runtime *common.RuntimeContext) (map[string]interface{}, []localDocResource, error) {
 	body := buildUpdateBody(runtime)
 	input, err := resolveDocsV2ContentReferenceMap(runtime)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	if err := validateLocalDocResourceUpdateCommand(runtime.Str("command"), input.LocalResources); err != nil {
+		return nil, nil, err
 	}
 	if input.Content != "" {
 		body["content"] = input.Content
@@ -96,7 +110,7 @@ func buildUpdateBodyWithHTML5ReferenceMap(runtime *common.RuntimeContext) (map[s
 	if len(input.ReferenceMap) > 0 {
 		body["reference_map"] = input.ReferenceMap
 	}
-	return body, nil
+	return body, input.LocalResources, nil
 }
 
 func validateDocsV2ReferenceMapFlags(runtime *common.RuntimeContext) error {
@@ -125,7 +139,11 @@ func prepareDocsV2WriteInput(runtime *common.RuntimeContext, input docsV2WriteIn
 		return docsV2WriteInput{}, err
 	}
 
-	content, err := prepareWhiteboardWriteContent(runtime, runtime.Str("doc-format"), input.Content)
+	content, localResources, err := prepareLocalDocResources(runtime, runtime.Str("doc-format"), input.Content)
+	if err != nil {
+		return docsV2WriteInput{}, err
+	}
+	content, err = prepareWhiteboardWriteContent(runtime, runtime.Str("doc-format"), content)
 	if err != nil {
 		return docsV2WriteInput{}, err
 	}
@@ -138,8 +156,9 @@ func prepareDocsV2WriteInput(runtime *common.RuntimeContext, input docsV2WriteIn
 	}
 	refMap = mergeHTML5ReferenceMap(refMap, html5RefMap)
 	return docsV2WriteInput{
-		Content:      content,
-		ReferenceMap: refMap,
+		Content:        content,
+		ReferenceMap:   refMap,
+		LocalResources: localResources,
 	}, nil
 }
 

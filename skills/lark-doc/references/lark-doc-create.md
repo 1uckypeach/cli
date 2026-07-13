@@ -17,6 +17,9 @@
 # 创建 XML 文档（默认格式，推荐）
 lark-cli docs +create --content '<title>项目计划</title><h1>目标</h1><p>记录本周重点。</p>'
 
+# 正文中直接插入当前目录内的本地图片和附件
+lark-cli docs +create --content '<title>周报</title><img path="@images/chart.png"/><source path="@files/report.pdf"/>'
+
 # 仅当用户明确要求导入 Markdown 时才使用；文档标题用 --title，正文标题按内容自然组织
 lark-cli docs +create --doc-format markdown --title "项目计划" --content $'## 目标\n\n- 明确重点\n- 记录待办'
 ```
@@ -41,6 +44,7 @@ lark-cli docs +create --doc-format markdown --title "项目计划" --content $'#
 ```
 
 - **`document.new_blocks`**：本次操作新增的 block 列表（如画板）。`block_id` 可用于 `docs +update` 的 `--block-id` 做精确编辑；`block_token` 是资源块（如画板）的 token，可交给 `lark-whiteboard` 等 skill 继续操作
+- 正文包含 `<img path="@relative">`、`<source path="@relative">` 或 Markdown `![alt](@relative)` 时，CLI 会在创建文档后自动上传本地资源并回填 token；路径只允许位于当前工作目录内。全部成功时输出结构不变，`new_blocks[].block_token` 已替换为真实媒体 token；部分失败时返回 `ok:false` 和逐项 `summary/items`，但不会回滚正文或已成功资源。
 
 > \[!IMPORTANT]
 > 如果文档是**以应用身份（bot）创建**的，如 `lark-cli docs +create --as bot` 在文档创建成功后，CLI 会**尝试为当前 CLI 用户自动授予该文档的 `full_access`（可管理权限）**。

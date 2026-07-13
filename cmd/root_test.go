@@ -627,7 +627,7 @@ func TestApplyNeedAuthorizationHint_AppendsExistingHint(t *testing.T) {
 	authErr.Hint = "existing hint"
 	applyNeedAuthorizationHint(f, authErr)
 
-	want := "existing hint\ncurrent command requires scope(s): docx:document:create"
+	want := "existing hint\ncurrent command requires scope(s): docx:document:create, docs:document.media:upload, docx:document:write_only, docx:document:readonly"
 	if authErr.Hint != want {
 		t.Errorf("expected appended hint %q, got %q", want, authErr.Hint)
 	}
