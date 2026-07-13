@@ -366,7 +366,9 @@ func TestHasParameters(t *testing.T) {
 		},
 		GetTask: TaskGetOp{Handler: func(context.Context, Runtime, string) (*AgentTask, error) { return nil, nil }},
 		// unwired op with params is a Register error; here simulate wired+empty
-		ListTasks: TaskListOp{Handler: func(context.Context, Runtime, string) ([]TaskSummary, error) { return nil, nil }},
+		ListTasks: TaskListOp{Handler: func(context.Context, Runtime, string, PageParams) ([]TaskSummary, PageInfo, error) {
+			return nil, PageInfo{}, nil
+		}},
 	}
 	got := HasParameters(&s)
 	if len(got) != 1 || got[0] != VerbSend {

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -297,12 +298,40 @@ func optionLabel(opts []agents.Option, optionID string) (string, bool) {
 	return "", false
 }
 
+// pageWindow computes the [lo,hi) slice bounds and the resulting PageInfo for an
+// offset-cursor paginated list of `total` items. The token is an opaque offset —
+// strconv.Itoa of the first item's index; an unparseable / negative token is
+// leniently treated as offset 0 (the store is a mock, so it does not reject a bad
+// cursor). Size<=0 returns all remaining items (the CLI always passes ≥1). The
+// NextToken is the offset just past this page (lo+len), set only when more items
+// remain.
+func pageWindow(total int, page agents.PageParams) (lo, hi int, info agents.PageInfo) {
+	if page.Token != "" {
+		if n, err := strconv.Atoi(page.Token); err == nil && n > 0 {
+			lo = n
+		}
+	}
+	if lo > total {
+		lo = total
+	}
+	hi = total
+	if page.Size > 0 && lo+page.Size < total {
+		hi = lo + page.Size
+	}
+	if hi < total {
+		info = agents.PageInfo{NextToken: strconv.Itoa(hi), HasMore: true}
+	}
+	return lo, hi, info
+}
+
 // listTasks lists an agent's task summaries, optionally filtered by contextID
-// (empty string means no filter), output in creation order. IsTerminal is
-// carried along here for convenience, but the command layer re-derives it from
+// (empty string means no filter), MOST-RECENT-FIRST (Seq descending — Seq grows
+// with creation, so descending is newest first; example tasks are terminal at
+// creation so Seq desc equals UpdatedAt desc), then paginated by page. IsTerminal
+// is carried along here for convenience, but the command layer re-derives it from
 // State via normalizeTask* (single source), so the integrator need not worry
 // about this field.
-func (s *memoryStore) listTasks(agentID, contextID string) []agents.TaskSummary {
+func (s *memoryStore) listTasks(agentID, contextID string, page agents.PageParams) ([]agents.TaskSummary, agents.PageInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.loadLocked()
@@ -316,16 +345,18 @@ func (s *memoryStore) listTasks(agentID, contextID string) []agents.TaskSummary 
 		}
 		recs = append(recs, rec)
 	}
-	sort.Slice(recs, func(i, j int) bool { return recs[i].Seq < recs[j].Seq })
-	out := make([]agents.TaskSummary, 0, len(recs))
-	for _, rec := range recs {
+	sort.Slice(recs, func(i, j int) bool { return recs[i].Seq > recs[j].Seq })
+	lo, hi, info := pageWindow(len(recs), page)
+	out := make([]agents.TaskSummary, 0, hi-lo)
+	for _, rec := range recs[lo:hi] {
 		out = append(out, taskSummaryOf(rec.Task))
 	}
-	return out
+	return out, info
 }
 
-// listContexts lists an agent's context summaries, output in creation order.
-func (s *memoryStore) listContexts(agentID string) []agents.ContextSummary {
+// listContexts lists an agent's context summaries, MOST-RECENT-FIRST (Seq
+// descending — newest first), then paginated by page.
+func (s *memoryStore) listContexts(agentID string, page agents.PageParams) ([]agents.ContextSummary, agents.PageInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.loadLocked()
@@ -335,9 +366,10 @@ func (s *memoryStore) listContexts(agentID string) []agents.ContextSummary {
 			recs = append(recs, ctx)
 		}
 	}
-	sort.Slice(recs, func(i, j int) bool { return recs[i].Seq < recs[j].Seq })
-	out := make([]agents.ContextSummary, 0, len(recs))
-	for _, ctx := range recs {
+	sort.Slice(recs, func(i, j int) bool { return recs[i].Seq > recs[j].Seq })
+	lo, hi, info := pageWindow(len(recs), page)
+	out := make([]agents.ContextSummary, 0, hi-lo)
+	for _, ctx := range recs[lo:hi] {
 		updatedAt, taskCount, awaiting, _ := s.contextRollupLocked(ctx)
 		out = append(out, agents.ContextSummary{
 			ContextID:     ctx.ContextID,
@@ -348,7 +380,7 @@ func (s *memoryStore) listContexts(agentID string) []agents.ContextSummary {
 			AwaitingInput: awaiting,
 		})
 	}
-	return out
+	return out, info
 }
 
 // getContext returns a context's detail: metadata plus a rollup (updated_at,

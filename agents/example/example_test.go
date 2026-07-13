@@ -124,7 +124,7 @@ func TestEchoMultiTurn(t *testing.T) {
 	if agentReply(t, got) != "再来（第 2 轮）" {
 		t.Fatalf("getTask should replay the stored messages, got %+v", got.Messages)
 	}
-	tasks, err := listTasks(ctx, rt, t1.ContextID)
+	tasks, _, err := listTasks(ctx, rt, t1.ContextID, agents.PageParams{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,20 +132,20 @@ func TestEchoMultiTurn(t *testing.T) {
 		t.Fatalf("the same context should have 2 tasks, got %d", len(tasks))
 	}
 	// Every summary carries the enriched fields: a status timestamp and the
-	// one-line digest (the last agent message). listTasks returns creation order,
-	// so tasks[0] is the first turn and tasks[1] the second.
+	// one-line digest (the last agent message). listTasks now returns
+	// most-recent-first, so tasks[0] is the second turn and tasks[1] the first.
 	for _, ts := range tasks {
 		if ts.UpdatedAt == "" {
 			t.Errorf("task summary should carry updated_at: %+v", ts)
 		}
 	}
-	if tasks[0].Summary != "hello" {
-		t.Errorf("first task summary should be the last agent message %q, got %q", "hello", tasks[0].Summary)
+	if tasks[0].Summary != "再来（第 2 轮）" {
+		t.Errorf("newest task summary should carry the round marker, got %q", tasks[0].Summary)
 	}
-	if tasks[1].Summary != "再来（第 2 轮）" {
-		t.Errorf("second task summary should carry the round marker, got %q", tasks[1].Summary)
+	if tasks[1].Summary != "hello" {
+		t.Errorf("oldest task summary should be the first agent message %q, got %q", "hello", tasks[1].Summary)
 	}
-	ctxs, err := listContexts(ctx, rt)
+	ctxs, _, err := listContexts(ctx, rt, agents.PageParams{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,10 +208,10 @@ func TestCrossAgentIsolation(t *testing.T) {
 	if err := deleteContext(ctx, reporter, t1.ContextID); err == nil {
 		t.Error("reporter must not delete echo's context (cross-agent leak)")
 	}
-	if tasks, _ := listTasks(ctx, reporter, ""); len(tasks) != 0 {
+	if tasks, _, _ := listTasks(ctx, reporter, "", agents.PageParams{}); len(tasks) != 0 {
 		t.Errorf("reporter should see no echo tasks, got %d", len(tasks))
 	}
-	if ctxs, _ := listContexts(ctx, reporter); len(ctxs) != 0 {
+	if ctxs, _, _ := listContexts(ctx, reporter, agents.PageParams{}); len(ctxs) != 0 {
 		t.Errorf("reporter should see no echo contexts, got %d", len(ctxs))
 	}
 
@@ -474,7 +474,7 @@ func TestDeleteContext(t *testing.T) {
 	if _, err := getTask(ctx, rt, task.TaskID); err == nil {
 		t.Fatal("after deleting the context its tasks should be unqueryable")
 	}
-	ctxs, err := listContexts(ctx, rt)
+	ctxs, _, err := listContexts(ctx, rt, agents.PageParams{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -532,7 +532,7 @@ func TestContextRollupPicksLatestUpdated(t *testing.T) {
 	}
 
 	// context list carries the same rollup.
-	ctxs, err := listContexts(context.Background(), rt)
+	ctxs, _, err := listContexts(context.Background(), rt, agents.PageParams{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -583,4 +583,121 @@ func agentReply(t *testing.T, task *agents.AgentTask) string {
 	}
 	t.Fatalf("task is missing an agent text reply: %+v", task.Messages)
 	return ""
+}
+
+// TestListTasksPagination pins the offset-cursor pagination of the store's
+// listTasks: seed 5 tasks in one context, walk them 2 at a time, and assert the
+// HasMore / NextToken contract plus no cross-page overlap. Ordering is
+// most-recent-first (Seq descending).
+func TestListTasksPagination(t *testing.T) {
+	swapStore(t)
+	ctx := context.Background()
+	rt := fakeRuntime{agentID: "echo"}
+	first, err := echoSend(ctx, rt, agents.SendInput{Text: "m0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctxID := first.ContextID
+	for _, text := range []string{"m1", "m2", "m3", "m4"} {
+		if _, err := echoSend(ctx, rt, agents.SendInput{Text: text, ContextID: ctxID}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	p1, info1 := store.listTasks("echo", ctxID, agents.PageParams{Size: 2})
+	if len(p1) != 2 {
+		t.Fatalf("page 1 should have 2 tasks, got %d", len(p1))
+	}
+	if !info1.HasMore || info1.NextToken == "" {
+		t.Fatalf("page 1 should report more pages with a cursor, got %+v", info1)
+	}
+
+	p2, info2 := store.listTasks("echo", ctxID, agents.PageParams{Size: 2, Token: info1.NextToken})
+	if len(p2) != 2 {
+		t.Fatalf("page 2 should have 2 tasks, got %d", len(p2))
+	}
+	if !info2.HasMore || info2.NextToken == "" {
+		t.Fatalf("page 2 should report more pages with a cursor, got %+v", info2)
+	}
+	seen := map[string]bool{p1[0].TaskID: true, p1[1].TaskID: true}
+	if seen[p2[0].TaskID] || seen[p2[1].TaskID] {
+		t.Errorf("page 2 must not overlap page 1: p1=%v p2=%v", p1, p2)
+	}
+
+	p3, info3 := store.listTasks("echo", ctxID, agents.PageParams{Size: 2, Token: info2.NextToken})
+	if len(p3) != 1 {
+		t.Fatalf("page 3 (final) should have the last 1 task, got %d", len(p3))
+	}
+	if info3.HasMore || info3.NextToken != "" {
+		t.Fatalf("page 3 is the last page: HasMore=false, NextToken empty, got %+v", info3)
+	}
+}
+
+// TestListTasksPaginationExactBoundary pins the no-phantom-page contract when the
+// total is an exact multiple of the page size: 4 tasks at size 2 yield a full
+// first page (HasMore=true, NextToken="2") and a full SECOND page that is also
+// the last (HasMore=false, NextToken=""), never a spurious empty page 3.
+func TestListTasksPaginationExactBoundary(t *testing.T) {
+	swapStore(t)
+	ctx := context.Background()
+	rt := fakeRuntime{agentID: "echo"}
+	first, err := echoSend(ctx, rt, agents.SendInput{Text: "m0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctxID := first.ContextID
+	for _, text := range []string{"m1", "m2", "m3"} {
+		if _, err := echoSend(ctx, rt, agents.SendInput{Text: text, ContextID: ctxID}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	p1, info1 := store.listTasks("echo", ctxID, agents.PageParams{Size: 2})
+	if len(p1) != 2 {
+		t.Fatalf("page 1 should have 2 tasks, got %d", len(p1))
+	}
+	if !info1.HasMore || info1.NextToken != "2" {
+		t.Fatalf("page 1 should report more pages with NextToken \"2\", got %+v", info1)
+	}
+
+	p2, info2 := store.listTasks("echo", ctxID, agents.PageParams{Size: 2, Token: "2"})
+	if len(p2) != 2 {
+		t.Fatalf("page 2 (final) should have the last 2 tasks, got %d", len(p2))
+	}
+	if info2.HasMore || info2.NextToken != "" {
+		t.Fatalf("page 2 is the last page (no phantom empty page 3): HasMore=false, NextToken empty, got %+v", info2)
+	}
+}
+
+// TestListContextsPagination pins the same offset-cursor contract for the store's
+// listContexts: 3 contexts, page-size 2 → first page of 2 with more, then a final
+// page of 1 with no more.
+func TestListContextsPagination(t *testing.T) {
+	swapStore(t)
+	ctx := context.Background()
+	rt := fakeRuntime{agentID: "echo"}
+	for _, text := range []string{"c0", "c1", "c2"} {
+		if _, err := echoSend(ctx, rt, agents.SendInput{Text: text}); err != nil { // no ContextID ⇒ new context each time
+			t.Fatal(err)
+		}
+	}
+
+	p1, info1 := store.listContexts("echo", agents.PageParams{Size: 2})
+	if len(p1) != 2 {
+		t.Fatalf("page 1 should have 2 contexts, got %d", len(p1))
+	}
+	if !info1.HasMore || info1.NextToken == "" {
+		t.Fatalf("page 1 should report more pages with a cursor, got %+v", info1)
+	}
+
+	p2, info2 := store.listContexts("echo", agents.PageParams{Size: 2, Token: info1.NextToken})
+	if len(p2) != 1 {
+		t.Fatalf("page 2 (final) should have the last 1 context, got %d", len(p2))
+	}
+	if info2.HasMore || info2.NextToken != "" {
+		t.Fatalf("page 2 is the last page: HasMore=false, NextToken empty, got %+v", info2)
+	}
+	if p1[0].ContextID == p2[0].ContextID || p1[1].ContextID == p2[0].ContextID {
+		t.Errorf("page 2 must not overlap page 1: p1=%v p2=%v", p1, p2)
+	}
 }

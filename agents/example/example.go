@@ -280,12 +280,14 @@ func getTask(ctx context.Context, rt agents.Runtime, taskID string) (*agents.Age
 	return &task, nil
 }
 
-func listTasks(ctx context.Context, rt agents.Runtime, contextID string) ([]agents.TaskSummary, error) {
-	return store.listTasks(rt.AgentID(), contextID), nil
+func listTasks(ctx context.Context, rt agents.Runtime, contextID string, page agents.PageParams) ([]agents.TaskSummary, agents.PageInfo, error) {
+	tasks, info := store.listTasks(rt.AgentID(), contextID, page)
+	return tasks, info, nil
 }
 
-func listContexts(ctx context.Context, rt agents.Runtime) ([]agents.ContextSummary, error) {
-	return store.listContexts(rt.AgentID()), nil
+func listContexts(ctx context.Context, rt agents.Runtime, page agents.PageParams) ([]agents.ContextSummary, agents.PageInfo, error) {
+	ctxs, info := store.listContexts(rt.AgentID(), page)
+	return ctxs, info, nil
 }
 
 func getContext(ctx context.Context, rt agents.Runtime, ctxID string) (*agents.ContextDetail, error) {

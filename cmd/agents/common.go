@@ -152,15 +152,7 @@ func emitTask(f *cmdutil.Factory, cmd *cobra.Command, task *iagents.AgentTask, n
 		// implicit (default/auto) identity stays unpinned: the next command
 		// re-resolves to the same answer in the same environment. Only
 		// agent-subtree commands take --as (auth login does not).
-		if cmd.Flags().Changed("as") {
-			if id := string(f.ResolvedIdentity); id != "" {
-				for i := range next {
-					if strings.HasPrefix(next[i].Command, "lark-cli agents ") {
-						next[i].Command += " --as " + id
-					}
-				}
-			}
-		}
+		carryAsIntoNext(cmd, f, next)
 		env.Meta = &output.Meta{Next: next}
 	}
 	if scan.Alert != nil {
@@ -334,4 +326,89 @@ func listMeta(n int) *output.Meta {
 		return nil
 	}
 	return &output.Meta{Count: n}
+}
+
+// Pagination flag defaults / bounds, shared by the three paginated list leaves
+// (task list, context list, list <scheme>).
+const (
+	defaultPageSize = 20
+	minPageSize     = 1
+	maxPageSize     = 100
+)
+
+// addPageFlags registers the shared --page-size / --page-token flags on a
+// paginated list leaf. Size defaults to defaultPageSize (a bare list returns the
+// first page); an empty token asks for the first page.
+func addPageFlags(cmd *cobra.Command, pageSize *int, pageToken *string) {
+	cmd.Flags().IntVar(pageSize, "page-size", defaultPageSize, "每页条数（1-100）")
+	cmd.Flags().StringVar(pageToken, "page-token", "", "上一页返回的 page_token；留空取第一页")
+}
+
+// validatePageSize enforces the [minPageSize,maxPageSize] range as a client-side
+// invalid_argument validation error (exit 2) before any provider is built, so a
+// nonsense size never reaches the network and holds under a nil Factory.
+func validatePageSize(n int) error {
+	if n < minPageSize || n > maxPageSize {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"--page-size 须在 %d-%d 之间，收到 %d", minPageSize, maxPageSize, n).
+			WithParam("--page-size").
+			WithHint("改用 %d-%d 之间的每页条数重发", minPageSize, maxPageSize)
+	}
+	return nil
+}
+
+// listMetaPage builds the page-aware list meta: count (when >0), has_more,
+// page_token (the next-page cursor), and the next-page action(s). It preserves
+// listMeta's "no empty {}" rule — nil is returned ONLY when the page is empty AND
+// there is no next page AND there is no next action, so an otherwise-absent meta
+// never degrades to the ambiguous "meta": {} shape.
+func listMetaPage(count int, info iagents.PageInfo, next []output.NextAction) *output.Meta {
+	if count == 0 && !info.HasMore && len(next) == 0 {
+		return nil
+	}
+	return &output.Meta{
+		Count:     count, // omitempty drops 0
+		HasMore:   info.HasMore,
+		PageToken: info.NextToken,
+		Next:      next,
+	}
+}
+
+// carryAsIntoNext mirrors emitTask's identity-carry rule for the paginated list
+// leaves (which build their own next-actions instead of going through emitTask):
+// only when the caller EXPLICITLY passed --as does the suggested next-page
+// command carry the resolved identity, so an explicit non-default identity is not
+// silently dropped on verbatim replay while an implicit (default/auto) identity
+// stays unpinned. No-op on a nil cmd or an unchanged --as.
+func carryAsIntoNext(cmd *cobra.Command, f *cmdutil.Factory, next []output.NextAction) {
+	if cmd == nil || !cmd.Flags().Changed("as") {
+		return
+	}
+	id := string(f.ResolvedIdentity)
+	if id == "" {
+		return
+	}
+	for i := range next {
+		if strings.HasPrefix(next[i].Command, "lark-cli agents ") {
+			next[i].Command += " --as " + id
+		}
+	}
+}
+
+// nextPageAction builds the single "下一页" next-action for a paginated list when
+// a next page exists. base is the fully-formed command up to (but not including)
+// the pagination flags, e.g. "lark-cli agents task list example:echo"; the caller
+// is responsible for whitelisting the ref / scheme / context-id interpolated into
+// base. The cursor is server-controlled and interpolated verbatim into a command
+// the AI runs, so it must pass the safeNextID whitelist first — a failing cursor
+// drops the command (the cursor still rides meta.page_token as data, so the caller
+// can page manually). Returns nil when there is no next page.
+func nextPageAction(base string, size int, info iagents.PageInfo) []output.NextAction {
+	if !info.HasMore || info.NextToken == "" || !safeNextID(info.NextToken) {
+		return nil
+	}
+	return []output.NextAction{{
+		Label:   "下一页",
+		Command: fmt.Sprintf("%s --page-size %d --page-token %s", base, size, info.NextToken),
+	}}
 }

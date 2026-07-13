@@ -542,8 +542,8 @@ func TestTaskListContentSafetyBlocked(t *testing.T) {
 	defer extcs.Register(nil)
 
 	opts, _ := taskTestOpts(t, "list")
-	setScripted(t, scriptedHooks{listTasks: func(string) ([]iagents.TaskSummary, error) {
-		return []iagents.TaskSummary{{TaskID: "chat_1", State: iagents.StateCompleted, Summary: "untrusted"}}, nil
+	setScripted(t, scriptedHooks{listTasks: func(string, iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
+		return []iagents.TaskSummary{{TaskID: "chat_1", State: iagents.StateCompleted, Summary: "untrusted"}}, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 

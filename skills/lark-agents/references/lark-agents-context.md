@@ -9,13 +9,15 @@
 ## context list — 列会话
 
 ```bash
-lark-cli agents context list <provider>:<agent_id>                    # 默认 JSON 信封
+lark-cli agents context list <provider>:<agent_id>                    # 默认 JSON 信封（第一页）
 lark-cli agents context list <provider>:<agent_id> --format pretty    # 带表头 TSV
+lark-cli agents context list <provider>:<agent_id> --page-size 20     # 每页条数（1-100，默认 20）
+lark-cli agents context list <provider>:<agent_id> --page-token <token>  # 取下一页
 ```
 
 输出 `{ contexts: [ { context_id, created_at?, updated_at?, title?, task_count, awaiting_input? } ] }`，`meta.count`（**空列表时整个 `meta` 省略**，用 `.meta.count // 0` 消费）。只读。按 `updated_at` 降序（最近活动在前；无时间戳排最后）。`task_count` 是该会话任务数；`awaiting_input=true` 表示有任务停在 `input_required`/`auth_required` 等你续答——挑"哪个会话要先处理"就看它。
 
-**单页语义**：只返回服务端第一页，分页未透出——会话很多时结果会静默截断，找不到目标 context 别据此断言不存在。
+**分页**：`--page-size N`（1-100，默认 20）+ `--page-token <token>` 游标翻页。`meta.has_more=true` 表示还有下一页，`meta.page_token` 是下一页游标，`meta.next` 里直接给出翻页命令——**照 `meta.next` 执行即可**。末页 `has_more`/`page_token` 省略。所以「会话很多」不再静默截断：`has_more=true` 时继续翻页，翻到 `has_more` 省略为止，才可断言某 context 不存在。
 
 ## context get — 查会话详情
 

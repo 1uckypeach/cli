@@ -6,7 +6,6 @@ package agents
 import (
 	"fmt"
 	"io"
-	"sort"
 
 	"github.com/spf13/cobra"
 
@@ -20,14 +19,16 @@ import (
 // leaves. A single struct backs all three so the shared fields (Factory, Cmd,
 // Ref, As) are wired once; each RunE reads only the fields its verb needs.
 type contextOptions struct {
-	Factory *cmdutil.Factory
-	Cmd     *cobra.Command
-	Ref     string
-	CtxID   string
-	Params  []string
-	Yes     bool
-	As      string
-	Format  string
+	Factory   *cmdutil.Factory
+	Cmd       *cobra.Command
+	Ref       string
+	CtxID     string
+	Params    []string
+	Yes       bool
+	As        string
+	Format    string
+	PageSize  int
+	PageToken string
 }
 
 // NewCmdAgentContext builds the `agents context` command group: manage a remote
@@ -59,11 +60,15 @@ func NewCmdAgentContextList(f *cmdutil.Factory) *cobra.Command {
 			if err := validateFormat(opts.Format); err != nil {
 				return err
 			}
+			if err := validatePageSize(opts.PageSize); err != nil {
+				return err
+			}
 			opts.Cmd = cmd
 			opts.Ref = args[0]
 			return agentContextListRun(opts)
 		},
 	}
+	addPageFlags(cmd, &opts.PageSize, &opts.PageToken)
 	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
 	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
@@ -130,7 +135,7 @@ func NewCmdAgentContextDelete(f *cmdutil.Factory) *cobra.Command {
 }
 
 // agentContextListRun runs `context list`: resolves the provider, lists
-// contexts, sorts them newest-first by UpdatedAt, and emits {contexts:[...]}
+// contexts in the provider's most-recent-first order, and emits {contexts:[...]}
 // with meta.count through content-safety scanning (the rollup is derived from
 // untrusted agent activity).
 func agentContextListRun(opts *contextOptions) error {
@@ -156,21 +161,32 @@ func agentContextListRun(opts *contextOptions) error {
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
-	contexts, err := spec.ListContexts.Handler(opts.Cmd.Context(), rt)
+	contexts, pageInfo, err := spec.ListContexts.Handler(opts.Cmd.Context(), rt,
+		iagents.PageParams{Token: opts.PageToken, Size: opts.PageSize})
 	if err != nil {
 		return err
 	}
-	// Newest-first: sort by UpdatedAt (RFC3339 UTC) descending; a stable sort
-	// preserves the provider's relative order for equal timestamps, and contexts
-	// with no timestamp sort last.
-	sort.SliceStable(contexts, func(i, j int) bool { return contexts[i].UpdatedAt > contexts[j].UpdatedAt })
+	// Ordering is the provider's contract (most-recent-first), consistent across
+	// and within pages — the CLI does not re-sort a page.
 	if contexts == nil {
 		contexts = []iagents.ContextSummary{} // always emit [] not null (matches the Card.Parameters array convention)
 	}
 	return scanAndEmitData(f, opts.Cmd, opts.Format,
 		map[string]interface{}{"contexts": contexts},
-		listMeta(len(contexts)),
+		listMetaPage(len(contexts), pageInfo, contextListNext(opts, f, pageInfo)),
 		func(w io.Writer) { printContextsTSV(w, contexts) })
+}
+
+// contextListNext builds the next-page action for `context list`, replaying the
+// caller's ref with the returned cursor. The ref is gated by safeNextRef; a
+// failing ref drops the action (the cursor still rides meta.page_token as data).
+func contextListNext(opts *contextOptions, f *cmdutil.Factory, info iagents.PageInfo) []output.NextAction {
+	if !safeNextRef(opts.Ref) {
+		return nil
+	}
+	next := nextPageAction(fmt.Sprintf("lark-cli agents context list %s", opts.Ref), opts.PageSize, info)
+	carryAsIntoNext(opts.Cmd, f, next)
+	return next
 }
 
 // agentContextGetRun runs `context get`: resolves the provider, fetches the

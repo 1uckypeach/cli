@@ -33,12 +33,14 @@ type providerInfo struct {
 
 // listOptions holds all inputs for `agents list [scheme]`.
 type listOptions struct {
-	Factory *cmdutil.Factory
-	Cmd     *cobra.Command
-	Scheme  string
-	Params  []string
-	Format  string
-	As      string
+	Factory   *cmdutil.Factory
+	Cmd       *cobra.Command
+	Scheme    string
+	Params    []string
+	Format    string
+	As        string
+	PageSize  int
+	PageToken string
 }
 
 // NewCmdAgentList builds `agents list [scheme]`. Without an argument it
@@ -58,6 +60,9 @@ func NewCmdAgentList(f *cmdutil.Factory) *cobra.Command {
 			if err := validateFormat(opts.Format); err != nil {
 				return err
 			}
+			if err := validatePageSize(opts.PageSize); err != nil {
+				return err
+			}
 			opts.Cmd = cmd
 			if len(args) == 1 {
 				opts.Scheme = args[0]
@@ -65,6 +70,10 @@ func NewCmdAgentList(f *cmdutil.Factory) *cobra.Command {
 			return agentListRun(opts)
 		},
 	}
+	// --page-size / --page-token apply only to the instance enumeration path
+	// (prov.ListAgents); the offline catalog listing and the no-scheme provider
+	// listing ignore them.
+	addPageFlags(cmd, &opts.PageSize, &opts.PageToken)
 	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
 	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
@@ -143,11 +152,15 @@ func agentListSchemeRun(opts *listOptions) error {
 	}
 
 	var agents []iagents.AgentSummary
-	var identity string // set only on the online (instance) path, which resolves one
-	if prov.Kind() == iagents.KindCatalog {
+	var identity string           // set only on the online (instance) path, which resolves one
+	var pageInfo iagents.PageInfo // set only on the online (instance) path
+	catalog := prov.Kind() == iagents.KindCatalog
+	if catalog {
 		// Offline catalog enumeration takes no business params (ListParams
 		// requires a ListAgents hook); validate against the empty set so a stray
 		// --param is rejected with the same teaching error instead of ignored.
+		// The catalog set is finite and offline, so it is UNPAGED: --page-size /
+		// --page-token are ignored on this path (documented on the command).
 		if _, err := validateListParams(opts.Params, nil, opts.Scheme); err != nil {
 			return err
 		}
@@ -159,6 +172,8 @@ func agentListSchemeRun(opts *listOptions) error {
 				"provider '%s' 暂不支持列举 agent", opts.Scheme).
 				WithHint("%s", prov.AgentIDSource)
 		}
+		// --page-size is validated uniformly in RunE (alongside validateFormat), so
+		// this paginated path does not re-check it here.
 		// Enumeration is a real online call with no agent_id, so it runs the same
 		// two gates every ref-addressed online verb runs (via resolveSpec +
 		// preflightScopesForRef): the user|bot identity whitelist and the
@@ -184,7 +199,8 @@ func agentListSchemeRun(opts *listOptions) error {
 		if err := preflightScopesForScheme(f, id, opts.Scheme); err != nil {
 			return err
 		}
-		agents, err = prov.ListAgents(opts.Cmd.Context(), rt)
+		agents, pageInfo, err = prov.ListAgents(opts.Cmd.Context(), rt,
+			iagents.PageParams{Token: opts.PageToken, Size: opts.PageSize})
 		if err != nil {
 			return err
 		}
@@ -204,11 +220,17 @@ func agentListSchemeRun(opts *listOptions) error {
 		return nil
 	}
 
+	// Catalog is unpaged (plain count); the instance path carries has_more /
+	// page_token and a next-page action when there are more agents.
+	meta := listMeta(len(agents))
+	if !catalog {
+		meta = listMetaPage(len(agents), pageInfo, listSchemeNext(opts, f, pageInfo))
+	}
 	env := output.Envelope{
 		OK:       true,
 		Identity: identity, // empty for the offline catalog path (omitempty)
 		Data:     map[string]interface{}{"agents": agents},
-		Meta:     listMeta(len(agents)),
+		Meta:     meta,
 		Notice:   output.GetNotice(),
 	}
 	if jq := jqExpr(opts.Cmd); jq != "" {
@@ -216,6 +238,19 @@ func agentListSchemeRun(opts *listOptions) error {
 	}
 	output.PrintJson(f.IOStreams.Out, env)
 	return nil
+}
+
+// listSchemeNext builds the next-page action for the instance `list <scheme>`
+// enumeration, replaying the scheme with the returned cursor. The scheme is
+// gated by safeNextID (no colon, so safeNextRef does not apply); a failing scheme
+// drops the action (the cursor still rides meta.page_token as data).
+func listSchemeNext(opts *listOptions, f *cmdutil.Factory, info iagents.PageInfo) []output.NextAction {
+	if !safeNextID(opts.Scheme) {
+		return nil
+	}
+	next := nextPageAction(fmt.Sprintf("lark-cli agents list %s", opts.Scheme), opts.PageSize, info)
+	carryAsIntoNext(opts.Cmd, f, next)
+	return next
 }
 
 // listProviders builds the provider descriptors from the built-in registry so

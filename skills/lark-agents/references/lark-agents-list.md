@@ -85,6 +85,8 @@ lark-cli agents list --format pretty
 
 - provider 不支持枚举（部分 instance 型）→ 本地报错 `unsupported_capability`（exit 2），message 为 `provider '<scheme>' 暂不支持列举 agent`，hint 直接给出该 provider 的 agent_id 获取路径（即 `agent_id_source` 文案）——别编清单、别重试，把 hint 原样转达用户。
 
+**分页（仅 instance 型枚举）**：instance 型的 `agents list <scheme>` 走服务端 List API，支持 `--page-size N`（1-100，默认 20）+ `--page-token <token>`；响应带 `meta.has_more` / `meta.page_token` 和 `meta.next` 翻页命令（照 `meta.next` 执行即可）。**catalog 型（如 example）是离线有限集，不分页**，`--page-size` / `--page-token` 在该路径被忽略。
+
 ## 错误目录
 
 | 触发 | subtype | exit | message / hint（真实输出） |

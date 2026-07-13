@@ -303,9 +303,9 @@ func TestAgentListScheme_InstanceListAgentsOnline(t *testing.T) {
 		AgentIDSource: "test only",
 		Identities:    []iagents.IdentitySpec{{Type: iagents.IdentityUser}, {Type: iagents.IdentityBot}},
 		Instance:      &spec,
-		ListAgents: func(_ context.Context, rt iagents.Runtime) ([]iagents.AgentSummary, error) {
+		ListAgents: func(_ context.Context, rt iagents.Runtime, _ iagents.PageParams) ([]iagents.AgentSummary, iagents.PageInfo, error) {
 			gotRT = rt
-			return []iagents.AgentSummary{{AgentRef: "fakelive:x", Name: "Live X"}}, nil
+			return []iagents.AgentSummary{{AgentRef: "fakelive:x", Name: "Live X"}}, iagents.PageInfo{}, nil
 		},
 	})
 
@@ -314,7 +314,7 @@ func TestAgentListScheme_InstanceListAgentsOnline(t *testing.T) {
 	cmd := &cobra.Command{Use: "list"}
 	cmd.Flags().String("as", "", "identity")
 	cmd.SetContext(context.Background())
-	opts := &listOptions{Factory: f, Cmd: cmd, Format: "json", Scheme: "fakelive"}
+	opts := &listOptions{Factory: f, Cmd: cmd, Format: "json", Scheme: "fakelive", PageSize: defaultPageSize}
 	out := f.IOStreams.Out.(interface{ Bytes() []byte })
 
 	if err := agentListRun(opts); err != nil {
@@ -333,6 +333,67 @@ func TestAgentListScheme_InstanceListAgentsOnline(t *testing.T) {
 	}
 }
 
+// TestAgentListScheme_PaginationMeta pins the command-level pagination envelope
+// for the instance `list <scheme>` path: a ListAgents hook that returns a page
+// plus PageInfo{HasMore,NextToken} surfaces as meta.has_more / meta.page_token,
+// and meta.next carries a "下一页" action replaying the scheme with
+// --page-size / --page-token.
+func TestAgentListScheme_PaginationMeta(t *testing.T) {
+	spec := catSpec("", "", "")
+	iagents.Register(iagents.Provider{
+		Scheme:        "fakelivepage",
+		Label:         "test fake (instance paginated live-enum)",
+		AgentIDSource: "test only",
+		Identities:    []iagents.IdentitySpec{{Type: iagents.IdentityUser}, {Type: iagents.IdentityBot}},
+		Instance:      &spec,
+		ListAgents: func(_ context.Context, _ iagents.Runtime, page iagents.PageParams) ([]iagents.AgentSummary, iagents.PageInfo, error) {
+			if page.Size != 2 {
+				t.Errorf("the ListAgents hook should receive the requested page size 2, got %d", page.Size)
+			}
+			return []iagents.AgentSummary{
+					{AgentRef: "fakelivepage:x", Name: "Live X"},
+					{AgentRef: "fakelivepage:y", Name: "Live Y"},
+				},
+				iagents.PageInfo{NextToken: "2", HasMore: true}, nil
+		},
+	})
+
+	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
+	f, _, _, _ := cmdutil.TestFactory(t, cfg)
+	cmd := &cobra.Command{Use: "list"}
+	cmd.Flags().String("as", "", "identity")
+	cmd.SetContext(context.Background())
+	opts := &listOptions{Factory: f, Cmd: cmd, Format: "json", Scheme: "fakelivepage", PageSize: 2}
+	out := f.IOStreams.Out.(interface{ Bytes() []byte })
+
+	if err := agentListRun(opts); err != nil {
+		t.Fatalf("paged list fakelivepage should not error: %v", err)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("output should be valid envelope JSON: %v (%s)", err, string(out.Bytes()))
+	}
+	if env.Meta == nil {
+		t.Fatal("a paged list should carry meta")
+	}
+	if !env.Meta.HasMore {
+		t.Error("meta.has_more should be true")
+	}
+	if env.Meta.PageToken != "2" {
+		t.Errorf("meta.page_token should be the next cursor \"2\", got %q", env.Meta.PageToken)
+	}
+	found := false
+	for _, n := range env.Meta.Next {
+		if n.Label == "下一页" && strings.Contains(n.Command, "lark-cli agents list fakelivepage") &&
+			strings.Contains(n.Command, "--page-size 2") && strings.Contains(n.Command, "--page-token 2") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("meta.next should contain a 下一页 action replaying the scheme + --page-size/--page-token, got %+v", env.Meta.Next)
+	}
+}
+
 // TestAgentListScheme_OnlineRunsScopePreflight pins #8: the online enumeration
 // path now runs the same all-or-nothing scope preflight every other online verb
 // runs. An instance provider with RequiredScopes, driven by a user whose token
@@ -347,9 +408,9 @@ func TestAgentListScheme_OnlineRunsScopePreflight(t *testing.T) {
 		RequiredScopes: []string{"live:read"},
 		Identities:     []iagents.IdentitySpec{{Type: iagents.IdentityUser}},
 		Instance:       &spec,
-		ListAgents: func(context.Context, iagents.Runtime) ([]iagents.AgentSummary, error) {
+		ListAgents: func(context.Context, iagents.Runtime, iagents.PageParams) ([]iagents.AgentSummary, iagents.PageInfo, error) {
 			called = true
-			return nil, nil
+			return nil, iagents.PageInfo{}, nil
 		},
 	})
 	// The stored user token holds an unrelated scope (non-empty so the preflight
@@ -358,7 +419,7 @@ func TestAgentListScheme_OnlineRunsScopePreflight(t *testing.T) {
 
 	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
 	f, _, _, _ := cmdutil.TestFactory(t, cfg)
-	opts := &listOptions{Factory: f, Cmd: resolveCmd(t, true, "user"), Format: "json", Scheme: "fakescopelive", As: "user"}
+	opts := &listOptions{Factory: f, Cmd: resolveCmd(t, true, "user"), Format: "json", Scheme: "fakescopelive", As: "user", PageSize: defaultPageSize}
 
 	err := agentListRun(opts)
 	if err == nil {
@@ -388,15 +449,15 @@ func TestAgentListScheme_OnlineChecksIdentity(t *testing.T) {
 		AgentIDSource: "test only",
 		Identities:    []iagents.IdentitySpec{{Type: iagents.IdentityUser}, {Type: iagents.IdentityBot}},
 		Instance:      &spec,
-		ListAgents: func(context.Context, iagents.Runtime) ([]iagents.AgentSummary, error) {
+		ListAgents: func(context.Context, iagents.Runtime, iagents.PageParams) ([]iagents.AgentSummary, iagents.PageInfo, error) {
 			called = true
-			return nil, nil
+			return nil, iagents.PageInfo{}, nil
 		},
 	})
 
 	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
 	f, _, _, _ := cmdutil.TestFactory(t, cfg)
-	opts := &listOptions{Factory: f, Cmd: resolveCmd(t, true, "admin"), Format: "json", Scheme: "fakelivewl", As: "admin"}
+	opts := &listOptions{Factory: f, Cmd: resolveCmd(t, true, "admin"), Format: "json", Scheme: "fakelivewl", As: "admin", PageSize: defaultPageSize}
 
 	err := agentListRun(opts)
 	if err == nil {
