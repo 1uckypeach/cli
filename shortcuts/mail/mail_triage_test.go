@@ -1619,6 +1619,33 @@ func TestMailTriageStructuredOutputPreservesMailboxID(t *testing.T) {
 	}
 }
 
+// P2: 空收件箱也必须显式返回 meta.count=0（Meta.Count 去 omitempty 后的稳定契约），
+// 调用方可稳定读取 .meta.count，无需区分“缺失”与“0”。
+func TestMailTriageEmptyResultEmitsMetaCountZero(t *testing.T) {
+	f, stdout, _, reg := mailShortcutTestFactory(t)
+	defer reg.Verify(t)
+	registerMailTriageListStub(reg, "me", nil, false, "")
+
+	if err := runMountedMailShortcut(t, MailTriage, []string{
+		"+triage", "--format", "json", "--filter", `{"folder_id":"INBOX"}`,
+	}, f, stdout); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data := decodeMailTriageJSONOutput(t, stdout)
+	if messages := mailTriageMessagesFromOutput(t, data); len(messages) != 0 {
+		t.Fatalf("expected empty data array, got %d", len(messages))
+	}
+	meta := mailTriageMetaFromOutput(t, data)
+	count, ok := meta["count"]
+	if !ok {
+		t.Fatalf("empty result must still include meta.count, got meta=%#v", meta)
+	}
+	if count != float64(0) {
+		t.Fatalf("empty result meta.count must be 0, got %v", count)
+	}
+}
+
 // TestMailTriageMissingMessageMetadataStillGetsMailboxID verifies fallback rows keep mailbox IDs.
 func TestMailTriageMissingMessageMetadataStillGetsMailboxID(t *testing.T) {
 	f, stdout, _, reg := mailShortcutTestFactory(t)

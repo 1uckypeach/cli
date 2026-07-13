@@ -100,7 +100,7 @@ lark-cli mail +triage --page-size 10
 ```
 
 - `data[].mailbox_id`：邮箱标识，传给 `mail +message --mailbox` 以保持公共邮箱上下文
-- `meta.count`：本次返回条数
+- `meta.count`：本次返回条数（空结果时为 `0`，始终返回，可稳定读取）
 - `meta.has_more`：是否还有下一页（无更多时字段省略）
 - `meta.page_token`：传入 `--page-token` 获取下一页（无更多时省略）；前缀 `search:` / `list:` 标识来源路径，不可混用
 - **迁移**：旧的顶层 `.messages` / `.count` / `.has_more` / `.page_token` 已迁到 `.data` / `.meta.*`；`--format data` 已移除（用默认或 `--format json`）

@@ -22,3 +22,12 @@ func TestMetaPaginationFieldsOmitempty(t *testing.T) {
 		t.Fatalf("zero pagination must be omitted, got %s", b2)
 	}
 }
+
+// count 无 omitempty：空结果也显式序列化 count:0，保证列表信封的稳定契约
+// （调用方可稳定读取 .meta.count，无需区分“缺失”与“0”）。
+func TestMetaCountAlwaysSerialized(t *testing.T) {
+	b, _ := json.Marshal(Meta{Count: 0})
+	if !strings.Contains(string(b), `"count":0`) {
+		t.Fatalf("empty meta must serialize count:0, got %s", b)
+	}
+}
