@@ -17,16 +17,19 @@ import (
 // Placeholder substitutions turning copyable help examples into syntactically
 // valid dry-run invocations. IDs are obvious fakes; --dry-run never hits the API.
 var tipsPlaceholderValues = map[string]string{
-	"<chat_id>":     "oc_e2etest000000000000000000",
-	"<open_id>":     "ou_e2etest000000000000000000",
-	"<message_id>":  "om_e2etest000000000000000000",
-	"<thread_id>":   "omt_e2etest00000000000000000",
-	"<file_key>":    "file_v3_e2etest0000000000000",
-	"<image_key>":   "img_v3_e2etest00000000000000",
-	"<open_id1>":    "ou_e2etest000000000000000001",
-	"<open_id2>":    "ou_e2etest000000000000000002",
-	"<message_id1>": "om_e2etest000000000000000001",
-	"<message_id2>": "om_e2etest000000000000000002",
+	"<chat_id>":       "oc_e2etest000000000000000000",
+	"<open_id>":       "ou_e2etest000000000000000000",
+	"<message_id>":    "om_e2etest000000000000000000",
+	"<thread_id>":     "omt_e2etest00000000000000000",
+	"<file_key>":      "file_v3_e2etest0000000000000",
+	"<image_key>":     "img_v3_e2etest00000000000000",
+	"<open_id1>":      "ou_e2etest000000000000000001",
+	"<open_id2>":      "ou_e2etest000000000000000002",
+	"<message_id1>":   "om_e2etest000000000000000001",
+	"<message_id2>":   "om_e2etest000000000000000002",
+	"<feed_group_id>": "ofg_e2etest00000000000000000",
+	"<chat_id1>":      "oc_e2etest000000000000000001",
+	"<chat_id2>":      "oc_e2etest000000000000000002",
 }
 
 // firstExampleArgs extracts the first "Example:" tip of the shortcut, replaces
@@ -114,4 +117,70 @@ func TestIMTipsFirstExampleDryRunChatMessagesList(t *testing.T) {
 
 func TestIMTipsFirstExampleDryRunResourcesDownload(t *testing.T) {
 	runFirstExampleDryRun(t, "+messages-resources-download", "/open-apis/im/v1/messages/")
+}
+
+// tipsExampleAllTargets mirrors shortcuts/im/tips_examples_test.go's
+// tipsExampleTargets: the 12 high-frequency + 6 feed/flag shortcuts whose
+// help carries a locked copyable "Example:" tip. Kept as a literal copy here
+// because that list lives in an internal _test.go file not visible outside
+// the shortcuts/im package.
+var tipsExampleAllTargets = []string{
+	"+messages-send", "+messages-search", "+chat-messages-list", "+messages-reply",
+	"+chat-search", "+chat-list", "+messages-mget", "+threads-messages-list",
+	"+messages-resources-download", "+chat-create", "+chat-update", "+chat-members-list",
+	"+feed-shortcut-create", "+feed-shortcut-remove",
+	"+feed-group-list-item", "+feed-group-query-item",
+	"+flag-create", "+flag-cancel",
+}
+
+// defaultAsForCommand picks the identity to run the dry-run under by reading
+// the shortcut's own AuthTypes: "bot" when the shortcut supports bot identity
+// (matching the 3 pre-existing path-assertion tests above), otherwise "user"
+// for user-only shortcuts (+messages-search and the whole feed/flag series).
+func defaultAsForCommand(t *testing.T, command string) string {
+	t.Helper()
+	for _, sc := range imshortcuts.Shortcuts() {
+		if sc.Command != command {
+			continue
+		}
+		for _, a := range sc.AuthTypes {
+			if a == "bot" {
+				return "bot"
+			}
+		}
+		return "user"
+	}
+	t.Fatalf("shortcut %s not found", command)
+	return ""
+}
+
+// TestIMTipsFirstExampleDryRunAll extends the executability lock from the 3
+// path-assertion tests above (messages-send, chat-messages-list,
+// resources-download) to every one of the 18 shortcuts carrying a locked
+// Example tip: the first example, with placeholders substituted and
+// --dry-run appended, must exit 0. This only asserts exit code, not the API
+// path — the 3 tests above keep that stronger assertion for their targets.
+func TestIMTipsFirstExampleDryRunAll(t *testing.T) {
+	for _, cmd := range tipsExampleAllTargets {
+		cmd := cmd
+		t.Run(cmd, func(t *testing.T) {
+			t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+			t.Setenv("LARKSUITE_CLI_APP_ID", "im_tips_dryrun_test")
+			t.Setenv("LARKSUITE_CLI_APP_SECRET", "im_tips_dryrun_secret")
+			t.Setenv("LARKSUITE_CLI_BRAND", "feishu")
+
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			as := defaultAsForCommand(t, cmd)
+			args := append(firstExampleArgs(t, cmd), "--dry-run")
+			result, err := clie2e.RunCmd(ctx, clie2e.Request{
+				Args:      args,
+				DefaultAs: as,
+				WorkDir:   t.TempDir(),
+			})
+			require.NoError(t, err)
+			result.AssertExitCode(t, 0)
+		})
+	}
 }
