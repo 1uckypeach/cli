@@ -8,7 +8,7 @@
 | 按周期判断相对承诺的状态、偏差、风险和下一步；周报、日报、月报、项目状态。原因学习走 Retrospective，完整分析走 Report | [`weekly-report.md`](weekly-report.md) |
 | 请具名决策者批准方向、预算、资源或执行承诺；提案、立项、资源申请。已定产品行为走 PRD | [`proposal.md`](proposal.md) |
 | 将方向已定的一次性项目、变更、专项行动或营销战役转成可协同推进的交付、依赖、里程碑与验收；项目计划、执行方案、实施计划。仍在比较方向或请求批准走 Proposal / Report，重复稳定路径走 SOP | [`execution-plan.md`](execution-plan.md) |
-| 发布已授权的非公文组织规则 / 安排，形成可核验检查、整改、归档记录，或在特定场合表达已核定组织立场；制度、公司通知、台账、讲话底稿。一次性项目推进走 Execution Plan；`正式 / 方案 / 计划 / 总结 / 简报 / 讲话稿`单独不触发 | [`formal-doc.md`](formal-doc.md) |
+| 将已授权的内部规则 / 安排、可复核的检查整改记录或已核定组织立场写成正式载体；制度、公司通知、整改记录、讲话底稿。待批准方向走 Proposal，复杂执行走 Execution Plan，法定公文走 Official；`正式`单独不触发 | [`formal-doc.md`](formal-doc.md) |
 | 党政机关法定公文拟制、审校或制发；明确要求公文 / 红头 / 套红 / 正式发文，或法定文种与机关行文关系、文号、主送等制发要素共同出现。`通知 / 报告 / 公告 / 纪要 / 正式 / 官方`单独不触发 | [`official-redhead.md`](official-redhead.md) |
 | 记录已发生会议的决定、异议、行动和批准状态；会议记录、行动项。逐字稿不走本 leaf，法定公文纪要走 Official | [`meeting-minutes.md`](meeting-minutes.md) |
 | 从已结束周期 / 事件提炼证据化学习并改变下一轮；复盘、回顾、经验教训。当前状态走 Weekly，活跃未知事故走 Technical | [`retrospective.md`](retrospective.md) |
