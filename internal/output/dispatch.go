@@ -48,7 +48,7 @@ func DispatchError(err error, identity string) (envelope []byte, exitCode int, h
 
 	var fallback error
 	if isCobraUsageError(err) {
-		fallback = errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", err.Error())
+		fallback = errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", err.Error()).WithCause(err)
 	} else {
 		fallback = errs.NewInternalError(errs.SubtypeUnknown, "%s", err.Error()).WithCause(err)
 	}
