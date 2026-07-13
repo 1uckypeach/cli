@@ -118,6 +118,48 @@ func TestCollectChatIDs(t *testing.T) {
 	}
 }
 
+// TestCollectChatIDsHint locks that every collectChatIDs validation error
+// carries an actionable recovery hint pointing the user at how to discover a
+// real open_chat_id (im +chat-search / im +chat-list), not just what shape
+// the flag must take.
+func TestCollectChatIDsHint(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []string
+	}{
+		{name: "missing chat-id", input: nil},
+		{name: "bad prefix", input: []string{"om_abc"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := newFeedShortcutCreateCmd(t)
+			for _, v := range tt.input {
+				if err := cmd.Flags().Set("chat-id", v); err != nil {
+					t.Fatalf("Set chat-id %q error = %v", v, err)
+				}
+			}
+			runtime := &common.RuntimeContext{Cmd: cmd}
+
+			_, err := collectChatIDs(runtime)
+			if err == nil {
+				t.Fatalf("collectChatIDs() expected error, got nil")
+			}
+
+			problem, ok := errs.ProblemOf(err)
+			if !ok {
+				t.Fatalf("collectChatIDs() error is not a typed Problem: %v", err)
+			}
+			if problem.Subtype != errs.SubtypeInvalidArgument {
+				t.Fatalf("collectChatIDs() Subtype = %v, want %v", problem.Subtype, errs.SubtypeInvalidArgument)
+			}
+			if !strings.Contains(problem.Hint, "+chat-search") || !strings.Contains(problem.Hint, "+chat-list") {
+				t.Fatalf("collectChatIDs() Hint = %q, want it to mention both +chat-search and +chat-list", problem.Hint)
+			}
+		})
+	}
+}
+
 func TestBuildShortcutItems(t *testing.T) {
 	got := buildShortcutItems([]string{"oc_a", "oc_b"})
 	if len(got) != 2 {

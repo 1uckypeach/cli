@@ -11,9 +11,12 @@ import (
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
-// The 12 high-frequency IM shortcuts covered by the governance closeout.
-// Every entry must carry at least one copyable "Example:" tip locked by the
-// tests below; other IM shortcuts (feed/flag series) are intentionally exempt.
+// 12 high-frequency IM shortcuts covered by the original governance closeout,
+// plus 6 feed/flag shortcuts that carry a real guessing surface (see the
+// inline comment below). Every entry must carry at least one copyable
+// "Example:" tip locked by the tests below. The 3 pagination-only feed/flag
+// shortcuts (+feed-shortcut-list, +feed-group-list, +flag-list) are
+// intentionally exempt — see the inline comment further down.
 var tipsExampleTargets = []string{
 	"+messages-send", "+messages-search", "+chat-messages-list", "+messages-reply",
 	"+chat-search", "+chat-list", "+messages-mget", "+threads-messages-list",

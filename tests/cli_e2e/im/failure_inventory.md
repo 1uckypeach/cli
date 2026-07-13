@@ -40,13 +40,15 @@ next action, (4) know how to verify it. All four → PASS.
 - lock: TestResolveIsHeaderMutualExclusionHint
 
 ## feed.chat_id.not_oc_prefix
-- source: shortcuts/im/helpers.go parseFeedChatIDs
+- source: shortcuts/im/helpers.go collectChatIDs
 - user_task: pass a message id (om_) or plain id where an open_chat_id is required
 - command: `lark-cli im +feed-shortcut-create --chat-id om_test000 --dry-run`
-- observed (replayed): `{"ok":false,"identity":"user","error":{"type":"validation","subtype":"invalid_argument","message":"invalid --chat-id \"om_test000\": must be an open_chat_id starting with oc_","param":"--chat-id"}}`
-- verdict: PASS
+- observed (replayed, before fix): `{"ok":false,"identity":"user","error":{"type":"validation","subtype":"invalid_argument","message":"invalid --chat-id \"om_test000\": must be an open_chat_id starting with oc_","param":"--chat-id"}}` — names what is required (an oc_ id) but gives no next action or ID-source hint
+- observed (after fix): same envelope plus `"hint":"get the open_chat_id from im +chat-search (by name) or im +chat-list (my chats)"`
+- verdict: FIX_HINT (fixed in this PR)
+- expected_hint: get the open_chat_id from im +chat-search or im +chat-list
 - expected_next_action: fetch the oc_ id via +chat-search / +chat-list and retry
-- lock: shortcuts/im/im_feed_shortcut_test.go::TestCollectChatIDs/rejects_bad_prefix; tests/cli_e2e/im/feed_shortcut_workflow_test.go::TestIM_FeedShortcutDryRun/create_dry-run_rejects_non-oc_chat_ids
+- lock: shortcuts/im/im_feed_shortcut_test.go::TestCollectChatIDsHint
 
 ## chat-messages-list.bot_identity.user_id
 - source: shortcuts/im/im_chat_messages_list.go (Validate), shortcuts/im/helpers.go resolveP2PChatID
