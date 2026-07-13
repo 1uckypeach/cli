@@ -15,9 +15,11 @@ type Envelope struct {
 
 // Meta carries optional metadata in envelope responses.
 type Meta struct {
-	Count    int          `json:"count,omitempty"`
-	Rollback string       `json:"rollback,omitempty"`
-	Next     []NextAction `json:"next,omitempty"`
+	Count     int          `json:"count,omitempty"`
+	HasMore   bool         `json:"has_more,omitempty"`
+	PageToken string       `json:"page_token,omitempty"` // next-page cursor
+	Rollback  string       `json:"rollback,omitempty"`
+	Next      []NextAction `json:"next,omitempty"`
 }
 
 // NextAction is a typed "suggested next command" that an AI caller can execute

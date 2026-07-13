@@ -30,8 +30,10 @@ func paramSpec() *iagents.AgentSpec {
 		},
 		GetTask: iagents.TaskGetOp{Handler: func(context.Context, iagents.Runtime, string) (*iagents.AgentTask, error) { return nil, nil }},
 		ListTasks: iagents.TaskListOp{
-			Params:  []iagents.CardParam{ws},
-			Handler: func(context.Context, iagents.Runtime, string) ([]iagents.TaskSummary, error) { return nil, nil },
+			Params: []iagents.CardParam{ws},
+			Handler: func(context.Context, iagents.Runtime, string, iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
+				return nil, iagents.PageInfo{}, nil
+			},
 		},
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 
@@ -43,6 +42,8 @@ type taskOptions struct {
 	Timeout    time.Duration
 	As         string
 	Format     string
+	PageSize   int
+	PageToken  string
 }
 
 // resolveDownload is the DownloadArtifact seam: it resolves the provider
@@ -158,12 +159,16 @@ func NewCmdAgentTaskList(f *cmdutil.Factory) *cobra.Command {
 			if err := validateFormat(opts.Format); err != nil {
 				return err
 			}
+			if err := validatePageSize(opts.PageSize); err != nil {
+				return err
+			}
 			opts.Cmd = cmd
 			opts.Ref = args[0]
 			return agentTaskListRun(opts)
 		},
 	}
 	cmd.Flags().StringVar(&opts.ContextID, "context-id", "", "按多轮上下文 id 过滤任务")
+	addPageFlags(cmd, &opts.PageSize, &opts.PageToken)
 	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
 	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
@@ -308,9 +313,9 @@ func agentTaskGetRun(opts *taskOptions) error {
 }
 
 // agentTaskListRun runs `task list`: resolves the provider, lists tasks
-// (optionally filtered by --context-id), sorts them newest-first by UpdatedAt,
-// and emits {tasks:[...]} with meta.count through content-safety scanning (the
-// summaries carry untrusted agent text).
+// (optionally filtered by --context-id) in the provider's most-recent-first
+// order, and emits {tasks:[...]} with meta.count through content-safety scanning
+// (the summaries carry untrusted agent text).
 func agentTaskListRun(opts *taskOptions) error {
 	f := opts.Factory
 	_, spec, agentID, id, err := resolveSpec(f, opts.Cmd, opts.Ref, opts.As)
@@ -334,22 +339,42 @@ func agentTaskListRun(opts *taskOptions) error {
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}
-	tasks, err := spec.ListTasks.Handler(opts.Cmd.Context(), rt, opts.ContextID)
+	tasks, pageInfo, err := spec.ListTasks.Handler(opts.Cmd.Context(), rt, opts.ContextID,
+		iagents.PageParams{Token: opts.PageToken, Size: opts.PageSize})
 	if err != nil {
 		return err
 	}
 	tasks = normalizeTaskSummaries(tasks)
-	// Newest-first: sort by UpdatedAt (RFC3339 UTC) descending so the most
-	// recently active task heads the list; a stable sort preserves the provider's
-	// relative order for equal timestamps, and tasks with no timestamp sort last.
-	sort.SliceStable(tasks, func(i, j int) bool { return tasks[i].UpdatedAt > tasks[j].UpdatedAt })
+	// Ordering is the provider's contract (most-recent-first), consistent across
+	// and within pages — the CLI does not re-sort a page.
 	if tasks == nil {
 		tasks = []iagents.TaskSummary{} // always emit [] not null (matches the Card.Parameters array convention)
 	}
 	return scanAndEmitData(f, opts.Cmd, opts.Format,
 		map[string]interface{}{"tasks": tasks},
-		listMeta(len(tasks)),
+		listMetaPage(len(tasks), pageInfo, taskListNext(opts, f, pageInfo)),
 		func(w io.Writer) { printTaskSummariesTSV(w, tasks) })
+}
+
+// taskListNext builds the next-page action for `task list`. The command replays
+// the caller's ref + optional --context-id with the returned cursor. The ref is
+// gated by safeNextRef and the context-id by safeNextID (both user-supplied): a
+// failing value drops the action rather than emitting a command that pages the
+// wrong (unfiltered) set — the cursor still rides meta.page_token as data.
+func taskListNext(opts *taskOptions, f *cmdutil.Factory, info iagents.PageInfo) []output.NextAction {
+	if !safeNextRef(opts.Ref) {
+		return nil
+	}
+	if opts.ContextID != "" && !safeNextID(opts.ContextID) {
+		return nil
+	}
+	base := fmt.Sprintf("lark-cli agents task list %s", opts.Ref)
+	if opts.ContextID != "" {
+		base += " --context-id " + opts.ContextID
+	}
+	next := nextPageAction(base, opts.PageSize, info)
+	carryAsIntoNext(opts.Cmd, f, next)
+	return next
 }
 
 // agentTaskCancelRun runs `task cancel`. Cancel is capability-gated offline

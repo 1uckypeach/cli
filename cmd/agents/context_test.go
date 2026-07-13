@@ -48,10 +48,11 @@ func contextTestOpts(t *testing.T, leaf string) (*contextOptions, *httpmock.Regi
 	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
 	f, _, _, reg := cmdutil.TestFactory(t, cfg)
 	return &contextOptions{
-		Factory: f,
-		Cmd:     contextCmdCtx(t, leaf),
-		Ref:     "fakeflow:agt_x",
-		As:      "bot",
+		Factory:  f,
+		Cmd:      contextCmdCtx(t, leaf),
+		Ref:      "fakeflow:agt_x",
+		As:       "bot",
+		PageSize: defaultPageSize,
 	}, reg
 }
 
@@ -134,11 +135,11 @@ func TestContextDeleteInvalidRef(t *testing.T) {
 // {contexts:[...]} with a meta.count.
 func TestContextListEmitsContexts(t *testing.T) {
 	opts, _ := contextTestOpts(t, "list")
-	setScripted(t, scriptedHooks{listContexts: func() ([]iagents.ContextSummary, error) {
+	setScripted(t, scriptedHooks{listContexts: func(iagents.PageParams) ([]iagents.ContextSummary, iagents.PageInfo, error) {
 		return []iagents.ContextSummary{
 			{ContextID: "sess_1", Title: "销售分析", CreatedAt: "2026-07-05T10:01:11+08:00"},
 			{ContextID: "sess_2"},
-		}, nil
+		}, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 
@@ -160,17 +161,17 @@ func TestContextListEmitsContexts(t *testing.T) {
 }
 
 // TestContextListSortedByUpdatedAtDesc pins the ordering + enriched-field
-// contract: the provider returns contexts out of order, and the command emits
-// them newest-first by updated_at while carrying the updated_at / task_count /
-// awaiting_input rollup for each.
+// contract: the provider returns contexts in most-recent-first order (its
+// contract), and the command emits them verbatim while carrying the updated_at /
+// task_count / awaiting_input rollup for each.
 func TestContextListSortedByUpdatedAtDesc(t *testing.T) {
 	opts, _ := contextTestOpts(t, "list")
-	setScripted(t, scriptedHooks{listContexts: func() ([]iagents.ContextSummary, error) {
+	setScripted(t, scriptedHooks{listContexts: func(iagents.PageParams) ([]iagents.ContextSummary, iagents.PageInfo, error) {
 		return []iagents.ContextSummary{
-			{ContextID: "old", UpdatedAt: "2026-07-05T10:00:00Z", TaskCount: 1},
 			{ContextID: "new", UpdatedAt: "2026-07-05T12:00:00Z", TaskCount: 3, AwaitingInput: true},
 			{ContextID: "mid", UpdatedAt: "2026-07-05T11:00:00Z", TaskCount: 2},
-		}, nil
+			{ContextID: "old", UpdatedAt: "2026-07-05T10:00:00Z", TaskCount: 1},
+		}, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 
@@ -205,11 +206,58 @@ func TestContextListSortedByUpdatedAtDesc(t *testing.T) {
 	}
 }
 
+// TestContextListPaginationMeta pins the command-level pagination envelope for
+// context list: a provider that returns a page plus PageInfo{HasMore,NextToken}
+// surfaces as meta.has_more / meta.page_token, and meta.next carries a "下一页"
+// action whose command replays the ref with --page-size / --page-token.
+func TestContextListPaginationMeta(t *testing.T) {
+	opts, _ := contextTestOpts(t, "list")
+	opts.PageSize = 2
+	setScripted(t, scriptedHooks{listContexts: func(page iagents.PageParams) ([]iagents.ContextSummary, iagents.PageInfo, error) {
+		if page.Size != 2 {
+			t.Errorf("the hook should receive the requested page size 2, got %d", page.Size)
+		}
+		return []iagents.ContextSummary{
+				{ContextID: "sess_1", UpdatedAt: "2026-07-05T12:00:00Z"},
+				{ContextID: "sess_2", UpdatedAt: "2026-07-05T11:00:00Z"},
+			},
+			iagents.PageInfo{NextToken: "2", HasMore: true}, nil
+	}})
+	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
+
+	if err := agentContextListRun(opts); err != nil {
+		t.Fatalf("paged context list should not error: %v", err)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("output should be valid envelope JSON: %v (%s)", err, string(out.Bytes()))
+	}
+	if env.Meta == nil {
+		t.Fatal("a paged list should carry meta")
+	}
+	if !env.Meta.HasMore {
+		t.Error("meta.has_more should be true")
+	}
+	if env.Meta.PageToken != "2" {
+		t.Errorf("meta.page_token should be the next cursor \"2\", got %q", env.Meta.PageToken)
+	}
+	found := false
+	for _, n := range env.Meta.Next {
+		if n.Label == "下一页" && strings.Contains(n.Command, "lark-cli agents context list fakeflow:agt_x") &&
+			strings.Contains(n.Command, "--page-size 2") && strings.Contains(n.Command, "--page-token 2") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("meta.next should contain a 下一页 action replaying the ref + --page-size/--page-token, got %+v", env.Meta.Next)
+	}
+}
+
 // TestContextListError surfaces a provider ListContexts failure.
 func TestContextListError(t *testing.T) {
 	opts, _ := contextTestOpts(t, "list")
-	setScripted(t, scriptedHooks{listContexts: func() ([]iagents.ContextSummary, error) {
-		return nil, errs.NewAPIError(errs.SubtypeUnknown, "app ticket invalid").WithCode(99991663)
+	setScripted(t, scriptedHooks{listContexts: func(iagents.PageParams) ([]iagents.ContextSummary, iagents.PageInfo, error) {
+		return nil, iagents.PageInfo{}, errs.NewAPIError(errs.SubtypeUnknown, "app ticket invalid").WithCode(99991663)
 	}})
 	if err := agentContextListRun(opts); err == nil {
 		t.Fatal("a ListContexts error should propagate")
@@ -314,8 +362,8 @@ func TestContextGetInvalidRef(t *testing.T) {
 func TestContextListWithJq(t *testing.T) {
 	opts, _ := contextTestOpts(t, "list")
 	opts.Cmd.Flags().String("jq", ".data.contexts | length", "")
-	setScripted(t, scriptedHooks{listContexts: func() ([]iagents.ContextSummary, error) {
-		return []iagents.ContextSummary{{ContextID: "sess_1"}}, nil
+	setScripted(t, scriptedHooks{listContexts: func(iagents.PageParams) ([]iagents.ContextSummary, iagents.PageInfo, error) {
+		return []iagents.ContextSummary{{ContextID: "sess_1"}}, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 	if err := agentContextListRun(opts); err != nil {
@@ -334,8 +382,8 @@ func TestContextListWithJq(t *testing.T) {
 // list serializes as [] (never null), matching Card.Parameters.
 func TestContextListEmptyEmitsArray(t *testing.T) {
 	opts, _ := contextTestOpts(t, "list")
-	setScripted(t, scriptedHooks{listContexts: func() ([]iagents.ContextSummary, error) {
-		return nil, nil
+	setScripted(t, scriptedHooks{listContexts: func(iagents.PageParams) ([]iagents.ContextSummary, iagents.PageInfo, error) {
+		return nil, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 	if err := agentContextListRun(opts); err != nil {
@@ -364,10 +412,10 @@ func TestContextListEmptyEmitsArray(t *testing.T) {
 func TestContextListPretty(t *testing.T) {
 	opts, _ := contextTestOpts(t, "list")
 	opts.Format = "pretty"
-	setScripted(t, scriptedHooks{listContexts: func() ([]iagents.ContextSummary, error) {
+	setScripted(t, scriptedHooks{listContexts: func(iagents.PageParams) ([]iagents.ContextSummary, iagents.PageInfo, error) {
 		return []iagents.ContextSummary{
 			{ContextID: "sess_1", Title: "\x1b[2J销售分析", CreatedAt: "2026-07-05T10:01:11+08:00"},
-		}, nil
+		}, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 	if err := agentContextListRun(opts); err != nil {

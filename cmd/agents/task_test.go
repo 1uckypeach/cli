@@ -56,11 +56,12 @@ func taskTestOpts(t *testing.T, leaf string) (*taskOptions, *httpmock.Registry) 
 	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
 	f, _, _, reg := cmdutil.TestFactory(t, cfg)
 	return &taskOptions{
-		Factory: f,
-		Cmd:     taskCmdCtx(t, leaf),
-		Ref:     "fakeflow:agt_x",
-		TaskID:  "chat_1",
-		As:      "bot",
+		Factory:  f,
+		Cmd:      taskCmdCtx(t, leaf),
+		Ref:      "fakeflow:agt_x",
+		TaskID:   "chat_1",
+		As:       "bot",
+		PageSize: defaultPageSize,
 	}, reg
 }
 
@@ -254,11 +255,11 @@ func TestTaskGetWatchBoundedTimeout(t *testing.T) {
 // meta.count reflecting the number of tasks.
 func TestTaskListEmitsCount(t *testing.T) {
 	opts, _ := taskTestOpts(t, "list")
-	setScripted(t, scriptedHooks{listTasks: func(contextID string) ([]iagents.TaskSummary, error) {
+	setScripted(t, scriptedHooks{listTasks: func(contextID string, _ iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
 		return []iagents.TaskSummary{
 			{TaskID: "chat_1", State: iagents.StateCompleted, IsTerminal: true},
 			{TaskID: "chat_2", State: iagents.StateWorking},
-		}, nil
+		}, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 
@@ -283,8 +284,8 @@ func TestTaskListEmitsCount(t *testing.T) {
 // serializes as [] (never null), matching Card.Parameters.
 func TestTaskListEmptyEmitsArray(t *testing.T) {
 	opts, _ := taskTestOpts(t, "list")
-	setScripted(t, scriptedHooks{listTasks: func(string) ([]iagents.TaskSummary, error) {
-		return nil, nil
+	setScripted(t, scriptedHooks{listTasks: func(string, iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
+		return nil, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 	if err := agentTaskListRun(opts); err != nil {
@@ -310,8 +311,8 @@ func TestTaskListEmptyEmitsArray(t *testing.T) {
 // TestTaskListError surfaces a provider ListTasks failure.
 func TestTaskListError(t *testing.T) {
 	opts, _ := taskTestOpts(t, "list")
-	setScripted(t, scriptedHooks{listTasks: func(string) ([]iagents.TaskSummary, error) {
-		return nil, errs.NewAPIError(errs.SubtypeUnknown, "app ticket invalid").WithCode(99991663)
+	setScripted(t, scriptedHooks{listTasks: func(string, iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
+		return nil, iagents.PageInfo{}, errs.NewAPIError(errs.SubtypeUnknown, "app ticket invalid").WithCode(99991663)
 	}})
 	if err := agentTaskListRun(opts); err == nil {
 		t.Fatal("ListTasks error should propagate")
@@ -513,11 +514,11 @@ func TestTaskGetPrettyFormat(t *testing.T) {
 func TestTaskListPrettyFormat(t *testing.T) {
 	opts, _ := taskTestOpts(t, "list")
 	opts.Format = "pretty"
-	setScripted(t, scriptedHooks{listTasks: func(string) ([]iagents.TaskSummary, error) {
+	setScripted(t, scriptedHooks{listTasks: func(string, iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
 		return []iagents.TaskSummary{
 			{TaskID: "chat_1", ContextID: "sess_1", State: iagents.StateCompleted, IsTerminal: true,
 				UpdatedAt: "2026-07-05T12:00:00Z", Summary: "分析完成"},
-		}, nil
+		}, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 
@@ -540,11 +541,11 @@ func TestTaskListPrettyFormat(t *testing.T) {
 func TestTaskListPrettySanitizesStateAndTimestamp(t *testing.T) {
 	opts, _ := taskTestOpts(t, "list")
 	opts.Format = "pretty"
-	setScripted(t, scriptedHooks{listTasks: func(string) ([]iagents.TaskSummary, error) {
+	setScripted(t, scriptedHooks{listTasks: func(string, iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
 		return []iagents.TaskSummary{
 			{TaskID: "chat_1", State: iagents.TaskState("completed\x1b[2J"), IsTerminal: true,
 				UpdatedAt: "2026-07-05T12:00:00Z\x1b]0;pwned\x07"},
-		}, nil
+		}, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 	if err := agentTaskListRun(opts); err != nil {
@@ -556,16 +557,17 @@ func TestTaskListPrettySanitizesStateAndTimestamp(t *testing.T) {
 }
 
 // TestTaskListSortedByUpdatedAtDesc pins the ordering + enriched-field
-// contract: the provider returns tasks out of order, and the command emits them
-// newest-first by updated_at while carrying updated_at + summary on each.
+// contract: the provider returns tasks in most-recent-first order (its
+// contract), and the command emits them verbatim while carrying updated_at +
+// summary on each.
 func TestTaskListSortedByUpdatedAtDesc(t *testing.T) {
 	opts, _ := taskTestOpts(t, "list")
-	setScripted(t, scriptedHooks{listTasks: func(string) ([]iagents.TaskSummary, error) {
+	setScripted(t, scriptedHooks{listTasks: func(string, iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
 		return []iagents.TaskSummary{
-			{TaskID: "old", State: iagents.StateCompleted, UpdatedAt: "2026-07-05T10:00:00Z", Summary: "第一轮"},
 			{TaskID: "new", State: iagents.StateInputRequired, UpdatedAt: "2026-07-05T12:00:00Z", Summary: "请补充"},
 			{TaskID: "mid", State: iagents.StateCompleted, UpdatedAt: "2026-07-05T11:00:00Z", Summary: "第二轮"},
-		}, nil
+			{TaskID: "old", State: iagents.StateCompleted, UpdatedAt: "2026-07-05T10:00:00Z", Summary: "第一轮"},
+		}, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 
@@ -1137,5 +1139,117 @@ func TestDownloadArtifact_ForceOverwrites(t *testing.T) {
 	}
 	if b, _ := os.ReadFile("out.bin"); string(b) != "NEW" {
 		t.Errorf("--force should have overwritten with downloaded bytes, got %q", b)
+	}
+}
+
+// TestTaskListPaginationMeta pins the command-level pagination envelope: a
+// provider that returns a page plus PageInfo{HasMore,NextToken} surfaces as
+// meta.count / meta.has_more / meta.page_token, and meta.next carries a "下一页"
+// action whose command replays --page-size / --page-token.
+func TestTaskListPaginationMeta(t *testing.T) {
+	opts, _ := taskTestOpts(t, "list")
+	opts.PageSize = 2
+	setScripted(t, scriptedHooks{listTasks: func(_ string, page iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
+		if page.Size != 2 {
+			t.Errorf("the hook should receive the requested page size 2, got %d", page.Size)
+		}
+		return []iagents.TaskSummary{
+				{TaskID: "chat_1", State: iagents.StateCompleted, UpdatedAt: "2026-07-05T12:00:00Z"},
+				{TaskID: "chat_2", State: iagents.StateCompleted, UpdatedAt: "2026-07-05T11:00:00Z"},
+			},
+			iagents.PageInfo{NextToken: "2", HasMore: true}, nil
+	}})
+	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
+
+	if err := agentTaskListRun(opts); err != nil {
+		t.Fatalf("paged task list should not error: %v", err)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("output should be valid envelope JSON: %v (%s)", err, string(out.Bytes()))
+	}
+	if env.Meta == nil {
+		t.Fatal("a paged list should carry meta")
+	}
+	if env.Meta.Count != 2 {
+		t.Errorf("meta.count should be 2, got %d", env.Meta.Count)
+	}
+	if !env.Meta.HasMore {
+		t.Error("meta.has_more should be true")
+	}
+	if env.Meta.PageToken != "2" {
+		t.Errorf("meta.page_token should be the next cursor \"2\", got %q", env.Meta.PageToken)
+	}
+	found := false
+	for _, n := range env.Meta.Next {
+		if n.Label == "下一页" && strings.Contains(n.Command, "--page-token 2") && strings.Contains(n.Command, "--page-size 2") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("meta.next should contain a 下一页 action replaying --page-size/--page-token, got %+v", env.Meta.Next)
+	}
+}
+
+// TestTaskListPaginationUnsafeCursorDropsNextKeepsToken pins the injection-drop
+// branch: an unsafe server cursor still rides meta.page_token verbatim (it is
+// DATA the caller can inspect), but it fails the safeNextID whitelist so no
+// executable "下一页" command is emitted with it interpolated.
+func TestTaskListPaginationUnsafeCursorDropsNextKeepsToken(t *testing.T) {
+	opts, _ := taskTestOpts(t, "list")
+	opts.PageSize = 2
+	setScripted(t, scriptedHooks{listTasks: func(_ string, _ iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
+		return []iagents.TaskSummary{
+				{TaskID: "chat_1", State: iagents.StateCompleted, UpdatedAt: "2026-07-05T12:00:00Z"},
+			},
+			iagents.PageInfo{NextToken: "2 && evil", HasMore: true}, nil
+	}})
+	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
+
+	if err := agentTaskListRun(opts); err != nil {
+		t.Fatalf("paged task list should not error: %v", err)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("output should be valid envelope JSON: %v (%s)", err, string(out.Bytes()))
+	}
+	if env.Meta == nil {
+		t.Fatal("a paged list should carry meta")
+	}
+	if env.Meta.PageToken != "2 && evil" {
+		t.Errorf("meta.page_token should preserve the raw cursor as data, got %q", env.Meta.PageToken)
+	}
+	for _, n := range env.Meta.Next {
+		if n.Label == "下一页" {
+			t.Errorf("an unsafe cursor must drop the executable 下一页 command, got %+v", n)
+		}
+	}
+}
+
+// TestValidatePageSize pins the [1,100] range guard: 0 and 101 are rejected as
+// invalid_argument validation errors carrying the --page-size param, while the
+// in-range values pass.
+func TestValidatePageSize(t *testing.T) {
+	for _, n := range []int{0, 101} {
+		err := validatePageSize(n)
+		if err == nil {
+			t.Fatalf("page-size %d should be rejected", n)
+		}
+		if !errs.IsValidation(err) {
+			t.Fatalf("page-size %d should be a validation error, got %T", n, err)
+		}
+		p, ok := errs.ProblemOf(err)
+		if !ok || p.Subtype != errs.SubtypeInvalidArgument {
+			t.Fatalf("page-size %d should be invalid_argument, got %+v", n, p)
+		}
+		var ve *errs.ValidationError
+		if !errors.As(err, &ve) || ve.Param != "--page-size" {
+			t.Errorf("page-size %d error should carry param --page-size, got %+v", n, ve)
+		}
+	}
+	for _, n := range []int{1, 20, 100} {
+		if err := validatePageSize(n); err != nil {
+			t.Errorf("page-size %d should be valid, got %v", n, err)
+		}
 	}
 }

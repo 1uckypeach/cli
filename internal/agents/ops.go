@@ -29,9 +29,9 @@ type Op[H any] struct {
 type (
 	SendOp             = Op[func(ctx context.Context, rt Runtime, in SendInput) (*AgentTask, error)]
 	TaskGetOp          = Op[func(ctx context.Context, rt Runtime, taskID string) (*AgentTask, error)]
-	TaskListOp         = Op[func(ctx context.Context, rt Runtime, contextID string) ([]TaskSummary, error)]
+	TaskListOp         = Op[func(ctx context.Context, rt Runtime, contextID string, page PageParams) ([]TaskSummary, PageInfo, error)]
 	TaskCancelOp       = Op[func(ctx context.Context, rt Runtime, taskID string) error]
-	ContextListOp      = Op[func(ctx context.Context, rt Runtime) ([]ContextSummary, error)]
+	ContextListOp      = Op[func(ctx context.Context, rt Runtime, page PageParams) ([]ContextSummary, PageInfo, error)]
 	ContextGetOp       = Op[func(ctx context.Context, rt Runtime, ctxID string) (*ContextDetail, error)]
 	ContextDeleteOp    = Op[func(ctx context.Context, rt Runtime, ctxID string) error]
 	ArtifactDownloadOp = Op[func(ctx context.Context, rt Runtime, taskID, artifactID string) (*ArtifactData, error)]

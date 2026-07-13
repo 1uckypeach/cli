@@ -19,8 +19,8 @@ import (
 type scriptedHooks struct {
 	send             func(in iagents.SendInput) (*iagents.AgentTask, error)
 	getTask          func(taskID string) (*iagents.AgentTask, error)
-	listTasks        func(contextID string) ([]iagents.TaskSummary, error)
-	listContexts     func() ([]iagents.ContextSummary, error)
+	listTasks        func(contextID string, page iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error)
+	listContexts     func(page iagents.PageParams) ([]iagents.ContextSummary, iagents.PageInfo, error)
 	getContext       func(ctxID string) (*iagents.ContextDetail, error)
 	deleteContext    func(ctxID string) error
 	downloadArtifact func(taskID, artifactID string) (*iagents.ArtifactData, error)
@@ -59,17 +59,17 @@ func scriptedSpec() *iagents.AgentSpec {
 			}
 			return scripted.getTask(taskID)
 		}},
-		ListTasks: iagents.TaskListOp{Handler: func(_ context.Context, _ iagents.Runtime, contextID string) ([]iagents.TaskSummary, error) {
+		ListTasks: iagents.TaskListOp{Handler: func(_ context.Context, _ iagents.Runtime, contextID string, page iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
 			if scripted.listTasks == nil {
 				panic("scripted provider: ListTasks hook not set")
 			}
-			return scripted.listTasks(contextID)
+			return scripted.listTasks(contextID, page)
 		}},
-		ListContexts: iagents.ContextListOp{Handler: func(_ context.Context, _ iagents.Runtime) ([]iagents.ContextSummary, error) {
+		ListContexts: iagents.ContextListOp{Handler: func(_ context.Context, _ iagents.Runtime, page iagents.PageParams) ([]iagents.ContextSummary, iagents.PageInfo, error) {
 			if scripted.listContexts == nil {
 				panic("scripted provider: ListContexts hook not set")
 			}
-			return scripted.listContexts()
+			return scripted.listContexts(page)
 		}},
 		GetContext: iagents.ContextGetOp{Handler: func(_ context.Context, _ iagents.Runtime, ctxID string) (*iagents.ContextDetail, error) {
 			if scripted.getContext == nil {

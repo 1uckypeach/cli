@@ -57,8 +57,11 @@ type Provider struct {
 	// nil (enumeration is derived offline from Catalog); an instance platform with
 	// only get-by-id and no list endpoint also leaves it nil (not enumerable).
 	// This is independent of AgentSpec.Describe: ListAgents = "which agents exist"
-	// (a list endpoint), Describe = "what one agent looks like" (get-by-id).
-	ListAgents func(ctx context.Context, rt Runtime) ([]AgentSummary, error)
+	// (a list endpoint), Describe = "what one agent looks like" (get-by-id). It is
+	// paginated: the framework passes the requested cursor/size as PageParams and
+	// surfaces the returned PageInfo as meta.has_more / meta.page_token plus a
+	// next-page command.
+	ListAgents func(ctx context.Context, rt Runtime, page PageParams) ([]AgentSummary, PageInfo, error)
 
 	// ListParams declares the business parameters of `agents list <scheme>` itself
 	// (list is a provider-level discovery operation, so its parameters live here,

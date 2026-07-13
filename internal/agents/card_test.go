@@ -64,7 +64,9 @@ func TestCardSupports(t *testing.T) {
 func TestDeriveCapabilities(t *testing.T) {
 	// Minimal (echo-like): only the core hooks + read verbs.
 	min := coreSpec("echo")
-	min.ListContexts = ContextListOp{Handler: func(context.Context, Runtime) ([]ContextSummary, error) { return nil, nil }}
+	min.ListContexts = ContextListOp{Handler: func(context.Context, Runtime, PageParams) ([]ContextSummary, PageInfo, error) {
+		return nil, PageInfo{}, nil
+	}}
 	c := DeriveCapabilities(&min)
 	if !c.TaskGet {
 		t.Error("task_get should be true (GetTask is a mandatory core hook)")
@@ -80,9 +82,13 @@ func TestDeriveCapabilities(t *testing.T) {
 
 	// Full (reporter-like): everything wired / declared.
 	full := coreSpec("reporter")
-	full.ListTasks = TaskListOp{Handler: func(context.Context, Runtime, string) ([]TaskSummary, error) { return nil, nil }}
+	full.ListTasks = TaskListOp{Handler: func(context.Context, Runtime, string, PageParams) ([]TaskSummary, PageInfo, error) {
+		return nil, PageInfo{}, nil
+	}}
 	full.CancelTask = TaskCancelOp{Handler: func(context.Context, Runtime, string) error { return nil }}
-	full.ListContexts = ContextListOp{Handler: func(context.Context, Runtime) ([]ContextSummary, error) { return nil, nil }}
+	full.ListContexts = ContextListOp{Handler: func(context.Context, Runtime, PageParams) ([]ContextSummary, PageInfo, error) {
+		return nil, PageInfo{}, nil
+	}}
 	full.GetContext = ContextGetOp{Handler: func(context.Context, Runtime, string) (*ContextDetail, error) { return nil, nil }}
 	full.DeleteContext = ContextDeleteOp{Handler: func(context.Context, Runtime, string) error { return nil }}
 	full.DownloadArtifact = ArtifactDownloadOp{Handler: func(context.Context, Runtime, string, string) (*ArtifactData, error) { return nil, nil }}
