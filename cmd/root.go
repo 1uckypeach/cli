@@ -566,7 +566,7 @@ func groupRootCommands(root *cobra.Command) {
 		&cobra.Group{ID: groupTooling, Title: "Agent tooling:"},
 		&cobra.Group{ID: groupManagement, Title: "CLI management:"},
 	)
-	tooling := map[string]bool{"api": true, "schema": true, "skills": true, "agent": true}
+	tooling := map[string]bool{"api": true, "schema": true, "skills": true, "agents": true}
 	management := map[string]bool{"auth": true, "config": true, "profile": true, "doctor": true, "update": true}
 	for _, c := range root.Commands() {
 		if c.GroupID != "" {

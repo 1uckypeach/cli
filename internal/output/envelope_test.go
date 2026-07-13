@@ -29,7 +29,7 @@ func unmarshalMap(t *testing.T, b []byte) map[string]interface{} {
 }
 
 func TestMetaNextSerialization_NonEmptyRoundTrips(t *testing.T) {
-	m := &Meta{Next: []NextAction{{Label: "poll", Command: "lark-cli agent task get example:x t1"}}}
+	m := &Meta{Next: []NextAction{{Label: "poll", Command: "lark-cli agents task get example:x t1"}}}
 
 	got := unmarshalMap(t, marshalMeta(t, m))
 
@@ -51,7 +51,7 @@ func TestMetaNextSerialization_NonEmptyRoundTrips(t *testing.T) {
 	if action["label"] != "poll" {
 		t.Errorf("next[0].label = %v, want poll", action["label"])
 	}
-	if action["command"] != "lark-cli agent task get example:x t1" {
+	if action["command"] != "lark-cli agents task get example:x t1" {
 		t.Errorf("next[0].command = %v, want the poll command", action["command"])
 	}
 }
@@ -104,7 +104,7 @@ func TestMetaNextSerialization_TemplateTruePresent(t *testing.T) {
 	// marker so AI callers know it needs substitution before execution.
 	m := &Meta{Next: []NextAction{{
 		Label:    "continue",
-		Command:  "lark-cli agent send example:x --context-id c1 --task-id t1 --text <你的答复>",
+		Command:  "lark-cli agents send example:x --context-id c1 --task-id t1 --text <你的答复>",
 		Template: true,
 	}}}
 
@@ -121,7 +121,7 @@ func TestMetaNextSerialization_TemplateTruePresent(t *testing.T) {
 func TestMetaNextSerialization_TemplateFalseOmitted(t *testing.T) {
 	// A directly executable hint must not carry the template key at all
 	// (omitempty): its absence is the "run verbatim" signal.
-	m := &Meta{Next: []NextAction{{Label: "poll", Command: "lark-cli agent task get example:x t1 --watch"}}}
+	m := &Meta{Next: []NextAction{{Label: "poll", Command: "lark-cli agents task get example:x t1 --watch"}}}
 
 	next, ok := unmarshalMap(t, marshalMeta(t, m))["next"].([]interface{})
 	if !ok || len(next) != 1 {
@@ -135,8 +135,8 @@ func TestMetaNextSerialization_TemplateFalseOmitted(t *testing.T) {
 
 func TestMetaNextSerialization_MultipleActionsPreserveOrder(t *testing.T) {
 	m := &Meta{Next: []NextAction{
-		{Label: "poll", Command: "lark-cli agent task get example:x t1"},
-		{Label: "cancel", Command: "lark-cli agent task cancel example:x t1"},
+		{Label: "poll", Command: "lark-cli agents task get example:x t1"},
+		{Label: "cancel", Command: "lark-cli agents task cancel example:x t1"},
 	}}
 
 	next, ok := unmarshalMap(t, marshalMeta(t, m))["next"].([]interface{})
@@ -154,7 +154,7 @@ func TestMetaNextSerialization_SpecialCharacters(t *testing.T) {
 	// Fields carrying quotes, unicode and newlines must survive a JSON round
 	// trip intact, which string matching would not reliably verify.
 	label := `poll "now"`
-	command := "lark-cli agent task get example:代理 t1\n--wait"
+	command := "lark-cli agents task get example:代理 t1\n--wait"
 	m := &Meta{Next: []NextAction{{Label: label, Command: command}}}
 
 	next, _ := unmarshalMap(t, marshalMeta(t, m))["next"].([]interface{})
@@ -176,7 +176,7 @@ func TestEnvelopeMetaNextIntegration(t *testing.T) {
 	env := Envelope{
 		OK:   true,
 		Data: map[string]interface{}{"task_id": "t1"},
-		Meta: &Meta{Next: []NextAction{{Label: "poll", Command: "lark-cli agent task get example:x t1"}}},
+		Meta: &Meta{Next: []NextAction{{Label: "poll", Command: "lark-cli agents task get example:x t1"}}},
 	}
 	b, err := json.Marshal(env)
 	if err != nil {
@@ -196,7 +196,7 @@ func TestEnvelopeMetaNextIntegration(t *testing.T) {
 		t.Fatalf("meta.next = %#v, want single-element array", meta["next"])
 	}
 	action, _ := next[0].(map[string]interface{})
-	if action["command"] != "lark-cli agent task get example:x t1" {
+	if action["command"] != "lark-cli agents task get example:x t1" {
 		t.Errorf("meta.next[0].command = %v, want the poll command", action["command"])
 	}
 }
