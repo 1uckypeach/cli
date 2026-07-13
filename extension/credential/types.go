@@ -46,12 +46,24 @@ func (s IdentitySupport) BotOnly() bool { return s == SupportsBot }
 
 // Account holds resolved app credentials and configuration.
 type Account struct {
-	AppID               string
-	AppSecret           string   // real app secret; empty or NoAppSecret means unavailable
-	Brand               Brand    // BrandLark or BrandFeishu
-	DefaultAs           Identity // IdentityUser / IdentityBot / IdentityAuto; empty = not set
-	ProfileName         string
-	OpenID              string          // optional; if UAT is available, API result takes precedence
+	AppID       string
+	AppSecret   string   // real app secret; empty or NoAppSecret means unavailable
+	Brand       Brand    // BrandLark or BrandFeishu
+	DefaultAs   Identity // IdentityUser / IdentityBot / IdentityAuto; empty = not set
+	ProfileName string
+	// OpenID is the optional user open_id hint. If a UAT is available, the
+	// user_info API result takes precedence unless OpenIDVerified is set.
+	OpenID string
+	// OpenIDVerified marks OpenID as an identity assertion the provider has
+	// already verified. When true and OpenID is non-empty, the CLI skips the
+	// startup user_info verification call and uses OpenID as-is wherever the
+	// resolved user identity is consumed (identity selection, whoami display,
+	// stored-token lookup). The CLI does NOT re-verify the asserted value:
+	// a mismatched assertion is the responsibility of the integrator that
+	// manages the token supply, and whoami will display the injected,
+	// unverified value on this path. Setting OpenIDVerified with an empty
+	// OpenID is treated as unasserted and falls back to normal verification.
+	OpenIDVerified      bool
 	SupportedIdentities IdentitySupport // zero = provider did not declare; treat as no restriction
 }
 
