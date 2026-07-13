@@ -332,7 +332,7 @@ var MailWatch = common.Shortcut{
 							output.PrintError(errOut, fmt.Sprintf("failed to write event file: %v", writeErr))
 						}
 					}
-					output.PrintJson(out, failureData)
+					output.PrintNdjson(out, watchFailureOutputValue(outFormat, string(runtime.As()), failureData))
 					return
 				}
 			}
@@ -691,6 +691,22 @@ func watchOutputValue(outFormat, identity string, outputData interface{}) interf
 		return outputData
 	}
 	return output.Envelope{OK: true, Identity: identity, Data: outputData}
+}
+
+// watchFailureOutputValue frames a fetch-failure payload for the watch stream,
+// mirroring watchOutputValue so the default json stream stays one JSON object
+// per line: bare payload for --format data, identity-tagged single line for the
+// default json envelope. failureData already carries {ok:false, error, ...}.
+func watchFailureOutputValue(outFormat, identity string, failureData map[string]interface{}) interface{} {
+	if outFormat == "data" || identity == "" {
+		return failureData
+	}
+	enriched := make(map[string]interface{}, len(failureData)+1)
+	for k, v := range failureData {
+		enriched[k] = v
+	}
+	enriched["identity"] = identity
+	return enriched
 }
 
 func watchFetchFailureValue(messageID, fetchFormat string, err error, eventBody map[string]interface{}) map[string]interface{} {

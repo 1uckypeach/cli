@@ -941,3 +941,48 @@ func TestWatchOutputValueDefaultIsJSONEnvelope(t *testing.T) {
 		t.Fatalf("--format data payload should carry message, got %s", b2)
 	}
 }
+
+// P1: fetch 失败分支必须与成功分支同一 NDJSON 框架 —— 默认 json 输出一行
+// ok:false + identity + error，--format data 输出一行裸 failureData；绝不能走
+// PrintJson 的多行 pretty（会破坏默认 json 的 NDJSON 流）。
+func TestWatchFailureOutputValueDefaultIsJSONEnvelope(t *testing.T) {
+	failure := map[string]interface{}{
+		"ok":    false,
+		"error": map[string]interface{}{"type": "fetch_message_failed", "message_id": "m1"},
+	}
+
+	// default (json) → identity-tagged single-line failure envelope, ok:false preserved
+	b, err := json.Marshal(watchFailureOutputValue("json", "user", failure))
+	if err != nil {
+		t.Fatalf("marshal json failure value: %v", err)
+	}
+	var env map[string]interface{}
+	if err := json.Unmarshal(b, &env); err != nil {
+		t.Fatalf("unmarshal json failure value: %v", err)
+	}
+	if env["ok"] != false {
+		t.Fatalf("failure json must keep ok:false, got %s", b)
+	}
+	if env["identity"] != "user" {
+		t.Fatalf("failure json must carry identity, got %s", b)
+	}
+	if _, ok := env["error"]; !ok {
+		t.Fatalf("failure json must carry error, got %s", b)
+	}
+
+	// --format data → bare failure payload, no identity injected
+	b2, err := json.Marshal(watchFailureOutputValue("data", "user", failure))
+	if err != nil {
+		t.Fatalf("marshal data failure value: %v", err)
+	}
+	var bare map[string]interface{}
+	if err := json.Unmarshal(b2, &bare); err != nil {
+		t.Fatalf("unmarshal data failure value: %v", err)
+	}
+	if _, hasIdentity := bare["identity"]; hasIdentity {
+		t.Fatalf("--format data failure must not inject identity, got %s", b2)
+	}
+	if bare["ok"] != false {
+		t.Fatalf("--format data failure should carry ok:false payload, got %s", b2)
+	}
+}
