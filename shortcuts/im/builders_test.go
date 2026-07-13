@@ -410,6 +410,9 @@ func TestShortcutValidateBranches(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "--content is not valid JSON") {
 			t.Fatalf("ImMessagesSend.Validate() error = %v", err)
 		}
+		if !strings.Contains(err.Error(), "--text") {
+			t.Fatalf("ImMessagesSend.Validate() error = %v, want it to mention --text as a recovery alternative", err)
+		}
 	})
 
 	t.Run("ImMessagesSend media with text", func(t *testing.T) {
@@ -650,6 +653,9 @@ func TestShortcutValidateBranches(t *testing.T) {
 		err := ImChatMessageList.Validate(context.Background(), runtime)
 		if err == nil || !strings.Contains(err.Error(), "requires user identity") {
 			t.Fatalf("ImChatMessageList.Validate() error = %v, want requires user identity", err)
+		}
+		if !strings.Contains(err.Error(), "--as user") || !strings.Contains(err.Error(), "--chat-id") {
+			t.Fatalf("ImChatMessageList.Validate() error = %v, want it to mention both --as user and --chat-id as recovery actions", err)
 		}
 	})
 

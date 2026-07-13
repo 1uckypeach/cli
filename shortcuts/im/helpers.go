@@ -1482,7 +1482,7 @@ type shortcutItem struct {
 func collectChatIDs(rt *common.RuntimeContext) ([]string, error) {
 	raw := rt.StrSlice("chat-id")
 	if len(raw) == 0 {
-		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--chat-id is required (oc_xxx); repeat the flag or pass comma-separated values").WithParam("--chat-id")
+		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--chat-id is required (oc_xxx); repeat the flag or pass comma-separated values").WithParam("--chat-id").WithHint("get the open_chat_id from im +chat-search (by name) or im +chat-list (my chats)")
 	}
 
 	seen := make(map[string]struct{}, len(raw))
@@ -1494,7 +1494,7 @@ func collectChatIDs(rt *common.RuntimeContext) ([]string, error) {
 		}
 		if !strings.HasPrefix(v, "oc_") {
 			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
-				"invalid --chat-id %q: must be an open_chat_id starting with oc_", v).WithParam("--chat-id")
+				"invalid --chat-id %q: must be an open_chat_id starting with oc_", v).WithParam("--chat-id").WithHint("get the open_chat_id from im +chat-search (by name) or im +chat-list (my chats)")
 		}
 		if _, ok := seen[v]; ok {
 			continue
@@ -1503,7 +1503,7 @@ func collectChatIDs(rt *common.RuntimeContext) ([]string, error) {
 		out = append(out, v)
 	}
 	if len(out) == 0 {
-		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--chat-id is required (oc_xxx)").WithParam("--chat-id")
+		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--chat-id is required (oc_xxx)").WithParam("--chat-id").WithHint("get the open_chat_id from im +chat-search (by name) or im +chat-list (my chats)")
 	}
 	if len(out) > feedShortcutBatchLimit {
 		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
