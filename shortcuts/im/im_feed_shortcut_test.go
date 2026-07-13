@@ -118,10 +118,12 @@ func TestCollectChatIDs(t *testing.T) {
 	}
 }
 
-// TestCollectChatIDsHint locks that every collectChatIDs validation error
-// carries an actionable recovery hint pointing the user at how to discover a
-// real open_chat_id (im +chat-search / im +chat-list), not just what shape
-// the flag must take.
+// TestCollectChatIDsHint locks that the missing/invalid chat-id errors from
+// collectChatIDs carry an actionable recovery hint pointing the user at how to
+// discover a real open_chat_id (im +chat-search / im +chat-list), name the
+// failing flag via Param, and keep the invalid_argument subtype. The
+// over-batch-limit error is intentionally out of scope — it needs no
+// ID-source guidance.
 func TestCollectChatIDsHint(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -129,6 +131,7 @@ func TestCollectChatIDsHint(t *testing.T) {
 	}{
 		{name: "missing chat-id", input: nil},
 		{name: "bad prefix", input: []string{"om_abc"}},
+		{name: "whitespace only", input: []string{"   "}},
 	}
 
 	for _, tt := range tests {
@@ -155,6 +158,13 @@ func TestCollectChatIDsHint(t *testing.T) {
 			}
 			if !strings.Contains(problem.Hint, "+chat-search") || !strings.Contains(problem.Hint, "+chat-list") {
 				t.Fatalf("collectChatIDs() Hint = %q, want it to mention both +chat-search and +chat-list", problem.Hint)
+			}
+			var verr *errs.ValidationError
+			if !errors.As(err, &verr) {
+				t.Fatalf("collectChatIDs() error is not *errs.ValidationError: %v", err)
+			}
+			if verr.Param != "--chat-id" {
+				t.Fatalf("collectChatIDs() Param = %q, want --chat-id", verr.Param)
 			}
 		})
 	}
