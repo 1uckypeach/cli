@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 // Package apimeta lets Go module integrators install embedded API metadata
-// for this process, equivalent to the meta_data.json compiled in via
-// go:embed in official lark-cli builds.
+// for this process, equivalent to the meta_data.json that official lark-cli
+// builds compile in via go:embed.
 //
 // Binaries built from the bare Go module embed only an empty metadata stub,
 // so schema resolution and generated service commands have nothing to work
