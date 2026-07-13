@@ -48,6 +48,17 @@ const (
 	triageAPIRetries = 2 // retry count in addition to the first attempt
 )
 
+// triageOutput is the structured output for +triage: the message list plus
+// pagination live inside data (im/calendar convention), meta is nil. Passing a
+// struct (not a map) lets output.toGeneric JSON-round-trip it so ExtractItems
+// can find the messages array for table/csv/ndjson rendering.
+type triageOutput struct {
+	Messages  []map[string]interface{} `json:"messages"`
+	Total     int                      `json:"total"`
+	HasMore   bool                     `json:"has_more"`
+	PageToken string                   `json:"page_token"`
+}
+
 var MailTriage = common.Shortcut{
 	Service:     "mail",
 	Command:     "+triage",
@@ -282,13 +293,18 @@ var MailTriage = common.Shortcut{
 			fmt.Fprintf(runtime.IO().ErrOut, "notice: %s\n", notice)
 		}
 
-		// 标准信封输出：data = messages 数组（每条已含 mailbox_id），
-		// meta 带 count/has_more/page_token；--format pretty 走精排表格。
-		runtime.OutFormat(messages, &output.Meta{
-			Count:     len(messages),
+		// 标准信封输出：data = {messages, total, has_more, page_token}（与 calendar
+		// +search-event / im 等 list 命令一致，分页放 data；每条 message 已含 mailbox_id）；
+		// meta 为 nil；--format pretty 走精排表格，table/csv/ndjson 由 ExtractItems 从
+		// data 对象提取 messages 渲染。用 struct（而非 map）：output.toGeneric 对 struct
+		// 会做 JSON round-trip，把嵌套 messages 归一化为 []interface{}，ExtractItems 能正确
+		// 探测到数组字段（顶层 map 不 round-trip，会导致 table/csv/ndjson 拍平成一行）。
+		runtime.OutFormat(triageOutput{
+			Messages:  messages,
+			Total:     len(messages),
 			HasMore:   hasMore,
 			PageToken: nextPageToken,
-		}, func(w io.Writer) {
+		}, nil, func(w io.Writer) {
 			if len(messages) == 0 {
 				fmt.Fprintln(w, "No messages found.")
 				return

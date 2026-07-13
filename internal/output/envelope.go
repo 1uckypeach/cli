@@ -15,10 +15,8 @@ type Envelope struct {
 
 // Meta carries optional metadata in envelope responses.
 type Meta struct {
-	Count     int    `json:"count"`
-	Rollback  string `json:"rollback,omitempty"`
-	HasMore   bool   `json:"has_more,omitempty"`
-	PageToken string `json:"page_token,omitempty"`
+	Count    int    `json:"count,omitempty"`
+	Rollback string `json:"rollback,omitempty"`
 }
 
 // PendingNotice, if set, returns system-level notices to inject as the

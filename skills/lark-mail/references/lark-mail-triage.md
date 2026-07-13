@@ -31,12 +31,12 @@ lark-cli mail +triage --filter '{"folder":"flagged"}'
 lark-cli mail +triage --filter '{"label":"important"}'
 lark-cli mail +triage --filter '{"label":"重要邮件"}'
 
-# json/data 格式可配合 jq 处理
-lark-cli mail +triage --format json | jq '.data[].subject'
+# json 输出配合 jq（消息数组在 .data.messages）
+lark-cli mail +triage --format json | jq '.data.messages[].subject'
 
 # 分页：先取 10 条，再用 page_token 翻页
 lark-cli mail +triage --max 10 --format json
-# 输出 meta 中包含 page_token，传入下一次请求
+# 输出 data 中包含 page_token，传入下一次请求
 lark-cli mail +triage --page-token 'list:FfccvoqPd...' --max 10 --format json
 
 # --page-size 是 --max 的别名
@@ -49,7 +49,7 @@ lark-cli mail +triage --page-size 10
 |------|------|------|
 | `--filter <json>` | — | 筛选条件（见下方字段说明） |
 | `--query <text>` | — | 全文搜索关键词 |
-| `--format <mode>` | `json` | `json`（默认，`{ok,data,meta}` 信封）/ `pretty`（人类表格）/ `table`·`csv`·`ndjson`（通用渲染）；非 Enum 值报错 |
+| `--format <mode>` | `json` | `json`（默认，`{ok,data}` 信封，消息在 `data.messages`）/ `pretty`（人类表格）/ `table`·`csv`·`ndjson`（通用渲染）；非 Enum 值报错 |
 | `--max <n>` | `20` | 最大返回条数（1-400），内部自动分页拉取 |
 | `--page-size <n>` | — | `--max` 的别名，两者含义相同；同时指定时 `--page-size` 优先 |
 | `--page-token <token>` | — | 上一次响应返回的分页令牌，传入后从该位置继续拉取。令牌带 `search:` 或 `list:` 前缀，标识来源路径，不可混用 |
@@ -80,34 +80,38 @@ lark-cli mail +triage --page-size 10
 
 ### `--format json`（默认）
 
-标准 `{ok,data,meta}` 信封；`data` 为 message 数组（每条含 `mailbox_id`），分页信息在 `meta`：
+`{ok,data}` 信封（与 im 等 list 命令一致）；`data` 为对象，消息数组在 `data.messages`，分页信息作为 `data` 的兄弟字段；无 `meta`：
 
 ```json
 {
   "ok": true,
-  "data": [
-    {
-      "message_id": "SEU2...",
-      "mailbox_id": "me",
-      "date": "Fri, 21 Mar 2026 11:40:00 +0800",
-      "from": "Alice <alice@example.com>",
-      "subject": "Weekly update",
-      "labels": "INBOX,UNREAD"
-    }
-  ],
-  "meta": { "count": 20, "has_more": true, "page_token": "list:FfccvoqPd_loLhtcRx8cx..." }
+  "data": {
+    "messages": [
+      {
+        "message_id": "SEU2...",
+        "mailbox_id": "me",
+        "date": "Fri, 21 Mar 2026 11:40:00 +0800",
+        "from": "Alice <alice@example.com>",
+        "subject": "Weekly update",
+        "labels": "INBOX,UNREAD"
+      }
+    ],
+    "total": 20,
+    "has_more": true,
+    "page_token": "list:FfccvoqPd_loLhtcRx8cx..."
+  }
 }
 ```
 
-- `data[].mailbox_id`：邮箱标识，传给 `mail +message --mailbox` 以保持公共邮箱上下文
-- `meta.count`：本次返回条数（空结果时为 `0`，始终返回，可稳定读取）
-- `meta.has_more`：是否还有下一页（无更多时字段省略）
-- `meta.page_token`：传入 `--page-token` 获取下一页（无更多时省略）；前缀 `search:` / `list:` 标识来源路径，不可混用
-- **迁移**：旧的顶层 `.messages` / `.count` / `.has_more` / `.page_token` 已迁到 `.data` / `.meta.*`；`--format data` 已移除（用默认或 `--format json`）
+- `data.messages[].mailbox_id`：邮箱标识，传给 `mail +message --mailbox` 以保持公共邮箱上下文
+- `data.total`：本次返回条数（空结果时为 `0`，始终返回，可稳定读取）
+- `data.has_more`：是否还有下一页
+- `data.page_token`：传入 `--page-token` 获取下一页；前缀 `search:` / `list:` 标识来源路径，不可混用
+- **迁移**：旧的顶层 `.messages` / `.count` / `.has_more` / `.page_token` 已迁到 `.data.messages` / `.data.total` / `.data.has_more` / `.data.page_token`；`--format data` 已移除（用默认或 `--format json`）
 
 ### `pretty` / `table` / `csv` / `ndjson`
 
-`--format pretty` 输出精排人类表格；`--format table` / `csv` / `ndjson` 用通用格式化器把 `data` 渲染成表格 / CSV / NDJSON。导航提示（计数、下一页、读全文 tip）统一输出到 **stderr**（所有格式一致，不污染 stdout 数据）：
+`--format pretty` 输出精排人类表格；`--format table` / `csv` / `ndjson` 用通用格式化器渲染 `data.messages`（`ExtractItems` 自动从 data 对象提取 messages 数组）为表格 / CSV / NDJSON。导航提示（计数、下一页、读全文 tip）统一输出到 **stderr**（所有格式一致，不污染 stdout 数据）：
 ```text
 15 message(s)
 next page: mail +triage --query '合同审批' --page-token 'search:abc123...'

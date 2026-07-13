@@ -1619,9 +1619,9 @@ func TestMailTriageStructuredOutputPreservesMailboxID(t *testing.T) {
 	}
 }
 
-// P2: 空收件箱也必须显式返回 meta.count=0（Meta.Count 去 omitempty 后的稳定契约），
-// 调用方可稳定读取 .meta.count，无需区分“缺失”与“0”。
-func TestMailTriageEmptyResultEmitsMetaCountZero(t *testing.T) {
+// 空收件箱也必须显式返回 data.total=0（data 为普通 map，total 恒在），
+// 调用方可稳定读取 .data.total，无需区分“缺失”与“0”。
+func TestMailTriageEmptyResultEmitsDataTotalZero(t *testing.T) {
 	f, stdout, _, reg := mailShortcutTestFactory(t)
 	defer reg.Verify(t)
 	registerMailTriageListStub(reg, "me", nil, false, "")
@@ -1634,15 +1634,51 @@ func TestMailTriageEmptyResultEmitsMetaCountZero(t *testing.T) {
 
 	data := decodeMailTriageJSONOutput(t, stdout)
 	if messages := mailTriageMessagesFromOutput(t, data); len(messages) != 0 {
-		t.Fatalf("expected empty data array, got %d", len(messages))
+		t.Fatalf("expected empty messages array, got %d", len(messages))
 	}
-	meta := mailTriageMetaFromOutput(t, data)
-	count, ok := meta["count"]
+	dataObj := mailTriageDataObjFromOutput(t, data)
+	total, ok := dataObj["total"]
 	if !ok {
-		t.Fatalf("empty result must still include meta.count, got meta=%#v", meta)
+		t.Fatalf("empty result must still include data.total, got data=%#v", dataObj)
 	}
-	if count != float64(0) {
-		t.Fatalf("empty result meta.count must be 0, got %v", count)
+	if total != float64(0) {
+		t.Fatalf("empty result data.total must be 0, got %v", total)
+	}
+}
+
+// 回归：--format ndjson 必须逐条输出 message（ExtractItems 从 data 对象提取
+// messages 数组），而不是把整个 {messages,total,...} 包装体打成一行。若 messages
+// 不是 []interface{}，FindArrayField 探测不到数组字段，会退化成整包一行。
+func TestMailTriageNdjsonEmitsOneMessagePerLine(t *testing.T) {
+	f, stdout, _, reg := mailShortcutTestFactory(t)
+	defer reg.Verify(t)
+	registerMailTriageListStub(reg, "me", []string{"m1", "m2"}, false, "")
+	registerMailTriageBatchStub(reg, "me", []map[string]interface{}{
+		mailTriageBatchMessage("m1", "Subject One"),
+		mailTriageBatchMessage("m2", "Subject Two"),
+	})
+
+	if err := runMountedMailShortcut(t, MailTriage, []string{
+		"+triage", "--format", "ndjson", "--filter", `{"folder_id":"INBOX"}`,
+	}, f, stdout); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 ndjson lines (one per message), got %d:\n%s", len(lines), stdout.String())
+	}
+	for i, line := range lines {
+		var obj map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &obj); err != nil {
+			t.Fatalf("ndjson line %d is not valid JSON: %v\n%s", i, err, line)
+		}
+		if _, ok := obj["message_id"]; !ok {
+			t.Fatalf("ndjson line %d must be a message object with message_id, not the wrapper: %s", i, line)
+		}
+		if _, isWrapper := obj["messages"]; isWrapper {
+			t.Fatalf("ndjson line must be a single message, not the {messages,...} wrapper: %s", line)
+		}
 	}
 }
 
@@ -1703,13 +1739,13 @@ func TestMailTriageDefaultFormatIsJSON(t *testing.T) {
 	if data["ok"] != true {
 		t.Fatalf("default output must be ok/data envelope, got %#v", data)
 	}
-	messages := mailTriageMessagesFromOutput(t, data) // reads .data
+	messages := mailTriageMessagesFromOutput(t, data) // reads .data.messages
 	if len(messages) != 1 {
 		t.Fatalf("expected 1 message, got %d", len(messages))
 	}
-	meta := mailTriageMetaFromOutput(t, data)
-	if _, ok := meta["count"]; !ok {
-		t.Fatalf("meta.count missing: %#v", meta)
+	dataObj := mailTriageDataObjFromOutput(t, data)
+	if _, ok := dataObj["total"]; !ok {
+		t.Fatalf("data.total missing: %#v", dataObj)
 	}
 }
 
@@ -1801,32 +1837,35 @@ func decodeMailTriageJSONOutput(t *testing.T, stdout interface{ Bytes() []byte }
 	return data
 }
 
-// mailTriageMessagesFromOutput extracts triage messages as object maps.
+// mailTriageMessagesFromOutput extracts triage messages as object maps from
+// the envelope's data object (.data.messages).
 func mailTriageMessagesFromOutput(t *testing.T, data map[string]interface{}) []map[string]interface{} {
 	t.Helper()
-	rawMessages, ok := data["data"].([]interface{})
+	dataObj := mailTriageDataObjFromOutput(t, data)
+	rawMessages, ok := dataObj["messages"].([]interface{})
 	if !ok {
-		t.Fatalf("data (messages array) type mismatch: %T", data["data"])
+		t.Fatalf("data.messages type mismatch: %T", dataObj["messages"])
 	}
 	messages := make([]map[string]interface{}, 0, len(rawMessages))
 	for i, item := range rawMessages {
 		msg, ok := item.(map[string]interface{})
 		if !ok {
-			t.Fatalf("data[%d] type mismatch: %T", i, item)
+			t.Fatalf("data.messages[%d] type mismatch: %T", i, item)
 		}
 		messages = append(messages, msg)
 	}
 	return messages
 }
 
-// mailTriageMetaFromOutput extracts the envelope's meta object.
-func mailTriageMetaFromOutput(t *testing.T, data map[string]interface{}) map[string]interface{} {
+// mailTriageDataObjFromOutput extracts the envelope's data object
+// ({messages, total, has_more, page_token}); pagination lives here (im-style).
+func mailTriageDataObjFromOutput(t *testing.T, data map[string]interface{}) map[string]interface{} {
 	t.Helper()
-	meta, _ := data["meta"].(map[string]interface{})
-	if meta == nil {
-		t.Fatalf("meta missing in envelope: %#v", data)
+	dataObj, _ := data["data"].(map[string]interface{})
+	if dataObj == nil {
+		t.Fatalf("data object missing in envelope: %#v", data)
 	}
-	return meta
+	return dataObj
 }
 
 func registerMailTriageListStub(reg *httpmock.Registry, mailbox string, items []string, hasMore bool, pageToken string) {
@@ -2029,8 +2068,8 @@ func TestMailTriageCustomFolderResolvesOnceAcrossListPages(t *testing.T) {
 	if len(messages) != 5 {
 		t.Fatalf("expected 5 messages across 2 pages, got %d (stdout=%s)", len(messages), stdout.String())
 	}
-	meta := mailTriageMetaFromOutput(t, data)
-	if got, ok := meta["has_more"]; ok && got == true {
+	dataObj := mailTriageDataObjFromOutput(t, data)
+	if got, ok := dataObj["has_more"]; ok && got == true {
 		t.Fatalf("expected has_more=false after exhausting pages, got %v", got)
 	}
 	// All registered stubs (1 folders + 2 list pages + 1 batch_get) are
