@@ -61,20 +61,26 @@ Exception:
     "color_roles": {
       "primary": "Used for the dominant structural motif and about 60-70% of visual weight.",
       "secondary": "Used for grouped regions, comparison panels, or supporting categories.",
-      "accent": "Used only for key numbers, conclusions, or focus markers."
+      "accent": "Used only for key numbers, conclusions, or focus markers.",
+      "background": "Shared base fill for ordinary content pages.",
+      "text_main": "Body and title text color.",
+      "text_sub": "Caption, footer, and note text color."
     }
   },
   "typography_constraints": {
     "title_max_lines": 2,
     "body_max_lines_per_box": 2,
     "footer_max_lines": 1,
-    "long_text_handling": "Shorten, split into multiple boxes, or move detail to speaker notes instead of shrinking into a tight box."
+    "long_text_handling": "Shorten, split into multiple boxes, or move detail to speaker notes instead of shrinking into a tight box.",
+    "font_family": "Text font stack covering CJK + Latin, optional; e.g. Source Han Sans / Inter",
+    "font_number": "Numeric/mono font for emphasized figures, optional; e.g. Roboto Mono"
   },
   "verification_plan": {
     "check_background_consistency": true,
     "check_text_fit": true,
     "check_visual_focus": true,
-    "check_asset_rendering": true
+    "check_asset_rendering": true,
+    "check_color_role_discipline": true
   },
   "slides": [
     {
@@ -105,7 +111,7 @@ Top-level fields:
 - `theme_style`: visual tone, palette direction, and professional style.
 - `visual_system`: deck-level visual rules that must stay stable across pages, including background strategy, recurring motif, and color roles.
 - `typography_constraints`: deck-level limits for line count, text box density, and how to handle long text before XML generation.
-- `verification_plan`: explicit checks to perform after creation or major edits; include background consistency, text fit, visual focus, and asset rendering when relevant.
+- `verification_plan`: explicit checks to perform after creation or major edits; include background consistency, text fit, visual focus, and asset rendering when relevant. When a fixed palette is used, also set `check_color_role_discipline` (only the 6 role colors are used; `accent` is not overused as large fills).
 - `slides`: ordered page plans.
 
 Each slide must include:
@@ -147,6 +153,20 @@ When `chart_contract.required == true`, XML generation must produce a `<chart>` 
 
 `data_series_required` means the generated XML must include `<chartData>`. It does not require user-provided real-world values. When real values are unavailable but chart expression is part of the user's intent, write mock or placeholder values into native `<chart>` and label them clearly instead of switching to manual drawing primitives or metric blocks.
 
+## Graphic Language Pool (optional)
+
+`visual_system.graphic_language_pool` (optional string array) lists the recurring visual-element set for this deck. Every page's `visual_focus` must pick from this pool; do not introduce visual devices outside it.
+
+```json
+{
+  "visual_system": {
+    "graphic_language_pool": ["metric card", "horizontal bar chart", "thin-line table", "section tag"]
+  }
+}
+```
+
+A deck's palette and fonts may come from the user, your own design, or an external style library. Whatever the source, resolve it into the six `visual_system.color_roles`; the mapping and the accent-gap rule (derive an emphasis color when none is saturated enough) live in `visual-planning.md` → Style System.
+
 ## Layout Vocabulary
 
 Use one of these `layout_type` values unless the user explicitly needs a custom structure:
@@ -182,7 +202,7 @@ Before generating XML, define a visual system that can survive the whole deck:
 
 - `background_strategy`: specify the default background for normal content pages, and which page roles may intentionally differ. Do not let pages drift through near-identical but inconsistent background colors.
 - `motif`: choose one or two reusable structural devices, such as a side bar, header rail, numbered node, card treatment, diagram lane, or section band. The motif should appear consistently enough that pages feel related.
-- `color_roles`: assign primary, secondary, and accent roles. The same color must not mean unrelated things across pages.
+- `color_roles`: assign the six roles — `primary`, `secondary`, `accent`, `background`, `text_main`, `text_sub`. Pages must use only these; the same color must not mean unrelated things across pages. If no sufficiently saturated emphasis color exists, derive one for `accent` (see `visual-planning.md` → Style System).
 - `cover_content_relationship`: if the cover uses a different dark or image-led treatment, state how it connects to content pages through shared colors, motifs, or geometry.
 - `closing_relationship`: if the closing page mirrors the cover, state that explicitly so it looks intentional rather than like a new theme.
 

@@ -4,6 +4,27 @@
 
 默认画布按 `960 x 540` 规划。模板 XML 可以覆盖具体坐标，但不能覆盖这些原则：页面要有主视觉区域、文本要受密度约束、不同 `layout_type` 必须产生明显不同的坐标结构。
 
+## Style System
+
+Geometry decides where elements go; style decides which colors, fonts, and visual devices fill them. Both are required. Style comes from `slide_plan.json`'s `visual_system` + `typography_constraints` (fields defined in `planning-layer.md`). Whatever the palette's source — user-specified, your own design, or an external library — resolve it into the color roles below and never invent colors on the page.
+
+When the user gives no brand palette, pick a ready-made palette from [`style-presets.md`](style-presets.md) that matches the deck's scenario and copy its color roles, fonts, and graphic-language pool into the plan, rather than inventing a palette from scratch.
+
+`visual_system.color_roles` (use only these; do not add ad-hoc colors):
+
+| role | use |
+|------|-----|
+| `primary` | dominant color, ~60-70% of visual weight: main motif, header, title accent line |
+| `secondary` | grouping, secondary structure, chart base color |
+| `accent` | key numbers / conclusions / focus markers only |
+| `background` | shared content-page base fill |
+| `text_main` | body and titles |
+| `text_sub` | captions, footer, notes |
+
+**Accent-gap rule (important):** if the palette has no sufficiently saturated emphasis color (e.g. only a main color plus low-saturation neutrals), derive one — preferably a brighter or darker variant of `primary` — reserved for `big-number` / `conclusion` metrics. `accent` must never be visually confusable with `secondary`.
+
+Other fields: `theme_style` records the overall tone; the intended density sets the deck's default `text_density` (high → medium/high with tables/columns, low → low with generous whitespace); `visual_system.motif` and the optional `visual_system.graphic_language_pool` define each page's `visual_focus` element pool — the focus must come from that pool, with no outside decorative devices; `typography_constraints.font_family / font_number` set the fonts.
+
 ## Core Rules
 
 - `layout_type` must change geometry: element positions, region sizes, alignment, and visual rhythm must differ across page types.
@@ -134,6 +155,7 @@ Geometry:
 - Set `autoFit="normal-auto-fit"` on the metric's `<content>` so an oversized number shrinks to fit its box instead of overflowing.
 - Pair the number with one explanation and optional 2-3 small supporting labels.
 - Do not bury the number in a bullet list or small card.
+- Color: the large number uses `accent` (highest contrast on the page, never `secondary`); explanatory text uses `text_sub`. If accent is missing, use a darker variant of `primary`.
 
 Text:
 - `low` or `medium`. If detail is needed, add small annotations around the metric.
@@ -244,6 +266,9 @@ Before creating XML for each page, answer these checks:
 6. Does the background follow the planned deck strategy, and are any deviations intentional?
 7. Are all text boxes large enough for their intended font size and line count?
 8. If the page uses a screenshot or paper figure, is it large enough to read and accompanied by concise interpretation?
+9. Does the page use only the six `visual_system.color_roles`, with no ad-hoc colors?
+10. Is `accent` used only for key numbers / conclusions, never as a large fill?
+11. Does the visual focus come from `visual_system.graphic_language_pool`, and is the motif consistent deck-wide?
 
 After fetching the created presentation, verify:
 
