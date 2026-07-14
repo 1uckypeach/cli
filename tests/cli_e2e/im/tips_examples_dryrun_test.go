@@ -162,7 +162,6 @@ func defaultAsForCommand(t *testing.T, command string) string {
 // path — the 3 tests above keep that stronger assertion for their targets.
 func TestIMTipsFirstExampleDryRunAll(t *testing.T) {
 	for _, cmd := range tipsExampleAllTargets {
-		cmd := cmd
 		t.Run(cmd, func(t *testing.T) {
 			t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 			t.Setenv("LARKSUITE_CLI_APP_ID", "im_tips_dryrun_test")
