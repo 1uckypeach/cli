@@ -6,6 +6,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -284,9 +285,9 @@ func TestHandleRootError_DeprecatedAliasMissingFlagStructured(t *testing.T) {
 	deprecation.SetPending(&deprecation.Notice{
 		Command: "+write", Replacement: "+cells-set", Skill: "lark-sheets",
 	})
-	// The bare error shape cobra's ValidateRequiredFlags produces: not a typed
-	// errs.* error, so it reaches the deprecation fallback.
-	exit := handleRootError(f, fmt.Errorf(`required flag(s) %q not set`, "values"))
+	err := errs.NewValidationError(errs.SubtypeInvalidArgument, `required flag(s) %q not set`, "values").
+		WithParam("--values")
+	exit := handleRootError(f, err)
 
 	out := errOut.String()
 	if strings.HasPrefix(strings.TrimSpace(out), "Error:") {
@@ -381,10 +382,9 @@ func decodeErrorEnvelope(t *testing.T, raw []byte) map[string]any {
 	return errObj
 }
 
-// TestHandleRootError_NoDeprecationTypesUsageError pins that a residual cobra
-// usage error (missing required flag) is typed as invalid_argument with exit 2
-// even with no deprecation pending — never cobra's plain "Error:" line.
-func TestHandleRootError_NoDeprecationTypesUsageError(t *testing.T) {
+// TestCobraValidationGuardTypesRequiredFlag pins that required-flag errors are
+// typed at the Cobra validation stage, before the final dispatcher.
+func TestCobraValidationGuardTypesRequiredFlag(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	t.Cleanup(func() { deprecation.SetPending(nil) })
 	deprecation.SetPending(nil)
@@ -393,7 +393,15 @@ func TestHandleRootError_NoDeprecationTypesUsageError(t *testing.T) {
 	errOut := &bytes.Buffer{}
 	f.IOStreams.ErrOut = errOut
 
-	exit := handleRootError(f, fmt.Errorf(`required flag(s) %q not set`, "values"))
+	cmd := &cobra.Command{Use: "demo", RunE: func(*cobra.Command, []string) error { return nil }}
+	cmd.Flags().String("values", "", "")
+	cmd.MarkFlagRequired("values")
+	installCobraValidationGuards(cmd)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected missing required flag error")
+	}
+	exit := handleRootError(f, err)
 
 	out := errOut.String()
 	if strings.HasPrefix(strings.TrimSpace(out), "Error:") {
@@ -408,6 +416,93 @@ func TestHandleRootError_NoDeprecationTypesUsageError(t *testing.T) {
 	}
 	if exit != int(output.ExitValidation) {
 		t.Errorf("exit = %d, want %d (validation envelope → category-derived exit)", exit, int(output.ExitValidation))
+	}
+}
+
+func TestCobraValidationGuardTypesFlagGroupErrorsWithParams(t *testing.T) {
+	tests := []struct {
+		name       string
+		mark       func(*cobra.Command)
+		args       []string
+		wantNames  []string
+		wantReason string
+	}{
+		{
+			name: "one required",
+			mark: func(cmd *cobra.Command) {
+				cmd.MarkFlagsOneRequired("start-cell", "range")
+			},
+			wantNames:  []string{"--start-cell", "--range"},
+			wantReason: "one of [--start-cell --range] required",
+		},
+		{
+			name: "required together",
+			mark: func(cmd *cobra.Command) {
+				cmd.MarkFlagsRequiredTogether("start-cell", "range")
+			},
+			args:       []string{"--start-cell", "A1"},
+			wantNames:  []string{"--start-cell", "--range"},
+			wantReason: "all of [--start-cell --range] required together",
+		},
+		{
+			name: "mutually exclusive",
+			mark: func(cmd *cobra.Command) {
+				cmd.MarkFlagsMutuallyExclusive("start-cell", "range")
+			},
+			args:       []string{"--start-cell", "A1", "--range", "B2"},
+			wantNames:  []string{"--start-cell", "--range"},
+			wantReason: "only one of [--start-cell --range] allowed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := &cobra.Command{Use: "demo", RunE: func(*cobra.Command, []string) error { return nil }}
+			cmd.Flags().String("start-cell", "", "")
+			cmd.Flags().String("range", "", "")
+			tt.mark(cmd)
+			installCobraValidationGuards(cmd)
+			cmd.SetArgs(tt.args)
+
+			err := cmd.Execute()
+			if err == nil {
+				t.Fatal("expected flag group error")
+			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok {
+				t.Fatalf("expected typed problem, got %T: %v", err, err)
+			}
+			if problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeInvalidArgument {
+				t.Fatalf("problem = %s/%s, want validation/invalid_argument", problem.Category, problem.Subtype)
+			}
+			if got := output.ExitCodeOf(err); got != output.ExitValidation {
+				t.Fatalf("exit code = %d, want %d", got, output.ExitValidation)
+			}
+			var validationErr *errs.ValidationError
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("expected *errs.ValidationError, got %T", err)
+			}
+			if len(validationErr.Params) != len(tt.wantNames) {
+				t.Fatalf("params = %v, want %d entries", validationErr.Params, len(tt.wantNames))
+			}
+			for i, wantName := range tt.wantNames {
+				if validationErr.Params[i].Name != wantName || validationErr.Params[i].Reason != tt.wantReason {
+					t.Errorf("params[%d] = %+v, want name=%q reason=%q", i, validationErr.Params[i], wantName, tt.wantReason)
+				}
+			}
+		})
+	}
+}
+
+func TestInvalidFlagGroupParamsFromMessage(t *testing.T) {
+	got := invalidFlagGroupParams("at least one of the flags in the group [start-cell range] is required")
+	if len(got) != 2 {
+		t.Fatalf("params = %v, want two entries", got)
+	}
+	for i, want := range []string{"--start-cell", "--range"} {
+		if got[i].Name != want || got[i].Reason != "one of [--start-cell --range] required" {
+			t.Errorf("params[%d] = %+v", i, got[i])
+		}
 	}
 }
 

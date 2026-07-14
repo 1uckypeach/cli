@@ -11,6 +11,7 @@ import (
 
 	rootcmd "github.com/larksuite/cli/cmd"
 	"github.com/larksuite/cli/internal/cmdmeta"
+	"github.com/larksuite/cli/internal/cmdpolicy"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/qualitygate/manifest"
 	"github.com/larksuite/cli/internal/registry"
@@ -94,7 +95,7 @@ func commandFromCobra(c *cobra.Command, defaultFields map[string][]string) manif
 		Short:         c.Short,
 		Example:       c.Example,
 		Hidden:        c.Hidden,
-		Runnable:      c.Runnable(),
+		Runnable:      c.Runnable() && !cmdpolicy.IsPureGroup(c),
 		Source:        source,
 		Generated:     cmdmeta.Generated(c),
 		Identities:    cmdmeta.Identities(c),

@@ -234,6 +234,7 @@ func buildInternal(ctx context.Context, inv cmdutil.InvocationContext, opts ...B
 	groupRootCommands(rootCmd)
 
 	installUnknownSubcommandGuard(rootCmd)
+	installCobraValidationGuards(rootCmd)
 	// Bare `lark-cli` in an interactive terminal offers an interactive upgrade
 	// before printing help; non-bare invocations and non-TTY are unaffected.
 	installRootUpgradePrompt(f, rootCmd)

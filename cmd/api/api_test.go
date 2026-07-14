@@ -68,6 +68,42 @@ func TestApiCmd_FlagParsing(t *testing.T) {
 	}
 }
 
+func TestApiCmd_OutputFormatResolution(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "json shorthand", args: []string{"--json"}, want: "json"},
+		{name: "explicit format wins", args: []string{"--format", "table", "--json"}, want: "table"},
+		{name: "pretty format", args: []string{"--format", "PRETTY"}, want: "pretty"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+				AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+			})
+			var gotOpts *APIOptions
+			cmd := newTestApiCmd(f, func(opts *APIOptions) error {
+				gotOpts = opts
+				return nil
+			})
+			args := []string{"GET", "/open-apis/test", "--as", "bot"}
+			cmd.SetArgs(append(args, tt.args...))
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if gotOpts == nil {
+				t.Fatal("expected options to be captured")
+			}
+			if gotOpts.Format != tt.want {
+				t.Fatalf("format = %q, want %q", gotOpts.Format, tt.want)
+			}
+		})
+	}
+}
+
 func TestApiCmd_DryRun(t *testing.T) {
 	f, stdout, stderr, _ := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
@@ -166,6 +202,43 @@ func TestApiCmd_BotMode(t *testing.T) {
 	data, ok := got["data"].(map[string]interface{})
 	if !ok || data["result"] != "success" {
 		t.Fatalf("data = %#v, want result=success", got["data"])
+	}
+}
+
+func TestApiCmd_PrettyFormatsRealResponse(t *testing.T) {
+	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test-app-pretty", AppSecret: "test-secret", Brand: core.BrandFeishu,
+	})
+	reg.Register(&httpmock.Stub{
+		URL: "/open-apis/test",
+		Body: map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{
+				"items": []interface{}{map[string]interface{}{"name": "Alice"}},
+			},
+		},
+	})
+
+	cmd := newTestApiCmd(f, nil)
+	cmd.SetArgs([]string{"GET", "/open-apis/test", "--as", "bot", "--format", "pretty"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out := stdout.String()
+	var got map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("pretty output should be valid JSON: %v\n%s", err, out)
+	}
+	data, ok := got["data"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("pretty output data = %#v", got["data"])
+	}
+	items, ok := data["items"].([]interface{})
+	if !ok || len(items) != 1 {
+		t.Fatalf("pretty output data.items = %#v", data["items"])
+	}
+	if !strings.Contains(out, "\n  \"data\": {") || strings.Contains(out, "─") {
+		t.Fatalf("pretty output should be indented JSON rather than a table, got:\n%s", out)
 	}
 }
 
@@ -568,6 +641,46 @@ func TestApiCmd_PageAll_BatchAPI_DefaultJSONEnvelope(t *testing.T) {
 	items, ok := data["items"].([]interface{})
 	if !ok || len(items) != 1 {
 		t.Fatalf("data.items = %#v, want one item", data["items"])
+	}
+}
+
+func TestApiCmd_PageAll_PrettyAggregatesIndentedJSON(t *testing.T) {
+	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test-app-pageall-pretty", AppSecret: "test-secret", Brand: core.BrandFeishu,
+	})
+
+	reg.Register(&httpmock.Stub{
+		URL: "/open-apis/contact/v3/users",
+		Body: map[string]interface{}{
+			"code": 0, "msg": "ok",
+			"data": map[string]interface{}{
+				"items":    []interface{}{map[string]interface{}{"id": "1"}},
+				"has_more": false,
+			},
+		},
+	})
+
+	cmd := newTestApiCmd(f, nil)
+	cmd.SetArgs([]string{"GET", "/open-apis/contact/v3/users", "--as", "bot", "--page-all", "--format", "pretty"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := stdout.String()
+	var got map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("page-all pretty output should be valid JSON: %v\n%s", err, out)
+	}
+	data, ok := got["data"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("page-all pretty output data = %#v", got["data"])
+	}
+	items, ok := data["items"].([]interface{})
+	if !ok || len(items) != 1 {
+		t.Fatalf("page-all pretty output data.items = %#v", data["items"])
+	}
+	if !strings.Contains(out, "\n  \"data\": {") || strings.Contains(out, "─") {
+		t.Fatalf("page-all pretty output should be aggregated indented JSON, got:\n%s", out)
 	}
 }
 

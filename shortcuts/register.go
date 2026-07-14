@@ -157,9 +157,6 @@ func RegisterShortcutsWithContext(ctx context.Context, program *cobra.Command, f
 		if service == "apps" {
 			apps.InstallOnApps(svc, f)
 		}
-		if service == "mail" {
-			mail.InstallOnMail(svc)
-		}
 		if service == "sheets" {
 			applySheetsCompatGroups(svc)
 		}

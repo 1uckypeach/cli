@@ -201,6 +201,42 @@ func TestNewCmdServiceMethod_RunFCallback(t *testing.T) {
 	}
 }
 
+func TestServiceMethod_OutputFormatResolution(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "json shorthand", args: []string{"--json"}, want: "json"},
+		{name: "explicit format wins", args: []string{"--format", "table", "--json"}, want: "table"},
+		{name: "pretty format", args: []string{"--format", "PRETTY"}, want: "pretty"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, _, _, _ := cmdutil.TestFactory(t, testConfig)
+			var captured *ServiceMethodOptions
+			cmd := NewCmdServiceMethod(f, driveSpec(),
+				meta.FromMap(map[string]interface{}{"description": "desc", "httpMethod": "GET"}), "list", "files",
+				func(opts *ServiceMethodOptions) error {
+					captured = opts
+					return nil
+				})
+			args := []string{"--as", "bot"}
+			cmd.SetArgs(append(args, tt.args...))
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if captured == nil {
+				t.Fatal("expected options to be captured")
+			}
+			if captured.Format != tt.want {
+				t.Fatalf("format = %q, want %q", captured.Format, tt.want)
+			}
+		})
+	}
+}
+
 // ── dry-run / buildServiceRequest ──
 
 func TestServiceMethod_DryRun_PathParam(t *testing.T) {
@@ -462,6 +498,43 @@ func TestServiceMethod_BotMode_Success(t *testing.T) {
 	}
 }
 
+func TestServiceMethod_PrettyFormatsRealResponse(t *testing.T) {
+	f, stdout, _, reg := cmdutil.TestFactory(t, testConfig)
+	reg.Register(&httpmock.Stub{
+		URL: "/open-apis/svc/v1/items",
+		Body: map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{
+				"items": []interface{}{map[string]interface{}{"name": "Alice"}},
+			},
+		},
+	})
+
+	spec := meta.ServiceFromMap(map[string]interface{}{"name": "svc", "servicePath": "/open-apis/svc/v1"})
+	method := meta.FromMap(map[string]interface{}{"path": "items", "httpMethod": "GET", "parameters": map[string]interface{}{}})
+	cmd := NewCmdServiceMethod(f, spec, method, "list", "items", nil)
+	cmd.SetArgs([]string{"--as", "bot", "--format", "pretty"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out := stdout.String()
+	var got map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("pretty output should be valid JSON: %v\n%s", err, out)
+	}
+	data, ok := got["data"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("pretty output data = %#v", got["data"])
+	}
+	items, ok := data["items"].([]interface{})
+	if !ok || len(items) != 1 {
+		t.Fatalf("pretty output data.items = %#v", data["items"])
+	}
+	if !strings.Contains(out, "\n  \"data\": {") || strings.Contains(out, "─") {
+		t.Fatalf("pretty output should be indented JSON rather than a table, got:\n%s", out)
+	}
+}
+
 func TestServiceMethod_BotMode_PageAll_JSON(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app-page", AppSecret: "test-secret-page", Brand: core.BrandFeishu,
@@ -500,6 +573,48 @@ func TestServiceMethod_BotMode_PageAll_JSON(t *testing.T) {
 	items, ok := data["items"].([]interface{})
 	if !ok || len(items) != 1 {
 		t.Fatalf("data.items = %#v, want one item", data["items"])
+	}
+}
+
+func TestServiceMethod_PageAll_PrettyAggregatesIndentedJSON(t *testing.T) {
+	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test-app-service-pageall-pretty", AppSecret: "test-secret", Brand: core.BrandFeishu,
+	})
+
+	reg.Register(&httpmock.Stub{
+		URL: "/open-apis/svc/v1/items",
+		Body: map[string]interface{}{
+			"code": 0, "msg": "ok",
+			"data": map[string]interface{}{
+				"items":    []interface{}{map[string]interface{}{"id": "1"}},
+				"has_more": false,
+			},
+		},
+	})
+
+	spec := meta.ServiceFromMap(map[string]interface{}{"name": "svc", "servicePath": "/open-apis/svc/v1"})
+	method := meta.FromMap(map[string]interface{}{"path": "items", "httpMethod": "GET", "parameters": map[string]interface{}{}})
+	cmd := NewCmdServiceMethod(f, spec, method, "list", "items", nil)
+	cmd.SetArgs([]string{"--as", "bot", "--page-all", "--format", "pretty"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := stdout.String()
+	var got map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("page-all pretty output should be valid JSON: %v\n%s", err, out)
+	}
+	data, ok := got["data"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("page-all pretty output data = %#v", got["data"])
+	}
+	items, ok := data["items"].([]interface{})
+	if !ok || len(items) != 1 {
+		t.Fatalf("page-all pretty output data.items = %#v", data["items"])
+	}
+	if !strings.Contains(out, "\n  \"data\": {") || strings.Contains(out, "─") {
+		t.Fatalf("page-all pretty output should be aggregated indented JSON, got:\n%s", out)
 	}
 }
 
@@ -795,14 +910,9 @@ func TestServiceMethod_PageAll_StreamBusinessErrorDoesNotDumpJSON(t *testing.T) 
 	}
 }
 
-func TestServiceMethod_UnknownFormat_Warning(t *testing.T) {
-	f, _, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
+func TestServiceMethod_UnknownFormat_ReturnsValidationError(t *testing.T) {
+	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app-fmt", AppSecret: "test-secret-fmt", Brand: core.BrandFeishu,
-	})
-
-	reg.Register(&httpmock.Stub{
-		URL:  "/open-apis/svc/v1/items",
-		Body: map[string]interface{}{"code": 0, "msg": "ok", "data": map[string]interface{}{}},
 	})
 
 	spec := meta.ServiceFromMap(map[string]interface{}{"name": "svc", "servicePath": "/open-apis/svc/v1"})
@@ -810,11 +920,13 @@ func TestServiceMethod_UnknownFormat_Warning(t *testing.T) {
 	cmd := NewCmdServiceMethod(f, spec, method, "list", "items", nil)
 	cmd.SetArgs([]string{"--as", "bot", "--format", "unknown"})
 
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	err := cmd.Execute()
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected *errs.ValidationError, got %T: %v", err, err)
 	}
-	if !strings.Contains(stderr.String(), "warning: unknown format") {
-		t.Errorf("expected format warning in stderr, got:\n%s", stderr.String())
+	if validationErr.Param != "--format" {
+		t.Errorf("param = %q, want --format", validationErr.Param)
 	}
 }
 

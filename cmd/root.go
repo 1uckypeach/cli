@@ -241,10 +241,10 @@ func configureFlagCompletions(args []string) {
 //     dispatcher no longer promotes any legacy shape here.
 //  2. PartialFailure / BareError signals: the result envelope is already on
 //     stdout; honor the exit code and write nothing to stderr.
-//  3. Residual cobra usage errors (missing required flag, unknown command,
-//     argument validation): typed as an invalid_argument envelope (exit 2),
-//     matching the explicit flag/subcommand guards. Flag parse errors are
-//     already typed upstream by the root FlagErrorFunc.
+//  3. Any untyped error that reaches this boundary is an internal fault.
+//     Cobra argument, required-flag and flag-group errors are typed at their
+//     execution stages by installCobraValidationGuards; flag parse errors are
+//     typed by the root FlagErrorFunc.
 func handleRootError(f *cmdutil.Factory, err error) int {
 	errOut := f.IOStreams.ErrOut
 
@@ -283,55 +283,12 @@ func handleRootError(f *cmdutil.Factory, err error) int {
 		return bareErr.Code
 	}
 
-	// Errors reaching here are untyped: every RunE returns a typed errs.* error
-	// and flag-parse errors are typed by the root FlagErrorFunc. The remainder
-	// is either a cobra usage mistake (missing required flag, unknown command,
-	// wrong arg count), which cobra surfaces as a plain error identified by its
-	// stable text — the same external contract unknownFlagName relies on — or an
-	// untyped error that leaked past the typed boundary. Classify the former as
-	// invalid_argument (exit 2, like the explicit guards); treat the latter as an
-	// internal fault (exit 5) rather than blaming the user's input. The message
-	// is preserved either way, and the typed envelope still carries any pending
-	// deprecation notice.
-	var fallback error
-	if isCobraUsageError(err) {
-		fallback = errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", err.Error())
-	} else {
-		fallback = errs.NewInternalError(errs.SubtypeUnknown, "%s", err.Error()).WithCause(err)
-	}
+	// Every user-input stage is typed before execution. A bare error here has
+	// crossed that boundary unexpectedly and must remain visible as an internal
+	// fault instead of being guessed from English message fragments.
+	fallback := errs.NewInternalError(errs.SubtypeUnknown, "%s", err.Error()).WithCause(err)
 	output.WriteTypedErrorEnvelope(errOut, fallback, string(f.ResolvedIdentity))
 	return output.ExitCodeOf(fallback)
-}
-
-// cobraUsageErrorMarkers are the stable error-text fragments cobra / pflag
-// (pinned at v1.10.2) emit for usage mistakes — missing required flag, unknown
-// command / flag, wrong argument count. Cobra surfaces these as plain errors,
-// not a typed value we can match on, so the dispatcher recognizes them by text;
-// this is the same external contract unknownFlagName already depends on. A
-// residual error matching none of these has leaked the typed boundary and is
-// treated as an internal fault, not a user error.
-var cobraUsageErrorMarkers = []string{
-	"unknown command ",
-	"unknown flag: ",
-	"unknown shorthand",
-	"required flag(s) ",
-	"flag needs an argument",
-	"bad flag syntax:",
-	"no such flag ",
-	"invalid argument ",
-	"arg(s), ", // accepts / requires N arg(s), received / only received M
-}
-
-// isCobraUsageError reports whether err is a cobra / pflag usage mistake,
-// identified by the stable error text of the pinned cobra version.
-func isCobraUsageError(err error) bool {
-	msg := err.Error()
-	for _, m := range cobraUsageErrorMarkers {
-		if strings.Contains(msg, m) {
-			return true
-		}
-	}
-	return false
 }
 
 // installUnknownSubcommandGuard replaces cobra's silent help fallback on
@@ -345,6 +302,10 @@ func isCobraUsageError(err error) bool {
 // with reason_code=risk_not_annotated.
 func installUnknownSubcommandGuard(cmd *cobra.Command) {
 	if cmd.HasSubCommands() && cmd.Run == nil && cmd.RunE == nil {
+		// Cobra's legacy Args fallback rejects an unknown top-level token before
+		// RunE can produce ranked suggestions. Explicitly accepting positional
+		// tokens lets every pure group, including root, reach the shared guard.
+		cmd.Args = cobra.ArbitraryArgs
 		cmd.RunE = unknownSubcommandRunE
 		// Route an unknown subcommand to unknownSubcommandRunE even when flags
 		// are also present (e.g. `sheets +cells-find --url ...`). A pure group
@@ -359,6 +320,132 @@ func installUnknownSubcommandGuard(cmd *cobra.Command) {
 	}
 	for _, c := range cmd.Commands() {
 		installUnknownSubcommandGuard(c)
+	}
+}
+
+// installCobraValidationGuards types errors at the stage where Cobra knows
+// they are user input: positional argument validation, required flags and flag
+// groups. This removes the need for final-boundary message matching.
+func installCobraValidationGuards(cmd *cobra.Command) {
+	if cmd == nil {
+		return
+	}
+	if validateArgs := cmd.Args; validateArgs != nil {
+		cmd.Args = func(c *cobra.Command, args []string) error {
+			err := validateArgs(c, args)
+			if err == nil || errs.IsTyped(err) {
+				return err
+			}
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", err.Error()).WithCause(err)
+		}
+	}
+
+	previousPreRunE := cmd.PreRunE
+	previousPreRun := cmd.PreRun
+	cmd.PreRunE = func(c *cobra.Command, args []string) error {
+		if previousPreRunE != nil {
+			if err := previousPreRunE(c, args); err != nil {
+				return err
+			}
+		} else if previousPreRun != nil {
+			previousPreRun(c, args)
+		}
+		if err := c.ValidateRequiredFlags(); err != nil {
+			validationErr := errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", err.Error()).WithCause(err)
+			c.Flags().VisitAll(func(flag *pflag.Flag) {
+				if flag.Changed || len(flag.Annotations[cobra.BashCompOneRequiredFlag]) == 0 {
+					return
+				}
+				validationErr.WithParams(errs.InvalidParam{Name: "--" + flag.Name, Reason: "required flag is missing"})
+			})
+			return validationErr.WithHint("run `%s --help` to see required flags", c.CommandPath())
+		}
+		if err := c.ValidateFlagGroups(); err != nil {
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", err.Error()).
+				WithParams(invalidFlagGroupParams(err.Error())...).
+				WithHint("run `%s --help` to see valid flag combinations", c.CommandPath()).
+				WithCause(err)
+		}
+		return nil
+	}
+	cmd.PreRun = nil
+
+	for _, child := range cmd.Commands() {
+		installCobraValidationGuards(child)
+	}
+}
+
+type flagGroupConstraint int
+
+const (
+	flagGroupRequiredTogether flagGroupConstraint = iota
+	flagGroupOneRequired
+	flagGroupMutuallyExclusive
+)
+
+// invalidFlagGroupParams extracts the offending flag group from Cobra's
+// flag-group validation error. The message always names the group as
+// "[flag-a flag-b ...]" and its wording identifies the constraint, so both are
+// read straight from the message instead of re-deriving Cobra's private group
+// state. Pinned to cobra v1.10.2's message format (see go.mod).
+func invalidFlagGroupParams(message string) []errs.InvalidParam {
+	names := flagGroupNamesFromMessage(message)
+	if len(names) == 0 {
+		return nil
+	}
+	return buildFlagGroupParams(names, flagGroupConstraintFromMessage(message))
+}
+
+func buildFlagGroupParams(names []string, constraint flagGroupConstraint) []errs.InvalidParam {
+	flagNames := make([]string, 0, len(names))
+	for _, name := range names {
+		name = strings.TrimLeft(name, "-")
+		if name != "" {
+			flagNames = append(flagNames, "--"+name)
+		}
+	}
+	if len(flagNames) == 0 {
+		return nil
+	}
+	group := "[" + strings.Join(flagNames, " ") + "]"
+	reason := "invalid flag combination in " + group
+	switch constraint {
+	case flagGroupRequiredTogether:
+		reason = "all of " + group + " required together"
+	case flagGroupOneRequired:
+		reason = "one of " + group + " required"
+	case flagGroupMutuallyExclusive:
+		reason = "only one of " + group + " allowed"
+	}
+	params := make([]errs.InvalidParam, 0, len(flagNames))
+	for _, name := range flagNames {
+		params = append(params, errs.InvalidParam{Name: name, Reason: reason})
+	}
+	return params
+}
+
+func flagGroupNamesFromMessage(message string) []string {
+	start := strings.IndexByte(message, '[')
+	if start < 0 {
+		return nil
+	}
+	end := strings.IndexByte(message[start+1:], ']')
+	if end < 0 {
+		return nil
+	}
+	return strings.Fields(message[start+1 : start+1+end])
+}
+
+func flagGroupConstraintFromMessage(message string) flagGroupConstraint {
+	switch {
+	case strings.Contains(message, "at least one of the flags"):
+		return flagGroupOneRequired
+	case strings.Contains(message, "must all be set"):
+		return flagGroupRequiredTogether
+	case strings.Contains(message, "none of the others can be"):
+		return flagGroupMutuallyExclusive
+	default:
+		return flagGroupConstraint(-1)
 	}
 }
 
@@ -592,17 +679,21 @@ func isLarkDomain(c *cobra.Command) bool {
 	return cmdmeta.Domain(c) != ""
 }
 
-// flagDidYouMean is the root FlagErrorFunc (inherited by all subcommands). It
-// converts cobra's flag-parse errors into a typed validation envelope: an
-// unknown flag gets a focused "did you mean" hint (so agents recover even when
-// the typo is semantic, e.g. --query vs --find, where edit distance alone finds
-// nothing) and the offending flag in `params`. Other flag errors stay typed
-// but generic.
+// flagDidYouMean is the single FlagErrorFunc inherited by all commands. It
+// classifies pflag's typed parse errors and emits one stable validation shape.
 func flagDidYouMean(c *cobra.Command, ferr error) error {
-	name, isUnknown := unknownFlagName(ferr)
-	if !isUnknown {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", ferr.Error()).
-			WithHint("run `%s --help` for valid flags", c.CommandPath())
+	if ferr == nil {
+		return nil
+	}
+	var notExist *pflag.NotExistError
+	if !errors.As(ferr, &notExist) {
+		return typedFlagParseError(c, ferr)
+	}
+
+	name := notExist.GetSpecifiedName()
+	rawName := "--" + name
+	if notExist.GetSpecifiedShortnames() != "" {
+		rawName = "-" + name
 	}
 	valid := visibleFlagNames(c)
 	suggestions := suggest.Closest(name, valid, 3)
@@ -614,36 +705,69 @@ func flagDidYouMean(c *cobra.Command, ferr error) error {
 		hint = fmt.Sprintf("did you mean %s? (run `%s --help` for all flags)",
 			strings.Join(suggestions, ", "), c.CommandPath())
 	}
-	// The ranked candidates ride on the param as machine-readable Suggestions so
-	// an agent can retry without parsing the hint; the hint carries the same
-	// candidates as prose. The full valid-flag list stays recoverable via --help.
+	if cmdmeta.Domain(c) == "sheets" {
+		if list := inlineVisibleFlags(valid); list != "" {
+			if len(suggestions) > 0 {
+				hint = fmt.Sprintf("did you mean %s? valid flags: %s", strings.Join(suggestions, ", "), list)
+			} else {
+				hint = "valid flags: " + list
+			}
+		}
+	}
 	return errs.NewValidationError(errs.SubtypeInvalidArgument,
-		"unknown flag %q for %q", "--"+name, c.CommandPath()).
-		WithParams(errs.InvalidParam{Name: "--" + name, Reason: "unknown flag", Suggestions: suggestions}).
-		WithHint("%s", hint)
+		"unknown flag %q for %q", rawName, c.CommandPath()).
+		WithParams(errs.InvalidParam{Name: rawName, Reason: "unknown flag", Suggestions: suggestions}).
+		WithHint("%s", hint).
+		WithCause(ferr)
 }
 
-// unknownFlagName extracts the offending long-flag name from cobra's flag-parse
-// error text ("unknown flag: --query" → "query"). Returns ok=false for anything
-// else (missing argument, invalid value, unknown shorthand) so the caller keeps
-// those structured but generic — hallucinated flags are essentially always long.
-//
-// CONTRACT: this matches cobra's English wording "unknown flag: --" (go.mod
-// pins github.com/spf13/cobra). If cobra rewords this or gains i18n the match
-// silently fails and unknown flags degrade to a generic flag_error — re-verify
-// this prefix when bumping cobra.
-func unknownFlagName(err error) (string, bool) {
-	const p = "unknown flag: --"
-	msg := err.Error()
-	i := strings.Index(msg, p)
-	if i < 0 {
-		return "", false
+func typedFlagParseError(c *cobra.Command, ferr error) error {
+	param := ""
+	reason := "flag parse error"
+	var valueRequired *pflag.ValueRequiredError
+	var invalidValue *pflag.InvalidValueError
+	var invalidSyntax *pflag.InvalidSyntaxError
+	switch {
+	case errors.As(ferr, &valueRequired):
+		param = "--" + valueRequired.GetSpecifiedName()
+		if valueRequired.GetSpecifiedShortnames() != "" {
+			param = "-" + valueRequired.GetSpecifiedName()
+		}
+		reason = "flag value is required"
+	case errors.As(ferr, &invalidValue):
+		if invalidValue.GetFlag() != nil {
+			param = "--" + invalidValue.GetFlag().Name
+		}
+		reason = "invalid flag value"
+	case errors.As(ferr, &invalidSyntax):
+		param = invalidSyntax.GetSpecifiedFlag()
+		reason = "invalid flag syntax"
 	}
-	rest := msg[i+len(p):]
-	if j := strings.IndexAny(rest, " \t"); j >= 0 {
-		rest = rest[:j]
+	validationErr := errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", ferr.Error()).
+		WithHint("run `%s --help` for valid flags", c.CommandPath()).
+		WithCause(ferr)
+	if param != "" {
+		validationErr.WithParams(errs.InvalidParam{Name: param, Reason: reason})
 	}
-	return rest, true
+	return validationErr
+}
+
+func inlineVisibleFlags(names []string) string {
+	const limit = 25
+	if len(names) == 0 {
+		return ""
+	}
+	shown := names
+	suffix := ""
+	if len(shown) > limit {
+		shown = shown[:limit]
+		suffix = fmt.Sprintf(", ... (%d more; see --help)", len(names)-limit)
+	}
+	flags := make([]string, len(shown))
+	for i, name := range shown {
+		flags[i] = "--" + name
+	}
+	return strings.Join(flags, ", ") + suffix
 }
 
 // visibleFlagNames lists the non-hidden flag names of c (for suggestions and

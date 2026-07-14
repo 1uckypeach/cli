@@ -4,9 +4,11 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/larksuite/cli/errs"
@@ -24,6 +26,35 @@ func stubGetAppInfoErr(t *testing.T, errToReturn error) {
 		return nil, errToReturn
 	}
 	t.Cleanup(func() { getAppInfoFn = prev })
+}
+
+func TestAuthScopesRun_PrettyWritesBulletedScopesToStdout(t *testing.T) {
+	prev := getAppInfoFn
+	getAppInfoFn = func(ctx context.Context, f *cmdutil.Factory, appId string) (*appInfo, error) {
+		return &appInfo{UserScopes: []string{"im:message"}}, nil
+	}
+	t.Cleanup(func() { getAppInfoFn = prev })
+
+	opts := scopesTestFactory(t)
+	opts.Format = "pretty"
+	out, ok := opts.Factory.IOStreams.Out.(*bytes.Buffer)
+	if !ok {
+		t.Fatalf("stdout type = %T, want *bytes.Buffer", opts.Factory.IOStreams.Out)
+	}
+	errOut, ok := opts.Factory.IOStreams.ErrOut.(*bytes.Buffer)
+	if !ok {
+		t.Fatalf("stderr type = %T, want *bytes.Buffer", opts.Factory.IOStreams.ErrOut)
+	}
+
+	if err := authScopesRun(opts); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out.String(), "  • im:message\n") {
+		t.Fatalf("stdout missing bulleted scope: %q", out.String())
+	}
+	if strings.Contains(errOut.String(), "im:message") {
+		t.Fatalf("scope should remain on stdout, stderr = %q", errOut.String())
+	}
 }
 
 // scopesTestFactory builds a Factory + ScopesOptions pair sufficient to drive

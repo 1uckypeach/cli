@@ -103,8 +103,8 @@ func TestMailTriageEnumRejectsUnknownFormat(t *testing.T) {
 	if ve.Param != "--format" {
 		t.Fatalf("param = %q, want --format", ve.Param)
 	}
-	if !strings.Contains(problem.Message, `invalid value "bogus" for --format`) {
-		t.Fatalf("message = %q, want enum validation message", problem.Message)
+	if !strings.Contains(problem.Message, `unsupported output format "bogus"`) {
+		t.Fatalf("message = %q, want unsupported format message", problem.Message)
 	}
 	if !strings.Contains(problem.Message, "table, json, data") {
 		t.Fatalf("message = %q, want allowed values list", problem.Message)

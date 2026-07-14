@@ -45,8 +45,35 @@ func TestInstallUnknownSubcommandGuard_InstallsOnGroupsOnly(t *testing.T) {
 	if files.RunE == nil {
 		t.Error("files should have RunE installed")
 	}
+	if root.Args == nil {
+		t.Error("root should explicitly accept positional tokens so unknown commands reach RunE")
+	}
 	if err := leaf.RunE(leaf, []string{"unexpected-arg"}); err != nil {
 		t.Errorf("leaf +search RunE should be untouched, got error %v", err)
+	}
+}
+
+func TestTopLevelUnknownCommandReturnsStructuredSuggestion(t *testing.T) {
+	root, _, _ := newGroupTree()
+	installUnknownSubcommandGuard(root)
+	root.SetArgs([]string{"driv"})
+
+	err := root.Execute()
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected *errs.ValidationError, got %T: %v", err, err)
+	}
+	if len(validationErr.Params) != 1 || validationErr.Params[0].Name != "driv" {
+		t.Fatalf("params = %v, want one entry named driv", validationErr.Params)
+	}
+	found := false
+	for _, candidate := range validationErr.Params[0].Suggestions {
+		if candidate == "drive" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("suggestions = %v, want drive", validationErr.Params[0].Suggestions)
 	}
 }
 

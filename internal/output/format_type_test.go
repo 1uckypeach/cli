@@ -14,6 +14,9 @@ func TestParseFormat(t *testing.T) {
 		{"json", FormatJSON, true},
 		{"JSON", FormatJSON, true},
 		{"Json", FormatJSON, true},
+		{"pretty", FormatPretty, true},
+		{"PRETTY", FormatPretty, true},
+		{"Pretty", FormatPretty, true},
 		{"ndjson", FormatNDJSON, true},
 		{"NDJSON", FormatNDJSON, true},
 		{"Ndjson", FormatNDJSON, true},
@@ -52,6 +55,7 @@ func TestFormatString(t *testing.T) {
 		want   string
 	}{
 		{FormatJSON, "json"},
+		{FormatPretty, "pretty"},
 		{FormatNDJSON, "ndjson"},
 		{FormatTable, "table"},
 		{FormatCSV, "csv"},

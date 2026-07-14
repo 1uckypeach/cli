@@ -9,28 +9,18 @@ import (
 	"testing"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/cmdmeta"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/spf13/cobra"
 )
 
-func TestUnknownFlagName(t *testing.T) {
-	cases := []struct {
-		in   string
-		name string
-		ok   bool
-	}{
-		{"unknown flag: --query", "query", true},
-		{"unknown flag: --with-styles", "with-styles", true},
-		{"unknown shorthand flag: 'z' in -z", "", false},
-		{"flag needs an argument: --find", "", false},
-		{`invalid argument "x" for "--count"`, "", false},
+func parseFlagError(t *testing.T, c *cobra.Command, args ...string) error {
+	t.Helper()
+	err := c.Flags().Parse(args)
+	if err == nil {
+		t.Fatalf("Parse(%v) returned nil", args)
 	}
-	for _, c := range cases {
-		name, ok := unknownFlagName(errors.New(c.in))
-		if name != c.name || ok != c.ok {
-			t.Errorf("unknownFlagName(%q) = (%q,%v), want (%q,%v)", c.in, name, ok, c.name, c.ok)
-		}
-	}
+	return err
 }
 
 func TestFlagDidYouMean_UnknownFlagSuggestsAndListsValid(t *testing.T) {
@@ -39,7 +29,7 @@ func TestFlagDidYouMean_UnknownFlagSuggestsAndListsValid(t *testing.T) {
 	c.Flags().String("find", "", "")
 	c.Flags().Bool("dry-run", false, "")
 
-	err := flagDidYouMean(c, errors.New("unknown flag: --rang")) // typo of --range
+	err := flagDidYouMean(c, parseFlagError(t, c, "--rang")) // typo of --range
 	var verr *errs.ValidationError
 	if !errors.As(err, &verr) {
 		t.Fatalf("expected *errs.ValidationError, got %T", err)
@@ -82,23 +72,86 @@ func TestFlagDidYouMean_UnknownFlagSuggestsAndListsValid(t *testing.T) {
 
 func TestFlagDidYouMean_OtherErrorStaysGeneric(t *testing.T) {
 	c := &cobra.Command{Use: "demo"}
-	err := flagDidYouMean(c, errors.New("flag needs an argument: --find"))
+	c.Flags().String("find", "", "")
+	err := flagDidYouMean(c, parseFlagError(t, c, "--find"))
 	var verr *errs.ValidationError
 	if !errors.As(err, &verr) {
 		t.Fatalf("expected *errs.ValidationError, got %T", err)
 	}
-	// Non-unknown-flag errors stay generic: invalid_argument subtype, no
-	// structured param, generic --help hint (no "did you mean" suggestion).
+	// Non-unknown-flag errors retain the same validation shape and identify the
+	// flag from pflag's typed ValueRequiredError.
 	if verr.Subtype != errs.SubtypeInvalidArgument {
 		t.Errorf("subtype = %q, want invalid_argument (non-unknown-flag errors stay generic)", verr.Subtype)
 	}
 	if code := output.ExitCodeOf(err); code != output.ExitValidation {
 		t.Errorf("exit code = %d, want %d (ExitValidation)", code, output.ExitValidation)
 	}
-	if verr.Param != "" || len(verr.Params) != 0 {
-		t.Errorf("Param=%q Params=%v, want both empty for generic flag error", verr.Param, verr.Params)
+	if len(verr.Params) != 1 || verr.Params[0].Name != "--find" {
+		t.Errorf("Params=%v, want one entry named --find", verr.Params)
 	}
 	if strings.Contains(verr.Hint, "did you mean") {
 		t.Errorf("generic flag error must not produce a did-you-mean hint, got %q", verr.Hint)
+	}
+}
+
+func TestFlagDidYouMean_SheetsListsVisibleFlags(t *testing.T) {
+	root := &cobra.Command{Use: "root"}
+	sheets := &cobra.Command{Use: "sheets"}
+	cmdmeta.SetDomain(sheets, "sheets")
+	root.AddCommand(sheets)
+	sheets.Flags().String("range", "", "")
+	sheets.Flags().Int("width", 0, "")
+
+	err := flagDidYouMean(sheets, parseFlagError(t, sheets, "--cols"))
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected *errs.ValidationError, got %T", err)
+	}
+	for _, want := range []string{"--range", "--width"} {
+		if !strings.Contains(validationErr.Hint, want) {
+			t.Errorf("hint should include %q, got %q", want, validationErr.Hint)
+		}
+	}
+}
+
+func TestFlagDidYouMean_InvalidValueTypedError(t *testing.T) {
+	c := &cobra.Command{Use: "demo"}
+	c.Flags().Int("width", 0, "")
+
+	// A non-numeric value for a typed flag surfaces pflag's InvalidValueError.
+	err := flagDidYouMean(c, parseFlagError(t, c, "--width=abc"))
+	var verr *errs.ValidationError
+	if !errors.As(err, &verr) {
+		t.Fatalf("expected *errs.ValidationError, got %T", err)
+	}
+	if verr.Subtype != errs.SubtypeInvalidArgument {
+		t.Errorf("subtype = %q, want invalid_argument", verr.Subtype)
+	}
+	if code := output.ExitCodeOf(err); code != output.ExitValidation {
+		t.Errorf("exit code = %d, want %d (ExitValidation)", code, output.ExitValidation)
+	}
+	if len(verr.Params) != 1 || verr.Params[0].Name != "--width" || verr.Params[0].Reason != "invalid flag value" {
+		t.Errorf("Params = %v, want one --width entry with reason 'invalid flag value'", verr.Params)
+	}
+}
+
+func TestFlagDidYouMean_InvalidSyntaxTypedError(t *testing.T) {
+	c := &cobra.Command{Use: "demo"}
+	c.Flags().String("range", "", "")
+
+	// An empty flag name is bad flag syntax and surfaces pflag's InvalidSyntaxError.
+	err := flagDidYouMean(c, parseFlagError(t, c, "--=oops"))
+	var verr *errs.ValidationError
+	if !errors.As(err, &verr) {
+		t.Fatalf("expected *errs.ValidationError, got %T", err)
+	}
+	if verr.Subtype != errs.SubtypeInvalidArgument {
+		t.Errorf("subtype = %q, want invalid_argument", verr.Subtype)
+	}
+	if code := output.ExitCodeOf(err); code != output.ExitValidation {
+		t.Errorf("exit code = %d, want %d (ExitValidation)", code, output.ExitValidation)
+	}
+	if len(verr.Params) != 1 || verr.Params[0].Reason != "invalid flag syntax" {
+		t.Errorf("Params = %v, want one entry with reason 'invalid flag syntax'", verr.Params)
 	}
 }

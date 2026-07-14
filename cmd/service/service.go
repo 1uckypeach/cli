@@ -140,6 +140,7 @@ type ServiceMethodOptions struct {
 	PageLimit  int
 	PageDelay  int
 	Format     string
+	JSON       bool
 	JqExpr     string
 	DryRun     bool
 	File       string   // --file flag value
@@ -268,6 +269,11 @@ func buildMethodCommand(ctx context.Context, f *cmdutil.Factory, spec methodComm
 			opts.Cmd = cmd
 			opts.Ctx = cmd.Context()
 			opts.As = core.Identity(asStr)
+			format, err := output.StandardFormats.Resolve(opts.Format, cmd.Flags().Changed("format"), opts.JSON)
+			if err != nil {
+				return err
+			}
+			opts.Format = format
 			if runF != nil {
 				return runF(opts)
 			}
@@ -299,8 +305,8 @@ func buildMethodCommand(ctx context.Context, f *cmdutil.Factory, spec methodComm
 			_ = cmd.Flags().MarkHidden(name)
 		}
 	}
-	cmd.Flags().StringVar(&opts.Format, "format", "json", "output format: json|ndjson|table|csv")
-	cmd.Flags().Bool("json", false, "shorthand for --format json")
+	cmd.Flags().StringVar(&opts.Format, "format", "json", output.StandardFormats.Usage())
+	cmd.Flags().BoolVar(&opts.JSON, "json", false, "shorthand for --format json")
 	cmd.Flags().StringVarP(&opts.JqExpr, "jq", "q", "", "jq expression to filter JSON output")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "print request without executing")
 	if spec.risk == cmdutil.RiskHighRiskWrite {
@@ -311,7 +317,7 @@ func buildMethodCommand(ctx context.Context, f *cmdutil.Factory, spec methodComm
 		cmd.Flags().StringVar(&opts.File, "file", "", "File upload [field=]path. Supports - and stdin.")
 	}
 	cmdutil.RegisterFlagCompletion(cmd, "format", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-		return []string{"json", "ndjson", "table", "csv"}, cobra.ShellCompDirectiveNoFileComp
+		return output.StandardFormats.Names(), cobra.ShellCompDirectiveNoFileComp
 	})
 
 	// Registered last so the collision guard sees the standard flags above.
@@ -420,10 +426,7 @@ func serviceMethodRun(opts *ServiceMethodOptions) error {
 	}
 
 	out := f.IOStreams.Out
-	format, formatOK := output.ParseFormat(opts.Format)
-	if !formatOK {
-		fmt.Fprintf(f.IOStreams.ErrOut, "warning: unknown format %q, falling back to json\n", opts.Format)
-	}
+	format, _ := output.ParseFormat(opts.Format)
 
 	// Scope-insufficient (99991679) and all other Lark API codes route through
 	// errclass.BuildAPIError via ac.CheckResponse, producing *errs.PermissionError
@@ -706,6 +709,24 @@ func servicePaginate(ctx context.Context, ac *client.APIClient, request client.R
 	}
 
 	switch format {
+	case output.FormatPretty:
+		result, err := ac.PaginateAll(ctx, request, pagOpts)
+		if err != nil {
+			return err
+		}
+		if apiErr := checkErr(result, pagOpts.Identity); apiErr != nil {
+			output.FormatValue(out, result, output.FormatPretty)
+			return apiErr
+		}
+		scanResult := output.ScanForSafety(commandPath, result, errOut)
+		if scanResult.Blocked {
+			return scanResult.BlockErr
+		}
+		if scanResult.Alert != nil {
+			output.WriteAlertWarning(errOut, scanResult.Alert)
+		}
+		output.FormatValue(out, result, output.FormatPretty)
+		return nil
 	case output.FormatNDJSON, output.FormatTable, output.FormatCSV:
 		pf := output.NewPaginatedFormatter(out, format)
 		result, hasItems, err := ac.StreamPages(ctx, request, func(items []interface{}) error {

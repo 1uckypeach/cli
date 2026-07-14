@@ -103,6 +103,9 @@ func ExtractItems(data interface{}) []interface{} {
 func FormatValue(w io.Writer, data interface{}, format Format) {
 	data = toGeneric(data)
 	switch format {
+	case FormatPretty:
+		PrintJson(w, data)
+
 	case FormatNDJSON:
 		items := ExtractItems(data)
 		if items != nil {
@@ -149,6 +152,9 @@ func NewPaginatedFormatter(w io.Writer, format Format) *PaginatedFormatter {
 // FormatPage formats one page of items.
 func (pf *PaginatedFormatter) FormatPage(data interface{}) {
 	switch pf.Format {
+	case FormatPretty:
+		PrintJson(pf.W, data)
+
 	case FormatJSON, FormatNDJSON:
 		if arr, ok := data.([]interface{}); ok {
 			PrintNdjson(pf.W, arr)

@@ -752,12 +752,9 @@ func (ctx *RuntimeContext) OutFormatRaw(data interface{}, meta *output.Meta, pre
 }
 
 func (ctx *RuntimeContext) outFormat(data interface{}, meta *output.Meta, prettyFn func(w io.Writer), raw bool) {
-	outFn := ctx.Out
-	if raw {
-		outFn = ctx.OutRaw
-	}
+	emitJSON := func() { ctx.emit(data, meta, raw, true) }
 	if ctx.JqExpr != "" {
-		outFn(data, meta)
+		emitJSON()
 		return
 	}
 	switch ctx.Format {
@@ -773,10 +770,10 @@ func (ctx *RuntimeContext) outFormat(data interface{}, meta *output.Meta, pretty
 		if prettyFn != nil {
 			prettyFn(ctx.IO().Out)
 		} else {
-			outFn(data, meta)
+			output.FormatValue(ctx.IO().Out, data, output.FormatPretty)
 		}
 	case "json", "":
-		outFn(data, meta)
+		emitJSON()
 	default:
 		// table, csv, ndjson — pass data directly; FormatValue handles both
 		// plain arrays and maps with array fields (e.g. {"members":[…]})
@@ -790,7 +787,11 @@ func (ctx *RuntimeContext) outFormat(data interface{}, meta *output.Meta, pretty
 		}
 		format, formatOK := output.ParseFormat(ctx.Format)
 		if !formatOK {
-			fmt.Fprintf(ctx.IO().ErrOut, "warning: unknown format %q, falling back to json\n", ctx.Format)
+			ctx.outputErrOnce.Do(func() {
+				ctx.outputErr = errs.NewValidationError(errs.SubtypeInvalidArgument,
+					"unsupported output format %q", ctx.Format).WithParam("--format")
+			})
+			return
 		}
 		output.FormatValue(ctx.IO().Out, data, format)
 	}
@@ -928,6 +929,13 @@ func runShortcut(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, botOnly bo
 		}
 	}
 
+	// Output format validation is local and must happen before identity,
+	// configuration or credential work. Invalid input therefore produces the
+	// same typed validation error even when no account is configured.
+	if _, err := normalizeShortcutOutputFormat(cmd, s); err != nil {
+		return err
+	}
+
 	as, err := resolveShortcutIdentity(cmd, f, s)
 	if err != nil {
 		return err
@@ -1027,8 +1035,11 @@ func newRuntimeContext(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, conf
 	}
 	rctx.larkSDK = sdk
 
-	applyJSONShorthand(cmd, s)
-	rctx.Format = rctx.Str("format")
+	format, err := normalizeShortcutOutputFormat(cmd, s)
+	if err != nil {
+		return nil, err
+	}
+	rctx.Format = format
 	rctx.JqExpr, _ = cmd.Flags().GetString("jq")
 	return rctx, nil
 }
@@ -1200,15 +1211,23 @@ func shortcutDeclaresJSONFlag(s *Shortcut) bool {
 }
 
 // shortcutFormatSupportsJSON reports whether the command's format flag accepts
-// "json": a self-declared format supports it only when its Enum lists "json";
-// a framework-injected default format (no format entry in s.Flags) always does.
+// "json". It derives the answer from the same capability set used everywhere
+// else (shortcutFormatCapabilities), so a format flag that declares no Enum but
+// defaults to "json" is correctly recognized as JSON-capable.
 func shortcutFormatSupportsJSON(s *Shortcut) bool {
+	return shortcutFormatCapabilities(s).Supports("json")
+}
+
+func shortcutFormatCapabilities(s *Shortcut) output.FormatCapabilities {
 	for _, fl := range s.Flags {
 		if fl.Name == "format" {
-			return slices.Contains(fl.Enum, "json")
+			if len(fl.Enum) > 0 {
+				return output.NewFormatCapabilities(fl.Enum...)
+			}
+			return output.NewFormatCapabilities(fl.Default)
 		}
 	}
-	return true // framework-injected: json (default) | pretty | table | ndjson | csv
+	return output.StandardFormats
 }
 
 // ensureJSONShorthand registers --json as a shorthand for --format json when:
@@ -1243,15 +1262,32 @@ func ensureJSONShorthand(cmd *cobra.Command, s *Shortcut) {
 // shorthand only fills in when the user did not choose a format). Shortcuts
 // that declare their own "json" flag keep its custom semantics untouched.
 func applyJSONShorthand(cmd *cobra.Command, s *Shortcut) {
-	if shortcutDeclaresJSONFlag(s) {
-		return
+	_, _ = normalizeShortcutOutputFormat(cmd, s)
+}
+
+func normalizeShortcutOutputFormat(cmd *cobra.Command, s *Shortcut) (string, error) {
+	format, err := resolveShortcutOutputFormat(cmd, s)
+	if err != nil {
+		return "", err
 	}
-	if cmd.Flags().Lookup("json") == nil || cmd.Flags().Changed("format") {
-		return
+	if cmd.Flags().Lookup("format") != nil && cmd.Flags().Lookup("format").Value.String() != format {
+		if err := cmd.Flags().Set("format", format); err != nil {
+			return "", errs.NewInternalError(errs.SubtypeUnknown, "failed to normalize --format: %v", err).WithCause(err)
+		}
 	}
-	if set, _ := cmd.Flags().GetBool("json"); set {
-		_ = cmd.Flags().Set("format", "json")
+	return format, nil
+}
+
+func resolveShortcutOutputFormat(cmd *cobra.Command, s *Shortcut) (string, error) {
+	format, err := cmd.Flags().GetString("format")
+	if err != nil {
+		return "", errs.NewInternalError(errs.SubtypeUnknown, "failed to read --format: %v", err).WithCause(err)
 	}
+	jsonShorthand := false
+	if !shortcutDeclaresJSONFlag(s) && cmd.Flags().Lookup("json") != nil {
+		jsonShorthand, _ = cmd.Flags().GetBool("json")
+	}
+	return shortcutFormatCapabilities(s).Resolve(format, cmd.Flags().Changed("format"), jsonShorthand)
 }
 
 func registerShortcutFlagsWithContext(ctx context.Context, cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut) {
@@ -1313,9 +1349,9 @@ func registerShortcutFlagsWithContext(ctx context.Context, cmd *cobra.Command, f
 
 	cmd.Flags().Bool("dry-run", false, "print request without executing")
 	if cmd.Flags().Lookup("format") == nil {
-		cmd.Flags().String("format", "json", "output format: json (default) | pretty | table | ndjson | csv")
+		cmd.Flags().String("format", "json", output.StandardFormats.Usage())
 		cmdutil.RegisterFlagCompletion(cmd, "format", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-			return []string{"json", "pretty", "table", "ndjson", "csv"}, cobra.ShellCompDirectiveNoFileComp
+			return output.StandardFormats.Names(), cobra.ShellCompDirectiveNoFileComp
 		})
 	}
 	ensureJSONShorthand(cmd, s)

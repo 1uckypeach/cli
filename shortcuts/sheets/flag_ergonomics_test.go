@@ -5,7 +5,6 @@ package sheets
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -13,122 +12,6 @@ import (
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/spf13/cobra"
 )
-
-func TestUnknownFlagFromParseError(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		in   string
-		name string
-		ok   bool
-	}{
-		{"unknown flag: --cols", "cols", true},
-		{"unknown flag: --with-styles", "with-styles", true},
-		{"unknown shorthand flag: 'z' in -z", "", false},
-		{"flag needs an argument: --find", "", false},
-		{`invalid argument "x" for "--count"`, "", false},
-	}
-	for _, c := range cases {
-		name, ok := unknownFlagFromParseError(errors.New(c.in))
-		if name != c.name || ok != c.ok {
-			t.Errorf("unknownFlagFromParseError(%q) = (%q,%v), want (%q,%v)", c.in, name, ok, c.name, c.ok)
-		}
-	}
-}
-
-// TestSheetsFlagErrorFunc_SemanticGuessListsValidFlags pins the sheets
-// override of the root unknown-flag error: --cols is a semantic guess for
-// --range that edit distance can't rank, so the hint must inline the full
-// valid-flag list instead of deferring to a --help round trip.
-func TestSheetsFlagErrorFunc_SemanticGuessListsValidFlags(t *testing.T) {
-	t.Parallel()
-	c := &cobra.Command{Use: "demo"}
-	c.Flags().String("range", "", "")
-	c.Flags().Int("width", 0, "")
-
-	err := sheetsFlagErrorFunc(c, errors.New("unknown flag: --cols"))
-	var verr *errs.ValidationError
-	if !errors.As(err, &verr) {
-		t.Fatalf("expected *errs.ValidationError, got %T", err)
-	}
-	if verr.Subtype != errs.SubtypeInvalidArgument {
-		t.Errorf("subtype = %q, want invalid_argument", verr.Subtype)
-	}
-	if len(verr.Params) != 1 || verr.Params[0].Name != "--cols" {
-		t.Errorf("Params = %v, want one entry named --cols", verr.Params)
-	}
-	if strings.Contains(verr.Hint, "--help") {
-		t.Errorf("hint should not defer to --help when flags fit inline, got %q", verr.Hint)
-	}
-	for _, want := range []string{"--range", "--width"} {
-		if !strings.Contains(verr.Hint, want) {
-			t.Errorf("hint should inline valid flag %s, got %q", want, verr.Hint)
-		}
-	}
-}
-
-// TestSheetsFlagErrorFunc_TypoKeepsSuggestion pins that the root behavior
-// (did-you-mean suggestion, machine-readable Suggestions) is preserved by
-// the sheets override, with the valid-flag list appended.
-func TestSheetsFlagErrorFunc_TypoKeepsSuggestion(t *testing.T) {
-	t.Parallel()
-	c := &cobra.Command{Use: "demo"}
-	c.Flags().String("range", "", "")
-	c.Flags().Bool("dry-run", false, "")
-
-	err := sheetsFlagErrorFunc(c, errors.New("unknown flag: --rang"))
-	var verr *errs.ValidationError
-	if !errors.As(err, &verr) {
-		t.Fatalf("expected *errs.ValidationError, got %T", err)
-	}
-	found := false
-	for _, s := range verr.Params[0].Suggestions {
-		if s == "--range" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("Suggestions should include --range, got %v", verr.Params[0].Suggestions)
-	}
-	for _, want := range []string{"did you mean", "--range", "--dry-run"} {
-		if !strings.Contains(verr.Hint, want) {
-			t.Errorf("hint should contain %q, got %q", want, verr.Hint)
-		}
-	}
-}
-
-func TestSheetsFlagErrorFunc_OtherErrorStaysGeneric(t *testing.T) {
-	t.Parallel()
-	c := &cobra.Command{Use: "demo"}
-	err := sheetsFlagErrorFunc(c, errors.New("flag needs an argument: --find"))
-	var verr *errs.ValidationError
-	if !errors.As(err, &verr) {
-		t.Fatalf("expected *errs.ValidationError, got %T", err)
-	}
-	if verr.Param != "" || len(verr.Params) != 0 {
-		t.Errorf("Param=%q Params=%v, want both empty for generic flag error", verr.Param, verr.Params)
-	}
-	if strings.Contains(verr.Hint, "did you mean") {
-		t.Errorf("generic flag error must not produce a did-you-mean hint, got %q", verr.Hint)
-	}
-}
-
-func TestInlineFlagList_TruncatesPastLimit(t *testing.T) {
-	t.Parallel()
-	if got := inlineFlagList(nil); got != "" {
-		t.Errorf("inlineFlagList(nil) = %q, want empty", got)
-	}
-	names := make([]string, inlineFlagListLimit+5)
-	for i := range names {
-		names[i] = fmt.Sprintf("flag-%02d", i)
-	}
-	got := inlineFlagList(names)
-	if !strings.Contains(got, "5 more") || !strings.Contains(got, "--help") {
-		t.Errorf("truncated list should count the overflow and defer to --help, got %q", got)
-	}
-	if strings.Contains(got, names[inlineFlagListLimit]) {
-		t.Errorf("list should stop at the limit, got %q", got)
-	}
-}
 
 func TestCanonicalEnumValue(t *testing.T) {
 	t.Parallel()
@@ -278,19 +161,4 @@ func TestShortcuts_FlagErgonomicsMounted(t *testing.T) {
 		}
 	})
 
-	t.Run("unknown flag inlines valid flags", func(t *testing.T) {
-		t.Parallel()
-		sc := shortcutFromRegistry(t, "+cols-resize")
-		_, _, err := runShortcutCapturingErr(t, sc, []string{
-			"--url", testURL,
-			"--sheet-name", "s",
-			"--cols", "A:D",
-		})
-		ve := requireValidation(t, err, `unknown flag "--cols"`)
-		for _, want := range []string{"valid flags:", "--range", "--width", "--widths"} {
-			if !strings.Contains(ve.Hint, want) {
-				t.Errorf("hint should contain %q, got %q", want, ve.Hint)
-			}
-		}
-	})
 }

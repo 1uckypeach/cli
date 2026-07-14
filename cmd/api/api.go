@@ -40,6 +40,7 @@ type APIOptions struct {
 	PageLimit int
 	PageDelay int
 	Format    string
+	JSON      bool
 	JqExpr    string
 	DryRun    bool
 	File      string
@@ -88,6 +89,11 @@ Examples:
 			opts.Cmd = cmd
 			opts.Ctx = cmd.Context()
 			opts.As = core.Identity(asStr)
+			format, err := output.StandardFormats.Resolve(opts.Format, cmd.Flags().Changed("format"), opts.JSON)
+			if err != nil {
+				return err
+			}
+			opts.Format = format
 			if runF != nil {
 				return runF(opts)
 			}
@@ -103,8 +109,8 @@ Examples:
 	cmd.Flags().IntVar(&opts.PageSize, "page-size", 0, "page size (0 = use API default)")
 	cmd.Flags().IntVar(&opts.PageLimit, "page-limit", 10, "max pages to fetch with --page-all (0 = unlimited)")
 	cmd.Flags().IntVar(&opts.PageDelay, "page-delay", 200, "delay in ms between pages")
-	cmd.Flags().StringVar(&opts.Format, "format", "json", "output format: json|ndjson|table|csv")
-	cmd.Flags().Bool("json", false, "shorthand for --format json")
+	cmd.Flags().StringVar(&opts.Format, "format", "json", output.StandardFormats.Usage())
+	cmd.Flags().BoolVar(&opts.JSON, "json", false, "shorthand for --format json")
 	cmd.Flags().StringVarP(&opts.JqExpr, "jq", "q", "", "jq expression to filter JSON output")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "print request without executing")
 	cmd.Flags().StringVar(&opts.File, "file", "", "file to upload as multipart/form-data ([field=]path, supports - for stdin)")
@@ -116,7 +122,7 @@ Examples:
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	cmdutil.RegisterFlagCompletion(cmd, "format", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-		return []string{"json", "ndjson", "table", "csv"}, cobra.ShellCompDirectiveNoFileComp
+		return output.StandardFormats.Names(), cobra.ShellCompDirectiveNoFileComp
 	})
 	cmdutil.SetRisk(cmd, "write")
 
@@ -263,10 +269,7 @@ func apiRun(opts *APIOptions) error {
 	}
 
 	out := f.IOStreams.Out
-	format, formatOK := output.ParseFormat(opts.Format)
-	if !formatOK {
-		fmt.Fprintf(f.IOStreams.ErrOut, "warning: unknown format %q, falling back to json\n", opts.Format)
-	}
+	format, _ := output.ParseFormat(opts.Format)
 
 	if opts.PageAll {
 		return apiPaginate(opts.Ctx, ac, request, format, opts.JqExpr, out, f.IOStreams.ErrOut, opts.Cmd.CommandPath(),
@@ -343,6 +346,24 @@ func apiPaginate(ctx context.Context, ac *client.APIClient, request client.RawAp
 	}
 
 	switch format {
+	case output.FormatPretty:
+		result, err := ac.PaginateAll(ctx, request, pagOpts)
+		if err != nil {
+			return errs.MarkRaw(err)
+		}
+		if apiErr := ac.CheckResponse(result, pagOpts.Identity); apiErr != nil {
+			output.FormatValue(out, result, output.FormatPretty)
+			return errs.MarkRaw(apiErr)
+		}
+		scanResult := output.ScanForSafety(commandPath, result, errOut)
+		if scanResult.Blocked {
+			return errs.MarkRaw(scanResult.BlockErr)
+		}
+		if scanResult.Alert != nil {
+			output.WriteAlertWarning(errOut, scanResult.Alert)
+		}
+		output.FormatValue(out, result, output.FormatPretty)
+		return nil
 	case output.FormatNDJSON, output.FormatTable, output.FormatCSV:
 		pf := output.NewPaginatedFormatter(out, format)
 		result, hasItems, err := ac.StreamPages(ctx, request, func(items []interface{}) error {

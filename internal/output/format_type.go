@@ -10,6 +10,7 @@ type Format int
 
 const (
 	FormatJSON Format = iota
+	FormatPretty
 	FormatNDJSON
 	FormatTable
 	FormatCSV
@@ -22,6 +23,8 @@ func ParseFormat(s string) (Format, bool) {
 	switch strings.ToLower(s) {
 	case "json", "":
 		return FormatJSON, true
+	case "pretty":
+		return FormatPretty, true
 	case "ndjson":
 		return FormatNDJSON, true
 	case "table":
@@ -36,6 +39,8 @@ func ParseFormat(s string) (Format, bool) {
 // String returns the string representation of a Format.
 func (f Format) String() string {
 	switch f {
+	case FormatPretty:
+		return "pretty"
 	case FormatNDJSON:
 		return "ndjson"
 	case FormatTable:

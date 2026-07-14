@@ -355,7 +355,31 @@ func TestAuthScopesCmd_FlagParsing(t *testing.T) {
 	}
 }
 
-func TestAuthScopesCmd_JSONFlagForcesJSONFormat(t *testing.T) {
+func TestAuthScopesCmd_JSONShorthand(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+	})
+
+	var gotOpts *ScopesOptions
+	cmd := NewCmdAuthScopes(f, func(opts *ScopesOptions) error {
+		gotOpts = opts
+		return nil
+	})
+	cmd.SetArgs([]string{"--json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotOpts == nil {
+		t.Fatal("expected options to be captured")
+	}
+	if !gotOpts.JSON || gotOpts.Format != "json" {
+		t.Fatalf("JSON = %v, format = %q; want true, json", gotOpts.JSON, gotOpts.Format)
+	}
+}
+
+func TestAuthScopesCmd_ExplicitFormatWinsOverJSONShorthand(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
 	})
@@ -376,8 +400,8 @@ func TestAuthScopesCmd_JSONFlagForcesJSONFormat(t *testing.T) {
 	if !gotOpts.JSON {
 		t.Error("expected JSON=true")
 	}
-	if gotOpts.Format != "json" {
-		t.Errorf("expected format json, got %s", gotOpts.Format)
+	if gotOpts.Format != "pretty" {
+		t.Errorf("expected explicit format pretty, got %s", gotOpts.Format)
 	}
 }
 

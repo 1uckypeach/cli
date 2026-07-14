@@ -73,6 +73,30 @@ func TestFormatValue_Table(t *testing.T) {
 	}
 }
 
+func TestFormatValue_Pretty(t *testing.T) {
+	data := map[string]interface{}{
+		"data": map[string]interface{}{
+			"items": []interface{}{
+				map[string]interface{}{"name": "Alice"},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	FormatValue(&buf, data, FormatPretty)
+	out := buf.String()
+
+	if !json.Valid([]byte(out)) {
+		t.Fatalf("pretty output should be valid JSON, got:\n%s", out)
+	}
+	if !strings.Contains(out, "\n  \"data\": {") || !strings.Contains(out, `"name": "Alice"`) {
+		t.Fatalf("pretty output should be indented JSON, got:\n%s", out)
+	}
+	if strings.Contains(out, "─") {
+		t.Fatalf("pretty output should not render a table, got:\n%s", out)
+	}
+}
+
 func TestFormatValue_CSV(t *testing.T) {
 	data := map[string]interface{}{
 		"data": map[string]interface{}{
@@ -146,6 +170,20 @@ func TestPaginatedFormatter_Table(t *testing.T) {
 	}
 	if !strings.Contains(out2, "Bob") {
 		t.Error("continuation table page should contain data")
+	}
+}
+
+func TestPaginatedFormatter_Pretty(t *testing.T) {
+	var buf bytes.Buffer
+	pf := NewPaginatedFormatter(&buf, FormatPretty)
+
+	pf.FormatPage([]interface{}{map[string]interface{}{"name": "Alice"}})
+	out := buf.String()
+	if !json.Valid([]byte(out)) {
+		t.Fatalf("paginated pretty output should be valid JSON, got:\n%s", out)
+	}
+	if !strings.Contains(out, "\n  {") || !strings.Contains(out, `"name": "Alice"`) {
+		t.Fatalf("paginated pretty output should be indented JSON, got:\n%s", out)
 	}
 }
 

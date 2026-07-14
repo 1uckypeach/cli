@@ -31,9 +31,11 @@ func NewCmdAuthScopes(f *cmdutil.Factory, runF func(*ScopesOptions) error) *cobr
 		Short: "Query scopes enabled for the app",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.Ctx = cmd.Context()
-			if opts.JSON {
-				opts.Format = "json"
+			format, err := output.JSONPrettyFormats.Resolve(opts.Format, cmd.Flags().Changed("format"), opts.JSON)
+			if err != nil {
+				return err
 			}
+			opts.Format = format
 			if runF != nil {
 				return runF(opts)
 			}
@@ -41,8 +43,11 @@ func NewCmdAuthScopes(f *cmdutil.Factory, runF func(*ScopesOptions) error) *cobr
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.Format, "format", "json", "output format: json (default) | pretty")
-	cmd.Flags().BoolVar(&opts.JSON, "json", false, "structured JSON output")
+	cmd.Flags().StringVar(&opts.Format, "format", "json", output.JSONPrettyFormats.Usage())
+	cmd.Flags().BoolVar(&opts.JSON, "json", false, "shorthand for --format json")
+	cmdutil.RegisterFlagCompletion(cmd, "format", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+		return output.JSONPrettyFormats.Names(), cobra.ShellCompDirectiveNoFileComp
+	})
 	cmdutil.SetRisk(cmd, "read")
 
 	return cmd
@@ -75,10 +80,10 @@ func authScopesRun(opts *ScopesOptions) error {
 			"failed to get app scope info: %v", err).WithCause(err)
 	}
 	if opts.Format == "pretty" {
-		fmt.Fprintf(f.IOStreams.ErrOut, "App ID: %s\n", config.AppID)
-		fmt.Fprintf(f.IOStreams.ErrOut, "Enabled scopes (%d):\n\n", len(appInfo.UserScopes))
+		fmt.Fprintf(f.IOStreams.Out, "App ID: %s\n", config.AppID)
+		fmt.Fprintf(f.IOStreams.Out, "Enabled scopes (%d):\n\n", len(appInfo.UserScopes))
 		for _, s := range appInfo.UserScopes {
-			fmt.Fprintf(f.IOStreams.ErrOut, "  • %s\n", s)
+			fmt.Fprintf(f.IOStreams.Out, "  • %s\n", s)
 		}
 	} else {
 		output.PrintJson(f.IOStreams.Out, map[string]interface{}{

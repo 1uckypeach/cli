@@ -90,6 +90,20 @@ func TestCollectContainsDocsFetchAndDryRunFlag(t *testing.T) {
 	}
 }
 
+func TestCollectMarksPureNavigationGroupsNonRunnable(t *testing.T) {
+	got, err := collectCommandIndex(context.Background())
+	if err != nil {
+		t.Fatalf("collectCommandIndex() error = %v", err)
+	}
+	cmd := findManifestCommand(&got, "approval")
+	if cmd == nil {
+		t.Fatalf("approval group not found")
+	}
+	if cmd.Runnable {
+		t.Fatalf("approval is a navigation group and must not be exported as runnable")
+	}
+}
+
 func TestCollectExcludesGeneratedServiceCommands(t *testing.T) {
 	got, err := collectHandAuthored(context.Background())
 	if err != nil {

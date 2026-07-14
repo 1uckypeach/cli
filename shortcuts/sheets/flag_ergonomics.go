@@ -4,16 +4,12 @@
 package sheets
 
 import (
-	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
-	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/suggest"
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 // ─── sheets flag ergonomics ─────────────────────────────────────────────
@@ -28,104 +24,15 @@ import (
 // needs no change at all and no other domain's behavior shifts.
 
 // withFlagErgonomics wraps an optional PostMount so that, after it runs,
-// the command gets the sheets-specific unknown-flag error (valid flags
-// inlined) and enum-value normalization (canonical vocabulary auto-applied,
-// typos suggested).
+// the command gets enum-value normalization. Unknown-flag handling is owned by
+// cmd/root.go's single FlagErrorFunc, which retains the sheets inline flag list.
 func withFlagErgonomics(prev func(cmd *cobra.Command)) func(cmd *cobra.Command) {
 	return func(cmd *cobra.Command) {
 		if prev != nil {
 			prev(cmd)
 		}
-		cmd.SetFlagErrorFunc(sheetsFlagErrorFunc)
 		chainEnumNormalization(cmd)
 	}
-}
-
-// sheetsFlagErrorFunc overrides the root FlagErrorFunc for sheets commands.
-// It keeps the root behavior (typed error, did-you-mean suggestions, the
-// offending flag on params) and additionally inlines the full valid-flag
-// set: hallucinated sheets flags are usually semantic guesses (--cols for
-// --range) that edit distance can't rank, and a --help round trip costs an
-// agent a full extra call. One line here lets it re-issue the command
-// immediately.
-func sheetsFlagErrorFunc(c *cobra.Command, ferr error) error {
-	name, isUnknown := unknownFlagFromParseError(ferr)
-	if !isUnknown {
-		return common.ValidationErrorf("%s", ferr.Error()).
-			WithHint("run `%s --help` for valid flags", c.CommandPath())
-	}
-	valid := visibleFlagNames(c)
-	suggestions := suggest.Closest(name, valid, 3)
-	for i := range suggestions {
-		suggestions[i] = "--" + suggestions[i]
-	}
-	hint := fmt.Sprintf("run `%s --help` to see valid flags", c.CommandPath())
-	if list := inlineFlagList(valid); list != "" {
-		hint = "valid flags: " + list
-		if len(suggestions) > 0 {
-			hint = fmt.Sprintf("did you mean %s? valid flags: %s",
-				strings.Join(suggestions, ", "), list)
-		}
-	}
-	return errs.NewValidationError(errs.SubtypeInvalidArgument,
-		"unknown flag %q for %q", "--"+name, c.CommandPath()).
-		WithParams(errs.InvalidParam{Name: "--" + name, Reason: "unknown flag", Suggestions: suggestions}).
-		WithHint("%s", hint)
-}
-
-// unknownFlagFromParseError extracts the offending long-flag name from
-// cobra's flag-parse error text ("unknown flag: --query" → "query").
-// Returns ok=false for anything else (missing argument, invalid value,
-// unknown shorthand) so those stay structured but generic. Mirrors the
-// root-level parser in cmd; the prefix contract is cobra's English wording.
-func unknownFlagFromParseError(err error) (string, bool) {
-	const p = "unknown flag: --"
-	msg := err.Error()
-	i := strings.Index(msg, p)
-	if i < 0 {
-		return "", false
-	}
-	rest := msg[i+len(p):]
-	if j := strings.IndexAny(rest, " \t"); j >= 0 {
-		rest = rest[:j]
-	}
-	return rest, true
-}
-
-// visibleFlagNames lists the non-hidden flag names registered on c, sorted.
-func visibleFlagNames(c *cobra.Command) []string {
-	var names []string
-	c.Flags().VisitAll(func(f *pflag.Flag) {
-		if !f.Hidden {
-			names = append(names, f.Name)
-		}
-	})
-	sort.Strings(names)
-	return names
-}
-
-// inlineFlagListLimit caps how many flag names ride inline on an
-// unknown-flag hint. Sheets shortcuts stay well under it.
-const inlineFlagListLimit = 25
-
-// inlineFlagList renders valid flag names as one comma-separated line for
-// the unknown-flag hint, truncating past inlineFlagListLimit. Empty when
-// there is nothing to list.
-func inlineFlagList(names []string) string {
-	if len(names) == 0 {
-		return ""
-	}
-	shown := names
-	var suffix string
-	if len(names) > inlineFlagListLimit {
-		shown = names[:inlineFlagListLimit]
-		suffix = fmt.Sprintf(", … (%d more; see --help)", len(names)-inlineFlagListLimit)
-	}
-	parts := make([]string, len(shown))
-	for i, n := range shown {
-		parts[i] = "--" + n
-	}
-	return strings.Join(parts, ", ") + suffix
 }
 
 // ─── enum vocabulary normalization ──────────────────────────────────────
