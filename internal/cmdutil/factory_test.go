@@ -463,7 +463,7 @@ func TestRequireBuiltinCredentialProvider_AllowsMatchingAppIDOnlyProfile(t *test
 		Apps: []core.AppConfig{{
 			Name:      "tenant_a",
 			AppId:     "cli_a",
-			AppSecret: core.PlainSecret("profile-secret"),
+			AppSecret: core.PlainSecret("test-secret"),
 			Brand:     core.BrandFeishu,
 		}},
 	}); err != nil {
@@ -480,7 +480,7 @@ func TestRequireBuiltinCredentialProvider_AllowsMatchingAppIDOnlyProfile(t *test
 	}}
 	cred := credential.NewCredentialProvider(
 		[]extcred.Provider{stub},
-		&stubDefaultAccountResolver{acct: &credential.Account{AppID: "cli_a", AppSecret: "profile-secret"}},
+		&stubDefaultAccountResolver{acct: &credential.Account{AppID: "cli_a", AppSecret: "test-secret"}},
 		nil,
 		nil,
 	).WithProfileFromFlag("tenant_a")

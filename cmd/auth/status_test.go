@@ -118,14 +118,14 @@ func TestAuthStatus_AllowsMatchingAppIDOnlySelectedProfile(t *testing.T) {
 		Apps: []core.AppConfig{{
 			Name:      "tenant_a",
 			AppId:     "cli_a",
-			AppSecret: core.PlainSecret("profile-secret"),
+			AppSecret: core.PlainSecret("test-secret"),
 			Brand:     core.BrandFeishu,
 		}},
 	}); err != nil {
 		t.Fatalf("SaveMultiAppConfig: %v", err)
 	}
 
-	config := &core.CliConfig{ProfileName: "tenant_a", AppID: "cli_a", AppSecret: "profile-secret", Brand: core.BrandFeishu}
+	config := &core.CliConfig{ProfileName: "tenant_a", AppID: "cli_a", AppSecret: "test-secret", Brand: core.BrandFeishu}
 	f, stdout, _, _ := cmdutil.TestFactory(t, config)
 	f.Credential = credential.NewCredentialProvider(
 		[]extcred.Provider{&envprovider.Provider{}},
