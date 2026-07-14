@@ -1,18 +1,18 @@
 # Planning Layer
 
-新建演示文稿或大幅改写页面时，必须先写 `.lark-slides/plan/<deck-or-task-id>/slide_plan.json`，再生成 XML。这个文件是 deck 的设计中间层，用来把叙事、页面角色、布局、视觉重点和文字密度固定下来，避免从用户提示直接跳到 XML。
+When creating a new presentation or substantially rewriting pages, you must first write `.lark-slides/plan/<deck-or-task-id>/slide_plan.json`, then generate XML. This file is the deck's design intermediate layer; it pins down narrative, page roles, layout, visual focus, and text density so the agent does not jump straight from the user prompt to XML.
 
-小型已有页编辑可豁免，例如只替换一个标题、改一个数字、插入一个块、上传并插入一张图。只要任务会重排多页、生成新 deck、替换整页结构，仍然需要规划层。
+Small edits to existing pages are exempt, for example replacing a single title, changing one number, inserting one block, or uploading and inserting one image. Any task that reorders multiple pages, generates a new deck, or replaces whole-page structure still requires the planning layer.
 
 ## Required Flow
 
-1. 理解用户需求，必要时澄清主题、受众、页数、风格。
-2. 选择唯一 plan 目录：`.lark-slides/plan/<deck-or-task-id>/`。
-3. 先创建目录：`mkdir -p .lark-slides/plan/<deck-or-task-id>`。
-4. 写入 `.lark-slides/plan/<deck-or-task-id>/slide_plan.json`。
-5. 读取 `xml-schema-quick-ref.md`、`visual-planning.md` 和 `asset-planning.md`。
-6. 按 plan、visual planning 和 asset planning 规则逐页生成 XML，把 `layout_type`、`visual_focus`、`text_density` 转成具体页面几何和文本量约束，并把缺失素材转成可执行兜底视觉。
-7. 创建 PPT 后用 `slides +xml-get` 回读，核对页面数量、关键元素和 plan 到 XML 的对应关系。
+1. Understand the user's needs; clarify topic, audience, page count, and style when necessary.
+2. Choose a unique plan directory: `.lark-slides/plan/<deck-or-task-id>/`.
+3. Create the directory first: `mkdir -p .lark-slides/plan/<deck-or-task-id>`.
+4. Write `.lark-slides/plan/<deck-or-task-id>/slide_plan.json`.
+5. Read `xml-schema-quick-ref.md`, `visual-planning.md`, and `asset-planning.md`.
+6. Generate XML page by page following the plan, visual planning, and asset planning rules: turn `layout_type`, `visual_focus`, and `text_density` into concrete page geometry and text-volume constraints, and turn missing assets into executable fallback visuals.
+7. After creating the presentation, fetch it back with `slides +xml-get` and verify page count, key elements, and the plan-to-XML correspondence.
 
 ## Plan Path
 
@@ -219,7 +219,7 @@ Good examples:
 
 - `{"asset_type":"architecture_diagram","purpose":"Explain component relationships.","suggested_query":"service architecture diagram","fallback_if_missing":"Draw a component diagram with grouped boxes, connector arrows, and short labels."}`
 - `{"asset_type":"logo","purpose":"Identify the customer context.","suggested_query":"customer logo","fallback_if_missing":"Use a text label in a small badge."}`
-- `{"asset_type":"chart","purpose":"Show adoption trend.","suggested_query":"monthly adoption trend chart","fallback_if_missing":"Render a native `<chart>` using the provided series when available; otherwise render a native `<chart>` with mock placeholder values and label it as 模拟数据，仅占位，待替换真实数据."}`
+- `{"asset_type":"chart","purpose":"Show adoption trend.","suggested_query":"monthly adoption trend chart","fallback_if_missing":"Render a native `<chart>` using the provided series when available; otherwise render a native `<chart>` with mock placeholder values and label it as Mock data, placeholder only, to be replaced with real data."}`
 
 ## XML Generation Contract
 

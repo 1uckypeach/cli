@@ -1,22 +1,22 @@
 # lark-slides xml_presentation.slide get
 
-## 用途
+## Purpose
 
-按 `slide_id` 拉取指定演示文稿单页的 XML 内容（可指定历史版本）。常用于"读-改-写"编辑闭环的第一步。
+Fetch the XML content of a single slide in a presentation by `slide_id` (a historical revision can be specified). Commonly used as the first step of the "read-modify-write" editing loop.
 
-## 命令
+## Command
 
 ```bash
 lark-cli slides xml_presentation.slide get --as user --params '<json_params>'
 ```
 
-## 参数说明
+## Parameter Description
 
-| 参数 | 类型 | 必需 | 说明 |
+| Parameter | Type | Required | Description |
 |------|------|------|------|
-| `--params` | JSON string | 是 | 路径参数与查询参数 |
+| `--params` | JSON string | Yes | Path and query parameters |
 
-### params JSON 结构
+### params JSON Structure
 
 ```json
 {
@@ -26,15 +26,15 @@ lark-cli slides xml_presentation.slide get --as user --params '<json_params>'
 }
 ```
 
-| 字段 | 类型 | 必需 | 说明 |
+| Field | Type | Required | Description |
 |------|------|------|------|
-| `xml_presentation_id` | string | 是 | 目标演示文稿唯一标识 |
-| `slide_id` | string | 是 | 目标页面唯一标识 |
-| `revision_id` | integer | 否 | 版本号，`-1` 表示最新版（默认）|
+| `xml_presentation_id` | string | Yes | Unique identifier of the target presentation |
+| `slide_id` | string | Yes | Unique identifier of the target slide |
+| `revision_id` | integer | No | Revision number, `-1` means the latest revision (default) |
 
-## 使用示例
+## Usage Examples
 
-### 读最新版本
+### Read the Latest Revision
 
 ```bash
 lark-cli slides xml_presentation.slide get --as user --params '{
@@ -43,7 +43,7 @@ lark-cli slides xml_presentation.slide get --as user --params '{
 }'
 ```
 
-### 只提取 XML 内容
+### Extract Only the XML Content
 
 ```bash
 lark-cli slides xml_presentation.slide get --as user \
@@ -51,7 +51,7 @@ lark-cli slides xml_presentation.slide get --as user \
   | jq -r '.data.slide.content'
 ```
 
-### 读指定历史版本
+### Read a Specific Historical Revision
 
 ```bash
 lark-cli slides xml_presentation.slide get --as user --params '{
@@ -61,7 +61,7 @@ lark-cli slides xml_presentation.slide get --as user --params '{
 }'
 ```
 
-## 返回值
+## Return Value
 
 ```json
 {
@@ -77,24 +77,24 @@ lark-cli slides xml_presentation.slide get --as user --params '{
 }
 ```
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 |------|------|------|
-| `data.slide.slide_id` | string | 页面唯一标识 |
-| `data.slide.content` | string | 页面完整 XML（`<slide>` 根节点，不含 xmlns）|
-| `data.revision_id` | integer | 此次读到的版本号，可用于后续 replace 的乐观锁 |
+| `data.slide.slide_id` | string | Unique identifier of the slide |
+| `data.slide.content` | string | Full slide XML (`<slide>` root node, without xmlns) |
+| `data.revision_id` | integer | Revision number returned by this read; can be used as an optimistic lock for a subsequent replace |
 
-## 常见错误
+## Common Errors
 
-| 错误码 | 含义 | 解决方案 |
+| Error Code | Meaning | Solution |
 |--------|------|----------|
-| 404 | 演示文稿或页面不存在 | 检查 `xml_presentation_id` / `slide_id` |
-| 403 | 权限不足 | 需要 `slides:presentation:read` scope，并对该 PPT 有访问权限 |
-| 400 | `revision_id` 不存在 | 传了无效版本号，用 `-1` 或真实存在的版本号 |
+| 404 | Presentation or slide does not exist | Check `xml_presentation_id` / `slide_id` |
+| 403 | Insufficient permissions | Requires the `slides:presentation:read` scope and access permission to the PPT |
+| 400 | `revision_id` does not exist | An invalid revision number was passed; use `-1` or a revision number that actually exists |
 
-## 注意事项
+## Notes
 
-1. **执行前必做**：`lark-cli schema slides.xml_presentation.slide.get` 查看最新参数结构
-2. **block_id 提取**：返回 XML 里每个顶层块（shape、img、table、chart、whiteboard 等）的 `id` 属性即为 `block_id`，通常是 3 字符短码，例如 `<shape id="bUn" ...>`。用以下命令列出当前页所有 block_id：
+1. **Do this before executing**: run `lark-cli schema slides.xml_presentation.slide.get` to check the latest parameter structure
+2. **block_id extraction**: in the returned XML, the `id` attribute of each top-level block (shape, img, table, chart, whiteboard, etc.) is the `block_id`, usually a 3-character short code, e.g. `<shape id="bUn" ...>`. Use the following command to list all block_ids on the current slide:
 
    ```bash
    lark-cli slides xml_presentation.slide get --as user \
@@ -102,9 +102,9 @@ lark-cli slides xml_presentation.slide get --as user --params '{
      | jq -r '.data.slide.content' | grep -oE 'id="[^"]+"' | sed 's/id="//;s/"//'
    ```
 
-## 相关命令
+## Related Commands
 
-- [slides +replace-slide](lark-slides-replace-slide.md) — 块级替换 shortcut（推荐）
-- [xml_presentation.slide replace](lark-slides-xml-presentation-slide-replace.md) — 底层 replace API 参考
-- [slides +xml-get](lark-slides-xml-get.md) — 读整个 PPT 并保存到本地文件
-- [lark-slides-edit-workflows.md](lark-slides-edit-workflows.md) — 读-改-写闭环
+- [slides +replace-slide](lark-slides-replace-slide.md) — Block-level replace shortcut (recommended)
+- [xml_presentation.slide replace](lark-slides-xml-presentation-slide-replace.md) — Underlying replace API reference
+- [slides +xml-get](lark-slides-xml-get.md) — Read the whole PPT and save it to a local file
+- [lark-slides-edit-workflows.md](lark-slides-edit-workflows.md) — Read-modify-write loop

@@ -1,44 +1,44 @@
-# 完整操作示例
+# Complete Operation Examples
 
-本文档提供与 CLI schema 一致的调用示例，XML 内容均遵循 [slides_xml_schema_definition.xml](slides_xml_schema_definition.xml)。
+This document provides invocation examples consistent with the CLI schema; all XML content follows [slides_xml_schema_definition.xml](slides_xml_schema_definition.xml).
 
-> **重要**：新建 PPT 请使用 `slides +create --slides`，传入由 `<slide>` XML 字符串组成的 JSON 数组；每个元素必须是一页完整的 `<slide>`。复杂内容建议先创建空白 PPT，再通过 `xml_presentation.slide.create` 逐页添加。完整 `<presentation>` XML 可用于本地 lint 或读取，但不能直接作为 `+create` 的提交参数。
+> **Important**: to create a new PPT, use `slides +create --slides` with a JSON array of `<slide>` XML strings; each element must be one complete `<slide>` page. For complex content, create an empty PPT first, then add pages one by one via `xml_presentation.slide.create`. A complete `<presentation>` XML can be used for local lint or reading, but cannot be submitted directly as the `+create` argument.
 
-## 目录
+## Table of Contents
 
-- [示例 1：可靠创建 6 页 PPT](#示例-1可靠创建-6-页-ppt)
-- [示例 7: +replace-slide + block_insert 给已有页加图](#示例-7-replace-slide--block_insert-给已有页加图)
-- [示例 8: +replace-slide + block_replace 替换一个块](#示例-8-replace-slide--block_replace-替换一个块)
+- [Example 1: Reliably create a 6-page PPT](#example-1-reliably-create-a-6-page-ppt)
+- [Example 7: +replace-slide + block_insert to add an image to an existing page](#example-7-replace-slide--block_insert-to-add-an-image-to-an-existing-page)
+- [Example 8: +replace-slide + block_replace to replace one block](#example-8-replace-slide--block_replace-to-replace-one-block)
 
-## 示例 1：可靠创建 6 页 PPT
+## Example 1: Reliably create a 6-page PPT
 
-### 1. 写入规划文件
+### 1. Write the plan file
 
 ```bash
 DECK_DIR=".lark-slides/plan/reliable-six-page-ppt"
 mkdir -p "$DECK_DIR"
 
-# 按 planning-layer.md 写入 "$DECK_DIR/slide_plan.json"，
-# 至少记录 6 页的顺序和标题。
+# Write "$DECK_DIR/slide_plan.json" per planning-layer.md,
+# recording at least the order and titles of the 6 pages.
 ```
 
-### 2. 为每页保存独立 XML
+### 2. Save a standalone XML file per page
 
-每个文件都是完整的 `<slide>`。下面的循环会生成 6 个独立 XML 文件；实际项目中可将每页主体替换为规划内容。
+Each file is a complete `<slide>`. The loop below generates 6 standalone XML files; in a real project, replace each page body with the planned content.
 
 ```bash
-titles=("主题与结论" "问题背景" "核心方法" "关键数据" "执行计划" "总结与行动")
+titles=("Topic and Conclusion" "Problem Background" "Core Method" "Key Data" "Execution Plan" "Summary and Actions")
 for i in {1..6}; do
   printf -v page '%02d' "$i"
   cat > "$DECK_DIR/slide-$page.xml" <<XML
-<slide xmlns="http://www.larkoffice.com/sml/2.0"><style><fill><fillColor color="rgb(248,250,252)"/></fill></style><data><shape type="rect" topLeftX="56" topLeftY="56" width="12" height="428"><fill><fillColor color="rgb(37,99,235)"/></fill></shape><shape type="text" topLeftX="100" topLeftY="160" width="760" height="90"><content textType="title" autoFit="normal-auto-fit"><p>${titles[$((i-1))]}</p></content></shape><shape type="text" topLeftX="100" topLeftY="290" width="700" height="70"><content textType="body" autoFit="normal-auto-fit"><p>页面主体内容。</p></content></shape></data></slide>
+<slide xmlns="http://www.larkoffice.com/sml/2.0"><style><fill><fillColor color="rgb(248,250,252)"/></fill></style><data><shape type="rect" topLeftX="56" topLeftY="56" width="12" height="428"><fill><fillColor color="rgb(37,99,235)"/></fill></shape><shape type="text" topLeftX="100" topLeftY="160" width="760" height="90"><content textType="title" autoFit="normal-auto-fit"><p>${titles[$((i-1))]}</p></content></shape><shape type="text" topLeftX="100" topLeftY="290" width="700" height="70"><content textType="body" autoFit="normal-auto-fit"><p>Page body content.</p></content></shape></data></slide>
 XML
 done
 ```
 
-### 3. 逐页运行 lint
+### 3. Run lint on each page
 
-提交前检查每个独立 XML。`summary.error_count` 必须为 `0`，否则先修复 XML 或布局问题。
+Check every standalone XML before submission. `summary.error_count` must be `0`; otherwise fix the XML or layout issues first.
 
 ```bash
 for slide_xml in "$DECK_DIR"/slide-0{1,2,3,4,5,6}.xml; do
@@ -49,13 +49,13 @@ done
 test "$(jq -s 'map(.summary.error_count) | add' "$DECK_DIR"/slide-0{1,2,3,4,5,6}.lint.json)" = "0"
 ```
 
-### 4. 使用 `+create` 创建 6 页 PPT
+### 4. Create the 6-page PPT with `+create`
 
-`--slides` 接收由 6 个完整 `<slide>` XML 字符串组成的 JSON 数组；使用 `jq --rawfile` 避免手动处理 XML 引号和换行。
+`--slides` receives a JSON array of 6 complete `<slide>` XML strings; use `jq --rawfile` to avoid manually handling XML quotes and newlines.
 
 ```bash
 lark-cli slides +create --as user \
-  --title "可靠创建 6 页 PPT" \
+  --title "Reliably created 6-page PPT" \
   --slides "$(jq -n \
     --rawfile s1 "$DECK_DIR/slide-01.xml" \
     --rawfile s2 "$DECK_DIR/slide-02.xml" \
@@ -78,9 +78,9 @@ fi
 echo "$PRESENTATION_ID" > "$DECK_DIR/xml_presentation_id"
 ```
 
-如果创建中途失败，先保存已经返回的 `xml_presentation_id`，再回读确认实际已创建页数。
+If creation fails midway, save the already-returned `xml_presentation_id` first, then read back to confirm how many pages were actually created.
 
-### 5. 用 `+xml-get` 回读全文 XML
+### 5. Read back the full XML with `+xml-get`
 
 ```bash
 lark-cli slides +xml-get --as user \
@@ -88,4 +88,3 @@ lark-cli slides +xml-get --as user \
   --output "$DECK_DIR/readback.xml" \
   --json | tee "$DECK_DIR/readback.json"
 ```
-

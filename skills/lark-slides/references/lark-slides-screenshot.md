@@ -1,40 +1,40 @@
 # slides +screenshot
 
-## 用途
+## Purpose
 
-获取幻灯片页面截图并保存为本地图片文件。默认用于已存在 PPT 页面截图；传入 `--content` 时用于直接渲染单个 `<slide>` XML 片段预览。本 shortcut 会在 CLI 进程内解码并写入文件，stdout 只返回文件路径、大小、页面 ID 等元信息，避免把图片 Base64 输出给模型。
+Takes screenshots of slide pages and saves them as local image files. By default it screenshots pages of an existing deck; when `--content` is passed, it directly renders a single `<slide>` XML fragment for preview. This shortcut decodes and writes the files inside the CLI process; stdout only returns metadata such as file path, size, and slide ID, avoiding sending image Base64 to the model.
 
-注意：该截图能力受应用白名单限制，绝大多数应用不可用。若截图失败，记录错误即可；不要引导用户申请 `slides:presentation:screenshot` 权限。后续按 `validation-checklist.md` 走非截图验证，不要声称已完成截图验收。
+Note: this screenshot capability is gated by an application allowlist, and the vast majority of applications cannot use it. If a screenshot fails, just record the error; do not steer the user toward requesting the `slides:presentation:screenshot` permission. Then follow `validation-checklist.md` for non-screenshot validation, and do not claim that screenshot-based acceptance was completed.
 
-## 命令
+## Command
 
 ```bash
 lark-cli slides +screenshot --as user \
-  --presentation '<xml_presentation_id 或 slides/wiki URL>' \
+  --presentation '<xml_presentation_id or slides/wiki URL>' \
   --slide-number 1
 ```
 
-渲染本地 XML 内容：
+Render local XML content:
 
 ```bash
 lark-cli slides +screenshot --as user \
   --content @slide.xml
 ```
 
-## 参数
+## Parameters
 
-| 参数 | 必需 | 说明 |
+| Parameter | Required | Description |
 |------|------|------|
-| `--presentation` | list 模式必需 | `xml_presentation_id`、`/slides/` URL，或解析后为 slides 的 `/wiki/` URL。传 `--content` 时不能使用 |
-| `--slide-id` | list 模式至少提供 `--slide-id` / `--slide-number` 之一 | 页面 short ID；多页截图时重复传入；一次最多 10 页（`--slide-id` + `--slide-number` 合计小于等于 10） |
-| `--slide-number` | list 模式至少提供 `--slide-id` / `--slide-number` 之一 | 页面页号；多页截图时重复传入；一次最多 10 页（`--slide-id` + `--slide-number` 合计小于等于 10） |
-| `--content` | render 模式必需 | 要直接渲染的 `<slide>` XML 片段；支持直接传值、`@file`、`-` stdin。传入后不能同时传 `--slide-id` / `--slide-number` |
-| `--output-dir` | 否 | 输出目录，默认 `.lark-slides/screenshots`；必须是当前目录内的相对路径 |
-| `--output-name` | 否 | render 模式的输出文件名 stem；未指定时优先用返回的 `slide_id`，否则用 `rendered-slide`。若目标文件已存在，会自动追加递增后缀避免覆盖 |
+| `--presentation` | Required in list mode | `xml_presentation_id`, `/slides/` URL, or a `/wiki/` URL that resolves to slides. Cannot be used when `--content` is passed |
+| `--slide-id` | List mode requires at least one of `--slide-id` / `--slide-number` | Slide short ID; repeat the flag for multiple pages; at most 10 pages per call (`--slide-id` + `--slide-number` combined at most 10) |
+| `--slide-number` | List mode requires at least one of `--slide-id` / `--slide-number` | Slide page number; repeat the flag for multiple pages; at most 10 pages per call (`--slide-id` + `--slide-number` combined at most 10) |
+| `--content` | Required in render mode | The `<slide>` XML fragment to render directly; supports a literal value, `@file`, or `-` stdin. When passed, `--slide-id` / `--slide-number` cannot be used at the same time |
+| `--output-dir` | No | Output directory, default `.lark-slides/screenshots`; must be a relative path inside the current directory |
+| `--output-name` | No | Output file name stem in render mode; when unspecified, the returned `slide_id` is preferred, otherwise `rendered-slide`. If the target file already exists, an incrementing suffix is appended automatically to avoid overwriting |
 
-## 示例
+## Examples
 
-### 单页截图
+### Single-Page Screenshot
 
 ```bash
 lark-cli slides +screenshot --as user \
@@ -42,9 +42,9 @@ lark-cli slides +screenshot --as user \
   --slide-number 1
 ```
 
-### 多页截图
+### Multi-Page Screenshot
 
-一次不要超过 10 页；如需更多页面，分批调用。
+Do not exceed 10 pages per call; for more pages, call in batches.
 
 ```bash
 lark-cli slides +screenshot --as user \
@@ -54,7 +54,7 @@ lark-cli slides +screenshot --as user \
   --output-dir .lark-slides/screenshots/demo
 ```
 
-### 渲染 XML 预览
+### Rendering an XML Preview
 
 ```bash
 lark-cli slides +screenshot --as user \
@@ -62,9 +62,9 @@ lark-cli slides +screenshot --as user \
   --output-name preview
 ```
 
-## 返回值
+## Return Value
 
-返回 JSON 不包含 Base64 图片内容：
+The returned JSON does not include Base64 image content:
 
 ```json
 {
@@ -86,12 +86,12 @@ lark-cli slides +screenshot --as user \
 }
 ```
 
-## 注意事项
+## Notes
 
-1. 优先使用 `slides +screenshot` 保存本地图片，不要把图片 Base64 打到 stdout。
-2. 已存在 PPT 页面截图时，不传 `--content`，用 `--presentation` + `--slide-id` 或 `--slide-number`。
-3. 本地 XML 预览时，传 `--content @file` 或 `--content -`，内容应为单个 `<slide>` XML 片段；此时不要传 `--presentation` / `--slide-id` / `--slide-number`。
-4. `slide_id` 是页面 short ID，页码请用 `--slide-number`。
-5. list 模式一次最多传 10 页（`--slide-id` + `--slide-number` 合计小于等于 10）；更多页面请分批截图。
-6. list 模式默认文件名包含 presentation ID、页码和/或 slide ID；文件已存在时自动追加 `_2`、`_3` 等后缀，避免覆盖旧截图。
-7. 截图来自服务端渲染结果，适合创建/替换后验证页面是否为空白、破图或布局明显异常。
+1. Prefer `slides +screenshot` to save local images; never dump image Base64 to stdout.
+2. When screenshotting pages of an existing deck, do not pass `--content`; use `--presentation` + `--slide-id` or `--slide-number`.
+3. For local XML preview, pass `--content @file` or `--content -`; the content should be a single `<slide>` XML fragment; in this case do not pass `--presentation` / `--slide-id` / `--slide-number`.
+4. `slide_id` is the slide's short ID; for page numbers use `--slide-number`.
+5. List mode accepts at most 10 pages per call (`--slide-id` + `--slide-number` combined at most 10); screenshot more pages in batches.
+6. In list mode the default file name contains the presentation ID, page number, and/or slide ID; when the file already exists, a `_2`, `_3`, etc. suffix is appended automatically to avoid overwriting old screenshots.
+7. Screenshots come from the server-side rendering result, which is suitable for verifying after create/replace whether a page is blank, has broken images, or is obviously mis-laid-out.

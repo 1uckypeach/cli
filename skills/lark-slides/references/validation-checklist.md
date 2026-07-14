@@ -1,22 +1,22 @@
 # Validation Checklist
 
-创建或大幅改写演示文稿后，必须做一次显式验证。目标是发现空白页、XML 损坏、内容截断、明显溢出、弱视觉层级和未验证输出。
+After creating or substantially rewriting a presentation, you must perform one explicit validation. The goal is to catch blank pages, broken XML, truncated content, obvious overflow, weak visual hierarchy, and unverified output.
 
-小型已有页编辑也要做对应范围的验证：至少读取被改页面或全文 XML，确认目标元素已更新且未破坏周边结构。
+Small edits to existing pages also require scope-appropriate validation: at minimum, read the modified page or the full XML and confirm the target element was updated without breaking the surrounding structure.
 
 ## Required Flow
 
-1. 记录创建或编辑返回的 `xml_presentation_id`，以及已知的 `slide_id` / `revision_id`。
-2. 用 `slides +xml-get` 回读全文 XML 到本地文件。
-3. 检查实际页数是否符合计划或用户要求。
-4. 检查每页 `<data>` 内是否有预期主要元素。
-5. 检查没有明显空白页、破损页、缺失标题或缺失主视觉。
-6. 检查页面不是全部退化为标题加 bullet list。
-7. 检查视觉层级：标题、主视觉、支撑信息三者可区分。
-8. 检查明显溢出和布局风险：重叠、越界、底部拥挤、长文本框。
-9. 在最终回复中给出简短验证记录。
+1. Record the `xml_presentation_id` returned by the create or edit call, plus any known `slide_id` / `revision_id`.
+2. Read back the full XML to a local file with `slides +xml-get`.
+3. Check that the actual page count matches the plan or the user's request.
+4. Check that each page's `<data>` contains the expected primary elements.
+5. Check that there are no obvious blank pages, broken pages, missing titles, or missing primary visuals.
+6. Check that pages have not all degenerated into title + bullet list.
+7. Check visual hierarchy: title, primary visual, and supporting information are distinguishable.
+8. Check obvious overflow and layout risks: overlap, out-of-bounds, bottom crowding, long text boxes.
+9. Include a short validation record in the final reply.
 
-回读命令：
+Read-back command:
 
 ```bash
 lark-cli slides +xml-get --as user \
@@ -27,93 +27,93 @@ lark-cli slides +xml-get --as user \
 
 ## Automated XML Text Overlap Lint
 
-提交前本地 XML 必须运行 XML 语法和文本重叠静态检查：
+Before submission, local XML must go through the XML-syntax and text-overlap static check:
 
 ```bash
 python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentation-or-slide.xml>
 ```
 
-通过标准：
+Pass criteria:
 
-- `summary.error_count == 0`。任何 error 都必须先修复再提交接口。
-- 当前工具检查 XML well-formed、SXSD tag/attr 支持情况、IconPark icon 类型和 icon 填充可见性、文本元素之间的明显重叠，以及 whiteboard 容器与外部 sibling 元素的可疑边界重叠；它不检查越界、文本高度不足、图文压盖、表格/图表压盖或底部拥挤。
-- 该工具不能替代页数核对、关键内容核对或真实视觉验收。
+- `summary.error_count == 0`. Any error must be fixed before calling the API.
+- The current tool checks XML well-formedness, SXSD tag/attr support, IconPark icon types and icon fill visibility, obvious overlap between text elements, and suspicious boundary overlap between whiteboard containers and external sibling elements; it does not check out-of-bounds, insufficient text height, text-over-image coverage, table/chart coverage, or bottom crowding.
+- The tool does not replace page-count checks, key-content checks, or real visual acceptance.
 
-常见 code 的处理方向：
+Handling directions for common codes:
 
-| code | 含义 | 处理方式 |
+| code | Meaning | Fix |
 |------|------|----------|
-| `xml_not_well_formed` | XML 语法错误或文本未转义 | 修复标签闭合、属性引号、`&` / `<` / `>` 转义 |
-| `sml_prefixed_tag` | SML 元素使用了命名空间前缀，如 `<ns0:slide>` 或 `<sml:shape>` | 使用 `<slide xmlns="http://www.larkoffice.com/sml/2.0">` 的默认命名空间，或使用无前缀标签 |
-| `sxsd_unsupported_tag` | 使用了 SXSD 不支持的标签 | 按 lint `hint` 替换为受支持标签；常见如 `textbox -> <shape type="text">`、`image -> <img>` |
-| `sxsd_unsupported_attr` | 支持的标签上使用了不支持的属性 | 按 lint `hint` 改为支持的属性；常见如 `x -> topLeftX`、`fontColor -> color` |
-| `iconpark_unsupported_icon_type` | `<icon>` 使用了 `iconpark-index.json` 中不存在的 `iconType` | 按 lint `hint` 改为名单内的 `iconType`，或先用 `scripts/iconpark_tool.py` 搜索 |
-| `icon_missing_fill_color` | 视觉规范要求 `<icon>` 设置 `<fill><fillColor color="..."/></fill>`，避免图标不可见 | 给 `<icon>` 添加显式非透明填充色，例如 `rgba(37, 99, 235, 1)` |
-| `icon_transparent_fill_color` | `<icon>` 的 `fillColor` 是透明色，不满足视觉可见性要求 | 改成与背景有足够对比的非透明颜色 |
-| `bbox_overlap` | 文本元素的估算绘制区域明显重叠 | 拉开文本坐标、缩小文本框/字号，或改成明确的分栏/分组结构 |
-| `whiteboard_external_overlap` | whiteboard 容器 bbox 与外部 sibling 元素跨边界重叠 | 按 lint `hint` 缩小或移动 whiteboard / 外部元素；若接受该风险，最终必须以截图 QA 或等价渲染视觉检查为准 |
+| `xml_not_well_formed` | XML syntax error or unescaped text | Fix tag closure, attribute quoting, `&` / `<` / `>` escaping |
+| `sml_prefixed_tag` | An SML element uses a namespace prefix, e.g. `<ns0:slide>` or `<sml:shape>` | Use the default namespace of `<slide xmlns="http://www.larkoffice.com/sml/2.0">`, or unprefixed tags |
+| `sxsd_unsupported_tag` | A tag not supported by SXSD was used | Replace with a supported tag per the lint `hint`; common cases: `textbox -> <shape type="text">`, `image -> <img>` |
+| `sxsd_unsupported_attr` | An unsupported attribute was used on a supported tag | Change to a supported attribute per the lint `hint`; common cases: `x -> topLeftX`, `fontColor -> color` |
+| `iconpark_unsupported_icon_type` | `<icon>` uses an `iconType` that does not exist in `iconpark-index.json` | Change to an allowlisted `iconType` per the lint `hint`, or search first with `scripts/iconpark_tool.py` |
+| `icon_missing_fill_color` | The visual spec requires `<icon>` to set `<fill><fillColor color="..."/></fill>` to keep the icon visible | Add an explicit non-transparent fill color to `<icon>`, e.g. `rgba(37, 99, 235, 1)` |
+| `icon_transparent_fill_color` | The `<icon>` `fillColor` is transparent and fails the visual visibility requirement | Change to a non-transparent color with sufficient contrast against the background |
+| `bbox_overlap` | The estimated draw areas of text elements clearly overlap | Spread out text coordinates, shrink text boxes/font sizes, or switch to explicit column/group structures |
+| `whiteboard_external_overlap` | The whiteboard container bbox crosses boundaries with an external sibling element | Shrink or move the whiteboard / external element per the lint `hint`; if you accept the risk, final acceptance must rely on screenshot QA or equivalent rendered visual inspection |
 
 ## Page Count And Structure
 
-- 实际页数必须等于用户要求或 `slide_plan.json` 的页数。
-- 如果创建过程部分失败，先记录已创建的 `xml_presentation_id`，再回读确认哪些页已写入。
-- 每页都应包含 `<data>`，且 `<data>` 内至少有一个非背景主体元素。
-- 封面、章节页、总结页可以文字较少，但不能只有空背景。
-- 技术解释页、对比页、流程页、架构页必须有匹配的结构元素，例如分组框、连线、时间轴、表格或图形化区域。
+- The actual page count must equal the user's request or the count in `slide_plan.json`.
+- If the creation process partially failed, record the created `xml_presentation_id` first, then read back to confirm which pages were written.
+- Every page should contain `<data>`, and `<data>` must have at least one non-background primary element.
+- Cover, section, and summary pages may carry little text, but must not be an empty background only.
+- Technical explanation, comparison, flow, and architecture pages must have matching structural elements, e.g. grouped boxes, connectors, timelines, tables, or graphical areas.
 
 ## Expected Elements
 
-按 `slide_plan.json` 和用户要求逐页核对：
+Verify page by page against `slide_plan.json` and the user's requirements:
 
-- 标题或主结论存在，并能对应 `key_message`。
-- `layout_type` 对应的主要结构已生成。
-- `visual_focus` 是页面中最醒目或最大的信息区域之一。
-- `text_density` 影响了文本量，没有用长 bullet 框替代规划。
-- `asset_need` 有真实素材时已放入正确区域；没有真实素材时，`fallback_if_missing` 已用 XML 形状、线条、标签、表格或图表兜底。
+- The title or main conclusion exists and corresponds to `key_message`.
+- The primary structure implied by `layout_type` was generated.
+- `visual_focus` is one of the most prominent or largest information areas on the page.
+- `text_density` actually influenced the amount of text; a long bullet box did not replace the plan.
+- When `asset_need` has a real asset, it is placed in the correct area; without a real asset, `fallback_if_missing` provided an XML fallback of shapes, lines, labels, tables, or charts.
 
-如果用户指定了关键页，例如“架构解释”“Self-Attention 机制解释”“对比或演进视角”“总结页”，最终验证记录必须逐项说明这些页已存在。
+If the user specified key pages, e.g. "architecture explanation", "Self-Attention mechanism explanation", "comparison or evolution perspective", "summary page", the final validation record must state item by item that those pages exist.
 
 ## Blank Or Broken Page Signals
 
-把下面情况视为需要修复后再交付：
+Treat the following as must-fix before delivery:
 
-- `<data/>` 为空，或只有背景、装饰线、空 `<content/>`。
-- 关键文本没有出现在回读 XML 中。
-- 图片仍是 `@./path`，或 `<img src>` 是 http(s) 外链。
-- 页面依赖的图片区域为空，且没有 fallback visual。
-- 返回 XML 缺页、页序明显错误，或某页内容被 shell 截断。
-- 大量形状坐标完全相同，导致主体内容重叠。
-- 渐变背景回退成空白或白底，导致文字不可读。
+- `<data/>` is empty, or contains only background, decorative lines, or empty `<content/>`.
+- Key text does not appear in the read-back XML.
+- Images are still `@./path`, or `<img src>` is an http(s) external link.
+- An image area the page depends on is empty with no fallback visual.
+- The returned XML is missing pages, the page order is clearly wrong, or a page's content was truncated by the shell.
+- Many shapes share identical coordinates, causing the primary content to overlap.
+- A gradient background fell back to blank or white, making text unreadable.
 
 ## Whiteboard Elements
 
-`slide.get` 回读 XML 时，`<whiteboard>` 块只返回位置属性（`topLeftX`、`topLeftY`、`width`、`height`），SVG / Mermaid 内容**不随 XML 返回**。
+When reading back XML with `slide.get`, `<whiteboard>` blocks return only position attributes (`topLeftX`, `topLeftY`, `width`, `height`); SVG / Mermaid content is **not returned with the XML**.
 
-- whiteboard 验证可以核对坐标是否越界：`topLeftX + width ≤ 960`，`topLeftY + height ≤ 540`；lint 还会报告 whiteboard 容器与外部 sibling 元素的可疑边界重叠。
-- SVG 和 Mermaid 内容的正确性无法通过回读 XML 验证，需要人工视觉验收。
-- 不要在验证记录中声称 whiteboard 内容已验证，除非用户确认了视觉效果。
+- Whiteboard validation can verify coordinates stay in bounds: `topLeftX + width ≤ 960`, `topLeftY + height ≤ 540`; the lint also reports suspicious boundary overlap between whiteboard containers and external sibling elements.
+- The correctness of SVG and Mermaid content cannot be verified via XML read-back; it requires human visual acceptance.
+- Do not claim in the validation record that whiteboard content was verified unless the user confirmed the visual result.
 
 ## Layout And Overflow Risk
 
-优先修复这些明显风险：
+Prioritize fixing these obvious risks:
 
-- 正文或标签框高度不足，文本很可能被截断。
-- 多个主体元素在同一区域重叠，而不是有意叠加背景。
-- 重要内容越过画布边界，或贴近底部超过 `y=500`。
-- 高密度页使用单个长 bullet list，没有分栏、表格或分组。
-- 标题、主视觉、正文的字号和颜色差异太弱，视觉层级不清。
-- 所有内容页都是同一套标题加 bullets 坐标。
+- Body or label boxes too short, so text is likely truncated.
+- Multiple primary elements overlapping in the same area, rather than intentional background layering.
+- Important content crossing the canvas boundary, or hugging the bottom beyond `y=500`.
+- A high-density page using one long bullet list without columns, tables, or grouping.
+- Font size and color differences between title, primary visual, and body too weak, making hierarchy unclear.
+- Every content page using the same title + bullets coordinates.
 
 ## Verification Record
 
-最终回复必须包含简短验证记录，建议格式：
+The final reply must include a short validation record; suggested format:
 
 ```text
-验证记录：
-- 回读：已执行 slides +xml-get，实际页数 N / 预期 N。
-- 关键页：架构解释 / Self-Attention / 对比或演进 / 总结页均存在。
-- 结构：检查了主要 shape/img/table/chart 元素，无明显空白页或破损页。
-- 布局：检查了标题层级、主视觉、重叠/越界/文本溢出风险。
+Validation record:
+- Read-back: ran slides +xml-get, actual pages N / expected N.
+- Key pages: architecture explanation / Self-Attention / comparison or evolution / summary page all present.
+- Structure: checked primary shape/img/table/chart elements; no obvious blank or broken pages.
+- Layout: checked title hierarchy, primary visual, overlap/out-of-bounds/text-overflow risks.
 ```
 
-不要声称完成了人工视觉验收，除非确实打开或获取了可视化结果。仅从 XML 静态检查得出的结论，应表述为“静态检查未发现明显问题”。
+Do not claim human visual acceptance was completed unless you actually opened or obtained a rendered result. Conclusions drawn only from XML static checks should be phrased as "static checks found no obvious issues".

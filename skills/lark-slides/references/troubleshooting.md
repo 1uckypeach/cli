@@ -1,45 +1,45 @@
 # Troubleshooting
 
-本文件覆盖 lark-slides 的 XML 排障和常见失败处理。
+This file covers XML troubleshooting and common failure handling for lark-slides.
 
 ## Failure Order
 
-遇到 `invalid param`、某一页创建失败、页面空白或布局错乱时，按顺序处理：
+When you hit `invalid param`, a page fails to create, a page is blank, or the layout is broken, handle it in order:
 
-1. 先判断是否已有可用的 `xml_presentation_id`：从成功 stdout、错误 hint、用户给定链接或已保存上下文中获取；没有 ID 时不要回读，直接按当前错误处理。
-2. 如果有 `xml_presentation_id`，再用 `slides +xml-get` 尝试回读，确认是否存在演示文稿、是否已有部分页面写入、或是否只是空 presentation。
-3. 检查失败页是否含未转义字符：`Q&A -> Q&amp;A`，文本 `<` / `>` 写成 `&lt;` / `&gt;`，属性 URL `a=1&b=2 -> a=1&amp;b=2`。
-4. 检查标签闭合、属性引号、`<content>` 结构，以及 `<slide>` 直接子元素。
-5. 如果使用 `--slides '[...]'`，怀疑 shell 截断时直接切到两步创建：先 `slides +create`，再用 `xml_presentation.slide create` 逐页添加。
+1. First determine whether a usable `xml_presentation_id` already exists: get it from a successful stdout, an error hint, a user-provided link, or saved context; without an ID, do not read back — handle the current error directly.
+2. If you have an `xml_presentation_id`, try reading back with `slides +xml-get` to confirm whether the presentation exists, whether some pages were partially written, or whether it is just an empty presentation.
+3. Check whether the failing page contains unescaped characters: `Q&A -> Q&amp;A`, textual `<` / `>` written as `&lt;` / `&gt;`, attribute URLs `a=1&b=2 -> a=1&amp;b=2`.
+4. Check tag closure, attribute quoting, `<content>` structure, and the direct children of `<slide>`.
+5. If using `--slides '[...]'` and you suspect shell truncation, switch directly to two-step creation: `slides +create` first, then add pages one by one with `xml_presentation.slide create`.
 
 ## Symptom Fixes
 
-| 看到的问题 | 处理方式 |
+| Observed problem | Fix |
 |-----------|----------|
-| 文字被截断 / 看不全 | 增大 shape 的 `width` 或 `height`，或减少文本量 |
-| 元素重叠 | 调整 `topLeftX` / `topLeftY`，拉开间距 |
-| 页面大面积空白 | 回读确认内容是否写入；若内容存在，再缩小间距或增加主体元素 |
-| 文字和背景色太接近 | 深色背景用浅色文字，浅色背景用深色文字 |
-| 表格列宽不合理 | 调整 `colgroup` 中 `col` 的 `width` 值 |
-| 图表没有显示 | 检查 `chartPlotArea` 和 `chartData` 是否都包含，`dim1` / `dim2` 数据数量是否匹配 |
-| 图片被裁掉一部分 | `<img>` 的 `width` / `height` 是裁剪后尺寸；要整图显示就让 `width:height` 对齐原图比例 |
-| 图片不显示 / `<img src>` 仍是 `@path` | `@` 占位符只在 `+create --slides` 中替换；直接调 `xml_presentation.slide create` 必须先用 `+media-upload` 拿 `file_token` |
-| 新插入的 `<img>` 挡住原有元素 | `slide.get` 读原页，对照已有块坐标挑空白位置；空间不够就在同一批 `--parts` 里先移动/缩小现有块再插图 |
-| 渐变背景变成白色 | 渐变必须用 `rgba()` 格式 + 百分比停靠点，如 `linear-gradient(135deg,rgba(30,60,114,1) 0%,rgba(59,130,246,1) 100%)` |
+| Text truncated / not fully visible | Increase the shape's `width` or `height`, or reduce the amount of text |
+| Elements overlap | Adjust `topLeftX` / `topLeftY` to open up spacing |
+| Large blank areas on the page | Read back to confirm content was written; if content exists, tighten spacing or add primary elements |
+| Text color too close to background | Use light text on dark backgrounds, dark text on light backgrounds |
+| Unreasonable table column widths | Adjust the `width` values of `col` in `colgroup` |
+| Chart not displayed | Check that both `chartPlotArea` and `chartData` are present, and that `dim1` / `dim2` data counts match |
+| Image partially cropped | The `<img>` `width` / `height` are post-crop dimensions; to show the full image, match `width:height` to the original aspect ratio |
+| Image not displayed / `<img src>` is still `@path` | The `@` placeholder is only substituted in `+create --slides`; direct `xml_presentation.slide create` calls must first obtain a `file_token` via `+media-upload` |
+| Newly inserted `<img>` covers existing elements | Read the original page with `slide.get`, pick an empty spot against existing block coordinates; if space is tight, move/shrink existing blocks in the same `--parts` batch before inserting the image |
+| Gradient background turns white | Gradients must use the `rgba()` format + percentage stops, e.g. `linear-gradient(135deg,rgba(30,60,114,1) 0%,rgba(59,130,246,1) 100%)` |
 
 ## Common Errors
 
-| 错误码 / 信号 | 含义 | 解决方案 |
+| Error code / signal | Meaning | Solution |
 |--------------|------|----------|
-| 400 XML 格式错误 | XML 语法错误 | 检查标签闭合、属性引号、特殊字符转义 |
-| 400 请求包装错误 | `--data` 未按 schema 包装 | 检查是否传入 `xml_presentation.content` 或 `slide.content` |
-| 创建成功但页面空白 / 内容缺失 / 布局错乱 | 常见于 `--slides '[...]'` 的 shell 转义或长参数传递问题 | 改用两步创建，并在创建后立即读取 XML 验证 |
-| 403 权限不足 | 身份或 scope 不匹配 | 先检查是否误用了 bot 身份，再确认 scope 和文档权限；无权限时根据错误响应引导用户解决 |
-| 404 演示文稿不存在 | `xml_presentation_id` 不正确或无权限 | 检查 token；wiki URL 需先解析真实 `obj_token` |
-| 404 幻灯片不存在 | `slide_id` 不正确 | 重新读取 presentation 或 slide，确认最新 ID |
-| 400 无法删除唯一幻灯片 | 演示文稿至少保留一页 | 先创建新页，再删除旧页 |
-| 1061002 媒体上传 params error | slides 媒体上传参数不符合约定 | 用 `slides +media-upload`，不要手拼原生 `medias/upload_all`；slides 唯一可用 `parent_type` 是 `slide_file` |
-| 1061004 forbidden | 当前身份对演示文稿无编辑权限 | 确认 user/bot 对目标 PPT 有编辑权限；bot 常见于 PPT 非该 bot 创建 |
-| 3350001 | XML 非 well-formed、XML 结构不符合服务端要求，或 replace 片段问题 | 优先检查未转义字符；replace 场景再看 `block_id` 和 `<content/>` |
-| 3350002 | `revision_id` 大于当前版本 | 用 `-1` 取当前版本，或重新用 `slides +xml-get` 取最新 `revision_id` |
-| validation: unsafe file path | `--file` 给了绝对路径或上层路径 | `--file` 必须是 CWD 内相对路径；先 `cd` 到素材目录再执行 |
+| 400 XML format error | XML syntax error | Check tag closure, attribute quoting, special-character escaping |
+| 400 request wrapping error | `--data` not wrapped per schema | Check whether `xml_presentation.content` or `slide.content` was passed |
+| Creation succeeded but pages blank / content missing / layout broken | Typically shell escaping or long-argument issues with `--slides '[...]'` | Switch to two-step creation, and read the XML immediately after creation to verify |
+| 403 insufficient permission | Identity or scope mismatch | First check whether the bot identity was used by mistake, then confirm scopes and document permissions; when unauthorized, guide the user per the error response |
+| 404 presentation not found | `xml_presentation_id` incorrect or no permission | Check the token; wiki URLs must first be resolved to the real `obj_token` |
+| 404 slide not found | `slide_id` incorrect | Re-read the presentation or slide to confirm the latest ID |
+| 400 cannot delete the only slide | The presentation must keep at least one page | Create the new page first, then delete the old one |
+| 1061002 media upload params error | Slides media upload parameters do not meet the contract | Use `slides +media-upload`; do not hand-build the native `medias/upload_all`; the only valid `parent_type` for slides is `slide_file` |
+| 1061004 forbidden | The current identity has no edit permission on the presentation | Confirm the user/bot has edit permission on the target PPT; for bots this commonly means the PPT was not created by that bot |
+| 3350001 | XML not well-formed, XML structure not accepted by the server, or a bad replace fragment | Check unescaped characters first; in replace scenarios also check `block_id` and `<content/>` |
+| 3350002 | `revision_id` greater than the current version | Use `-1` for the current version, or fetch the latest `revision_id` again with `slides +xml-get` |
+| validation: unsafe file path | `--file` was given an absolute or parent path | `--file` must be a relative path inside the CWD; `cd` into the asset directory first, then run the command |

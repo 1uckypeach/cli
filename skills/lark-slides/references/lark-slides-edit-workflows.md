@@ -1,83 +1,83 @@
-# 编辑已有 PPT：读-改-写闭环
+# Edit existing PPT: read-modify-write closed loop
 
-局部编辑走 **shortcut [`+replace-slide`](lark-slides-replace-slide.md)**（块级替换 / 插入），配合 `xml_presentation.slide.get` 读原页拿 `block_id`。已有 Slides 的多页整页重建走 **[`+replace-pages`](lark-slides-replace-pages.md)**，保持原 presentation 链接不变。
+For partial editing, use **shortcut [`+replace-slide`](lark-slides-replace-slide.md)** (block-level replacement/insertion), and use `xml_presentation.slide.get` to read the original page and get `block_id`. Rebuild multiple full pages of existing Slides using **[`+replace-pages`](lark-slides-replace-pages.md)**, keeping the original presentation link unchanged.
 
-> 生成 XML 前**必读** [xml-schema-quick-ref.md](xml-schema-quick-ref.md)。
+> **Must read** before generating XML [xml-schema-quick-ref.md](xml-schema-quick-ref.md).
 
-## 决策树：block_replace vs block_insert
+## Decision tree: block_replace vs block_insert
 
-| 需求 | 推荐 action | 理由 |
+| Requirements | Recommended actions | Reasons |
 |------|------------|------|
-| 已知某块的 `block_id`，要换这块内容（改标题、换图、挪坐标） | `block_replace` | 精准替换，原子性好；`replacement` 根 `id` 由 CLI 自动注入为 `block_id` |
-| 只加 1~N 个元素、不动现有布局 | `block_insert` | 新增不覆盖，可选 `insert_before_block_id` 指定位置 |
-| 一次动多个元素（如：换标题 + 加图） | 单次 `--parts` 里拼多条 | 整批作为原子事务，任一失败整批不生效；`block_replace` 和 `block_insert` 可混用 |
-| 多页版式重建、整页坐标重排 | `+replace-pages` | 原 presentation 内批量 create-before/delete-old，不生成新 Slides 链接 |
+| Knowing the `block_id` of a certain block, you need to replace the content of this block (change the title, change the picture, move the coordinates) | `block_replace` | Accurate replacement, good atomicity; `replacement` root `id` is automatically injected into `block_id` by CLI |
+| Only add 1~N elements, leaving the existing layout unchanged | `block_insert` | Add new elements without overwriting, optional `insert_before_block_id` specifies the position |
+| Move multiple elements at one time (e.g. change title + add picture) | Move multiple elements in a single `--parts` | The entire batch is treated as an atomic transaction, and the entire batch will not take effect if any one fails; `block_replace` and `block_insert` can be mixed |
+| Multi-page layout reconstruction, whole-page coordinate rearrangement | `+replace-pages` | Batch create-before/delete-old in the original presentation, without generating new Slides links |
 
-> **没有字段级 patch**：即便只想改一个 `shape` 的 `topLeftX`，也得把整个块的新 XML 写出来用 `block_replace`。这不是"微调"，是块级重写。
+> **No field-level patch**: Even if you only want to change `topLeftX` of a `shape`, you have to write out the new XML of the entire block and use `block_replace`. This isn't "tweaking", it's a block-level rewrite.
 
-## 最小读-改-写闭环
+## Minimum read-modify-write closed loop
 
 ```bash
 PID="xml_presentation_id_here"
 SID="slide_id_here"
 
-# 1. 读原页，从 XML 里挑出要改的块的 3 位 short id（如 bUn / bab）
+# 1. Read the original page and pick out the 3-digit short id of the block to be changed from the XML (such as bUn / bab)
 lark-cli slides xml_presentation.slide get --as user \
   --params "{\"xml_presentation_id\":\"$PID\",\"slide_id\":\"$SID\"}"
 
-# 2. 用 +replace-slide 直接改那个块（不需要搬原 XML）
+# 2. Use +replace-slide to directly change that block (no need to move the original XML)
 lark-cli slides +replace-slide --as user \
   --presentation "$PID" --slide-id "$SID" \
-  --parts '[{"action":"block_replace","block_id":"bUn","replacement":"<shape type=\"text\" topLeftX=\"80\" topLeftY=\"80\" width=\"800\" height=\"120\"><content textType=\"title\"><p>新标题</p></content></shape>"}]'
+--parts '[{"action":"block_replace","block_id":"bUn","replacement":"<shape type=\"text\" topLeftX=\"80\" topLeftY=\"80\" width=\"800\" height=\"120\"><content textType=\"title\"><p>New title</p></content></shape>"}]'
 ```
 
-`slide_id` / 页序不会变。`block_replace` 的 `replacement` 根元素 `id` 会自动注入为 `block_id`，用户手写 XML 时不需要自己加。
+`slide_id` / The page order will not change. The `replacement` root element `id` of `block_replace` will be automatically injected as `block_id`, and users do not need to add it themselves when handwriting XML.
 
-## `revision_id` 参数
+## `revision_id` parameter
 
-`--revision-id` 默认 `-1`，表示基于当前最新版执行。传具体版本号时，服务端以该版本为 base 应用变更：
+`--revision-id` defaults to `-1`, which means execution based on the latest version. When passing a specific version number, the server uses this version as the base to apply the changes:
 
 ```bash
-# 读时拿当前 revision_id
+# Get the current revision_id when reading
 REV=$(lark-cli slides xml_presentation.slide get --as user \
   --params "{\"xml_presentation_id\":\"$PID\",\"slide_id\":\"$SID\"}" \
   | jq '.data.revision_id')
 
-# 写时传该版本号，服务端以此为 base
+# Pass the version number when writing, and the server will use this as the base
 lark-cli slides +replace-slide --as user \
   --presentation "$PID" --slide-id "$SID" --revision-id "$REV" \
   --parts '[{"action":"block_replace","block_id":"bUn","replacement":"<shape type=\"rect\" topLeftX=\"100\" topLeftY=\"100\" width=\"200\" height=\"100\"/>"}]'
 ```
 
-注意：传不存在的版本号（超过当前 revision）会返回 3350002 not found；不确定时用 `-1` 即可。
+Note: Passing a version number that does not exist (exceeds the current revision) will return 3350002 not found; use `-1` when unsure.
 
-## `--tid` 事务锁
+## `--tid` transaction lock
 
-跨请求的并发事务 ID，多人协作长事务才用得上。**单人单次调用留空**即可。
+The cross-request concurrent transaction ID is only useful when multiple people collaborate on long transactions. **Single person single call can be left blank**.
 
-## 两种 action 详解
+## Detailed explanation of two actions
 
-### block_replace — 整块替换
+### block_replace — Whole block replacement
 
-适合"已知块 ID，要换这块整体内容"的场景。`replacement` 根元素的 `id="<block_id>"` 由 CLI 自动注入（用户手写的 XML 如果没带 `id` 直接省略即可；如果带了错的会被覆盖为正确值）。
+Suitable for scenarios where "the block ID is known and the entire content of this block needs to be changed". The `id="<block_id>"` of the `replacement` root element is automatically injected by the CLI (if the user's handwritten XML does not contain `id`, it can be omitted directly; if it contains the wrong one, it will be overwritten with the correct value).
 
 ```bash
 lark-cli slides +replace-slide --as user \
   --presentation "$PID" --slide-id "$SID" \
-  --parts '[{"action":"block_replace","block_id":"bab","replacement":"<shape type=\"text\" topLeftX=\"80\" topLeftY=\"80\" width=\"800\" height=\"120\"><content textType=\"title\"><p>新标题</p></content></shape>"}]'
+--parts '[{"action":"block_replace","block_id":"bab","replacement":"<shape type=\"text\" topLeftX=\"80\" topLeftY=\"80\" width=\"800\" height=\"120\"><content textType=\"title\"><p>New title</p></content></shape>"}]'
 ```
 
-字段说明：
+Field description:
 
-| 字段 | 必填 | 说明 |
+| Field | Required | Description |
 |------|------|------|
-| `action` | 是 | 固定为 `block_replace` |
-| `block_id` | 是 | 目标块的 3 位 short element ID（从 `slide.get` 返回的 XML 里读）|
-| `replacement` | 是 | 新 XML 片段；根元素 `id` 会被 CLI 自动注入为 `block_id` |
+| `action` | Yes | Fixed to `block_replace` |
+| `block_id` | Yes | The 3-digit short element ID of the target block (read from the XML returned by `slide.get`) |
+| `replacement` | Yes | New XML fragment; the root element `id` will be automatically injected by the CLI as `block_id` |
 
-### block_insert — 整块插入
+### block_insert — Whole block insertion
 
-适合"只想加一个元素，不动现有元素"的场景（典型：给已有页加图）。
+Suitable for scenarios where "you only want to add one element and leave the existing elements unchanged" (typical: adding a picture to an existing page).
 
 ```bash
 lark-cli slides +replace-slide --as user \
@@ -86,59 +86,59 @@ lark-cli slides +replace-slide --as user \
     '[{action:"block_insert",insertion:("<img src=\""+$token+"\" topLeftX=\"500\" topLeftY=\"100\" width=\"200\" height=\"150\"/>"),insert_before_block_id:"baa"}]')"
 ```
 
-字段说明：
+Field description:
 
-| 字段 | 必填 | 说明 |
+| Field | Required | Description |
 |------|------|------|
-| `action` | 是 | 固定为 `block_insert` |
-| `insertion` | 是 | 要插入的完整 XML 片段 |
-| `insert_before_block_id` | 否 | 插到这个块之前；省略（不提供此字段）则追加到页面末尾 |
+| `action` | Yes | Fixed to `block_insert` |
+| `insertion` | Yes | The complete XML fragment to insert |
+| `insert_before_block_id` | No | Insert before this block; if omitted (this field is not provided), it will be appended to the end of the page |
 
-> **`<img>` 必须用 `file_token`**，不能用外链 URL——先 `slides +media-upload --file ./pic.png --presentation $PID` 拿 token。
+> **`<img>` must use `file_token`**, and external link URL cannot be used - first `slides +media-upload --file ./pic.png --presentation $PID` to get the token.
 
-### 批量 parts
+### Batch parts
 
-一次 `--parts` 最多 200 条，按数组顺序串行执行。`block_replace` 和 `block_insert` 可以在同一批次混用。举例：一次性把标题块替换、然后在末尾追加一个装饰图。
+`--parts` can run up to 200 items at a time, executed serially in array order. `block_replace` and `block_insert` can be mixed in the same batch. Example: Replace the title block at once, and then add a decorative image at the end.
 
 ```bash
 lark-cli slides +replace-slide --as user \
   --presentation "$PID" --slide-id "$SID" \
   --parts '[
-    {"action":"block_replace","block_id":"bab","replacement":"<shape type=\"text\" topLeftX=\"80\" topLeftY=\"80\" width=\"800\" height=\"120\"><content textType=\"title\"><p>新标题</p></content></shape>"},
+{"action":"block_replace","block_id":"bab","replacement":"<shape type=\"text\" topLeftX=\"80\" topLeftY=\"80\" width=\"800\" height=\"120\"><content textType=\"title\"><p>New title</p></content></shape>"},
     {"action":"block_insert","insertion":"<img src=\"<file_token>\" topLeftX=\"700\" topLeftY=\"400\" width=\"180\" height=\"100\"/>"}
   ]'
 ```
 
-整批作为原子事务：任一条失败整批不生效。失败时后端通常返回 3350001；若响应中带 `failed_part_index` / `failed_reason` 字段，shortcut 会原样透传。
+The entire batch is treated as an atomic transaction: if any transaction fails, the entire batch will not take effect. The backend usually returns 3350001 when it fails; if the response contains the `failed_part_index` / `failed_reason` fields, shortcut will be transparently transmitted as is.
 
-## 大 --parts 用 jq 或 stdin 组装
+## Large --parts assembled with jq or stdin
 
-`--parts` 支持 `@file`（读文件）和 `-`（stdin）作为值来源，适合批量 XML 场景：
+`--parts` supports `@file` (reading files) and `-` (stdin) as value sources, suitable for batch XML scenarios:
 
 ```bash
-# 从文件读
+# Read from file
 lark-cli slides +replace-slide --as user --presentation "$PID" --slide-id "$SID" \
   --parts @parts.json
 
-# 从 stdin 读
+# Read from stdin
 cat parts.json | lark-cli slides +replace-slide --as user --presentation "$PID" --slide-id "$SID" \
   --parts -
 ```
 
-## 错误排查
+## Error troubleshooting
 
-| 现象 | 原因 | 对策 |
+| Phenomenon | Cause | Countermeasures |
 |------|------|------|
-| 3350001，hint 含 "block_id not found" | `parts[i].block_id` 在当前页不存在 | 重新 `slide.get` 拿最新 XML，按里面的 short ID 再填 |
-| 3350002 not found | `--revision-id` 传了不存在的版本号 | 用 `-1` 或实际存在的 `revision_id` |
-| `<img>` 不显示 / 显示破图 | `src` 写了外链 URL | 换成通过 `+media-upload` 拿到的 `file_token` |
-| 3350001（block_replace 返回） | 正常情况下 CLI 已自动注入 `id` 和 `<content/>`；如果仍报错，确认 `block_id` 在当前页存在（重新 `slide.get`），检查 XML 结构是否合法；坐标是否超出 960×540 范围 | — |
+| 3350001, hint contains "block_id not found" | `parts[i].block_id` does not exist in the current page | Re-slide.get` to get the latest XML, press the short ID inside and fill in |
+| 3350002 not found | `--revision-id` passed a version number that does not exist | Use `-1` or an actual `revision_id` |
+| `<img>` does not display / displays broken images | `src` writes the external link URL | Replace with `file_token` obtained through `+media-upload` |
+| 3350001 (returned by block_replace) | Under normal circumstances, CLI has automatically injected `id` and `<content/>`; if an error is still reported, confirm that `block_id` exists in the current page (retry `slide.get`), check whether the XML structure is legal; whether the coordinates exceed the 960×540 range | — |
 
-## 相关文档
+## Related documents
 
-- [lark-slides-replace-slide.md](lark-slides-replace-slide.md) — +replace-slide shortcut 参数详情
-- [lark-slides-replace-pages.md](lark-slides-replace-pages.md) — 多页整页重建 shortcut
-- [lark-slides-xml-presentation-slide-get.md](lark-slides-xml-presentation-slide-get.md) — slide.get 参考（拿 `block_id` / `revision_id`）
-- [lark-slides-xml-presentation-slide-replace.md](lark-slides-xml-presentation-slide-replace.md) — 底层 replace API 参考（一般直接用 shortcut 即可）
-- [lark-slides-media-upload.md](lark-slides-media-upload.md) — 上传图片拿 file_token
-- [xml-schema-quick-ref.md](xml-schema-quick-ref.md) — XML 元素和属性速查
+- [lark-slides-replace-slide.md](lark-slides-replace-slide.md) — +replace-slide shortcut parameter details
+- [lark-slides-replace-pages.md](lark-slides-replace-pages.md) — Multi-page full page reconstruction shortcut
+- [lark-slides-xml-presentation-slide-get.md](lark-slides-xml-presentation-slide-get.md) — slide.get reference (get `block_id` / `revision_id`)
+- [lark-slides-xml-presentation-slide-replace.md](lark-slides-xml-presentation-slide-replace.md) — Low-level replace API reference (generally use shortcut directly)
+- [lark-slides-media-upload.md](lark-slides-media-upload.md) — Upload pictures and get file_token
+- [xml-schema-quick-ref.md](xml-schema-quick-ref.md) — A quick look at XML elements and attributes

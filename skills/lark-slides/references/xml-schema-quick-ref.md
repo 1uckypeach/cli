@@ -1,15 +1,15 @@
-# XML Schema 快速参考
+# XML Schema Quick Reference
 
-本文档是 [slides_xml_schema_definition.xml](slides_xml_schema_definition.xml) 的精简版摘要；如果两者不一致，以 XSD 原文为准。
+This document is a condensed summary of [slides_xml_schema_definition.xml](slides_xml_schema_definition.xml); if the two disagree, the XSD source is authoritative.
 
-## 最重要的规则
+## Most Important Rules
 
-1. 协议标准写法应使用 `<presentation xmlns="http://www.larkoffice.com/sml/2.0">`；当前服务端实现可能兼容不带 `xmlns` 的输入，但不作为协议保证
-2. `<presentation>` 直接子元素只有 `<title>`、`<theme>`、`<slide>`
-3. `<slide>` 直接子元素只有 `<style>`、`<data>`、`<note>`
-4. 页面中的文本通常通过 `<content>` 表达，而不是把 `<title>`、`<body>` 直接挂在 `<slide>` 下
+1. The standard protocol form is `<presentation xmlns="http://www.larkoffice.com/sml/2.0">`; the current server implementation may tolerate input without `xmlns`, but this is not a protocol guarantee
+2. The only direct children of `<presentation>` are `<title>`, `<theme>`, `<slide>`
+3. The only direct children of `<slide>` are `<style>`, `<data>`, `<note>`
+4. Text on a page is usually expressed through `<content>`, rather than hanging `<title>` or `<body>` directly under `<slide>`
 
-## 最小可用示例
+## Minimal Working Example
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -18,7 +18,7 @@
     <data>
       <shape type="text" topLeftX="80" topLeftY="80" width="800" height="120">
         <content textType="title">
-          <p>标题</p>
+          <p>Title</p>
         </content>
       </shape>
     </data>
@@ -26,37 +26,37 @@
 </presentation>
 ```
 
-## presentation 根元素
+## presentation Root Element
 
-| 属性 | 必需 | 说明 |
+| Attribute | Required | Description |
 |------|------|------|
-| `width` | 是 | 演示文稿宽度，正整数 |
-| `height` | 是 | 演示文稿高度，正整数 |
-| `id` | 否 | 演示文稿标识 |
+| `width` | Yes | Presentation width, positive integer |
+| `height` | Yes | Presentation height, positive integer |
+| `id` | No | Presentation identifier |
 
-**子元素：** `<title>?`, `<theme>?`, `<slide>+`
+**Child elements:** `<title>?`, `<theme>?`, `<slide>+`
 
-## slide 元素
+## slide Element
 
-| 属性 | 必需 | 说明 |
+| Attribute | Required | Description |
 |------|------|------|
-| `id` | 否 | 幻灯片标识 |
+| `id` | No | Slide identifier |
 
-**子元素：**
-- `<style>?` - 页面样式，目前可放 `<fill>`
-- `<data>?` - 页面元素容器，可放 `shape`、`line`、`polyline`、`img`、`table`、`icon`、`chart`、`whiteboard`、`undefined`
-- `<note>?` - 演讲者备注，内部可放 `<content>`
+**Child elements:**
+- `<style>?` - Page style; currently can contain `<fill>`
+- `<data>?` - Page element container; can contain `shape`, `line`, `polyline`, `img`, `table`, `icon`, `chart`, `whiteboard`, `undefined`
+- `<note>?` - Speaker notes; can contain `<content>` inside
 
-## theme 与文本类型
+## theme and Text Types
 
-XSD 中的 `title`、`headline`、`sub-headline`、`body`、`caption` 主要出现在：
+The `title`, `headline`, `sub-headline`, `body`, `caption` types in the XSD mainly appear in:
 
-- `<theme><textStyles>...</textStyles></theme>` 中，作为主题文本样式
-- `<content textType="...">` 中，作为内容的文本类型
+- `<theme><textStyles>...</textStyles></theme>`, as theme text styles
+- `<content textType="...">`, as the content's text type
 
-`textStyles` 的 schema 默认值如下：
+The schema defaults for `textStyles` are:
 
-| textType | 默认字号 |
+| textType | Default font size |
 |----------|----------|
 | `title` | 54 |
 | `headline` | 38 |
@@ -64,39 +64,39 @@ XSD 中的 `title`、`headline`、`sub-headline`、`body`、`caption` 主要出�
 | `body` | 16 |
 | `caption` | 12 |
 
-## content 内容模型
+## content Content Model
 
-`<content>` 可出现在 `shape`、`table/td`、`note` 中，常用属性包括：
+`<content>` can appear inside `shape`, `table/td`, and `note`. Common attributes include:
 
-| 属性 | 说明 |
+| Attribute | Description |
 |------|------|
 | `textType` | `title` / `headline` / `sub-headline` / `body` / `caption` |
-| `textAlign` | 文本对齐方式 |
-| `lineSpacing` | 行间距，schema 默认 `multiple:1.5` |
-| `fontSize` | 字号 |
-| `fontFamily` | 字体 |
-| `color` | 字体颜色 |
-| `bold` / `italic` / `underline` / `strikethrough` | 文本样式 |
+| `textAlign` | Text alignment |
+| `lineSpacing` | Line spacing, schema default `multiple:1.5` |
+| `fontSize` | Font size |
+| `fontFamily` | Font family |
+| `color` | Font color |
+| `bold` / `italic` / `underline` / `strikethrough` | Text styles |
 
-`<content>` 的子元素只能是：
+The only allowed children of `<content>` are:
 
 - `<p>`
 - `<ul>`
 - `<ol>`
 
-### content 示例
+### content Example
 
 ```xml
 <content textType="body" textAlign="left">
-  <p>正文内容 <strong>加粗</strong> <em>斜体</em> <a href="https://example.com">链接</a></p>
+  <p>Body text <strong>bold</strong> <em>italic</em> <a href="https://example.com">link</a></p>
   <ul>
-    <li><p>列表项 1</p></li>
-    <li><p>列表项 2</p></li>
+    <li><p>List item 1</p></li>
+    <li><p>List item 2</p></li>
   </ul>
 </content>
 ```
 
-## data 常用元素
+## Common data Elements
 
 ### shape
 
@@ -109,14 +109,14 @@ XSD 中的 `title`、`headline`、`sub-headline`、`body`、`caption` 主要出�
 </shape>
 ```
 
-| 属性 | 必需 | 说明 |
+| Attribute | Required | Description |
 |------|------|------|
-| `type` | 是 | 形状类型，`text` 表示文本框 |
-| `topLeftX` | 是 | 左上角 X 坐标 |
-| `topLeftY` | 是 | 左上角 Y 坐标 |
-| `width` | 是 | 宽度 |
-| `height` | 是 | 高度 |
-| `rotation` | 否 | 旋转角度 |
+| `type` | Yes | Shape type; `text` means a text box |
+| `topLeftX` | Yes | Top-left X coordinate |
+| `topLeftY` | Yes | Top-left Y coordinate |
+| `width` | Yes | Width |
+| `height` | Yes | Height |
+| `rotation` | No | Rotation angle |
 
 ### line
 
@@ -132,9 +132,9 @@ XSD 中的 `title`、`headline`、`sub-headline`、`body`、`caption` 主要出�
 <img src="file_token_or_url" topLeftX="80" topLeftY="120" width="320" height="180"/>
 ```
 
-`src` 只支持：`slides +media-upload` 返回的 `file_token`，或 `@<本地路径>` 占位符（仅 `+create --slides` 自动上传并替换）。**禁止使用 http(s) 外链 URL**——飞书 slides 渲染端不会代理外链图，外链 src 在 PPT 里通常不显示。本地图片详见 [lark-slides-create.md](lark-slides-create.md#本地图片path-占位符) / [lark-slides-media-upload.md](lark-slides-media-upload.md)。
+`src` only supports: a `file_token` returned by `slides +media-upload`, or an `@<local path>` placeholder (auto-uploaded and substituted only by `+create --slides`). **Never use external http(s) URLs** — the Feishu slides renderer does not proxy external images, and an external-link src usually does not display in the deck. For local images see [lark-slides-create.md](lark-slides-create.md#local-images-path-placeholders) / [lark-slides-media-upload.md](lark-slides-media-upload.md).
 
-> **注意**：`width`/`height` 是**裁剪后**的显示尺寸。比例和原图不一致时会自动裁剪（无法靠属性关闭），想避免裁剪就让 `width:height` 对齐原图比例。
+> **Note**: `width`/`height` are the **post-crop** display dimensions. If the aspect ratio differs from the original image, it is auto-cropped (cannot be disabled via attributes); to avoid cropping, make `width:height` match the original image's aspect ratio.
 
 ### icon
 
@@ -146,12 +146,12 @@ XSD 中的 `title`、`headline`、`sub-headline`、`body`、`caption` 主要出�
 </icon>
 ```
 
-`iconType` 必须来自已验证的 IconPark 路径；视觉 lint 规范要求 `fillColor` 显式设置为非透明颜色，避免图标不可见。需要语义图标时，先运行 `scripts/iconpark_tool.py search --query "<语义>"`，不要凭记忆拼路径。更多规则见 [iconpark.md](iconpark.md)。
+`iconType` must come from a verified IconPark path; the visual lint spec requires `fillColor` to be explicitly set to a non-transparent color to avoid invisible icons. When you need a semantic icon, run `scripts/iconpark_tool.py search --query "<semantic>"` first — do not compose paths from memory. See [iconpark.md](iconpark.md) for more rules.
 
 ### whiteboard
 
 ```xml
-<!-- SVG 模式：<chart> 不支持的图表或自定义视觉、装饰元素 -->
+<!-- SVG mode: charts not supported by <chart>, custom visuals, decorative elements -->
 <whiteboard topLeftX="580" topLeftY="120" width="340" height="280">
   <svg xmlns="http://www.w3.org/2000/svg">
     <rect x="60" y="80" width="40" height="140" rx="3" fill="rgba(59,130,246,0.85)"/>
@@ -159,24 +159,24 @@ XSD 中的 `title`、`headline`、`sub-headline`、`body`、`caption` 主要出�
   </svg>
 </whiteboard>
 
-<!-- Mermaid 模式：流程图、时序图等结构化图表 -->
+<!-- Mermaid mode: flowcharts, sequence diagrams, and other structured diagrams -->
 <whiteboard topLeftX="72" topLeftY="100" width="816" height="340">
   <mermaid>
     <![CDATA[
       flowchart LR
-          A[开始] --> B{判断}
-          B -- 是 --> C[执行]
-          B -- 否 --> D[结束]
+          A[Start] --> B{Decision}
+          B -- Yes --> C[Execute]
+          B -- No --> D[End]
     ]]>
   </mermaid>
 </whiteboard>
 ```
 
-SVG 模式：`<svg>` 需声明 `xmlns="http://www.w3.org/2000/svg"`，内容大小由子元素包围盒决定；`width`/`height`/`viewBox` 不影响渲染，仅当元素使用百分比属性值时需声明 `viewBox`。\
-Mermaid 模式：内容用 `<![CDATA[...]]>` 包裹，避免 `[`、`>`、`-->` 等字符破坏 XML 解析。\
-详细用法见 [lark-slides-whiteboard.md](lark-slides-whiteboard.md)。
+SVG mode: `<svg>` must declare `xmlns="http://www.w3.org/2000/svg"`; content size is determined by the bounding box of the child elements; `width`/`height`/`viewBox` do not affect rendering — declare `viewBox` only when elements use percentage attribute values.\
+Mermaid mode: wrap the content in `<![CDATA[...]]>` to prevent characters like `[`, `>`, `-->` from breaking XML parsing.\
+See [lark-slides-whiteboard.md](lark-slides-whiteboard.md) for detailed usage.
 
-## 颜色与样式
+## Colors and Styles
 
 ### fill
 
@@ -192,7 +192,7 @@ Mermaid 模式：内容用 `<![CDATA[...]]>` 包裹，避免 `[`、`>`、`-->` �
 <border color="rgb(43, 47, 54)" width="2" dashArray="solid"/>
 ```
 
-### 颜色格式
+### Color Formats
 
 ```xml
 <fillColor color="rgb(255, 0, 0)"/>
@@ -201,12 +201,12 @@ Mermaid 模式：内容用 `<![CDATA[...]]>` 包裹，避免 `[`、`>`、`-->` �
 <fillColor color="radial-gradient(circle at 50% 50%, rgb(255,0,0) 0%, rgb(0,0,255) 100%)"/>
 ```
 
-> **注意**：渐变色必须使用 `rgba()` 格式并带百分比停靠点，例如 `linear-gradient(135deg,rgba(30,60,114,1) 0%,rgba(59,130,246,1) 100%)`。使用 `rgb()` 或省略停靠点会导致服务端将其回退为白色。此规则对页面背景和 shape fill 均适用。
+> **Note**: Gradient colors must use the `rgba()` format with percentage stops, e.g. `linear-gradient(135deg,rgba(30,60,114,1) 0%,rgba(59,130,246,1) 100%)`. Using `rgb()` or omitting stops causes the server to fall back to white. This rule applies to both page backgrounds and shape fills.
 
-### 页面背景
+### Page Background
 
 ```xml
-<!-- 纯色背景 -->
+<!-- Solid background -->
 <slide>
   <style>
     <fill>
@@ -215,7 +215,7 @@ Mermaid 模式：内容用 `<![CDATA[...]]>` 包裹，避免 `[`、`>`、`-->` �
   </style>
 </slide>
 
-<!-- 渐变背景（必须用 rgba + 百分比停靠点） -->
+<!-- Gradient background (must use rgba + percentage stops) -->
 <slide>
   <style>
     <fill>
@@ -225,25 +225,25 @@ Mermaid 模式：内容用 `<![CDATA[...]]>` 包裹，避免 `[`、`>`、`-->` �
 </slide>
 ```
 
-## 备注示例
+## Note Example
 
 ```xml
 <note>
   <content textType="body">
-    <p>这是演讲者备注。</p>
+    <p>This is a speaker note.</p>
   </content>
 </note>
 ```
 
-## 详细参考
+## Detailed References
 
 - [slides_xml_schema_definition.xml](slides_xml_schema_definition.xml)
 - [xml-format-guide.md](xml-format-guide.md)
 - [examples.md](examples.md)
 - [slides_demo.xml](slides_demo.xml)
 
-## Schema 版本信息
+## Schema Version Info
 
-- **版本**: 2.0.0
-- **命名空间**: http://www.larkoffice.com/sml/2.0
-- **发布日期**: 2025-11-03
+- **Version**: 2.0.0
+- **Namespace**: http://www.larkoffice.com/sml/2.0
+- **Release date**: 2025-11-03

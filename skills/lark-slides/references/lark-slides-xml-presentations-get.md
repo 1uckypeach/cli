@@ -1,22 +1,22 @@
 # lark-slides xml_presentations get
 
-## 用途
+## Purpose
 
-读取飞书幻灯片（PPT）演示文稿的完整 XML 内容信息。
+Read the full XML content of a Feishu Slides (PPT) presentation.
 
-## 底层原生命令形态
+## Underlying Native Command Form
 
 ```bash
 lark-cli slides xml_presentations get --as user --params '<json_params>'
 ```
 
-## 参数说明
+## Parameter Description
 
-| 参数 | 类型 | 必需 | 说明 |
+| Parameter | Type | Required | Description |
 |------|------|------|------|
-| `--params` | JSON string | 是 | 路径参数与查询参数，结构以 schema 为准 |
+| `--params` | JSON string | Yes | Path and query parameters; the structure follows the schema |
 
-### params JSON 结构
+### params JSON Structure
 
 ```json
 {
@@ -25,37 +25,37 @@ lark-cli slides xml_presentations get --as user --params '<json_params>'
 }
 ```
 
-| 字段 | 类型 | 必需 | 说明 |
+| Field | Type | Required | Description |
 |------|------|------|------|
-| `xml_presentation_id` | string | 是 | 演示文稿的唯一标识符 |
-| `revision_id` | integer | 否 | 版本号，`-1` 表示最新版本 |
+| `xml_presentation_id` | string | Yes | Unique identifier of the presentation |
+| `revision_id` | integer | No | Revision number, `-1` means the latest revision |
 
-## 使用示例
+## Usage Examples
 
-### 基础示例
+### Basic Example
 
 ```bash
 lark-cli slides xml_presentations get --as user \
   --params '{"xml_presentation_id":"slides_example_presentation_id","revision_id":-1}'
 ```
 
-### 指定版本读取
+### Read a Specific Revision
 
 ```bash
 lark-cli slides xml_presentations get --as user \
   --params '{"xml_presentation_id":"slides_example_presentation_id","revision_id":10}'
 ```
 
-### 移除 XML id 属性后读取
+### Read with XML id Attributes Removed
 
 ```bash
 lark-cli slides xml_presentations get --as user \
   --params '{"xml_presentation_id":"slides_example_presentation_id","revision_id":-1,"remove_attr_id":true}'
 ```
 
-## 返回值
+## Return Value
 
-成功时返回演示文稿的完整信息：
+On success, returns the full presentation information:
 
 ```json
 {
@@ -71,29 +71,29 @@ lark-cli slides xml_presentations get --as user \
 }
 ```
 
-### 返回字段说明
+### Return Field Description
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 |------|------|------|
-| `data.xml_presentation.presentation_id` | string | 演示文稿唯一标识 |
-| `data.xml_presentation.revision_id` | integer | 版本号 |
-| `data.xml_presentation.content` | string | XML 格式的完整内容 |
+| `data.xml_presentation.presentation_id` | string | Unique identifier of the presentation |
+| `data.xml_presentation.revision_id` | integer | Revision number |
+| `data.xml_presentation.content` | string | Full content in XML format |
 
-## 常见错误
+## Common Errors
 
-| 错误码 | 含义 | 解决方案 |
+| Error Code | Meaning | Solution |
 |--------|------|----------|
-| 404 | 演示文稿不存在 | 检查 `xml_presentation_id` 是否正确 |
-| 403 | 权限不足 | 检查是否拥有 `slides:presentation:read` scope，或是否有访问权限 |
-| 400 | 参数格式错误 | 确保 `--params` 是合法的 JSON 字符串 |
+| 404 | Presentation does not exist | Check whether `xml_presentation_id` is correct |
+| 403 | Insufficient permissions | Check whether you have the `slides:presentation:read` scope, or whether you have access permission |
+| 400 | Malformed parameters | Make sure `--params` is a valid JSON string |
 
-## 注意事项
+## Notes
 
-1. 直接调用底层 API 前，使用 `lark-cli schema slides.xml_presentations.get` 查看最新的参数结构
-2. 返回的 XML 在 `data.xml_presentation.content` 字段中
-3. 如果只需要部分信息，可以使用 `jq` 等工具过滤返回结果
+1. Before calling the underlying API directly, use `lark-cli schema slides.xml_presentations.get` to check the latest parameter structure
+2. The returned XML is in the `data.xml_presentation.content` field
+3. If you only need part of the information, you can filter the result with tools like `jq`
 
-## 相关命令
+## Related Commands
 
-- [slides +create](lark-slides-create.md) - 创建 PPT / 添加幻灯片页面
-- [xml_presentation.slide delete](lark-slides-xml-presentation-slide-delete.md) - 删除幻灯片页面
+- [slides +create](lark-slides-create.md) - Create a PPT / add slides
+- [xml_presentation.slide delete](lark-slides-xml-presentation-slide-delete.md) - Delete a slide

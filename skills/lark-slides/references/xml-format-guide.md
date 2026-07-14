@@ -1,13 +1,13 @@
-# XML 格式指南
+# XML Format Guide
 
-本文档基于 [slides_xml_schema_definition.xml](slides_xml_schema_definition.xml) 整理，说明飞书 Slides XML Schema（SML 2.0）的核心结构和常用写法。
+This document is organized based on [slides_xml_schema_definition.xml](slides_xml_schema_definition.xml) and explains the core structure and common writing methods of Feishu Slides XML Schema (SML 2.0).
 
-## 基本结构
+## Basic structure
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <presentation xmlns="http://www.larkoffice.com/sml/2.0" width="960" height="540">
-  <title>演示文稿标题</title>
+<title>Presentation title</title>
   <slide>
     <style>
       <fill>
@@ -17,51 +17,51 @@
     <data>
       <shape type="text" topLeftX="80" topLeftY="80" width="800" height="120">
         <content textType="title">
-          <p>主标题</p>
+<p>Main title</p>
         </content>
       </shape>
     </data>
     <note>
       <content textType="body">
-        <p>这是演讲者备注。</p>
+<p>These are speaker notes. </p>
       </content>
     </note>
   </slide>
 </presentation>
 ```
 
-## 根元素
+## Root element
 
 ### `<presentation>`
 
-协议标准写法应带命名空间 `http://www.larkoffice.com/sml/2.0`；当前服务端实现可能兼容不带 `xmlns` 的输入，但不作为协议保证。
+The protocol standard should be written with the namespace `http://www.larkoffice.com/sml/2.0`; the current server implementation may be compatible with input without `xmlns`, but this is not a protocol guarantee.
 
-**属性：**
+**property:**
 
-| 属性 | 类型 | 必需 | 说明 |
+| Properties | Type | Required | Description |
 |------|------|------|------|
-| `width` | positiveInteger | 是 | 演示文稿宽度，如 `960` |
-| `height` | positiveInteger | 是 | 演示文稿高度，如 `540` |
-| `id` | string | 否 | 演示文稿标识 |
+| `width` | positiveInteger | Yes | Presentation width, such as `960` |
+| `height` | positiveInteger | Yes | Presentation height, such as `540` |
+| `id` | string | no | presentation ID |
 
-**子元素：**
+**Child element:**
 
-| 元素 | 必需 | 说明 |
+| Element | Required | Description |
 |------|------|------|
-| `<title>` | 否 | 演示文稿标题 |
-| `<theme>` | 否 | 全局主题 |
-| `<slide>` | 是 | 幻灯片页面，至少 1 页，最多 100 页 |
+| `<title>` | No | Presentation title |
+| `<theme>` | No | Global theme |
+| `<slide>` | Yes | Slide pages, minimum 1 page, maximum 100 pages |
 
-## 主题
+## theme
 
 ### `<theme>`
 
-`<theme>` 当前包含两部分：
+`<theme>` currently contains two parts:
 
-- `<background>`：演示文稿级背景填充
-- `<textStyles>`：主题文本样式集合
+- `<background>`: presentation-level background fill
+- `<textStyles>`: theme text style collection
 
-`<textStyles>` 下可选子元素：
+Optional sub-elements under `<textStyles>`:
 
 - `<title>`
 - `<headline>`
@@ -69,61 +69,61 @@
 - `<body>`
 - `<caption>`
 
-这些元素定义的是主题默认样式，不是页面结构。常用属性：
+These elements define the theme's default style, not the page structure. Common properties:
 
-| 属性 | 说明 |
+| Properties | Description |
 |------|------|
-| `fontFamily` | 字体 |
-| `fontSize` | 字号 |
-| `fontColor` | 字体颜色 |
+| `fontFamily` | Font |
+| `fontSize` | Font size |
+| `fontColor` | Font color |
 
-## 幻灯片元素
+## Slide elements
 
 ### `<slide>`
 
-单张幻灯片的结构比较严格。
+The structure of a single slide is relatively strict.
 
-**属性：**
+**property:**
 
-| 属性 | 类型 | 必需 | 说明 |
+| Properties | Type | Required | Description |
 |------|------|------|------|
-| `id` | string | 否 | 幻灯片标识 |
+| `id` | string | no | slide ID |
 
-**直接子元素只有：**
+**Direct child elements are only:**
 
-| 元素 | 必需 | 说明 |
+| Element | Required | Description |
 |------|------|------|
-| `<style>` | 否 | 页面样式 |
-| `<data>` | 否 | 页面元素容器 |
-| `<note>` | 否 | 演讲者备注 |
+| `<style>` | No | Page style |
+| `<data>` | No | Page element container |
+| `<note>` | No | Speaker Notes |
 
-这意味着 `<title>`、`<headline>`、`<body>`、`<caption>` 不能直接放在 `<slide>` 下。
+This means that `<title>`, `<headline>`, `<body>`, `<caption>` cannot be placed directly under `<slide>`.
 
-## 文本内容模型
+## Text content model
 
 ### `<content>`
 
-实际页面文本通常通过 `<content>` 表达，常见位置有：
+The actual page text is usually expressed through `<content>`, common locations are:
 
-- `shape` 内部
-- `table/td` 内部
-- `note` 内部
+- `shape` internal
+- `table/td` internal
+- `note` internal
 
-**常用属性：**
+**Commonly used properties:**
 
-| 属性 | 说明 |
+| Properties | Description |
 |------|------|
 | `textType` | `title` / `headline` / `sub-headline` / `body` / `caption` |
-| `verticalAlign` | 垂直对齐 |
-| `textAlign` | 水平对齐 |
-| `lineSpacing` | 行间距 |
-| `fontSize` | 字号 |
-| `fontFamily` | 字体 |
-| `color` | 字体颜色 |
-| `bold` / `italic` / `underline` / `strikethrough` | 内容级样式 |
-| `wrap` | 是否自动换行 |
+| `verticalAlign` | Vertical alignment |
+| `textAlign` | Horizontal alignment |
+| `lineSpacing` | Line spacing |
+| `fontSize` | Font size |
+| `fontFamily` | Font |
+| `color` | Font color |
+| `bold` / `italic` / `underline` / `strikethrough` | Content-level styles |
+| `wrap` | Whether to wrap lines automatically |
 
-**可包含的子元素：**
+**Sub-elements that can be included:**
 
 - `<p>`
 - `<ul>`
@@ -131,7 +131,7 @@
 
 ### `<p>`
 
-`<p>` 是段落元素，可混排纯文本和内联标签：
+`<p>` is a paragraph element that can mix plain text and inline tags:
 
 - `<br/>`
 - `<strong>`
@@ -143,30 +143,30 @@
 - `<shadow>`
 - `<outline>`
 
-示例：
+Example:
 
 ```xml
 <content textType="body" textAlign="left">
-  <p>普通文本 <strong>加粗</strong> <em>斜体</em> <a href="https://example.com">链接</a></p>
+<p>Normal text <strong>Bold</strong> <em>Italic</em> <a href="https://example.com">Links</a></p>
   <ul>
-    <li><p>列表项 1</p></li>
-    <li><p>列表项 2</p></li>
+<li><p>List item 1</p></li>
+<li><p>List item 2</p></li>
   </ul>
 </content>
 ```
 
-## 常用页面元素
+## Common page elements
 
-所有页面元素都放在 `<data>` 中。
+All page elements are placed in `<data>`.
 
 ### `<shape>`
 
-`shape` 可表示普通形状，也可表示文本框。文本框推荐使用 `type="text"`。
+`shape` can represent a normal shape or a text box. It is recommended to use `type="text"` for text boxes.
 
 ```xml
 <shape type="text" topLeftX="80" topLeftY="80" width="800" height="120">
   <content textType="title">
-    <p>主标题</p>
+<p>Main title</p>
   </content>
 </shape>
 ```
@@ -180,20 +180,20 @@
 </shape>
 ```
 
-**属性：**
+**property:**
 
-| 属性 | 必需 | 说明 |
+| Properties | Required | Description |
 |------|------|------|
-| `type` | 是 | 形状类型，`text` 表示文本框 |
-| `topLeftX` | 是 | 左上角 X 坐标 |
-| `topLeftY` | 是 | 左上角 Y 坐标 |
-| `width` | 是 | 宽度 |
-| `height` | 是 | 高度 |
-| `rotation` | 否 | 旋转角度 |
-| `flipX` / `flipY` | 否 | 翻转 |
-| `alpha` | 否 | 透明度 |
+| `type` | Yes | Shape type, `text` represents text box |
+| `topLeftX` | Yes | X coordinate of the upper left corner |
+| `topLeftY` | Yes | Y coordinate of the upper left corner |
+| `width` | Yes | Width |
+| `height` | Yes | Height |
+| `rotation` | No | Rotation angle |
+| `flipX` / `flipY` | No | Flip |
+| `alpha` | no | transparency |
 
-**可选子元素：**
+**Optional sub-elements:**
 
 - `<fill>`
 - `<border>`
@@ -209,7 +209,7 @@
 </line>
 ```
 
-`line` 使用的是 `startX` / `startY` / `endX` / `endY`，不是 `x1` / `y1` / `x2` / `y2`。
+`line` uses `startX` / `startY` / `endX` / `endY`, not `x1` / `y1` / `x2` / `y2`.
 
 ### `<img>`
 
@@ -217,21 +217,21 @@
 <img src="file_token_or_url" topLeftX="100" topLeftY="220" width="320" height="180"/>
 ```
 
-`img` 使用 `topLeftX` / `topLeftY`，不是 `x` / `y`。
+`img` uses `topLeftX` / `topLeftY`, not `x` / `y`.
 
-`src` 只接受两种值：
+`src` only accepts two values:
 
-| `src` 形式 | 说明 |
+| `src` form | Description |
 |---|---|
-| `file_token`（如 `boxcnXXXXXXXXXXXXXXXXXXXXXX`） | 通过 `slides +media-upload` 上传后返回的 token |
-| `@<本地路径>`（如 `@./assets/chart.png`） | **仅在 `slides +create --slides` 中可用**：CLI 会自动上传该文件并替换为 file_token |
+| `file_token` (such as `boxcnXXXXXXXXXXXXXXXXXXXXXX`) | The token returned after uploading through `slides +media-upload` |
+| `@<local path>` (e.g. `@./assets/chart.png`) | **Only available with `slides +create --slides`**: The CLI will automatically upload the file and replace it with file_token |
 
-> **禁止使用 http(s) 外链 URL**：飞书 slides 渲染端不会代理外链图片，`src="https://..."` 在 PPT 里通常显示破图。要用网图必须先 `curl`/下载到 CWD 内，再走上传流程拿 `file_token`。
+> **The use of http(s) external link URLs is prohibited**: Feishu slides rendering end will not proxy external link images, `src="https://..."` usually displays broken images in PPT. To use the network image, you must first `curl`/download it into CWD, and then go through the upload process to get `file_token`.
 
-本地图片的两种姿势：
+Two poses for local pictures:
 
-- **新建带图 PPT**：`+create --slides` 里直接写 `src="@./pic.png"`，CLI 在创空白 PPT 后、加 slides 前自动上传并替换 token
-- **给已有 PPT 加带图新页**：先 `slides +media-upload --file ./pic.png --presentation $PID` 拿 token，再用 token 写进 `xml_presentation.slide create` 的 XML
+- **Create a new PPT with pictures**: Write `src="@./pic.png"` directly in `+create --slides`, and the CLI will automatically upload and replace the token after creating a blank PPT and before adding slides.
+- **Add a new page with pictures to an existing PPT**: First use `slides +media-upload --file ./pic.png --presentation $PID` to get the token, and then use the token to write into the XML of `xml_presentation.slide create`
 
 ### `<icon>`
 
@@ -241,21 +241,21 @@
 
 ### `<table>`
 
-表格结构为：
+The table structure is:
 
 - `<table>`
 - `<colgroup>` / `<tr>`
-- `<tr>` 内为 `<td>`
-- `<td>` 内可放 `<content>`
+- `<tr>` contains `<td>`
+- `<td>` can contain `<content>`
 
 ### `<chart>`
 
-图表元素必须至少包含：
+Chart elements must contain at least:
 
 - `<chartPlotArea>`
 - `<chartData>`
 
-同时还可以包含：
+It can also include:
 
 - `<chartTitle>`
 - `<chartSubTitle>`
@@ -263,9 +263,9 @@
 - `<chartLegend>`
 - `<chartTooltip>`
 
-完整图表类型覆盖示例见 [slides_chart_demo.xml](slides_chart_demo.xml)，其中包含柱状、条形、折线、面积、饼 / 环、雷达等原生 `<chart>` 示例，以及散点、气泡、漏斗、帕累托、瀑布等 `<whiteboard>` SVG 图表示例。
+For complete chart type coverage examples, see [slides_chart_demo.xml](slides_chart_demo.xml), which includes native `<chart>` examples such as column, bar, line, area, pie/ring, radar, etc., as well as `<whiteboard>` SVG chart examples such as scatter, bubble, funnel, Pareto, waterfall, etc.
 
-组合图示例（来自 [slides_chart_demo.xml](slides_chart_demo.xml)）：
+Combination chart example (from [slides_chart_demo.xml](slides_chart_demo.xml)):
 
 ```xml
 <chart width="556" height="350" topLeftX="42" topLeftY="132">
@@ -295,14 +295,14 @@
   <chartLegend position="bottom" fontSize="11"/>
   <chartData>
     <dim1>
-      <chartField name="季度">24Q1,24Q2,24Q3,24Q4,25Q1,25Q2,25Q3,25Q4</chartField>
+<chartField name="Quarter">24Q1,24Q2,24Q3,24Q4,25Q1,25Q2,25Q3,25Q4</chartField>
     </dim1>
     <dim2>
-      <chartField name="营收">180,195,210,245,220,238,258,296</chartField>
-      <chartField name="增速">0.08,0.12,0.15,0.18,0.22,0.22,0.23,0.21</chartField>
+<chartField name="Revenue">180,195,210,245,220,238,258,296</chartField>
+<chartField name="Growth">0.08,0.12,0.15,0.18,0.22,0.22,0.23,0.21</chartField>
     </dim2>
   </chartData>
-  <chartTitle fontSize="12" color="rgba(15, 30, 58, 1)" bold="true">营收（亿美元, 左轴） · 同比增速（%, 右轴）</chartTitle>
+<chartTitle fontSize="12" color="rgba(15, 30, 58, 1)" bold="true">Revenue (USD 100M, left axis) · Year-over-year growth rate (%, right axis)</chartTitle>
   <chartStyle>
     <chartBackground color="rgba(0, 0, 0, 0)"/>
     <chartBorder color="rgb(222, 224, 227)" width="0"/>
@@ -314,7 +314,7 @@
 </chart>
 ```
 
-## 样式元素
+## Style elements
 
 ### `<fill>`
 
@@ -330,7 +330,7 @@
 <border color="rgb(0, 0, 0)" width="2" dashArray="solid"/>
 ```
 
-### 颜色格式
+### Color format
 
 ```xml
 <fillColor color="rgb(255, 0, 0)"/>
@@ -339,28 +339,28 @@
 <fillColor color="radial-gradient(circle at 50% 50%, rgb(255,0,0) 0%, rgb(0,0,255) 100%)"/>
 ```
 
-## 演讲者备注
+## Speaker Notes
 
 ### `<note>`
 
 ```xml
 <note>
   <content textType="body">
-    <p>这是演讲者备注内容。</p>
+<p>These are speaker notes. </p>
   </content>
 </note>
 ```
 
-## 完整示例
+## Complete example
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <presentation xmlns="http://www.larkoffice.com/sml/2.0" width="960" height="540">
-  <title>季度报告</title>
+<title>Quarterly Report</title>
   <theme>
     <textStyles>
-      <title fontFamily="思源黑体" fontSize="54" fontColor="rgba(0, 0, 0, 1)"/>
-      <body fontFamily="思源黑体" fontSize="18" fontColor="rgba(43, 47, 54, 1)"/>
+<title fontFamily="Siyuan Heidi" fontSize="54" fontColor="rgba(0, 0, 0, 1)"/>
+<body fontFamily="Siyuan Heidi" fontSize="18" fontColor="rgba(43, 47, 54, 1)"/>
     </textStyles>
   </theme>
   <slide>
@@ -372,16 +372,16 @@
     <data>
       <shape type="text" topLeftX="80" topLeftY="72" width="760" height="100">
         <content textType="title">
-          <p>2024 年第一季度报告</p>
+<p>2024 First Quarter Report</p>
         </content>
       </shape>
       <shape type="text" topLeftX="80" topLeftY="200" width="520" height="180">
         <content textType="body">
-          <p>核心指标</p>
+<p>Core indicators</p>
           <ul>
-            <li><p>用户增长：+25%</p></li>
-            <li><p>收入增长：+30%</p></li>
-            <li><p>市场份额：15%</p></li>
+<li><p>User growth: +25%</p></li>
+<li><p>Revenue growth: +30%</p></li>
+<li><p>Market share: 15%</p></li>
           </ul>
         </content>
       </shape>
@@ -394,23 +394,23 @@
     </data>
     <note>
       <content textType="body">
-        <p>讲到增长率时补充样本范围。</p>
+<p>Supplement the sample range when talking about growth rate. </p>
       </content>
     </note>
   </slide>
 </presentation>
 ```
 
-## 最佳实践
+## Best Practices
 
-1. 始终带上命名空间 `xmlns="http://www.larkoffice.com/sml/2.0"`
-2. 用 `shape type="text"` + `content` 表达页面文本
-3. 用 `topLeftX` / `topLeftY`、`startX` / `startY` 等 schema 中定义的属性名
-4. 优先使用 `rgb` / `rgba` 颜色格式
-5. 特殊字符按 XML 规则转义
-6. 标准 16:9 页面建议使用 `width="960"` 和 `height="540"`
+1. Always bring the namespace `xmlns="http://www.larkoffice.com/sml/2.0"`
+2. Use `shape type="text"` + `content` to express page text
+3. Use attribute names defined in schema such as `topLeftX` / `topLeftY`, `startX` / `startY` etc.
+4. Prefer to use `rgb` / `rgba` color format
+5. Special characters are escaped according to XML rules
+6. It is recommended to use `width="960"` and `height="540"` for standard 16:9 pages
 
-## 参考文档
+## Reference documentation
 
 - [xml-schema-quick-ref.md](xml-schema-quick-ref.md)
 - [slides_xml_schema_definition.xml](slides_xml_schema_definition.xml)

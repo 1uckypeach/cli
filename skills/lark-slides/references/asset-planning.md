@@ -1,8 +1,8 @@
 # Asset Planning
 
-新建演示文稿或大幅改写页面时，在写入 `slide_plan.json` 前后都可以参考本文件。目标是让 agent 主动识别有价值的图、图标、图表、流程图、时序图、架构图、装饰图案、截图或示意图需求，同时保持 deck 在没有真实素材时也能完整执行。
+When creating a new presentation or substantially rewriting the page, you can refer to this file before and after writing `slide_plan.json`. The goal is to allow the agent to proactively identify valuable diagrams, icons, diagrams, flow charts, sequence diagrams, architecture diagrams, decorative patterns, screenshots or schematic diagram requirements, while maintaining complete execution of the deck even without real materials.
 
-本文件只定义轻量资产规划。不要把它理解成素材采集流程。
+This document only defines lightweight asset planning. Don’t understand it as a material collection process.
 
 ## Core Rules
 
@@ -71,7 +71,7 @@ For `asset_type: "chart"`:
   - `user_provided`: when the user provides concrete values, tables, CSV, or metric lists, use those values and do not replace them with mock data.
   - `mock_placeholder`: when the user asks for a placeholder, template, example, or chart position to replace later, use mock data in a native `<chart>`.
   - `mock_required_by_intent`: when the user does not provide concrete values but asks for data expression, charts, trends, comparisons, or distributions, use mock data in a native `<chart>`.
-- Mock data must be labeled as `模拟数据，仅占位，待替换真实数据` or equivalent. Do not present mock values as facts.
+- Mock data must be labeled as `Mock data, placeholder only, to be replaced with real data` or equivalent. Do not present mock values ​​as facts.
 - Manual drawing fallbacks are allowed only for unsupported chart types such as scatter, funnel, waterfall-like custom visuals, or decorative non-data visuals.
 
 `fallback_if_missing` must be concrete enough to turn into XML, for example:
@@ -79,7 +79,7 @@ For `asset_type: "chart"`:
 - "Draw a simplified attention matrix with 5 token labels, semi-transparent cells, and arrows to output token."
 - "Use three grouped boxes with arrows from client to gateway to service; add small protocol labels."
 - "Render a native `<chart>` using the user-provided series."
-- "Render a native `<chart>` with mock placeholder values and label it as `模拟数据，仅占位，待替换真实数据`."
+- "Render a native `<chart>` with mock placeholder values and label it as `Simulated data, placeholder only, to be replaced with real data`."
 - "Use a bordered placeholder panel with product area labels, not an empty image."
 
 Weak fallbacks to avoid:

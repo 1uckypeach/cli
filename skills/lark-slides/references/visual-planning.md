@@ -1,8 +1,8 @@
 # Visual Planning
 
-新建演示文稿或大幅改写页面时，在 `slide_plan.json` 完成后、生成 XML 前读取本文件。目标是让 `layout_type`、`visual_focus`、`text_density` 变成实际页面几何，而不是只写在 plan 里。
+When creating a new presentation or substantially rewriting pages, read this file after `slide_plan.json` is complete and before generating XML. The goal is to turn `layout_type`, `visual_focus`, and `text_density` into actual page geometry, not just labels in the plan.
 
-默认画布按 `960 x 540` 规划。模板 XML 可以覆盖具体坐标，但不能覆盖这些原则：页面要有主视觉区域、文本要受密度约束、不同 `layout_type` 必须产生明显不同的坐标结构。
+Plan against a default canvas of `960 x 540`. Template XML may override specific coordinates, but it cannot override these principles: every page needs a primary visual region, text must respect density constraints, and different `layout_type` values must produce visibly different coordinate structures.
 
 ## Core Rules
 

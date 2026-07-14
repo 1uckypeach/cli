@@ -1,22 +1,22 @@
 # lark-slides xml_presentation.slide delete
 
-## 用途
+## Purpose
 
-删除指定 XML 演示文稿中的幻灯片页面。
+Delete a slide from the specified XML presentation.
 
-## 命令
+## Command
 
 ```bash
 lark-cli slides xml_presentation.slide delete --as user --params '<json_params>'
 ```
 
-## 参数说明
+## Parameter Description
 
-| 参数 | 类型 | 必需 | 说明 |
+| Parameter | Type | Required | Description |
 |------|------|------|------|
-| `--params` | JSON string | 是 | 路径参数与查询参数 |
+| `--params` | JSON string | Yes | Path and query parameters |
 
-### params JSON 结构
+### params JSON Structure
 
 ```json
 {
@@ -27,16 +27,16 @@ lark-cli slides xml_presentation.slide delete --as user --params '<json_params>'
 }
 ```
 
-| 字段 | 类型 | 必需 | 说明 |
+| Field | Type | Required | Description |
 |------|------|------|------|
-| `xml_presentation_id` | string | 是 | 演示文稿的唯一标识符 |
-| `slide_id` | string | 是 | 要删除的幻灯片唯一标识符 |
-| `revision_id` | integer | 否 | 演示文稿版本号，`-1` 表示最新版本 |
-| `tid` | string | 否 | 锁的事务 ID |
+| `xml_presentation_id` | string | Yes | Unique identifier of the presentation |
+| `slide_id` | string | Yes | Unique identifier of the slide to delete |
+| `revision_id` | integer | No | Presentation revision number, `-1` means the latest revision |
+| `tid` | string | No | Transaction ID of the lock |
 
-## 使用示例
+## Usage Examples
 
-### 删除指定幻灯片
+### Delete a Specific Slide
 
 ```bash
 lark-cli slides xml_presentation.slide delete --as user --params '{
@@ -45,22 +45,22 @@ lark-cli slides xml_presentation.slide delete --as user --params '{
 }'
 ```
 
-### 结合查询删除（使用 jq）
+### Delete After Inspection (with jq)
 
 ```bash
-# 先读取 XML 内容，确认待删除页面
+# First read the XML content to confirm the slide to delete
 lark-cli slides +xml-get --as user \
   --presentation "slides_example_presentation_id" \
   --output .lark-slides/plan/slides_example_presentation_id/readback.xml \
   --json
 
-# 然后按已知 slide_id 删除
+# Then delete by the known slide_id
 lark-cli slides xml_presentation.slide delete --as user --params '{"xml_presentation_id":"slides_example_presentation_id","slide_id":"slide_example_id"}'
 ```
 
-## 返回值
+## Return Value
 
-成功时返回删除确认信息：
+On success, returns a deletion confirmation:
 
 ```json
 {
@@ -72,46 +72,46 @@ lark-cli slides xml_presentation.slide delete --as user --params '{"xml_presenta
 }
 ```
 
-### 返回字段说明
+### Return Field Description
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 |------|------|------|
-| `data.revision_id` | integer | 删除后的最新版本号 |
+| `data.revision_id` | integer | The latest revision number after deletion |
 
-## 常见错误
+## Common Errors
 
-| 错误码 | 含义 | 解决方案 |
+| Error Code | Meaning | Solution |
 |--------|------|----------|
-| 404 | 演示文稿不存在 | 检查 `xml_presentation_id` 是否正确 |
-| 404 | 幻灯片不存在 | 检查 `slide_id` 是否正确，或该幻灯片已被删除 |
-| 400 | 无法删除唯一幻灯片 | 演示文稿至少保留一页幻灯片 |
-| 403 | 权限不足 | 检查是否拥有 `slides:presentation:update` 或 `slides:presentation:write_only` scope |
+| 404 | Presentation does not exist | Check whether `xml_presentation_id` is correct |
+| 404 | Slide does not exist | Check whether `slide_id` is correct, or the slide may have already been deleted |
+| 400 | Cannot delete the only slide | The presentation must keep at least one slide |
+| 403 | Insufficient permissions | Check whether you have the `slides:presentation:update` or `slides:presentation:write_only` scope |
 
-## 注意事项
+## Notes
 
-1. **执行前必做**: 使用 `lark-cli schema slides.xml_presentation.slide.delete` 查看最新的参数结构
-2. **删除不可逆**: 删除操作无法撤销，请确保已备份重要内容
-3. **至少保留一页**: 演示文稿必须至少保留一页幻灯片，删除最后一页会报错
-4. **版本控制**: 如果依赖版本号并发控制，删除前先确认 `revision_id`
-5. **获取 slide_id**: 创建幻灯片时请保存返回值；仅靠 `get` 返回的 XML 无法直接推导服务端 short ID
+1. **Do this before executing**: use `lark-cli schema slides.xml_presentation.slide.delete` to check the latest parameter structure
+2. **Deletion is irreversible**: the delete operation cannot be undone; make sure important content is backed up
+3. **Keep at least one slide**: the presentation must keep at least one slide; deleting the last slide returns an error
+4. **Version control**: if you rely on revision numbers for concurrency control, confirm the `revision_id` before deleting
+5. **Getting slide_id**: save the return value when creating slides; the server-side short ID cannot be derived directly from the XML returned by `get` alone
 
-## 如何获取 slide_id
+## How to Get slide_id
 
-### 方法 1: 创建时保存
+### Method 1: Save at Creation Time
 
 ```bash
 lark-cli slides xml_presentation.slide create --as user --params '{"xml_presentation_id":"slides_example_presentation_id"}' --data '{
   "slide": {
-    "content": "<slide xmlns=\"http://www.larkoffice.com/sml/2.0\"><data><shape type=\"text\" topLeftX=\"80\" topLeftY=\"80\" width=\"800\" height=\"120\"><content textType=\"title\"><p>新页面</p></content></shape></data></slide>"
+    "content": "<slide xmlns=\"http://www.larkoffice.com/sml/2.0\"><data><shape type=\"text\" topLeftX=\"80\" topLeftY=\"80\" width=\"800\" height=\"120\"><content textType=\"title\"><p>New Slide</p></content></shape></data></slide>"
   }
 }'
 ```
 
-返回结果中的 `slide_id` 就是后续删除所需的值。
+The `slide_id` in the response is the value needed for later deletion.
 
-## 批量删除建议
+## Batch Deletion Suggestions
 
-如果需要删除多张幻灯片，建议先整理好待删 `slide_id` 列表，再逐个删除：
+If you need to delete multiple slides, prepare the list of `slide_id`s to delete first, then delete them one by one:
 
 ```bash
 for slide_id in sld_a sld_b sld_c; do
@@ -119,7 +119,7 @@ for slide_id in sld_a sld_b sld_c; do
 done
 ```
 
-## 相关命令
+## Related Commands
 
-- [slides +create](lark-slides-create.md) - 创建 PPT / 添加幻灯片页面
-- [slides +xml-get](lark-slides-xml-get.md) - 读取 PPT 内容并保存到本地文件
+- [slides +create](lark-slides-create.md) - Create a PPT / add slides
+- [slides +xml-get](lark-slides-xml-get.md) - Read PPT content and save it to a local file
