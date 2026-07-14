@@ -23,7 +23,9 @@ When the user gives no brand palette, pick a ready-made palette from [`style-pre
 
 **Accent-gap rule (important):** if the palette has no sufficiently saturated emphasis color (e.g. only a main color plus low-saturation neutrals), derive one — preferably a brighter or darker variant of `primary` — reserved for `big-number` / `conclusion` metrics. `accent` must never be visually confusable with `secondary`.
 
-Other fields: `theme_style` records the overall tone; the intended density sets the deck's default `text_density` (high → medium/high with tables/columns, low → low with generous whitespace); `visual_system.motif` and the optional `visual_system.graphic_language_pool` define each page's `visual_focus` element pool — the focus must come from that pool, with no outside decorative devices; `typography_constraints.font_family / font_number` set the fonts.
+Other fields: `theme_style` records the overall tone; the intended density sets the deck's default `text_density` (high → medium/high with tables/columns, low → low with generous whitespace); `visual_system.motif` and the optional `visual_system.graphic_language_pool` define each page's `visual_focus` element pool — the focus must come from that pool, with no outside decorative devices; `typography_constraints.font_family` sets the fonts — a stack covering CJK + Latin text and, optionally, a mono/emphasis face for numbers.
+
+When generating XML, actually apply it: write the preferred text face from `font_family` into the `fontFamily` attribute of title and body text; if the stack includes a mono/emphasis face, use it as the `fontFamily` for numeric / metric / big-number / numbering text (dates, percentages, money, chart-adjacent figures). A font recorded in the plan but never written into a `fontFamily` attribute has no effect.
 
 ## Core Rules
 

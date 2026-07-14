@@ -72,8 +72,7 @@ Exception:
     "body_max_lines_per_box": 2,
     "footer_max_lines": 1,
     "long_text_handling": "Shorten, split into multiple boxes, or move detail to speaker notes instead of shrinking into a tight box.",
-    "font_family": "Text font stack covering CJK + Latin, optional; e.g. Source Han Sans / Inter",
-    "font_number": "Numeric/mono font for emphasized figures, optional; e.g. Roboto Mono"
+    "font_family": "Font stack for CJK + Latin text and, if wanted, a mono/emphasis face for numbers; optional; e.g. Source Han Sans / Inter / Roboto Mono"
   },
   "verification_plan": {
     "check_background_consistency": true,

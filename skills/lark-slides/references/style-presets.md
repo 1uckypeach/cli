@@ -11,43 +11,43 @@ Each preset is self-contained: scenario heading, tone + density, the six color r
 ### 1 · Investment / industry research report
 *Tone: minimal, professional, data-driven, authoritative-restrained · Density: medium–high*
 - **colors** — primary `#415A77` 钢蓝 · secondary `#0D1B2A` 深海军蓝 · accent `#2E6FB0` ⟲亮钢蓝 · background `#F3F4F6` 冷白 · text_main `#0D1B2A` · text_sub `#6B7788` 灰蓝
-- **fonts** — text `思源黑体 / 思源宋体 / Inter / IBM Plex Sans` · number `Roboto Mono`
+- **fonts** (`font_family`) — `思源黑体 / 思源宋体 / Inter / IBM Plex Sans / Roboto Mono`
 - **graphic language** — metric card, horizontal bar chart, thin-line table, trend list, page-number system, section tag, low-saturation block
 
 ### 2 · Government / party work summary
 *Tone: clean, dignified, credible, warm, low-saturation civic · Density: medium*
 - **colors** — primary `#C0453D` 砖红 · secondary `#D4B15C` 金黄 · accent `#D4B15C` 金黄 · background `#F7F3EE` 暖灰米白 · text_main `#333333` 深炭灰 · text_sub `#7A756F` 暖灰
-- **fonts** — text `思源黑体 / 寒蝉德黑体 / Inter / Libre Franklin` · number `Rajdhani`
+- **fonts** (`font_family`) — `思源黑体 / 寒蝉德黑体 / Inter / Libre Franklin / Rajdhani`
 - **graphic language** — small red block, swatch matrix, gold hairline, type specimen, work-data card, ruled divider
 
 ### 3 · Pitch deck / business plan
 *Tone: minimal, premium, international, strategic, composed · Density: low–medium*
 - **colors** — primary `#415A77` 钢蓝 · secondary `#0D1B2A` 深海军蓝 · accent `#2E6FB0` ⟲亮钢蓝 · background `#F5F6F8` 冷白 · text_main `#0D1B2A` · text_sub `#5F6F82` 蓝灰
-- **fonts** — text `思源宋体 / 思源黑体 / Playfair Display / Inter` · number `Oswald`
+- **fonts** (`font_family`) — `思源宋体 / 思源黑体 / Playfair Display / Inter / Oswald`
 - **graphic language** — large dark cover block, type specimen, layout thumbnail, keyword rail, thin divider, attribute tag
 
 ### 4 · Market / data analysis
 *Tone: clean, data-driven, analytical, credible · Density: medium–high*
 - **colors** — primary `#3D6B63` 灰绿 · secondary `#0F1720` 深蓝黑 · accent `#1F9E7A` ⟲亮绿 · background `#F7F7F5` 暖白 · text_main `#0F1720` · text_sub `#6B7280` 中性灰
-- **fonts** — text `寒蝉德黑体 / 思源黑体 / Inter / IBM Plex Sans` · number `Roboto Mono`
+- **fonts** (`font_family`) — `寒蝉德黑体 / 思源黑体 / Inter / IBM Plex Sans / Roboto Mono`
 - **graphic language** — bar chart, key-conclusion card, data label, button component, tab component, pager, line icon, light info panel
 
 ### 5 · Equity research
 *Tone: high-end research, calm, data-oriented, elite · Density: high*
 - **colors** — primary `#348271` 孔雀绿 · secondary `#0D1B2A` 深海军蓝 · accent `#2FA98D` ⟲亮青绿 · background `#F6F8FA` 冷白 · text_main `#0D1B2A` · text_sub `#6B7A8A` 灰蓝
-- **fonts** — text `思源宋体 / 思源黑体 / Playfair Display / Inter` · number `Roboto Mono`
+- **fonts** (`font_family`) — `思源宋体 / 思源黑体 / Playfair Display / Inter / Roboto Mono`
 - **graphic language** — investment metric table, mini trend line, donut chart, bar chart, swatch matrix, data table, thin divider
 
 ### 6 · Course design / lesson plan
 *Tone: clear, focused, learner-centered, structured, modern-teaching · Density: medium*
 - **colors** — primary `#3B82F6` 柔和蓝 · secondary `#10B981` 柔和绿 · accent `#10B981` 柔和绿 · background `#FAFAFA` 冷白 · text_main `#1E293B` · text_sub `#64748B` 石板灰
-- **fonts** — text `思源黑体 / 霞鹜975圆体 / Inter / Nunito Sans` · number `Roboto Mono`
+- **fonts** (`font_family`) — `思源黑体 / 霞鹜975圆体 / Inter / Nunito Sans / Roboto Mono`
 - **graphic language** — swatch module, type specimen, UI component, spacing system, principle list, form control, progress bar, structure diagram
 
 ### 7 · Teaching slides
 *Tone: gentle, approachable, low cognitive load, readable, modern-course · Density: low–medium*
 - **colors** — primary `#6B8F7A` 灰绿 · secondary `#3D5A80` 雾霾蓝 · accent `#4E9E7E` ⟲亮绿 · background `#F7F7F5` 暖灰白 · text_main `#1E2A3A` 深蓝灰 · text_sub `#6B7280` 中性灰
-- **fonts** — text `寒蝉团圆体 / 霞鹜975圆体 / Nunito Sans / Quicksand` · number `Rubik`
+- **fonts** (`font_family`) — `寒蝉团圆体 / 霞鹜975圆体 / Nunito Sans / Quicksand / Rubik`
 - **graphic language** — soft-rounded button, selection control, status dot, principle card, light section, simple icon, title accent line, bottom keyword rail
 
 ## How to apply
@@ -67,7 +67,7 @@ Copy the matched row into the plan. Example using preset 1:
     "graphic_language_pool": ["metric card", "horizontal bar chart", "thin-line table", "trend list", "section tag"]
   },
   "typography_constraints": {
-    "font_family": "思源黑体 / 思源宋体 / Inter / IBM Plex Sans", "font_number": "Roboto Mono"
+    "font_family": "思源黑体 / 思源宋体 / Inter / IBM Plex Sans / Roboto Mono"
   }
 }
 ```
