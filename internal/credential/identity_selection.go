@@ -12,7 +12,18 @@ const (
 	SourceEnvAppID         CredentialSourceKind = "env:LARKSUITE_CLI_APP_ID"
 	SourceConfigCurrentApp CredentialSourceKind = "config:currentApp"
 	SourceConfigFirstApp   CredentialSourceKind = "config:firstApp"
+
+	// SourceExtensionPrefix prefixes the name of a managed extension provider
+	// that won selection outright (e.g. "extension:sidecar"). With it, an
+	// empty Source is left with exactly one meaning: not resolved.
+	SourceExtensionPrefix CredentialSourceKind = "extension:"
 )
+
+// SourceExtension reports the selection source for a managed extension
+// provider by name.
+func SourceExtension(name string) CredentialSourceKind {
+	return SourceExtensionPrefix + CredentialSourceKind(name)
+}
 
 // DirectCredentialEnv describes the state of direct app credential env vars.
 // It never carries a secret value — only names and the non-sensitive app_id.
@@ -25,7 +36,7 @@ type DirectCredentialEnv struct {
 }
 
 // IdentitySelection is the explainable result of credential selection.
-// It carries NO secret value (security: §5.1).
+// It carries NO secret value.
 type IdentitySelection struct {
 	Source              CredentialSourceKind
 	DirectCredentialEnv DirectCredentialEnv

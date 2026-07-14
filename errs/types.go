@@ -323,10 +323,11 @@ func (e *PermissionError) WithCause(cause error) *PermissionError {
 // intentionally not serialized.
 type ConfigError struct {
 	Problem
-	Field       string   `json:"field,omitempty"`
-	MissingKeys []string `json:"missing_keys,omitempty"`
-	Profile     string   `json:"profile,omitempty"`
-	AppID       string   `json:"app_id,omitempty"`
+	Field         string   `json:"field,omitempty"`
+	MissingKeys   []string `json:"missing_keys,omitempty"`
+	RequiredAnyOf []string `json:"required_any_of,omitempty"`
+	Profile       string   `json:"profile,omitempty"`
+	AppID         string   `json:"app_id,omitempty"`
 	// CredentialSource is the machine-readable App/credential selection source
 	// that produced this config error (e.g. "flag:--profile",
 	// "env:LARKSUITE_CLI_PROFILE", "config"). It is required on
@@ -389,6 +390,11 @@ func (e *ConfigError) WithField(field string) *ConfigError {
 
 func (e *ConfigError) WithMissingKeys(keys ...string) *ConfigError {
 	e.MissingKeys = slices.Clone(keys)
+	return e
+}
+
+func (e *ConfigError) WithRequiredAnyOf(keys ...string) *ConfigError {
+	e.RequiredAnyOf = slices.Clone(keys)
 	return e
 }
 

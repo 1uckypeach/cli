@@ -139,6 +139,7 @@ func TestConfigError_MarshalJSON(t *testing.T) {
 func TestConfigError_ProfileFieldsMarshalJSON(t *testing.T) {
 	ce := NewConfigError(SubtypeAppCredentialIncomplete, "incomplete").
 		WithMissingKeys("LARKSUITE_CLI_APP_ID", "LARKSUITE_CLI_APP_SECRET").
+		WithRequiredAnyOf("LARKSUITE_CLI_APP_SECRET", "LARKSUITE_CLI_USER_ACCESS_TOKEN").
 		WithProfile("work").
 		WithAppID("cli_abc").
 		WithCredentialSource("flag:--profile")
@@ -151,6 +152,7 @@ func TestConfigError_ProfileFieldsMarshalJSON(t *testing.T) {
 		`"type":"config"`,
 		`"subtype":"app_credential_incomplete"`,
 		`"missing_keys":["LARKSUITE_CLI_APP_ID","LARKSUITE_CLI_APP_SECRET"]`,
+		`"required_any_of":["LARKSUITE_CLI_APP_SECRET","LARKSUITE_CLI_USER_ACCESS_TOKEN"]`,
 		`"profile":"work"`,
 		`"app_id":"cli_abc"`,
 		`"credential_source":"flag:--profile"`,
@@ -167,7 +169,7 @@ func TestConfigError_ProfileFieldsMarshalJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	s2 := string(b2)
-	for _, notWant := range []string{`"missing_keys"`, `"profile"`, `"app_id"`, `"credential_source"`} {
+	for _, notWant := range []string{`"missing_keys"`, `"required_any_of"`, `"profile"`, `"app_id"`, `"credential_source"`} {
 		if strings.Contains(s2, notWant) {
 			t.Errorf("%q should be omitted when empty; got %s", notWant, s2)
 		}

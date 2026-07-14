@@ -44,6 +44,20 @@ func (s IdentitySupport) UserOnly() bool { return s == SupportsUser }
 // BotOnly returns true if only bot identity is supported.
 func (s IdentitySupport) BotOnly() bool { return s == SupportsBot }
 
+// AccountKind declares how an account participates in credential arbitration.
+type AccountKind int
+
+const (
+	// AccountManaged means the provider owns the whole identity; winning it
+	// ends arbitration outright. The zero value, so existing providers are
+	// unchanged.
+	AccountManaged AccountKind = iota
+	// AccountDirect marks an actively supplied raw credential (e.g. the env
+	// provider's LARKSUITE_CLI_* variables). It participates in profile
+	// arbitration and conflict detection instead of winning outright.
+	AccountDirect
+)
+
 // Account holds resolved app credentials and configuration.
 type Account struct {
 	AppID               string
@@ -53,6 +67,7 @@ type Account struct {
 	ProfileName         string
 	OpenID              string          // optional; if UAT is available, API result takes precedence
 	SupportedIdentities IdentitySupport // zero = provider did not declare; treat as no restriction
+	Kind                AccountKind     // AccountManaged (default) or AccountDirect
 }
 
 // Token holds a resolved access token and optional metadata.
@@ -76,11 +91,30 @@ type TokenSpec struct {
 	AppID string
 }
 
+// BlockReason classifies provider-originated block conditions that callers may
+// safely map to a more specific public error contract.
+type BlockReason string
+
+const (
+	// BlockReasonCredentialIncomplete marks direct credential inputs that cannot
+	// form an account until one or more named input variables are fixed. Setting
+	// it opts the block into direct-credential arbitration regardless of the
+	// provider's name: the caller maps it to app_credential_incomplete and may
+	// let a matching selected profile win instead (when AppID and PresentKeys
+	// identify a usable app_id). Blocks without it propagate unchanged.
+	BlockReasonCredentialIncomplete BlockReason = "credential_incomplete"
+)
+
 // BlockError is returned by a Provider to actively reject a request
 // and prevent subsequent providers in the chain from being consulted.
 type BlockError struct {
-	Provider string
-	Reason   string
+	Provider      string
+	Reason        string
+	Code          BlockReason
+	MissingKeys   []string // environment variable names only; never values
+	RequiredAnyOf []string // environment variable names only; never values
+	PresentKeys   []string // environment variable names only; never values
+	AppID         string   // plaintext app identifier used only for source comparison; never a secret
 }
 
 func (e *BlockError) Error() string {

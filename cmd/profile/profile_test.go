@@ -651,6 +651,10 @@ func TestProfileHelpHasSelectionSection(t *testing.T) {
 	if !strings.Contains(cmd.Long, "config show / profile list") {
 		t.Errorf("profile --help missing saved-config boundary")
 	}
+	const precedence = "A selected profile takes precedence over matching direct env credentials and tokens."
+	if !strings.Contains(cmd.Long, precedence) {
+		t.Errorf("profile --help missing precedence statement %q", precedence)
+	}
 }
 
 func TestProfileListHelpClarifiesSavedProfiles(t *testing.T) {

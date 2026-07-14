@@ -37,9 +37,9 @@ type whoamiResult struct {
 
 	// CredentialSource, Explicit, and DirectCredentialEnv surface the cached
 	// credential.IdentitySelection computed during resolution (not re-inferred
-	// here). CredentialSource can be empty ("") on the non-env
-	// extension-provider path (e.g. sidecar mode), where no selection kind
-	// applies; this is a documented, valid state, not an error.
+	// here). On the non-env extension-provider path CredentialSource is
+	// "extension:<provider>" (e.g. "extension:sidecar"); an empty value only
+	// means the selection was never resolved.
 	CredentialSource    string                         `json:"credentialSource"`
 	Explicit            bool                           `json:"explicit"`
 	DirectCredentialEnv credential.DirectCredentialEnv `json:"directCredentialEnv"`

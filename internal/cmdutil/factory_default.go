@@ -192,6 +192,9 @@ func buildCredentialProvider(deps credentialDeps) *credential.CredentialProvider
 	// depend on. enrichUserInfo failures are already non-fatal (the
 	// provider clears unverified identity fields), so silencing the
 	// warning is safe.
-	return credential.NewCredentialProvider(providers, defaultAcct, defaultToken, deps.HttpClient).
-		WithProfile(deps.Profile, deps.ProfileFromFlag)
+	cred := credential.NewCredentialProvider(providers, defaultAcct, defaultToken, deps.HttpClient)
+	if deps.ProfileFromFlag {
+		return cred.WithProfileFromFlag(deps.Profile)
+	}
+	return cred.WithProfileFromEnv(deps.Profile)
 }

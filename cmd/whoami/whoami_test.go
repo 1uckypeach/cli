@@ -332,7 +332,7 @@ func (noopWhoamiKeychain) Remove(service, account string) error        { return 
 
 // credentialSourceSecret is the profile secret written to config for
 // TestWhoamiIncludesCredentialSource. It must never leak into whoami's output
-// (security §5.1).
+// (security: never leak a secret).
 const credentialSourceSecret = "test-secret"
 
 // profileSelectionFactory builds a Factory whose CredentialProvider resolves
@@ -361,7 +361,7 @@ func profileSelectionFactory(t *testing.T) (*cmdutil.Factory, *bytes.Buffer) {
 
 	defaultAcct := credential.NewDefaultAccountProvider(func() keychain.KeychainAccess { return noopWhoamiKeychain{} }, "tenant_a")
 	cred := credential.NewCredentialProvider([]extcred.Provider{&envprovider.Provider{}}, defaultAcct, nil, nil)
-	cred.WithProfile("tenant_a", false) // fromFlag=false -> env:LARKSUITE_CLI_PROFILE
+	cred.WithProfileFromEnv("tenant_a")
 
 	cfg := &core.CliConfig{ProfileName: "tenant_a", AppID: "cli_a", AppSecret: credentialSourceSecret, Brand: core.BrandFeishu}
 	out := &bytes.Buffer{}
@@ -374,7 +374,7 @@ func profileSelectionFactory(t *testing.T) (*cmdutil.Factory, *bytes.Buffer) {
 }
 
 // TestWhoamiIncludesCredentialSource locks in the diagnostic fields surfaced
-// from the cached credential.IdentitySelection (Task 6): credentialSource,
+// from the cached credential.IdentitySelection: credentialSource,
 // explicit, and directCredentialEnv. whoami must read the cached selection
 // as-is, not re-infer it.
 func TestWhoamiIncludesCredentialSource(t *testing.T) {

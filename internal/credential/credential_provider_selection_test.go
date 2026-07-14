@@ -19,6 +19,7 @@ import (
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/envvars"
 	"github.com/larksuite/cli/internal/keychain"
+	"github.com/larksuite/cli/internal/output"
 )
 
 func asConfigError(t *testing.T, err error) *errs.ConfigError {
@@ -40,7 +41,7 @@ func asValidationError(t *testing.T, err error) *errs.ValidationError {
 }
 
 // secretValue is the profile secret written to config. It must NEVER appear in
-// any error message or IdentitySelection (security §5.1).
+// any error message or IdentitySelection (security: never leak a secret).
 const secretValue = "your-secret"
 
 // envSecretValue is the direct env app secret. Same no-leak guarantee.
@@ -93,7 +94,11 @@ func newProvider(t *testing.T, profile string, fromFlag bool) *credential.Creden
 	ep := &envprovider.Provider{}
 	defaultAcct := credential.NewDefaultAccountProvider(func() keychain.KeychainAccess { return &noopKC{} }, profile)
 	cp := credential.NewCredentialProvider([]extcred.Provider{ep}, defaultAcct, nil, nil)
-	cp.WithProfile(profile, fromFlag)
+	if fromFlag {
+		cp.WithProfileFromFlag(profile)
+	} else {
+		cp.WithProfileFromEnv(profile)
+	}
 	return cp
 }
 
@@ -125,8 +130,8 @@ func subtypeOf(t *testing.T, err error) errs.Subtype {
 	return p.Subtype
 }
 
-// State #2: P none, E none, C none -> no_active_profile.
-func TestSelection_State2_NoActiveProfile(t *testing.T) {
+// With no profile, direct credential, or config default, selection reports no_active_profile.
+func TestSelection_NoActiveProfile(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "")
 	t.Setenv(envvars.CliAppSecret, "")
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir()) // empty dir -> no config
@@ -136,7 +141,7 @@ func TestSelection_State2_NoActiveProfile(t *testing.T) {
 	if got := subtypeOf(t, err); got != errs.SubtypeNoActiveProfile {
 		t.Fatalf("subtype = %q, want %q", got, errs.SubtypeNoActiveProfile)
 	}
-	// Defect 1 (spec §5): no_active_profile must carry credential_source=config.
+	// no_active_profile must carry credential_source=config.
 	ce := asConfigError(t, err)
 	if ce.CredentialSource != "config" {
 		t.Errorf("credential_source = %q, want %q", ce.CredentialSource, "config")
@@ -145,7 +150,7 @@ func TestSelection_State2_NoActiveProfile(t *testing.T) {
 }
 
 // Config-default profile with a broken secret: P none, E none, C present but the
-// default profile's keychain secret ref is corrupted. Per spec §3 step 3.2 this
+// default profile's keychain secret ref is corrupted. This
 // must be profile_secret_invalid (the identity IS configured, only its secret is
 // broken) — NOT no_active_profile (which is reserved for "no usable default").
 func TestSelection_ConfigDefaultBrokenSecret_ProfileSecretInvalid(t *testing.T) {
@@ -165,7 +170,7 @@ func TestSelection_ConfigDefaultBrokenSecret_ProfileSecretInvalid(t *testing.T) 
 	if ce.AppID != "cli_a" {
 		t.Errorf("app_id = %q, want cli_a", ce.AppID)
 	}
-	// §5.1: generic message, no cause, no secret anywhere.
+	// Security: generic message, no cause, no secret anywhere.
 	if errors.Unwrap(ce) != nil {
 		t.Errorf("profile_secret_invalid must not attach a cause, got %v", errors.Unwrap(ce))
 	}
@@ -227,8 +232,8 @@ func TestSelection_ConfigDefault_MalformedConfig_PropagatesError(t *testing.T) {
 	assertMalformedSurfaced(t, err)
 }
 
-// State #3: P none, E partial (only APP_ID) -> app_credential_incomplete.
-func TestSelection_State3_EnvPartial(t *testing.T) {
+// APP_ID without a secret or access token reports app_credential_incomplete.
+func TestSelection_AppIDOnlyWithoutProfile(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "cli_env")
 	t.Setenv(envvars.CliAppSecret, "")
 	writeConfigTenantA(t)
@@ -238,22 +243,73 @@ func TestSelection_State3_EnvPartial(t *testing.T) {
 	if got := subtypeOf(t, err); got != errs.SubtypeAppCredentialIncomplete {
 		t.Fatalf("subtype = %q, want %q", got, errs.SubtypeAppCredentialIncomplete)
 	}
+	if got := output.ExitCodeOf(err); got != output.ExitAuth {
+		t.Fatalf("exit code = %d, want %d", got, output.ExitAuth)
+	}
 	prob, _ := errs.ProblemOf(err)
 	ce := asConfigError(t, err)
-	if !slices.Contains(ce.MissingKeys, envvars.CliAppSecret) {
-		t.Errorf("missing_keys = %v, want to contain %q", ce.MissingKeys, envvars.CliAppSecret)
+	if len(ce.MissingKeys) != 0 {
+		t.Errorf("missing_keys = %v, want empty because no single key is required", ce.MissingKeys)
 	}
-	// missing_keys must be NAMES only, never values.
-	for _, k := range ce.MissingKeys {
+	wantAnyOf := []string{envvars.CliAppSecret, envvars.CliUserAccessToken, envvars.CliTenantAccessToken}
+	if !slices.Equal(ce.RequiredAnyOf, wantAnyOf) {
+		t.Errorf("required_any_of = %v, want %v", ce.RequiredAnyOf, wantAnyOf)
+	}
+	// required_any_of must be NAMES only, never values.
+	for _, k := range ce.RequiredAnyOf {
 		if strings.Contains(k, envSecretValue) || strings.Contains(k, secretValue) {
-			t.Errorf("missing_keys contains a value, not a name: %q", k)
+			t.Errorf("required_any_of contains a value, not a name: %q", k)
 		}
+	}
+	wantHint := "set LARKSUITE_CLI_APP_SECRET, LARKSUITE_CLI_USER_ACCESS_TOKEN, or LARKSUITE_CLI_TENANT_ACCESS_TOKEN."
+	if ce.Hint != wantHint {
+		t.Errorf("hint = %q, want %q", ce.Hint, wantHint)
+	}
+	var blockErr *extcred.BlockError
+	if !errors.As(err, &blockErr) || blockErr.Code != extcred.BlockReasonCredentialIncomplete {
+		t.Fatalf("cause chain does not preserve credential BlockError: %T %v", err, err)
 	}
 	assertNoSecretLeak(t, "state3", prob.Message, prob.Hint)
 }
 
-// State #4: P none, E complete -> env:LARKSUITE_CLI_APP_ID.
-func TestSelection_State4_EnvComplete(t *testing.T) {
+func TestSelection_IncompleteDirectEnvWithoutProfile_UsesDirectRepairOnly(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		key  string
+	}{
+		{name: "APP_SECRET-only", key: envvars.CliAppSecret},
+		{name: "UAT-only", key: envvars.CliUserAccessToken},
+		{name: "TAT-only", key: envvars.CliTenantAccessToken},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(envvars.CliAppID, "")
+			t.Setenv(envvars.CliAppSecret, "")
+			t.Setenv(envvars.CliUserAccessToken, "")
+			t.Setenv(envvars.CliTenantAccessToken, "")
+			t.Setenv(tt.key, "direct-value")
+			t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+			cp := newProvider(t, "", false)
+			_, err := cp.Selection(context.Background())
+			ce := asConfigError(t, err)
+			if got := output.ExitCodeOf(err); got != output.ExitAuth {
+				t.Fatalf("exit code = %d, want %d", got, output.ExitAuth)
+			}
+			if ce.Message != tt.key+" is set but "+envvars.CliAppID+" is missing" {
+				t.Errorf("message = %q, want provider's exact reason", ce.Message)
+			}
+			if ce.Hint != "set "+envvars.CliAppID+"." {
+				t.Errorf("hint = %q, want direct repair only", ce.Hint)
+			}
+			if !slices.Equal(ce.MissingKeys, []string{envvars.CliAppID}) {
+				t.Errorf("missing_keys = %v, want [%s]", ce.MissingKeys, envvars.CliAppID)
+			}
+		})
+	}
+}
+
+// A complete direct credential without a profile is selected from APP_ID env.
+func TestSelection_CompleteDirectEnv(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "cli_env")
 	t.Setenv(envvars.CliAppSecret, envSecretValue)
 	writeConfigTenantA(t)
@@ -273,8 +329,8 @@ func TestSelection_State4_EnvComplete(t *testing.T) {
 	assertNoSecretLeak(t, "state4-keys", sel.DirectCredentialEnv.Keys...)
 }
 
-// State #5: P valid, E none -> flag:--profile (fromFlag) source.
-func TestSelection_State5_ProfileOnly(t *testing.T) {
+// A valid profile selected by flag reports flag:--profile as its source.
+func TestSelection_ProfileOnlyFromFlag(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "")
 	t.Setenv(envvars.CliAppSecret, "")
 	writeConfigTenantA(t)
@@ -293,8 +349,8 @@ func TestSelection_State5_ProfileOnly(t *testing.T) {
 	assertNoSecretLeak(t, "state5", string(sel.Source))
 }
 
-// State #5b: P valid from env (not flag) -> env:LARKSUITE_CLI_PROFILE source.
-func TestSelection_State5_ProfileFromEnv(t *testing.T) {
+// A valid profile selected by env reports LARKSUITE_CLI_PROFILE as its source.
+func TestSelection_ProfileOnlyFromEnv(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "")
 	t.Setenv(envvars.CliAppSecret, "")
 	writeConfigTenantA(t)
@@ -309,8 +365,8 @@ func TestSelection_State5_ProfileFromEnv(t *testing.T) {
 	}
 }
 
-// State #6: P missing (nonexistent), E complete -> profile_not_found.
-func TestSelection_State6_ProfileNotFound(t *testing.T) {
+// An explicitly selected missing profile reports profile_not_found even when direct env is complete.
+func TestSelection_MissingProfileWinsOverDirectEnv(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "cli_env")
 	t.Setenv(envvars.CliAppSecret, envSecretValue)
 	writeConfigTenantA(t)
@@ -321,7 +377,7 @@ func TestSelection_State6_ProfileNotFound(t *testing.T) {
 		t.Fatalf("subtype = %q, want %q", got, errs.SubtypeProfileNotFound)
 	}
 	prob, _ := errs.ProblemOf(err)
-	// Defect 1 (spec §5): profile_not_found must carry the credential_source that
+	// profile_not_found must carry the credential_source that
 	// named the profile — here the --profile flag.
 	ce := asConfigError(t, err)
 	if ce.CredentialSource != string(credential.SourceFlagProfile) {
@@ -330,8 +386,8 @@ func TestSelection_State6_ProfileNotFound(t *testing.T) {
 	assertNoSecretLeak(t, "state6", err.Error(), prob.Hint, string(sel.Source))
 }
 
-// State #7: P valid but secret broken, E none -> profile_secret_invalid.
-func TestSelection_State7_ProfileSecretInvalid(t *testing.T) {
+// A valid profile whose stored secret cannot be resolved reports profile_secret_invalid.
+func TestSelection_ProfileSecretInvalid(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "")
 	t.Setenv(envvars.CliAppSecret, "")
 	writeConfigTenantABroken(t)
@@ -370,20 +426,19 @@ func (leakingSecretResolver) ResolveAccount(ctx context.Context) (*credential.Ac
 	return nil, fmt.Errorf("keychain decode failed for secret %s", secretMarkerValue)
 }
 
-// State #7 (secret-bearing underlying error): P valid, but the underlying
-// account/secret resolution fails with an error that itself contains a
-// secret. This locks the §5.1 design: doResolveAccount emits a generic
+// When account/secret resolution fails with an error that itself contains a
+// secret, doResolveAccount emits a generic
 // profile_secret_invalid ConfigError WITHOUT attaching the underlying cause,
 // so a secret embedded in that underlying error can never surface through
 // err.Error(), Message, Hint, the unwrapped cause chain, or Selection().
-func TestSelection_State7_UnderlyingErrorContainingSecret_NotLeaked(t *testing.T) {
+func TestSelection_ProfileSecretErrorDoesNotLeak(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "")
 	t.Setenv(envvars.CliAppSecret, "")
 	writeConfigTenantA(t) // profile "tenant_a" exists with app_id "cli_a"
 
 	ep := &envprovider.Provider{}
 	cp := credential.NewCredentialProvider([]extcred.Provider{ep}, leakingSecretResolver{}, nil, nil)
-	cp.WithProfile("tenant_a", true)
+	cp.WithProfileFromFlag("tenant_a")
 
 	sel, err := cp.Selection(context.Background())
 	if got := subtypeOf(t, err); got != errs.SubtypeProfileSecretInvalid {
@@ -428,9 +483,8 @@ func TestSelection_State7_UnderlyingErrorContainingSecret_NotLeaked(t *testing.T
 			t.Errorf("Selection.DirectCredentialEnv.Keys leaked secret marker: %q", k)
 		}
 	}
-	// State #7 always clears p.selection on the secret-invalid path (see
-	// doResolveAccount); assert it is zero-valued, which trivially implies no
-	// marker anywhere in it and guards against a future field being populated
+	// The secret-invalid path leaves p.selection zero-valued; this trivially
+	// implies no marker anywhere in it and guards against a future field being populated
 	// from the failed resolution.
 	if sel.Source != "" || sel.DirectCredentialEnv.Present ||
 		sel.DirectCredentialEnv.AppID != "" || len(sel.DirectCredentialEnv.Keys) != 0 {
@@ -438,8 +492,8 @@ func TestSelection_State7_UnderlyingErrorContainingSecret_NotLeaked(t *testing.T
 	}
 }
 
-// State #8: P valid, E complete, app_id matches -> profile source, env present+matched.
-func TestSelection_State8_ProfileMatchesEnv(t *testing.T) {
+// A profile matching a complete direct env credential wins and records the env as matched.
+func TestSelection_ProfileMatchesCompleteDirectEnv(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "cli_a") // matches profile app_id
 	t.Setenv(envvars.CliAppSecret, envSecretValue)
 	writeConfigTenantA(t)
@@ -462,8 +516,76 @@ func TestSelection_State8_ProfileMatchesEnv(t *testing.T) {
 	assertNoSecretLeak(t, "state8-keys", sel.DirectCredentialEnv.Keys...)
 }
 
-// State #9: P valid, E complete, app_id mismatches -> profile_app_credential_conflict.
-func TestSelection_State9_Conflict(t *testing.T) {
+// APP_ID-only is sufficient for profile arbitration: a matching selected
+// profile supplies all credentials and tokens, so the incomplete direct env
+// must not block the profile.
+func TestSelection_ProfileMatchesAppIDOnly_ProfileWins(t *testing.T) {
+	t.Setenv(envvars.CliAppID, "cli_a")
+	t.Setenv(envvars.CliAppSecret, "")
+	t.Setenv(envvars.CliUserAccessToken, "")
+	t.Setenv(envvars.CliTenantAccessToken, "")
+	writeConfigTenantA(t)
+	cp := newProvider(t, "tenant_a", true)
+
+	acct, err := cp.ResolveAccount(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if acct.AppID != "cli_a" || acct.AppSecret != secretValue {
+		t.Fatalf("account = %+v, want selected profile credentials", acct)
+	}
+	sel, err := cp.Selection(context.Background())
+	if err != nil {
+		t.Fatalf("Selection: %v", err)
+	}
+	if !sel.DirectCredentialEnv.Present || !sel.DirectCredentialEnv.Matched {
+		t.Fatalf("DirectCredentialEnv = %+v, want Present && Matched", sel.DirectCredentialEnv)
+	}
+}
+
+func TestSelection_ProfileMatchingEnvTokens_UsesProfileTokenSource(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		tokenType credential.TokenType
+		envKey    string
+	}{
+		{name: "UAT", tokenType: credential.TokenTypeUAT, envKey: envvars.CliUserAccessToken},
+		{name: "TAT", tokenType: credential.TokenTypeTAT, envKey: envvars.CliTenantAccessToken},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(envvars.CliAppID, "cli_a")
+			t.Setenv(envvars.CliAppSecret, "")
+			t.Setenv(envvars.CliUserAccessToken, "")
+			t.Setenv(envvars.CliTenantAccessToken, "")
+			t.Setenv(tt.envKey, "env-token")
+			writeConfigTenantA(t)
+
+			ep := &envprovider.Provider{}
+			defaultAcct := credential.NewDefaultAccountProvider(func() keychain.KeychainAccess { return &noopKC{} }, "tenant_a")
+			defaultToken := &mockDefaultTokenProvider{token: "profile-token"}
+			cp := credential.NewCredentialProvider([]extcred.Provider{ep}, defaultAcct, defaultToken, nil)
+			cp.WithProfileFromFlag("tenant_a")
+
+			result, err := cp.ResolveToken(context.Background(), credential.TokenSpec{Type: tt.tokenType, AppID: "cli_a"})
+			if err != nil {
+				t.Fatalf("ResolveToken: %v", err)
+			}
+			if result.Token != "profile-token" {
+				t.Fatalf("token = %q, want profile-token (env token must not override selected profile)", result.Token)
+			}
+			sel, err := cp.Selection(context.Background())
+			if err != nil {
+				t.Fatalf("Selection: %v", err)
+			}
+			if sel.Source != credential.SourceFlagProfile || !sel.DirectCredentialEnv.Present || !sel.DirectCredentialEnv.Matched {
+				t.Fatalf("Selection = %+v, want profile source with matched direct env", sel)
+			}
+		})
+	}
+}
+
+// A profile that conflicts with a complete direct env credential reports a hard conflict.
+func TestSelection_ProfileConflictsWithCompleteDirectEnv(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "cli_x") // mismatches profile app_id cli_a
 	t.Setenv(envvars.CliAppSecret, envSecretValue)
 	writeConfigTenantA(t)
@@ -473,6 +595,9 @@ func TestSelection_State9_Conflict(t *testing.T) {
 	if got := subtypeOf(t, err); got != errs.SubtypeProfileAppCredentialConflict {
 		t.Fatalf("subtype = %q, want %q", got, errs.SubtypeProfileAppCredentialConflict)
 	}
+	if got := output.ExitCodeOf(err); got != output.ExitValidation {
+		t.Fatalf("exit code = %d, want %d", got, output.ExitValidation)
+	}
 	ve := asValidationError(t, err)
 	if ve.ProfileAppID != "cli_a" {
 		t.Errorf("profile_app_id = %q, want cli_a", ve.ProfileAppID)
@@ -480,26 +605,187 @@ func TestSelection_State9_Conflict(t *testing.T) {
 	if ve.EnvAppID != "cli_x" {
 		t.Errorf("env_app_id = %q, want cli_x", ve.EnvAppID)
 	}
+	if !strings.Contains(ve.Hint, "unset "+envvars.CliAppID+" and "+envvars.CliAppSecret) {
+		t.Errorf("hint = %q, want exact conflicting env variable names", ve.Hint)
+	}
 	assertNoSecretLeak(t, "state9", ve.Message, ve.Hint)
 }
 
-// State #10: P valid, E partial -> app_credential_incomplete (env-partial wins).
-func TestSelection_State10_ProfileWithEnvPartial(t *testing.T) {
-	t.Setenv(envvars.CliAppID, "")
-	t.Setenv(envvars.CliAppSecret, envSecretValue) // only secret set
+func TestSelection_ProfileConflictsWithAppIDOnly(t *testing.T) {
+	t.Setenv(envvars.CliAppID, "cli_x")
+	t.Setenv(envvars.CliAppSecret, "")
+	t.Setenv(envvars.CliUserAccessToken, "")
+	t.Setenv(envvars.CliTenantAccessToken, "")
 	writeConfigTenantA(t)
 	cp := newProvider(t, "tenant_a", true)
 
 	_, err := cp.Selection(context.Background())
-	if got := subtypeOf(t, err); got != errs.SubtypeAppCredentialIncomplete {
-		t.Fatalf("subtype = %q, want %q", got, errs.SubtypeAppCredentialIncomplete)
+	if got := subtypeOf(t, err); got != errs.SubtypeProfileAppCredentialConflict {
+		t.Fatalf("subtype = %q, want %q", got, errs.SubtypeProfileAppCredentialConflict)
+	}
+	ve := asValidationError(t, err)
+	if ve.ProfileAppID != "cli_a" || ve.EnvAppID != "cli_x" {
+		t.Fatalf("conflict = profile:%q env:%q, want cli_a/cli_x", ve.ProfileAppID, ve.EnvAppID)
+	}
+	if !strings.Contains(ve.Hint, "unset "+envvars.CliAppID) {
+		t.Errorf("hint = %q, want exact APP_ID unset instruction", ve.Hint)
+	}
+}
+
+func TestSelection_ExplicitMissingProfileWinsOverIncompleteEnv(t *testing.T) {
+	t.Setenv(envvars.CliAppID, "cli_a")
+	t.Setenv(envvars.CliAppSecret, "")
+	t.Setenv(envvars.CliUserAccessToken, "")
+	t.Setenv(envvars.CliTenantAccessToken, "")
+	writeConfigTenantA(t)
+	cp := newProvider(t, "tenant_typo", false)
+
+	_, err := cp.Selection(context.Background())
+	if got := subtypeOf(t, err); got != errs.SubtypeProfileNotFound {
+		t.Fatalf("subtype = %q, want %q", got, errs.SubtypeProfileNotFound)
 	}
 	ce := asConfigError(t, err)
-	if !slices.Contains(ce.MissingKeys, envvars.CliAppID) {
-		t.Errorf("missing_keys = %v, want to contain %q", ce.MissingKeys, envvars.CliAppID)
+	if ce.Profile != "tenant_typo" || ce.CredentialSource != string(credential.SourceEnvProfile) {
+		t.Fatalf("profile error = %+v, want tenant_typo from env profile", ce)
 	}
-	assertNoSecretLeak(t, "state10", ce.Message, ce.Hint)
-	assertNoSecretLeak(t, "state10-keys", ce.MissingKeys...)
+}
+
+func TestSelection_ExplicitProfileMalformedConfigWinsOverIncompleteEnv(t *testing.T) {
+	writeMalformedConfig(t)
+	t.Setenv(envvars.CliAppSecret, "direct-value")
+	cp := newProvider(t, "tenant_a", true)
+
+	_, err := cp.Selection(context.Background())
+	assertMalformedSurfaced(t, err)
+}
+
+// A direct secret or token without APP_ID remains incomplete even when a valid profile is selected.
+func TestSelection_ProfileWithDirectEnvMissingAppID(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		key  string
+	}{
+		{name: "APP_SECRET-only", key: envvars.CliAppSecret},
+		{name: "UAT-only", key: envvars.CliUserAccessToken},
+		{name: "TAT-only", key: envvars.CliTenantAccessToken},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(envvars.CliAppID, "")
+			t.Setenv(envvars.CliAppSecret, "")
+			t.Setenv(envvars.CliUserAccessToken, "")
+			t.Setenv(envvars.CliTenantAccessToken, "")
+			t.Setenv(tt.key, "direct-value")
+			writeConfigTenantA(t)
+			cp := newProvider(t, "tenant_a", true)
+
+			_, err := cp.Selection(context.Background())
+			if got := subtypeOf(t, err); got != errs.SubtypeAppCredentialIncomplete {
+				t.Fatalf("subtype = %q, want %q", got, errs.SubtypeAppCredentialIncomplete)
+			}
+			if got := output.ExitCodeOf(err); got != output.ExitAuth {
+				t.Fatalf("exit code = %d, want %d", got, output.ExitAuth)
+			}
+			ce := asConfigError(t, err)
+			if !slices.Equal(ce.MissingKeys, []string{envvars.CliAppID}) {
+				t.Errorf("missing_keys = %v, want [%s]", ce.MissingKeys, envvars.CliAppID)
+			}
+			wantHint := "set " + envvars.CliAppID + ", or unset " + tt.key + " to use the selected profile."
+			if ce.Hint != wantHint {
+				t.Errorf("hint = %q, want %q", ce.Hint, wantHint)
+			}
+			var blockErr *extcred.BlockError
+			if !errors.As(err, &blockErr) || blockErr.Code != extcred.BlockReasonCredentialIncomplete {
+				t.Fatalf("cause chain does not preserve credential BlockError: %T %v", err, err)
+			}
+			assertNoSecretLeak(t, "state10", ce.Message, ce.Hint)
+			assertNoSecretLeak(t, "state10-keys", ce.MissingKeys...)
+		})
+	}
+}
+
+func TestSelection_NonIncompleteEnvBlockPreservesOriginalAttribution(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		key  string
+	}{
+		{name: "invalid DEFAULT_AS", key: envvars.CliDefaultAs},
+		{name: "invalid STRICT_MODE", key: envvars.CliStrictMode},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(envvars.CliAppID, "cli_a")
+			t.Setenv(envvars.CliAppSecret, "")
+			t.Setenv(envvars.CliUserAccessToken, "")
+			t.Setenv(envvars.CliTenantAccessToken, "")
+			t.Setenv(tt.key, "banana")
+			writeConfigTenantA(t)
+			cp := newProvider(t, "tenant_a", true)
+
+			_, err := cp.Selection(context.Background())
+			var blockErr *extcred.BlockError
+			if !errors.As(err, &blockErr) {
+				t.Fatalf("error = %T %v, want original BlockError", err, err)
+			}
+			if blockErr.Code == extcred.BlockReasonCredentialIncomplete {
+				t.Fatalf("BlockError misclassified as credential incomplete: %+v", blockErr)
+			}
+			if got := output.ExitCodeOf(err); got != output.ExitInternal {
+				t.Fatalf("exit code = %d, want unchanged internal fallback %d", got, output.ExitInternal)
+			}
+			if strings.Contains(err.Error(), string(errs.SubtypeAppCredentialIncomplete)) {
+				t.Fatalf("error was rewritten as app_credential_incomplete: %v", err)
+			}
+		})
+	}
+}
+
+func TestActiveExtensionProviderName_MatchingAppIDOnlyProfileUsesBuiltin(t *testing.T) {
+	t.Setenv(envvars.CliAppID, "cli_a")
+	t.Setenv(envvars.CliAppSecret, "")
+	t.Setenv(envvars.CliUserAccessToken, "")
+	t.Setenv(envvars.CliTenantAccessToken, "")
+	writeConfigTenantA(t)
+	cp := newProvider(t, "tenant_a", true)
+
+	name, err := cp.ActiveExtensionProviderName(context.Background())
+	if err != nil {
+		t.Fatalf("ActiveExtensionProviderName: %v", err)
+	}
+	if name != "" {
+		t.Fatalf("provider name = %q, want builtin profile (empty)", name)
+	}
+}
+
+// A failed profile resolution must neither propagate its error nor report an
+// external takeover: this probe guards the builtin setup/repair commands
+// (auth, config), which must stay usable to fix exactly these states. It
+// falls back to the engagement probe instead.
+func TestActiveExtensionProviderName_ProfileResolutionFailureFallsBackToProbe(t *testing.T) {
+	t.Run("no provider engaged, stale profile -> builtin allowed", func(t *testing.T) {
+		t.Setenv(envvars.CliAppID, "")
+		t.Setenv(envvars.CliAppSecret, "")
+		t.Setenv(envvars.CliUserAccessToken, "")
+		t.Setenv(envvars.CliTenantAccessToken, "")
+		t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir()) // no config -> profile_not_found
+		cp := newProvider(t, "ghost", false)
+
+		name, err := cp.ActiveExtensionProviderName(context.Background())
+		if err != nil || name != "" {
+			t.Fatalf("ActiveExtensionProviderName = %q, %v; want \"\", nil", name, err)
+		}
+	})
+	t.Run("engaged env provider still reported on conflict", func(t *testing.T) {
+		t.Setenv(envvars.CliAppID, "cli_x") // conflicts with tenant_a -> resolution fails
+		t.Setenv(envvars.CliAppSecret, envSecretValue)
+		t.Setenv(envvars.CliUserAccessToken, "")
+		t.Setenv(envvars.CliTenantAccessToken, "")
+		writeConfigTenantA(t)
+		cp := newProvider(t, "tenant_a", true)
+
+		name, err := cp.ActiveExtensionProviderName(context.Background())
+		if err != nil || name != "env" {
+			t.Fatalf("ActiveExtensionProviderName = %q, %v; want \"env\", nil", name, err)
+		}
+	})
 }
 
 // fakeSidecarProvider is a NON-env extension provider (Priority 0, Name !=
@@ -518,13 +804,12 @@ func (f *fakeSidecarProvider) ResolveToken(ctx context.Context, req extcred.Toke
 	return &extcred.Token{Value: "sidecar-tok", Source: "sidecar"}, nil
 }
 
-// Regression: a NON-env extension provider (sidecar) that returns an account
-// must win outright even when a profile is set. It must NOT be treated as a
-// direct-credential env account: no profile arbitration, no
+// Regression: a NON-env extension provider (sidecar) that returns a managed
+// account must win outright even when a profile is set. It must NOT be treated
+// as a direct-credential env account: no profile arbitration, no
 // profile_app_credential_conflict (even though its app_id differs from the
-// profile's cli_a), and DirectCredentialEnv.Present must stay false (§4.2 —
-// no direct env vars are set). This proves the success-account provider gating
-// mirrors the block-path guard.
+// profile's cli_a), and DirectCredentialEnv.Present must stay false because no
+// direct env vars are set. The selection source names the provider explicitly.
 func TestSelection_NonEnvExtensionProviderWinsOverProfile(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "")     // no direct env credential
 	t.Setenv(envvars.CliAppSecret, "") // no direct env credential
@@ -533,7 +818,7 @@ func TestSelection_NonEnvExtensionProviderWinsOverProfile(t *testing.T) {
 	sidecar := &fakeSidecarProvider{appID: "sidecar_app"} // differs from cli_a
 	defaultAcct := credential.NewDefaultAccountProvider(func() keychain.KeychainAccess { return &noopKC{} }, "tenant_a")
 	cp := credential.NewCredentialProvider([]extcred.Provider{sidecar}, defaultAcct, nil, nil)
-	cp.WithProfile("tenant_a", true)
+	cp.WithProfileFromFlag("tenant_a")
 
 	acct, err := cp.ResolveAccount(context.Background())
 	if err != nil {
@@ -548,9 +833,12 @@ func TestSelection_NonEnvExtensionProviderWinsOverProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected Selection error: %v", err)
 	}
-	// No misreported direct env credential (§4.2).
+	// No misreported direct env credential.
 	if sel.DirectCredentialEnv.Present {
 		t.Errorf("DirectCredentialEnv.Present = true, want false (no direct env vars set)")
+	}
+	if sel.Source != credential.SourceExtension("sidecar") {
+		t.Errorf("source = %q, want %q", sel.Source, credential.SourceExtension("sidecar"))
 	}
 	// The mismatched app_id (sidecar_app vs profile cli_a) must NOT trigger a
 	// profile_app_credential_conflict: both ResolveAccount and Selection above
@@ -564,8 +852,8 @@ func TestSelection_NonEnvExtensionProviderWinsOverProfile(t *testing.T) {
 	assertNoSecretLeak(t, "nonenv-sidecar", string(sel.Source), sel.DirectCredentialEnv.AppID)
 }
 
-// State #1: P none, E none, C present -> config default (currentApp).
-func TestSelection_State1_ConfigDefault(t *testing.T) {
+// Without an explicit profile or direct credential, selection uses the configured current app.
+func TestSelection_ConfigDefault(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "")
 	t.Setenv(envvars.CliAppSecret, "")
 	writeConfigTenantA(t) // CurrentApp = tenant_a
