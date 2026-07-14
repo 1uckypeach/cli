@@ -20,6 +20,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/vfs"
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/spf13/cobra"
@@ -984,5 +985,46 @@ func TestWatchFailureOutputValueDefaultIsJSONEnvelope(t *testing.T) {
 	}
 	if bare["ok"] != false {
 		t.Fatalf("--format data failure should carry ok:false payload, got %s", b2)
+	}
+}
+
+// P1: 通过真实的 output.PrintNdjson（335 行调用的同一函数）验证失败分支输出恰好
+// 一行合法 NDJSON —— 守住"失败行不破坏流"的契约。若生产端把 PrintNdjson 换回
+// 多行 PrintJson，这里断言的行数就会 >1 而失败（上面的 value 级测试抓不到这点，
+// 因为它自己 json.Marshal，不经过打印函数）。
+func TestWatchFailurePrintsSingleNDJSONLine(t *testing.T) {
+	failure := map[string]interface{}{
+		"ok":    false,
+		"error": map[string]interface{}{"type": "fetch_message_failed", "message_id": "m1"},
+	}
+
+	// default json：一行带 identity 的 ok:false 信封
+	var buf bytes.Buffer
+	output.PrintNdjson(&buf, watchFailureOutputValue("json", "user", failure))
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("failure output must be exactly one NDJSON line, got %d:\n%s", len(lines), buf.String())
+	}
+	var env map[string]interface{}
+	if err := json.Unmarshal([]byte(lines[0]), &env); err != nil {
+		t.Fatalf("failure line must be valid JSON: %v\n%s", err, lines[0])
+	}
+	if env["ok"] != false || env["identity"] != "user" || env["error"] == nil {
+		t.Fatalf("failure line must carry ok:false + identity + error, got: %s", lines[0])
+	}
+
+	// --format data：一行裸 failureData，不注入 identity
+	buf.Reset()
+	output.PrintNdjson(&buf, watchFailureOutputValue("data", "user", failure))
+	dataLines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	if len(dataLines) != 1 {
+		t.Fatalf("--format data failure must be exactly one NDJSON line, got %d:\n%s", len(dataLines), buf.String())
+	}
+	var bare map[string]interface{}
+	if err := json.Unmarshal([]byte(dataLines[0]), &bare); err != nil {
+		t.Fatalf("data failure line must be valid JSON: %v\n%s", err, dataLines[0])
+	}
+	if _, hasIdentity := bare["identity"]; hasIdentity {
+		t.Fatalf("--format data failure line must not inject identity, got: %s", dataLines[0])
 	}
 }
