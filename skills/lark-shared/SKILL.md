@@ -1,7 +1,7 @@
 ---
 name: lark-shared
 version: 1.0.0
-description: "Use for lark-cli setup/auth/profile-selection tasks: auth login/status/logout, user vs bot identity, business-domain permissions (--domain, including all/docs/drive), missing scopes, revoking authorization, handling _notice JSON, profile/tenant/app-identity selection, or any request to make this task/session (or all following lark-cli commands) run under a specific profile/tenant — via LARKSUITE_CLI_PROFILE, --profile, unset LARKSUITE_CLI_PROFILE, or whoami identity diagnostics."
+description: "Use for lark-cli setup/auth tasks: auth login/status/logout, user vs bot identity, business-domain permissions (--domain, including all/docs/drive), missing scopes, revoking authorization, or handling _notice JSON."
 ---
 
 # lark-cli 共享规则
