@@ -9,7 +9,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"slices"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -202,25 +202,6 @@ func TestSortedKnownDomains(t *testing.T) {
 	}
 }
 
-func TestGetShortcutOnlyDomainNames_HaveDescriptions(t *testing.T) {
-	for _, name := range getShortcutOnlyDomainNames() {
-		zhDesc := registry.GetServiceDescription(name, "zh")
-		enDesc := registry.GetServiceDescription(name, "en")
-		if zhDesc == "" {
-			t.Errorf("missing zh description for shortcut-only domain %q", name)
-		}
-		if enDesc == "" {
-			t.Errorf("missing en description for shortcut-only domain %q", name)
-		}
-	}
-}
-
-func TestGetShortcutOnlyDomainNames_IncludesNote(t *testing.T) {
-	if !slices.Contains(getShortcutOnlyDomainNames(), "note") {
-		t.Fatal("shortcut-only domains must include note so auth login can select vc:note:read")
-	}
-}
-
 func TestCollectScopesForDomains(t *testing.T) {
 	projects := registry.ListFromMetaProjects()
 	if len(projects) == 0 {
@@ -260,74 +241,81 @@ func TestCollectScopesForDomains_NonexistentDomain(t *testing.T) {
 	}
 }
 
-func TestGetDomainMetadata_IncludesFromMeta(t *testing.T) {
-	domains := getDomainMetadata("zh")
-	nameSet := make(map[string]bool)
-	for _, dm := range domains {
-		nameSet[dm.Name] = true
+func TestResolveScopesForDomains_RemoteUsed(t *testing.T) {
+	remote := map[string][]string{
+		"im":   {"im:message:send", "im:chat:read"},
+		"docs": {"docs:doc:read"},
 	}
-
-	// from_meta projects must be present
-	for _, p := range registry.ListFromMetaProjects() {
-		if !nameSet[p] {
-			t.Errorf("from_meta project %q missing from getDomainMetadata", p)
-		}
+	got := resolveScopesForDomains([]string{"im"}, remote, true, core.BrandFeishu)
+	want := []string{"im:chat:read", "im:message:send"} // deduped, ascending by sort.Strings
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
 	}
 }
 
-func TestGetDomainMetadata_IncludesShortcutOnlyDomains(t *testing.T) {
-	domains := getDomainMetadata("zh")
-	nameSet := make(map[string]bool)
-	for _, dm := range domains {
-		nameSet[dm.Name] = true
+func TestResolveScopesForDomains_UnionAcrossDomains(t *testing.T) {
+	remote := map[string][]string{
+		"im":   {"im:message:send"},
+		"docs": {"docs:doc:read"},
 	}
-
-	for _, name := range getShortcutOnlyDomainNames() {
-		if !nameSet[name] {
-			t.Errorf("shortcut-only domain %q missing from getDomainMetadata", name)
-		}
+	got := resolveScopesForDomains([]string{"im", "docs"}, remote, true, core.BrandFeishu)
+	want := []string{"docs:doc:read", "im:message:send"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
 	}
 }
 
-func TestGetDomainMetadata_Sorted(t *testing.T) {
-	domains := getDomainMetadata("zh")
-	for i := 1; i < len(domains); i++ {
-		if domains[i].Name < domains[i-1].Name {
-			t.Errorf("not sorted: %q before %q", domains[i-1].Name, domains[i].Name)
-		}
+func TestResolveScopesForDomains_FallbackToLocal(t *testing.T) {
+	// remoteOK=false -> falls back to local collectScopesForDomains; im must yield non-empty local scopes
+	got := resolveScopesForDomains([]string{"im"}, nil, false, core.BrandFeishu)
+	if len(got) == 0 {
+		t.Fatal("fallback should return non-empty local scopes for im")
 	}
 }
 
-func TestGetDomainMetadata_HasTitleAndDescription(t *testing.T) {
-	domains := getDomainMetadata("zh")
-	for _, dm := range domains {
-		if dm.Title == "" {
-			t.Errorf("domain %q has empty Title", dm.Name)
+func TestLegalDomainsFor_RemoteUsed(t *testing.T) {
+	// includes "newbiz", a domain unknown to this CLI build, verifying a remote-listed domain is still legal
+	remote := map[string][]string{
+		"im":     {"im:message:send"},
+		"docs":   {"docs:doc:read"},
+		"newbiz": {"newbiz:thing:read"},
+	}
+	set, sorted := legalDomainsFor(remote, true, core.BrandFeishu)
+	wantSorted := []string{"docs", "im", "newbiz"} // remote keys, ascending by sort.Strings
+	if !reflect.DeepEqual(sorted, wantSorted) {
+		t.Fatalf("sorted = %v, want %v", sorted, wantSorted)
+	}
+	if len(set) != len(wantSorted) {
+		t.Fatalf("set size = %d, want %d", len(set), len(wantSorted))
+	}
+	for _, d := range wantSorted {
+		if !set[d] {
+			t.Errorf("set missing domain %q", d)
 		}
+	}
+	if !set["newbiz"] {
+		t.Error("remote-listed domain unknown to this build should still be legal")
 	}
 }
 
-func TestAuthLoginRun_NonTerminal_NoFlags_RejectsWithHint(t *testing.T) {
-	f, _, stderr, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "cli_test", AppSecret: "secret", Brand: core.BrandFeishu,
-	})
-	// TestFactory has IsTerminal=false by default
-	opts := &LoginOptions{Factory: f, Ctx: context.Background()}
-	err := authLoginRun(opts)
-	if err == nil {
-		t.Fatal("expected error for non-terminal without flags")
+func TestLegalDomainsFor_FallbackToLocal(t *testing.T) {
+	// remoteOK=false -> falls back to local allKnownDomains/sortedKnownDomains
+	set, sorted := legalDomainsFor(nil, false, core.BrandFeishu)
+	if len(sorted) == 0 {
+		t.Fatal("fallback should return non-empty local domain slice")
 	}
-	// Should mention specifying scopes
-	msg := err.Error()
-	if !strings.Contains(msg, "scopes") {
-		t.Errorf("expected error to mention scopes, got: %s", msg)
+	// set and sorted are two views of the same local domain set and must correspond
+	if len(set) != len(sorted) {
+		t.Fatalf("set size %d != sorted size %d", len(set), len(sorted))
 	}
-	// Stderr should explain the split-flow path for non-streaming agents.
-	stderrStr := stderr.String()
-	for _, want := range []string{"--no-wait --json", "final message of the turn", "--device-code"} {
-		if !strings.Contains(stderrStr, want) {
-			t.Errorf("expected stderr to mention %q, got: %s", want, stderrStr)
+	for _, d := range sorted {
+		if !set[d] {
+			t.Errorf("set missing local domain %q", d)
 		}
+	}
+	// fallback adopts the local sort order directly, which must equal sortedKnownDomains
+	if want := sortedKnownDomains(core.BrandFeishu); !reflect.DeepEqual(sorted, want) {
+		t.Fatalf("sorted = %v, want sortedKnownDomains %v", sorted, want)
 	}
 }
 
@@ -1167,15 +1155,6 @@ func TestAuthLoginRun_JSONDeviceAuthorizationAgentHintIncludesRawURLGuidance(t *
 	}
 }
 
-func TestGetDomainMetadata_ExcludesEvent(t *testing.T) {
-	domains := getDomainMetadata("zh")
-	for _, dm := range domains {
-		if dm.Name == "event" {
-			t.Error("event should not appear in interactive domain list")
-		}
-	}
-}
-
 func TestAllKnownDomains_ExcludesAuthDomainChildren(t *testing.T) {
 	domains := allKnownDomains("")
 	if domains["whiteboard"] {
@@ -1198,14 +1177,5 @@ func TestCollectScopesForDomains_ExpandsAuthDomainChildren(t *testing.T) {
 	}
 	if !found {
 		t.Error("collectScopesForDomains([docs]) should include whiteboard scopes (board:whiteboard:*)")
-	}
-}
-
-func TestGetDomainMetadata_ExcludesAuthDomainChildren(t *testing.T) {
-	domains := getDomainMetadata("zh")
-	for _, dm := range domains {
-		if dm.Name == "whiteboard" {
-			t.Error("whiteboard should not appear in interactive domain list (has auth_domain=docs)")
-		}
 	}
 }
