@@ -248,6 +248,26 @@
 - `<tr>` 内为 `<td>`
 - `<td>` 内可放 `<content>`
 
+`<table>` 可选设置 `width` 和 `height`，分别表示表格的目标总宽度和总高度：
+
+```xml
+<table topLeftX="80" topLeftY="120" width="800" height="300">
+  <colgroup>
+    <col width="240"/>
+    <col/>
+  </colgroup>
+  <tr height="80">
+    <td><content textType="body"><p>表头 1</p></content></td>
+    <td><content textType="body"><p>表头 2</p></content></td>
+  </tr>
+</table>
+```
+
+- 已设置的列宽和行高优先保留；未设置的列宽、行高优先使用目标总宽度或总高度分配剩余空间。
+- 如果所有列宽或行高都未设置，则目标总宽度或总高度会在各列或各行之间分配。
+- 如果目标尺寸不足以容纳已设置的尺寸，则保留已设置值，并以最终列宽或行高总和为准。
+- 行高低于单元格内容高度时，需要手动增大行高。
+
 ### `<chart>`
 
 图表元素必须至少包含：
