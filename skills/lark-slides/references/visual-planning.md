@@ -6,26 +6,9 @@
 
 ## Style System
 
-Geometry decides where elements go; style decides which colors, fonts, and visual devices fill them. Both are required. Style comes from `slide_plan.json`'s `visual_system` + `typography_constraints` (fields defined in `planning-layer.md`). Whatever the palette's source — user-specified, your own design, or an external library — resolve it into the color roles below and never invent colors on the page.
-
-When the user gives no brand palette, pick a ready-made palette from [`style-presets.md`](style-presets.md) that matches the deck's scenario and copy its color roles, fonts, and graphic-language pool into the plan, rather than inventing a palette from scratch.
-
-`visual_system.color_roles` (use only these; do not add ad-hoc colors):
-
-| role | use |
-|------|-----|
-| `primary` | dominant color, ~60-70% of visual weight: main motif, header, title accent line |
-| `secondary` | grouping, secondary structure, chart base color |
-| `accent` | key numbers / conclusions / focus markers only |
-| `background` | shared content-page base fill |
-| `text_main` | body and titles |
-| `text_sub` | captions, footer, notes |
-
-**Accent-gap rule (important):** if the palette has no sufficiently saturated emphasis color (e.g. only a main color plus low-saturation neutrals), derive one — preferably a brighter or darker variant of `primary` — reserved for `big-number` / `conclusion` metrics. `accent` must never be visually confusable with `secondary`.
-
-Other fields: `theme_style` records the overall tone; the intended density sets the deck's default `text_density` (high → medium/high with tables/columns, low → low with generous whitespace); `visual_system.motif` and the optional `visual_system.graphic_language_pool` define each page's `visual_focus` element pool — the focus must come from that pool, with no outside decorative devices; `typography_constraints.font_family` sets the fonts — a stack covering CJK + Latin text and, optionally, a mono/emphasis face for numbers.
-
-When generating XML, actually apply it: write the preferred text face from `font_family` into the `fontFamily` attribute of title and body text; if the stack includes a mono/emphasis face, use it as the `fontFamily` for numeric / metric / big-number / numbering text (dates, percentages, money, chart-adjacent figures). A font recorded in the plan but never written into a `fontFamily` attribute has no effect.
+- Style comes from `slide_plan.json`'s `visual_system` + `typography_constraints`. When the user gives no brand palette, copy a matching preset from [`style-presets.md`](style-presets.md) instead of inventing one; resolve any palette into the six color roles and use only those on the page.
+- color_roles: `primary` (dominant, ~60-70% weight — motif / header / title line), `secondary` (grouping, chart base), `accent` (key numbers / conclusions only, never confusable with `secondary`; if the palette has no saturated emphasis color, derive one from `primary`), `background` (content-page base), `text_main` (body & titles), `text_sub` (captions / footer / notes).
+- `typography_constraints.font_family` is a font stack labelled by role (CJK / Latin / number) — when generating XML, write the CJK+Latin faces into the `fontFamily` of title/body text and the number face into that of numeric / metric / big-number text; a font never written to a `fontFamily` attribute has no effect.
 
 ## Core Rules
 
