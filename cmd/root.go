@@ -106,6 +106,7 @@ func Execute() int {
 		ctx, inv,
 		WithIO(os.Stdin, os.Stdout, os.Stderr),
 		HideProfile(isSingleAppMode()),
+		WithStartupBrand(ResolveStartupBrand(inv.Profile)),
 	)
 
 	// --- Notices (non-blocking) ---
