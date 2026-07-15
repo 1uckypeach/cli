@@ -157,8 +157,11 @@ func TestResolveAccount_InvalidPolicyRejectedBeforeIncomplete(t *testing.T) {
 			if !errors.As(err, &blockErr) {
 				t.Fatalf("error = %T %v, want BlockError", err, err)
 			}
-			if blockErr.Code == credential.BlockReasonCredentialIncomplete {
-				t.Fatalf("invalid %s was hidden by credential incompleteness: %+v", tt.name, blockErr)
+			if blockErr.Code != credential.BlockReasonInvalidPolicy {
+				t.Fatalf("Code = %q, want %q", blockErr.Code, credential.BlockReasonInvalidPolicy)
+			}
+			if blockErr.Param != tt.key {
+				t.Fatalf("Param = %q, want %q", blockErr.Param, tt.key)
 			}
 			if !strings.Contains(blockErr.Reason, tt.key) {
 				t.Fatalf("reason = %q, want %s", blockErr.Reason, tt.key)
@@ -335,8 +338,8 @@ func TestResolveAccount_InvalidStrictModeRejected(t *testing.T) {
 	if !errors.As(err, &blockErr) {
 		t.Fatalf("expected BlockError, got %T", err)
 	}
-	if blockErr.Code == credential.BlockReasonCredentialIncomplete {
-		t.Fatalf("invalid strict mode must not be classified as credential incomplete: %+v", blockErr)
+	if blockErr.Code != credential.BlockReasonInvalidPolicy || blockErr.Param != envvars.CliStrictMode {
+		t.Fatalf("BlockError = %+v, want invalid_policy with Param %s", blockErr, envvars.CliStrictMode)
 	}
 	if !strings.Contains(err.Error(), envvars.CliStrictMode) {
 		t.Fatalf("error = %v, want mention of %s", err, envvars.CliStrictMode)
@@ -356,8 +359,8 @@ func TestResolveAccount_InvalidDefaultAsRejected(t *testing.T) {
 	if !errors.As(err, &blockErr) {
 		t.Fatalf("expected BlockError, got %T", err)
 	}
-	if blockErr.Code == credential.BlockReasonCredentialIncomplete {
-		t.Fatalf("invalid default-as must not be classified as credential incomplete: %+v", blockErr)
+	if blockErr.Code != credential.BlockReasonInvalidPolicy || blockErr.Param != envvars.CliDefaultAs {
+		t.Fatalf("BlockError = %+v, want invalid_policy with Param %s", blockErr, envvars.CliDefaultAs)
 	}
 	if !strings.Contains(err.Error(), envvars.CliDefaultAs) {
 		t.Fatalf("error = %v, want mention of %s", err, envvars.CliDefaultAs)

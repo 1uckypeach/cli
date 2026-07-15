@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -703,7 +704,11 @@ func TestSelection_ProfileWithDirectEnvMissingAppID(t *testing.T) {
 	}
 }
 
-func TestSelection_NonIncompleteEnvBlockPreservesOriginalAttribution(t *testing.T) {
+// An invalid policy variable is a user input mistake: it must surface as a
+// typed validation error (exit 2) carrying the variable name in param and a
+// repair hint — never as an internal error, and never rewritten into
+// app_credential_incomplete. The original BlockError stays on the cause chain.
+func TestSelection_InvalidPolicyEnvBlockBecomesTypedValidation(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		key  string
@@ -721,15 +726,25 @@ func TestSelection_NonIncompleteEnvBlockPreservesOriginalAttribution(t *testing.
 			cp := newProvider(t, "tenant_a", true)
 
 			_, err := cp.Selection(context.Background())
+			if got := subtypeOf(t, err); got != errs.SubtypeInvalidArgument {
+				t.Fatalf("subtype = %q, want %q", got, errs.SubtypeInvalidArgument)
+			}
+			if got := output.ExitCodeOf(err); got != output.ExitValidation {
+				t.Fatalf("exit code = %d, want validation %d", got, output.ExitValidation)
+			}
+			ve := asValidationError(t, err)
+			if ve.Param != tt.key {
+				t.Errorf("param = %q, want %q", ve.Param, tt.key)
+			}
+			if !strings.Contains(ve.Message, tt.key) || !strings.Contains(ve.Message, "banana") {
+				t.Errorf("message = %q, want the variable name and its invalid value", ve.Message)
+			}
+			if !strings.Contains(ve.Hint, tt.key) {
+				t.Errorf("hint = %q, want repair guidance naming %s", ve.Hint, tt.key)
+			}
 			var blockErr *extcred.BlockError
-			if !errors.As(err, &blockErr) {
-				t.Fatalf("error = %T %v, want original BlockError", err, err)
-			}
-			if blockErr.Code == extcred.BlockReasonCredentialIncomplete {
-				t.Fatalf("BlockError misclassified as credential incomplete: %+v", blockErr)
-			}
-			if got := output.ExitCodeOf(err); got != output.ExitInternal {
-				t.Fatalf("exit code = %d, want unchanged internal fallback %d", got, output.ExitInternal)
+			if !errors.As(err, &blockErr) || blockErr.Code != extcred.BlockReasonInvalidPolicy {
+				t.Fatalf("cause chain does not preserve the invalid-policy BlockError: %T %v", err, err)
 			}
 			if strings.Contains(err.Error(), string(errs.SubtypeAppCredentialIncomplete)) {
 				t.Fatalf("error was rewritten as app_credential_incomplete: %v", err)
@@ -784,6 +799,129 @@ func TestActiveExtensionProviderName_ProfileResolutionFailureFallsBackToProbe(t 
 		name, err := cp.ActiveExtensionProviderName(context.Background())
 		if err != nil || name != "env" {
 			t.Fatalf("ActiveExtensionProviderName = %q, %v; want \"env\", nil", name, err)
+		}
+	})
+}
+
+// stubFailureResolver fails ResolveAccount with a fixed error.
+type stubFailureResolver struct{ err error }
+
+func (s *stubFailureResolver) ResolveAccount(context.Context) (*credential.Account, error) {
+	return nil, s.err
+}
+
+// stubAccountResolver returns a fixed account.
+type stubAccountResolver struct{ acct *credential.Account }
+
+func (s *stubAccountResolver) ResolveAccount(context.Context) (*credential.Account, error) {
+	return s.acct, nil
+}
+
+// A typed resolver failure on the profile route carries its own precise,
+// secret-free diagnosis (e.g. a keychain key out-of-sync error names the
+// expected key and the fix command) and must pass through — flattening it
+// into the generic profile_secret_invalid destroys the repair path.
+func TestSelection_ProfileTypedResolverFailurePassesThrough(t *testing.T) {
+	t.Setenv(envvars.CliAppID, "")
+	t.Setenv(envvars.CliAppSecret, "")
+	t.Setenv(envvars.CliUserAccessToken, "")
+	t.Setenv(envvars.CliTenantAccessToken, "")
+	writeConfigTenantA(t)
+
+	typed := errs.NewValidationError(errs.SubtypeFailedPrecondition,
+		"appId and appSecret keychain key are out of sync").
+		WithHint("re-add the secret under the expected keychain key.")
+	cp := credential.NewCredentialProvider(
+		[]extcred.Provider{&envprovider.Provider{}}, &stubFailureResolver{err: typed}, nil, nil)
+	cp.WithProfileFromFlag("tenant_a")
+
+	_, err := cp.Selection(context.Background())
+	if got := subtypeOf(t, err); got != errs.SubtypeFailedPrecondition {
+		t.Fatalf("subtype = %q, want the typed failure passed through", got)
+	}
+	if strings.Contains(err.Error(), "could not be resolved locally") {
+		t.Fatalf("typed failure was flattened into the generic secret error: %v", err)
+	}
+}
+
+// An untyped resolver failure must stay masked behind the generic secret
+// error: its content is not guaranteed secret-free.
+func TestSelection_ProfileUntypedResolverFailureStaysGeneric(t *testing.T) {
+	t.Setenv(envvars.CliAppID, "")
+	t.Setenv(envvars.CliAppSecret, "")
+	t.Setenv(envvars.CliUserAccessToken, "")
+	t.Setenv(envvars.CliTenantAccessToken, "")
+	writeConfigTenantA(t)
+
+	cp := credential.NewCredentialProvider(
+		[]extcred.Provider{&envprovider.Provider{}},
+		&stubFailureResolver{err: fmt.Errorf("read keychain: %s", secretValue)}, nil, nil)
+	cp.WithProfileFromFlag("tenant_a")
+
+	_, err := cp.Selection(context.Background())
+	if got := subtypeOf(t, err); got != errs.SubtypeProfileSecretInvalid {
+		t.Fatalf("subtype = %q, want %q", got, errs.SubtypeProfileSecretInvalid)
+	}
+	assertNoSecretLeak(t, "untyped-resolver-failure", err.Error())
+}
+
+// The resolver re-reads the config after arbitration validated the snapshot;
+// if a concurrent edit hands back a different app, the mismatch must be
+// refused rather than silently using credentials arbitration never checked.
+func TestSelection_ProfileResolverAppIDMismatchRefused(t *testing.T) {
+	t.Setenv(envvars.CliAppID, "")
+	t.Setenv(envvars.CliAppSecret, "")
+	t.Setenv(envvars.CliUserAccessToken, "")
+	t.Setenv(envvars.CliTenantAccessToken, "")
+	writeConfigTenantA(t) // snapshot sees tenant_a -> cli_a
+
+	cp := credential.NewCredentialProvider(
+		[]extcred.Provider{&envprovider.Provider{}},
+		&stubAccountResolver{acct: &credential.Account{AppID: "cli_other", AppSecret: "s"}}, nil, nil)
+	cp.WithProfileFromFlag("tenant_a")
+
+	_, err := cp.Selection(context.Background())
+	if err == nil {
+		t.Fatal("expected error for app_id mismatch between snapshot and resolver")
+	}
+	if !strings.Contains(err.Error(), "config changed during resolution") {
+		t.Fatalf("error = %v, want config-changed refusal", err)
+	}
+}
+
+// A config that exists but cannot be read (permission denied) must surface
+// invalid_config with the real cause — not profile_not_found (the profile may
+// well exist in the unreadable file) and not no_active_profile.
+func TestSelection_UnreadableConfigSurfacesRealCause(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("relies on POSIX file permissions")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses file permissions")
+	}
+	t.Setenv(envvars.CliAppID, "")
+	t.Setenv(envvars.CliAppSecret, "")
+	t.Setenv(envvars.CliUserAccessToken, "")
+	t.Setenv(envvars.CliTenantAccessToken, "")
+	writeConfigTenantA(t)
+	path := core.GetConfigPath()
+	if err := os.Chmod(path, 0o000); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
+
+	t.Run("explicit profile", func(t *testing.T) {
+		cp := newProvider(t, "tenant_a", true)
+		_, err := cp.Selection(context.Background())
+		if got := subtypeOf(t, err); got != errs.SubtypeInvalidConfig {
+			t.Fatalf("subtype = %q, want invalid_config (not profile_not_found)", got)
+		}
+	})
+	t.Run("config default", func(t *testing.T) {
+		cp := newProvider(t, "", false)
+		_, err := cp.Selection(context.Background())
+		if got := subtypeOf(t, err); got != errs.SubtypeInvalidConfig {
+			t.Fatalf("subtype = %q, want invalid_config (not no_active_profile)", got)
 		}
 	})
 }

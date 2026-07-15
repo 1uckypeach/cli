@@ -101,8 +101,15 @@ const (
 	// it opts the block into direct-credential arbitration regardless of the
 	// provider's name: the caller maps it to app_credential_incomplete and may
 	// let a matching selected profile win instead (when AppID and PresentKeys
-	// identify a usable app_id). Blocks without it propagate unchanged.
+	// identify a usable app_id). Blocks without a Code propagate unchanged.
 	BlockReasonCredentialIncomplete BlockReason = "credential_incomplete"
+
+	// BlockReasonInvalidPolicy marks a user-supplied policy input (e.g.
+	// LARKSUITE_CLI_DEFAULT_AS / LARKSUITE_CLI_STRICT_MODE) that failed
+	// validation. The caller maps it to a typed validation error carrying
+	// Param and a repair hint, so user input mistakes never surface as
+	// internal errors.
+	BlockReasonInvalidPolicy BlockReason = "invalid_policy"
 )
 
 // BlockError is returned by a Provider to actively reject a request
@@ -115,6 +122,7 @@ type BlockError struct {
 	RequiredAnyOf []string // environment variable names only; never values
 	PresentKeys   []string // environment variable names only; never values
 	AppID         string   // plaintext app identifier used only for source comparison; never a secret
+	Param         string   // name of the invalid input variable on invalid_policy blocks; never a value
 }
 
 func (e *BlockError) Error() string {

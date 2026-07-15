@@ -257,8 +257,13 @@ type identityInputs struct {
 	// participates in profile arbitration instead of failing outright.
 	directBlock *extcred.BlockError
 
-	directKeys   []string // direct credential env var NAMES set (never values)
-	conflictKeys []string // all direct input NAMES to clear on a conflict (incl. tokens)
+	// directKeys / conflictKeys describe the BUILTIN process-env direct
+	// credential surface (LARKSUITE_CLI_* variable NAMES, never values).
+	// They annotate DirectCredentialEnv and conflict hints; a third-party
+	// AccountDirect provider reports its own inputs via BlockError metadata
+	// (PresentKeys/AppID), not through these.
+	directKeys   []string
+	conflictKeys []string
 
 	config    *core.MultiAppConfig
 	configErr error
@@ -279,22 +284,36 @@ func (p *CredentialProvider) gatherIdentityInputs(ctx context.Context) (identity
 		acct, err := prov.ResolveAccount(ctx)
 		if err != nil {
 			var blockErr *extcred.BlockError
-			if errors.As(err, &blockErr) && blockErr.Code == extcred.BlockReasonCredentialIncomplete {
-				in.directBlock = blockErr
+			if errors.As(err, &blockErr) {
+				switch blockErr.Code {
+				case extcred.BlockReasonCredentialIncomplete:
+					in.directBlock = blockErr
+				case extcred.BlockReasonInvalidPolicy:
+					// A user-supplied policy value failed validation; that is
+					// a validation error, never an internal one.
+					return in, newInvalidPolicyError(blockErr)
+				default:
+					// Blocks without a recognized Code preserve their
+					// original attribution.
+					return in, err
+				}
 				break
 			}
-			// Blocks without the incomplete classification, and any other
-			// provider error, preserve their original attribution.
+			// Any other provider error preserves its original attribution.
 			return in, err
 		}
 		if acct == nil {
 			continue
 		}
 		pa := &providerAccount{acct: convertAccount(acct), source: extensionTokenSource{provider: prov}}
-		if acct.Kind == extcred.AccountDirect {
+		switch acct.Kind {
+		case extcred.AccountDirect:
 			in.direct = pa
-		} else {
+		case extcred.AccountManaged:
 			in.managed = pa
+		default:
+			return in, errs.NewInternalError(errs.SubtypeUnknown,
+				"credential provider %q returned unknown AccountKind %d", prov.Name(), acct.Kind)
 		}
 		break // the first engaged provider ends the scan (registry priority order)
 	}
@@ -439,7 +458,24 @@ func (p *CredentialProvider) execute(ctx context.Context, d decision, in identit
 		// Resolve the profile's own (keychain-backed) credential locally.
 		acct, err := p.defaultAcct.ResolveAccount(ctx)
 		if err != nil {
+			// A typed failure other than not_configured carries its own
+			// precise, secret-free diagnosis (typed errors never embed secret
+			// material per the error contract) — pass it through instead of
+			// flattening it into the generic secret error. Untyped failures
+			// and a config that vanished mid-resolution stay masked: their
+			// content is not guaranteed secret-free.
+			if prob, ok := errs.ProblemOf(err); ok && prob.Subtype != errs.SubtypeNotConfigured {
+				return nil, nil, err
+			}
 			return nil, nil, newProfileSecretInvalidError(in.profile, d.profileAppID)
+		}
+		// The resolver re-reads the config; a concurrent profile edit between
+		// gather and here could hand back a different app. Refuse the mismatch
+		// instead of silently using credentials the arbitration never checked.
+		if acct.AppID != d.profileAppID {
+			return nil, nil, errs.NewInternalError(errs.SubtypeUnknown,
+				"config changed during resolution: profile %q resolved to a different app", in.profile).
+				WithHint("retry the command.")
 		}
 		return acct, defaultTokenSource{resolver: p.defaultToken}, nil
 	default: // routeConfigDefault
@@ -520,6 +556,17 @@ func humanList(items []string, conjunction string) string {
 	default:
 		return strings.Join(items[:len(items)-1], ", ") + ", " + conjunction + " " + items[len(items)-1]
 	}
+}
+
+// newInvalidPolicyError translates a provider's invalid-policy block into the
+// typed validation contract: the failed variable name travels in param, the
+// repair path in the hint, and the original block stays on the cause chain.
+// Reason carries only the variable name and its non-secret value.
+func newInvalidPolicyError(blockErr *extcred.BlockError) error {
+	return errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", blockErr.Reason).
+		WithParam(blockErr.Param).
+		WithCause(blockErr).
+		WithHint("set %s to a supported value or unset it.", blockErr.Param)
 }
 
 // newProfileSecretInvalidError is deliberately generic (SECURITY): the

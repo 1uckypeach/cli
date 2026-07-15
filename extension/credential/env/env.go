@@ -38,6 +38,8 @@ func (p *Provider) ResolveAccount(ctx context.Context) (*credential.Account, err
 		return nil, &credential.BlockError{
 			Provider: "env",
 			Reason:   fmt.Sprintf("invalid %s %q (want user, bot, or auto)", envvars.CliDefaultAs, defaultAs),
+			Code:     credential.BlockReasonInvalidPolicy,
+			Param:    envvars.CliDefaultAs,
 		}
 	}
 
@@ -61,6 +63,8 @@ func (p *Provider) ResolveAccount(ctx context.Context) (*credential.Account, err
 		return nil, &credential.BlockError{
 			Provider: "env",
 			Reason:   fmt.Sprintf("invalid %s %q (want bot, user, or off)", envvars.CliStrictMode, strictMode),
+			Code:     credential.BlockReasonInvalidPolicy,
+			Param:    envvars.CliStrictMode,
 		}
 	}
 
