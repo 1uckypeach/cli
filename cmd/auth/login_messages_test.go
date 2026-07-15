@@ -22,6 +22,9 @@ func TestGetLoginMsg_Zh(t *testing.T) {
 	if msg.SelectDomains != "选择要授权的业务域" {
 		t.Errorf("unexpected SelectDomains: %s", msg.SelectDomains)
 	}
+	if msg.LoginSuccess != "登录成功! 用户: %s (%s)" {
+		t.Errorf("unexpected LoginSuccess: %s", msg.LoginSuccess)
+	}
 }
 
 func TestGetLoginMsg_En(t *testing.T) {
@@ -73,13 +76,6 @@ func TestLoginMsg_FormatStrings(t *testing.T) {
 		if got == msg.LoginSuccess {
 			t.Errorf("%s LoginSuccess has no format verb", lang)
 		}
-
-		// AuthorizedUser should contain two %s placeholders (userName, openId)
-		got = fmt.Sprintf(msg.AuthorizedUser, "testuser", "ou_123")
-		if got == msg.AuthorizedUser {
-			t.Errorf("%s AuthorizedUser has no format verb", lang)
-		}
-
 		// SummaryDomains should contain %s
 		got = fmt.Sprintf(msg.SummaryDomains, "calendar, task")
 		if got == msg.SummaryDomains {

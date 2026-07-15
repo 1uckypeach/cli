@@ -354,6 +354,7 @@ func authLoginRun(opts *LoginOptions) error {
 	}
 
 	scopeSummary := loadLoginScopeSummary(config.AppID, openId, finalScope, result.Token.Scope)
+	scopeSummary.StatusMessage = result.Token.StatusMessage
 
 	// Step 7: Store token
 	now := time.Now().UnixMilli()
@@ -437,6 +438,7 @@ func authLoginPollDeviceCode(opts *LoginOptions, config *core.CliConfig, msg *lo
 	}
 
 	scopeSummary := loadLoginScopeSummary(config.AppID, openId, requestedScope, result.Token.Scope)
+	scopeSummary.StatusMessage = result.Token.StatusMessage
 
 	// Store token
 	now := time.Now().UnixMilli()
