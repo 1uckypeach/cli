@@ -1,8 +1,10 @@
 # Style Presets
 
-Ready-made color + layout + font palettes. When the user does not supply a brand palette, pick the preset by the deck's **document type** — match the deck against each preset's **适用** line — then copy its values into `slide_plan.json`'s `visual_system.color_roles`, `visual_system.layout_system`, and `typography_constraints.font_family`, and let `visual-planning.md` → Style System govern how colors, layout, and fonts are applied. Do not invent colors when a preset fits.
+Ready-made color + layout + font palettes. When the user does not supply a brand palette, and the deck **genuinely belongs to** one of the preset document types below, pick that preset — match the deck against each preset's **适用** line — then copy its values into `slide_plan.json`'s `visual_system.color_roles`, `visual_system.layout_system`, and `typography_constraints.font_family`, and let `visual-planning.md` → Style System govern how colors, layout, and fonts are applied. Do not invent colors when a preset genuinely fits.
 
 Match on what the deck **is** (a data-analysis report, a pitch deck, a lesson…), not on the industry it is about. A finance / bank / government topic does not imply navy or red — resolve it to the document type first (e.g. a bank performance review is a *data-analysis report* → preset 4).
+
+Match literally; do not stretch a preset by loose analogy. A preset's **适用** names a specific document; "it also presents something" or "it also lays out a plan" does not make a deck a fundraising pitch or a business report. **When no preset's 适用 clearly covers the deck (many personal, lifestyle, or creative decks won't), do not force the nearest one — self-configure a coherent, topic-appropriate palette using the same `color_roles` + `layout_system` + `font_family` framework** (six roles, a density + layout-system line, and CJK / Latin / number fonts).
 
 Each preset fills all six color roles. Where the source palette had no saturated emphasis color, the `accent` was derived per the accent-gap rule and is marked `(derived)`; every preset is ready to use as-is.
 
