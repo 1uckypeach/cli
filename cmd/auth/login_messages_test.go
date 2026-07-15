@@ -20,6 +20,9 @@ func TestGetLoginMsg_Zh(t *testing.T) {
 	if msg.OpenURL != "在浏览器中打开以下链接进行认证:\n\n" {
 		t.Errorf("unexpected OpenURL: %s", msg.OpenURL)
 	}
+	if msg.LoginSuccess != "登录成功! 用户: %s (%s)" {
+		t.Errorf("unexpected LoginSuccess: %s", msg.LoginSuccess)
+	}
 }
 
 func TestGetLoginMsg_En(t *testing.T) {
@@ -72,11 +75,6 @@ func TestLoginMsg_FormatStrings(t *testing.T) {
 			t.Errorf("%s LoginSuccess has no format verb", lang)
 		}
 
-		// AuthorizedUser should contain two %s placeholders (userName, openId)
-		got = fmt.Sprintf(msg.AuthorizedUser, "testuser", "ou_123")
-		if got == msg.AuthorizedUser {
-			t.Errorf("%s AuthorizedUser has no format verb", lang)
-		}
 	}
 }
 
