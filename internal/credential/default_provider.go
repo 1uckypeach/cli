@@ -139,12 +139,17 @@ func (p *DefaultTokenProvider) ResolveToken(ctx context.Context, req TokenSpec) 
 	}
 }
 
-// checkTokenAppID refuses to hand out a token minted for a different app than
-// the caller resolved. The token provider re-reads the config, so a concurrent
+// checkTokenAppID refuses to hand out a token for a different app than the
+// caller resolved. The token provider re-reads the config, so a concurrent
 // profile edit between account resolution and token resolution could otherwise
-// cross tokens between apps.
+// cross tokens between apps. TokenSpec.AppID is REQUIRED here: an empty value
+// would silently disable the guarantee, so it is rejected rather than skipped.
 func checkTokenAppID(req TokenSpec, resolvedAppID string) error {
-	if req.AppID == "" || req.AppID == resolvedAppID {
+	if req.AppID == "" {
+		return errs.NewInternalError(errs.SubtypeUnknown,
+			"TokenSpec.AppID is required for %s token resolution", req.Type)
+	}
+	if req.AppID == resolvedAppID {
 		return nil
 	}
 	return errs.NewInternalError(errs.SubtypeUnknown,
@@ -178,13 +183,25 @@ func (p *DefaultTokenProvider) resolveUAT(ctx context.Context, req TokenSpec) (*
 	return &TokenResult{Token: token, Scopes: scopes}, nil
 }
 
-// resolveTAT resolves a tenant access token. The result is cached after the first
-// call via sync.Once — only the context from the first call is used. The app
-// consistency check runs on every call (including cache hits), so a cached
-// token can never be served to a request that resolved a different app.
+// resolveTAT resolves a tenant access token. The result is cached after the
+// first mint via sync.Once — only the context from that call is used.
+//
+// The account is resolved and checked against the request BEFORE any token
+// work: a mismatched request must not trigger a token mint (network call,
+// quota, audit trail) for the wrong app. The cached result is additionally
+// re-checked on every hit, so a token minted for one app is never served to
+// a request that resolved another.
 func (p *DefaultTokenProvider) resolveTAT(ctx context.Context, req TokenSpec) (*TokenResult, error) {
+	acct, err := p.defaultAcct.ResolveAccount(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkTokenAppID(req, acct.AppID); err != nil {
+		return nil, err
+	}
 	p.tatOnce.Do(func() {
-		p.tatResult, p.tatAppID, p.tatErr = p.doResolveTAT(ctx)
+		p.tatResult, p.tatErr = p.doResolveTAT(ctx, acct)
+		p.tatAppID = acct.AppID
 	})
 	if p.tatErr != nil {
 		return nil, p.tatErr
@@ -195,18 +212,14 @@ func (p *DefaultTokenProvider) resolveTAT(ctx context.Context, req TokenSpec) (*
 	return p.tatResult, nil
 }
 
-func (p *DefaultTokenProvider) doResolveTAT(ctx context.Context) (*TokenResult, string, error) {
-	acct, err := p.defaultAcct.ResolveAccount(ctx)
-	if err != nil {
-		return nil, "", err
-	}
+func (p *DefaultTokenProvider) doResolveTAT(ctx context.Context, acct *Account) (*TokenResult, error) {
 	httpClient, err := p.httpClient()
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	token, err := FetchTAT(ctx, httpClient, acct.Brand, acct.AppID, acct.AppSecret)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
-	return &TokenResult{Token: token}, acct.AppID, nil
+	return &TokenResult{Token: token}, nil
 }

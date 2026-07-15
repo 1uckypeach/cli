@@ -98,8 +98,8 @@ func TestClassifyTATResponseCode_CodeZeroOtherError_StillTyped(t *testing.T) {
 }
 
 func TestCheckTokenAppID(t *testing.T) {
-	if err := checkTokenAppID(TokenSpec{}, "cli_a"); err != nil {
-		t.Fatalf("empty requested app must skip the check: %v", err)
+	if err := checkTokenAppID(TokenSpec{Type: TokenTypeUAT}, "cli_a"); err == nil {
+		t.Fatal("empty requested app must be rejected: it would silently disable the guarantee")
 	}
 	if err := checkTokenAppID(TokenSpec{AppID: "cli_a"}, "cli_a"); err != nil {
 		t.Fatalf("matching app must pass: %v", err)
@@ -153,5 +153,35 @@ func TestDefaultTokenProvider_RefusesTokenAfterConfigSwap(t *testing.T) {
 	_, err = tp.ResolveToken(context.Background(), TokenSpec{Type: TokenTypeUAT, AppID: "cli_a"})
 	if err == nil || !strings.Contains(err.Error(), "config changed during resolution") {
 		t.Fatalf("err = %v, want config-changed refusal", err)
+	}
+}
+
+// F1 regression: a TAT request for a mismatched app must be refused BEFORE
+// any token work starts — no HTTP client construction, no mint, no cache —
+// otherwise the CLI mints (and caches) a token for the wrong app and only
+// then refuses to return it, leaving auth audit/quota side effects behind.
+func TestDefaultTokenProvider_TATChecksAppBeforeAnyTokenWork(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	multi := &core.MultiAppConfig{CurrentApp: "tenant_a", Apps: []core.AppConfig{{
+		Name: "tenant_a", AppId: "cli_b", AppSecret: core.PlainSecret("your-secret"), Brand: core.BrandFeishu,
+	}}}
+	if err := core.SaveMultiAppConfig(multi); err != nil {
+		t.Fatalf("SaveMultiAppConfig: %v", err)
+	}
+
+	httpCalled := false
+	tp := NewDefaultTokenProvider(
+		NewDefaultAccountProvider(nil, "tenant_a"),
+		func() (*http.Client, error) { httpCalled = true; return nil, errors.New("http sentinel") },
+		nil,
+	)
+
+	// The profile resolves to cli_b, but the caller arbitrated cli_a.
+	_, err := tp.ResolveToken(context.Background(), TokenSpec{Type: TokenTypeTAT, AppID: "cli_a"})
+	if err == nil || !strings.Contains(err.Error(), "config changed during resolution") {
+		t.Fatalf("err = %v, want config-changed refusal", err)
+	}
+	if httpCalled {
+		t.Fatal("token work started for a mismatched app: the check must run before any HTTP client is built")
 	}
 }
