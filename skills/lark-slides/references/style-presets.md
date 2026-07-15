@@ -1,10 +1,10 @@
 # Style Presets
 
-Ready-made color + layout + font palettes. When the user does not supply a brand palette, and the deck **genuinely belongs to** one of the preset document types below, pick that preset — match the deck against each preset's **适用** line — then copy its values into `slide_plan.json`'s `visual_system.color_roles`, `visual_system.layout_system`, and `typography_constraints.font_family`, and let `visual-planning.md` → Style System govern how colors, layout, and fonts are applied. Do not invent colors when a preset genuinely fits.
+Ready-made color + layout + font palettes. When the user does not supply a brand palette, and the deck **genuinely belongs to** one of the preset document types below, pick that preset — match the deck against each preset's **Use-for** line — then copy its values into `slide_plan.json`'s `visual_system.color_roles`, `visual_system.layout_system`, and `typography_constraints.font_family`, and let `visual-planning.md` → Style System govern how colors, layout, and fonts are applied. Do not invent colors when a preset genuinely fits.
 
 Match on what the deck **is** (a data-analysis report, a pitch deck, a lesson…), not on the industry it is about. A finance / bank / government topic does not imply navy or red — resolve it to the document type first (e.g. a bank performance review is a *data-analysis report* → preset 4).
 
-Match literally; do not stretch a preset by loose analogy. A preset's **适用** names a specific document; "it also presents something" or "it also lays out a plan" does not make a deck a fundraising pitch or a business report. **When no preset's 适用 clearly covers the deck (many personal, lifestyle, or creative decks won't), do not force the nearest one — self-configure a coherent, topic-appropriate palette using the same `color_roles` + `layout_system` + `font_family` framework** (six roles, a density + layout-system line, and CJK / Latin / number fonts).
+Match literally; do not stretch a preset by loose analogy. A preset's **Use-for** line names a specific document; "it also presents something" or "it also lays out a plan" does not make a deck a fundraising pitch or a business report. **When no preset's Use-for line clearly covers the deck (many personal, lifestyle, or creative decks won't), do not force the nearest one — self-configure a coherent, topic-appropriate palette using the same `color_roles` + `layout_system` + `font_family` framework** (six roles, a density + layout-system line, and CJK / Latin / number fonts).
 
 Each preset fills all six color roles. Where the source palette had no saturated emphasis color, the `accent` was derived per the accent-gap rule and is marked `(derived)`; every preset is ready to use as-is.
 
@@ -13,53 +13,53 @@ Each preset fills all six color roles. Where the source palette had no saturated
 Each preset is self-contained: scenario heading, tone + density, the six color roles, a layout system, and fonts. Pick one, copy its values into the plan (shape shown in *How to apply*).
 
 ### 1. Investment / industry research report
-*适用:行业研究报告、市场/赛道研究、投研与尽调报告*
+*Use for: industry research reports, market / sector studies, investment & due-diligence reports*
 *Tone: minimal, professional, data-driven, authoritative-restrained, Density: medium–high*
-- **colors** — primary `#415A77` 钢蓝, secondary `#0D1B2A` 深海军蓝, accent `#2E6FB0` (derived) 亮钢蓝, background `#F3F4F6` 冷白, text_main `#0D1B2A`, text_sub `#6B7788` 灰蓝
-- **layout** (`layout_system`) — 高密度 · 咨询报告式版式:12 栏网格、细分割线、数据表格与图表页;固定页眉/页码/章节编号/注释区;节奏理性、清晰、可审阅
-- **fonts** (`font_family`) — 中文 思源黑体、思源宋体;英文 Inter、IBM Plex Sans;强调数字 Roboto Mono
+- **colors** — primary `#415A77` steel blue, secondary `#0D1B2A` deep navy, accent `#2E6FB0` (derived) bright steel blue, background `#F3F4F6` cool white, text_main `#0D1B2A`, text_sub `#6B7788` blue-gray
+- **layout** (`layout_system`) — high density · consulting-report layout system: 12-column grid, thin dividers, data tables and chart pages; fixed header / page-number / section-number / annotation zones; rational, clear, review-ready rhythm
+- **fonts** (`font_family`) — CJK 思源黑体, 思源宋体; Latin Inter, IBM Plex Sans; number Roboto Mono
 
 ### 2. Government / party work summary
-*适用:党建工作总结、政策解读、公司制度宣贯、政务汇报*
+*Use for: party-building summaries, policy interpretation, corporate-policy rollouts, government reporting*
 *Tone: clean, dignified, credible, warm, low-saturation civic, Density: medium*
-- **colors** — primary `#C0453D` 砖红, secondary `#D4B15C` 金黄, accent `#D4B15C` 金黄, background `#F7F3EE` 暖灰米白, text_main `#333333` 深炭灰, text_sub `#7A756F` 暖灰
-- **layout** (`layout_system`) — 中密度 · 现代党建画册式版式:封面大面积色块+强标题,内容页左右分区、规则网格、清晰留白;重信息层级与庄重人文,避免传统红金堆砌
-- **fonts** (`font_family`) — 中文 思源黑体、寒蝉德黑体;英文 Inter、Libre Franklin;强调数字 Rajdhani
+- **colors** — primary `#C0453D` brick red, secondary `#D4B15C` gold, accent `#D4B15C` gold, background `#F7F3EE` warm ivory, text_main `#333333` charcoal, text_sub `#7A756F` warm gray
+- **layout** (`layout_system`) — medium density · modern civic-brochure layout system: cover uses a large color block + strong title, content pages use left/right zoning, regular grids, and clear whitespace; emphasize information hierarchy and a dignified, humane tone; avoid the traditional red-and-gold pile-up
+- **fonts** (`font_family`) — CJK 思源黑体, 寒蝉德黑体; Latin Inter, Libre Franklin; number Rajdhani
 
 ### 3. Pitch deck / business plan
-*适用:融资路演、商业计划书、项目路演*
+*Use for: fundraising pitches, business plans, project roadshows*
 *Tone: minimal, premium, international, strategic, composed, Density: low–medium*
-- **colors** — primary `#415A77` 钢蓝, secondary `#0D1B2A` 深海军蓝, accent `#2E6FB0` (derived) 亮钢蓝, background `#F5F6F8` 冷白, text_main `#0D1B2A`, text_sub `#5F6F82` 蓝灰
-- **layout** (`layout_system`) — 低-中密度 · 高端商业画册式版式:大标题、大留白、色块分区、小型版式样张贯穿全套;章节页强品牌感,内容页克制商业叙事节奏
-- **fonts** (`font_family`) — 中文 思源宋体、思源黑体;英文 Playfair Display、Inter;强调数字 Oswald
+- **colors** — primary `#415A77` steel blue, secondary `#0D1B2A` deep navy, accent `#2E6FB0` (derived) bright steel blue, background `#F5F6F8` cool white, text_main `#0D1B2A`, text_sub `#5F6F82` blue-gray
+- **layout** (`layout_system`) — low–medium density · premium business-brochure layout system: large titles, generous whitespace, color-block zoning, and small layout swatches throughout; section pages feel more brand-led, content pages keep a restrained business-narrative rhythm
+- **fonts** (`font_family`) — CJK 思源宋体, 思源黑体; Latin Playfair Display, Inter; number Oswald
 
 ### 4. Market / data analysis
-*适用:数据分析报告、市场/竞品分析、经营/业绩/绩效/KPI 分析*
+*Use for: data-analysis reports, market / competitor analysis, operations / performance / KPI analysis*
 *Tone: clean, data-driven, analytical, credible, Density: medium–high*
-- **colors** — primary `#3D6B63` 灰绿, secondary `#0F1720` 深蓝黑, accent `#1F9E7A` (derived) 亮绿, background `#F7F7F5` 暖白, text_main `#0F1720`, text_sub `#6B7280` 中性灰
-- **layout** (`layout_system`) — 中高密度 · 数据分析型版式:左侧主题叙事,右侧图表/要点/组件/色板模块;“洞察—数据—结论”节奏,信息分区明确但不拥挤
-- **fonts** (`font_family`) — 中文 寒蝉德黑体、思源黑体;英文 Inter、IBM Plex Sans;强调数字 Roboto Mono
+- **colors** — primary `#3D6B63` gray-green, secondary `#0F1720` dark blue-black, accent `#1F9E7A` (derived) bright green, background `#F7F7F5` warm white, text_main `#0F1720`, text_sub `#6B7280` neutral gray
+- **layout** (`layout_system`) — medium–high density · data-analysis layout system: topic narrative on the left, charts / key points / components / swatch modules on the right; an "insight → data → conclusion" rhythm; clearly zoned but not crowded
+- **fonts** (`font_family`) — CJK 寒蝉德黑体, 思源黑体; Latin Inter, IBM Plex Sans; number Roboto Mono
 
 ### 5. Equity research
-*适用:个股/股权投资分析、投行研究、估值报告*
+*Use for: single-stock / equity investment analysis, sell-side research, valuation reports*
 *Tone: high-end research, calm, data-oriented, elite, Density: high*
-- **colors** — primary `#348271` 孔雀绿, secondary `#0D1B2A` 深海军蓝, accent `#2FA98D` (derived) 亮青绿, background `#F6F8FA` 冷白, text_main `#0D1B2A`, text_sub `#6B7A8A` 灰蓝
-- **layout** (`layout_system`) — 高密度 · 投研画册式版式:大标题与数据图表并重,页面保留充分留白与精致分栏;以指标/趋势/估值/判断为核心节奏,专业审阅感
-- **fonts** (`font_family`) — 中文 思源宋体、思源黑体;英文 Playfair Display、Inter;强调数字 Roboto Mono
+- **colors** — primary `#348271` peacock green, secondary `#0D1B2A` deep navy, accent `#2FA98D` (derived) bright teal-green, background `#F6F8FA` cool white, text_main `#0D1B2A`, text_sub `#6B7A8A` blue-gray
+- **layout** (`layout_system`) — high density · equity-research brochure layout system: large titles balanced with data charts, ample whitespace and refined columns; a core rhythm around metrics / trends / valuation / judgment; a professional review feel
+- **fonts** (`font_family`) — CJK 思源宋体, 思源黑体; Latin Playfair Display, Inter; number Roboto Mono
 
 ### 6. Course design / lesson plan
-*适用:课程设计、课程汇报、教案*
+*Use for: course design, course reports, lesson plans*
 *Tone: clear, focused, learner-centered, structured, modern-teaching, Density: medium*
-- **colors** — primary `#3B82F6` 柔和蓝, secondary `#10B981` 柔和绿, accent `#10B981` 柔和绿, background `#FAFAFA` 冷白, text_main `#1E293B`, text_sub `#64748B` 石板灰
-- **layout** (`layout_system`) — 中密度 · 教学设计手册式版式:大标题、清晰分区、规则网格、组件化说明;围绕“目标—结构—活动—反馈”展开,强调可执行性与低认知负担
-- **fonts** (`font_family`) — 中文 思源黑体、霞鹜 975 圆体;英文 Inter、Nunito Sans;强调数字 Roboto Mono
+- **colors** — primary `#3B82F6` soft blue, secondary `#10B981` soft green, accent `#10B981` soft green, background `#FAFAFA` cool white, text_main `#1E293B`, text_sub `#64748B` slate gray
+- **layout** (`layout_system`) — medium density · instructional-design-handbook layout system: large titles, clear zoning, regular grids, componentized explanations; organized around "objective → structure → activity → feedback"; emphasize actionability and low cognitive load
+- **fonts** (`font_family`) — CJK 思源黑体, 霞鹜 975 圆体; Latin Inter, Nunito Sans; number Roboto Mono
 
 ### 7. Teaching slides
-*适用:教学课件、分学段授课课件*
+*Use for: teaching slides, grade-level courseware*
 *Tone: gentle, approachable, low cognitive load, readable, modern-course, Density: low–medium*
-- **colors** — primary `#6B8F7A` 灰绿, secondary `#3D5A80` 雾霾蓝, accent `#4E9E7E` (derived) 亮绿, background `#F7F7F5` 暖灰白, text_main `#1E2A3A` 深蓝灰, text_sub `#6B7280` 中性灰
-- **layout** (`layout_system`) — 低-中密度 · 亲和型教学课件版式:大字号、宽留白、少层级贯穿全套;节奏稳定、清楚、舒展,适合知识点逐步展开与重点强化
-- **fonts** (`font_family`) — 中文 寒蝉团圆体 圆体、霞鹜 975 圆体;英文 Nunito Sans、Quicksand;强调数字 Rubik
+- **colors** — primary `#6B8F7A` gray-green, secondary `#3D5A80` hazy blue, accent `#4E9E7E` (derived) bright green, background `#F7F7F5` warm off-white, text_main `#1E2A3A` deep blue-gray, text_sub `#6B7280` neutral gray
+- **layout** (`layout_system`) — low–medium density · approachable-courseware layout system: large type, wide whitespace, and few hierarchy levels throughout; a steady, clear, spacious rhythm suited to introducing points step by step and reinforcing key ideas
+- **fonts** (`font_family`) — CJK 寒蝉团圆体 圆体, 霞鹜 975 圆体; Latin Nunito Sans, Quicksand; number Rubik
 
 ## How to apply
 
@@ -75,10 +75,10 @@ Copy the matched row into the plan. Example using preset 1:
     },
     "background_strategy": "content pages on #F3F4F6; cover/divider on #0D1B2A dark block reusing the steel-blue motif",
     "motif": "low-saturation blocks + section tags + thin dividers + page-number system",
-    "layout_system": "高密度 · 咨询报告式版式:12 栏网格、细分割线、数据表格与图表页;固定页眉/页码/章节编号/注释区;节奏理性、清晰、可审阅"
+    "layout_system": "high density · consulting-report layout system: 12-column grid, thin dividers, data tables and chart pages; fixed header / page-number / section-number / annotation zones; rational, clear, review-ready rhythm"
   },
   "typography_constraints": {
-    "font_family": "中文 思源黑体、思源宋体;英文 Inter、IBM Plex Sans;强调数字 Roboto Mono"
+    "font_family": "CJK 思源黑体, 思源宋体; Latin Inter, IBM Plex Sans; number Roboto Mono"
   }
 }
 ```
