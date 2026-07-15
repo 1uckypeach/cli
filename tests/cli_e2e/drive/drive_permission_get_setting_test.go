@@ -11,7 +11,6 @@ import (
 
 	clie2e "github.com/larksuite/cli/tests/cli_e2e"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 func TestDrive_PermissionGetSettingDryRun(t *testing.T) {
@@ -83,16 +82,16 @@ func TestDrive_PermissionGetSettingDryRun(t *testing.T) {
 			result.AssertExitCode(t, 0)
 
 			out := result.Stdout
-			if got := gjson.Get(out, "api.0.method").String(); got != "GET" {
+			if got := clie2e.DryRunGet(out, "api.0.method").String(); got != "GET" {
 				t.Fatalf("method = %q, want GET\nstdout:\n%s", got, out)
 			}
-			if got := gjson.Get(out, "api.0.url").String(); got != tt.wantURL {
+			if got := clie2e.DryRunGet(out, "api.0.url").String(); got != tt.wantURL {
 				t.Fatalf("url = %q, want %q\nstdout:\n%s", got, tt.wantURL, out)
 			}
-			if got := gjson.Get(out, "api.0.params.type").String(); got != tt.wantType {
+			if got := clie2e.DryRunGet(out, "api.0.params.type").String(); got != tt.wantType {
 				t.Fatalf("params.type = %q, want %q\nstdout:\n%s", got, tt.wantType, out)
 			}
-			if gjson.Get(out, "folder_token").Exists() {
+			if clie2e.DryRunGet(out, "folder_token").Exists() {
 				t.Fatalf("folder_token exists in dry-run output, want omitted\nstdout:\n%s", out)
 			}
 		})
