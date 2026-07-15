@@ -58,7 +58,7 @@ Exception:
   "visual_system": {
     "background_strategy": "Content pages use one light base; cover and closing may use a related dark treatment with the same accent system.",
     "motif": "A reusable left accent bar and consistent card/header treatments.",
-    "layout_system": "Deck-wide layout character: density + the layout-system style (grid, columns, whitespace, page rhythm). When a style preset is used, copy its layout line here; it sets the default text_density and the structural feel every page must follow.",
+    "layout_system": "Deck-wide layout character (density + grid / columns / whitespace / rhythm); copy the matched preset's layout line here. How it drives page geometry: visual-planning.md → Style System.",
     "color_roles": {
       "primary": "Used for the dominant structural motif and about 60-70% of visual weight.",
       "secondary": "Used for grouped regions, comparison panels, or supporting categories.",
@@ -109,7 +109,7 @@ Top-level fields:
 - `presentation_goal`: what the whole deck is trying to achieve.
 - `audience`: target readers or listeners and their assumed background.
 - `theme_style`: visual tone, palette direction, and professional style.
-- `visual_system`: deck-level visual rules that must stay stable across pages, including background strategy, recurring motif, color roles, and `layout_system` (deck density + layout-system character: grid, columns, whitespace, page rhythm — from the matched style preset when one is used).
+- `visual_system`: deck-level visual rules that must stay stable across pages, including background strategy, recurring motif, color roles, and `layout_system` (deck density + layout character).
 - `typography_constraints`: deck-level limits for line count, text box density, and how to handle long text before XML generation.
 - `verification_plan`: explicit checks to perform after creation or major edits; include background consistency, text fit, visual focus, and asset rendering when relevant. When a fixed palette is used, also set `check_color_role_discipline` (only the 6 role colors are used; `accent` is not overused as large fills).
 - `slides`: ordered page plans.
