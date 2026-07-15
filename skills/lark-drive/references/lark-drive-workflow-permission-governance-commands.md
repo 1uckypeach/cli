@@ -27,16 +27,16 @@ lark-cli drive +inspect --url '<url>' --as user --format json
 lark-cli wiki +node-list \
   --space-id '<space_id>' --page-size 50 \
   --page-all --page-limit 0 \
-  --as user --format json
+  --as user --format json # quality-gate: requires a resolved numeric space ID ...
 
 lark-cli wiki +node-list \
   --space-id '<space_id>' --parent-node-token '<node_token>' --page-size 50 \
   --page-all --page-limit 0 \
-  --as user --format json
+  --as user --format json # quality-gate: requires a resolved numeric space ID ...
 
 lark-cli wiki +node-list \
   --space-id '<space_id>' --page-token '<PAGE_TOKEN>' --page-size 50 \
-  --as user --format json
+  --as user --format json # quality-gate: requires a resolved numeric space ID ...
 ```
 
 解析返回时使用 `data.nodes`，不要读取顶层 `items`。`--page-limit 0` 表示当前层分页不设页数上限；`--page-all` 只覆盖当前 `space-id` / `parent-node-token` 范围内的分页，不会递归子节点。节点 `has_child=true` 时，必须继续以该节点的 `node_token` 作为 `--parent-node-token` 递归读取。
@@ -84,7 +84,7 @@ lark-cli drive +permission-get-setting \
 ```bash
 lark-cli drive +permission-get-setting \
   --token '<url>' \
-  --as user --format json
+  --as user --format json # quality-gate: requires a recognized Lark Drive URL ...
 ```
 
 按需读取访问统计：
@@ -178,7 +178,7 @@ lark-cli drive +secure-label-list \
 ```bash
 lark-cli drive +secure-label-update \
   --token '<url>' \
-  --label-id '<label-id>' --as user --format json
+  --label-id '<label-id>' --as user --format json # quality-gate: requires a resolved numeric label ID ...
 
 lark-cli drive +secure-label-update \
   --token '<bare-token>' --type '<type>' \
