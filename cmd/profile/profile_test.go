@@ -307,10 +307,11 @@ func TestProfileListRun_OutputsProfiles(t *testing.T) {
 		t.Fatalf("Unmarshal() error = %v; output=%s", err, stdout.String())
 	}
 	raw := stdout.String()
-	// `active` is dual-published as a deprecated alias of `default` for one
-	// deprecation cycle so external consumers reading `.active` keep working.
-	if !strings.Contains(raw, `"active"`) {
-		t.Fatalf("profile list output missing deprecated active alias: %s", raw)
+	// `active` is renamed to `default` as a declared breaking change: keeping
+	// a permanently mirrored alias would keep misleading agents into reading
+	// it as the currently effective identity (whoami's job).
+	if strings.Contains(raw, `"active"`) {
+		t.Fatalf("profile list output contains renamed active field: %s", raw)
 	}
 	if !strings.Contains(raw, `"default"`) {
 		t.Fatalf("profile list output missing default field: %s", raw)
@@ -323,11 +324,6 @@ func TestProfileListRun_OutputsProfiles(t *testing.T) {
 	}
 	if got[1].Name != "target" || got[1].Default {
 		t.Fatalf("got[1] = %#v, want non-default target profile", got[1])
-	}
-	for i, item := range got {
-		if item.Active != item.Default {
-			t.Fatalf("got[%d]: active = %v, default = %v; the alias must mirror default", i, item.Active, item.Default)
-		}
 	}
 }
 

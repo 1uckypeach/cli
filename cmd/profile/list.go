@@ -17,18 +17,16 @@ import (
 )
 
 // profileListItem is the JSON output for a single profile entry.
+// `default` (formerly `active`, renamed in this feature as a declared
+// breaking change) marks the saved default profile — never the identity
+// effective for the current invocation; that is whoami's job.
 type profileListItem struct {
-	Name    string         `json:"name"`
-	AppID   string         `json:"appId"`
-	Brand   core.LarkBrand `json:"brand"`
-	Default bool           `json:"default"`
-	// Active is a deprecated alias of Default, dual-published for one
-	// deprecation cycle so external consumers reading `.active` keep
-	// working. It marks the saved default profile — never the currently
-	// effective identity (use whoami for that). Remove in the next major.
-	Active      bool   `json:"active"`
-	User        string `json:"user,omitempty"`
-	TokenStatus string `json:"tokenStatus,omitempty"`
+	Name        string         `json:"name"`
+	AppID       string         `json:"appId"`
+	Brand       core.LarkBrand `json:"brand"`
+	Default     bool           `json:"default"`
+	User        string         `json:"user,omitempty"`
+	TokenStatus string         `json:"tokenStatus,omitempty"`
 }
 
 // NewCmdProfileList creates the profile list subcommand.
@@ -76,7 +74,6 @@ func profileListRun(f *cmdutil.Factory) error {
 			AppID:   app.AppId,
 			Brand:   app.Brand,
 			Default: name == currentName,
-			Active:  name == currentName,
 		}
 
 		if len(app.Users) > 0 {
