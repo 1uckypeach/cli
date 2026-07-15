@@ -16,16 +16,11 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	extcred "github.com/larksuite/cli/extension/credential"
+	envprovider "github.com/larksuite/cli/extension/credential/env"
 	"github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/envvars"
 )
-
-// directCredentialProviderName is the Name() of the builtin env provider —
-// currently the only provider allowed to declare AccountDirect, because the
-// arbitration's direct-credential annotations describe the process
-// environment (see gatherIdentityInputs).
-const directCredentialProviderName = "env"
 
 // DefaultAccountResolver is implemented by the default account provider.
 type DefaultAccountResolver interface {
@@ -321,11 +316,12 @@ func (p *CredentialProvider) gatherIdentityInputs(ctx context.Context) (identity
 			// the builtin env provider may declare AccountDirect; accepting it
 			// from anyone else would produce self-contradictory diagnostics
 			// (e.g. credentialSource "env:LARKSUITE_CLI_APP_ID" with
-			// directCredentialEnv.present=false). Fail fast instead.
-			if prov.Name() != directCredentialProviderName {
+			// directCredentialEnv.present=false). The check is by concrete
+			// type: the registry reserves neither names nor uniqueness, so a
+			// Name() comparison would be forgeable.
+			if _, builtin := prov.(*envprovider.Provider); !builtin {
 				return in, errs.NewInternalError(errs.SubtypeUnknown,
-					"credential provider %q declared AccountDirect, which is reserved for the builtin %q provider",
-					prov.Name(), directCredentialProviderName)
+					"credential provider %q declared AccountDirect, which is reserved for the builtin env provider", prov.Name())
 			}
 			in.direct = pa
 		case extcred.AccountManaged:
@@ -835,12 +831,13 @@ func (p *CredentialProvider) ActiveExtensionProviderName(ctx context.Context) (s
 		if err != nil {
 			var blockErr *extcred.BlockError
 			if errors.As(err, &blockErr) {
-				// A misconfigured policy variable is a user input error, not
-				// an external credential takeover: it must not lock (or
-				// mislabel) the builtin inspection/repair commands this
-				// probe guards — they are how the user diagnoses it.
+				// Align with formal arbitration: a misconfigured policy
+				// variable is the same typed validation error everywhere —
+				// not an external takeover of the provider that reported it,
+				// and not license to keep scanning and blame a later
+				// provider instead.
 				if blockErr.Code == extcred.BlockReasonInvalidPolicy {
-					continue
+					return "", newInvalidPolicyError(blockErr)
 				}
 				name := blockErr.Provider
 				if name == "" {

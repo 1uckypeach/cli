@@ -1004,3 +1004,74 @@ func TestSelection_ConfigDefault(t *testing.T) {
 		t.Fatalf("source = %q, want %q", sel.Source, credential.SourceConfigCurrentApp)
 	}
 }
+
+// forgedDirectProvider impersonates the builtin env provider by name and
+// declares AccountDirect. The reservation must hold by concrete type, not by
+// the forgeable Name() string.
+type forgedDirectProvider struct{}
+
+func (forgedDirectProvider) Name() string  { return "env" }
+func (forgedDirectProvider) Priority() int { return 0 }
+func (forgedDirectProvider) ResolveAccount(context.Context) (*extcred.Account, error) {
+	return &extcred.Account{AppID: "forged_app", Kind: extcred.AccountDirect}, nil
+}
+func (forgedDirectProvider) ResolveToken(context.Context, extcred.TokenSpec) (*extcred.Token, error) {
+	return nil, nil
+}
+
+func TestSelection_ForgedDirectProviderRejected(t *testing.T) {
+	t.Setenv(envvars.CliAppID, "")
+	t.Setenv(envvars.CliAppSecret, "")
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	cp := credential.NewCredentialProvider([]extcred.Provider{forgedDirectProvider{}}, nil, nil, nil)
+	_, err := cp.ResolveAccount(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "reserved for the builtin env provider") {
+		t.Fatalf("err = %v, want AccountDirect reservation failure for a name-forging provider", err)
+	}
+}
+
+// policyBlockProvider blocks with an invalid_policy classification, standing
+// in for the env provider having seen a bad LARKSUITE_CLI_DEFAULT_AS.
+type policyBlockProvider struct{}
+
+func (policyBlockProvider) Name() string  { return "env" }
+func (policyBlockProvider) Priority() int { return 0 }
+func (policyBlockProvider) ResolveAccount(context.Context) (*extcred.Account, error) {
+	return nil, &extcred.BlockError{
+		Provider: "env",
+		Reason:   "invalid LARKSUITE_CLI_DEFAULT_AS \"banana\" (want user, bot, or auto)",
+		Code:     extcred.BlockReasonInvalidPolicy,
+		Param:    envvars.CliDefaultAs,
+	}
+}
+func (policyBlockProvider) ResolveToken(context.Context, extcred.TokenSpec) (*extcred.Token, error) {
+	return nil, nil
+}
+
+// The gate probe must stay aligned with formal arbitration when multiple
+// providers are registered: provider A's invalid_policy block surfaces as the
+// same typed validation error in both, instead of the probe scanning on and
+// blaming provider B as an external takeover.
+func TestActiveExtensionProviderName_InvalidPolicyAlignsWithArbitration(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	providers := []extcred.Provider{policyBlockProvider{}, &fakeSidecarProvider{appID: "sidecar_app"}}
+
+	probeCP := credential.NewCredentialProvider(providers, nil, nil, nil)
+	name, probeErr := probeCP.ActiveExtensionProviderName(context.Background())
+	if name != "" {
+		t.Fatalf("provider name = %q, want none (no external takeover)", name)
+	}
+	if got := subtypeOf(t, probeErr); got != errs.SubtypeInvalidArgument {
+		t.Fatalf("probe subtype = %q, want invalid_argument", got)
+	}
+
+	arbCP := credential.NewCredentialProvider(providers, nil, nil, nil)
+	_, arbErr := arbCP.ResolveAccount(context.Background())
+	if got := subtypeOf(t, arbErr); got != errs.SubtypeInvalidArgument {
+		t.Fatalf("arbitration subtype = %q, want invalid_argument", got)
+	}
+	if probeErr.Error() != arbErr.Error() {
+		t.Fatalf("probe and arbitration diverge:\n  probe: %v\n  arbitration: %v", probeErr, arbErr)
+	}
+}

@@ -514,9 +514,10 @@ func TestRequireBuiltinCredentialProvider_StaleProfileDoesNotLockOut(t *testing.
 }
 
 // An invalid policy variable (e.g. LARKSUITE_CLI_DEFAULT_AS=banana) is a user
-// input error, not an external credential takeover: auth/config commands must
-// not be refused with a misleading "provided externally" message.
-func TestRequireBuiltinCredentialProvider_InvalidPolicyBlockDoesNotReadExternal(t *testing.T) {
+// input error, not an external credential takeover: the gate surfaces the
+// same typed validation error as formal arbitration instead of a misleading
+// "provided externally" refusal.
+func TestRequireBuiltinCredentialProvider_InvalidPolicySurfacesTypedError(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
 	stub := &stubExtProvider{name: "env", err: &extcred.BlockError{
@@ -529,8 +530,13 @@ func TestRequireBuiltinCredentialProvider_InvalidPolicyBlockDoesNotReadExternal(
 	f, _, _, _ := TestFactory(t, nil)
 	f.Credential = cred
 
-	if err := f.RequireBuiltinCredentialProvider(context.Background(), "auth"); err != nil {
-		t.Fatalf("invalid policy var must not read as external takeover: %v", err)
+	err := f.RequireBuiltinCredentialProvider(context.Background(), "auth")
+	prob, ok := errs.ProblemOf(err)
+	if !ok || prob.Subtype != errs.SubtypeInvalidArgument {
+		t.Fatalf("err = %v, want typed invalid_argument (same as formal arbitration)", err)
+	}
+	if strings.Contains(err.Error(), "provided externally") {
+		t.Fatalf("err = %v, must not read as external takeover", err)
 	}
 }
 

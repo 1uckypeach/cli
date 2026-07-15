@@ -153,7 +153,7 @@ type engagedEnvStub struct{}
 func (engagedEnvStub) Name() string  { return "env" }
 func (engagedEnvStub) Priority() int { return 10 }
 func (engagedEnvStub) ResolveAccount(context.Context) (*extcred.Account, error) {
-	return &extcred.Account{AppID: "cli_env", AppSecret: "your-password", Kind: extcred.AccountDirect}, nil
+	return &extcred.Account{AppID: "cli_env", AppSecret: "your-password"}, nil // managed takeover
 }
 func (engagedEnvStub) ResolveToken(context.Context, extcred.TokenSpec) (*extcred.Token, error) {
 	return nil, nil
