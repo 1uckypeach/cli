@@ -4,10 +4,14 @@
 package credential
 
 import (
+	"context"
 	"errors"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/core"
 )
 
 func TestDefaultTokenProvider_Dispatches(t *testing.T) {
@@ -90,5 +94,64 @@ func TestClassifyTATResponseCode_CodeZeroOtherError_StillTyped(t *testing.T) {
 	var cfgErr *errs.ConfigError
 	if errors.As(err, &cfgErr) {
 		t.Fatalf("code-0 invalid_scope must not be a ConfigError, got %T", err)
+	}
+}
+
+func TestCheckTokenAppID(t *testing.T) {
+	if err := checkTokenAppID(TokenSpec{}, "cli_a"); err != nil {
+		t.Fatalf("empty requested app must skip the check: %v", err)
+	}
+	if err := checkTokenAppID(TokenSpec{AppID: "cli_a"}, "cli_a"); err != nil {
+		t.Fatalf("matching app must pass: %v", err)
+	}
+	err := checkTokenAppID(TokenSpec{AppID: "cli_a"}, "cli_b")
+	if err == nil {
+		t.Fatal("mismatched app must be refused")
+	}
+	var ie *errs.InternalError
+	if !errors.As(err, &ie) {
+		t.Fatalf("error type = %T, want *errs.InternalError", err)
+	}
+}
+
+// REAL-path regression for review F2: the token provider re-reads the config,
+// so a profile edit between account resolution and token resolution must not
+// hand a token minted for the new app to a caller that resolved the old one.
+// Uses the real DefaultAccountProvider + DefaultTokenProvider; the HTTP stub
+// makes the network step unreachable, so reaching it proves the app check ran
+// and passed first.
+func TestDefaultTokenProvider_RefusesTokenAfterConfigSwap(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	writeCfg := func(appID string) {
+		t.Helper()
+		multi := &core.MultiAppConfig{CurrentApp: "tenant_a", Apps: []core.AppConfig{{
+			Name: "tenant_a", AppId: appID, AppSecret: core.PlainSecret("your-secret"), Brand: core.BrandFeishu,
+		}}}
+		if err := core.SaveMultiAppConfig(multi); err != nil {
+			t.Fatalf("SaveMultiAppConfig: %v", err)
+		}
+	}
+	writeCfg("cli_a")
+
+	httpSentinel := errors.New("http client sentinel: unreachable in test")
+	tp := NewDefaultTokenProvider(
+		NewDefaultAccountProvider(nil, "tenant_a"),
+		func() (*http.Client, error) { return nil, httpSentinel },
+		nil,
+	)
+
+	// Matching app: the consistency check passes and resolution proceeds to
+	// the (stubbed) HTTP step.
+	_, err := tp.ResolveToken(context.Background(), TokenSpec{Type: TokenTypeUAT, AppID: "cli_a"})
+	if !errors.Is(err, httpSentinel) {
+		t.Fatalf("err = %v, want the HTTP sentinel (check must pass for a matching app)", err)
+	}
+
+	// The profile now resolves to a different app: the token request that was
+	// arbitrated for cli_a must be refused before any token work happens.
+	writeCfg("cli_b")
+	_, err = tp.ResolveToken(context.Background(), TokenSpec{Type: TokenTypeUAT, AppID: "cli_a"})
+	if err == nil || !strings.Contains(err.Error(), "config changed during resolution") {
+		t.Fatalf("err = %v, want config-changed refusal", err)
 	}
 }
