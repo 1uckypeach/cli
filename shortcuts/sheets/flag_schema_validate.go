@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/larksuite/cli/internal/suggest"
 )
 
 // ─── schema-driven flag validation ────────────────────────────────────
@@ -107,16 +109,26 @@ func validateValueAgainstSchema(fv flagView, name string, value interface{}) err
 		// branch means entry[name] resolved a schema from the embedded
 		// index, so the suggested command is guaranteed to print it.
 		var tm *typeMismatchError
-		if errors.As(vErr, &tm) && pathDepth(tm.path) <= skeletonPathDepthLimit {
+		isTypeMismatch := errors.As(vErr, &tm)
+		if isTypeMismatch && pathDepth(tm.path) <= skeletonPathDepthLimit {
 			if sk := schemaSkeleton(&schema, skeletonMaxDepth); sk != "" {
 				return sheetsValidationForFlag(name,
 					"--%s: %s; expected shape: %s (run `lark-cli sheets %s --print-schema --flag-name %s` for the full JSON Schema)",
 					name, vErr.Error(), sk, command, name).WithCause(vErr)
 			}
 		}
+		// Deep type mismatches don't get a whole-shape skeleton (it wouldn't
+		// address the actual field), but if the field itself carries an enum /
+		// description, append that one line — same "fix on first retry" goal.
+		msg := vErr.Error()
+		if isTypeMismatch {
+			if suffix := tm.hintSuffix(); suffix != "" {
+				msg += "; " + suffix
+			}
+		}
 		return sheetsValidationForFlag(name,
 			"--%s: %s; run `lark-cli sheets %s --print-schema --flag-name %s` to see the expected JSON Schema",
-			name, vErr.Error(), command, name).WithCause(vErr)
+			name, msg, command, name).WithCause(vErr)
 	}
 	return nil
 }
@@ -187,8 +199,10 @@ var inputSchemaSkip = map[string]struct{}{
 }
 
 // schemaProperty mirrors the JSON Schema subset used by
-// data/flag-schemas.json. Unknown keys (description, …) are dropped —
-// they're documentation.
+// data/flag-schemas.json. Description is retained (not just documentation)
+// so a required-missing or type-mismatch error can inline the one-line
+// field doc — the agent then fixes the input without a --print-schema round
+// trip. Other unknown keys stay dropped.
 //
 // Minimum / Maximum / MinItems / MaxItems use *float64 / *int because
 // 0 is a meaningful bound (e.g. chart row >= 0); nil distinguishes
@@ -204,6 +218,7 @@ var inputSchemaSkip = map[string]struct{}{
 //     map<string, array<string>> fields (groups / collapse).
 type schemaProperty struct {
 	Type                 string                     `json:"type"`
+	Description          string                     `json:"description"`
 	Nullable             bool                       `json:"nullable"`
 	Enum                 []interface{}              `json:"enum"`
 	Properties           map[string]*schemaProperty `json:"properties"`
@@ -255,7 +270,7 @@ func validateAgainstSchema(value interface{}, schema *schemaProperty, path strin
 
 	if schema.Type != "" {
 		if !matchesJSONType(value, schema.Type) {
-			return &typeMismatchError{path: path, expected: schema.Type, got: jsType(value)}
+			return &typeMismatchError{path: path, expected: schema.Type, got: jsType(value), enum: schema.Enum, description: schema.Description}
 		}
 	}
 
@@ -317,7 +332,14 @@ func validateAgainstSchema(value interface{}, schema *schemaProperty, path strin
 	if obj, ok := value.(map[string]interface{}); ok {
 		for _, key := range schema.Required {
 			if _, present := obj[key]; !present {
-				return fmt.Errorf("required property %q is missing at %s", key, pathOrRoot(path)) //nolint:forbidigo // intermediate error; validateFlagAgainstSchema wraps it into a typed flag validation error with a --print-schema hint
+				msg := fmt.Sprintf("required property %q is missing at %s", key, pathOrRoot(path))
+				// Inline the missing field's type / one-line description / enum so
+				// the agent supplies a correctly-shaped value on the first retry
+				// instead of fetching the full schema.
+				if hint := schemaFieldHint(schema.Properties[key]); hint != "" {
+					msg += "; expected " + hint
+				}
+				return fmt.Errorf("%s", msg) //nolint:forbidigo // intermediate error; validateFlagAgainstSchema wraps it into a typed flag validation error with a --print-schema hint
 			}
 		}
 		if schema.Properties != nil {
@@ -369,7 +391,17 @@ func validateAgainstSchema(value interface{}, schema *schemaProperty, path strin
 			sort.Strings(extras)
 			for _, key := range extras {
 				if schema.AdditionalProperties.Strict {
-					return fmt.Errorf("%sunexpected property %q (not declared in schema)", pathPrefix(path), key) //nolint:forbidigo // intermediate error; validateFlagAgainstSchema wraps it into a typed flag validation error with a --print-schema hint
+					msg := fmt.Sprintf("%sunexpected property %q (not declared in schema)", pathPrefix(path), key)
+					// Inline the node's declared keys (and a did-you-mean when the
+					// unknown key is a near miss) so the agent renames it in one
+					// retry instead of a --print-schema round trip.
+					if legal := sortedSchemaPropertyKeys(schema.Properties); len(legal) > 0 {
+						if guess := suggest.Closest(key, legal, 1); len(guess) > 0 {
+							msg += fmt.Sprintf(` (did you mean %q?)`, guess[0])
+						}
+						msg += "; valid properties: " + formatPropertyKeyList(legal)
+					}
+					return fmt.Errorf("%s", msg) //nolint:forbidigo // intermediate error; validateFlagAgainstSchema wraps it into a typed flag validation error with a --print-schema hint
 				}
 				if schema.AdditionalProperties.Schema != nil {
 					child := key
@@ -403,15 +435,33 @@ func validateAgainstSchema(value interface{}, schema *schemaProperty, path strin
 // typeMismatchError is the type-check branch of validateAgainstSchema
 // as a typed error, so validateValueAgainstSchema can recognize shape
 // confusion (vs. deep value errors) and inline a skeleton of the
-// expected shape. Error() keeps the exact legacy wording.
+// expected shape. Error() keeps the exact legacy wording; enum /
+// description ride alongside for the deep-mismatch hintSuffix, so they
+// never leak into the shallow-skeleton message.
 type typeMismatchError struct {
-	path     string
-	expected string
-	got      string
+	path        string
+	expected    string
+	got         string
+	enum        []interface{}
+	description string
 }
 
 func (e *typeMismatchError) Error() string {
 	return fmt.Sprintf("%sexpected type %q, got %q", pathPrefix(e.path), e.expected, e.got)
+}
+
+// hintSuffix renders the field's description / enum as a one-line tail for
+// the deep type-mismatch fallback (type is already stated by Error()).
+// Empty when the field declares neither.
+func (e *typeMismatchError) hintSuffix() string {
+	var parts []string
+	if d := oneLineDescription(e.description); d != "" {
+		parts = append(parts, "description: "+d)
+	}
+	if len(e.enum) > 0 {
+		parts = append(parts, "one of "+formatEnum(e.enum))
+	}
+	return strings.Join(parts, ", ")
 }
 
 // pathDepth counts how many levels below the flag root a JSON path
@@ -603,6 +653,70 @@ func joinFormatted(values []interface{}) string {
 		parts = append(parts, formatJSONValue(v))
 	}
 	return strings.Join(parts, ", ")
+}
+
+// schemaFieldHint renders a compact one-line "type X, description: …, one of
+// […]" sketch of a single field's schema, used to enrich a required-missing
+// error so the agent supplies a correctly-shaped value without --print-schema.
+// Empty when the field declares none of type / description / enum.
+func schemaFieldHint(s *schemaProperty) string {
+	if s == nil {
+		return ""
+	}
+	var parts []string
+	if s.Type != "" {
+		parts = append(parts, fmt.Sprintf("type %q", s.Type))
+	}
+	if d := oneLineDescription(s.Description); d != "" {
+		parts = append(parts, "description: "+d)
+	}
+	if len(s.Enum) > 0 {
+		parts = append(parts, "one of "+formatEnum(s.Enum))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// sortedSchemaPropertyKeys returns the declared property names in a stable
+// (sorted) order so the valid-property list in a strict unexpected-property
+// error is deterministic across runs.
+func sortedSchemaPropertyKeys(props map[string]*schemaProperty) []string {
+	keys := make([]string, 0, len(props))
+	for k := range props {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// propertyKeyDisplayLimit caps how many declared property names ride inline on
+// a strict unexpected-property error, so a wide object doesn't bury the actual
+// error under a wall of keys. Overflow is summarised as "(N more)".
+const propertyKeyDisplayLimit = 15
+
+func formatPropertyKeyList(keys []string) string {
+	if len(keys) <= propertyKeyDisplayLimit {
+		return "[" + strings.Join(keys, ", ") + "]"
+	}
+	shown := keys[:propertyKeyDisplayLimit]
+	return fmt.Sprintf("[%s, … (%d more)]", strings.Join(shown, ", "), len(keys)-propertyKeyDisplayLimit)
+}
+
+// descriptionMaxLen bounds an inlined field description to one reasonable line;
+// schema descriptions can run several sentences, which would swamp the error.
+const descriptionMaxLen = 120
+
+// oneLineDescription collapses a (possibly multi-line) schema description into
+// a single whitespace-normalised line, truncated to descriptionMaxLen runes.
+// Returns "" for an empty / whitespace-only description.
+func oneLineDescription(s string) string {
+	collapsed := strings.Join(strings.Fields(s), " ")
+	if collapsed == "" {
+		return ""
+	}
+	if r := []rune(collapsed); len(r) > descriptionMaxLen {
+		return string(r[:descriptionMaxLen]) + "…"
+	}
+	return collapsed
 }
 
 // suggestEnumMatch returns the canonical enum entry when the user's

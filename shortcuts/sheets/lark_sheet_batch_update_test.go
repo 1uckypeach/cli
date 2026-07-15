@@ -405,6 +405,21 @@ func TestBatchUpdate_TranslatorRejects(t *testing.T) {
 			opsJSON:   `[{"shortcut":"+cells-set","input":"not-an-object"}]`,
 			wantMatch: "'input' must be a JSON object",
 		},
+		{
+			name:      "wrapped cell_styles structure",
+			opsJSON:   `[{"shortcut":"+cells-set-style","input":{"sheet_name":"s","range":"A1","cell_styles":{"background_color":"#EBF1F8"}}}]`,
+			wantMatch: "do not wrap in cell_styles",
+		},
+		{
+			name:      "wrapped styles structure",
+			opsJSON:   `[{"shortcut":"+cells-set-style","input":{"sheet_name":"s","range":"A1","styles":{"font_weight":"bold"}}}]`,
+			wantMatch: "do not wrap in styles",
+		},
+		{
+			name:      "wrapped cell_merges structure",
+			opsJSON:   `[{"shortcut":"+cells-set-style","input":{"sheet_name":"s","range":"A1","cell_merges":[{"range":"A1:B1"}]}}]`,
+			wantMatch: "do not wrap in cell_merges",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -417,6 +432,56 @@ func TestBatchUpdate_TranslatorRejects(t *testing.T) {
 			})
 			requireValidation(t, err, tc.wantMatch)
 		})
+	}
+}
+
+// TestBatchUpdate_FlattenedStyleKeysNotMistakenForWrapper guards the
+// wrapped-structure rejection against overreach: the same style fields in
+// their correct flattened form must translate cleanly — only the wrapper
+// container keys (cell_styles / styles / cell_merges) are rejected.
+func TestBatchUpdate_FlattenedStyleKeysNotMistakenForWrapper(t *testing.T) {
+	t.Parallel()
+	got, err := translateBatchOp(map[string]interface{}{
+		"shortcut": "+cells-set-style",
+		"input": map[string]interface{}{
+			"sheet_name":       "s",
+			"range":            "A1",
+			"background_color": "#EBF1F8",
+			"font_weight":      "bold",
+		},
+	}, testToken, 0)
+	if err != nil {
+		t.Fatalf("flattened style keys must pass the wrapper check, got %v", err)
+	}
+	input := got["input"].(map[string]interface{})
+	cells := input["cells"].([][]interface{})
+	style := cells[0][0].(map[string]interface{})["cell_styles"].(map[string]interface{})
+	if style["background_color"] != "#EBF1F8" || style["font_weight"] != "bold" {
+		t.Fatalf("translated style = %#v", style)
+	}
+}
+
+// TestBatchUpdate_WrapperKeysDisjointFromSubOpFlags locks the static
+// assumption wrappedSubOpInputKeys relies on: no shortcut registered in
+// batchOpDispatch declares a flag named cell_styles / cell_merges / styles.
+// If a future dispatch-table addition (e.g. +table-put) carries one of these
+// flags, its legitimate input would be silently rejected by the wrapper
+// check — this test turns that silent breakage into a build-time failure.
+func TestBatchUpdate_WrapperKeysDisjointFromSubOpFlags(t *testing.T) {
+	t.Parallel()
+	wrapped := make(map[string]struct{}, len(wrappedSubOpInputKeys))
+	for _, k := range wrappedSubOpInputKeys {
+		wrapped[k] = struct{}{}
+	}
+	for shortcut := range batchOpDispatch {
+		for _, f := range flagsFor(shortcut) {
+			key := strings.ReplaceAll(f.Name, "-", "_")
+			if _, clash := wrapped[key]; clash {
+				t.Errorf("%s declares flag --%s which collides with wrappedSubOpInputKeys; "+
+					"exempt this shortcut from the wrapper check before adding it to batchOpDispatch",
+					shortcut, f.Name)
+			}
+		}
 	}
 }
 

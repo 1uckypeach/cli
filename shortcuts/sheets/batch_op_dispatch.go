@@ -301,6 +301,13 @@ func sheetMoveBatchInput(fv flagView, token, sheetID, sheetName string) (map[str
 // +batch-update 顶层 --url/--token 统一提供（excel_id / spreadsheet_token / url）。
 var reservedSubOpKeys = []string{"excel_id", "spreadsheet_token", "url"}
 
+// wrappedSubOpInputKeys are nested MCP-body container keys that must never
+// appear at a sub-op input's top level — their presence means the caller
+// pasted a shortcut's structured *output* (e.g. a {"cell_styles":{…}} block)
+// where the flattened flag keys belong. None of the batch sub-op translators
+// read input under these names, so rejecting them is safe.
+var wrappedSubOpInputKeys = []string{"cell_styles", "cell_merges", "styles"}
+
 // translateBatchOp 把一个 CLI 视角的 {shortcut, input} 翻成底层 MCP
 // batch_update 的 {tool_name, input}。`index` 用于错误信息定位。input 用
 // shortcut 的 CLI flag 名（连字符/下划线均可），经该 shortcut 的 standalone
@@ -312,6 +319,7 @@ var reservedSubOpKeys = []string{"excel_id", "spreadsheet_token", "url"}
 //   - input 不是 object
 //   - input 里手填了 operation（由 shortcut 名隐含，禁手填以防 mismatch）
 //   - input 里手填了 excel_id / spreadsheet_token / url
+//   - input 顶层出现 cell_styles / cell_merges / styles（误贴 MCP body 包裹结构）
 //   - 子操作的 translator 报错（如缺必填字段）
 func translateBatchOp(raw interface{}, token string, index int) (map[string]interface{}, error) {
 	op, ok := raw.(map[string]interface{})
@@ -363,6 +371,21 @@ func translateBatchOp(raw interface{}, token string, index int) (map[string]inte
 			return nil, sheetsValidationForFlag(
 				"operations",
 				"operations[%d] (%s): do not pass input.%s — it is already set from +batch-update top-level --url / --token",
+				index, sc, k,
+			)
+		}
+	}
+	// Reject a "wrapped structure" sub-op input: agents copy a shortcut's nested
+	// output container (e.g. +workbook-create --styles' {"cell_styles":{…}}) into
+	// the op input, but the op input is the shortcut's own flags flattened into
+	// JSON keys, not that wrapper. Left unflagged this surfaces far downstream as
+	// an unrelated "at least one style flag is required" (helpers.go), which never
+	// points at the real mistake.
+	for _, k := range wrappedSubOpInputKeys {
+		if _, has := input[k]; has {
+			return nil, sheetsValidationForFlag(
+				"operations",
+				`operations[%d] (%s): op input is the shortcut's flags flattened as JSON keys (e.g. "background_color": "#EBF1F8"); do not wrap in %s`,
 				index, sc, k,
 			)
 		}
