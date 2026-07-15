@@ -219,22 +219,6 @@ func TestFilterScopes_TooFewParts(t *testing.T) {
 	}
 }
 
-// --- Auto-approve functions ---
-
-func TestLoadAutoApproveSet(t *testing.T) {
-	aaSet := LoadAutoApproveSet()
-	if len(aaSet) == 0 {
-		t.Fatal("expected non-empty auto-approve set")
-	}
-
-	// From scope_priorities.json recommend=="true"
-	if !aaSet["sheets:spreadsheet:read"] {
-		t.Error("expected sheets:spreadsheet:read in auto-approve set (recommend=true in priorities)")
-	}
-
-	t.Logf("Auto-approve set has %d scopes", len(aaSet))
-}
-
 // --- Helper functions ---
 
 func TestGetRegistryDir(t *testing.T) {

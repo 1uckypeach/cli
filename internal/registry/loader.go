@@ -170,13 +170,11 @@ func ListFromMetaProjects() []string {
 const DefaultScopeScore = 0
 
 var cachedScopePriorities map[string]int
-var cachedAutoApproveSet map[string]bool
 
 // scopePriorityEntry is used to parse scope_priorities.json entries.
 type scopePriorityEntry struct {
 	ScopeName  string `json:"scope_name"`
 	FinalScore string `json:"final_score"`
-	Recommend  string `json:"recommend"`
 }
 
 // LoadScopePriorities loads the scope priorities map from scope_priorities.json.
@@ -221,50 +219,6 @@ func LoadScopePriorities() map[string]int {
 
 	cachedScopePriorities = m
 	return cachedScopePriorities
-}
-
-// LoadAutoApproveSet returns the set of auto-approve scope names.
-// Sources (merged): recommend=="true" in scope_priorities.json
-// + explicit allow/deny in scope_overrides.json.
-func LoadAutoApproveSet() map[string]bool {
-	if cachedAutoApproveSet != nil {
-		return cachedAutoApproveSet
-	}
-
-	m := make(map[string]bool)
-
-	// 1. From scope_priorities.json (Recommend == "true")
-	if data, err := registryFS.ReadFile("scope_priorities.json"); err == nil {
-		var entries []scopePriorityEntry
-		if json.Unmarshal(data, &entries) == nil {
-			for _, entry := range entries {
-				if entry.Recommend == "true" {
-					m[entry.ScopeName] = true
-				}
-			}
-		}
-	}
-
-	// 2. From scope_overrides.json (recommend.allow/deny lists)
-	if data, err := registryFS.ReadFile("scope_overrides.json"); err == nil {
-		var wrapper struct {
-			AutoApprove struct {
-				Allow []string `json:"allow"`
-				Deny  []string `json:"deny"`
-			} `json:"recommend"`
-		}
-		if json.Unmarshal(data, &wrapper) == nil {
-			for _, s := range wrapper.AutoApprove.Allow {
-				m[s] = true
-			}
-			for _, s := range wrapper.AutoApprove.Deny {
-				delete(m, s)
-			}
-		}
-	}
-
-	cachedAutoApproveSet = m
-	return cachedAutoApproveSet
 }
 
 // GetScopeScore returns the priority score for a scope, or DefaultScopeScore if not found.

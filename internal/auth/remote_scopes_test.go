@@ -41,6 +41,7 @@ func TestFetchRemoteScopes(t *testing.T) {
 		{name: "empty scopes falls back", status: 200, body: `{"scopes":{}}`, wantOK: false},
 		{name: "domain missing user_scopes falls back", status: 200, body: `{"scopes":{"im":{"i18n_name":{"zh_cn":"消息"}}}}`, wantOK: false},
 		{name: "malformed scope falls back", status: 200, body: `{"scopes":{"im":{"user_scopes":["im:message"]}}}`, wantOK: false},
+		{name: "scope with whitespace falls back", status: 200, body: `{"scopes":{"im":{"user_scopes":["im message:chat:read"]}}}`, wantOK: false},
 		{name: "non-2xx falls back", status: 500, body: `{"scopes":{"im":{"user_scopes":["im:message:send"]}}}`, wantOK: false},
 		{name: "empty body falls back", status: 200, body: ``, wantOK: false},
 		{name: "bad json falls back", status: 200, body: `{not json`, wantOK: false},
