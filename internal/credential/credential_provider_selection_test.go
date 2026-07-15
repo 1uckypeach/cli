@@ -150,32 +150,27 @@ func TestSelection_NoActiveProfile(t *testing.T) {
 	assertNoSecretLeak(t, "state2", err.Error(), string(sel.Source))
 }
 
-// Config-default profile with a broken secret: P none, E none, C present but the
-// default profile's keychain secret ref is corrupted. This
-// must be profile_secret_invalid (the identity IS configured, only its secret is
-// broken) — NOT no_active_profile (which is reserved for "no usable default").
-func TestSelection_ConfigDefaultBrokenSecret_ProfileSecretInvalid(t *testing.T) {
+// Config-default profile with an out-of-sync keychain ref: the precise typed
+// cause (invalid_config) passes through on the default route too — parity
+// with main, which surfaced this exact diagnosis before the profile feature.
+func TestSelection_ConfigDefaultKeychainOutOfSyncSurfacesRealCause(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "")
 	t.Setenv(envvars.CliAppSecret, "")
-	writeConfigTenantABroken(t) // CurrentApp = tenant_a (app_id cli_a), broken keychain ref
+	writeConfigTenantABroken(t) // CurrentApp = tenant_a (app_id cli_a), out-of-sync keychain ref
 	cp := newProvider(t, "", false)
 
 	_, err := cp.Selection(context.Background())
-	if got := subtypeOf(t, err); got != errs.SubtypeProfileSecretInvalid {
-		t.Fatalf("subtype = %q, want %q", got, errs.SubtypeProfileSecretInvalid)
+	if got := subtypeOf(t, err); got != errs.SubtypeInvalidConfig {
+		t.Fatalf("subtype = %q, want invalid_config (precise cause, not no_active_profile)", got)
 	}
-	ce := asConfigError(t, err)
-	if ce.Profile != "tenant_a" {
-		t.Errorf("profile = %q, want tenant_a", ce.Profile)
+	prob, _ := errs.ProblemOf(err)
+	if !strings.Contains(prob.Message, "out of sync") {
+		t.Errorf("message = %q, want the out-of-sync diagnosis", prob.Message)
 	}
-	if ce.AppID != "cli_a" {
-		t.Errorf("app_id = %q, want cli_a", ce.AppID)
+	if !strings.Contains(prob.Hint, "appsecret:cli_a") {
+		t.Errorf("hint = %q, want the expected keychain key named", prob.Hint)
 	}
-	// Security: generic message, no cause, no secret anywhere.
-	if errors.Unwrap(ce) != nil {
-		t.Errorf("profile_secret_invalid must not attach a cause, got %v", errors.Unwrap(ce))
-	}
-	assertNoSecretLeak(t, "config-default-broken", ce.Message, ce.Hint, ce.AppID)
+	assertNoSecretLeak(t, "config-default-out-of-sync", prob.Message, prob.Hint)
 }
 
 // writeMalformedConfig points the config dir at a temp file containing invalid
@@ -387,25 +382,29 @@ func TestSelection_MissingProfileWinsOverDirectEnv(t *testing.T) {
 	assertNoSecretLeak(t, "state6", err.Error(), prob.Hint, string(sel.Source))
 }
 
-// A valid profile whose stored secret cannot be resolved reports profile_secret_invalid.
-func TestSelection_ProfileSecretInvalid(t *testing.T) {
+// REAL-path regression for review F1: a valid profile whose saved keychain
+// ref is inconsistent with its app_id must surface the precise typed cause —
+// invalid_config, "out of sync", hint naming the expected keychain key — via
+// the actual DefaultAccountProvider, not be flattened into the generic
+// profile_secret_invalid (which is reserved for untyped failures).
+func TestSelection_ProfileKeychainOutOfSyncSurfacesRealCause(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "")
 	t.Setenv(envvars.CliAppSecret, "")
 	writeConfigTenantABroken(t)
 	cp := newProvider(t, "tenant_a", true)
 
 	_, err := cp.Selection(context.Background())
-	if got := subtypeOf(t, err); got != errs.SubtypeProfileSecretInvalid {
-		t.Fatalf("subtype = %q, want %q", got, errs.SubtypeProfileSecretInvalid)
+	if got := subtypeOf(t, err); got != errs.SubtypeInvalidConfig {
+		t.Fatalf("subtype = %q, want invalid_config (precise cause, not the generic secret error)", got)
 	}
-	ce := asConfigError(t, err)
-	if ce.Profile != "tenant_a" {
-		t.Errorf("profile = %q, want tenant_a", ce.Profile)
+	prob, _ := errs.ProblemOf(err)
+	if !strings.Contains(prob.Message, "out of sync") {
+		t.Errorf("message = %q, want the out-of-sync diagnosis", prob.Message)
 	}
-	if ce.AppID != "cli_a" {
-		t.Errorf("app_id = %q, want cli_a", ce.AppID)
+	if !strings.Contains(prob.Hint, "appsecret:cli_a") {
+		t.Errorf("hint = %q, want the expected keychain key named", prob.Hint)
 	}
-	assertNoSecretLeak(t, "state7", ce.Message, ce.Hint)
+	assertNoSecretLeak(t, "keychain-out-of-sync", prob.Message, prob.Hint)
 }
 
 // secretMarkerValue is a distinctive string used to prove that the
@@ -817,10 +816,10 @@ func (s *stubAccountResolver) ResolveAccount(context.Context) (*credential.Accou
 	return s.acct, nil
 }
 
-// A typed resolver failure on the profile route carries its own precise,
-// secret-free diagnosis (e.g. a keychain key out-of-sync error names the
-// expected key and the fix command) and must pass through — flattening it
-// into the generic profile_secret_invalid destroys the repair path.
+// Contract test: ANY typed resolver failure (other than not_configured) on
+// the profile route passes through with its own subtype and hint. The
+// real-path proof for the keychain out-of-sync case is
+// TestSelection_ProfileKeychainOutOfSyncSurfacesRealCause above.
 func TestSelection_ProfileTypedResolverFailurePassesThrough(t *testing.T) {
 	t.Setenv(envvars.CliAppID, "")
 	t.Setenv(envvars.CliAppSecret, "")
@@ -829,8 +828,8 @@ func TestSelection_ProfileTypedResolverFailurePassesThrough(t *testing.T) {
 	writeConfigTenantA(t)
 
 	typed := errs.NewValidationError(errs.SubtypeFailedPrecondition,
-		"appId and appSecret keychain key are out of sync").
-		WithHint("re-add the secret under the expected keychain key.")
+		"credential backend rejected the stored profile").
+		WithHint("repair the stored profile input.")
 	cp := credential.NewCredentialProvider(
 		[]extcred.Provider{&envprovider.Provider{}}, &stubFailureResolver{err: typed}, nil, nil)
 	cp.WithProfileFromFlag("tenant_a")
@@ -877,7 +876,7 @@ func TestSelection_ProfileResolverAppIDMismatchRefused(t *testing.T) {
 
 	cp := credential.NewCredentialProvider(
 		[]extcred.Provider{&envprovider.Provider{}},
-		&stubAccountResolver{acct: &credential.Account{AppID: "cli_other", AppSecret: "s"}}, nil, nil)
+		&stubAccountResolver{acct: &credential.Account{AppID: "cli_other", AppSecret: secretValue}}, nil, nil)
 	cp.WithProfileFromFlag("tenant_a")
 
 	_, err := cp.Selection(context.Background())
