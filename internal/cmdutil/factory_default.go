@@ -193,6 +193,10 @@ func buildCredentialProvider(deps credentialDeps) *credential.CredentialProvider
 	// provider clears unverified identity fields), so silencing the
 	// warning is safe.
 	cred := credential.NewCredentialProvider(providers, defaultAcct, defaultToken, deps.HttpClient)
+	if deps.Profile == "" {
+		// No profile selected — don't record a phantom env source.
+		return cred
+	}
 	if deps.ProfileFromFlag {
 		return cred.WithProfileFromFlag(deps.Profile)
 	}

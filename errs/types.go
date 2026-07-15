@@ -331,7 +331,7 @@ type ConfigError struct {
 	// CredentialSource is the machine-readable App/credential selection source
 	// that produced this config error (e.g. "flag:--profile",
 	// "env:LARKSUITE_CLI_PROFILE", "config"). It is required on
-	// profile_not_found and no_active_profile (spec §5) so an agent can branch
+	// profile_not_found and no_active_profile so an agent can branch
 	// on how the identity was (or was not) chosen. It is never a secret.
 	CredentialSource string `json:"credential_source,omitempty"`
 	Cause            error  `json:"-"`
