@@ -128,7 +128,15 @@ lark-cli auth login --device-code <device_code>
 
 ## Profile 选择
 
-Profile 选择：查当前实际生效身份 → `whoami --json`；查 OAuth 登录 / token 有效性 → `auth status --json --verify`；agent 任务 → 每条 `lark-cli` 命令都加 `--profile <profile-or-appId>`；同一 shell 的脚本 / 批处理 → 用 `LARKSUITE_CLI_PROFILE=<profile-or-appId>` 或 export/unset；清除会话身份 / 恢复默认 → 即使变量未设置，也说明使用 `unset LARKSUITE_CLI_PROFILE`；不要使用 `profile use` / `profile remove`；查已保存的配置（非当前生效）→ `config show` / `profile list`；永久改默认 → `profile use`。profile 不明确时先问用户；除非用户提供了直连凭证，否则不要设置 `LARKSUITE_CLI_APP_ID` / `LARKSUITE_CLI_APP_SECRET`。
+- 查当前实际生效身份：`whoami --json`
+- 查 OAuth 登录或 token 有效性：`auth status --json --verify`
+- 为 agent 任务指定身份：每条 `lark-cli` 命令都加 `--profile <profile-or-appId>`
+- 为同一 shell 的脚本或批处理指定身份：使用 `LARKSUITE_CLI_PROFILE=<profile-or-appId>`，或 export/unset
+- 清除会话身份并恢复默认：使用 `unset LARKSUITE_CLI_PROFILE`；即使变量未设置，也向用户说明该操作。不要为此使用 `profile use` 或 `profile remove`
+- 查已保存的配置：`config show` 或 `profile list`；它们不表示当前实际生效身份
+- 永久修改默认 profile：`profile use`
+
+profile 不明确时先问用户。除非用户提供了直连凭证，否则不要设置 `LARKSUITE_CLI_APP_ID` 或 `LARKSUITE_CLI_APP_SECRET`。
 
 ## 更新检查
 
