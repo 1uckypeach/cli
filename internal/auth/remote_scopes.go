@@ -90,23 +90,34 @@ func validateRemoteScopes(file remoteScopesFile) (map[string][]string, bool) {
 	return result, true
 }
 
-// isValidScopeFormat checks the service:resource:action shape: exactly three
-// ":"-separated segments, each non-empty and free of whitespace. The resource
-// segment may contain "." (e.g. vc:meeting.meetingevent:read). A whitespace
-// character would corrupt the space-joined OAuth scope string on the wire, so
-// a scope containing one is treated as malformed (which, under the binary
-// model, discards the whole remote file). i18n / tenant / version are not checked.
+// isValidScopeFormat does a light corruption check on a scope string. Lark
+// scopes are ":"-separated but the segment count is NOT fixed: real scopes
+// range from two segments ("im:message", "mail:event") through three
+// ("base:app:copy") to four ("board:whiteboard:node:read",
+// "drive:file:view_record:readonly"), and a "." may appear in any segment
+// ("im:message.send_as_user", "vc:meeting.meetingevent:read"). We therefore
+// only require at least two segments, each non-empty and built from the
+// characters Lark uses (lowercase letters, digits, "_", "."). This still
+// rejects empty segments and whitespace — a whitespace character would corrupt
+// the space-joined OAuth scope string on the wire — as well as other garbage;
+// under the binary model any such scope discards the whole remote file. The
+// real defence against a tampered file is the trusted HTTPS source plus the
+// IAM authorization page, not this shape check, so it is deliberately lenient
+// on segment count to avoid falsely rejecting a valid published file.
+// i18n / tenant / version are not checked.
 func isValidScopeFormat(s string) bool {
 	parts := strings.Split(s, ":")
-	if len(parts) != 3 {
+	if len(parts) < 2 {
 		return false
 	}
 	for _, p := range parts {
 		if p == "" {
 			return false
 		}
-		if strings.ContainsAny(p, " \t\n\r\f\v") {
-			return false
+		for _, c := range p {
+			if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '.') {
+				return false
+			}
 		}
 	}
 	return true
