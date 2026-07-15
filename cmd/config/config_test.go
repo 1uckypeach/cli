@@ -116,6 +116,37 @@ func TestConfigShowRun_NotConfiguredReturnsStructuredError(t *testing.T) {
 	}
 }
 
+// config show promises "saved config, not current usage" (help + skill
+// routing): the session profile (--profile / LARKSUITE_CLI_PROFILE) must not
+// change what it shows.
+func TestConfigShowRun_IgnoresSessionProfile(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	multi := &core.MultiAppConfig{
+		CurrentApp: "tenant_a",
+		Apps: []core.AppConfig{
+			{Name: "tenant_a", AppId: "cli_a", AppSecret: core.PlainSecret("s-a"), Brand: core.BrandFeishu},
+			{Name: "tenant_b", AppId: "cli_b", AppSecret: core.PlainSecret("s-b"), Brand: core.BrandFeishu},
+		},
+	}
+	if err := core.SaveMultiAppConfig(multi); err != nil {
+		t.Fatalf("SaveMultiAppConfig: %v", err)
+	}
+
+	f, stdout, _, _ := cmdutil.TestFactory(t, nil)
+	f.Invocation.Profile = "tenant_b" // session selection must not leak in
+
+	if err := configShowRun(&ConfigShowOptions{Factory: f}); err != nil {
+		t.Fatalf("configShowRun: %v", err)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, `"cli_a"`) || !strings.Contains(out, `"tenant_a"`) {
+		t.Fatalf("output = %s, want the saved default tenant_a/cli_a", out)
+	}
+	if strings.Contains(out, `"cli_b"`) {
+		t.Fatalf("output = %s, session profile tenant_b must not change saved-config view", out)
+	}
+}
+
 func TestConfigShowRun_NoActiveProfileReturnsStructuredError(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	multi := &core.MultiAppConfig{

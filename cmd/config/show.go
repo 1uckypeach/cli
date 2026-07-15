@@ -54,7 +54,10 @@ func configShowRun(opts *ConfigShowOptions) error {
 	if config == nil || len(config.Apps) == 0 {
 		return core.NotConfiguredError()
 	}
-	app := config.CurrentAppConfig(f.Invocation.Profile)
+	// Saved config only: the session profile (--profile / LARKSUITE_CLI_PROFILE)
+	// must not change what this command shows — the help and skill routing
+	// promise "saved config, not current usage" (use whoami for that).
+	app := config.CurrentAppConfig("")
 	if app == nil {
 		return errs.NewConfigError(errs.SubtypeNotConfigured, "no active profile").WithHint("run: lark-cli profile list")
 	}
