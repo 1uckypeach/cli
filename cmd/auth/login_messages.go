@@ -10,48 +10,45 @@ import (
 
 type loginMsg struct {
 	// Non-interactive prompts (login.go)
-	OpenURL            string
-	WaitingAuth        string
-	AgentTimeoutHint   func(recovery.RenderContext) string
-	AuthSuccess        string
-	LoginSuccess       string
-	AuthorizedUser     string
-	ScopeMismatch      string
-	ScopeHint          string
-	RequestedScopes    string
-	NewlyGrantedScopes string
-	NoScopes           string
-	StatusHint         string
+	OpenURL          string
+	WaitingAuth      string
+	AgentTimeoutHint func(recovery.RenderContext) string
+	AuthSuccess      string
+	LoginSuccess     string
+	ScopeMismatch    string
+	ScopeHint        string
+	GrantedScopes    string
+	NotGrantedScopes string
+	ScopeSeparator   string
+	NoScopes         string
 }
 
 var loginMsgZh = &loginMsg{
-	OpenURL:            "在浏览器中打开以下链接进行认证:\n\n",
-	WaitingAuth:        "等待用户授权...",
-	AgentTimeoutHint:   renderAgentTimeoutHintZh,
-	AuthSuccess:        "已收到授权确认，正在获取用户信息并校验授权结果...",
-	LoginSuccess:       "授权成功! 用户: %s (%s)",
-	AuthorizedUser:     "当前授权账号: %s (%s)",
-	ScopeMismatch:      "授权结果异常: 以下请求 scopes 未被授予: %s",
-	ScopeHint:          "以上结果是本次授权请求用户最终确认后的结果，请勿持续重试；Scopes 未授予的原因是多样的，如 scope 被禁用；具体原因已通过授权页提示用户。可执行 `lark-cli auth status` 查看账号当前已授予的全部 scopes；",
-	RequestedScopes:    "  本次请求 scopes: %s\n",
-	NewlyGrantedScopes: "  本次新授予 scopes: %s\n",
-	NoScopes:           "（空）",
-	StatusHint:         "可执行 `lark-cli auth status` 查看账号当前已授予的全部 scopes；",
+	OpenURL:          "在浏览器中打开以下链接进行认证:\n\n",
+	WaitingAuth:      "等待用户授权...",
+	AgentTimeoutHint: renderAgentTimeoutHintZh,
+	AuthSuccess:      "已收到授权确认，正在获取用户信息并校验授权结果...",
+	LoginSuccess:     "登录成功! 用户: %s (%s)",
+	ScopeMismatch:    "授权结果异常: 以下请求 scopes 未被授予: %s",
+	ScopeHint:        "以上结果是本次授权请求用户最终确认后的结果，请勿持续重试；Scopes 未授予的原因是多样的，如 scope 被禁用；具体原因已通过授权页提示用户。可执行 `lark-cli auth status` 查看账号当前已授予的全部 scopes；",
+	GrantedScopes:    "本次已成功授权：",
+	NotGrantedScopes: "以下是本次未授予的权限：",
+	ScopeSeparator:   "、",
+	NoScopes:         "（空）",
 }
 
 var loginMsgEn = &loginMsg{
-	OpenURL:            "Open this URL in your browser to authenticate:\n\n",
-	WaitingAuth:        "Waiting for user authorization...",
-	AgentTimeoutHint:   renderAgentTimeoutHintEn,
-	AuthSuccess:        "Authorization confirmed, fetching user info and validating granted scopes...",
-	LoginSuccess:       "Authorization successful! User: %s (%s)",
-	AuthorizedUser:     "Authorized account: %s (%s)",
-	ScopeMismatch:      "authorization result is abnormal: these requested scopes were not granted: %s",
-	ScopeHint:          "The result above is the user's final confirmation for this authorization request. Do not retry continuously. Scopes may be not granted for various reasons, such as a scope being disabled. The specific reason has already been shown to the user on the authorization page. Run `lark-cli auth status` to inspect all scopes currently granted to the account.",
-	RequestedScopes:    "  Requested scopes: %s\n",
-	NewlyGrantedScopes: "  Newly granted scopes: %s\n",
-	NoScopes:           "(none)",
-	StatusHint:         "Run `lark-cli auth status` to inspect all scopes currently granted to the account.",
+	OpenURL:          "Open this URL in your browser to authenticate:\n\n",
+	WaitingAuth:      "Waiting for user authorization...",
+	AgentTimeoutHint: renderAgentTimeoutHintEn,
+	AuthSuccess:      "Authorization confirmed, fetching user info and validating granted scopes...",
+	LoginSuccess:     "Authorization successful! User: %s (%s)",
+	ScopeMismatch:    "authorization result is abnormal: these requested scopes were not granted: %s",
+	ScopeHint:        "The result above is the user's final confirmation for this authorization request. Do not retry continuously. Scopes may be not granted for various reasons, such as a scope being disabled. The specific reason has already been shown to the user on the authorization page. Run `lark-cli auth status` to inspect all scopes currently granted to the account.",
+	GrantedScopes:    "- Successfully authorized in this request:",
+	NotGrantedScopes: "- Scopes not granted in this request:",
+	ScopeSeparator:   ", ",
+	NoScopes:         "(none)",
 }
 
 func renderAgentTimeoutHintZh(context recovery.RenderContext) string {
