@@ -39,7 +39,6 @@ func resetInit() {
 	embeddedVersion = ""
 	cachedAllScopes = nil
 	cachedScopePriorities = nil
-	cachedAutoApproveSet = nil
 	refreshOnce = sync.Once{}
 	configuredBrand = ""
 	enableRemoteMeta = true // tests exercise remote logic

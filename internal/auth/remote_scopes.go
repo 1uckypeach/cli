@@ -91,8 +91,11 @@ func validateRemoteScopes(file remoteScopesFile) (map[string][]string, bool) {
 }
 
 // isValidScopeFormat checks the service:resource:action shape: exactly three
-// ":"-separated segments, each non-empty. The resource segment may contain "."
-// (e.g. vc:meeting.meetingevent:read). i18n / tenant / version are not checked.
+// ":"-separated segments, each non-empty and free of whitespace. The resource
+// segment may contain "." (e.g. vc:meeting.meetingevent:read). A whitespace
+// character would corrupt the space-joined OAuth scope string on the wire, so
+// a scope containing one is treated as malformed (which, under the binary
+// model, discards the whole remote file). i18n / tenant / version are not checked.
 func isValidScopeFormat(s string) bool {
 	parts := strings.Split(s, ":")
 	if len(parts) != 3 {
@@ -100,6 +103,9 @@ func isValidScopeFormat(s string) bool {
 	}
 	for _, p := range parts {
 		if p == "" {
+			return false
+		}
+		if strings.ContainsAny(p, " \t\n\r\f\v") {
 			return false
 		}
 	}
