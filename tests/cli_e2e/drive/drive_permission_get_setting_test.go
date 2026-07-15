@@ -11,6 +11,7 @@ import (
 
 	clie2e "github.com/larksuite/cli/tests/cli_e2e"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestDrive_PermissionGetSettingDryRun(t *testing.T) {
