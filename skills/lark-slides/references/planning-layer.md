@@ -58,6 +58,7 @@ Exception:
   "visual_system": {
     "background_strategy": "Content pages use one light base; cover and closing may use a related dark treatment with the same accent system.",
     "motif": "A reusable left accent bar and consistent card/header treatments.",
+    "layout_system": "Deck-wide layout character: density + the layout-system style (grid, columns, whitespace, page rhythm). When a style preset is used, copy its layout line here; it sets the default text_density and the structural feel every page must follow.",
     "color_roles": {
       "primary": "Used for the dominant structural motif and about 60-70% of visual weight.",
       "secondary": "Used for grouped regions, comparison panels, or supporting categories.",
@@ -71,8 +72,7 @@ Exception:
     "title_max_lines": 2,
     "body_max_lines_per_box": 2,
     "footer_max_lines": 1,
-    "long_text_handling": "Shorten, split into multiple boxes, or move detail to speaker notes instead of shrinking into a tight box.",
-    "font_family": "Fonts labelled by role — CJK, Latin, and an optional mono/emphasis face for numbers; optional; e.g. CJK Source Han Sans, Latin Inter, number Roboto Mono"
+    "long_text_handling": "Shorten, split into multiple boxes, or move detail to speaker notes instead of shrinking into a tight box."
   },
   "verification_plan": {
     "check_background_consistency": true,
@@ -108,7 +108,7 @@ Top-level fields:
 - `presentation_goal`: what the whole deck is trying to achieve.
 - `audience`: target readers or listeners and their assumed background.
 - `theme_style`: visual tone, palette direction, and professional style.
-- `visual_system`: deck-level visual rules that must stay stable across pages, including background strategy, recurring motif, and color roles.
+- `visual_system`: deck-level visual rules that must stay stable across pages, including background strategy, recurring motif, color roles, and `layout_system` (deck density + layout-system character: grid, columns, whitespace, page rhythm — from the matched style preset when one is used).
 - `typography_constraints`: deck-level limits for line count, text box density, and how to handle long text before XML generation.
 - `verification_plan`: explicit checks to perform after creation or major edits; include background consistency, text fit, visual focus, and asset rendering when relevant. When a fixed palette is used, also set `check_color_role_discipline` (only the 6 role colors are used; `accent` is not overused as large fills).
 - `slides`: ordered page plans.
@@ -151,18 +151,6 @@ When `chart_contract.required == true`, XML generation must produce a `<chart>` 
 - `mock_required_by_intent`: the user did not provide concrete values but asked for data expression, charts, trends, comparisons, or distributions; use mock data in native `<chart>`.
 
 `data_series_required` means the generated XML must include `<chartData>`. It does not require user-provided real-world values. When real values are unavailable but chart expression is part of the user's intent, write mock or placeholder values into native `<chart>` and label them clearly instead of switching to manual drawing primitives or metric blocks.
-
-## Graphic Language Pool (optional)
-
-`visual_system.graphic_language_pool` (optional string array) lists the recurring visual-element set for this deck. Every page's `visual_focus` must pick from this pool; do not introduce visual devices outside it.
-
-```json
-{
-  "visual_system": {
-    "graphic_language_pool": ["metric card", "horizontal bar chart", "thin-line table", "section tag"]
-  }
-}
-```
 
 A deck's palette and fonts may come from the user, your own design, or an external style library. Whatever the source, resolve it into the six `visual_system.color_roles`; the mapping and the accent-gap rule (derive an emphasis color when none is saturated enough) live in `visual-planning.md` → Style System.
 

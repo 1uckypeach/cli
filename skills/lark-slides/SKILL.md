@@ -81,7 +81,7 @@ lark-cli auth login --domain slides
 
 按需再读：
 
-- 配色：[`style-presets.md`](references/style-presets.md)（用户没给品牌色时按场景选一套）
+- 配色：[`style-presets.md`](references/style-presets.md)（用户没给具体颜色时，读它按文档类型选一套）
 - 创建：[`lark-slides-create.md`](references/lark-slides-create.md)
 - 编辑：[`lark-slides-edit-workflows.md`](references/lark-slides-edit-workflows.md)、[`lark-slides-replace-slide.md`](references/lark-slides-replace-slide.md)、[`lark-slides-replace-pages.md`](references/lark-slides-replace-pages.md)
 - 截图：[`lark-slides-screenshot.md`](references/lark-slides-screenshot.md)
@@ -98,7 +98,7 @@ lark-cli auth login --domain slides
 
 不要生成无设计感的幻灯片。纯白背景 + 标题 + bullets 只能作为极简临时稿，不能作为正式交付。
 
-开始写 XML 前，先在 `slide_plan.json` 里确定 deck 级视觉策略。用户没给品牌配色时，优先从 [visual-planning.md](references/visual-planning.md) 引用的 [style-presets.md](references/style-presets.md) 里按场景挑一套成品配色，不要凭空造色：
+开始写 XML 前，先在 `slide_plan.json` 里确定 deck 级视觉策略。用户没在 prompt 里给具体颜色/色板（hex、品牌色、或明确"用 XX 色"）时，读一下 [style-presets.md](references/style-presets.md) 按文档类型挑一套成品配色，而不是从主题或行业去联想（"浮力→海洋蓝""金融→海军蓝"这类主题直觉不可靠），也不要凭空造色：
 
 - **主题化配色**：配色必须服务本次主题、行业和受众，不要默认蓝色商务风。如果把同一套颜色换到另一个完全不同主题仍然成立，说明配色不够具体。
 - **主次比例**：选择 1 个主色承担约 60-70% 视觉权重，1-2 个辅助色承担结构和分区，1 个强调色只用于关键数字、结论或行动点。不要让所有颜色权重相同。

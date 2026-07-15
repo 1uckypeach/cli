@@ -6,9 +6,9 @@
 
 ## Style System
 
-- Style comes from `slide_plan.json`'s `visual_system` + `typography_constraints`. When the user gives no brand palette, copy a matching preset from [`style-presets.md`](style-presets.md) instead of inventing one; resolve any palette into the six color roles and use only those on the page.
+- Style comes from `slide_plan.json`'s `visual_system` + `typography_constraints`. When the user hasn't specified concrete colors (hex, a brand palette, or "use color X"), read [`style-presets.md`](style-presets.md) and pick a matching preset by document type rather than inventing one or deriving colors from the topic/industry (topic hunches like "buoyancy → ocean blue" or "finance → navy" are unreliable). Resolve any palette into the six color roles and use only those on the page.
 - color_roles: `primary` (dominant, ~60-70% weight — motif / header / title line), `secondary` (grouping, chart base), `accent` (key numbers / conclusions only, never confusable with `secondary`; if the palette has no saturated emphasis color, derive one from `primary`), `background` (content-page base), `text_main` (body & titles), `text_sub` (captions / footer / notes).
-- `typography_constraints.font_family` is a font stack labelled by role (CJK / Latin / number) — when generating XML, write the CJK+Latin faces into the `fontFamily` of title/body text and the number face into that of numeric / metric / big-number text; a font never written to a `fontFamily` attribute has no effect.
+- `visual_system.layout_system` sets the deck's layout character: its density (低/中/高) drives the default `text_density`, and its layout-system phrase (e.g. 咨询报告式 12 栏网格 / 数据分析型左叙事右图表 / 亲和型大字号宽留白) dictates the page structure, grid, column split, and whitespace. Realize it in each page's geometry — do not fall back to a generic title+bullets deck when the preset calls for a grid, side-by-side 分区, or spacious teaching layout.
 
 ## Core Rules
 
@@ -253,7 +253,7 @@ Before creating XML for each page, answer these checks:
 8. If the page uses a screenshot or paper figure, is it large enough to read and accompanied by concise interpretation?
 9. Does the page use only the six `visual_system.color_roles`, with no ad-hoc colors?
 10. Is `accent` used only for key numbers / conclusions, never as a large fill?
-11. Does the visual focus come from `visual_system.graphic_language_pool`, and is the motif consistent deck-wide?
+11. Is the motif consistent deck-wide?
 
 After fetching the created presentation, verify:
 
