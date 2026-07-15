@@ -513,6 +513,27 @@ func TestRequireBuiltinCredentialProvider_StaleProfileDoesNotLockOut(t *testing.
 	}
 }
 
+// An invalid policy variable (e.g. LARKSUITE_CLI_DEFAULT_AS=banana) is a user
+// input error, not an external credential takeover: auth/config commands must
+// not be refused with a misleading "provided externally" message.
+func TestRequireBuiltinCredentialProvider_InvalidPolicyBlockDoesNotReadExternal(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	stub := &stubExtProvider{name: "env", err: &extcred.BlockError{
+		Provider: "env",
+		Reason:   "invalid LARKSUITE_CLI_DEFAULT_AS \"banana\" (want user, bot, or auto)",
+		Code:     extcred.BlockReasonInvalidPolicy,
+		Param:    envvars.CliDefaultAs,
+	}}
+	cred := credential.NewCredentialProvider([]extcred.Provider{stub}, &stubDefaultAccountResolver{}, nil, nil)
+	f, _, _, _ := TestFactory(t, nil)
+	f.Credential = cred
+
+	if err := f.RequireBuiltinCredentialProvider(context.Background(), "auth"); err != nil {
+		t.Fatalf("invalid policy var must not read as external takeover: %v", err)
+	}
+}
+
 func TestRequireBuiltinCredentialProvider_NilCredential(t *testing.T) {
 	f, _, _, _ := TestFactory(t, nil)
 	f.Credential = nil

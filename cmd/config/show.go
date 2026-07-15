@@ -29,6 +29,14 @@ func NewCmdConfigShow(f *cmdutil.Factory, runF func(*ConfigShowOptions) error) *
 		Use:   "show",
 		Short: "Show saved config",
 		Long:  "Shows saved config. To see the app/profile lark-cli is using now, run `lark-cli whoami --json`.",
+		// Override parent's RequireBuiltinCredentialProvider check: this
+		// command reads the SAVED config only (its own help promises "saved
+		// config, not current usage"), so the currently effective credential
+		// source — external or otherwise — must not gate it.
+		PersistentPreRunE: func(c *cobra.Command, _ []string) error {
+			c.SilenceUsage = true
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if runF != nil {
 				return runF(opts)

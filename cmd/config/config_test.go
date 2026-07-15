@@ -124,8 +124,8 @@ func TestConfigShowRun_IgnoresSessionProfile(t *testing.T) {
 	multi := &core.MultiAppConfig{
 		CurrentApp: "tenant_a",
 		Apps: []core.AppConfig{
-			{Name: "tenant_a", AppId: "cli_a", AppSecret: core.PlainSecret("s-a"), Brand: core.BrandFeishu},
-			{Name: "tenant_b", AppId: "cli_b", AppSecret: core.PlainSecret("s-b"), Brand: core.BrandFeishu},
+			{Name: "tenant_a", AppId: "cli_a", AppSecret: core.PlainSecret("your-secret-a"), Brand: core.BrandFeishu},
+			{Name: "tenant_b", AppId: "cli_b", AppSecret: core.PlainSecret("your-secret-b"), Brand: core.BrandFeishu},
 		},
 	}
 	if err := core.SaveMultiAppConfig(multi); err != nil {
@@ -144,6 +144,46 @@ func TestConfigShowRun_IgnoresSessionProfile(t *testing.T) {
 	}
 	if strings.Contains(out, `"cli_b"`) {
 		t.Fatalf("output = %s, session profile tenant_b must not change saved-config view", out)
+	}
+}
+
+// engagedEnvStub simulates a fully engaged external credential provider.
+type engagedEnvStub struct{}
+
+func (engagedEnvStub) Name() string  { return "env" }
+func (engagedEnvStub) Priority() int { return 10 }
+func (engagedEnvStub) ResolveAccount(context.Context) (*extcred.Account, error) {
+	return &extcred.Account{AppID: "cli_env", AppSecret: "your-password", Kind: extcred.AccountDirect}, nil
+}
+func (engagedEnvStub) ResolveToken(context.Context, extcred.TokenSpec) (*extcred.Token, error) {
+	return nil, nil
+}
+
+// config show inspects the SAVED config only, so the parent command's
+// external-credential gate must not apply: even with a fully engaged direct
+// env credential, `config show` still answers from the saved config.
+func TestConfigShow_BypassesExternalCredentialGate(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	multi := &core.MultiAppConfig{
+		CurrentApp: "tenant_a",
+		Apps: []core.AppConfig{{
+			Name: "tenant_a", AppId: "cli_a", AppSecret: core.PlainSecret("your-secret-a"), Brand: core.BrandFeishu,
+		}},
+	}
+	if err := core.SaveMultiAppConfig(multi); err != nil {
+		t.Fatalf("SaveMultiAppConfig: %v", err)
+	}
+
+	f, stdout, _, _ := cmdutil.TestFactory(t, nil)
+	f.Credential = credential.NewCredentialProvider([]extcred.Provider{engagedEnvStub{}}, nil, nil, nil)
+
+	cmd := NewCmdConfig(f)
+	cmd.SetArgs([]string{"show"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("config show must bypass the external-credential gate: %v", err)
+	}
+	if out := stdout.String(); !strings.Contains(out, `"cli_a"`) {
+		t.Fatalf("output = %s, want the saved config shown", out)
 	}
 }
 
@@ -522,7 +562,8 @@ func TestConfigBlockedByExternalProvider(t *testing.T) {
 	}{
 		{"init", []string{"init", "--app-id", "x", "--app-secret-stdin"}},
 		{"remove", []string{"remove"}},
-		{"show", []string{"show"}},
+		// "show" is deliberately absent: it inspects the SAVED config only
+		// and bypasses this gate (TestConfigShow_BypassesExternalCredentialGate).
 		{"default-as", []string{"default-as", "user"}},
 		{"strict-mode", []string{"strict-mode", "off"}},
 	}

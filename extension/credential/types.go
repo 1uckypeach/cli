@@ -52,9 +52,16 @@ const (
 	// ends arbitration outright. The zero value, so existing providers are
 	// unchanged.
 	AccountManaged AccountKind = iota
-	// AccountDirect marks an actively supplied raw credential (e.g. the env
+	// AccountDirect marks an actively supplied raw credential (the env
 	// provider's LARKSUITE_CLI_* variables). It participates in profile
 	// arbitration and conflict detection instead of winning outright.
+	//
+	// RESERVED: only the builtin env provider may declare AccountDirect
+	// today — the arbitration's direct-credential diagnostics are defined in
+	// terms of the process environment, and the caller rejects AccountDirect
+	// from any other provider. Third-party providers must return
+	// AccountManaged until the SPI carries provider-reported input
+	// descriptors.
 	AccountDirect
 )
 

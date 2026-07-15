@@ -21,6 +21,12 @@ import (
 	"github.com/larksuite/cli/internal/envvars"
 )
 
+// directCredentialProviderName is the Name() of the builtin env provider —
+// currently the only provider allowed to declare AccountDirect, because the
+// arbitration's direct-credential annotations describe the process
+// environment (see gatherIdentityInputs).
+const directCredentialProviderName = "env"
+
 // DefaultAccountResolver is implemented by the default account provider.
 type DefaultAccountResolver interface {
 	ResolveAccount(ctx context.Context) (*Account, error)
@@ -308,6 +314,19 @@ func (p *CredentialProvider) gatherIdentityInputs(ctx context.Context) (identity
 		pa := &providerAccount{acct: convertAccount(acct), source: extensionTokenSource{provider: prov}}
 		switch acct.Kind {
 		case extcred.AccountDirect:
+			// The arbitration's direct-credential surface — DirectCredentialEnv,
+			// the env:LARKSUITE_CLI_APP_ID selection source, conflict-hint
+			// keys — is defined in terms of the builtin process-env variables.
+			// Until the SPI carries provider-reported input descriptors, only
+			// the builtin env provider may declare AccountDirect; accepting it
+			// from anyone else would produce self-contradictory diagnostics
+			// (e.g. credentialSource "env:LARKSUITE_CLI_APP_ID" with
+			// directCredentialEnv.present=false). Fail fast instead.
+			if prov.Name() != directCredentialProviderName {
+				return in, errs.NewInternalError(errs.SubtypeUnknown,
+					"credential provider %q declared AccountDirect, which is reserved for the builtin %q provider",
+					prov.Name(), directCredentialProviderName)
+			}
 			in.direct = pa
 		case extcred.AccountManaged:
 			in.managed = pa
@@ -816,6 +835,13 @@ func (p *CredentialProvider) ActiveExtensionProviderName(ctx context.Context) (s
 		if err != nil {
 			var blockErr *extcred.BlockError
 			if errors.As(err, &blockErr) {
+				// A misconfigured policy variable is a user input error, not
+				// an external credential takeover: it must not lock (or
+				// mislabel) the builtin inspection/repair commands this
+				// probe guards — they are how the user diagnoses it.
+				if blockErr.Code == extcred.BlockReasonInvalidPolicy {
+					continue
+				}
 				name := blockErr.Provider
 				if name == "" {
 					name = prov.Name()
