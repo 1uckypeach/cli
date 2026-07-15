@@ -9,6 +9,10 @@
 - Style comes from `slide_plan.json`'s `visual_system` + `typography_constraints`. When the user hasn't specified concrete colors (hex, a brand palette, or "use color X"), read [`style-presets.md`](style-presets.md) and pick a matching preset by document type rather than inventing one or deriving colors from the topic/industry (topic hunches like "buoyancy → ocean blue" or "finance → navy" are unreliable). Resolve any palette into the six color roles and use only those on the page.
 - color_roles: `primary` (dominant, ~60-70% weight — motif / header / title line), `secondary` (grouping, chart base), `accent` (key numbers / conclusions only, never confusable with `secondary`; if the palette has no saturated emphasis color, derive one from `primary`), `background` (content-page base), `text_main` (body & titles), `text_sub` (captions / footer / notes).
 - `visual_system.layout_system` sets the deck's layout character: its density (低/中/高) drives the default `text_density`, and its layout-system phrase (e.g. 咨询报告式 12 栏网格 / 数据分析型左叙事右图表 / 亲和型大字号宽留白) dictates the page structure, grid, column split, and whitespace. Realize it in each page's geometry — do not fall back to a generic title+bullets deck when the preset calls for a grid, side-by-side 分区, or spacious teaching layout.
+- `typography_constraints.font_family` lists fonts by role — a CJK face, a Latin face, and a number-emphasis face. `fontFamily` takes exactly one font (never a comma list). Assign the font by what the text is, and write it explicitly on the text you generate (do not leave it to the default) — this applies equally on create, `+replace-slide`, and `+replace-pages`:
+  - CJK-dominant text (titles, body, captions) → set the shape's `fontFamily` to the CJK face.
+  - number-forward elements (big numbers, KPI / metric values, chart data labels, table numerics) → set that shape's `fontFamily` to the number-emphasis face.
+  - a focal number or Latin term inside a CJK sentence → wrap just that run in `<span fontFamily="…">` with the number/Latin face; leave incidental digits in the CJK face.
 
 ## Core Rules
 

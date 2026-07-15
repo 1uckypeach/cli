@@ -72,7 +72,8 @@ Exception:
     "title_max_lines": 2,
     "body_max_lines_per_box": 2,
     "footer_max_lines": 1,
-    "long_text_handling": "Shorten, split into multiple boxes, or move detail to speaker notes instead of shrinking into a tight box."
+    "long_text_handling": "Shorten, split into multiple boxes, or move detail to speaker notes instead of shrinking into a tight box.",
+    "font_family": "Fonts by role — CJK / Latin / number-emphasis. When a style preset is used, copy its font line here. See visual-planning.md → Style System for how each role is applied to `fontFamily`."
   },
   "verification_plan": {
     "check_background_consistency": true,
