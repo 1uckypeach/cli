@@ -194,7 +194,7 @@ func (c *countingTATTripper) RoundTrip(*http.Request) (*http.Response, error) {
 	c.calls++
 	return &http.Response{
 		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(strings.NewReader(`{"code":0,"access_token":"tat-token-value"}`)),
+		Body:       io.NopCloser(strings.NewReader(`{"code":0,"access_token":"your-access-token"}`)),
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 	}, nil
 }
@@ -219,11 +219,11 @@ func TestDefaultTokenProvider_TATSuccessAndCacheHit(t *testing.T) {
 
 	req := TokenSpec{Type: TokenTypeTAT, AppID: "cli_a"}
 	first, err := tp.ResolveToken(context.Background(), req)
-	if err != nil || first.Token != "tat-token-value" {
+	if err != nil || first.Token != "your-access-token" {
 		t.Fatalf("first resolve = %+v, %v; want minted token", first, err)
 	}
 	second, err := tp.ResolveToken(context.Background(), req)
-	if err != nil || second.Token != "tat-token-value" {
+	if err != nil || second.Token != "your-access-token" {
 		t.Fatalf("second resolve = %+v, %v; want cached token", second, err)
 	}
 	if tripper.calls != 1 {

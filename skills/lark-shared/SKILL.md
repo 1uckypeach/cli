@@ -1,7 +1,7 @@
 ---
 name: lark-shared
 version: 1.0.0
-description: "Use for lark-cli setup/auth tasks: auth login/status/logout, user vs bot identity, business-domain permissions (--domain, including all/docs/drive), missing scopes, revoking authorization, handling _notice JSON, or pinning/clearing a profile/tenant identity for a task or session (--profile, LARKSUITE_CLI_PROFILE)."
+description: "Use for lark-cli setup/auth tasks: auth login/status/logout, user vs bot identity, business-domain permissions (--domain, including all/docs/drive), missing scopes, revoking authorization, handling _notice JSON, or pinning/clearing a profile/tenant identity for a task or session."
 ---
 
 # lark-cli 共享规则
@@ -128,7 +128,7 @@ lark-cli auth login --device-code <device_code>
 
 ## Profile 选择
 
-Profile 选择：查当前实际生效身份 → `whoami --json`；查 OAuth 登录 / token 有效性 → `auth status --json --verify`；agent 任务 → 每条 `lark-cli` 命令都加 `--profile <profile-or-appId>`；同一 shell 的脚本 / 批处理 → 用 `LARKSUITE_CLI_PROFILE=<profile-or-appId>` 或 export/unset；清掉会话临时身份 / 恢复默认 → `unset LARKSUITE_CLI_PROFILE`（会话级、幂等；变量不存在时也向用户点明该机制，不要用 `profile use` / `profile remove`）；查已保存的配置（非当前生效）→ `config show` / `profile list`；永久改默认 → `profile use`。profile 不明确时先问用户；除非用户提供了直连凭证，否则不要设置 `LARKSUITE_CLI_APP_ID` / `LARKSUITE_CLI_APP_SECRET`。
+Profile 选择：查当前实际生效身份 → `whoami --json`；查 OAuth 登录 / token 有效性 → `auth status --json --verify`；agent 任务 → 每条 `lark-cli` 命令都加 `--profile <profile-or-appId>`；同一 shell 的脚本 / 批处理 → 用 `LARKSUITE_CLI_PROFILE=<profile-or-appId>` 或 export/unset；清除会话身份 / 恢复默认 → 即使变量未设置，也说明使用 `unset LARKSUITE_CLI_PROFILE`；不要使用 `profile use` / `profile remove`；查已保存的配置（非当前生效）→ `config show` / `profile list`；永久改默认 → `profile use`。profile 不明确时先问用户；除非用户提供了直连凭证，否则不要设置 `LARKSUITE_CLI_APP_ID` / `LARKSUITE_CLI_APP_SECRET`。
 
 ## 更新检查
 
