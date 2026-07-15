@@ -96,6 +96,55 @@ func TestSheetsFlagErrorFunc_TypoKeepsSuggestion(t *testing.T) {
 	}
 }
 
+// TestSheetsFlagErrorFunc_BatchUpdateSheetLocator pins the targeted fix: a
+// top-level --sheet-id / --sheet-name on +batch-update points the caller at
+// the per-op locator contract instead of offering a misleading fuzzy guess.
+func TestSheetsFlagErrorFunc_BatchUpdateSheetLocator(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"sheet-id", "sheet-name", "sheet_id", "sheet_name"} {
+		name := name
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			c := &cobra.Command{Use: "+batch-update"}
+			c.Flags().String("operations", "", "")
+			err := sheetsFlagErrorFunc(c, errors.New("unknown flag: --"+name))
+			var verr *errs.ValidationError
+			if !errors.As(err, &verr) {
+				t.Fatalf("expected *errs.ValidationError, got %T", err)
+			}
+			if !strings.Contains(verr.Message, "put sheet_id/sheet_name inside each operation's input") {
+				t.Errorf("message should name the per-op locator contract, got %q", verr.Message)
+			}
+			if strings.Contains(verr.Hint, "did you mean") {
+				t.Errorf("must not offer a fuzzy guess here, got hint %q", verr.Hint)
+			}
+			if len(verr.Params) != 1 || verr.Params[0].Name != "--"+name {
+				t.Errorf("Params should carry the offending flag, got %v", verr.Params)
+			}
+			if len(verr.Params[0].Suggestions) != 0 {
+				t.Errorf("no suggestions expected, got %v", verr.Params[0].Suggestions)
+			}
+		})
+	}
+}
+
+// TestSheetsFlagErrorFunc_BatchUpdateOtherUnknownStillSuggests confirms the
+// special case is scoped to the two sheet-locator flags: any other unknown
+// flag on +batch-update keeps the normal did-you-mean behaviour.
+func TestSheetsFlagErrorFunc_BatchUpdateOtherUnknownStillSuggests(t *testing.T) {
+	t.Parallel()
+	c := &cobra.Command{Use: "+batch-update"}
+	c.Flags().String("operations", "", "")
+	err := sheetsFlagErrorFunc(c, errors.New("unknown flag: --operation"))
+	var verr *errs.ValidationError
+	if !errors.As(err, &verr) {
+		t.Fatalf("expected *errs.ValidationError, got %T", err)
+	}
+	if strings.Contains(verr.Message, "no top-level sheet locator") {
+		t.Errorf("non-locator unknown flag must not hit the special case, got %q", verr.Message)
+	}
+}
+
 func TestSheetsFlagErrorFunc_OtherErrorStaysGeneric(t *testing.T) {
 	t.Parallel()
 	c := &cobra.Command{Use: "demo"}

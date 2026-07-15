@@ -50,6 +50,19 @@ func withFlagErgonomics(prev func(cmd *cobra.Command)) func(cmd *cobra.Command) 
 // immediately.
 func sheetsFlagErrorFunc(c *cobra.Command, ferr error) error {
 	name, isUnknown := unknownFlagFromParseError(ferr)
+	// Targeted fix for a high-frequency agent mistake: +batch-update carries no
+	// top-level sheet locator (each sub-op names its own sheet inside its input),
+	// yet agents reach for --sheet-id / --sheet-name at the top level. An
+	// edit-distance suggestion would only mislead here, so skip it and name the
+	// real contract instead. Underscore spellings (--sheet_id) are matched too:
+	// the error message itself teaches the underscore key names, and sub-op
+	// inputs accept them, so agents mix the two styles.
+	locatorName := strings.ReplaceAll(name, "_", "-")
+	if isUnknown && c.Name() == "+batch-update" && (locatorName == "sheet-id" || locatorName == "sheet-name") {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"batch-update has no top-level sheet locator; put sheet_id/sheet_name inside each operation's input").
+			WithParams(errs.InvalidParam{Name: "--" + name, Reason: "unknown flag"})
+	}
 	if !isUnknown {
 		return common.ValidationErrorf("%s", ferr.Error()).
 			WithHint("run `%s --help` for valid flags", c.CommandPath())
