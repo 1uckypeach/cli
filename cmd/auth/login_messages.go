@@ -19,6 +19,7 @@ type loginMsg struct {
 	ScopeHint        string
 	GrantedScopes    string
 	NotGrantedScopes string
+	AuthDetails      string
 	ScopeSeparator   string
 	NoScopes         string
 }
@@ -33,6 +34,7 @@ var loginMsgZh = &loginMsg{
 	ScopeHint:        "以上结果是本次授权请求用户最终确认后的结果，请勿持续重试；Scopes 未授予的原因是多样的，如 scope 被禁用；具体原因已通过授权页提示用户。可执行 `lark-cli auth status` 查看账号当前已授予的全部 scopes；",
 	GrantedScopes:    "本次已成功授权：",
 	NotGrantedScopes: "以下是本次未授予的权限：",
+	AuthDetails:      "本次授权结果详情：",
 	ScopeSeparator:   "、",
 	NoScopes:         "（空）",
 }
@@ -47,6 +49,7 @@ var loginMsgEn = &loginMsg{
 	ScopeHint:        "The result above is the user's final confirmation for this authorization request. Do not retry continuously. Scopes may be not granted for various reasons, such as a scope being disabled. The specific reason has already been shown to the user on the authorization page. Run `lark-cli auth status` to inspect all scopes currently granted to the account.",
 	GrantedScopes:    "- Successfully authorized in this request:",
 	NotGrantedScopes: "- Scopes not granted in this request:",
+	AuthDetails:      "- Authorization details:",
 	ScopeSeparator:   ", ",
 	NoScopes:         "(none)",
 }

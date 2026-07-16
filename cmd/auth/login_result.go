@@ -156,7 +156,11 @@ func writeLoginScopeBreakdown(errOut *cmdutil.IOStreams, msg *loginMsg, summary 
 	fmt.Fprintf(errOut.ErrOut, "  %s\n", formatScopeList(grantedRequestedScopes(summary), msg.NoScopes, msg.ScopeSeparator))
 	if summary.StatusMessage != "" {
 		fmt.Fprintln(errOut.ErrOut)
-		fmt.Fprintln(errOut.ErrOut, msg.NotGrantedScopes)
+		heading := msg.NotGrantedScopes
+		if len(summary.Missing) == 0 {
+			heading = msg.AuthDetails
+		}
+		fmt.Fprintln(errOut.ErrOut, heading)
 		writeLoginStatusMessage(errOut, summary.StatusMessage)
 		return
 	}
@@ -254,9 +258,13 @@ func authorizationCompletePayload(openId, userName string, summary *loginScopeSu
 		"granted":         emptyIfNil(summary.Granted),
 	}
 	if issue != nil {
+		hint := summary.StatusMessage
+		if hint == "" {
+			hint = issue.Message
+		}
 		payload["warning"] = map[string]interface{}{
 			"type": "missing_scope",
-			"hint": summary.StatusMessage,
+			"hint": hint,
 		}
 	}
 	return payload
