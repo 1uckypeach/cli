@@ -6,15 +6,14 @@
 
 ## Required Flow
 
-1. 记录创建或编辑返回的 `xml_presentation_id`，以及已知的 `slide_id` / `revision_id`。
-2. 用 `slides +xml-get` 回读全文 XML 到本地文件。
-3. 检查实际页数是否符合计划或用户要求。
-4. 检查每页 `<data>` 内是否有预期主要元素。
-5. 检查没有明显空白页、破损页、缺失标题或缺失主视觉。
-6. 检查页面不是全部退化为标题加 bullet list。
-7. 检查视觉层级：标题、主视觉、支撑信息三者可区分。
-8. 检查明显溢出和布局风险：重叠、越界、底部拥挤、长文本框。
-9. 在最终回复中给出简短验证记录。
+1. 记录创建或编辑返回的 `xml_presentation_id`，以及已知的 `slide_id` / `revision_id`。`slide_id` 是 review 状态唯一关联键；页码仅可作为展示信息。
+2. 用 `slides +xml-get` 回读全文 XML 到本地文件，并以当前结果建立本次 review 的 `slide_ids` 页清单。首次新建且页集合未变时，可复用创建响应；增删页、整页替换或重排后必须刷新清单。
+3. 运行 XML 静态检查，检查实际页数、主要元素、空白/破损页、主视觉和布局风险。
+4. 先在 `.lark-slides/review/<deck-or-task-id>/visual-review.md` 为全部 `slide_ids` 建立记录，初始状态均为 `not_reviewed`；静态检查通过后再用 `slides +screenshot` 截图。每批最多 10 页，输出到 `.lark-slides/review/<deck-or-task-id>/screenshots/`。
+5. 实际打开每张截图，按下方 rubric 逐页标记 `pass` 或 `fix`；截图文件存在但未被查看时，状态必须保留为 `not_reviewed`。**关键页抽查只可作为排障/预览，不能缩小本次 review 页清单，也不能支持“全部通过”的结论。**
+6. `fix` 页用 `+replace-slide` 或对应写入操作修复后，重新回读并重新截图该页；不要沿用修复前的截图结论。
+7. 截图白名单或服务端限制导致无法获取图片时，记录错误和受影响页，完成其余 XML 静态检查，并将视觉状态标记为 `not_verified`。
+8. 在最终回复中给出简短验证记录，明确区分静态检查和真实视觉 review。
 
 回读命令：
 
@@ -27,7 +26,7 @@ lark-cli slides +xml-get --as user \
 
 ## Automated XML Text Overlap Lint
 
-`slides +xml-get` 保存 XML 到本地文件后，优先运行 XML 语法和文本重叠静态检查：
+`slides +xml-get` 保存 XML 到本地文件后，必须运行 XML 语法和文本重叠静态检查；输入可以是单个 `<slide>` 或完整 `<presentation>`。
 
 ```bash
 python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentation.xml>
@@ -119,10 +118,41 @@ python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentatio
 
 - 正文或标签框高度不足，文本很可能被截断。
 - 多个主体元素在同一区域重叠，而不是有意叠加背景。
+- 标题、标签、关键数字或相邻文本虽未几何重叠，但视觉间距过近，显得粘连、像重叠或破坏层级。
 - 重要内容越过画布边界，或贴近底部超过 `y=500`。
 - 高密度页使用单个长 bullet list，没有分栏、表格或分组。
 - 标题、主视觉、正文的字号和颜色差异太弱，视觉层级不清。
 - 所有内容页都是同一套标题加 bullets 坐标。
+
+## Screenshot Visual Review
+
+截图 review 是静态 XML 检查之后的第二道门。它用服务端真实渲染结果发现 XML 无法可靠判断的问题，例如文字截断、图片裁切、图表压盖和弱对比。
+
+每页按以下检查项记录结论；页面含图表时，额外检查图表精确可读性：
+
+| 项目 | Pass 标准 | Fix 信号 |
+|---|---|---|
+| 可读性 | 标题、正文、标签和关键数字可读；对比度足够，文本层级之间有清楚的视觉间距 | 文字截断、字号过小、低对比、关键标签不可读，或相邻文字间距过近而视觉粘连 |
+| 布局 | 主体未被意外遮挡，页边距和底部留白合理 | 重叠、越界、图片裁切、元素贴边、底部拥挤，或文字虽未相交但视觉上像碰撞 |
+| 视觉层级 | 主结论、主视觉、支撑信息一眼可区分 | 所有元素同权重、主视觉过小、页面退化为文字堆叠 |
+| 内容完整性 | 无空白、破图、占位符或错误页序；图示表达与页面角色匹配 | 空白/破损页、缺失图片、遗留模板文案或与计划不符 |
+| 图表精确可读性（有图表时） | 若页面结论依赖精确比较、排序或阈值判断，读者可直接获得每个关键数据点的值：柱/线/饼图有直接数据标签，或有与图表一一对应的等价数据表/注释 | 只能靠坐标轴估读关键数值、缺少决定结论的数据标签、图例与系列无法对应；仅用于展示趋势且不承载精确结论的图表可不强制逐点标签 |
+
+图表检查先问“页面是否要求读者作精确判断”：
+
+- **需要**：比较群体得分、排名、是否达到阈值、预算/目标差异、需要从图中选方案。没有直接数值或等价数据表即为 `fix`。
+- **不需要**：只表达上升/下降趋势、定性分布或结构关系，且标题/正文已经明确结论；可不逐点展示数值，但仍须检查轴、图例、系列和关键标注是否可读。
+
+推荐把记录保存在 `.lark-slides/review/<deck-or-task-id>/visual-review.md`：
+
+```text
+| slide_id | screenshot | status | findings | action |
+|---|---|---|---|---|
+| p001 | screenshots/p001.png | pass | hierarchy and contrast clear | - |
+| p002 | screenshots/p002.png | fix | bottom labels are clipped | enlarge text box, then rescreenshot |
+```
+
+只有记录中的每个目标 `slide_id` 都是 `pass`，且记录数等于当前页清单数，才可写“已完成视觉 review”。截图不可用时沿用上文的 `not_verified` 状态，并说明原因。
 
 ## Verification Record
 
@@ -133,7 +163,8 @@ python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentatio
 - 回读：已执行 slides +xml-get，实际页数 N / 预期 N。
 - 关键页：架构解释 / Self-Attention / 对比或演进 / 总结页均存在。
 - 结构：检查了主要 shape/img/table/chart 元素，无明显空白页或破损页。
-- 布局：检查了标题层级、主视觉、重叠/越界/文本溢出风险。
+- 静态检查：xml_text_overlap_lint error_count=0；已检查标题层级、主视觉、重叠/越界/文本溢出风险。
+- 视觉 review：已查看 N/N 张服务端截图，全部 pass；或 `not_verified`（截图不可用，原因：...）。
 ```
 
 不要声称完成了人工视觉验收，除非确实打开或获取了可视化结果。仅从 XML 静态检查得出的结论，应表述为“静态检查未发现明显问题”。
