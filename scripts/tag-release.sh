@@ -2,50 +2,86 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Read version from package.json
-VERSION=$(node -p "require('${REPO_ROOT}/package.json').version")
-
-if [ -z "$VERSION" ]; then
-  echo "Error: could not read version from package.json" >&2
-  exit 1
-fi
-
+PREFLIGHT_OUTPUT=$(node "${SCRIPT_DIR}/release-preflight.js")
+VERSION=$(node -e 'const result = JSON.parse(process.argv[1]); process.stdout.write(result.data.packageVersion)' "${PREFLIGHT_OUTPUT}")
 TAG="v${VERSION}"
+
+node "${SCRIPT_DIR}/release-preflight.js" --tag "${TAG}"
 
 echo "Version: ${VERSION}"
 echo "Tag: ${TAG}"
 
-# Check if tag already exists locally
-if git rev-parse "$TAG" >/dev/null 2>&1; then
-  echo "Tag ${TAG} already exists locally, skipping."
-  exit 0
-fi
-
-# Check if tag already exists on remote
-if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
-  echo "Tag ${TAG} already exists on remote, skipping."
-  exit 0
-fi
-
-# Ensure package.json changes are committed before tagging
-if git diff --name-only | grep -q 'package.json' || git diff --cached --name-only | grep -q 'package.json'; then
-  echo "Error: package.json has uncommitted changes. Please commit before tagging." >&2
+CURRENT_BRANCH=$(git branch --show-current)
+if [ "${CURRENT_BRANCH}" != "main" ]; then
+  echo "Error: releases must be tagged from main; current branch is '${CURRENT_BRANCH}'." >&2
   exit 1
 fi
 
-# Ensure current branch is pushed to remote before tagging
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-LOCAL_SHA=$(git rev-parse HEAD)
-REMOTE_SHA=$(git rev-parse "origin/${CURRENT_BRANCH}" 2>/dev/null || echo "")
-if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
-  echo "Error: local branch '${CURRENT_BRANCH}' is not in sync with remote. Please push your commits first." >&2
+if ! git diff --quiet -- package.json package-lock.json; then
+  echo "Error: package.json or package-lock.json has unstaged changes. Please commit them before tagging." >&2
   exit 1
 fi
 
-# Create and push tag
-git tag "$TAG"
-git push origin "$TAG"
+if ! git diff --cached --quiet -- package.json package-lock.json; then
+  echo "Error: package.json or package-lock.json has staged changes. Please commit them before tagging." >&2
+  exit 1
+fi
 
-echo "Successfully created and pushed tag ${TAG}"
+git fetch origin main
+
+HEAD_SHA=$(git rev-parse HEAD)
+FETCHED_MAIN_SHA=$(git rev-parse "FETCH_HEAD^{commit}")
+if [ "${HEAD_SHA}" != "${FETCHED_MAIN_SHA}" ]; then
+  echo "Error: HEAD must exactly match origin/main before tagging." >&2
+  exit 1
+fi
+
+LOCAL_TAG_EXISTS=0
+if LOCAL_TAG_SHA=$(git rev-parse -q --verify "refs/tags/${TAG}^{commit}" 2>/dev/null); then
+  LOCAL_TAG_EXISTS=1
+  if [ "${LOCAL_TAG_SHA}" != "${HEAD_SHA}" ]; then
+    echo "Error: local tag ${TAG} does not point to HEAD." >&2
+    exit 1
+  fi
+else
+  STATUS=$?
+  if [ "${STATUS}" -ne 1 ]; then
+    echo "Error: could not resolve local tag ${TAG}." >&2
+    exit "${STATUS}"
+  fi
+fi
+
+if REMOTE_TAG_OUTPUT=$(git ls-remote --tags origin "refs/tags/${TAG}" "refs/tags/${TAG}^{}"); then
+  :
+else
+  STATUS=$?
+  echo "Error: could not query tag ${TAG} on origin." >&2
+  exit "${STATUS}"
+fi
+
+REMOTE_TAG_SHA=$(printf '%s\n' "${REMOTE_TAG_OUTPUT}" | awk '
+  $2 ~ /\^\{\}$/ { peeled = $1; next }
+  { direct = $1 }
+  END {
+    if (peeled != "") print peeled
+    else if (direct != "") print direct
+  }
+')
+
+if [ -n "${REMOTE_TAG_SHA}" ]; then
+  if [ "${REMOTE_TAG_SHA}" != "${HEAD_SHA}" ]; then
+    echo "Error: remote tag ${TAG} does not point to HEAD." >&2
+    exit 1
+  fi
+  echo "Tag ${TAG} already exists on remote and points to HEAD, skipping."
+  exit 0
+fi
+
+if [ "${LOCAL_TAG_EXISTS}" -eq 0 ]; then
+  git tag "${TAG}" "${HEAD_SHA}"
+fi
+
+git push origin "refs/tags/${TAG}"
+
+echo "Successfully pushed tag ${TAG}"

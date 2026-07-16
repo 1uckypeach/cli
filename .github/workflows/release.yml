@@ -5,14 +5,51 @@ on:
     tags:
       - 'v*'
 
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
 jobs:
-  goreleaser:
+  preflight:
     runs-on: ubuntu-22.04
     permissions:
-      contents: write
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.14.0'
+
+      - name: Validate tag and commit
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          node scripts/release-preflight.js --tag "$TAG"
+          git fetch origin main
+          HEAD_SHA="$(git rev-parse --verify 'HEAD^{commit}')"
+          MAIN_SHA="$(git rev-parse --verify 'FETCH_HEAD^{commit}')"
+          TAG_SHA="$(git rev-parse --verify "refs/tags/${TAG}^{commit}")"
+          if [[ "$TAG_SHA" != "$HEAD_SHA" ]]; then
+            echo "Tag ${TAG} does not resolve to the checked-out HEAD commit." >&2
+            exit 1
+          fi
+          if [[ "$HEAD_SHA" != "$MAIN_SHA" ]]; then
+            echo "Tag ${TAG} is not on the latest origin/main commit." >&2
+            exit 1
+          fi
+
+  goreleaser:
+    needs: preflight
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -30,31 +67,149 @@ jobs:
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
         with:
           version: '~> v2'
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          args: release --clean --skip=publish
 
-  publish-npm:
-    needs: goreleaser
+      - name: Collect release assets
+        run: |
+          set -euo pipefail
+          mkdir release-assets
+          cp dist/*.tar.gz dist/*.zip dist/checksums.txt release-assets/
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-assets-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release-assets/
+          if-no-files-found: error
+
+  verify-release-assets:
+    needs: [preflight, goreleaser]
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - name: Download build artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          name: release-assets-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release-assets
 
-      - name: Download checksums from release
+      - name: Verify release assets
+        run: node scripts/verify-release-assets.js release-assets
+
+  publish-npm:
+    needs: verify-release-assets
+    runs-on: ubuntu-22.04
+    environment: npm-production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22.14.0'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Install pinned npm
+        run: npm install --global npm@11.16.0
+
+      - name: Download verified build artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-assets-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release-assets
+
+      - name: Validate package and checksums
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          gh release download "${TAG}" --pattern checksums.txt --dir .
-          test -s checksums.txt || { echo "checksums.txt missing or empty for ${TAG}"; exit 1; }
+          node scripts/release-preflight.js --tag "$TAG"
+          node scripts/verify-release-assets.js release-assets
+          cp release-assets/checksums.txt checksums.txt
 
-      - name: Publish to npm
+      - name: Pack and publish idempotently
+        run: |
+          set -euo pipefail
+          PACK_JSON="${RUNNER_TEMP}/npm-pack.json"
+          npm pack --json > "$PACK_JSON"
+          TARBALL="$(node -e 'const p=require(process.argv[1]); if(!Array.isArray(p)||p.length!==1||typeof p[0].filename!=="'"'string"'"') process.exit(2); process.stdout.write(p[0].filename)' "$PACK_JSON")"
+          LOCAL_INTEGRITY="$(node -e 'const p=require(process.argv[1]); if(!Array.isArray(p)||p.length!==1||typeof p[0].integrity!=="'"'string"'"') process.exit(2); process.stdout.write(p[0].integrity)' "$PACK_JSON")"
+          test -f "$TARBALL" || { echo "npm pack did not create ${TARBALL}." >&2; exit 1; }
+
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          VERSION="$(node -p "require('./package.json').version")"
+          REMOTE_JSON="${RUNNER_TEMP}/npm-view.json"
+          REMOTE_ERROR="${RUNNER_TEMP}/npm-view-error.txt"
+          set +e
+          npm view "${PACKAGE_NAME}@${VERSION}" dist.integrity --json --registry=https://registry.npmjs.org > "$REMOTE_JSON" 2> "$REMOTE_ERROR"
+          VIEW_STATUS=$?
+          set -e
+
+          if [[ "$VIEW_STATUS" -eq 0 ]]; then
+            REMOTE_INTEGRITY="$(node -e 'const v=require(process.argv[1]); if(typeof v!=="'"'string"'"') process.exit(2); process.stdout.write(v)' "$REMOTE_JSON")"
+            if [[ "$REMOTE_INTEGRITY" != "$LOCAL_INTEGRITY" ]]; then
+              echo "npm ${PACKAGE_NAME}@${VERSION} already exists with different integrity." >&2
+              exit 1
+            fi
+            echo "npm ${PACKAGE_NAME}@${VERSION} already has matching integrity; skipping publish."
+          elif grep -q 'E404' "$REMOTE_ERROR"; then
+            npm publish "$TARBALL" --access public
+          else
+            cat "$REMOTE_ERROR" >&2
+            exit "$VIEW_STATUS"
+          fi
+
+  publish-github-release:
+    needs: publish-npm
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Download verified build artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-assets-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release-assets
+
+      - name: Publish or verify GitHub Release
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          node scripts/verify-release-assets.js release-assets
+
+          RELEASE_JSON="${RUNNER_TEMP}/release.json"
+          RELEASE_ERROR="${RUNNER_TEMP}/release-error.txt"
+          set +e
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" > "$RELEASE_JSON" 2> "$RELEASE_ERROR"
+          API_STATUS=$?
+          set -e
+
+          if [[ "$API_STATUS" -ne 0 ]]; then
+            if grep -q 'HTTP 404' "$RELEASE_ERROR"; then
+              gh release create "$TAG" release-assets/* --verify-tag --title "$TAG" --generate-notes
+              exit 0
+            fi
+            cat "$RELEASE_ERROR" >&2
+            exit "$API_STATUS"
+          fi
+
+          IS_DRAFT="$(node -e 'const r=require(process.argv[1]); if(typeof r.draft!=="'"'boolean"'"') process.exit(2); process.stdout.write(String(r.draft))' "$RELEASE_JSON")"
+          if [[ "$IS_DRAFT" == "true" ]]; then
+            echo "An existing mutable Draft Release for ${TAG} is not trusted; remove it and rerun." >&2
+            exit 1
+          fi
+
+          mkdir published-assets
+          gh release download "$TAG" --dir published-assets
+          node scripts/verify-release-assets.js published-assets
+          diff -qr release-assets published-assets
