@@ -615,6 +615,27 @@ func TestHandleLoginScopeIssue_JSONAlignsWithLoginSuccess(t *testing.T) {
 	}
 }
 
+func TestAuthorizationCompletePayload_EmptyStatusMessageFallsBackToIssueMessage(t *testing.T) {
+	issue := &loginScopeIssue{
+		Message: "authorization result is abnormal: these requested scopes were not granted: im:message:send",
+		Summary: &loginScopeSummary{
+			Missing: []string{"im:message:send"},
+		},
+	}
+
+	payload := authorizationCompletePayload("ou_user", "tester", issue.Summary, issue)
+	warning, ok := payload["warning"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("warning = %#v", payload["warning"])
+	}
+	if warning["hint"] != issue.Message {
+		t.Fatalf("warning.hint = %v, want %q", warning["hint"], issue.Message)
+	}
+	if _, ok := warning["message"]; ok {
+		t.Fatalf("warning.message should not be exposed: %#v", warning)
+	}
+}
+
 func TestWriteLoginSuccess_JSONEmptySlicesNotNull(t *testing.T) {
 	f, stdout, _, _ := cmdutil.TestFactory(t, nil)
 
@@ -640,7 +661,7 @@ func TestWriteLoginSuccess_JSONEmptySlicesNotNull(t *testing.T) {
 	}
 }
 
-func TestWriteLoginSuccess_TextStatusMessageUnderNotGrantedHeading(t *testing.T) {
+func TestWriteLoginSuccess_TextStatusMessageWithoutMissingScopesUsesDetailsHeading(t *testing.T) {
 	f, _, stderr, _ := cmdutil.TestFactory(t, nil)
 	statusMessage := "[用户跳过，可重试] 用户未勾选：calendar:calendar:update\n" +
 		"应用身份\n[待审核，通过后自动生效] 以下权限正在等待管理员审核：im:message"
@@ -655,7 +676,7 @@ func TestWriteLoginSuccess_TextStatusMessageUnderNotGrantedHeading(t *testing.T)
 	got := stderr.String()
 	wantBlock := "本次已成功授权：\n" +
 		"  im:message:send\n\n" +
-		"以下是本次未授予的权限：\n" +
+		"本次授权结果详情：\n" +
 		"  [用户跳过，可重试] 用户未勾选：calendar:calendar:update\n" +
 		"  应用身份\n" +
 		"  [待审核，通过后自动生效] 以下权限正在等待管理员审核：im:message"
@@ -663,13 +684,34 @@ func TestWriteLoginSuccess_TextStatusMessageUnderNotGrantedHeading(t *testing.T)
 		t.Fatalf("stderr missing formatted authorization block %q, got:\n%s", wantBlock, got)
 	}
 	scopePos := strings.Index(got, "本次已成功授权：\n  im:message:send")
-	missingPos := strings.Index(got, "以下是本次未授予的权限：")
+	detailsPos := strings.Index(got, "本次授权结果详情：")
 	statusPos := strings.Index(got, "  [用户跳过，可重试]")
-	if scopePos < 0 || missingPos <= scopePos || statusPos <= missingPos {
+	if scopePos < 0 || detailsPos <= scopePos || statusPos <= detailsPos {
 		t.Fatalf("status_message placement is wrong, got:\n%s", got)
+	}
+	if strings.Contains(got, "以下是本次未授予的权限：") {
+		t.Fatalf("stderr should not label status_message as not granted when no scopes are missing, got:\n%s", got)
 	}
 	if strings.Contains(got, "可执行 `lark-cli auth status`") {
 		t.Fatalf("stderr should not contain the hidden status hint, got:\n%s", got)
+	}
+}
+
+func TestWriteLoginSuccess_TextStatusMessageWithoutMissingScopesUsesEnglishDetailsHeading(t *testing.T) {
+	f, _, stderr, _ := cmdutil.TestFactory(t, nil)
+
+	writeLoginSuccess(&LoginOptions{}, getLoginMsg("en"), f, "ou_user", "tester", &loginScopeSummary{
+		Requested:     []string{"im:message:send"},
+		Granted:       []string{"im:message:send"},
+		StatusMessage: "Authorization status details",
+	})
+
+	got := stderr.String()
+	if !strings.Contains(got, "- Authorization details:\n  Authorization status details") {
+		t.Fatalf("stderr missing neutral authorization details heading, got:\n%s", got)
+	}
+	if strings.Contains(got, "- Scopes not granted in this request:") {
+		t.Fatalf("stderr should not label status_message as not granted when no scopes are missing, got:\n%s", got)
 	}
 }
 
@@ -971,7 +1013,7 @@ func TestAuthLoginRun_DeviceCodeUsesCachedRequestedScopes(t *testing.T) {
 	got := stderr.String()
 	for _, want := range []string{
 		"OK: 登录成功! 用户: tester (ou_user)",
-		"本次已成功授权：\n  im:message:send\n\n以下是本次未授予的权限：\n  " + statusMessage,
+		"本次已成功授权：\n  im:message:send\n\n本次授权结果详情：\n  " + statusMessage,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("stderr missing %q, got:\n%s", want, got)
