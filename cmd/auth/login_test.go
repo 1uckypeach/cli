@@ -604,6 +604,9 @@ func TestHandleLoginScopeIssue_JSONAlignsWithLoginSuccess(t *testing.T) {
 	if warning["type"] != "missing_scope" {
 		t.Fatalf("warning.type = %v", warning["type"])
 	}
+	if _, ok := warning["message"]; ok {
+		t.Fatalf("warning.message should not be exposed: %#v", warning)
+	}
 	if warning["hint"] != issue.Summary.StatusMessage {
 		t.Fatalf("warning.hint = %v, want %q", warning["hint"], issue.Summary.StatusMessage)
 	}
