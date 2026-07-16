@@ -80,10 +80,17 @@ metadata:
 | 新建 PPT | 先规划 `slide_plan.json`，再按复杂度选择一步或两步创建 | `planning-layer.md`、`visual-planning.md`、`asset-planning.md`、`slides +create` |
 | 用户要求使用模板 | 将模板导入为 Slides 再编辑 | `lark-slides-pptx-template-workflows.md` |
 | 编辑单个标题、文本块、图片或局部元素 | 优先块级替换/插入，不改页序 | `slides +replace-slide`、`lark-slides-replace-slide.md` |
+<<<<<<< HEAD
 | 读取或分析已有 PPT | 解析 slides/wiki token，用 shortcut 回读全文 XML 或读取单页 XML，保存 `xml_presentation_id`、`slide_id`、`revision_id` | `slides +xml-get`、`xml_presentation.slide.get`、`lark-slides-xml-presentations-get.md` |
 | 获取幻灯片页面截图 | 用 `slide_id` 或页号指定页面，一次不超过 10 页 | `slides +screenshot`、`lark-slides-screenshot.md` |
 | 上传或使用图片 | 先上传为 `file_token`，禁止直接写 http(s) 外链 | `slides +media-upload`、`lark-slides-media-upload.md`，或 `+create --slides` 的 `@./path` 占位符 |
 | 绘制图表 | 原生图表（柱状、条形、折线、面积、饼（环）、雷达、组合图）用 `<chart>`，其他（漏斗图、金字塔图、象限图、矩阵图等）用 `<shape>` + `<line>` 模拟 | `xml-schema-quick-ref.md`、`slides_chart_demo.xml` |
+=======
+| 读取或分析已有 PPT | 解析 slides/wiki token，用 shortcut 回读全文 XML 或读取单页 XML，保存 `xml_presentation_id`、`slide_id`、`revision_id` | `slides +xml-get`、`xml_presentation.slide.get` |
+| 获取幻灯片页面截图 | 用 `slide_id` 指定页面；页号仅用于人工定位 fallback，一次不超过 10 页 | `slides +screenshot`、`lark-slides-screenshot.md` |
+| 上传或使用图片 | 先上传为 `file_token`，禁止直接写 http(s) 外链 | `slides +media-upload`，或 `+create --slides` 的 `@./path` 占位符 |
+| 绘制图表 | 原生图表用 `<chart>`，其他用 `<shape>` + `<line>`，只有复杂 Mermaid、SVG 用 `<whiteboard>` | `xml-schema-quick-ref.md`、`slides_chart_demo.xml` |
+>>>>>>> b8f87e8d (feat: add slide screenshot visual review)
 | 绘制表格 | 优先用 `rect` 和 `text` 模拟，其他用 `<table>` | `xml-schema-quick-ref.md` |
 | 使用图标 | 禁止盲猜 iconType，必须先检索 IconPark，再写 `<icon iconType="...">`，图标必须填充颜色并和背景有足够对比，禁止使用 emoji 图标 | `iconpark_tool.py search → resolve`、`iconpark.md` |
 | 创建失败、空白页、3350001、布局异常 | 先回读状态，再按排障清单修复，不假设原操作原子成功 | `troubleshooting.md`、`validation-checklist.md` |
@@ -100,7 +107,7 @@ metadata:
 
 **CRITICAL — 将完整 `<slide>` XML 提交给 `slides +create --slides`、`xml_presentation.slide create` 或 `slides +replace-pages` 之前，MUST 先把待提交 XML 保存到本地文件并运行 [`scripts/xml_text_overlap_lint.py`](scripts/xml_text_overlap_lint.py)；`summary.error_count` 必须为 0 才能调用接口。**
 
-**CRITICAL — 创建或大幅改写后，MUST 按 [validation-checklist.md](references/validation-checklist.md) 做显式验证：回读全文 XML、核对页数和关键元素、检查空白/破损页、明显溢出、布局风险；XML 语法和文本重叠静态检查优先使用 [`scripts/xml_text_overlap_lint.py`](scripts/xml_text_overlap_lint.py)。**
+**CRITICAL — 创建或大幅改写后，MUST 按 [validation-checklist.md](references/validation-checklist.md) 完成回读、静态检查和逐页截图视觉验收：回读全文 XML，核对页数、关键元素及空白/破损/溢出等布局风险；运行 [`scripts/xml_text_overlap_lint.py`](scripts/xml_text_overlap_lint.py)；再以当前 `slide_id` 清单逐页截图并记录 review 结果。**
 
 **CRITICAL — 创建前自检或失败排障时，MUST 按 [troubleshooting.md](references/troubleshooting.md) 检查 XML 转义、结构、shell 截断、图片 token、3350001 和布局风险。**
 
@@ -219,9 +226,17 @@ Step 3: 按 slide_plan.json 生成 XML → 创建
   - 创建方式按“创建方式选择”判断；图片、复杂 XML、转义和 3350001 排查按 lark-slides-create.md、media-upload.md、troubleshooting.md 执行
 
 Step 4: 审查 & 交付
+<<<<<<< HEAD
   - 创建完成后，必须用 `slides +xml-get` 读取全文 XML，并按 validation-checklist.md 做显式验证记录，包括 XML 文本重叠检查
   - 失败或部分成功按 troubleshooting.md 处理；局部问题优先用 `+replace-slide` 修正
   - 没问题 → 交付：使用 NotifyHuman 工具交付 PPT 链接
+=======
+  - 创建完成后，必须用 `slides +xml-get` 读取全文 XML，并按 validation-checklist.md 做显式验证记录
+  - 静态检查通过后，使用当前回读得到的 `slide_ids` 调用 `slides +screenshot`；首次新建且页集合未变时可复用创建响应。每批最多 10 页，保存到 `.lark-slides/review/<deck-or-task-id>/screenshots/`，然后实际查看生成的图片
+  - 对每页按「可读性、布局、视觉层级、内容完整性、图表精确可读性（有图表时）」记录 pass / fix；只有所有页 pass 才能写“已完成视觉 review”
+  - 发现问题时，局部问题优先用 `+replace-slide` 修正；修正后必须重新截图并复验该页。
+  - 没问题 → 交付：告知用户演示文稿 ID 和访问方式
+>>>>>>> b8f87e8d (feat: add slide screenshot visual review)
 ```
 
 ### jq 命令模板（编辑已有 PPT 时使用）
