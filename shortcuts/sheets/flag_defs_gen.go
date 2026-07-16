@@ -75,7 +75,7 @@ var flagDefs = map[string]commandDef{
 			{Name: "sheet-id", Kind: "public", Type: "string", Required: "xor", Desc: "Sheet reference_id (XOR with `--sheet-name`)"},
 			{Name: "sheet-name", Kind: "public", Type: "string", Required: "xor", Desc: "Sheet name (XOR with `--sheet-id`)"},
 			{Name: "range", Kind: "own", Type: "string", Required: "required", Desc: "A1 range, e.g. `A1:F10` (no sheet prefix — use `--sheet-id` / `--sheet-name` to select the sheet)"},
-			{Name: "include", Kind: "own", Type: "string_slice", Required: "optional", Desc: "Comma-separated info categories to include", Enum: []string{"value", "formula", "style", "comment", "data_validation"}},
+			{Name: "include", Kind: "own", Type: "string_slice", Required: "optional", Desc: "Comma-separated info categories to include. `truncation` additionally estimates whether each cell's content is clipped (by row height / col width / font size / wrap) and returns `isRowTruncated` / `isColTruncated` (extra compute; enable only for layout checks or before adjusting row heights / column widths)", Enum: []string{"value", "formula", "style", "comment", "data_validation", "truncation"}},
 			{Name: "max-chars", Kind: "own", Type: "int", Required: "optional", Desc: "Max output chars per call; default 500000 (safety cap). Large reads are usually better redirected to a file; only lower it (e.g. 25000) when you want results inline without triggering file offload, paging via has_more", Default: "500000"},
 			{Name: "skip-hidden", Kind: "own", Type: "bool", Required: "optional", Desc: "Skip hidden rows and columns; default `false`"},
 			{Name: "dry-run", Kind: "system", Type: "bool", Required: "optional"},
