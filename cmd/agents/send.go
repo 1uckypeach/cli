@@ -501,7 +501,7 @@ func nextForTask(ref string, task *iagents.AgentTask, spec *iagents.AgentSpec, g
 				ctxID = "<context_id>"
 			}
 			sendArgs, _ := paramArgsFor(spec, iagents.VerbSend, given)
-			if ir := task.InputRequired; ir != nil && len(ir.Questions) > 0 {
+			if ir := task.InputRequired; (spec == nil || spec.InputRequired) && ir != nil && len(ir.Questions) > 0 {
 				parts := make([]string, 0, len(ir.Questions))
 				for _, q := range ir.Questions {
 					if !safeNextID(q.QuestionID) {
@@ -523,7 +523,6 @@ func nextForTask(ref string, task *iagents.AgentTask, spec *iagents.AgentSpec, g
 						Command:  fmt.Sprintf("lark-cli agents send %s --context-id %s --task-id %s %s%s", ref, ctxID, task.TaskID, strings.Join(parts, " "), sendArgs),
 						Template: true,
 					}}
-				}
 			}
 			// No structured group (provider supplied none and normalization had
 			// nothing to synthesize from): plain free-text continuation — the

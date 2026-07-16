@@ -70,10 +70,14 @@ func truncateRunes(s string, max int) string {
 	return string(r[:max]) + "…"
 }
 
-// firstTextOf returns the first text Part carried by the task's messages
-// (typically the caller's request), or "".
+// firstTextOf returns the first user-authored text Part carried by the task's
+// messages, or "". Some providers return output-only snapshots; treating their
+// first agent reply as the request would print the same content twice.
 func firstTextOf(task *iagents.AgentTask) string {
 	for _, m := range task.Messages {
+		if m.Role != "user" {
+			continue
+		}
 		for _, p := range m.Parts {
 			if p.Type == "text" && p.Text != "" {
 				return p.Text
@@ -91,7 +95,8 @@ func lastAgentTextOf(task *iagents.AgentTask) string {
 		if task.Messages[i].Role != "agent" {
 			continue
 		}
-		for _, p := range task.Messages[i].Parts {
+		for j := len(task.Messages[i].Parts) - 1; j >= 0; j-- {
+			p := task.Messages[i].Parts[j]
 			if p.Type == "text" && p.Text != "" {
 				return p.Text
 			}
@@ -121,7 +126,24 @@ func printTaskPretty(w io.Writer, task *iagents.AgentTask) {
 	if reply := lastAgentTextOf(task); reply != "" {
 		fmt.Fprintf(w, "reply: %s\n", truncateRunes(kvValue(reply), 120))
 	}
+	if count, kinds := dataPartsOf(task); count > 0 {
+		fmt.Fprintf(w, "data_parts: %d", count)
+		if len(kinds) > 0 {
+			fmt.Fprintf(w, " (%s)", kvValue(strings.Join(kinds, ", ")))
+		}
+		fmt.Fprintln(w)
+	}
 	fmt.Fprintf(w, "artifacts: %d\n", len(task.Artifacts))
+	for _, artifact := range task.Artifacts {
+		fmt.Fprintf(w, "  artifact %s: %s", kvValue(artifact.ID), kvValue(artifact.Kind))
+		if artifact.Name != "" {
+			fmt.Fprintf(w, " %s", kvValue(artifact.Name))
+		}
+		if artifact.Status != "" {
+			fmt.Fprintf(w, " [%s]", kvValue(artifact.Status))
+		}
+		fmt.Fprintln(w)
+	}
 	// input_required question group: group headline, then numbered questions
 	// with their answer form and options. Every field is agent-controlled, so
 	// all go through kvValue.
@@ -170,6 +192,34 @@ func printOptionsPretty(w io.Writer, indent string, opts []iagents.Option) {
 		}
 		fmt.Fprintf(w, "%s%s\n", indent, row)
 	}
+}
+
+func dataPartsOf(task *iagents.AgentTask) (int, []string) {
+	count := 0
+	kinds := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, message := range task.Messages {
+		for _, part := range message.Parts {
+			if part.Type != "data" {
+				continue
+			}
+			count++
+			data, ok := part.Data.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			kind, _ := data["kind"].(string)
+			if kind == "" {
+				continue
+			}
+			if _, ok := seen[kind]; ok {
+				continue
+			}
+			seen[kind] = struct{}{}
+			kinds = append(kinds, kind)
+		}
+	}
+	return count, kinds
 }
 
 // TSV renderers below intentionally do not escape tab/newline in cell values:

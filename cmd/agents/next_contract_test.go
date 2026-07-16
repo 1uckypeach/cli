@@ -244,6 +244,20 @@ func TestNextForTaskQuestionGroup(t *testing.T) {
 	}
 }
 
+func TestNextForTaskDoesNotSuggestStructuredAnswerWhenCapabilityIsDisabled(t *testing.T) {
+	next := nextForTask("base:assistant", &iagents.AgentTask{
+		TaskID: "task_1", ContextID: "ctx_1", State: iagents.StateInputRequired,
+		InputRequired: &iagents.InputRequired{
+			DecisionID: "q_scene",
+			Prompt:     "请选择场景",
+			Options:    []iagents.Option{{OptionID: "opt_create", Label: "新建"}},
+		},
+	}, &iagents.AgentSpec{InputRequired: false}, nil, iagents.VerbTaskGet)
+	if len(next) != 1 || !strings.Contains(next[0].Command, "--text <你的答复>") || strings.Contains(next[0].Command, "--decision-id") {
+		t.Fatalf("disabled structured input must fall back to text continuation, got %+v", next)
+	}
+}
+
 // TestNextForTaskTemplateFlag pins the template marker semantics: the
 // input_required continue hint carries a <你的答复> placeholder, so it must be
 // marked template=true (not directly executable); poll and terminal-detail

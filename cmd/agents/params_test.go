@@ -7,9 +7,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
+	baseprovider "github.com/larksuite/cli/agents/base"
 	"github.com/larksuite/cli/errs"
 	iagents "github.com/larksuite/cli/internal/agents"
 )
@@ -84,6 +86,28 @@ func TestValidateParams_CollectAll(t *testing.T) {
 	}
 	if !strings.Contains(verr.Hint, "--operation send") {
 		t.Errorf("hint should point at card --operation send, got %q", verr.Hint)
+	}
+}
+
+func TestBaseTaskGetAcceptsContextID(t *testing.T) {
+	provider := baseprovider.Provider()
+	if len(provider.Catalog) != 1 {
+		t.Fatalf("base catalog=%d", len(provider.Catalog))
+	}
+	spec := &provider.Catalog[0]
+	got, err := validateParams(
+		[]string{"base_token=b1", "context_id=7663083417936891420"},
+		spec.GetTask.Params,
+		iagents.VerbTaskGet,
+		spec,
+		"base:assistant",
+	)
+	if err != nil {
+		t.Fatalf("task_get context_id should pass provider parameter validation: %v", err)
+	}
+	want := map[string]string{"base_token": "b1", "context_id": "7663083417936891420"}
+	if !reflect.DeepEqual(got.Resolved, want) {
+		t.Fatalf("resolved=%v want %v", got.Resolved, want)
 	}
 }
 

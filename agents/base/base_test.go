@@ -60,13 +60,12 @@ func (f *fakeRuntime) CallAPI(_ context.Context, method, path string, query map[
 	return raw, nil
 }
 
-func payloadResponse(t *testing.T, payload string) json.RawMessage {
+// dataResponse mirrors Runtime.CallAPI: the OpenAPI envelope has already been
+// checked and its data field is returned as raw JSON. Base's api.map="data"
+// response is an object/array here, not a JSON-encoded string.
+func dataResponse(t *testing.T, data string) json.RawMessage {
 	t.Helper()
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return raw
+	return json.RawMessage(data)
 }
 
 func bodyMap(t *testing.T, body any) map[string]any {
@@ -96,7 +95,8 @@ func problem(t *testing.T, err error, category errs.Category, subtype errs.Subty
 func TestProviderConformance(t *testing.T) {
 	agenttest.RunConformance(t, "base", "assistant")
 	p := Provider()
-	if !reflect.DeepEqual(p.RequiredScopes, []string{baseAgentScope}) {
+	wantScopes := []string{"base:ai:read", "base:ai:write"}
+	if !reflect.DeepEqual(p.RequiredScopes, wantScopes) {
 		t.Fatalf("RequiredScopes=%v", p.RequiredScopes)
 	}
 	if len(p.Catalog) != 1 || p.Catalog[0].ID != "assistant" {
@@ -110,15 +110,24 @@ func TestProviderConformance(t *testing.T) {
 		t.Fatalf("unsupported capability advertised: %+v", caps)
 	}
 	agenttest.CheckParamsBinding[sendParams](t, &p.Catalog[0], iagents.VerbSend)
+	agenttest.CheckParamsBinding[getTaskParams](t, &p.Catalog[0], iagents.VerbTaskGet)
 	agenttest.CheckParamsBinding[listTasksParams](t, &p.Catalog[0], iagents.VerbTaskList)
 	agenttest.CheckParamsBinding[listContextsParams](t, &p.Catalog[0], iagents.VerbContextList)
+}
+
+func TestAgentRootUsesPublicBaseV3Prefix(t *testing.T) {
+	got := agentRoot("basc/token")
+	want := "/open-apis/base/v3/bases/basc%2Ftoken/ai/agents/assistant"
+	if got != want {
+		t.Fatalf("agentRoot()=%q want %q", got, want)
+	}
 }
 
 func TestSendBuildsAdapterRequest(t *testing.T) {
 	rt := &fakeRuntime{
 		agentID:   "assistant",
 		params:    map[string]string{"base_token": "basc/token", "active_table_id": "tbl1"},
-		responses: []json.RawMessage{payloadResponse(t, `{"task_id":"task-1","context_id":"ctx-1"}`)},
+		responses: []json.RawMessage{dataResponse(t, `{"schema_version":1,"task_id":"task-1","context_id":"ctx-1","status":"pending","outputs":[]}`)},
 	}
 	task, err := assistantSpec.Send.Handler(context.Background(), rt, iagents.SendInput{Text: "build a dashboard"})
 	if err != nil {
@@ -131,7 +140,7 @@ func TestSendBuildsAdapterRequest(t *testing.T) {
 		t.Fatalf("calls=%d", len(rt.calls))
 	}
 	call := rt.calls[0]
-	if call.method != "POST" || call.path != "/bases/basc%2Ftoken/ai/agents/assistant/messages" {
+	if call.method != "POST" || call.path != "/open-apis/base/v3/bases/basc%2Ftoken/ai/agents/assistant/messages" {
 		t.Fatalf("call=%s %s", call.method, call.path)
 	}
 	body := bodyMap(t, call.body)
@@ -157,13 +166,27 @@ func TestSendBuildsAdapterRequest(t *testing.T) {
 	}
 }
 
+func TestSendRejectsJSONStringData(t *testing.T) {
+	encoded, err := json.Marshal(`{"schema_version":1,"task_id":"task-1","context_id":"ctx-1","status":"pending","outputs":[]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := &fakeRuntime{
+		agentID:   "assistant",
+		params:    map[string]string{"base_token": "b1"},
+		responses: []json.RawMessage{encoded},
+	}
+	_, err = assistantSpec.Send.Handler(context.Background(), rt, iagents.SendInput{Text: "hello"})
+	problem(t, err, errs.CategoryInternal, errs.SubtypeInvalidResponse)
+}
+
 func TestSendContinuationAndIdempotency(t *testing.T) {
 	rt := &fakeRuntime{
 		agentID: "assistant",
 		params:  map[string]string{"base_token": "b1"},
 		responses: []json.RawMessage{
-			payloadResponse(t, `{"task_id":"t1","context_id":"c1","state":"running"}`),
-			payloadResponse(t, `{"task_id":"t1","context_id":"c1","state":"running"}`),
+			dataResponse(t, `{"schema_version":1,"task_id":"t1","context_id":"c1","status":"running","outputs":[]}`),
+			dataResponse(t, `{"schema_version":1,"task_id":"t1","context_id":"c1","status":"running","outputs":[]}`),
 		},
 	}
 	in := iagents.SendInput{Text: "more", ContextID: "c1", TaskID: "t1"}
@@ -207,12 +230,37 @@ func TestSendRejectsBotIdentity(t *testing.T) {
 	}
 }
 
+func TestGetTaskForwardsContextIDAcrossPolls(t *testing.T) {
+	rt := &fakeRuntime{
+		params: map[string]string{"base_token": "b1", "context_id": "c1"},
+		responses: []json.RawMessage{
+			dataResponse(t, `{"schema_version":1,"task_id":"t1","context_id":"c1","status":"running","outputs":[]}`),
+			dataResponse(t, `{"schema_version":1,"task_id":"t1","context_id":"c1","status":"completed","outputs":[]}`),
+		},
+	}
+
+	for range 2 {
+		if _, err := assistantSpec.GetTask.Handler(context.Background(), rt, "t1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(rt.calls) != 2 {
+		t.Fatalf("calls=%d", len(rt.calls))
+	}
+	wantQuery := map[string]string{"context_id": "c1"}
+	for i, call := range rt.calls {
+		if !reflect.DeepEqual(call.query, wantQuery) {
+			t.Fatalf("calls[%d].query=%v want %v", i, call.query, wantQuery)
+		}
+	}
+}
+
 func TestTaskHooksAndMapping(t *testing.T) {
 	rt := &fakeRuntime{
-		params: map[string]string{"base_token": "b1", "cursor": "next", "limit": "20", "state": "running"},
+		params: map[string]string{"base_token": "b1", "state": "running"},
 		responses: []json.RawMessage{
-			payloadResponse(t, `{"task_id":"t/1","context_id":"c1","state":"running","created_at":1710000000,"updated_at":1710000060,"messages":[{"role":"agent","parts":[{"type":"data","text":"{\"operation_type\":\"text\",\"content\":\"ready\"}"}]}]}`),
-			payloadResponse(t, `[{"task_id":"t1","context_id":"c1","state":"done","updated_at":1710000060,"summary":"done"}]`),
+			dataResponse(t, `{"schema_version":1,"task_id":"t/1","context_id":"c1","status":"running","outputs":[{"id":"1:text:1","type":"text","text":"ready"}]}`),
+			dataResponse(t, `[{"task_id":"t1","context_id":"c1","state":"done","updated_at":1710000060,"summary":"done"}]`),
 		},
 	}
 	task, err := assistantSpec.GetTask.Handler(context.Background(), rt, "t/1")
@@ -222,12 +270,15 @@ func TestTaskHooksAndMapping(t *testing.T) {
 	if task.State != iagents.StateWorking || task.IsTerminal || task.Messages[0].Parts[0].Text != "ready" {
 		t.Fatalf("task=%+v", task)
 	}
-	if rt.calls[0].path != "/bases/b1/ai/agents/assistant/tasks/t%2F1" {
+	if rt.calls[0].path != "/open-apis/base/v3/bases/b1/ai/agents/assistant/tasks/t%2F1" {
 		t.Fatalf("path=%s", rt.calls[0].path)
 	}
-	list, err := assistantSpec.ListTasks.Handler(context.Background(), rt, "c1")
+	list, pageInfo, err := assistantSpec.ListTasks.Handler(context.Background(), rt, "c1", iagents.PageParams{Token: "next", Size: 20})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if pageInfo != (iagents.PageInfo{}) {
+		t.Fatalf("pageInfo=%+v", pageInfo)
 	}
 	if len(list) != 1 || list[0].State != iagents.StateCompleted || !list[0].IsTerminal {
 		t.Fatalf("list=%+v", list)
@@ -239,10 +290,180 @@ func TestTaskHooksAndMapping(t *testing.T) {
 }
 
 func TestUnknownStateAndInvalidPayloadAreTyped(t *testing.T) {
-	for _, payload := range []string{`{"task_id":"t1","state":"paused"}`, `{not-json`} {
-		rt := &fakeRuntime{params: map[string]string{"base_token": "b1"}, responses: []json.RawMessage{payloadResponse(t, payload)}}
+	for _, payload := range []string{`{"schema_version":1,"task_id":"t1","status":"paused","outputs":[]}`, `{not-json`} {
+		rt := &fakeRuntime{params: map[string]string{"base_token": "b1"}, responses: []json.RawMessage{dataResponse(t, payload)}}
 		_, err := assistantSpec.GetTask.Handler(context.Background(), rt, "t1")
 		problem(t, err, errs.CategoryInternal, errs.SubtypeInvalidResponse)
+	}
+}
+
+func TestVersionedTaskMapsOutputsAndClarification(t *testing.T) {
+	rt := &fakeRuntime{
+		params: map[string]string{"base_token": "b1"},
+		responses: []json.RawMessage{dataResponse(t, `{
+  "schema_version": 1,
+  "task_id": "t1",
+  "context_id": "c1",
+  "status": "waiting_for_input",
+  "outputs": [
+    {"id":"100:text:1","type":"text","source":"base_agent","group_id":"grp_1","text":"先给出结论"},
+    {"id":"101:data_qa_chart:1","type":"data","source":"base_agent","group_id":"grp_1","data":{"kind":"qa_chart","schema_version":1,"payload":{"chartId":"chart_1","baseId":9007199254740993,"vchartSpec":{"type":"bar"}}}},
+    {"id":"102:question:1","type":"clarification","source":"base_agent","group_id":"grp_1","clarification":{
+      "id":"clarify_1","title":"请补充信息","required":true,"submitted":false,
+      "questions":[{"id":"q_done","type":"text","prompt":"已回答","required":true,"answered":true,"answer":{"value":"ok"}}],
+      "forms":[{"id":"form_1","title":"高级设置","questions":[{"id":"q_scene","type":"single_select","prompt":"请选择场景","required":true,"options":[{"id":"opt_1","label":"新建","description":"创建新表"}]}],"buttons":[{"id":"btn_skip","kind":"custom","label":"跳过","action_params":"{\"action\":\"skip\"}"}]}],
+      "buttons":[{"id":"btn_submit","kind":"custom","style":"primary","label":"确认","action_params":"{\"action\":\"submit\"}"}]
+    }},
+    {"id":"103:artifact:1","type":"artifact","source":"table_agent","group_id":"grp_2","artifact":{"id":"artifact_1","type":"table","title":"销售表","status":"ready","resource":{"block_id":"block_1","view_id":"view_1"},"revision":128,"metadata":{"base_id":9007199254740993,"init_type":2}}}
+  ]
+}`)},
+	}
+
+	task, err := assistantSpec.GetTask.Handler(context.Background(), rt, "t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.State != iagents.StateInputRequired || task.IsTerminal {
+		t.Fatalf("state=%s terminal=%t", task.State, task.IsTerminal)
+	}
+	if len(task.Messages) != 1 || len(task.Messages[0].Parts) != 2 {
+		t.Fatalf("messages=%+v", task.Messages)
+	}
+	if got := task.Messages[0].Parts[0]; got.Type != "text" || got.Text != "先给出结论" ||
+		got.OutputID != "100:text:1" || got.Source != "base_agent" || got.GroupID != "grp_1" {
+		t.Fatalf("text part=%+v", got)
+	}
+	data, ok := task.Messages[0].Parts[1].Data.(map[string]interface{})
+	if !ok || data["kind"] != "qa_chart" {
+		t.Fatalf("data part=%+v", task.Messages[0].Parts[1])
+	}
+	payload, ok := data["payload"].(json.RawMessage)
+	if !ok || !strings.Contains(string(payload), `"chartId":"chart_1"`) ||
+		!strings.Contains(string(payload), `"baseId":9007199254740993`) {
+		t.Fatalf("payload=%#v", data["payload"])
+	}
+	if got := task.Messages[0].Parts[1]; got.OutputID != "101:data_qa_chart:1" || got.Source != "base_agent" || got.GroupID != "grp_1" {
+		t.Fatalf("data part metadata=%+v", got)
+	}
+	if task.InputRequired == nil || task.InputRequired.DecisionID != "q_scene" ||
+		task.InputRequired.InputType != iagents.InputTypeSingleSelect || len(task.InputRequired.Options) != 1 {
+		t.Fatalf("input_required=%+v", task.InputRequired)
+	}
+	if task.InputRequired.Prompt != "请补充信息：高级设置：请选择场景" {
+		t.Fatalf("prompt=%q", task.InputRequired.Prompt)
+	}
+	if task.InputRequired.Options[0].Description != "创建新表" || task.InputRequired.Data == nil {
+		t.Fatalf("input_required details=%+v", task.InputRequired)
+	}
+	if task.InputRequired.OutputID != "102:question:1" || task.InputRequired.Source != "base_agent" || task.InputRequired.GroupID != "grp_1" {
+		t.Fatalf("input_required metadata=%+v", task.InputRequired)
+	}
+	if len(task.Artifacts) != 1 {
+		t.Fatalf("artifacts=%+v", task.Artifacts)
+	}
+	artifact := task.Artifacts[0]
+	if artifact.ID != "artifact_1" || artifact.Kind != "table" || artifact.Name != "销售表" || artifact.Status != "ready" {
+		t.Fatalf("artifact=%+v", artifact)
+	}
+	if artifact.OutputID != "103:artifact:1" || artifact.Source != "table_agent" || artifact.GroupID != "grp_2" {
+		t.Fatalf("artifact metadata=%+v", artifact)
+	}
+	details, ok := artifact.Data.(map[string]interface{})
+	if !ok || details["revision"] != int64(128) {
+		t.Fatalf("artifact data=%#v", artifact.Data)
+	}
+	encoded, err := json.Marshal(task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, exact := range []string{`"baseId":9007199254740993`, `"base_id":9007199254740993`} {
+		if !strings.Contains(string(encoded), exact) {
+			t.Fatalf("large integer %s was not preserved: %s", exact, encoded)
+		}
+	}
+}
+
+func TestVersionedTaskUsesLatestPendingClarification(t *testing.T) {
+	task, err := mapTask(adapterTask{
+		SchemaVersion: 1,
+		TaskID:        "t1",
+		Status:        "waiting_for_input",
+		Outputs: []adapterOutput{
+			{Type: "clarification", Clarification: &adapterClarification{ID: "old", Title: "旧问题", Required: true}},
+			{Type: "text", Text: "处理中"},
+			{Type: "clarification", Clarification: &adapterClarification{ID: "new", Title: "新问题", Required: true}},
+		},
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.InputRequired == nil || task.InputRequired.DecisionID != "new" || task.InputRequired.Prompt != "新问题" {
+		t.Fatalf("input_required=%+v", task.InputRequired)
+	}
+}
+
+func TestVersionedTaskTerminalStateIgnoresHistoricalClarification(t *testing.T) {
+	for _, status := range []string{"completed", "failed", "canceled"} {
+		t.Run(status, func(t *testing.T) {
+			task, err := mapTask(adapterTask{
+				SchemaVersion: 1,
+				TaskID:        "t1",
+				Status:        status,
+				Outputs: []adapterOutput{{
+					Type:          "clarification",
+					Clarification: &adapterClarification{ID: "old", Required: true},
+				}},
+			}, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !task.IsTerminal || task.InputRequired != nil {
+				t.Fatalf("task=%+v", task)
+			}
+			if status == "canceled" && task.State != iagents.StateCanceled {
+				t.Fatalf("canceled state=%s", task.State)
+			}
+		})
+	}
+}
+
+func TestVersionedTaskProtocolInconsistenciesAreTyped(t *testing.T) {
+	tests := []adapterTask{
+		{SchemaVersion: 2, TaskID: "t1", Status: "running"},
+		{SchemaVersion: 1, TaskID: "t1", Status: "waiting_for_input"},
+		{SchemaVersion: 1, TaskID: "t1", Status: "running", Outputs: []adapterOutput{{
+			Type: "clarification", Clarification: &adapterClarification{ID: "q1", Required: true},
+		}}},
+		{SchemaVersion: 1, TaskID: "t1", Status: "running", Outputs: []adapterOutput{{ID: "x", Type: "data"}}},
+	}
+	for _, input := range tests {
+		_, err := mapTask(input, false)
+		problem(t, err, errs.CategoryInternal, errs.SubtypeInvalidResponse)
+	}
+}
+
+func TestVersionedTaskUnknownOutputIsPreservedAsData(t *testing.T) {
+	var wire adapterTask
+	if err := json.Unmarshal([]byte(`{"schema_version":1,"task_id":"t1","status":"running","outputs":[{"id":"x","type":"future_output","source":"future_agent","group_id":"grp_x","future":{"value":9007199254740993}}]}`), &wire); err != nil {
+		t.Fatal(err)
+	}
+	task, err := mapTask(wire, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(task.Messages) != 1 || len(task.Messages[0].Parts) != 1 || task.Messages[0].Parts[0].Type != "data" {
+		t.Fatalf("messages=%+v", task.Messages)
+	}
+	part := task.Messages[0].Parts[0]
+	if part.OutputID != "x" || part.Source != "future_agent" || part.GroupID != "grp_x" {
+		t.Fatalf("metadata=%+v", part)
+	}
+	encoded, err := json.Marshal(task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(encoded), `"future":{"value":9007199254740993}`) {
+		t.Fatalf("unknown output was not preserved: %s", encoded)
 	}
 }
 
@@ -264,16 +485,19 @@ func TestEmbeddedCliMessageMapping(t *testing.T) {
 
 func TestContextHooks(t *testing.T) {
 	rt := &fakeRuntime{
-		params: map[string]string{"base_token": "b1", "cursor": "next", "limit": "10", "status": "active"},
+		params: map[string]string{"base_token": "b1", "status": "active"},
 		responses: []json.RawMessage{
-			payloadResponse(t, `[{"context_id":"c1","title":"Quarterly plan","created_at":1710000000,"updated_at":1710000060}]`),
-			payloadResponse(t, `{"context_id":"c1","title":"Quarterly plan","tasks":[{"task_id":"new","state":"running","updated_at":1710000060},{"task_id":"old","state":"done","updated_at":1710000000}]}`),
-			payloadResponse(t, `{"result":true}`),
+			dataResponse(t, `[{"context_id":"c1","title":"Quarterly plan","created_at":1710000000,"updated_at":1710000060}]`),
+			dataResponse(t, `{"context_id":"c1","title":"Quarterly plan","tasks":[{"task_id":"new","state":"running","updated_at":1710000060},{"task_id":"old","state":"done","updated_at":1710000000}]}`),
+			dataResponse(t, `{"result":true}`),
 		},
 	}
-	contexts, err := assistantSpec.ListContexts.Handler(context.Background(), rt)
+	contexts, pageInfo, err := assistantSpec.ListContexts.Handler(context.Background(), rt, iagents.PageParams{Token: "next", Size: 10})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if pageInfo != (iagents.PageInfo{}) {
+		t.Fatalf("pageInfo=%+v", pageInfo)
 	}
 	if len(contexts) != 1 || contexts[0].TaskCount != 0 {
 		t.Fatalf("contexts=%+v", contexts)
@@ -300,7 +524,7 @@ func TestContextHooks(t *testing.T) {
 func TestResultFalseUsesTypedCategory(t *testing.T) {
 	rt := &fakeRuntime{
 		params:    map[string]string{"base_token": "b1"},
-		responses: []json.RawMessage{payloadResponse(t, `{"result":false,"reason":"task is terminal","error":{"category":"task_terminal"}}`)},
+		responses: []json.RawMessage{dataResponse(t, `{"result":false,"reason":"task is terminal","error":{"category":"task_terminal"}}`)},
 	}
 	err := assistantSpec.CancelTask.Handler(context.Background(), rt, "t1")
 	problem(t, err, errs.CategoryValidation, errs.SubtypeFailedPrecondition)

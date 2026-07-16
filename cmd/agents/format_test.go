@@ -76,6 +76,42 @@ func TestPrintTaskPrettyRendersQuestionGroup(t *testing.T) {
 	}
 }
 
+func TestPrintTaskPrettyRendersOutputOnlyTask(t *testing.T) {
+	out := &bytes.Buffer{}
+	printTaskPretty(out, &iagents.AgentTask{
+		TaskID: "task_1", State: iagents.StateCompleted,
+		Messages: []iagents.Message{{Role: "agent", Parts: []iagents.Part{
+			{Type: "text", Text: "执行完成"},
+			{Type: "data", Data: map[string]interface{}{"kind": "qa_chart"}},
+		}}},
+		Artifacts: []iagents.Artifact{{ID: "artifact_1", Kind: "table", Name: "销售表", Status: "ready"}},
+	})
+	text := out.String()
+	for _, want := range []string{"reply: 执行完成", "data_parts: 1 (qa_chart)", "artifact artifact_1: table 销售表 [ready]"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("pretty task should render %q, got:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "request: 执行完成") {
+		t.Errorf("output-only task must not duplicate the first agent reply as request, got:\n%s", text)
+	}
+}
+
+func TestPrintTaskPrettyUsesLastTextPartAsReply(t *testing.T) {
+	out := &bytes.Buffer{}
+	printTaskPretty(out, &iagents.AgentTask{
+		TaskID: "task_1", State: iagents.StateCompleted,
+		Messages: []iagents.Message{{Role: "agent", Parts: []iagents.Part{
+			{Type: "text", Text: "开始处理"},
+			{Type: "data", Data: map[string]interface{}{"kind": "qa_table"}},
+			{Type: "text", Text: "执行完成"},
+		}}},
+	})
+	if text := out.String(); !strings.Contains(text, "reply: 执行完成") || strings.Contains(text, "reply: 开始处理") {
+		t.Fatalf("pretty should use the last text part, got:\n%s", text)
+	}
+}
+
 // TestValidateFormat_Valid pins that json/pretty (and the zero value, which
 // only occurs when options structs are built directly in tests) pass.
 func TestValidateFormat_Valid(t *testing.T) {

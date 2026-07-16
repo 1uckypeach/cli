@@ -26,16 +26,20 @@ type Message struct {
 
 // Part is one fragment of a message: text, file, or structured data.
 type Part struct {
-	Type string `json:"type"` // "text" | "file" | "data"
-	Text string `json:"text,omitempty"`
+	Type     string `json:"type"` // "text" | "file" | "data"
+	Text     string `json:"text,omitempty"`
+	OutputID string `json:"output_id,omitempty"`
+	Source   string `json:"source,omitempty"`
+	GroupID  string `json:"group_id,omitempty"`
 	// File/Data pass-through: file uses URL/Name, data uses Data.
 	Name string      `json:"name,omitempty"`
 	URL  string      `json:"url,omitempty"`
 	Data interface{} `json:"data,omitempty"`
 }
 
-// Artifact is one artifact produced by a task (file / inline text), downloadable
-// via URL.
+// Artifact is one artifact produced by a task: a downloadable file / inline
+// text, or a structured provider business object that can be located and acted
+// on through Data.
 //
 // Its fields align with A2A's Artifact/FilePart, but only what a provider can
 // truly deliver is populated (e.g. example only provides ID + Kind — the
@@ -43,16 +47,25 @@ type Part struct {
 // stage). Mime/Description/Size are placeholders under A2A semantics; if a
 // provider does not yet supply them they are omitted via omitempty and lit up
 // only once the provider can fill them, rather than creating empty shell fields
-// that cannot be filled.
+// that cannot be filled. Status/Data extend that file-oriented core without
+// pretending every structured artifact is downloadable.
 type Artifact struct {
 	ID          string `json:"id"`
-	Kind        string `json:"kind,omitempty"` // coarse-grained kind (image/file/...), a type hint before download
-	Name        string `json:"name,omitempty"` // file name (with extension), helps choose the -o save name
-	Mime        string `json:"mime,omitempty"` // content type (image/png…), empty if the provider does not supply it
+	OutputID    string `json:"output_id,omitempty"`
+	Source      string `json:"source,omitempty"`
+	GroupID     string `json:"group_id,omitempty"`
+	Kind        string `json:"kind,omitempty"`   // coarse-grained kind (image/file/...), a type hint before download
+	Name        string `json:"name,omitempty"`   // file name (with extension), helps choose the -o save name
+	Status      string `json:"status,omitempty"` // provider-defined lifecycle state (pending/processing/ready/failed/...)
+	Mime        string `json:"mime,omitempty"`   // content type (image/png…), empty if the provider does not supply it
 	Description string `json:"description,omitempty"`
 	Size        int64  `json:"size,omitempty"` // byte count, 0 if the provider does not supply it
 	URL         string `json:"url,omitempty"`
 	Text        string `json:"text,omitempty"`
+	// Data preserves structured provider-specific artifact details (for example
+	// a Base table's resource identifiers, revision, and metadata) without
+	// forcing every provider's business-object schema into this common contract.
+	Data interface{} `json:"data,omitempty"`
 }
 
 // InputRequired is the question group a task raises while in the
