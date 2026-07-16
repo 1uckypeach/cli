@@ -56,10 +56,10 @@ Each preset is self-contained: scenario heading, tone + density, the six color r
 
 ### 7. Teaching slides
 *Use for: teaching slides, grade-level courseware*
-*Tone: gentle, approachable, low cognitive load, readable, modern-course, Density: low–medium*
-- **colors** — primary `#6B8F7A` gray-green, secondary `#3D5A80` hazy blue, accent `#4E9E7E` (derived) bright green, background `#F7F7F5` warm off-white, text_main `#1E2A3A` deep blue-gray, text_sub `#6B7280` neutral gray
-- **layout** (`layout_system`) — low–medium density · approachable-courseware layout system: large type, wide whitespace, and few hierarchy levels throughout; a steady, clear, spacious rhythm suited to introducing points step by step and reinforcing key ideas
-- **fonts** (`font_family`) — CJK 寒蝉团圆体 圆体, 霞鹜 975 圆体; Latin Nunito Sans, Quicksand; number Rubik
+*Tone: fresh, friendly, academic-approachable, youthful, global, Density: low–medium*
+- **colors** — primary `#8FE3F9` sky blue, secondary `#CDEFD9` mint green, accent `#FFE7A3` cream yellow, background `#FAF7F2` warm white, text_main `#2F2F2F` charcoal, text_sub `#6B7280` warm gray
+- **layout** (`layout_system`) — low–medium density · modular-classroom-courseware layout system: large titles, light-color knowledge cards, rounded containers, and clear numbering throughout; section / course-overview / content / comparison / flow / summary pages form a complete teaching rhythm; ample whitespace, emphasizing readability, approachability, and a classroom-guidance feel
+- **fonts** (`font_family`) — CJK 思源黑体, 寒蝉全圆体; Latin Poppins, Quicksand; number Nunito Sans
 
 ## How to apply
 
