@@ -75,6 +75,42 @@ func TestAgentTaskJSON(t *testing.T) {
 	}
 }
 
+func TestStructuredArtifactAndInputDetailsJSON(t *testing.T) {
+	at := AgentTask{
+		TaskID: "task_1",
+		State:  StateInputRequired,
+		Artifacts: []Artifact{{
+			ID: "artifact_1", OutputID: "103:artifact:1", Source: "table_agent", GroupID: "grp_2",
+			Kind: "table", Name: "销售表", Status: "ready",
+			Data: map[string]interface{}{"resource": map[string]string{"block_id": "block_1"}},
+		}},
+		InputRequired: &InputRequired{
+			DecisionID: "q_1", OutputID: "102:question:1", Source: "base_agent", GroupID: "grp_1",
+			Prompt: "请选择", InputType: InputTypeSingleSelect,
+			Options: []Option{{OptionID: "opt_1", Label: "新建", Description: "创建新表"}},
+			Data:    map[string]interface{}{"forms": []interface{}{}},
+		},
+	}
+	b, err := json.Marshal(at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]interface{}
+	if err := json.Unmarshal(b, &payload); err != nil {
+		t.Fatal(err)
+	}
+	artifacts := payload["artifacts"].([]interface{})
+	artifact := artifacts[0].(map[string]interface{})
+	if artifact["status"] != "ready" || artifact["data"] == nil || artifact["output_id"] != "103:artifact:1" || artifact["source"] != "table_agent" || artifact["group_id"] != "grp_2" {
+		t.Fatalf("artifact=%v", artifact)
+	}
+	input := payload["input_required"].(map[string]interface{})
+	options := input["options"].([]interface{})
+	if options[0].(map[string]interface{})["description"] != "创建新表" || input["data"] == nil || input["output_id"] != "102:question:1" || input["source"] != "base_agent" || input["group_id"] != "grp_1" {
+		t.Fatalf("input_required=%v", input)
+	}
+}
+
 // TestAgentTaskTimestampsJSON pins the added lifecycle timestamps: created_at /
 // updated_at are emitted when set and omitted via omitempty when empty.
 func TestAgentTaskTimestampsJSON(t *testing.T) {

@@ -13,6 +13,8 @@ import (
 	iagents "github.com/larksuite/cli/internal/agents"
 )
 
+const adapterTaskSchemaVersion = 1
+
 func taskID(in adapterTask) string {
 	if in.TaskID != "" {
 		return in.TaskID
@@ -29,12 +31,18 @@ func contextID(in adapterContext) string {
 
 func mapState(raw string, allowEmpty bool) (iagents.TaskState, error) {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "running", "pending", "working":
+	case "pending", "submitted":
+		return iagents.StateSubmitted, nil
+	case "running", "working":
 		return iagents.StateWorking, nil
+	case "waiting_for_input", "input_required":
+		return iagents.StateInputRequired, nil
 	case "done", "finish", "finished", "turn_finished", "completed":
 		return iagents.StateCompleted, nil
-	case "failed", "cancel", "canceled", "cancelled":
+	case "failed":
 		return iagents.StateFailed, nil
+	case "cancel", "canceled", "cancelled":
+		return iagents.StateCanceled, nil
 	case "":
 		if allowEmpty {
 			return iagents.StateSubmitted, nil
@@ -45,6 +53,51 @@ func mapState(raw string, allowEmpty bool) (iagents.TaskState, error) {
 }
 
 func mapTask(in adapterTask, allowEmptyState bool) (*iagents.AgentTask, error) {
+	if in.SchemaVersion != 0 {
+		return mapVersionedTask(in)
+	}
+	return mapLegacyTask(in, allowEmptyState)
+}
+
+func mapVersionedTask(in adapterTask) (*iagents.AgentTask, error) {
+	if in.SchemaVersion != adapterTaskSchemaVersion {
+		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
+			"Base Adapter returned unsupported task schema_version %d", in.SchemaVersion).
+			WithHint("update lark-cli to a version that supports this Base Agent task schema")
+	}
+	state, err := mapState(in.Status, false)
+	if err != nil {
+		return nil, err
+	}
+	messages, artifacts, err := mapOutputs(in.Outputs)
+	if err != nil {
+		return nil, err
+	}
+	pending := latestPendingClarification(in.Outputs)
+	var inputRequired *iagents.InputRequired
+	switch {
+	case state == iagents.StateInputRequired && pending == nil:
+		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
+			"Base Adapter returned waiting_for_input without an unresolved required clarification")
+	case state == iagents.StateInputRequired:
+		inputRequired = mapInputRequired(*pending.Clarification, *pending)
+	case !state.IsTerminal() && pending != nil:
+		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
+			"Base Adapter returned status %q with unresolved clarification %q", in.Status, pending.Clarification.ID).
+			WithHint("the Base Agent service should return status waiting_for_input while clarification is pending")
+	}
+	return &iagents.AgentTask{
+		TaskID:        taskID(in),
+		ContextID:     in.ContextID,
+		State:         state,
+		IsTerminal:    state.IsTerminal(),
+		Messages:      messages,
+		Artifacts:     artifacts,
+		InputRequired: inputRequired,
+	}, nil
+}
+
+func mapLegacyTask(in adapterTask, allowEmptyState bool) (*iagents.AgentTask, error) {
 	stateRaw := in.State
 	if stateRaw == "" {
 		stateRaw = in.Status
@@ -79,6 +132,236 @@ func mapTask(in adapterTask, allowEmptyState bool) (*iagents.AgentTask, error) {
 		Messages:   messages,
 		Artifacts:  artifacts,
 	}, nil
+}
+
+func mapOutputs(in []adapterOutput) ([]iagents.Message, []iagents.Artifact, error) {
+	parts := make([]iagents.Part, 0, len(in))
+	artifacts := make([]iagents.Artifact, 0)
+	for _, output := range in {
+		partMetadata := iagents.Part{OutputID: output.ID, Source: output.Source, GroupID: output.GroupID}
+		switch strings.ToLower(strings.TrimSpace(output.Type)) {
+		case "text":
+			if output.Text == "" {
+				return nil, nil, invalidOutput(output, "text output is empty")
+			}
+			partMetadata.Type = "text"
+			partMetadata.Text = output.Text
+			parts = append(parts, partMetadata)
+		case "data":
+			if output.Data == nil {
+				return nil, nil, invalidOutput(output, "data output is missing data")
+			}
+			if len(output.Data.Payload) == 0 || !json.Valid(output.Data.Payload) {
+				return nil, nil, invalidOutput(output, "data payload is invalid JSON")
+			}
+			partMetadata.Type = "data"
+			partMetadata.Data = map[string]interface{}{
+				"kind":           output.Data.Kind,
+				"schema_version": output.Data.SchemaVersion,
+				"payload":        append(json.RawMessage(nil), output.Data.Payload...),
+			}
+			parts = append(parts, partMetadata)
+		case "clarification":
+			if output.Clarification == nil {
+				return nil, nil, invalidOutput(output, "clarification output is missing clarification")
+			}
+		case "artifact":
+			if output.Artifact == nil {
+				return nil, nil, invalidOutput(output, "artifact output is missing artifact")
+			}
+			artifacts = append(artifacts, mapOutputArtifact(output))
+		default:
+			raw := output.Raw
+			if len(raw) == 0 {
+				var err error
+				raw, err = json.Marshal(output)
+				if err != nil {
+					return nil, nil, invalidOutputWithCause(output, "unknown output cannot be preserved", err)
+				}
+			}
+			partMetadata.Type = "data"
+			partMetadata.Data = append(json.RawMessage(nil), raw...)
+			parts = append(parts, partMetadata)
+		}
+	}
+	var messages []iagents.Message
+	if len(parts) > 0 {
+		messages = []iagents.Message{{Role: "agent", Parts: parts}}
+	}
+	return messages, artifacts, nil
+}
+
+func mapOutputArtifact(output adapterOutput) iagents.Artifact {
+	in := *output.Artifact
+	data := make(map[string]interface{}, 3)
+	if len(in.Resource) > 0 {
+		data["resource"] = in.Resource
+	}
+	if in.Revision != nil {
+		data["revision"] = *in.Revision
+	}
+	if len(in.Metadata) > 0 && string(in.Metadata) != "null" {
+		data["metadata"] = append(json.RawMessage(nil), in.Metadata...)
+	}
+	var details interface{}
+	if len(data) > 0 {
+		details = data
+	}
+	return iagents.Artifact{
+		ID:       in.ID,
+		OutputID: output.ID,
+		Source:   output.Source,
+		GroupID:  output.GroupID,
+		Kind:     in.Type,
+		Name:     in.Title,
+		Status:   in.Status,
+		Data:     details,
+	}
+}
+
+func latestPendingClarification(outputs []adapterOutput) *adapterOutput {
+	for i := len(outputs) - 1; i >= 0; i-- {
+		clarification := outputs[i].Clarification
+		if strings.EqualFold(outputs[i].Type, "clarification") && clarification != nil &&
+			clarification.Required && !clarification.Submitted {
+			return &outputs[i]
+		}
+	}
+	return nil
+}
+
+type clarificationDecision struct {
+	id        string
+	prompt    string
+	inputType string
+	options   []iagents.Option
+}
+
+func mapInputRequired(in adapterClarification, output adapterOutput) *iagents.InputRequired {
+	decision := findClarificationQuestion(in.Questions, in.Title, true)
+	if decision == nil {
+		for _, form := range in.Forms {
+			decision = findClarificationQuestion(form.Questions, joinPrompt(in.Title, form.Title), true)
+			if decision != nil {
+				break
+			}
+		}
+	}
+	if decision == nil && len(in.Buttons) > 0 {
+		decision = decisionFromButtons(in.ID, clarificationActionPrompt(in), in.Buttons)
+	}
+	if decision == nil {
+		for _, form := range in.Forms {
+			if len(form.Buttons) > 0 {
+				decision = decisionFromButtons(in.ID, joinPrompt(in.Title, form.Title), form.Buttons)
+				break
+			}
+		}
+	}
+	if decision == nil {
+		decision = findClarificationQuestion(in.Questions, in.Title, false)
+	}
+	if decision == nil {
+		for _, form := range in.Forms {
+			decision = findClarificationQuestion(form.Questions, joinPrompt(in.Title, form.Title), false)
+			if decision != nil {
+				break
+			}
+		}
+	}
+	if decision == nil {
+		decision = &clarificationDecision{id: in.ID, prompt: in.Title, inputType: iagents.InputTypeText}
+	}
+	if decision.prompt == "" {
+		decision.prompt = "请补充信息"
+	}
+	return &iagents.InputRequired{
+		DecisionID: decision.id,
+		OutputID:   output.ID,
+		Source:     output.Source,
+		GroupID:    output.GroupID,
+		Prompt:     decision.prompt,
+		InputType:  decision.inputType,
+		Options:    decision.options,
+		Data:       in,
+	}
+}
+
+func findClarificationQuestion(questions []adapterClarificationQuestion, prefix string, requiredOnly bool) *clarificationDecision {
+	for _, question := range questions {
+		if !question.Answered && (!requiredOnly || question.Required) {
+			return decisionFromQuestion(question, prefix)
+		}
+		if decision := findClarificationQuestion(question.SubQuestions, joinPrompt(prefix, question.Prompt), requiredOnly); decision != nil {
+			return decision
+		}
+	}
+	return nil
+}
+
+func decisionFromQuestion(in adapterClarificationQuestion, prefix string) *clarificationDecision {
+	inputType := iagents.InputTypeText
+	switch strings.ToLower(in.Type) {
+	case "single_select":
+		inputType = iagents.InputTypeSingleSelect
+	case "multi_select":
+		inputType = iagents.InputTypeMultiSelect
+	case "entity_select", "group_select":
+		if len(in.Options) > 0 {
+			inputType = iagents.InputTypeSingleSelect
+		}
+	}
+	options := make([]iagents.Option, 0, len(in.Options))
+	for _, option := range in.Options {
+		options = append(options, iagents.Option{
+			OptionID:    option.ID,
+			Label:       option.Label,
+			Description: option.Description,
+		})
+	}
+	return &clarificationDecision{
+		id:        in.ID,
+		prompt:    joinPrompt(prefix, in.Prompt),
+		inputType: inputType,
+		options:   options,
+	}
+}
+
+func decisionFromButtons(id, prompt string, buttons []adapterClarificationButton) *clarificationDecision {
+	options := make([]iagents.Option, 0, len(buttons))
+	for _, button := range buttons {
+		options = append(options, iagents.Option{OptionID: button.ID, Label: button.Label})
+	}
+	return &clarificationDecision{id: id, prompt: prompt, inputType: iagents.InputTypeSingleSelect, options: options}
+}
+
+func clarificationActionPrompt(in adapterClarification) string {
+	if in.DefaultAction != nil && in.DefaultAction.ButtonText != "" {
+		return joinPrompt(in.Title, in.DefaultAction.ButtonText)
+	}
+	return in.Title
+}
+
+func joinPrompt(parts ...string) string {
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" || (len(out) > 0 && out[len(out)-1] == part) {
+			continue
+		}
+		out = append(out, part)
+	}
+	return strings.Join(out, "：")
+}
+
+func invalidOutput(output adapterOutput, reason string) error {
+	return errs.NewInternalError(errs.SubtypeInvalidResponse,
+		"Base Adapter returned invalid output %q (%s): %s", output.ID, output.Type, reason)
+}
+
+func invalidOutputWithCause(output adapterOutput, reason string, cause error) error {
+	return errs.NewInternalError(errs.SubtypeInvalidResponse,
+		"Base Adapter returned invalid output %q (%s): %s: %v", output.ID, output.Type, reason, cause).WithCause(cause)
 }
 
 func mapTaskSummary(in adapterTask) (iagents.TaskSummary, error) {

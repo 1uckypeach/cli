@@ -12,10 +12,12 @@ import (
 	iagents "github.com/larksuite/cli/internal/agents"
 )
 
-// baseAgentScope is the dedicated Base Agent scope name reserved by the
-// provider contract. The Open Platform owner must provision this scope before
-// real-account preflight can succeed.
-const baseAgentScope = "base:agent:execute"
+// Base Agent scopes are checked as one provider-level set before every real
+// API operation. The Open Platform app and user token must grant both scopes.
+const (
+	baseAgentReadScope  = "base:ai:read"
+	baseAgentWriteScope = "base:ai:write"
+)
 
 // adapterAgentID is deliberately private: callers always use base:assistant,
 // and a future Adapter-side ID change is isolated to this mapping.
@@ -30,22 +32,30 @@ type baseTokenParams struct {
 	BaseToken string `param:"base_token"`
 }
 
+type getTaskParams struct {
+	BaseToken string `param:"base_token"`
+	ContextID string `param:"context_id"`
+}
+
 type listTasksParams struct {
 	BaseToken string `param:"base_token"`
-	Cursor    string `param:"cursor"`
-	Limit     int64  `param:"limit"`
 	State     string `param:"state"`
 }
 
 type listContextsParams struct {
 	BaseToken string `param:"base_token"`
-	Cursor    string `param:"cursor"`
-	Limit     int64  `param:"limit"`
 	Status    string `param:"status"`
 }
 
 func baseTokenParam() []iagents.CardParam {
 	return []iagents.CardParam{{Name: "base_token", Required: true, Desc: "Base app token"}}
+}
+
+func getTaskParamList() []iagents.CardParam {
+	return []iagents.CardParam{
+		{Name: "base_token", Required: true, Desc: "Base app token"},
+		{Name: "context_id", Desc: "Optional context override used to retrieve the task's message snapshot"},
+	}
 }
 
 func sendParamList() []iagents.CardParam {
@@ -58,8 +68,6 @@ func sendParamList() []iagents.CardParam {
 func listTasksParamList() []iagents.CardParam {
 	return []iagents.CardParam{
 		{Name: "base_token", Required: true, Desc: "Base app token"},
-		{Name: "cursor", Desc: "Adapter page cursor"},
-		{Name: "limit", Type: "integer", Min: iagents.Float(1), Max: iagents.Float(100), Desc: "Page size"},
 		{Name: "state", Enum: []string{"running", "done", "failed"}, Desc: "Adapter task state"},
 	}
 }
@@ -67,8 +75,6 @@ func listTasksParamList() []iagents.CardParam {
 func listContextsParamList() []iagents.CardParam {
 	return []iagents.CardParam{
 		{Name: "base_token", Required: true, Desc: "Base app token"},
-		{Name: "cursor", Desc: "Adapter page cursor"},
-		{Name: "limit", Type: "integer", Min: iagents.Float(1), Max: iagents.Float(100), Desc: "Page size"},
 		{Name: "status", Desc: "Adapter context status"},
 	}
 }
@@ -82,7 +88,7 @@ var assistantSpec = iagents.AgentSpec{
 		{ID: "base_analyze", Name: "Analyze Base data", Examples: []string{"Summarize this table and highlight anomalies"}},
 	},
 	Send:          iagents.SendOp{Params: sendParamList(), Handler: send},
-	GetTask:       iagents.TaskGetOp{Params: baseTokenParam(), Handler: getTask},
+	GetTask:       iagents.TaskGetOp{Params: getTaskParamList(), Handler: getTask},
 	ListTasks:     iagents.TaskListOp{Params: listTasksParamList(), Handler: listTasks},
 	CancelTask:    iagents.TaskCancelOp{Params: baseTokenParam(), Handler: cancelTask},
 	ListContexts:  iagents.ContextListOp{Params: listContextsParamList(), Handler: listContexts},
@@ -98,7 +104,7 @@ func Provider() iagents.Provider {
 		Scheme:         "base",
 		Label:          "Base Assistant",
 		AgentIDSource:  "Use the fixed agent reference base:assistant",
-		RequiredScopes: []string{baseAgentScope},
+		RequiredScopes: []string{baseAgentReadScope, baseAgentWriteScope},
 		Identities:     []iagents.IdentitySpec{{Type: iagents.IdentityUser}},
 		Catalog:        []iagents.AgentSpec{assistantSpec},
 	}
