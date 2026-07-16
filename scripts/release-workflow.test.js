@@ -128,11 +128,11 @@ describe("release workflow contract", () => {
     assert.equal(verify.includes("gh release"), false);
   });
 
-  it("publishes the exact packed tarball through npm trusted publishing", () => {
-    const publish = jobBlock(releaseWorkflow, "publish-npm");
+  it("publishes GitHub and npm behind one protected production job", () => {
+    const publish = jobBlock(releaseWorkflow, "publish-release");
 
     assert.match(publish, /needs: verify-release-assets/);
-    assert.deepEqual(permissionLines(publish), ["contents: read", "id-token: write"]);
+    assert.deepEqual(permissionLines(publish), ["contents: write", "id-token: write"]);
     assert.match(publish, /^    environment: npm-production$/m);
     assert.match(
       publish,
@@ -149,6 +149,10 @@ describe("release workflow contract", () => {
       "node scripts/release-preflight.js --tag \"$TAG\"",
       "node scripts/verify-release-assets.js release-assets",
       "cp release-assets/checksums.txt checksums.txt",
+      "gh release create \"$TAG\" release-assets/* --verify-tag",
+      "gh release download \"$TAG\" --dir published-assets",
+      "node scripts/verify-release-assets.js published-assets",
+      "diff -qr release-assets published-assets",
       "npm pack --json",
       "npm view \"${PACKAGE_NAME}@${VERSION}\" dist.integrity",
       "npm publish \"$TARBALL\" --access public",
@@ -159,11 +163,9 @@ describe("release workflow contract", () => {
     assert.equal(/npm publish\s+(?:--access public\s*)?$/.test(publish), false);
   });
 
-  it("creates the public GitHub Release from the same run artifact after npm succeeds", () => {
-    const publish = jobBlock(releaseWorkflow, "publish-github-release");
+  it("verifies both new and existing GitHub Releases before npm publishing", () => {
+    const publish = jobBlock(releaseWorkflow, "publish-release");
 
-    assert.match(publish, /needs: publish-npm/);
-    assert.deepEqual(permissionLines(publish), ["contents: write"]);
     assert.match(publish, /actions\/download-artifact@[0-9a-f]{40}/);
     assert.match(publish, /node scripts\/verify-release-assets\.js release-assets/);
     assert.match(publish, /gh release create \"\$TAG\" release-assets\/\* --verify-tag/);
@@ -172,25 +174,21 @@ describe("release workflow contract", () => {
     assert.match(publish, /node scripts\/verify-release-assets\.js published-assets/);
     assert.match(publish, /diff -qr release-assets published-assets/);
     assert.equal(publish.includes("gh release edit"), false);
+    assert.equal(/gh release create[^\n]*\n\s*exit 0/.test(publish), false);
   });
 
-  it("never treats a pre-existing release or draft as a publish input", () => {
+  it("keeps pre-publication jobs isolated from existing releases", () => {
     for (const jobName of [
       "preflight",
       "goreleaser",
       "verify-release-assets",
-      "publish-npm",
     ]) {
       const job = jobBlock(releaseWorkflow, jobName);
       assert.equal(job.includes("gh release download"), false, jobName);
       assert.equal(job.includes("releases/tags/"), false, jobName);
     }
 
-    const publishGitHub = jobBlock(releaseWorkflow, "publish-github-release");
-    assertInOrder(releaseWorkflow, [
-      "  publish-npm:",
-      "  publish-github-release:",
-    ]);
+    const publishGitHub = jobBlock(releaseWorkflow, "publish-release");
     assert.match(publishGitHub, /existing mutable Draft Release.*not trusted/);
     assert.match(publishGitHub, /diff -qr release-assets published-assets/);
   });
@@ -200,8 +198,7 @@ describe("release workflow contract", () => {
       "  preflight:",
       "  goreleaser:",
       "  verify-release-assets:",
-      "  publish-npm:",
-      "  publish-github-release:",
+      "  publish-release:",
     ]);
     assert.equal(
       (releaseWorkflow.match(/^    environment: npm-production$/gm) || []).length,

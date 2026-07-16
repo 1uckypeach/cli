@@ -99,12 +99,12 @@ jobs:
       - name: Verify release assets
         run: node scripts/verify-release-assets.js release-assets
 
-  publish-npm:
+  publish-release:
     needs: verify-release-assets
     runs-on: ubuntu-22.04
     environment: npm-production
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -132,6 +132,41 @@ jobs:
           node scripts/release-preflight.js --tag "$TAG"
           node scripts/verify-release-assets.js release-assets
           cp release-assets/checksums.txt checksums.txt
+
+      - name: Publish or verify GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          node scripts/verify-release-assets.js release-assets
+
+          RELEASE_JSON="${RUNNER_TEMP}/release.json"
+          RELEASE_ERROR="${RUNNER_TEMP}/release-error.txt"
+          set +e
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" > "$RELEASE_JSON" 2> "$RELEASE_ERROR"
+          API_STATUS=$?
+          set -e
+
+          if [[ "$API_STATUS" -ne 0 ]]; then
+            if grep -q 'HTTP 404' "$RELEASE_ERROR"; then
+              gh release create "$TAG" release-assets/* --verify-tag --title "$TAG" --generate-notes
+            else
+              cat "$RELEASE_ERROR" >&2
+              exit "$API_STATUS"
+            fi
+          else
+            IS_DRAFT="$(node -e 'const r=require(process.argv[1]); if(typeof r.draft!=="'"'boolean"'"') process.exit(2); process.stdout.write(String(r.draft))' "$RELEASE_JSON")"
+            if [[ "$IS_DRAFT" == "true" ]]; then
+              echo "An existing mutable Draft Release for ${TAG} is not trusted; remove it and rerun." >&2
+              exit 1
+            fi
+          fi
+
+          mkdir published-assets
+          gh release download "$TAG" --dir published-assets
+          node scripts/verify-release-assets.js published-assets
+          diff -qr release-assets published-assets
 
       - name: Pack and publish idempotently
         run: |
@@ -164,52 +199,3 @@ jobs:
             cat "$REMOTE_ERROR" >&2
             exit "$VIEW_STATUS"
           fi
-
-  publish-github-release:
-    needs: publish-npm
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Download verified build artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: release-assets-${{ github.run_id }}-${{ github.run_attempt }}
-          path: release-assets
-
-      - name: Publish or verify GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          node scripts/verify-release-assets.js release-assets
-
-          RELEASE_JSON="${RUNNER_TEMP}/release.json"
-          RELEASE_ERROR="${RUNNER_TEMP}/release-error.txt"
-          set +e
-          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" > "$RELEASE_JSON" 2> "$RELEASE_ERROR"
-          API_STATUS=$?
-          set -e
-
-          if [[ "$API_STATUS" -ne 0 ]]; then
-            if grep -q 'HTTP 404' "$RELEASE_ERROR"; then
-              gh release create "$TAG" release-assets/* --verify-tag --title "$TAG" --generate-notes
-              exit 0
-            fi
-            cat "$RELEASE_ERROR" >&2
-            exit "$API_STATUS"
-          fi
-
-          IS_DRAFT="$(node -e 'const r=require(process.argv[1]); if(typeof r.draft!=="'"'boolean"'"') process.exit(2); process.stdout.write(String(r.draft))' "$RELEASE_JSON")"
-          if [[ "$IS_DRAFT" == "true" ]]; then
-            echo "An existing mutable Draft Release for ${TAG} is not trusted; remove it and rerun." >&2
-            exit 1
-          fi
-
-          mkdir published-assets
-          gh release download "$TAG" --dir published-assets
-          node scripts/verify-release-assets.js published-assets
-          diff -qr release-assets published-assets
