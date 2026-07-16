@@ -255,9 +255,8 @@ func authorizationCompletePayload(openId, userName string, summary *loginScopeSu
 	}
 	if issue != nil {
 		payload["warning"] = map[string]interface{}{
-			"type":    "missing_scope",
-			"message": issue.Message,
-			"hint":    summary.StatusMessage,
+			"type": "missing_scope",
+			"hint": summary.StatusMessage,
 		}
 	}
 	return payload
