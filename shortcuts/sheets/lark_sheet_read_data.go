@@ -95,10 +95,12 @@ func cellsGetInput(runtime *common.RuntimeContext, token, sheetID, sheetName str
 }
 
 // applyIncludeToCellsGet maps the fine-grained --include vocabulary to the
-// tool's two coarse switches:
+// tool's switches:
 //
 //   - include_styles (bool) — toggled by "style" presence
 //   - value_render_option (enum) — "formula" → formula; otherwise omitted
+//   - include_truncation_info (bool) — toggled by "truncation" presence; makes
+//     the tool estimate and return per-cell isRowTruncated / isColTruncated
 //
 // "value", "comment", and "data_validation" are always returned by the tool
 // per the schema; they have no dedicated knob today but are accepted in
@@ -118,6 +120,9 @@ func applyIncludeToCellsGet(input map[string]interface{}, include []string) {
 	}
 	if want["formula"] {
 		input["value_render_option"] = "formula"
+	}
+	if want["truncation"] {
+		input["include_truncation_info"] = true
 	}
 }
 

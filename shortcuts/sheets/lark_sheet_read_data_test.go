@@ -35,6 +35,22 @@ func TestReadDataShortcuts_DryRun(t *testing.T) {
 			},
 		},
 		{
+			// --include truncation toggles include_truncation_info so the tool
+			// estimates and returns per-cell isRowTruncated / isColTruncated.
+			name:     "+cells-get include=truncation",
+			sc:       CellsGet,
+			args:     []string{"--url", testURL, "--sheet-id", testSheetID, "--range", "A1:B2", "--include", "truncation"},
+			toolName: "get_cell_ranges",
+			wantInput: map[string]interface{}{
+				"excel_id":                testToken,
+				"sheet_id":                testSheetID,
+				"ranges":                  []interface{}{"A1:B2"},
+				"include_styles":          false,
+				"include_truncation_info": true,
+				"cell_limit":              float64(unboundedReadLimit),
+			},
+		},
+		{
 			// Canonical form: --sheet-id + bare --range. Aligned with
 			// +cells-get / +csv-get; before the e2e BUG-019 fix this
 			// shortcut was the odd one out (range-prefix required).
