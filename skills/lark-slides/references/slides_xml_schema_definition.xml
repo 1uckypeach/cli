@@ -2092,6 +2092,19 @@
         </xs:restriction>
     </xs:simpleType>
 
+    <xs:simpleType name="ChartGradientKindType">
+        <xs:annotation>
+            <xs:documentation>
+                图表渐变类型
+                可选值: linear(线性渐变) | radial(径向渐变)
+            </xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="linear"/>
+            <xs:enumeration value="radial"/>
+        </xs:restriction>
+    </xs:simpleType>
+
     <xs:simpleType name="ChartRadarShapeType">
         <xs:annotation>
             <xs:documentation>
@@ -2294,10 +2307,10 @@
                 图表背景配置
 
                 属性:
-                - color: 背景颜色, 默认透明 rgba(0,0,0,0)
+                - color: 背景颜色，省略时使用图表默认背景；无填充可使用透明色 rgba(0,0,0,0)
             </xs:documentation>
         </xs:annotation>
-        <xs:attribute name="color" type="sml:SolidColor" use="optional" default="rgb(255, 255, 255)"/>
+        <xs:attribute name="color" type="sml:SolidColor" use="optional"/>
     </xs:complexType>
 
     <xs:complexType name="ChartBorderType">
@@ -2307,7 +2320,7 @@
 
                 属性:
                 - color: 边框颜色，默认 rgb(222, 224, 227)
-                - width: 边框宽度(像素), 默认 1
+                - width: 边框宽度(像素), 默认 1；无边框可设置为0，或不设置chartBorder
                 - style: 边框样式(solid|dashed|dotted), 默认 solid
                 - radius: 圆角半径(像素), 默认 6
             </xs:documentation>
@@ -2316,6 +2329,61 @@
         <xs:attribute name="width" type="xs:nonNegativeInteger" use="optional" default="1"/>
         <xs:attribute name="style" type="sml:ChartLineStyleType" use="optional" default="solid"/>
         <xs:attribute name="radius" type="xs:nonNegativeInteger" use="optional" />
+    </xs:complexType>
+
+    <xs:complexType name="ChartGradientStopType">
+        <xs:annotation>
+            <xs:documentation>
+                图表渐变色标
+
+                属性:
+                - offset: 色标位置比例[0,1]
+                - color: 色标颜色
+                - opacity: 色标透明度[0,1]
+            </xs:documentation>
+        </xs:annotation>
+        <xs:attribute name="offset" type="sml:RatioType" use="required"/>
+        <xs:attribute name="color" type="sml:SolidColor" use="required"/>
+        <xs:attribute name="opacity" type="sml:RatioType" use="optional"/>
+    </xs:complexType>
+
+    <xs:complexType name="ChartGradientStopsType">
+        <xs:annotation>
+            <xs:documentation>
+                图表渐变色标列表，至少需要2个色标
+            </xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="stop" type="sml:ChartGradientStopType" minOccurs="2" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="ChartGradientType">
+        <xs:annotation>
+            <xs:documentation>
+                图表渐变配置
+
+                属性:
+                - type: 渐变类型(linear|radial)
+                - x0/y0/x1/y1: 线性渐变起止点坐标
+                - r0/r1: 径向渐变半径
+                - gradientMethod: 渐变算法/插值方式
+
+                子元素:
+                - stops: 渐变色标列表
+            </xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="stops" type="sml:ChartGradientStopsType" minOccurs="1"/>
+        </xs:sequence>
+        <xs:attribute name="type" type="sml:ChartGradientKindType" use="required"/>
+        <xs:attribute name="x0" type="xs:double" use="optional"/>
+        <xs:attribute name="y0" type="xs:double" use="optional"/>
+        <xs:attribute name="x1" type="xs:double" use="optional"/>
+        <xs:attribute name="y1" type="xs:double" use="optional"/>
+        <xs:attribute name="r0" type="xs:double" use="optional"/>
+        <xs:attribute name="r1" type="xs:double" use="optional"/>
+        <xs:attribute name="gradientMethod" type="xs:string" use="optional"/>
     </xs:complexType>
 
     <xs:complexType name="ChartColorThemeType">
@@ -2427,12 +2495,16 @@
                 - size: 该系列所有点的大小
 
                 子元素:
+                - fillGradient: 该系列所有点的填充渐变(可选)
+                - strokeGradient: 该系列所有点的边框/描边渐变(可选)
                 - chartPoint: 单个数据点配置(可选, 多个), 用于覆盖特定点的样式
             </xs:documentation>
         </xs:annotation>
         <xs:complexContent>
             <xs:extension base="sml:ChartGlobalPointsType">
                 <xs:sequence>
+                    <xs:element name="fillGradient" type="sml:ChartGradientType" minOccurs="0"/>
+                    <xs:element name="strokeGradient" type="sml:ChartGradientType" minOccurs="0"/>
                     <xs:element name="chartPoint" minOccurs="0" maxOccurs="unbounded">
                         <xs:complexType>
                             <xs:annotation>
@@ -2444,8 +2516,14 @@
                                     - color: 该点的颜色
                                     - shape: 该点的形状(circle|square|triangle|diamond|rect)
                                     - size: 该点的大小(像素)
+
+                                    子元素:
+                                    - fillGradient: 该点填充渐变(可选)
                                 </xs:documentation>
                             </xs:annotation>
+                            <xs:sequence>
+                                <xs:element name="fillGradient" type="sml:ChartGradientType" minOccurs="0"/>
+                            </xs:sequence>
                             <xs:attribute name="index" type="xs:positiveInteger" use="required"/>
                             <xs:attribute name="color" type="sml:SolidColor" use="optional"/>
                             <xs:attribute name="shape" type="sml:ChartPointShapeType" use="optional"/>
@@ -2458,7 +2536,7 @@
     </xs:complexType>
 
     <!-- 线条配置 -->
-    <xs:complexType name="ChartLineType">
+    <xs:complexType name="ChartGlobalLineType">
         <xs:annotation>
             <xs:documentation>
                 图表全局线条配置（第一层：所有系列的默认样式）
@@ -2475,8 +2553,27 @@
         <xs:attribute name="style" type="sml:ChartLineStyleType" use="optional" default="solid"/>
     </xs:complexType>
 
+    <xs:complexType name="ChartSeriesLineType">
+        <xs:annotation>
+            <xs:documentation>
+                图表系列线条配置（第二层：单系列统一配置）
+                继承ChartGlobalLineType的所有属性
+
+                子元素:
+                - strokeGradient: 该系列线条渐变(可选)
+            </xs:documentation>
+        </xs:annotation>
+        <xs:complexContent>
+            <xs:extension base="sml:ChartGlobalLineType">
+                <xs:sequence>
+                    <xs:element name="strokeGradient" type="sml:ChartGradientType" minOccurs="0"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+
     <!-- 面积配置 -->
-    <xs:complexType name="ChartAreaType">
+    <xs:complexType name="ChartGlobalAreaType">
         <xs:annotation>
             <xs:documentation>
                 图表全局面积配置（第一层：所有系列的默认填充样式）
@@ -2487,6 +2584,25 @@
             </xs:documentation>
         </xs:annotation>
         <xs:attribute name="color" type="sml:SolidColor" use="optional"/>
+    </xs:complexType>
+
+    <xs:complexType name="ChartSeriesAreaType">
+        <xs:annotation>
+            <xs:documentation>
+                图表系列面积配置（第二层：单系列统一配置）
+                继承ChartGlobalAreaType的所有属性
+
+                子元素:
+                - fillGradient: 该系列面积填充渐变(可选)
+            </xs:documentation>
+        </xs:annotation>
+        <xs:complexContent>
+            <xs:extension base="sml:ChartGlobalAreaType">
+                <xs:sequence>
+                    <xs:element name="fillGradient" type="sml:ChartGradientType" minOccurs="0"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
     </xs:complexType>
 
     <!-- 柱子配置 -->
@@ -2529,12 +2645,16 @@
                 - borderStyle: 该系列所有柱子的边框样式
 
                 子元素:
+                - fillGradient: 该系列所有柱子的填充渐变(可选)
+                - strokeGradient: 该系列所有柱子的边框渐变(可选)
                 - chartBar: 单个柱子配置(可选, 多个), 用于覆盖特定柱子的样式
             </xs:documentation>
         </xs:annotation>
         <xs:complexContent>
             <xs:extension base="sml:ChartGlobalBarsType">
                 <xs:sequence>
+                    <xs:element name="fillGradient" type="sml:ChartGradientType" minOccurs="0"/>
+                    <xs:element name="strokeGradient" type="sml:ChartGradientType" minOccurs="0"/>
                     <xs:element name="chartBar" minOccurs="0" maxOccurs="unbounded">
                         <xs:complexType>
                             <xs:annotation>
@@ -2547,8 +2667,14 @@
                                     - borderColor: 该柱子的边框颜色
                                     - borderWidth: 该柱子的边框宽度(像素)
                                     - borderStyle: 该柱子的边框样式(solid|dashed|dotted)
+
+                                    子元素:
+                                    - fillGradient: 该柱子的填充渐变(可选)
                                 </xs:documentation>
                             </xs:annotation>
+                            <xs:sequence>
+                                <xs:element name="fillGradient" type="sml:ChartGradientType" minOccurs="0"/>
+                            </xs:sequence>
                             <xs:attribute name="index" type="xs:positiveInteger" use="required"/>
                             <xs:attribute name="color" type="sml:SolidColor" use="optional"/>
                             <xs:attribute name="borderColor" type="sml:SolidColor" use="optional"/>
@@ -2573,8 +2699,14 @@
                 - offsetRadius: 扇区径向偏移比例[0,1], 用于突出显示
                 - borderColor: 扇区边框颜色
                 - color: 扇区填充颜色
+
+                子元素:
+                - fillGradient: 扇区填充渐变(可选)
             </xs:documentation>
         </xs:annotation>
+        <xs:sequence>
+            <xs:element name="fillGradient" type="sml:ChartGradientType" minOccurs="0"/>
+        </xs:sequence>
         <xs:attribute name="index" type="xs:positiveInteger" use="required"/>
         <xs:attribute name="offsetRadius" type="sml:RatioType" use="optional"/>
         <xs:attribute name="borderColor" type="sml:SolidColor" use="optional"/>
@@ -2594,10 +2726,12 @@
                 - startAngle: 起始角度[0,360), 控制第一个扇区的起始位置, 默认0
 
                 子元素:
+                - fillGradient: 所有扇区的统一填充渐变(可选)
                 - chartSector: 单个扇区配置(可选, 多个), 用于定制特定扇区
             </xs:documentation>
         </xs:annotation>
         <xs:sequence>
+            <xs:element name="fillGradient" type="sml:ChartGradientType" minOccurs="0"/>
             <xs:element name="chartSector" type="sml:ChartSectorType" minOccurs="0" maxOccurs="unbounded"/>
         </xs:sequence>
         <xs:attribute name="borderColor" type="sml:SolidColor" use="optional"/>
@@ -2644,8 +2778,8 @@
         </xs:annotation>
         <xs:sequence>
             <xs:element name="chartPoints" type="sml:ChartSeriesPointsType" minOccurs="0"/>
-            <xs:element name="chartLine" type="sml:ChartLineType" minOccurs="0"/>
-            <xs:element name="chartArea" type="sml:ChartAreaType" minOccurs="0"/>
+            <xs:element name="chartLine" type="sml:ChartSeriesLineType" minOccurs="0"/>
+            <xs:element name="chartArea" type="sml:ChartSeriesAreaType" minOccurs="0"/>
             <xs:element name="chartBars" type="sml:ChartSeriesBarsType" minOccurs="0"/>
             <xs:element name="chartSectors" type="sml:ChartSectorsType" minOccurs="0"/>
             <xs:element name="chartLabels" type="sml:ChartDataLabelsType" minOccurs="0"/>
@@ -2846,8 +2980,8 @@
         </xs:annotation>
         <xs:all>
             <xs:element name="chartPoints" type="sml:ChartGlobalPointsType" minOccurs="0"/>
-            <xs:element name="chartLines" type="sml:ChartLineType" minOccurs="0"/>
-            <xs:element name="chartAreas" type="sml:ChartAreaType" minOccurs="0"/>
+            <xs:element name="chartLines" type="sml:ChartGlobalLineType" minOccurs="0"/>
+            <xs:element name="chartAreas" type="sml:ChartGlobalAreaType" minOccurs="0"/>
             <xs:element name="chartBars" type="sml:ChartGlobalBarsType" minOccurs="0"/>
             <xs:element name="chartLabels" type="sml:ChartDataLabelsType" minOccurs="0"/>
             <xs:element name="chartSeriesList" type="sml:ChartSeriesListType" minOccurs="0"/>

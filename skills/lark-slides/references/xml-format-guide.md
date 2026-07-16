@@ -314,6 +314,48 @@
 </chart>
 ```
 
+关于 `<chartStyle>` 里两个常用子元素的写法：
+
+- `<chartBackground>`：`color` 省略时由渲染端决定默认背景（不再默认白色）；需要完全透明请显式写 `color="rgba(0, 0, 0, 0)"`。
+- `<chartBorder>`：无边框可写 `width="0"`，或直接不写 `<chartBorder>` 元素。
+
+#### 图表渐变 `<fillGradient>` / `<strokeGradient>`
+
+图表支持渐变填充/描边，两种槽区分用途：
+
+- `<fillGradient>`：填充渐变，用于面积、柱子、数据点、扇区
+- `<strokeGradient>`：描边渐变，用于线条、数据点边框、柱子边框
+
+**只能挂在系列级或单元素级，不要挂在 `<chartPlot>` 全局层。** transform 链路不消费全局层的渐变（`<chartPlot>` 下的 `<chartLines>` / `<chartAreas>` / `<chartBars>` / `<chartPoints>`），写了没有效果。
+
+可挂载位置：
+
+- ✅ 系列级：`<chartSeries>` 下的 `<chartLine>` / `<chartArea>` / `<chartBars>` / `<chartPoints>` / `<chartSectors>`（同时支持 `<fillGradient>` 与 `<strokeGradient>`）
+- ✅ 单元素级：`<chartBar index="…">` / `<chartPoint index="…">` / `<chartSector index="…">`（**仅支持 `<fillGradient>`**，不支持 `<strokeGradient>`）
+- ❌ 全局级：`<chartPlot>` 下的 `<chartLines>` / `<chartAreas>` / `<chartBars>` / `<chartPoints>`
+
+结构要点：
+
+- `type` 必填：`linear`（线性）或 `radial`（径向）
+- `linear` 用 `x0` / `y0` / `x1` / `y1` 指定起止点坐标
+- `radial` 用 `r0` / `r1` 指定内外半径（可选 `gradientMethod`）
+- 子元素 `<stops>` 至少包含 2 个 `<stop>`；`offset` 与 `opacity` 取值均为 [0, 1]
+
+最小示例（在系列级柱子上加线性渐变填充）：
+
+```xml
+<chartSeries index="1">
+  <chartBars>
+    <fillGradient type="linear" x0="0" y0="0" x1="0" y1="1">
+      <stops>
+        <stop offset="0" color="rgb(28, 71, 120)"/>
+        <stop offset="1" color="rgb(28, 71, 120)" opacity="0.3"/>
+      </stops>
+    </fillGradient>
+  </chartBars>
+</chartSeries>
+```
+
 ## 样式元素
 
 ### `<fill>`
