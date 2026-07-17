@@ -229,9 +229,10 @@ func TestIMTipsSendReplyIdentityLock(t *testing.T) {
 					"send/reply examples must carry an explicit --as bot")
 
 				cfgDir := t.TempDir()
-				cfg := fmt.Sprintf(
-					`{"currentApp":"im_tips_identity_lock","apps":[{"appId":"im_tips_identity_lock","appSecret":%q,"brand":"feishu","defaultAs":"user","users":[]}]}`,
-					"im_tips_dryrun_secret")
+				// "test-secret" is the content scanner's own named placeholder
+				// (publiccontent rules), kept inline so the scanner can see and
+				// clear the value rather than having it hidden behind printf.
+				cfg := `{"currentApp":"im_tips_identity_lock","apps":[{"appId":"im_tips_identity_lock","appSecret":"test-secret","brand":"feishu","defaultAs":"user","users":[]}]}`
 				require.NoError(t, os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte(cfg), 0o600))
 				t.Setenv("LARKSUITE_CLI_CONFIG_DIR", cfgDir)
 
