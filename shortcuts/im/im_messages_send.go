@@ -40,9 +40,9 @@ var ImMessagesSend = common.Shortcut{
 		{Name: "audio", Desc: audioMessageInputDesc},
 	},
 	Tips: []string{
-		`Example: lark-cli im +messages-send --chat-id <chat_id> --text "hello"`,
-		`Example: lark-cli im +messages-send --user-id <open_id> --text "hello"`,
-		`Example: lark-cli im +messages-send --chat-id <chat_id> --markdown "## update"`,
+		`Example: lark-cli im +messages-send --chat-id <chat_id> --text "hello" --as bot`,
+		`Example: lark-cli im +messages-send --user-id <open_id> --text "hello" --as bot`,
+		`Example: lark-cli im +messages-send --chat-id <chat_id> --markdown "## update" --as bot`,
 	},
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
 		chatFlag := runtime.Str("chat-id")
@@ -177,7 +177,11 @@ var ImMessagesSend = common.Shortcut{
 		}
 		// Resolve content type
 		if markdown != "" {
-			msgType, content = "post", resolveMarkdownAsPost(ctx, runtime, markdown)
+			post, err := resolveMarkdownAsPost(ctx, runtime, markdown)
+			if err != nil {
+				return err
+			}
+			msgType, content = "post", post
 		} else if mt, c, err := resolveMediaContent(ctx, runtime, text, imageVal, fileVal, videoVal, videoCoverVal, audioVal); err != nil {
 			return err
 		} else if mt != "" {
