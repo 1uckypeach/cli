@@ -10,6 +10,9 @@ import (
 
 func TestUndo_DryRun(t *testing.T) {
 	t.Parallel()
+	if Undo.Risk != "high-risk-write" {
+		t.Fatalf("Undo.Risk = %q, want high-risk-write", Undo.Risk)
+	}
 
 	args := []string{"--url", testURL, "--as", "user"}
 	callURL := dryRunFirstCallURL(t, Undo, args)

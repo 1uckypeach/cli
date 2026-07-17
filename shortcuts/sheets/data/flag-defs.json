@@ -4976,7 +4976,7 @@
     ]
   },
   "+undo": {
-    "risk": "write",
+    "risk": "high-risk-write",
     "flags": [
       {
         "name": "url",

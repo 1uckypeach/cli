@@ -998,7 +998,7 @@ var flagDefs = map[string]commandDef{
 		},
 	},
 	"+undo": {
-		Risk: "write",
+		Risk: "high-risk-write",
 		Flags: []flagDef{
 			{Name: "url", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet locator"},
 			{Name: "spreadsheet-token", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet locator"},

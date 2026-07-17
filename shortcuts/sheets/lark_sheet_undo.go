@@ -13,7 +13,7 @@ var Undo = common.Shortcut{
 	Service:     "sheets",
 	Command:     "+undo",
 	Description: "Undo the current user's latest spreadsheet write.",
-	Risk:        "write",
+    Risk:        "high-risk-write",
 	Scopes:      []string{"sheets:spreadsheet:write_only"},
 	AuthTypes:   []string{"user"},
 	HasFormat:   true,
