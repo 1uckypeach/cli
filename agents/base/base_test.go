@@ -521,6 +521,61 @@ func TestContextHooks(t *testing.T) {
 	}
 }
 
+func TestMapContextDetailRollsUpTasks(t *testing.T) {
+	tests := []struct {
+		name          string
+		tasks         []adapterTask
+		activeID      string
+		awaitingInput bool
+	}{
+		{
+			name: "latest task is active while any task can await input",
+			tasks: []adapterTask{
+				{TaskID: "old", State: "input_required", UpdatedAt: json.RawMessage(`1710000000`), Summary: "choose one"},
+				{TaskID: "latest", State: "done", UpdatedAt: json.RawMessage(`1710000060`), Summary: "complete"},
+			},
+			activeID:      "latest",
+			awaitingInput: true,
+		},
+		{
+			name: "waiting task wins an updated at tie regardless of order",
+			tasks: []adapterTask{
+				{TaskID: "20", State: "done", UpdatedAt: json.RawMessage(`1710000060`)},
+				{TaskID: "10", State: "input_required", UpdatedAt: json.RawMessage(`1710000060`)},
+			},
+			activeID:      "10",
+			awaitingInput: true,
+		},
+		{
+			name: "numeric task id breaks a complete task tie",
+			tasks: []adapterTask{
+				{TaskID: "9", State: "done", UpdatedAt: json.RawMessage(`1710000060`)},
+				{TaskID: "10", State: "done", UpdatedAt: json.RawMessage(`1710000060`)},
+			},
+			activeID: "10",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			for _, reverse := range []bool{false, true} {
+				tasks := append([]adapterTask(nil), test.tasks...)
+				if reverse {
+					for left, right := 0, len(tasks)-1; left < right; left, right = left+1, right-1 {
+						tasks[left], tasks[right] = tasks[right], tasks[left]
+					}
+				}
+				detail, err := mapContextDetail(adapterContext{ContextID: "c1", Tasks: tasks})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if detail.ActiveTask == nil || detail.ActiveTask.TaskID != test.activeID || detail.AwaitingInput != test.awaitingInput {
+					t.Fatalf("reverse=%v detail=%+v", reverse, detail)
+				}
+			}
+		})
+	}
+}
+
 func TestResultFalseUsesTypedCategory(t *testing.T) {
 	rt := &fakeRuntime{
 		params:    map[string]string{"base_token": "b1"},

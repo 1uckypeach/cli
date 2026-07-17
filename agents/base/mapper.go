@@ -426,14 +426,51 @@ func mapContextDetail(in adapterContext) (*iagents.ContextDetail, error) {
 		TaskCount: len(in.Tasks),
 	}
 	if len(in.Tasks) > 0 {
-		active, err := mapTaskSummary(in.Tasks[0])
-		if err != nil {
-			return nil, err
+		var active iagents.TaskSummary
+		for index, task := range in.Tasks {
+			candidate, mapErr := mapTaskSummary(task)
+			if mapErr != nil {
+				return nil, mapErr
+			}
+			if taskIsAwaitingInput(candidate) {
+				detail.AwaitingInput = true
+			}
+			if index == 0 || taskSummaryIsNewer(candidate, active) {
+				active = candidate
+			}
 		}
 		detail.ActiveTask = &active
-		detail.AwaitingInput = active.State == iagents.StateInputRequired || active.State == iagents.StateAuthRequired
 	}
 	return detail, nil
+}
+
+func taskSummaryIsNewer(candidate, current iagents.TaskSummary) bool {
+	if candidate.UpdatedAt != current.UpdatedAt {
+		if candidate.UpdatedAt == "" {
+			return false
+		}
+		if current.UpdatedAt == "" {
+			return true
+		}
+		return candidate.UpdatedAt > current.UpdatedAt
+	}
+	if taskIsAwaitingInput(candidate) != taskIsAwaitingInput(current) {
+		return taskIsAwaitingInput(candidate)
+	}
+	return taskIDIsNewer(candidate.TaskID, current.TaskID)
+}
+
+func taskIsAwaitingInput(task iagents.TaskSummary) bool {
+	return task.State == iagents.StateInputRequired || task.State == iagents.StateAuthRequired
+}
+
+func taskIDIsNewer(candidate, current string) bool {
+	candidateID, candidateErr := strconv.ParseUint(candidate, 10, 64)
+	currentID, currentErr := strconv.ParseUint(current, 10, 64)
+	if candidateErr == nil && currentErr == nil {
+		return candidateID > currentID
+	}
+	return candidate > current
 }
 
 func mapMessages(in []adapterMessage) ([]iagents.Message, error) {
