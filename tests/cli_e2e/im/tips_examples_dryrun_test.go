@@ -5,6 +5,10 @@ package im
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -32,15 +36,16 @@ var tipsPlaceholderValues = map[string]string{
 	"<chat_id2>":      "oc_e2etest000000000000000002",
 }
 
-// firstExampleArgs extracts the first "Example:" tip of the shortcut, replaces
-// placeholders, and returns the argv after "lark-cli".
-func firstExampleArgs(t *testing.T, command string) []string {
+// allExampleArgs extracts every "Example:" tip of the shortcut, replaces
+// placeholders, and returns one argv (after "lark-cli") per example.
+func allExampleArgs(t *testing.T, command string) [][]string {
 	t.Helper()
 	for _, sc := range imshortcuts.Shortcuts() {
 		if sc.Command != command {
 			continue
 		}
 		prefix := "Example: lark-cli "
+		var all [][]string
 		for _, tip := range sc.Tips {
 			if !strings.HasPrefix(tip, prefix) {
 				continue
@@ -49,12 +54,32 @@ func firstExampleArgs(t *testing.T, command string) []string {
 			for ph, v := range tipsPlaceholderValues {
 				line = strings.ReplaceAll(line, ph, v)
 			}
-			return splitExampleArgs(t, line)
+			all = append(all, splitExampleArgs(t, line))
 		}
-		t.Fatalf("%s has no Example tip", command)
+		if len(all) == 0 {
+			t.Fatalf("%s has no Example tip", command)
+		}
+		return all
 	}
 	t.Fatalf("shortcut %s not found", command)
 	return nil
+}
+
+// firstExampleArgs extracts the first "Example:" tip of the shortcut.
+func firstExampleArgs(t *testing.T, command string) []string {
+	t.Helper()
+	return allExampleArgs(t, command)[0]
+}
+
+// hasAsFlag reports whether the example already carries an explicit --as,
+// in which case the test must run it verbatim instead of injecting one.
+func hasAsFlag(args []string) bool {
+	for _, a := range args {
+		if a == "--as" {
+			return true
+		}
+	}
+	return false
 }
 
 // splitExampleArgs splits a shell-like example line on spaces, honoring
@@ -95,12 +120,13 @@ func runFirstExampleDryRun(t *testing.T, command string, wantAPIPath string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	args := append(firstExampleArgs(t, command), "--dry-run")
-	result, err := clie2e.RunCmd(ctx, clie2e.Request{
-		Args:      args,
-		DefaultAs: "bot",
-		WorkDir:   t.TempDir(),
-	})
+	exampleArgs := firstExampleArgs(t, command)
+	args := append(exampleArgs, "--dry-run")
+	req := clie2e.Request{Args: args, WorkDir: t.TempDir()}
+	if !hasAsFlag(exampleArgs) {
+		req.DefaultAs = "bot"
+	}
+	result, err := clie2e.RunCmd(ctx, req)
 	require.NoError(t, err)
 	result.AssertExitCode(t, 0)
 	require.Contains(t, result.Stdout, wantAPIPath,
@@ -154,32 +180,78 @@ func defaultAsForCommand(t *testing.T, command string) string {
 	return ""
 }
 
-// TestIMTipsFirstExampleDryRunAll extends the executability lock from the 3
+// TestIMTipsAllExamplesDryRun extends the executability lock from the 3
 // path-assertion tests above (messages-send, chat-messages-list,
-// resources-download) to every one of the 18 shortcuts carrying a locked
-// Example tip: the first example, with placeholders substituted and
-// --dry-run appended, must exit 0. This only asserts exit code, not the API
-// path — the 3 tests above keep that stronger assertion for their targets.
-func TestIMTipsFirstExampleDryRunAll(t *testing.T) {
+// resources-download) to every "Example:" tip of all 18 shortcuts: each
+// example, with placeholders substituted and --dry-run appended, must exit 0.
+// This only asserts exit code, not the API path — the 3 tests above keep
+// that stronger assertion for their targets. Examples that already carry an
+// explicit --as run verbatim; only --as-less examples get an identity
+// injected (matching each shortcut's AuthTypes).
+func TestIMTipsAllExamplesDryRun(t *testing.T) {
 	for _, cmd := range tipsExampleAllTargets {
-		t.Run(cmd, func(t *testing.T) {
-			t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
-			t.Setenv("LARKSUITE_CLI_APP_ID", "im_tips_dryrun_test")
-			t.Setenv("LARKSUITE_CLI_APP_SECRET", "im_tips_dryrun_secret")
-			t.Setenv("LARKSUITE_CLI_BRAND", "feishu")
+		for i, exampleArgs := range allExampleArgs(t, cmd) {
+			t.Run(fmt.Sprintf("%s/example_%d", cmd, i+1), func(t *testing.T) {
+				t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+				t.Setenv("LARKSUITE_CLI_APP_ID", "im_tips_dryrun_test")
+				t.Setenv("LARKSUITE_CLI_APP_SECRET", "im_tips_dryrun_secret")
+				t.Setenv("LARKSUITE_CLI_BRAND", "feishu")
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
 
-			as := defaultAsForCommand(t, cmd)
-			args := append(firstExampleArgs(t, cmd), "--dry-run")
-			result, err := clie2e.RunCmd(ctx, clie2e.Request{
-				Args:      args,
-				DefaultAs: as,
-				WorkDir:   t.TempDir(),
+				req := clie2e.Request{
+					Args:    append(append([]string{}, exampleArgs...), "--dry-run"),
+					WorkDir: t.TempDir(),
+				}
+				if !hasAsFlag(exampleArgs) {
+					req.DefaultAs = defaultAsForCommand(t, cmd)
+				}
+				result, err := clie2e.RunCmd(ctx, req)
+				require.NoError(t, err)
+				result.AssertExitCode(t, 0)
 			})
-			require.NoError(t, err)
-			result.AssertExitCode(t, 0)
-		})
+		}
+	}
+}
+
+// TestIMTipsSendReplyIdentityLock guards the governance rule that send/reply
+// examples must pin `--as bot` explicitly: under a config whose defaultAs is
+// "user" (the adversarial case Codex review #4 exposed — a developer machine
+// with a user login), running each send/reply example VERBATIM must still
+// resolve to bot identity. If someone drops --as bot from an example, the
+// bare example resolves to user under this config and the assertion fails.
+func TestIMTipsSendReplyIdentityLock(t *testing.T) {
+	for _, cmd := range []string{"+messages-send", "+messages-reply"} {
+		for i, exampleArgs := range allExampleArgs(t, cmd) {
+			t.Run(fmt.Sprintf("%s/example_%d", cmd, i+1), func(t *testing.T) {
+				require.True(t, hasAsFlag(exampleArgs),
+					"send/reply examples must carry an explicit --as bot")
+
+				cfgDir := t.TempDir()
+				cfg := `{"currentApp":"im_tips_identity_lock","apps":[{"appId":"im_tips_identity_lock","appSecret":"im_tips_dryrun_secret","brand":"feishu","defaultAs":"user","users":[]}]}`
+				require.NoError(t, os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte(cfg), 0o600))
+				t.Setenv("LARKSUITE_CLI_CONFIG_DIR", cfgDir)
+
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+
+				result, err := clie2e.RunCmd(ctx, clie2e.Request{
+					Args:    append(append([]string{}, exampleArgs...), "--dry-run", "--json"),
+					WorkDir: t.TempDir(),
+				})
+				require.NoError(t, err)
+				require.NoError(t, result.RunErr, "binary: %s args: %v", result.BinaryPath, result.Args)
+				result.AssertExitCode(t, 0)
+
+				var envelope struct {
+					Identity string `json:"identity"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(result.Stdout), &envelope),
+					"dry-run --json stdout should be a JSON envelope")
+				require.Equal(t, "bot", envelope.Identity,
+					"example run verbatim under a user-default config must still send as bot")
+			})
+		}
 	}
 }
