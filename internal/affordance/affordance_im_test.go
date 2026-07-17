@@ -6,6 +6,7 @@ package affordance
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -55,9 +56,28 @@ func TestForIMRealFile(t *testing.T) {
 		if len(a.AvoidWhen) == 0 {
 			t.Errorf("%s: missing Avoid when section", m)
 		}
+		if len(a.Examples) == 0 || a.Examples[0].Command == "" {
+			t.Errorf("%s: missing fenced example command", m)
+			continue
+		}
+		// Each example must invoke the section's own command, so a heading
+		// can't silently drift apart from the command its examples show.
+		// Normalize the example's command words (before the first flag) the
+		// same way headings become keys: spaces join with dots.
+		words := strings.Fields(strings.TrimPrefix(a.Examples[0].Command, "lark-cli im "))
+		var cmdWords []string
+		for _, w := range words {
+			if strings.HasPrefix(w, "-") {
+				break
+			}
+			cmdWords = append(cmdWords, w)
+		}
+		if got := strings.Join(cmdWords, "."); got != m {
+			t.Errorf("%s: first example %q invokes %q, want the section's own command", m, a.Examples[0].Command, got)
+		}
 	}
 
-	// Showcase depth: messages forward (spec §3.3, mirrors the tech-plan diff).
+	// Showcase depth: messages forward (the deepest overlay section).
 	raw, ok := For("im", "messages.forward")
 	if !ok {
 		t.Fatal("messages.forward overlay missing")
