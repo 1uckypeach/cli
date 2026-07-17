@@ -36,7 +36,7 @@ var ImFeedGroupListItem = common.Shortcut{
 		{Name: "end-time", Desc: "update-time window end (Unix milliseconds as a decimal string)"},
 	},
 	Tips: []string{
-		`Example: lark-cli im +feed-group-list-item --feed-group-id <feed_group_id>`,
+		`Example: lark-cli im +feed-group-list-item --feed-group-id <feed_group_id> --as user`,
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		return validateFeedGroupListOptions(runtime)
