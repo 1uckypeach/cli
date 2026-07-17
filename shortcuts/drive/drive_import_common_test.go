@@ -43,6 +43,10 @@ func TestValidateDriveImportSpec(t *testing.T) {
 			spec: driveImportSpec{FilePath: "./deck.pptx", DocType: "slides"},
 		},
 		{
+			name: "png slides ok",
+			spec: driveImportSpec{FilePath: "./screenshot.png", DocType: "slides"},
+		},
+		{
 			name:    "base non bitable rejected",
 			spec:    driveImportSpec{FilePath: "./snapshot.base", DocType: "sheet"},
 			wantErr: ".base files can only be imported as 'bitable'",
@@ -51,6 +55,11 @@ func TestValidateDriveImportSpec(t *testing.T) {
 			name:    "pptx non slides rejected",
 			spec:    driveImportSpec{FilePath: "./deck.pptx", DocType: "docx"},
 			wantErr: ".pptx files can only be imported as 'slides'",
+		},
+		{
+			name:    "png non slides rejected",
+			spec:    driveImportSpec{FilePath: "./screenshot.png", DocType: "docx"},
+			wantErr: ".png files can only be imported as 'slides'",
 		},
 		{
 			name:    "unknown extension rejected",

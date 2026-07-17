@@ -2,7 +2,7 @@
 
 > **前置条件：** 先阅读 [`../lark-shared/SKILL.md`](../../lark-shared/SKILL.md) 了解认证、全局参数和安全规则。
 
-将本地文件（如 Word、TXT、Markdown、Excel、PPTX 等）导入并转换为飞书在线云文档（docx、sheet、bitable、slides）。底层统一通过 `POST /open-apis/drive/v1/import_tasks` 接口创建导入任务，并在 shortcut 内做有限次数轮询 `GET /open-apis/drive/v1/import_tasks/:ticket`。
+将本地文件（如 Word、TXT、Markdown、Excel、PPTX、PNG 等）导入并转换为飞书在线云文档（docx、sheet、bitable、slides）。底层统一通过 `POST /open-apis/drive/v1/import_tasks` 接口创建导入任务，并在 shortcut 内做有限次数轮询 `GET /open-apis/drive/v1/import_tasks/:ticket`。
 
 > [!IMPORTANT]
 > 当用户说“把本地 Excel / CSV / `.base` 快照导入成 Base / 多维表格 / bitable 文档”时，第一步必须使用 `drive +import --type bitable`。
@@ -55,6 +55,9 @@ lark-cli drive +import --file ./snapshot.base --type bitable --name "快照还�
 # 导入 PPTX 为飞书幻灯片 (slides)（文件不能超过 500MB）
 lark-cli drive +import --file ./deck.pptx --type slides --name "项目汇报"
 
+# 导入 PNG 为飞书幻灯片 (slides)
+lark-cli drive +import --file ./screenshot.png --type slides --name "图片转幻灯片"
+
 # 导入到指定文件夹，并指定导入后的文件名
 lark-cli drive +import --file ./data.csv --type bitable --folder-token <FOLDER_TOKEN> --name "导入数据表"
 
@@ -101,6 +104,7 @@ lark-cli drive +import --file ./README.md --type docx --dry-run
 | `.csv` | `sheet`, `bitable` | CSV 数据文件 |
 | `.base` | `bitable` | 多维表格快照文件 |
 | `.pptx` | `slides` | Microsoft PowerPoint 演示文稿 |
+| `.png` | `slides` | PNG 图片（Image to Slide） |
 
 > [!IMPORTANT]
 > 用户口头说的 “Base” / “多维表格” / “bitable”，在命令里统一对应 `--type bitable`。
@@ -111,6 +115,7 @@ lark-cli drive +import --file ./README.md --type docx --dry-run
 > - `.xls` 文件**只能**导入为 `sheet`
 > - `.base` 文件**只能**导入为 `bitable`
 > - `.pptx` 文件**只能**导入为 `slides`
+> - `.png` 文件**只能**导入为 `slides`
 > - 例如：`.csv` 文件不能导入为 `docx`，`.md` 文件不能导入为 `sheet`
 
 > [!IMPORTANT]
