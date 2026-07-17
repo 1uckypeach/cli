@@ -88,7 +88,7 @@ lark-cli im images create --data '{"image_type":"message"}' --file ./diagram.png
 # Returns: {"image_key":"img_v3_xxxx"}
 
 # 2. Use image_key in --markdown reply
-lark-cli im +messages-reply --message-id om_xxx --markdown $'## Result\n\n![diagram](img_v3_xxxx)\n\nSee above for details.'
+lark-cli im +messages-reply --message-id om_xxx --markdown $'## Result\n\n![diagram](img_v3_xxxx)\n\nSee above for details.' --as bot
 ```
 
 ## Preserving Formatting
@@ -100,11 +100,11 @@ If the reply contains multiple lines, code blocks, indentation, tabs, or a lot o
 Use `--text` plus `$'...'`:
 
 ```bash
-lark-cli im +messages-reply --message-id om_xxx --text $'Received\nI will check this today.\nOwner: alice'
+lark-cli im +messages-reply --message-id om_xxx --text $'Received\nI will check this today.\nOwner: alice' --as bot
 ```
 
 ```bash
-lark-cli im +messages-reply --message-id om_xxx --text $'```sql\nselect * from jobs;\n```'
+lark-cli im +messages-reply --message-id om_xxx --text $'```sql\nselect * from jobs;\n```' --as bot
 ```
 
 This keeps the reply as plain text instead of converting it to a `post`.
@@ -113,48 +113,48 @@ This keeps the reply as plain text instead of converting it to a `post`.
 
 ```bash
 # Reply with a formatted update
-lark-cli im +messages-reply --message-id om_xxx --markdown $'## Reply\n\n- item 1\n- item 2'
+lark-cli im +messages-reply --message-id om_xxx --markdown $'## Reply\n\n- item 1\n- item 2' --as bot
 
 # Reply with a plain one-line message
-lark-cli im +messages-reply --message-id om_xxx --text "Received"
+lark-cli im +messages-reply --message-id om_xxx --text "Received" --as bot
 
 # Equivalent manual JSON
-lark-cli im +messages-reply --message-id om_xxx --content '{"text":"Received"}'
+lark-cli im +messages-reply --message-id om_xxx --content '{"text":"Received"}' --as bot
 
 # Reply as a bot
 lark-cli im +messages-reply --message-id om_xxx --text "bot reply" --as bot
 
 # Reply with preserved multi-line text
-lark-cli im +messages-reply --message-id om_xxx --text $'Line 1\nLine 2\n  indented line'
+lark-cli im +messages-reply --message-id om_xxx --text $'Line 1\nLine 2\n  indented line' --as bot
 
 # Reply inside the thread (message appears in the target thread)
-lark-cli im +messages-reply --message-id om_xxx --text "Let's discuss this" --reply-in-thread
+lark-cli im +messages-reply --message-id om_xxx --text "Let's discuss this" --reply-in-thread --as bot
 
 # Reply with Markdown containing an image (must pre-upload via images.create)
 lark-cli im images create --data '{"image_type":"message"}' --file ./screenshot.png
 # Use the returned image_key
-lark-cli im +messages-reply --message-id om_xxx --markdown $'## Screenshot\n\n![screenshot](img_v3_xxxx)\n\nConfirmed.'
+lark-cli im +messages-reply --message-id om_xxx --markdown $'## Screenshot\n\n![screenshot](img_v3_xxxx)\n\nConfirmed.' --as bot
 
 # If you need exact post structure, send JSON directly
-lark-cli im +messages-reply --message-id om_xxx --msg-type post --content '{"zh_cn":{"title":"Reply","content":[[{"tag":"text","text":"Detailed content"}]]}}'
+lark-cli im +messages-reply --message-id om_xxx --msg-type post --content '{"zh_cn":{"title":"Reply","content":[[{"tag":"text","text":"Detailed content"}]]}}' --as bot
 
 # Reply with a local image (uploaded automatically before sending)
-lark-cli im +messages-reply --message-id om_xxx --image ./photo.png
+lark-cli im +messages-reply --message-id om_xxx --image ./photo.png --as bot
 
 # Reply with a local file (uploaded automatically before sending)
-lark-cli im +messages-reply --message-id om_xxx --file ./report.pdf
+lark-cli im +messages-reply --message-id om_xxx --file ./report.pdf --as bot
 
 # Reply with a local video (--video-cover is required as the video cover)
-lark-cli im +messages-reply --message-id om_xxx --video ./demo.mp4 --video-cover ./cover.png
+lark-cli im +messages-reply --message-id om_xxx --video ./demo.mp4 --video-cover ./cover.png --as bot
 
 # Reply with a voice message
-lark-cli im +messages-reply --message-id om_xxx --audio ./voice.opus
+lark-cli im +messages-reply --message-id om_xxx --audio ./voice.opus --as bot
 
 # With an idempotency key
-lark-cli im +messages-reply --message-id om_xxx --text "Received" --idempotency-key my-unique-id
+lark-cli im +messages-reply --message-id om_xxx --text "Received" --idempotency-key my-unique-id --as bot
 
 # Preview the request without executing it
-lark-cli im +messages-reply --message-id om_xxx --markdown $'## Test\n\nhello' --dry-run
+lark-cli im +messages-reply --message-id om_xxx --markdown $'## Test\n\nhello' --dry-run --as bot
 
 # ===== Interactive Card =====
 # 🚫 STOP — before constructing ANY interactive card JSON, you MUST read
@@ -163,7 +163,7 @@ lark-cli im +messages-reply --message-id om_xxx --markdown $'## Test\n\nhello' -
 #    the OUTPUT of that workflow. This is non-negotiable.
 
 # Once the workflow has produced the card JSON, reply with it:
-lark-cli im +messages-reply --message-id om_xxx --msg-type interactive --content '<card_json_from_workflow>'
+lark-cli im +messages-reply --message-id om_xxx --msg-type interactive --content '<card_json_from_workflow>' --as bot
 ```
 
 ## Media Input Rules
@@ -222,7 +222,7 @@ lark-cli im +messages-reply --message-id om_xxx --msg-type interactive --content
 ### Scenario 1: Reply in the main chat stream
 
 ```bash
-lark-cli im +messages-reply --message-id om_xxx --text "OK, I will handle it"
+lark-cli im +messages-reply --message-id om_xxx --text "OK, I will handle it" --as bot
 ```
 
 The reply appears in the main chat stream and references the target message.
@@ -230,7 +230,7 @@ The reply appears in the main chat stream and references the target message.
 ### Scenario 2: Reply inside a thread
 
 ```bash
-lark-cli im +messages-reply --message-id om_xxx --text "Let me take a look at this" --reply-in-thread
+lark-cli im +messages-reply --message-id om_xxx --text "Let me take a look at this" --reply-in-thread --as bot
 ```
 
 The reply appears in the target message's thread and does not show up in the main chat stream.
