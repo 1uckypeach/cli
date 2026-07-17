@@ -86,7 +86,7 @@ Forward an existing message unchanged to another chat, user, or thread.
 
 **Forward one message to a chat**
 ```bash
-lark-cli im messages forward --message-id <message_id> --receive-id-type chat_id --data '{"receive_id":"<chat_id>"}'
+lark-cli im messages forward --message-id <message_id> --receive-id-type chat_id --data '{"receive_id":"<chat_id>"}' --as bot
 ```
 
 ## messages delete
@@ -124,7 +124,7 @@ Merge-forward multiple messages from one chat as a single combined message.
 
 **Merge-forward two messages to a chat**
 ```bash
-lark-cli im messages merge_forward --receive-id-type chat_id --data '{"receive_id":"<chat_id>","message_id_list":["<message_id1>","<message_id2>"]}'
+lark-cli im messages merge_forward --receive-id-type chat_id --data '{"receive_id":"<chat_id>","message_id_list":["<message_id1>","<message_id2>"]}' --as bot
 ```
 
 ## messages read_users
@@ -293,7 +293,7 @@ Forward an entire thread (topic) to another chat, user, or thread.
 
 **Forward a thread to a chat**
 ```bash
-lark-cli im threads forward --thread-id <thread_id> --receive-id-type chat_id --data '{"receive_id":"<chat_id>"}'
+lark-cli im threads forward --thread-id <thread_id> --receive-id-type chat_id --data '{"receive_id":"<chat_id>"}' --as bot
 ```
 
 ## chats get
