@@ -102,11 +102,17 @@ func TestIMTipsFirstExampleCoversRequired(t *testing.T) {
 		if len(examples) == 0 {
 			continue // reported by TestIMTipsExamplesPresent
 		}
+		// Compare whole flag tokens, not substrings: a required --user must
+		// not be satisfied by an example that only carries --user-id.
+		flagTokens := map[string]bool{}
+		for _, tok := range exampleFlagTokenRe.FindAllString(examples[0], -1) {
+			flagTokens[tok] = true
+		}
 		for _, f := range sc.Flags {
 			if !f.Required {
 				continue
 			}
-			if !strings.Contains(examples[0], "--"+f.Name) {
+			if !flagTokens["--"+f.Name] {
 				t.Errorf("%s: first example must cover required flag --%s\nexample: %s",
 					cmd, f.Name, examples[0])
 			}
