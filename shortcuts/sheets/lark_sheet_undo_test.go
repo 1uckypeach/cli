@@ -32,7 +32,7 @@ func TestExecute_Undo(t *testing.T) {
 	t.Parallel()
 
 	stub := toolOutputStub(testToken, "write", `{"undone":3,"op_id":"op-3","top_doc_revision":30,"new_revision":31,"op_ids":["op-3","op-2","op-1"],"results":[{"op_id":"op-3","top_doc_revision":30,"new_revision":31},{"op_id":"op-2","top_doc_revision":20,"new_revision":32},{"op_id":"op-1","top_doc_revision":10,"new_revision":33}]}`)
-	out, err := runShortcutWithStubs(t, Undo, []string{"--url", testURL, "--count", "3", "--as", "user"}, stub)
+	out, err := runShortcutWithStubs(t, Undo, []string{"--url", testURL, "--count", "3", "--as", "user", "--yes"}, stub)
 	if err != nil {
 		t.Fatalf("execute failed: %v\nout=%s", err, out)
 	}
@@ -54,6 +54,18 @@ func TestExecute_Undo(t *testing.T) {
 		data["top_doc_revision"] != first["top_doc_revision"] ||
 		data["new_revision"] != first["new_revision"] {
 		t.Fatalf("legacy fields are not aligned with first result: %#v", data)
+	}
+}
+
+func TestUndo_HighRiskWriteRequiresYes(t *testing.T) {
+	t.Parallel()
+
+	stdout, stderr, err := runShortcutCapturingErr(t, Undo, []string{
+		"--url", testURL,
+		"--as", "user",
+	})
+	if err == nil {
+		t.Fatalf("expected confirmation_required without --yes; stdout=%s stderr=%s", stdout, stderr)
 	}
 }
 
@@ -128,7 +140,7 @@ func TestExecute_UndoReasonOutputs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			stub := toolOutputStub(testToken, "write", tt.outputJSON)
-			out, err := runShortcutWithStubs(t, Undo, []string{"--url", testURL, "--as", "user"}, stub)
+			out, err := runShortcutWithStubs(t, Undo, []string{"--url", testURL, "--as", "user", "--yes"}, stub)
 			if err != nil {
 				t.Fatalf("execute failed: %v\nout=%s", err, out)
 			}

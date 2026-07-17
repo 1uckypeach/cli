@@ -32,7 +32,9 @@
 - **历史是工作簿级**：定位只需 `--url` / `--spreadsheet-token`（XOR），不需要子表选择器。
 - **`+history-list` 倒序分页**：首次查省略 `--end-version`，返回最新一页；若响应里附带 `next_end_version` 与 `has_more=true`，把 `next_end_version` 作为下一次的 `--end-version` 即可继续向更早翻页；当响应**不包含**这两个字段时表示已到最早一页，不必再翻。
 - **`+undo` 是用户维度**：只撤当前登录用户的 undo 栈顶；同一文档里其他用户的写入不会被撤销。
+- **`+undo` 是高风险写入**：实际撤销前必须显式传 `--yes`；`--dry-run` 仅预览请求，不需要该确认参数。
 - **`+undo --count` 是顺序多步撤销**：从当前用户最新栈项开始逐条撤销，最多 20 步；如果可撤销项不足或中途遇到不可撤销项，会停止并返回实际 `undone` 数量与 `reason`。
+- **遇到终止态不得继续自动撤销**：`reason=undo_in_progress` 表示栈顶正在撤销或状态未知；`reason=undo_partial_failed` 表示栈顶可能已部分生效。两种情况都不得再次自动调用 `+undo`，应先检查表格，再按需使用 `+history-list` / `+history-revert` 处理。
 - **`+undo` 不区分 session / agent**：同一用户的不同 CLI 会话或 agent 共用同一个用户 undo 栈。
 - **`+undo` 不进入 `+batch-update`**：撤销本身依赖用户栈状态，不能作为批量子操作嵌套执行。
 
@@ -43,7 +45,7 @@
 | `+history-list` | read | 历史版本 |
 | `+history-revert` | high-risk-write | 历史版本 |
 | `+history-revert-status` | read | 历史版本 |
-| `+undo` | write | 历史版本 |
+| `+undo` | high-risk-write | 历史版本 |
 
 ## Flags
 
@@ -112,12 +114,14 @@ lark-cli sheets +history-revert-status --url "https://sample.feishu.cn/sheets/SH
 
 ### `+undo`
 
+`+undo` 只消费当前用户自己的 AI undo 栈。返回里的 `reason` 是机器可读分支依据；如果是 `undo_entry_missing`，说明 undo 栈指向的原始 undo changeset 缺失或已过期，此时应改用 `+history-list` 选择历史版本，再用 `+history-revert` 回滚。若是 `undo_in_progress` 或 `undo_partial_failed`，不得自动重试或继续调用 `+undo`，应先检查表格当前状态。
+
 ```bash
 # 撤销当前用户最近一次 AI 工具写入
-lark-cli sheets +undo --url "https://sample.feishu.cn/sheets/SHTxxxxxx"
+lark-cli sheets +undo --url "https://sample.feishu.cn/sheets/SHTxxxxxx" --yes
 
 # 连续撤销当前用户最近 3 次 AI 工具写入；实际撤销数量以返回的 undone 为准
-lark-cli sheets +undo --url "https://sample.feishu.cn/sheets/SHTxxxxxx" --count 3
+lark-cli sheets +undo --url "https://sample.feishu.cn/sheets/SHTxxxxxx" --count 3 --yes
 
 # 先预览将调用的底层 undo_last 请求
 lark-cli sheets +undo --url "https://sample.feishu.cn/sheets/SHTxxxxxx" --count 3 --dry-run
