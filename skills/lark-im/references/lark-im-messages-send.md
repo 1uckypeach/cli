@@ -83,7 +83,7 @@ When using `--markdown` with images, prefer pre-uploading via `images.create` an
 
 ```bash
 # 1. Upload image to get image_key
-lark-cli im images create --data '{"image_type":"message"}' --file ./diagram.png
+lark-cli im images create --data '{"image_type":"message"}' --file ./diagram.png --as bot
 # Returns: {"image_key":"img_v3_xxxx"}
 
 # 2. Use image_key in --markdown
@@ -129,7 +129,7 @@ lark-cli im +messages-send --user-id ou_xxx --text "Hello" --as bot
 lark-cli im +messages-send --chat-id oc_xxx --text $'Line 1\nLine 2\n  indented line' --as bot
 
 # Send Markdown with an image (must pre-upload via images.create)
-lark-cli im images create --data '{"image_type":"message"}' --file ./screenshot.png
+lark-cli im images create --data '{"image_type":"message"}' --file ./screenshot.png --as bot
 # Use the returned image_key in the markdown content
 lark-cli im +messages-send --chat-id oc_xxx --markdown $'## Status\n\n![screenshot](img_v3_xxxx)\n\nDone.' --as bot
 
