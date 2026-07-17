@@ -28,7 +28,7 @@ var ImFlagCancel = common.Shortcut{
 		{Name: "flag-type", Desc: "flag type override: message|feed; omit to double-cancel both layers"},
 	},
 	Tips: []string{
-		`Example: lark-cli im +flag-cancel --message-id <message_id>`,
+		`Example: lark-cli im +flag-cancel --message-id <message_id> --as user`,
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		_, _, err := buildCancelItemsForPreview(runtime)

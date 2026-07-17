@@ -122,11 +122,7 @@ func runFirstExampleDryRun(t *testing.T, command string, wantAPIPath string) {
 
 	exampleArgs := firstExampleArgs(t, command)
 	args := append(exampleArgs, "--dry-run")
-	req := clie2e.Request{Args: args, WorkDir: t.TempDir()}
-	if !hasAsFlag(exampleArgs) {
-		req.DefaultAs = "bot"
-	}
-	result, err := clie2e.RunCmd(ctx, req)
+	result, err := clie2e.RunCmd(ctx, clie2e.Request{Args: args, WorkDir: t.TempDir()})
 	require.NoError(t, err)
 	result.AssertExitCode(t, 0)
 	require.Contains(t, result.Stdout, wantAPIPath,
@@ -159,35 +155,24 @@ var tipsExampleAllTargets = []string{
 	"+flag-create", "+flag-cancel",
 }
 
-// defaultAsForCommand picks the identity to run the dry-run under by reading
-// the shortcut's own AuthTypes: "bot" when the shortcut supports bot identity
-// (matching the 3 pre-existing path-assertion tests above), otherwise "user"
-// for user-only shortcuts (+messages-search and the whole feed/flag series).
-func defaultAsForCommand(t *testing.T, command string) string {
-	t.Helper()
-	for _, sc := range imshortcuts.Shortcuts() {
-		if sc.Command != command {
-			continue
+// asFlagValue returns the value following --as in the example, or "".
+func asFlagValue(args []string) string {
+	for i, a := range args {
+		if a == "--as" && i+1 < len(args) {
+			return args[i+1]
 		}
-		for _, a := range sc.AuthTypes {
-			if a == "bot" {
-				return "bot"
-			}
-		}
-		return "user"
 	}
-	t.Fatalf("shortcut %s not found", command)
 	return ""
 }
 
 // TestIMTipsAllExamplesDryRun extends the executability lock from the 3
 // path-assertion tests above (messages-send, chat-messages-list,
 // resources-download) to every "Example:" tip of all 18 shortcuts: each
-// example, with placeholders substituted and --dry-run appended, must exit 0.
-// This only asserts exit code, not the API path — the 3 tests above keep
-// that stronger assertion for their targets. Examples that already carry an
-// explicit --as run verbatim; only --as-less examples get an identity
-// injected (matching each shortcut's AuthTypes).
+// example, with placeholders substituted and --dry-run appended, runs
+// VERBATIM — no identity is injected, so the test proves the copied example
+// itself is runnable, not a framework-completed variant of it. Examples that
+// carry an explicit --as additionally assert the resolved identity equals
+// that value.
 func TestIMTipsAllExamplesDryRun(t *testing.T) {
 	for _, cmd := range tipsExampleAllTargets {
 		for i, exampleArgs := range allExampleArgs(t, cmd) {
@@ -200,16 +185,23 @@ func TestIMTipsAllExamplesDryRun(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				defer cancel()
 
-				req := clie2e.Request{
-					Args:    append(append([]string{}, exampleArgs...), "--dry-run"),
+				result, err := clie2e.RunCmd(ctx, clie2e.Request{
+					Args:    append(append([]string{}, exampleArgs...), "--dry-run", "--json"),
 					WorkDir: t.TempDir(),
-				}
-				if !hasAsFlag(exampleArgs) {
-					req.DefaultAs = defaultAsForCommand(t, cmd)
-				}
-				result, err := clie2e.RunCmd(ctx, req)
+				})
 				require.NoError(t, err)
+				require.NoError(t, result.RunErr, "binary: %s args: %v", result.BinaryPath, result.Args)
 				result.AssertExitCode(t, 0)
+
+				if wantAs := asFlagValue(exampleArgs); wantAs != "" {
+					var envelope struct {
+						Identity string `json:"identity"`
+					}
+					require.NoError(t, json.Unmarshal([]byte(result.Stdout), &envelope),
+						"dry-run --json stdout should be a JSON envelope")
+					require.Equal(t, wantAs, envelope.Identity,
+						"example pins --as %s, resolved identity must match", wantAs)
+				}
 			})
 		}
 	}
