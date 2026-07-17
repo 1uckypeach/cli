@@ -13,6 +13,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/agents"
 	"github.com/larksuite/cli/internal/agents/agenttest"
+	"github.com/larksuite/cli/internal/core"
 )
 
 // Register the example provider for this test binary (provider packages are pure
@@ -62,8 +63,10 @@ func TestConformanceReporter(t *testing.T) {
 // TestCapabilityMatrixDiverges pins the deliberate difference between the two
 // agents, derived purely from which hooks each spec wires.
 func TestCapabilityMatrixDiverges(t *testing.T) {
-	ec := agents.DeriveCapabilities(&echoSpec)
-	rc := agents.DeriveCapabilities(&reporterSpec)
+	// Under feishu (default), reporter's feishu-scoped task_cancel is live, so the
+	// historical full matrix holds.
+	ec := agents.DeriveCapabilities(&echoSpec, core.BrandFeishu)
+	rc := agents.DeriveCapabilities(&reporterSpec, core.BrandFeishu)
 	if ec.ArtifactDownload || ec.FileInput || ec.TaskCancel {
 		t.Errorf("echo should be the minimal set (no artifact/file/cancel), got %+v", ec)
 	}

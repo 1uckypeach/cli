@@ -24,6 +24,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/agents"
+	"github.com/larksuite/cli/internal/core"
 )
 
 // Provider is the whole declaration. The Catalog set makes this a catalog-type
@@ -103,12 +104,16 @@ var reporterSpec = agents.AgentSpec{
 		},
 		Handler: reporterSend,
 	},
-	GetTask:          agents.TaskGetOp{Handler: getTask},
-	ListTasks:        agents.TaskListOp{Handler: listTasks},
-	ListContexts:     agents.ContextListOp{Handler: listContexts},
-	GetContext:       agents.ContextGetOp{Handler: getContext},
-	DeleteContext:    agents.ContextDeleteOp{Handler: deleteContext},
-	CancelTask:       agents.TaskCancelOp{Handler: cancelTask},
+	GetTask:       agents.TaskGetOp{Handler: getTask},
+	ListTasks:     agents.TaskListOp{Handler: listTasks},
+	ListContexts:  agents.ContextListOp{Handler: listContexts},
+	GetContext:    agents.ContextGetOp{Handler: getContext},
+	DeleteContext: agents.ContextDeleteOp{Handler: deleteContext},
+	// task_cancel is scoped to feishu — a real brand-scoped capability demo:
+	// under lark reporter's card shows task_cancel=false and
+	// `agents task cancel example:reporter` is gated with unavailable_for_brand
+	// (the whole agent stays visible under both brands — only this op is scoped).
+	CancelTask:       agents.TaskCancelOp{Brands: []core.LarkBrand{core.BrandFeishu}, Handler: cancelTask},
 	DownloadArtifact: agents.ArtifactDownloadOp{Handler: downloadArtifact},
 }
 

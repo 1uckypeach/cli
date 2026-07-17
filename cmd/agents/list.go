@@ -164,7 +164,7 @@ func agentListSchemeRun(opts *listOptions) error {
 		if _, err := validateListParams(opts.Params, nil, opts.Scheme); err != nil {
 			return err
 		}
-		agents = prov.ListCatalog() // offline
+		agents = prov.ListCatalog(resolvedBrand(opts.Factory)) // offline, brand-filtered
 	} else {
 		// instance: needs the online ListAgents hook. Absent ⇒ not enumerable.
 		if prov.ListAgents == nil {

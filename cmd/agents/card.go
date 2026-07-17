@@ -94,6 +94,11 @@ func agentCardRun(opts *cardOptions) error {
 	if err != nil {
 		return err
 	}
+	// Whole-agent brand gate (offline): an agent hidden from the current brand
+	// has no card to show under it.
+	if err := brandGate(f, spec, opts.Ref); err != nil {
+		return err
+	}
 
 	if opts.Operation != "" {
 		return agentCardOperationRun(opts, prov, spec, id)
@@ -106,7 +111,7 @@ func agentCardRun(opts *cardOptions) error {
 	if r, rerr := runtimeFor(f, id, agentID, nil); rerr == nil {
 		rt = r
 	}
-	card := iagents.BuildCard(opts.Cmd.Context(), prov, spec, agentID, rt)
+	card := iagents.BuildCard(opts.Cmd.Context(), prov, spec, agentID, resolvedBrand(f), rt)
 
 	jq := jqExpr(opts.Cmd)
 	// pretty is a human view only; a --jq expression implies structured JSON,

@@ -2,7 +2,7 @@
 
 > **前置条件：** 先读 [`../../lark-shared/SKILL.md`](../../lark-shared/SKILL.md)（认证、身份、安全规则）。
 
-取并展示一个 agent 的能力卡片：`capabilities`（能调哪些动词）、`has_parameters`（哪些动词要先查参数）、`identity`（支持的 `--as` 及前置条件）；配合 `--operation <动词|all>` 查某动词的完整参数契约。**调任何动词前先读 card**——这是决定"能调什么、要传什么"的唯一依据。card 是否本地合成（离线可用）是 provider 事实，见对应 provider 文件。只读。
+取并展示一个 agent 的能力卡片：`capabilities`（能调哪些动词）、`has_parameters`（哪些动词要先查参数）、`identity`（支持的 `--as` 及前置条件）；配合 `--operation <动词|all>` 查某动词的完整参数契约。**调任何动词前先读 card**——这是决定"能调什么、要传什么"的唯一依据（`capabilities` 为准，别按文档示例假设某能力一定存在）。card 是否本地合成（离线可用）是 provider 事实，见对应 provider 文件。只读。
 
 > card **不含 scope 声明**——scope 是内部注册项，只喂给 preflight。user 身份缺 scope 时命令会本地报 `missing_scope`（照抄 hint 一次配齐）；scope 全集见对应 provider 文件，通用流程见 [lark-agents 前置准备](../SKILL.md)。
 

@@ -229,6 +229,61 @@ func jqExpr(cmd *cobra.Command) string {
 	return ""
 }
 
+// resolvedBrand returns the brand the agent commands filter/gate against: the
+// logged-in account's Config().Brand when Config resolves and is non-empty,
+// else BrandFeishu (the offline/unconfigured default, consistent with
+// core.ParseBrand mapping unknown→feishu). It is nil-safe (a nil Factory or a
+// nil Config hook yields feishu), so the offline gates hold before config init.
+func resolvedBrand(f *cmdutil.Factory) core.LarkBrand {
+	if f == nil || f.Config == nil {
+		return core.BrandFeishu
+	}
+	cfg, err := f.Config()
+	if err != nil || cfg == nil || cfg.Brand == "" {
+		return core.BrandFeishu
+	}
+	return cfg.Brand
+}
+
+// unavailableForBrandError returns the unavailable_for_brand validation error
+// (exit 2) — the brand sibling of capabilityError. `what` is the human-facing
+// capability name (e.g. "task cancel"); an empty `what` is the whole-agent case
+// ("agent '<ref>' is not available under <brand>"). The hint points at the card
+// for the current brand (cardHint interpolates ref only when it is whitelisted).
+func unavailableForBrandError(ref, what string, brand core.LarkBrand) error {
+	var msg string
+	if what == "" {
+		msg = fmt.Sprintf("agent '%s' 在 %s 品牌下不可用", ref, brand)
+	} else {
+		msg = fmt.Sprintf("agent '%s' 的 '%s' 在 %s 品牌下不可用", ref, what, brand)
+	}
+	return errs.NewValidationError(errs.SubtypeUnavailableForBrand, "%s", msg).
+		WithHint("%s", cardHint(ref, "当前品牌支持的能力"))
+}
+
+// brandGate is the whole-agent brand visibility gate: a spec whose declared
+// Brands exclude the resolved brand returns unavailable_for_brand (exit 2,
+// offline) before any network call. Placed right after the capability/offline
+// gates in every verb path.
+func brandGate(f *cmdutil.Factory, spec *iagents.AgentSpec, ref string) error {
+	if brand := resolvedBrand(f); !iagents.SpecAvailableForBrand(spec, brand) {
+		return unavailableForBrandError(ref, "", brand)
+	}
+	return nil
+}
+
+// opBrandGate is the per-capability brand gate: a WIRED op whose declared Brands
+// exclude the resolved brand returns unavailable_for_brand (exit 2, offline).
+// `what` is the human capability name. It assumes the whole-agent gate (brandGate)
+// already passed. Core ops (Send/GetTask) normally declare no Brands, so this is
+// a no-op for them unless a provider scopes them explicitly.
+func opBrandGate(f *cmdutil.Factory, brands []core.LarkBrand, ref, what string) error {
+	if brand := resolvedBrand(f); !iagents.OpAvailableForBrand(brands, brand) {
+		return unavailableForBrandError(ref, what, brand)
+	}
+	return nil
+}
+
 // capabilityError returns the unsupported_capability validation error (exit 2)
 // used for capability gating: capHuman is the human-facing action (e.g.
 // "task cancel"), capKey the Card capability key (e.g. task_cancel). The hint

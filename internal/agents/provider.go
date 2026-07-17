@@ -3,7 +3,11 @@
 
 package agents
 
-import "context"
+import (
+	"context"
+
+	"github.com/larksuite/cli/internal/core"
+)
 
 // SendInput is the input to send. Business parameters are NOT here — they ride
 // Runtime.Params() like every other operation, so send and the other seven
@@ -86,6 +90,13 @@ type Provider struct {
 //     rt.AgentID() to know which agent they serve.
 type AgentSpec struct {
 	ID string // catalog: required + unique; instance: MUST be empty
+
+	// Brands scopes the WHOLE agent to a subset of brands (feishu/lark): empty
+	// means visible/usable under every brand. It is declared at registration
+	// (brand-agnostic) and filtered/gated at command time against the resolved
+	// brand — catalog list visibility and every verb's brand gate consult
+	// SpecAvailableForBrand. Register validates every value is feishu|lark.
+	Brands []core.LarkBrand
 
 	// Per-agent card metadata (static, read offline).
 	Name        string

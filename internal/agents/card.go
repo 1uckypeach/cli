@@ -3,7 +3,11 @@
 
 package agents
 
-import "context"
+import (
+	"context"
+
+	"github.com/larksuite/cli/internal/core"
+)
 
 // capability key constants (the JSON key names in capabilities, also the
 // capability identifiers used by Supports / capabilityError). Only capabilities
@@ -48,13 +52,18 @@ type Capabilities struct {
 // tells the caller which operations need that lookup. Scopes are not in the
 // card; they are internal registration data for preflight only.
 type AgentCard struct {
-	Provider      string         `json:"provider"`
-	ProviderLabel string         `json:"provider_label"`
-	AgentID       string         `json:"agent_id"`
-	Name          string         `json:"name,omitempty"` // dynamic card only
-	Description   string         `json:"description,omitempty"`
-	Capabilities  Capabilities   `json:"capabilities"`
-	Identity      []IdentitySpec `json:"identity"`
+	Provider      string `json:"provider"`
+	ProviderLabel string `json:"provider_label"`
+	AgentID       string `json:"agent_id"`
+	// Brand the card was rendered for: the capability matrix is brand-scoped, so
+	// the same agent can honestly show different capabilities under feishu vs
+	// lark. Callers must read the card for the CURRENT brand, not assume it is
+	// cross-brand stable.
+	Brand        string         `json:"brand"`
+	Name         string         `json:"name,omitempty"` // dynamic card only
+	Description  string         `json:"description,omitempty"`
+	Capabilities Capabilities   `json:"capabilities"`
+	Identity     []IdentitySpec `json:"identity"`
 	// HasParameters lists the verbs that declare business parameters (always
 	// emitted; empty is []). A verb absent here takes no --param at all.
 	HasParameters []string `json:"has_parameters"`
@@ -68,15 +77,19 @@ type AgentCard struct {
 }
 
 // DeriveCapabilities computes the capability matrix from which AgentSpec
-// operations are wired — the single source of truth ("implement it = support
-// it"), enumerated through Ops() so the verb↔capability mapping lives in one
-// table. file_input / input_required are behavioral flags with no backing
-// operation and are read straight from the spec. Send/GetTask are mandatory
-// (Register enforces), so task_get is always true.
-func DeriveCapabilities(s *AgentSpec) Capabilities {
+// operations are wired AND available for `brand` — the single source of truth
+// ("implement it = support it"), enumerated through Ops() so the verb↔capability
+// mapping lives in one table. An op-backed capability is true iff its hook is
+// wired and the op is not brand-excluded (OpAvailableForBrand); the matrix is
+// therefore brand-scoped and the same agent may show different capabilities
+// under feishu vs lark. file_input / input_required are behavioral flags with
+// no backing operation and stay brand-independent (read straight from the spec).
+// Send/GetTask are mandatory (Register enforces), so task_get is true unless its
+// Op.Brands excludes the brand (normally empty ⇒ always true).
+func DeriveCapabilities(s *AgentSpec, brand core.LarkBrand) Capabilities {
 	w := make(map[string]bool, 8)
 	for _, o := range s.Ops() {
-		w[o.Verb] = o.Wired
+		w[o.Verb] = o.Wired && OpAvailableForBrand(o.Brands, brand)
 	}
 	return Capabilities{
 		TaskGet:          w[VerbTaskGet],
@@ -112,15 +125,17 @@ func HasParameters(s *AgentSpec) []string {
 // the card degrades to the offline (caps + static) version rather than
 // hard-failing (the caps matrix is the primary value). Pass rt=nil for the
 // guaranteed-offline path (card before config init, dry-run). A provider never
-// assembles its own card or declares its own capability bools.
-func BuildCard(ctx context.Context, p Provider, s *AgentSpec, agentID string, rt Runtime) *AgentCard {
+// assembles its own card or declares its own capability bools. brand scopes the
+// capability matrix (DeriveCapabilities) and is echoed as card.Brand.
+func BuildCard(ctx context.Context, p Provider, s *AgentSpec, agentID string, brand core.LarkBrand, rt Runtime) *AgentCard {
 	card := &AgentCard{
 		Provider:      p.Scheme,
 		ProviderLabel: p.Label,
 		AgentID:       agentID,
+		Brand:         string(brand),
 		Name:          s.Name,
 		Description:   s.Description,
-		Capabilities:  DeriveCapabilities(s),
+		Capabilities:  DeriveCapabilities(s, brand),
 		Identity:      p.Identities,
 		HasParameters: HasParameters(s),
 		AgentIDSource: p.AgentIDSource,

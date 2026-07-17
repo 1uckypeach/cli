@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/core"
 )
 
 // fakeRT is a no-op Runtime for exercising BuildCard's rt != nil path.
@@ -67,7 +68,7 @@ func TestDeriveCapabilities(t *testing.T) {
 	min.ListContexts = ContextListOp{Handler: func(context.Context, Runtime, PageParams) ([]ContextSummary, PageInfo, error) {
 		return nil, PageInfo{}, nil
 	}}
-	c := DeriveCapabilities(&min)
+	c := DeriveCapabilities(&min, core.BrandFeishu)
 	if !c.TaskGet {
 		t.Error("task_get should be true (GetTask is a mandatory core hook)")
 	}
@@ -94,7 +95,7 @@ func TestDeriveCapabilities(t *testing.T) {
 	full.DownloadArtifact = ArtifactDownloadOp{Handler: func(context.Context, Runtime, string, string) (*ArtifactData, error) { return nil, nil }}
 	full.FileInput = true
 	full.InputRequired = true
-	c = DeriveCapabilities(&full)
+	c = DeriveCapabilities(&full, core.BrandFeishu)
 	if !(c.TaskGet && c.TaskList && c.TaskCancel && c.ContextList && c.ContextGet && c.ContextDelete && c.ArtifactDownload && c.FileInput && c.InputRequired) {
 		t.Errorf("a fully-wired spec should have every capability true, got %+v", c)
 	}
@@ -111,7 +112,7 @@ func TestBuildCardOffline(t *testing.T) {
 	}
 	spec := &prov.Catalog[0]
 
-	card := BuildCard(context.Background(), prov, spec, "a1", nil)
+	card := BuildCard(context.Background(), prov, spec, "a1", core.BrandFeishu, nil)
 	if card.Provider != "nc" || card.AgentID != "a1" {
 		t.Fatalf("provider/agent_id: %+v", card)
 	}
@@ -140,7 +141,7 @@ func TestBuildCardDynamicDescribe(t *testing.T) {
 	prov.Instance.Describe = func(context.Context, Runtime) (*CardInfo, error) {
 		return &CardInfo{Name: "Remote Name", Description: "Remote Desc"}, nil
 	}
-	card := BuildCard(context.Background(), prov, prov.Instance, "agt_x", fakeRT{})
+	card := BuildCard(context.Background(), prov, prov.Instance, "agt_x", core.BrandFeishu, fakeRT{})
 	if card.Name != "Remote Name" || card.Description != "Remote Desc" {
 		t.Errorf("rt != nil + Describe should enrich the card, got name=%q desc=%q", card.Name, card.Description)
 	}
@@ -149,7 +150,7 @@ func TestBuildCardDynamicDescribe(t *testing.T) {
 	prov.Instance.Describe = func(context.Context, Runtime) (*CardInfo, error) {
 		return nil, errs.NewInternalError(errs.SubtypeUnknown, "describe boom")
 	}
-	card = BuildCard(context.Background(), prov, prov.Instance, "agt_x", fakeRT{})
+	card = BuildCard(context.Background(), prov, prov.Instance, "agt_x", core.BrandFeishu, fakeRT{})
 	if card.Name != "" {
 		t.Errorf("a Describe error should be swallowed → offline card (instance has no static Name), got name=%q", card.Name)
 	}

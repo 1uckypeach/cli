@@ -55,10 +55,20 @@ var resolveDownload = func(opts *taskOptions) (*iagents.ArtifactData, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Whole-agent brand gate FIRST (offline): a brand-hidden agent reports
+	// unavailable_for_brand uniformly for every verb — even one it does not wire —
+	// so it must precede the capability nil-gate below.
+	if err := brandGate(opts.Factory, spec, opts.Ref); err != nil {
+		return nil, err
+	}
 	// Capability gate before any network: a spec that does not wire
 	// DownloadArtifact (card artifact_download=false) returns unsupported_capability.
 	if spec.DownloadArtifact.Handler == nil {
 		return nil, capabilityError(opts.Ref, "artifact download", iagents.CapArtifactDownload)
+	}
+	// Per-capability brand gate: artifact_download's own brand scope.
+	if err := opBrandGate(opts.Factory, spec.DownloadArtifact.Brands, opts.Ref, "artifact download"); err != nil {
+		return nil, err
 	}
 	// --artifact switches this command to the artifact_download operation, so
 	// params validate STRICTLY against its declaration (a task_get-only param
@@ -248,6 +258,14 @@ func agentTaskGetRun(opts *taskOptions) error {
 	if err != nil {
 		return err
 	}
+	// Brand gates (offline): whole-agent visibility, then task_get's own scope
+	// (GetTask is core/always wired, so this is normally a no-op).
+	if err := brandGate(f, spec, opts.Ref); err != nil {
+		return err
+	}
+	if err := opBrandGate(f, spec.GetTask.Brands, opts.Ref, "task get"); err != nil {
+		return err
+	}
 	vp, err := validateParams(opts.Params, spec.GetTask.Params, iagents.VerbTaskGet, spec, opts.Ref)
 	if err != nil {
 		return err
@@ -322,10 +340,20 @@ func agentTaskListRun(opts *taskOptions) error {
 	if err != nil {
 		return err
 	}
+	// Whole-agent brand gate FIRST (offline): a brand-hidden agent reports
+	// unavailable_for_brand uniformly for every verb — even one it does not wire —
+	// so it must precede the capability nil-gate below.
+	if err := brandGate(f, spec, opts.Ref); err != nil {
+		return err
+	}
 	// Capability gate BEFORE building the client: a spec that does not wire
 	// ListTasks (card task_list=false) returns unsupported_capability offline.
 	if spec.ListTasks.Handler == nil {
 		return capabilityError(opts.Ref, "task list", iagents.CapTaskList)
+	}
+	// Per-capability brand gate: applies only to a wired op.
+	if err := opBrandGate(f, spec.ListTasks.Brands, opts.Ref, "task list"); err != nil {
+		return err
 	}
 	vp, err := validateParams(opts.Params, spec.ListTasks.Params, iagents.VerbTaskList, spec, opts.Ref)
 	if err != nil {
@@ -388,8 +416,19 @@ func agentTaskCancelRun(opts *taskOptions) error {
 	if err != nil {
 		return err
 	}
+	// Whole-agent brand gate FIRST (offline): a brand-hidden agent reports
+	// unavailable_for_brand uniformly for every verb — even one it does not wire —
+	// so it must precede the capability nil-gate below.
+	if err := brandGate(f, spec, opts.Ref); err != nil {
+		return err
+	}
 	if spec.CancelTask.Handler == nil {
 		return capabilityError(opts.Ref, "task cancel", iagents.CapTaskCancel)
+	}
+	// Per-capability brand gate: task_cancel's own brand scope — a
+	// wired-but-brand-excluded cancel returns unavailable_for_brand.
+	if err := opBrandGate(f, spec.CancelTask.Brands, opts.Ref, "task cancel"); err != nil {
+		return err
 	}
 	vp, err := validateParams(opts.Params, spec.CancelTask.Params, iagents.VerbTaskCancel, spec, opts.Ref)
 	if err != nil {
