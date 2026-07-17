@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/larksuite/cli/internal/core"
 )
 
 // swapRegistry replaces the global providerRegistry with the given map (restored
@@ -153,11 +155,11 @@ func TestKindAndAgentRefFormat(t *testing.T) {
 func TestListCatalog(t *testing.T) {
 	// Catalog: sorted by AgentRef, stable, instance returns nil.
 	cat := catalogProvider("cat", "zeta", "alpha")
-	got := cat.ListCatalog()
+	got := cat.ListCatalog(core.BrandFeishu)
 	if len(got) != 2 || got[0].AgentRef != "cat:alpha" || got[1].AgentRef != "cat:zeta" {
 		t.Fatalf("ListCatalog should be sorted by AgentRef, got %+v", got)
 	}
-	if instanceProvider("inst").ListCatalog() != nil {
+	if instanceProvider("inst").ListCatalog(core.BrandFeishu) != nil {
 		t.Error("instance ListCatalog should be nil")
 	}
 }

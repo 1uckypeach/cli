@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/core"
 )
 
 // Op is one declared operation: the business parameters it accepts bound to
@@ -19,7 +20,12 @@ import (
 // operation" impossible by construction. A zero-value Op means the operation
 // is not supported.
 type Op[H any] struct {
-	Params  []CardParam
+	Params []CardParam
+	// Brands scopes this capability to a subset of brands (feishu/lark). Empty
+	// means all brands. It is DECLARED at registration (brand-agnostic) and
+	// GATED at command time against the resolved brand — the registry stays
+	// offline. Register validates every value is feishu|lark.
+	Brands  []core.LarkBrand
 	Handler H
 }
 
@@ -49,6 +55,8 @@ func (o Op[H]) wired() bool {
 
 func (o Op[H]) params() []CardParam { return o.Params }
 
+func (o Op[H]) brands() []core.LarkBrand { return o.Brands }
+
 // Verb constants: the operation vocabulary is the capability key set plus
 // "send" — the AI reads one set of words for both "which verbs exist"
 // (capabilities) and "what parameters each verb takes" (--operation).
@@ -69,6 +77,9 @@ type OpInfo struct {
 	Verb   string
 	Wired  bool
 	Params []CardParam
+	// Brands is the operation's brand scope (empty = all brands), surfaced so
+	// the command layer can gate a wired-but-brand-excluded capability.
+	Brands []core.LarkBrand
 }
 
 // opDecl is the single-enumeration seam: every Op instantiation satisfies it,
@@ -78,6 +89,7 @@ type OpInfo struct {
 type opDecl interface {
 	wired() bool
 	params() []CardParam
+	brands() []core.LarkBrand
 }
 
 // Ops enumerates the spec's eight operations in fixed verb order.
@@ -97,7 +109,7 @@ func (s *AgentSpec) Ops() []OpInfo {
 	}
 	out := make([]OpInfo, 0, len(decls))
 	for _, d := range decls {
-		out = append(out, OpInfo{Verb: d.verb, Wired: d.op.wired(), Params: d.op.params()})
+		out = append(out, OpInfo{Verb: d.verb, Wired: d.op.wired(), Params: d.op.params(), Brands: d.op.brands()})
 	}
 	return out
 }
@@ -119,6 +131,23 @@ func Verbs() []string {
 		VerbSend, VerbTaskGet, VerbTaskList, VerbTaskCancel,
 		VerbContextList, VerbContextGet, VerbContextDelete, VerbArtifactDownload,
 	}
+}
+
+// OpAvailableForBrand reports whether an operation whose declaration lists
+// `brands` is available under `brand`: an empty declaration means all brands,
+// otherwise `brand` must be one of the listed values. It is the per-capability
+// sibling of SpecAvailableForBrand (whole-agent) and is reused by both
+// DeriveCapabilities (card matrix) and the command layer's per-verb brand gate.
+func OpAvailableForBrand(brands []core.LarkBrand, brand core.LarkBrand) bool {
+	if len(brands) == 0 {
+		return true
+	}
+	for _, b := range brands {
+		if b == brand {
+			return true
+		}
+	}
+	return false
 }
 
 // Float is a literal helper for CardParam.Min/Max.

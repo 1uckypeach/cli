@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/larksuite/cli/internal/agents"
+	"github.com/larksuite/cli/internal/core"
 )
 
 // CheckParamsBinding locks the declaration↔consumption contract for one
@@ -161,7 +162,7 @@ func RunConformance(t *testing.T, scheme, sampleAgentID string) {
 			}
 			// rt=nil: the guaranteed-offline card (caps + registration + static
 			// metadata). Describe enrichment is never exercised here.
-			return agents.BuildCard(context.Background(), prov, spec, agentID, nil)
+			return agents.BuildCard(context.Background(), prov, spec, agentID, core.BrandFeishu, nil)
 		}
 		card := buildCard()
 		if card.Provider != scheme {
@@ -211,7 +212,7 @@ func RunConformance(t *testing.T, scheme, sampleAgentID string) {
 
 	if prov.Kind() == agents.KindCatalog {
 		t.Run("enumeration", func(t *testing.T) {
-			list := prov.ListCatalog()
+			list := prov.ListCatalog(core.BrandFeishu)
 			wantRef := scheme + ":" + sampleAgentID
 			found := false
 			for i, a := range list {
@@ -234,7 +235,7 @@ func RunConformance(t *testing.T, scheme, sampleAgentID string) {
 				t.Errorf("conformance: sampleAgentID should appear in the enumeration (expected %q), got %+v", wantRef, list)
 			}
 			// stable, sorted by AgentRef.
-			list2 := prov.ListCatalog()
+			list2 := prov.ListCatalog(core.BrandFeishu)
 			if !reflect.DeepEqual(list, list2) {
 				t.Errorf("conformance: two ListCatalog results should DeepEqual (stable), got\n%+v\nvs\n%+v", list, list2)
 			}

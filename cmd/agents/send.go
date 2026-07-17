@@ -173,7 +173,15 @@ func agentSendRun(opts *sendOptions) error {
 	if err != nil {
 		return err
 	}
-	card := iagents.BuildCard(opts.Cmd.Context(), prov, spec, agentID, nil)
+	// Whole-agent brand gate (offline), before the card / any network access.
+	if err := brandGate(f, spec, opts.Ref); err != nil {
+		return err
+	}
+	// Send is a core op; gate it on its own Brands too (normally empty ⇒ no-op).
+	if err := opBrandGate(f, spec.Send.Brands, opts.Ref, "send"); err != nil {
+		return err
+	}
+	card := iagents.BuildCard(opts.Cmd.Context(), prov, spec, agentID, resolvedBrand(f), nil)
 	vp, err := validateParams(opts.Params, spec.Send.Params, iagents.VerbSend, spec, opts.Ref)
 	if err != nil {
 		return err

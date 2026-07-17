@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/core"
 )
 
 // ProviderKind is the closed set of provider forms, derived from whether a
@@ -99,6 +100,13 @@ func checkSpec(scheme string, s *AgentSpec, catalog bool) {
 	if !catalog && s.ID != "" {
 		panic("agent: instance template must have empty ID: " + scheme + ", got: " + s.ID)
 	}
+	// Whole-agent brand scope: every declared value must be a known brand
+	// (mirrors the identity Type fail-fast). Empty ⇒ all brands.
+	for _, b := range s.Brands {
+		if !validBrand(b) {
+			panic("agent: spec invalid Brand (want feishu|lark): " + scheme + ":" + s.ID + ", got: " + string(b))
+		}
+	}
 	for _, o := range s.Ops() {
 		where := scheme + ":" + s.ID + " " + o.Verb
 		// Params physically live on the Op, so the only declared-without-handler
@@ -106,9 +114,34 @@ func checkSpec(scheme string, s *AgentSpec, catalog bool) {
 		if len(o.Params) > 0 && !o.Wired {
 			panic("agent: params declared on an unwired operation: " + where)
 		}
+		// A brand scope on an unimplemented op is a dead declaration — mirror the
+		// params discipline above.
+		if len(o.Brands) > 0 && !o.Wired {
+			panic("agent: brands declared on an unwired operation: " + where)
+		}
+		// Per-capability brand scope: same known-brand rule as the whole-agent set.
+		for _, b := range o.Brands {
+			if !validBrand(b) {
+				panic("agent: op invalid Brand (want feishu|lark): " + where + ", got: " + string(b))
+			}
+		}
 		checkParams(where, o.Params)
 	}
 	normalizeSpecParams(s)
+}
+
+// validBrand reports whether b is one of the two known brands (feishu|lark) —
+// the Register-time fail-fast guard for spec.Brands and each Op.Brands.
+func validBrand(b core.LarkBrand) bool {
+	return b == core.BrandFeishu || b == core.BrandLark
+}
+
+// SpecAvailableForBrand reports whether the WHOLE agent is visible/usable under
+// `brand`: an empty spec.Brands means every brand, otherwise `brand` must be
+// listed. It backs catalog list filtering and the command layer's whole-agent
+// brand gate. (Op-level scoping is OpAvailableForBrand.)
+func SpecAvailableForBrand(s *AgentSpec, brand core.LarkBrand) bool {
+	return OpAvailableForBrand(s.Brands, brand)
 }
 
 // paramNameRe is the parameter-name charset: a strict subset of the meta.next
@@ -354,14 +387,18 @@ func (p Provider) AgentRefFormat() string {
 }
 
 // ListCatalog is the offline enumeration for a catalog provider (sorted by
-// AgentRef, stable). An instance provider has no static set and returns nil — the
-// command layer then falls back to the optional ListAgents online hook.
-func (p Provider) ListCatalog() []AgentSummary {
+// AgentRef, stable), filtered to the agents visible under `brand`
+// (SpecAvailableForBrand). An instance provider has no static set and returns
+// nil — the command layer then falls back to the optional ListAgents online hook.
+func (p Provider) ListCatalog(brand core.LarkBrand) []AgentSummary {
 	if p.Instance != nil {
 		return nil
 	}
 	out := make([]AgentSummary, 0, len(p.Catalog))
 	for _, s := range p.Catalog {
+		if !SpecAvailableForBrand(&s, brand) {
+			continue
+		}
 		out = append(out, AgentSummary{
 			AgentRef:    p.Scheme + ":" + s.ID,
 			Name:        s.Name,

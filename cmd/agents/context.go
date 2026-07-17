@@ -144,10 +144,20 @@ func agentContextListRun(opts *contextOptions) error {
 	if err != nil {
 		return err
 	}
+	// Whole-agent brand gate FIRST (offline): a brand-hidden agent reports
+	// unavailable_for_brand uniformly for every verb — even one it does not wire —
+	// so it must precede the capability nil-gate below.
+	if err := brandGate(f, spec, opts.Ref); err != nil {
+		return err
+	}
 	// Capability gate BEFORE the client: context_list is derived from ListContexts
 	// being wired, so a spec without it returns unsupported_capability offline.
 	if spec.ListContexts.Handler == nil {
 		return capabilityError(opts.Ref, "context list", iagents.CapContextList)
+	}
+	// Per-capability brand gate: applies only to a wired op.
+	if err := opBrandGate(f, spec.ListContexts.Brands, opts.Ref, "context list"); err != nil {
+		return err
 	}
 	vp, err := validateParams(opts.Params, spec.ListContexts.Params, iagents.VerbContextList, spec, opts.Ref)
 	if err != nil {
@@ -199,9 +209,19 @@ func agentContextGetRun(opts *contextOptions) error {
 	if err != nil {
 		return err
 	}
+	// Whole-agent brand gate FIRST (offline): a brand-hidden agent reports
+	// unavailable_for_brand uniformly for every verb — even one it does not wire —
+	// so it must precede the capability nil-gate below.
+	if err := brandGate(f, spec, opts.Ref); err != nil {
+		return err
+	}
 	// Capability gate BEFORE the client.
 	if spec.GetContext.Handler == nil {
 		return capabilityError(opts.Ref, "context get", iagents.CapContextGet)
+	}
+	// Per-capability brand gate: applies only to a wired op.
+	if err := opBrandGate(f, spec.GetContext.Brands, opts.Ref, "context get"); err != nil {
+		return err
 	}
 	vp, err := validateParams(opts.Params, spec.GetContext.Params, iagents.VerbContextGet, spec, opts.Ref)
 	if err != nil {
@@ -248,9 +268,19 @@ func agentContextDeleteRun(opts *contextOptions) error {
 	if err != nil {
 		return err
 	}
+	// Whole-agent brand gate FIRST (offline): a brand-hidden agent reports
+	// unavailable_for_brand uniformly for every verb — even one it does not wire —
+	// so it must precede the capability nil-gate below.
+	if err := brandGate(f, spec, opts.Ref); err != nil {
+		return err
+	}
 	// Capability gate BEFORE the client.
 	if spec.DeleteContext.Handler == nil {
 		return capabilityError(opts.Ref, "context delete", iagents.CapContextDelete)
+	}
+	// Per-capability brand gate: applies only to a wired op.
+	if err := opBrandGate(f, spec.DeleteContext.Brands, opts.Ref, "context delete"); err != nil {
+		return err
 	}
 	vp, err := validateParams(opts.Params, spec.DeleteContext.Params, iagents.VerbContextDelete, spec, opts.Ref)
 	if err != nil {
