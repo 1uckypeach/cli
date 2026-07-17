@@ -229,7 +229,9 @@ func TestIMTipsSendReplyIdentityLock(t *testing.T) {
 					"send/reply examples must carry an explicit --as bot")
 
 				cfgDir := t.TempDir()
-				cfg := `{"currentApp":"im_tips_identity_lock","apps":[{"appId":"im_tips_identity_lock","appSecret":"im_tips_dryrun_secret","brand":"feishu","defaultAs":"user","users":[]}]}`
+				cfg := fmt.Sprintf(
+					`{"currentApp":"im_tips_identity_lock","apps":[{"appId":"im_tips_identity_lock","appSecret":%q,"brand":"feishu","defaultAs":"user","users":[]}]}`,
+					"im_tips_dryrun_secret")
 				require.NoError(t, os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte(cfg), 0o600))
 				t.Setenv("LARKSUITE_CLI_CONFIG_DIR", cfgDir)
 
