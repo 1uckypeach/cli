@@ -95,6 +95,32 @@ func TestIMTipsExampleFlagsExist(t *testing.T) {
 	}
 }
 
+// TestIMTipsExamplesPinIdentity locks the identity convention on copyable
+// examples: user-only shortcuts must pin --as user (a bot-default
+// environment would otherwise reject the copied command), and the outbound
+// send/reply shortcuts must pin --as bot (governance: never rely on the
+// local default identity for deliveries).
+func TestIMTipsExamplesPinIdentity(t *testing.T) {
+	outbound := map[string]bool{"+messages-send": true, "+messages-reply": true}
+	for _, cmd := range tipsExampleTargets {
+		sc := shortcutByCommand(t, cmd)
+		botCapable := false
+		for _, a := range sc.AuthTypes {
+			if a == "bot" {
+				botCapable = true
+			}
+		}
+		for _, example := range exampleCommands(sc) {
+			if !botCapable && !strings.Contains(example, "--as user") {
+				t.Errorf("%s: user-only example must pin --as user\nexample: %s", cmd, example)
+			}
+			if outbound[cmd] && !strings.Contains(example, "--as bot") {
+				t.Errorf("%s: outbound example must pin --as bot\nexample: %s", cmd, example)
+			}
+		}
+	}
+}
+
 func TestIMTipsFirstExampleCoversRequired(t *testing.T) {
 	for _, cmd := range tipsExampleTargets {
 		sc := shortcutByCommand(t, cmd)

@@ -29,7 +29,7 @@ var ImFeedShortcutRemove = common.Shortcut{
 			Desc: "open_chat_id to remove from feed shortcuts (oc_xxx); required; repeat the flag or pass comma-separated; max 10 per call"},
 	},
 	Tips: []string{
-		`Example: lark-cli im +feed-shortcut-remove --chat-id <chat_id1>,<chat_id2>`,
+		`Example: lark-cli im +feed-shortcut-remove --chat-id <chat_id1>,<chat_id2> --as user`,
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		_, err := collectChatIDs(runtime)

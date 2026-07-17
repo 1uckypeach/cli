@@ -27,8 +27,8 @@ var ImFlagCreate = common.Shortcut{
 		{Name: "flag-type", Desc: "flag type: message (default) or feed"},
 	},
 	Tips: []string{
-		`Example: lark-cli im +flag-create --message-id <message_id>`,
-		`Example: lark-cli im +flag-create --message-id <message_id> --flag-type feed`,
+		`Example: lark-cli im +flag-create --message-id <message_id> --as user`,
+		`Example: lark-cli im +flag-create --message-id <message_id> --flag-type feed --as user`,
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		_, err := buildCreateItemForPreview(runtime)
