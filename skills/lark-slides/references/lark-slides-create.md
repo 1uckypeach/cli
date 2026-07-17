@@ -1,17 +1,7 @@
 
 # slides +create（创建飞书幻灯片）
 
-> **前置条件：** 先阅读 [`../lark-shared/SKILL.md`](../../lark-shared/SKILL.md) 了解认证、全局参数和安全规则。
-
 创建一个新的飞书幻灯片演示文稿，可选一步添加页面内容。
-
-- 禁止：从完整 <presentation> XML 解析/拆分/重序列化生成提交 payload。
-- 推荐：提交源直接就是单页 <slide> XML；+create --slides 只接受已经人工/程序直接生成的 slide 数组，不接受由
-      presentation 动态拆出来的数组。
-
-- 最稳：复杂 deck 默认空 deck + 单页 slide create，每次只提交一个 <slide>。
-
-- 注意：复杂 XML 不适合直接塞命令行，中文、引号、特殊字符较多时，直接拼接 --slides 容易发生 shell 转义或截断。建议将每页 XML 保存为独立文件，使用 `jq --rawfile` 组装 JSON 数组，避免手动处理 XML 引号和换行。
 
 ## 命令
 
@@ -153,4 +143,5 @@ lark-cli slides xml_presentation.slide create --as user \
 
 ## 相关命令
 
-- [slides +xml-get](lark-slides-xml-get.md) — 读取 PPT 内容并保存到本地文件
+- [xml_presentation.slide create](lark-slides-xml-presentation-slide-create.md) — 添加幻灯片页面
+- [slides +xml-get](lark-slides-xml-presentations-get.md) — 读取 PPT 内容并保存到本地文件
