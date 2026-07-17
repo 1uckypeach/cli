@@ -400,14 +400,29 @@ func resolveVideoContent(ctx context.Context, runtime *common.RuntimeContext, vi
 	return "media", string(jsonBytes), nil
 }
 
-// mediaFallbackOrError returns a text fallback for URL inputs when upload fails,
-// or a hard error for local file inputs.
+// mediaUploadFallbackHint is the recovery path for a failed URL-media upload.
+// The CLI must never rewrite approved content on its own, so the degraded
+// form (a plain text link) is only reachable through explicit re-approval.
+const mediaUploadFallbackHint = "nothing was sent — to fall back to sending the link as plain text, show the user the degraded content and, after their approval, re-send it explicitly with --text"
+
+// mediaFallbackOrError returns a hard error when a media upload fails.
+// A failed URL upload used to downgrade to a "[... upload failed, sending
+// link]" text message, which sent the recipient wording the user never saw
+// or approved. Now nothing is sent; for URL inputs the hint points at the
+// explicit re-approval path. An already-typed cause keeps its classification
+// (and its own hint, when it has one).
 func mediaFallbackOrError(originalValue, mediaType string, uploadErr error) (string, string, error) {
 	if isURL(originalValue) {
-		// Fallback: send URL as text link instead of failing.
-		fallbackText := fmt.Sprintf("[%s upload failed, sending link] %s", mediaType, originalValue)
-		jsonBytes, _ := json.Marshal(map[string]string{"text": fallbackText})
-		return "text", string(jsonBytes), nil
+		if p, ok := errs.ProblemOf(uploadErr); ok {
+			if p.Hint == "" {
+				p.Hint = mediaUploadFallbackHint
+			}
+			return "", "", uploadErr
+		}
+		return "", "", errs.NewNetworkError(errs.SubtypeNetworkTransport,
+			"%s upload failed for %s; nothing was sent", mediaType, sanitizeURLForDisplay(originalValue)).
+			WithCause(uploadErr).
+			WithHint("%s", mediaUploadFallbackHint)
 	}
 	return "", "", wrapIMNetworkErr(uploadErr, "%s upload failed", mediaType)
 }
@@ -928,20 +943,29 @@ func wrapMarkdownAsPostForDryRun(markdown string) (content, desc string) {
 
 // resolveMarkdownAsPost resolves image URLs in markdown, applies style optimization,
 // and wraps as post format JSON. Used by Execute (makes network calls).
-func resolveMarkdownAsPost(ctx context.Context, runtime *common.RuntimeContext, markdown string) string {
-	resolved := resolveMarkdownImageURLs(ctx, runtime, markdown)
+func resolveMarkdownAsPost(ctx context.Context, runtime *common.RuntimeContext, markdown string) (string, error) {
+	resolved, err := resolveMarkdownImageURLs(ctx, runtime, markdown)
+	if err != nil {
+		return "", err
+	}
 	optimized := optimizeMarkdownStyle(resolved)
 	inner, _ := json.Marshal(optimized)
-	return `{"zh_cn":{"content":[[{"tag":"md","text":` + string(inner) + `}]]}}`
+	return `{"zh_cn":{"content":[[{"tag":"md","text":` + string(inner) + `}]]}}`, nil
 }
 
 // resolveMarkdownImageURLs finds ![alt](https://...) in markdown, downloads each URL,
-// uploads as image, and replaces with ![alt](img_xxx). Failed uploads are stripped.
-func resolveMarkdownImageURLs(ctx context.Context, runtime *common.RuntimeContext, markdown string) string {
+// uploads as image, and replaces with ![alt](img_xxx). A failed download or
+// upload aborts the send: silently stripping the image would deliver content
+// the user never approved (the message they saw included that image).
+func resolveMarkdownImageURLs(ctx context.Context, runtime *common.RuntimeContext, markdown string) (string, error) {
 	if !strings.Contains(markdown, "![") {
-		return markdown
+		return markdown, nil
 	}
-	return reMarkdownImage.ReplaceAllStringFunc(markdown, func(m string) string {
+	var resolveErr error
+	resolved := reMarkdownImage.ReplaceAllStringFunc(markdown, func(m string) string {
+		if resolveErr != nil {
+			return m
+		}
 		sub := reMarkdownImage.FindStringSubmatch(m)
 		if len(sub) < 2 {
 			return m
@@ -950,16 +974,16 @@ func resolveMarkdownImageURLs(ctx context.Context, runtime *common.RuntimeContex
 
 		rc, _, err := downloadURLToReader(ctx, runtime, imgURL, maxImageUploadSize, "--markdown")
 		if err != nil {
-			fmt.Fprintf(runtime.IO().ErrOut, "warning: failed to download image %s: %v\n", sanitizeURLForDisplay(imgURL), err)
-			return ""
+			resolveErr = markdownImageError(imgURL, "download", err)
+			return m
 		}
 		defer rc.Close()
 
 		fmt.Fprintf(runtime.IO().ErrOut, "uploading image from URL: %s\n", sanitizeURLForDisplay(imgURL))
 		imgKey, err := uploadImageFromReader(ctx, runtime, rc, "message")
 		if err != nil {
-			fmt.Fprintf(runtime.IO().ErrOut, "warning: failed to upload image %s: %v\n", sanitizeURLForDisplay(imgURL), err)
-			return ""
+			resolveErr = markdownImageError(imgURL, "upload", err)
+			return m
 		}
 
 		// Reconstruct ![alt](img_xxx)
@@ -971,6 +995,33 @@ func resolveMarkdownImageURLs(ctx context.Context, runtime *common.RuntimeContex
 		}
 		return fmt.Sprintf("![%s](%s)", alt, imgKey)
 	})
+	if resolveErr != nil {
+		return "", resolveErr
+	}
+	return resolved, nil
+}
+
+// markdownImageFallbackHint is the recovery path for a markdown image that
+// could not be resolved: revise the draft explicitly instead of letting the
+// CLI strip the image behind the user's back.
+const markdownImageFallbackHint = "nothing was sent — remove the failing image from the markdown or replace it with a plain link, show the user the revised draft, and re-send after their approval"
+
+// markdownImageError builds the hard error for a markdown image that could
+// not be resolved. Stripping the image and sending the rest is forbidden —
+// that would deliver content differing from what the user approved. An
+// already-typed cause keeps its classification (and its own hint, when it
+// has one).
+func markdownImageError(imgURL, stage string, cause error) error {
+	if p, ok := errs.ProblemOf(cause); ok {
+		if p.Hint == "" {
+			p.Hint = markdownImageFallbackHint
+		}
+		return cause
+	}
+	return errs.NewNetworkError(errs.SubtypeNetworkTransport,
+		"markdown image %s failed for %s; nothing was sent", stage, sanitizeURLForDisplay(imgURL)).
+		WithCause(cause).
+		WithHint("%s", markdownImageFallbackHint)
 }
 
 // validateContentFlags checks mutual exclusion between content flags (text/markdown/content)
