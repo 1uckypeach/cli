@@ -1,0 +1,139 @@
+name: Publiccontent Cleanup Diagnostic
+
+on:
+  push:
+    branches:
+      - ci/publiccontent-cleanup-diag
+
+permissions:
+  contents: read
+
+jobs:
+  observe:
+    name: observe-${{ matrix.case }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - case: exact-1
+            mode: exact
+          - case: exact-2
+            mode: exact
+          - case: targeted-1
+            mode: targeted
+          - case: targeted-2
+            mode: targeted
+    steps:
+      - name: Check out diagnostic harness
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          path: diagnostic
+          persist-credentials: false
+
+      - name: Check out historical failure commit
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          repository: larksuite/cli
+          ref: 0b6faa01bff125f58efbe66856d9f2f5b72917c3
+          path: source
+          persist-credentials: false
+
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: source/go.mod
+          cache-dependency-path: source/go.sum
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.x'
+
+      - name: Record relevant runner state
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/publiccontent-diag"
+          {
+            uname -a
+            git --version
+            go version
+            findmnt -T /tmp
+            git config --system --show-origin --get-regexp '^(core\.hooksPath|hook\.|init\.templateDir|gc\.|maintenance\.)' || true
+            git config --global --show-origin --get-regexp '^(core\.hooksPath|hook\.|init\.templateDir|gc\.|maintenance\.)' || true
+            for key in GIT_TEMPLATE_DIR GIT_CONFIG_COUNT GIT_TRACE GIT_TRACE2 GIT_TRACE2_EVENT; do
+              if [[ -v "$key" ]]; then
+                printf '%s=%s\n' "$key" "${!key}"
+              else
+                printf '%s=<unset>\n' "$key"
+              fi
+            done
+            find /usr/share/git-core/templates/hooks -maxdepth 1 -type f -printf '%f mode=%m\n' 2>/dev/null | sort
+          } | tee "$RUNNER_TEMP/publiccontent-diag/environment.txt"
+
+      - name: Build and start filesystem observer
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd diagnostic
+          go build -o "$RUNNER_TEMP/fanotify-monitor" ./.github/diagnostics/fanotify_monitor.go
+          sudo "$RUNNER_TEMP/fanotify-monitor" /tmp \
+            > "$RUNNER_TEMP/publiccontent-diag/fanotify.jsonl" \
+            2> "$RUNNER_TEMP/publiccontent-diag/fanotify.stderr" &
+          echo "$!" > "$RUNNER_TEMP/publiccontent-diag/fanotify.pid"
+          sleep 1
+          if ! sudo kill -0 "$(cat "$RUNNER_TEMP/publiccontent-diag/fanotify.pid")"; then
+            cat "$RUNNER_TEMP/publiccontent-diag/fanotify.stderr"
+            exit 1
+          fi
+
+      - name: Fetch historical metadata
+        working-directory: source
+        run: python3 scripts/fetch_meta.py
+
+      - name: Run observed tests
+        id: test
+        working-directory: source
+        shell: bash
+        env:
+          DIAGNOSTIC_MODE: ${{ matrix.mode }}
+          GIT_TRACE2_EVENT: ${{ runner.temp }}/publiccontent-diag/git-trace2.jsonl
+        run: |
+          set +e
+          set -o pipefail
+          if [[ "$DIAGNOSTIC_MODE" == "exact" ]]; then
+            go test -v -race -count=1 -timeout=5m ./cmd/... ./internal/... ./shortcuts/... ./extension/... \
+              2>&1 | tee "$RUNNER_TEMP/publiccontent-diag/test.log"
+          else
+            go test -v -race -count=25 -timeout=5m ./internal/qualitygate/publiccontent \
+              2>&1 | tee "$RUNNER_TEMP/publiccontent-diag/test.log"
+          fi
+          status=${PIPESTATUS[0]}
+          printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Stop filesystem observer
+        if: always()
+        shell: bash
+        run: |
+          pid=$(cat "$RUNNER_TEMP/publiccontent-diag/fanotify.pid" 2>/dev/null || true)
+          if [[ -n "$pid" ]]; then
+            sudo kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+          fi
+          wc -l "$RUNNER_TEMP/publiccontent-diag/fanotify.jsonl" \
+            "$RUNNER_TEMP/publiccontent-diag/git-trace2.jsonl" 2>/dev/null || true
+
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: publiccontent-cleanup-${{ matrix.case }}
+          path: ${{ runner.temp }}/publiccontent-diag
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Propagate test result
+        if: always() && steps.test.outputs.status != '0'
+        shell: bash
+        run: exit "${{ steps.test.outputs.status }}"
