@@ -97,6 +97,9 @@ jobs:
         shell: bash
         env:
           DIAGNOSTIC_MODE: ${{ matrix.mode }}
+          GIT_CONFIG_COUNT: '1'
+          GIT_CONFIG_KEY_0: maintenance.autoDetach
+          GIT_CONFIG_VALUE_0: 'false'
           GIT_TRACE2_EVENT: ${{ runner.temp }}/publiccontent-diag/git-trace2.jsonl
         run: |
           set +e
