@@ -69,8 +69,7 @@ var CellsGet = common.Shortcut{
 		if err != nil {
 			return err
 		}
-		runtime.Out(out, nil)
-		return nil
+		return emitReadResult(runtime, out)
 	},
 }
 
@@ -88,7 +87,7 @@ func cellsGetInput(runtime *common.RuntimeContext, token, sheetID, sheetName str
 	// read cap. Pin cell_limit very high so the tool's own default never binds
 	// before max_chars.
 	input["cell_limit"] = unboundedReadLimit
-	if n := runtime.Int("max-chars"); n > 0 {
+	if n, ok := maxCharsInput(runtime); ok {
 		input["max_chars"] = n
 	}
 	return input
@@ -170,8 +169,7 @@ var CsvGet = common.Shortcut{
 		if !runtime.Bool("include-row-prefix") {
 			out = stripRowPrefixFromCsvOutput(out)
 		}
-		runtime.Out(out, nil)
-		return nil
+		return emitReadResult(runtime, out)
 	},
 }
 
@@ -188,7 +186,7 @@ func csvGetInput(runtime *common.RuntimeContext, token, sheetID, sheetName strin
 	// read cap. Pin max_rows very high so the tool's own default never binds
 	// before max_chars.
 	input["max_rows"] = unboundedReadLimit
-	if n := runtime.Int("max-chars"); n > 0 {
+	if n, ok := maxCharsInput(runtime); ok {
 		input["max_chars"] = n
 	}
 	return input

@@ -1292,8 +1292,15 @@
         "kind": "own",
         "type": "int",
         "required": "optional",
-        "desc": "Max output chars per call; default 500000 (safety cap). Large reads are usually better redirected to a file; only lower it (e.g. 25000) when you want results inline without triggering file offload, paging via has_more",
+        "desc": "Max output chars per call; default 500000 (safety cap). For a full untruncated read, use --output-path to dump to a file (auto-unlimited); only lower it (e.g. 25000) when you want results inline without a file, paging via has_more.",
         "default": "500000"
+      },
+      {
+        "name": "output-path",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Write the full read result to a local path (e.g. `./out.json`); the file holds the data payload as JSON while stdout returns only a small confirmation (output_path, byte count). **When set, the char cap defaults to unlimited** (overriding the --max-chars default), so a large sheet can be dumped in full for later analysis without stdout being truncated by max_chars. Omit it to print to stdout as usual."
       },
       {
         "name": "skip-hidden",
@@ -1401,8 +1408,15 @@
         "kind": "own",
         "type": "int",
         "required": "optional",
-        "desc": "Max output chars per call; default 500000 (safety cap). Large reads are usually better redirected to a file; only lower it (e.g. 25000) when you want results inline without triggering file offload, paging via has_more",
+        "desc": "Max output chars per call; default 500000 (safety cap). For a full untruncated read, use --output-path to dump to a file (auto-unlimited); only lower it (e.g. 25000) when you want results inline without a file, paging via has_more.",
         "default": "500000"
+      },
+      {
+        "name": "output-path",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Write the full read result to a local path (e.g. `./out.json`); the file holds the data payload as JSON while stdout returns only a small confirmation (output_path, byte count). **When set, the char cap defaults to unlimited** (overriding the --max-chars default), so a large sheet can be dumped in full for later analysis without stdout being truncated by max_chars. Omit it to print to stdout as usual."
       },
       {
         "name": "include-row-prefix",
@@ -1465,6 +1479,21 @@
         "type": "string",
         "required": "optional",
         "desc": "A1 range to read; omit to read each sheet's full used range (spans internal blank rows/columns, not just the A1 current region)"
+      },
+      {
+        "name": "max-chars",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Max output chars per call; default 500000 (safety cap). The underlying tool truncates at ~50000 even when unset, so this is sent explicitly to raise it; for a full untruncated read use --output-path (auto-unlimited).",
+        "default": "500000"
+      },
+      {
+        "name": "output-path",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Write the full read result to a local path (e.g. `./out.json`); the file holds the data payload as JSON while stdout returns only a small confirmation (output_path, byte count). **When set, the char cap defaults to unlimited** (overriding the --max-chars default), so a large sheet can be dumped in full for later analysis without stdout being truncated by max_chars. Omit it to print to stdout as usual."
       },
       {
         "name": "no-header",
