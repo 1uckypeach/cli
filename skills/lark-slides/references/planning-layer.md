@@ -203,13 +203,13 @@ Do not hard-code a page number just because a previous deck used that pattern. P
 
 ## Asset Planning
 
-`asset_need` is metadata. It can describe a desired figure, diagram, chart, icon, logo, screenshot, or fallback shape-based visual, but it must not require web search, local download, or media upload.
+`asset_need` is planning metadata. It must not perform web search, local download, upload, or image generation during planning. After the plan is accepted, the asset-realization stage may obtain an authorized real/generated asset or execute `fallback_if_missing`.
 
 Use an object for one planned asset, an array for multiple real needs, or `asset_type: "none"` when no asset is useful. Each planned asset must include:
 
-- `asset_type`: one of `paper_figure`, `architecture_diagram`, `icon`, `logo`, `chart`, `infographic`, `screenshot`, `flow_diagram`, or `none`.
+- `asset_type`: one of `paper_figure`, `architecture_diagram`, `icon`, `logo`, `chart`, `infographic`, `screenshot`, `flow_diagram`, `generated_visual`, or `none`.
 - `purpose`: why this asset helps the page's key message.
-- `suggested_query`: short future lookup hint only; do not execute it unless separately requested.
+- `suggested_query`: short future lookup or generation hint only; do not execute it during planning.
 - `fallback_if_missing`: concrete XML-native visual plan using shapes, labels, tables, whiteboard diagrams, or placeholder panels.
 - `chart_contract`: when `asset_type` is `chart` and the visual is a supported standard data chart, set this optional slide-level field so generation is locked to native `<chart>`.
 
@@ -229,7 +229,7 @@ Before writing each slide XML, map the plan fields to concrete decisions:
 - `layout_type` determines the coordinate structure and element types. Use `visual-planning.md` for concrete layout rules.
 - `visual_focus` determines the largest visual region or emphasized object.
 - `text_density` caps visible text volume.
-- `asset_need` informs placeholder diagrams, icons, charts, screenshots, or shape-based fallback visuals only. Missing real assets must use `fallback_if_missing`, not blank regions.
+- `asset_need` informs authorized asset realization and, when unavailable, placeholder diagrams, icons, charts, screenshots, or shape-based fallback visuals. Missing real assets must use `fallback_if_missing`, not blank regions.
 - `chart_contract` locks supported standard data charts to native `<chart>` output. Manual approximations are allowed only when the planned chart type is unsupported by `<chart>` or when the visual is explicitly non-data/decorative.
 
 After creating the PPT, fetch the presentation and verify:

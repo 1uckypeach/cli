@@ -1,0 +1,24 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style><fill><fillColor color="rgba(246, 249, 252, 1)"/></fill></style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="960" height="76"><fill><fillColor color="rgba(10, 22, 40, 1)"/></fill></shape>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="12" height="76"><fill><fillColor color="rgba(181, 255, 88, 1)"/></fill></shape>
+    <shape type="text" topLeftX="42" topLeftY="20" width="700" height="34"><content autoFit="normal-auto-fit" fontSize="26" color="rgba(248, 250, 252, 1)" bold="true"><p>从“能生成”到“能交付”</p></content></shape>
+    <shape type="rect" topLeftX="56" topLeftY="136" width="370" height="280"><fill><fillColor color="rgba(231, 238, 246, 1)"/></fill></shape>
+    <shape type="rect" topLeftX="56" topLeftY="136" width="370" height="6"><fill><fillColor color="rgba(181, 255, 88, 1)"/></fill></shape>
+    <shape type="text" topLeftX="86" topLeftY="172" width="300" height="30"><content autoFit="normal-auto-fit" fontSize="16" color="rgba(71, 100, 126, 1)" bold="true"><p>ONLY XML SUCCESS</p></content></shape>
+    <shape type="text" topLeftX="84" topLeftY="222" width="300" height="52"><content autoFit="normal-auto-fit" fontSize="28" color="rgba(10, 22, 40, 1)" bold="true"><p>接口返回成功</p></content></shape>
+    <shape type="ellipse" topLeftX="342" topLeftY="166" width="44" height="44"><fill><fillColor color="rgba(255, 255, 255, 0.78)"/></fill></shape>
+    <shape type="text" topLeftX="342" topLeftY="176" width="44" height="22"><content autoFit="normal-auto-fit" fontSize="12" color="rgba(71, 100, 126, 1)" bold="true" textAlign="center"><p>01</p></content></shape>
+    <shape type="text" topLeftX="86" topLeftY="304" width="286" height="54"><content autoFit="normal-auto-fit" fontSize="16" color="rgba(71, 100, 126, 1)"><p>未检查内容是否被裁切，是否真的形成视觉层级。</p></content></shape>
+    <shape type="rect" topLeftX="534" topLeftY="136" width="370" height="280"><fill><fillColor color="rgba(10, 22, 40, 1)"/></fill></shape>
+    <shape type="rect" topLeftX="534" topLeftY="136" width="370" height="6"><fill><fillColor color="rgba(181, 255, 88, 1)"/></fill></shape>
+    <shape type="text" topLeftX="564" topLeftY="172" width="300" height="30"><content autoFit="normal-auto-fit" fontSize="16" color="rgba(181, 255, 88, 1)" bold="true"><p>QUALITY EVIDENCE</p></content></shape>
+    <shape type="text" topLeftX="562" topLeftY="222" width="300" height="52"><content autoFit="normal-auto-fit" fontSize="28" color="rgba(248, 250, 252, 1)" bold="true"><p>截图验证通过</p></content></shape>
+    <shape type="ellipse" topLeftX="820" topLeftY="166" width="44" height="44"><fill><fillColor color="rgba(181, 255, 88, 1)"/></fill></shape>
+    <shape type="text" topLeftX="820" topLeftY="176" width="44" height="22"><content autoFit="normal-auto-fit" fontSize="12" color="rgba(10, 22, 40, 1)" bold="true" textAlign="center"><p>02</p></content></shape>
+    <shape type="text" topLeftX="564" topLeftY="304" width="286" height="54"><content autoFit="normal-auto-fit" fontSize="16" color="rgba(190, 205, 224, 1)"><p>静态诊断、渲染截图、真实页面回读构成可复现证据。</p></content></shape>
+    <shape type="right-arrow" topLeftX="452" topLeftY="258" width="56" height="36"><fill><fillColor color="rgba(181, 255, 88, 1)"/></fill></shape>
+    <shape type="text" topLeftX="428" topLeftY="320" width="104" height="22"><content autoFit="normal-auto-fit" fontSize="11" color="rgba(71, 100, 126, 1)" bold="true" textAlign="center"><p>ADD EVIDENCE</p></content></shape>
+  </data>
+</slide>

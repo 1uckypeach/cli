@@ -1,0 +1,15 @@
+{
+  "name": "lark-slides-quality-core",
+  "fixture_assets": [
+    {
+      "path": "skills/lark-slides/eval/assets/quality-loop-hero-v1.png",
+      "source": "OpenAI image generation, user-authorized local evaluation fixture",
+      "purpose": "No-text cover focal visual; all slide copy remains native XML."
+    }
+  ],
+  "cases": [
+    {"id": "cover", "xml": "cases/cover_with_image.xml", "checks": {"min_elements": 8, "required_kinds": ["img", "shape"], "required_text": ["QUALITY SYSTEM / 2026", "经得起看见"]}},
+    {"id": "comparison", "xml": "cases/comparison.xml", "checks": {"min_elements": 12, "required_kinds": ["shape"], "required_text": ["QUALITY EVIDENCE", "截图验证通过"]}},
+    {"id": "architecture", "xml": "cases/architecture.xml", "checks": {"min_elements": 20, "required_kinds": ["shape"], "required_text": ["QUALITY EVIDENCE", "截图验收"]}}
+  ]
+}

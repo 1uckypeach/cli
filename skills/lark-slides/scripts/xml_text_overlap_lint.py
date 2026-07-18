@@ -1077,6 +1077,76 @@ def detect_table_layout_size_mismatches(elements: list[dict[str, Any]]) -> list[
     return issues
 
 
+def bbox(element: dict[str, Any]) -> dict[str, int | float]:
+    return {key: element[key] for key in ("x", "y", "width", "height")}
+
+
+def intersection_bbox(left: dict[str, Any], right: dict[str, Any]) -> dict[str, int | float]:
+    x = max(left["x"], right["x"])
+    y = max(left["y"], right["y"])
+    width = max(min(left["x"] + left["width"], right["x"] + right["width"]) - x, 0)
+    height = max(min(left["y"] + left["height"], right["y"] + right["height"]) - y, 0)
+    return {"x": x, "y": y, "width": width, "height": height, "area": width * height}
+
+
+def detect_content_out_of_canvas(
+    elements: list[dict[str, Any]], slide_width: int | float, slide_height: int | float
+) -> list[dict[str, Any]]:
+    """Report visible content that is clipped, but allow image bleed as a deliberate treatment."""
+    issues: list[dict[str, Any]] = []
+    for element in (element for element in elements if element["kind"] != "img"):
+        overflow = {
+            "left": max(-element["x"], 0),
+            "top": max(-element["y"], 0),
+            "right": max(element["x"] + element["width"] - slide_width, 0),
+            "bottom": max(element["y"] + element["height"] - slide_height, 0),
+        }
+        if not any(overflow.values()):
+            continue
+        issues.append(
+            {
+                "level": "warning",
+                "code": "content_out_of_canvas",
+                "elements": [element["id"]],
+                "canvas": {"width": slide_width, "height": slide_height},
+                "bbox": bbox(element),
+                "overflow": overflow,
+                "message": f'{element["id"]} extends outside the {slide_width:g}x{slide_height:g} canvas',
+                "hint": "Move or resize the visible element inside the canvas, or verify the intentional crop in a rendered screenshot.",
+            }
+        )
+    return issues
+
+
+def detect_text_capacity_risks(elements: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    for element in elements:
+        visual_bbox = estimate_text_visual_bbox(element)
+        if visual_bbox is None:
+            continue
+        estimated_lines = estimate_text_line_count(element)
+        required_height = estimated_lines * element["fontSize"] * 1.2
+        if required_height <= element["height"]:
+            continue
+        issues.append(
+            {
+                "level": "warning",
+                "code": "text_may_overflow",
+                "elements": [element["id"]],
+                "bbox": bbox(element),
+                "estimated": {
+                    "line_count": estimated_lines,
+                    "required_height": required_height,
+                    "font_size": element["fontSize"],
+                    "auto_fit": element.get("autoFit"),
+                },
+                "message": f'{element["id"]} needs about {required_height:g}px for {estimated_lines} line(s), but has {element["height"]:g}px',
+                "hint": "Shorten or split the text, enlarge the box, or set content autoFit=\"normal-auto-fit\" and verify the rendered slide.",
+            }
+        )
+    return issues
+
+
 def lint_slide(
     slide_xml: str, slide_number: int, slide_width: int | float = 960, slide_height: int | float = 540
 ) -> dict[str, Any]:
@@ -1085,6 +1155,8 @@ def lint_slide(
         *detect_whiteboard_external_overlaps(elements, slide_width, slide_height),
         *detect_table_out_of_canvas(elements, slide_width, slide_height),
         *detect_table_layout_size_mismatches(elements),
+        *detect_content_out_of_canvas(elements, slide_width, slide_height),
+        *detect_text_capacity_risks(elements),
     ]
 
     for index, left in enumerate(elements):
@@ -1097,7 +1169,10 @@ def lint_slide(
                     "level": "error",
                     "code": "bbox_overlap",
                     "elements": [left["id"], right["id"]],
+                    "bboxes": {"left": bbox(left), "right": bbox(right)},
+                    "intersection": intersection_bbox(left, right),
                     "message": f'{left["id"]} overlaps {right["id"]}',
+                    "hint": "Separate the text boxes or reduce their text density; use the bboxes and intersection to choose the smallest safe coordinate change.",
                 }
             )
 

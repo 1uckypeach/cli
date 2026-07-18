@@ -1,0 +1,14 @@
+<slide xmlns="http://www.larkoffice.com/sml/2.0">
+  <style><fill><fillColor color="rgba(10, 22, 40, 1)"/></fill></style>
+  <data>
+    <img src="@./skills/lark-slides/eval/assets/quality-loop-hero-v1.png" topLeftX="0" topLeftY="0" width="960" height="540"/>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="14" height="540"><fill><fillColor color="rgba(181, 255, 88, 1)"/></fill></shape>
+    <shape type="text" topLeftX="66" topLeftY="82" width="470" height="30"><content autoFit="normal-auto-fit" fontSize="15" color="rgba(181, 255, 88, 1)" bold="true"><p>QUALITY SYSTEM / 2026</p></content></shape>
+    <shape type="text" topLeftX="62" topLeftY="138" width="480" height="118"><content autoFit="normal-auto-fit" textType="title" fontSize="46" color="rgba(248, 250, 252, 1)" bold="true"><p>让每一页</p><p>经得起看见</p></content></shape>
+    <shape type="text" topLeftX="66" topLeftY="282" width="420" height="48"><content autoFit="normal-auto-fit" fontSize="18" color="rgba(215, 228, 242, 1)"><p>从 XML 合法到视觉可交付的 Slides 质量闭环。</p></content></shape>
+    <line startX="66" startY="384" endX="420" endY="384"><border color="rgba(180, 211, 235, 0.55)" width="1"/></line>
+    <shape type="text" topLeftX="66" topLeftY="402" width="420" height="26"><content autoFit="normal-auto-fit" fontSize="14" color="rgba(215, 228, 242, 1)"><p>PLAN · BUILD · RENDER · REVIEW</p></content></shape>
+    <shape type="round-rect" topLeftX="694" topLeftY="398" width="196" height="44"><fill><fillColor color="rgba(10, 22, 40, 0.72)"/></fill><border color="rgba(181, 255, 88, 0.75)" width="1"/></shape>
+    <shape type="text" topLeftX="710" topLeftY="408" width="164" height="22"><content autoFit="normal-auto-fit" fontSize="12" color="rgba(181, 255, 88, 1)" bold="true" textAlign="center"><p>01 / DESIGN SYSTEM</p></content></shape>
+  </data>
+</slide>

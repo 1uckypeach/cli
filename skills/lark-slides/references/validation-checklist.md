@@ -36,7 +36,7 @@ python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentatio
 通过标准：
 
 - `summary.error_count == 0`。任何 error 都必须先修复再提交接口。
-- 当前工具检查 XML well-formed、SXSD tag/attr 支持情况、IconPark icon 类型和 icon 填充可见性、文本元素之间的明显重叠，以及 whiteboard 容器与外部 sibling 元素的可疑边界重叠；它不检查越界、文本高度不足、图文压盖、表格/图表压盖或底部拥挤。
+- 当前工具检查 XML well-formed、SXSD tag/attr 支持情况、IconPark icon 类型和 icon 填充可见性、文本元素之间的明显重叠、whiteboard 容器与外部 sibling 元素的可疑边界重叠、表格越界/尺寸不一致，以及非图片元素越界和估算文本高度风险。后两项是 warning，必须由截图复核；它仍不能可靠判断图文压盖、对比度、视觉层级或底部拥挤。
 - 该工具不能替代页数核对、关键内容核对或真实视觉验收。
 
 常见 code 的处理方向：
@@ -52,6 +52,8 @@ python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentatio
 | `icon_transparent_fill_color` | `<icon>` 的 `fillColor` 是透明色，不满足视觉可见性要求 | 改成与背景有足够对比的非透明颜色 |
 | `bbox_overlap` | 文本元素的估算绘制区域明显重叠 | 拉开文本坐标、缩小文本框/字号，或改成明确的分栏/分组结构 |
 | `whiteboard_external_overlap` | whiteboard 容器 bbox 与外部 sibling 元素跨边界重叠 | 按 lint `hint` 缩小或移动 whiteboard / 外部元素；若接受该风险，最终必须以截图 QA 或等价渲染视觉检查为准 |
+| `content_out_of_canvas` | 可见的非图片元素可能被画布裁切 | 检查 `overflow` 和截图；移动/缩小元素，或记录这是可接受的视觉裁切 |
+| `text_may_overflow` | 估算文本高度大于声明文本框高度 | 缩短或拆分文本、增大框，或设置 `autoFit="normal-auto-fit"` 后截图复核 |
 
 ## Page Count And Structure
 

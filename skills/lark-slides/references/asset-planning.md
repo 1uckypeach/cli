@@ -2,7 +2,7 @@
 
 新建演示文稿或大幅改写页面时，在写入 `slide_plan.json` 前后都可以参考本文件。目标是让 agent 主动识别有价值的图、图标、图表、流程图、时序图、架构图、装饰图案、截图或示意图需求，同时保持 deck 在没有真实素材时也能完整执行。
 
-本文件只定义轻量资产规划。不要把它理解成素材采集流程。
+本文件先定义轻量资产规划；素材采集属于 XML 前的 asset-realization 阶段。计划阶段不执行搜索、下载或上传，完成计划后可在用户授权且工具可用时落实真实或生成资产。
 
 ## Core Rules
 
@@ -10,6 +10,7 @@
 - Asset needs must serve the page's `key_message` and `visual_focus`. Do not add decorative assets that do not clarify the page.
 - Prefer a few high-value asset plans over one asset on every page. For a 6-page technical or business deck, plan assets on at least 3 pages when the content allows.
 - If a real local asset already exists or the user provides one, it can be used through the normal media-upload workflow. Still keep `fallback_if_missing` in the plan.
+- For `generated_visual`, record `source: "generated"`, a no-text prompt intent, and the intended copy-safe region. Generate it only in the asset-realization stage when authorized and available; otherwise use the fallback and report that no raster asset was used.
 - Do not leave blank image boxes in final XML. If the asset is missing, render the fallback visual.
 
 ## JSON Shape
@@ -22,6 +23,21 @@ Use an object for one planned asset, or an array when a page genuinely needs mul
   "purpose": "Show how API gateway, planner, XML generator, and Slides API interact.",
   "suggested_query": "agent native slides runtime architecture diagram",
   "fallback_if_missing": "Draw grouped boxes connected by arrows with short labels."
+}
+```
+
+For a generated focal visual, use this additional contract:
+
+```json
+{
+  "asset_type": "generated_visual",
+  "purpose": "Create a material-rich cover focal point without baking in slide copy.",
+  "source": "generated",
+  "prompt_intent": "no-text blue glass quality loop on the right",
+  "copy_safe_region": "left_45_percent",
+  "realization_status": "planned",
+  "suggested_query": "quality loop editorial abstract visual",
+  "fallback_if_missing": "Render a semantic quality-loop SVG with native labels."
 }
 ```
 
@@ -46,6 +62,7 @@ For a page without a meaningful asset need, use:
 - `infographic`: composed visual explanation, usually combining labels, numbers, and simple shapes.
 - `screenshot`: product UI, terminal output, workflow state, or page capture.
 - `flow_diagram`: process, sequence, decision tree, or mechanism diagram.
+- `generated_visual`: no-text editorial, material, atmospheric, or product-context visual used as a focal asset; native XML owns all copy.
 - `none`: explicitly no asset needed.
 
 Do not invent new asset types unless the user asks for a special visual format. If a need is close to these types, choose the closest one and explain the detail in `purpose`.
@@ -61,7 +78,9 @@ Match asset type to slide role:
 - `big-number` layout often works with `chart` or `infographic`, but only if it supports the metric.
 - `image-left-text-right` and `image-right-text-left` can use `screenshot`, `paper_figure`, `logo`, or `infographic`; if missing, use a large placeholder diagram or stylized panel.
 
-`suggested_query` is only a future lookup hint. Write it as a short phrase a human or later workflow could search, but do not execute the search unless the user separately requests real assets.
+`suggested_query` is only a planning hint. Do not execute it during planning. After the plan is accepted, asset realization may search or generate only when the user has authorized that source/tool; otherwise execute `fallback_if_missing` and report the limitation.
+
+For `generated_visual`, require `source`, `prompt_intent`, `copy_safe_region`, and `realization_status` (`planned`, `acquired`, or `fallback`). Record the resulting local path/token or fallback reason in the deck's `assets_used` state.
 
 For `asset_type: "chart"`:
 

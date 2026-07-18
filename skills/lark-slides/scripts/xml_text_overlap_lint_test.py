@@ -522,7 +522,11 @@ class XmlTextOverlapLintTest(unittest.TestCase):
             """
         )
         self.assertEqual(result["summary"]["error_count"], 1)
-        self.assertEqual(result["slides"][0]["issues"][0]["code"], "bbox_overlap")
+        issue = result["slides"][0]["issues"][0]
+        self.assertEqual(issue["code"], "bbox_overlap")
+        self.assertEqual(issue["bboxes"]["left"], {"x": 80, "y": 80, "width": 300, "height": 60})
+        self.assertEqual(issue["intersection"], {"x": 80, "y": 80, "width": 300, "height": 60, "area": 18000})
+        self.assertIn("coordinate", issue["hint"])
 
     def test_lint_xml_detects_current_itinerary_cjk_caption_occlusion(self) -> None:
         result = xml_text_overlap_lint.lint_xml(
@@ -598,10 +602,10 @@ class XmlTextOverlapLintTest(unittest.TestCase):
             """
         )
         self.assertEqual(result["summary"]["error_count"], 1)
-        self.assertEqual(result["slides"][0]["issues"][0]["code"], "bbox_overlap")
-        self.assertEqual(result["slides"][0]["issues"][0]["elements"], ["source", "target"])
+        overlap = next(issue for issue in result["slides"][0]["issues"] if issue["code"] == "bbox_overlap")
+        self.assertEqual(overlap["elements"], ["source", "target"])
 
-    def test_lint_xml_does_not_check_bounds_or_text_height(self) -> None:
+    def test_lint_xml_reports_bounds_and_text_height_risks_as_warnings(self) -> None:
         result = xml_text_overlap_lint.lint_xml(
             """
             <presentation xmlns="http://www.larkoffice.com/sml/2.0" width="960" height="540">
@@ -619,7 +623,12 @@ class XmlTextOverlapLintTest(unittest.TestCase):
             """
         )
         self.assertEqual(result["summary"]["error_count"], 0)
-        self.assertEqual(result["summary"]["warning_count"], 0)
+        self.assertEqual(result["summary"]["warning_count"], 2)
+        issues = {issue["code"]: issue for issue in result["slides"][0]["issues"]}
+        self.assertEqual(issues["content_out_of_canvas"]["elements"], ["shape-2"])
+        self.assertEqual(issues["content_out_of_canvas"]["overflow"]["right"], 160)
+        self.assertEqual(issues["text_may_overflow"]["elements"], ["shape-1"])
+        self.assertGreater(issues["text_may_overflow"]["estimated"]["required_height"], 20)
 
     def test_lint_xml_allows_template_style_bleed_and_text_over_images(self) -> None:
         result = xml_text_overlap_lint.lint_xml(
