@@ -1226,8 +1226,7 @@ var TableGet = common.Shortcut{
 			}
 			sheets = append(sheets, spec)
 		}
-		runtime.Out(map[string]interface{}{"sheets": sheets}, nil)
-		return nil
+		return emitReadResult(runtime, map[string]interface{}{"sheets": sheets})
 	},
 	Tips: []string{
 		"Output is the same shape +table-put consumes — pipe it back in, or load sheets[].rows into a DataFrame keyed by columns[].name.",
@@ -1372,11 +1371,18 @@ func readSheetAsSpec(ctx context.Context, runtime *common.RuntimeContext, token 
 		"value_render_option": "raw_value",
 		"cell_limit":          unboundedReadLimit,
 	}
+	// --max-chars binds the char budget (default 500000); --output-path lifts it
+	// to unbounded. Without this the tool applied its own ~50000 default and
+	// silently dropped rows past it with no signal in the +table-get output.
+	if n, ok := maxCharsInput(runtime); ok {
+		input["max_chars"] = n
+	}
 	sheetSelectorForToolInput(input, t.id, t.name)
 	out, err := callTool(ctx, runtime, token, ToolKindRead, "get_cell_ranges", input)
 	if err != nil {
 		return nil, err
 	}
+	truncated := cellRangesTruncated(out)
 	grid := extractCellGrid(out)
 	if len(grid) == 0 {
 		return emptySpec(), nil
@@ -1451,7 +1457,36 @@ func readSheetAsSpec(ctx context.Context, runtime *common.RuntimeContext, token 
 	if len(formats) > 0 {
 		spec["formats"] = formats
 	}
+	// The tool clipped the read at max_chars: rows past the cap are missing from
+	// data. Surface it so the caller doesn't mistake a partial read for the whole
+	// sheet — re-run with --output-path (unlimited) or a higher --max-chars.
+	if truncated {
+		spec["truncated"] = true
+		spec["truncation_warning"] = "Result truncated by max_chars; rows past the cap were not returned. Best: re-run with --output-path to dump the whole sheet in one lossless pass (no cap). Alternatively raise --max-chars, or continue-read the remaining rows by passing --range for them — but that needs --no-header and you must reattach the header row and reconcile per-chunk dtypes yourself (this chunk's types were inferred from the rows returned here)."
+	}
 	return spec, nil
+}
+
+// cellRangesTruncated reports whether a get_cell_ranges response was clipped by
+// max_chars — either the top-level has_more flag or the first range's truncated
+// flag. Used by +table-get, whose spec output otherwise drops both signals.
+func cellRangesTruncated(out interface{}) bool {
+	m, ok := out.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	if hm, ok := m["has_more"].(bool); ok && hm {
+		return true
+	}
+	ranges, _ := m["ranges"].([]interface{})
+	if len(ranges) > 0 {
+		if r0, ok := ranges[0].(map[string]interface{}); ok {
+			if t, ok := r0["truncated"].(bool); ok {
+				return t
+			}
+		}
+	}
+	return false
 }
 
 // sheetCurrentRegion returns the A1 range covering the sheet's existing data,
