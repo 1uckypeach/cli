@@ -2,6 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "${REPO_ROOT}"
 
 PREFLIGHT_OUTPUT=$(node "${SCRIPT_DIR}/release-preflight.js")
 VERSION=$(node -e 'const result = JSON.parse(process.argv[1]); process.stdout.write(result.data.packageVersion)' "${PREFLIGHT_OUTPUT}")

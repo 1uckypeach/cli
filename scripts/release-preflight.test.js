@@ -45,6 +45,10 @@ const path = require("node:path");
 const args = process.argv.slice(2);
 const stateDir = process.env.FAKE_GIT_STATE_DIR;
 const localTagPath = path.join(stateDir, "local-tag");
+if (process.cwd() !== process.env.FAKE_EXPECTED_GIT_CWD) {
+  process.stderr.write("git invoked outside repository root: " + process.cwd() + "\n");
+  process.exit(96);
+}
 fs.appendFileSync(process.env.FAKE_GIT_LOG, JSON.stringify(args) + "\n");
 
 function print(value) {
@@ -55,7 +59,15 @@ switch (args[0]) {
   case "branch":
     print(process.env.FAKE_BRANCH || "main");
     break;
-  case "diff":
+  case "diff": {
+    const status = args.includes("--cached")
+      ? process.env.FAKE_STAGED_DIFF_STATUS
+      : process.env.FAKE_UNSTAGED_DIFF_STATUS;
+    if (status) {
+      process.exit(Number(status));
+    }
+    break;
+  }
   case "fetch":
     break;
   case "rev-parse": {
@@ -120,6 +132,7 @@ switch (args[0]) {
       LC_ALL: "C",
       FAKE_GIT_LOG: logPath,
       FAKE_GIT_STATE_DIR: stateDir,
+      FAKE_EXPECTED_GIT_CWD: fs.realpathSync(root),
       FAKE_HEAD_SHA: "aaaaaaaa",
       FAKE_MAIN_SHA: "aaaaaaaa",
       ...env,
@@ -127,9 +140,9 @@ switch (args[0]) {
   };
 }
 
-function runTagRelease(fixture) {
-  return spawnSync("bash", ["scripts/tag-release.sh"], {
-    cwd: fixture.root,
+function runTagRelease(fixture, cwd = fixture.root) {
+  return spawnSync("bash", [path.join(fixture.root, "scripts/tag-release.sh")], {
+    cwd,
     env: fixture.env,
     encoding: "utf8",
   });
@@ -144,6 +157,16 @@ function readGitCalls(fixture) {
     .split("\n")
     .filter(Boolean)
     .map((line) => JSON.parse(line));
+}
+
+function assertNoTagOperations(calls) {
+  const tagOperations = calls.filter((args) =>
+    args[0] === "ls-remote" ||
+    args[0] === "tag" ||
+    args[0] === "push" ||
+    (args[0] === "rev-parse" && args.some((arg) => arg.startsWith("refs/tags/"))),
+  );
+  assert.deepEqual(tagOperations, []);
 }
 
 function validInputs(version = "1.2.3") {
@@ -164,6 +187,16 @@ function assertStructuredError(result) {
   assert.equal(typeof result.error.observed, "object");
   assert.equal(typeof result.error.hint, "string");
   assert.ok(result.error.hint.length > 0);
+}
+
+function assertInOrder(source, snippets) {
+  let previous = -1;
+  for (const snippet of snippets) {
+    const index = source.indexOf(snippet);
+    assert.ok(index >= 0, `missing fragment: ${snippet}`);
+    assert.ok(index > previous, `fragment is out of order: ${snippet}`);
+    previous = index;
+  }
 }
 
 describe("validateReleasePreflight", () => {
@@ -241,6 +274,24 @@ describe("validateReleasePreflight", () => {
     ]) {
       assertStructuredError(result);
     }
+  });
+
+  it("rejects version components outside JavaScript's safe integer range", () => {
+    for (const version of [
+      "9007199254740992.0.0",
+      "1.9007199254740992.0",
+      "1.0.9007199254740992",
+    ]) {
+      const { packageJson, packageLockJson } = validInputs(version);
+      assertStructuredError(validateReleasePreflight(packageJson, packageLockJson));
+    }
+
+    const { packageJson, packageLockJson } = validInputs();
+    assertStructuredError(validateReleasePreflight(
+      packageJson,
+      packageLockJson,
+      "v9007199254740992.0.0",
+    ));
   });
 
   it("rejects a top-level package-lock version mismatch", () => {
@@ -341,6 +392,11 @@ describe("release configuration", () => {
     ];
 
     assert.ok(preflight >= 0, "release preflight invocation is missing");
+    assertInOrder(script, [
+      'REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"',
+      'cd "${REPO_ROOT}"',
+      'node "${SCRIPT_DIR}/release-preflight.js"',
+    ]);
     assert.equal(script.includes("require('${REPO_ROOT}/package.json')"), false);
     for (const gate of requiredGates) {
       const index = script.indexOf(gate);
@@ -356,6 +412,53 @@ describe("release configuration", () => {
 });
 
 describe("tag-release.sh behavior", () => {
+  it("runs repository checks from the script repository when invoked elsewhere", (t) => {
+    const fixture = createReleaseFixture(t);
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tag-release-cwd-"));
+    t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+
+    const result = runTagRelease(fixture, outside);
+
+    assert.equal(result.status, 0, result.stderr);
+  });
+
+  it("rejects a non-main branch before querying or modifying tags", (t) => {
+    const fixture = createReleaseFixture(t, { FAKE_BRANCH: "feature/release" });
+
+    const result = runTagRelease(fixture);
+    const calls = readGitCalls(fixture);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /must be tagged from main/i);
+    assertNoTagOperations(calls);
+  });
+
+  it("rejects staged or unstaged package metadata before tag operations", (t) => {
+    for (const env of [
+      { FAKE_UNSTAGED_DIFF_STATUS: "1" },
+      { FAKE_STAGED_DIFF_STATUS: "1" },
+    ]) {
+      const fixture = createReleaseFixture(t, env);
+      const result = runTagRelease(fixture);
+      const calls = readGitCalls(fixture);
+
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /package\.json or package-lock\.json/i);
+      assertNoTagOperations(calls);
+    }
+  });
+
+  it("rejects HEAD that differs from fetched main before tag operations", (t) => {
+    const fixture = createReleaseFixture(t, { FAKE_MAIN_SHA: "bbbbbbbb" });
+
+    const result = runTagRelease(fixture);
+    const calls = readGitCalls(fixture);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /HEAD must exactly match origin\/main/i);
+    assertNoTagOperations(calls);
+  });
+
   it("compares HEAD with the exact fetched main commit", (t) => {
     const fixture = createReleaseFixture(t);
 

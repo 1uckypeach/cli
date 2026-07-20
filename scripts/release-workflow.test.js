@@ -94,6 +94,7 @@ describe("release workflow contract", () => {
       "git rev-parse --verify 'HEAD^{commit}'",
       "git rev-parse --verify 'FETCH_HEAD^{commit}'",
       "git rev-parse --verify \"refs/tags/${TAG}^{commit}\"",
+      'git merge-base --is-ancestor "$HEAD_SHA" "$MAIN_SHA"',
     ]);
     assert.equal(preflight.includes("gh release"), false);
     assert.equal(preflight.includes("gh api"), false);
@@ -108,7 +109,9 @@ describe("release workflow contract", () => {
     assert.match(goreleaser, /args: release --clean --skip=publish/);
     assert.match(goreleaser, /cp dist\/\*\.tar\.gz dist\/\*\.zip dist\/checksums\.txt release-assets\//);
     assert.match(goreleaser, /actions\/upload-artifact@[0-9a-f]{40}/);
-    assert.match(goreleaser, /name: release-assets-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}/);
+    assert.match(goreleaser, /name: release-assets-\$\{\{ github\.run_id \}\}/);
+    assert.match(goreleaser, /overwrite: true/);
+    assert.equal(goreleaser.includes("github.run_attempt"), false);
     assert.equal(goreleaser.includes("GITHUB_TOKEN"), false);
   });
 
@@ -119,7 +122,8 @@ describe("release workflow contract", () => {
     assert.deepEqual(permissionLines(verify), ["contents: read"]);
     assert.match(verify, /actions\/checkout@[0-9a-f]{40}/);
     assert.match(verify, /actions\/download-artifact@[0-9a-f]{40}/);
-    assert.match(verify, /name: release-assets-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}/);
+    assert.match(verify, /name: release-assets-\$\{\{ github\.run_id \}\}/);
+    assert.equal(verify.includes("github.run_attempt"), false);
     assert.match(verify, /node scripts\/verify-release-assets\.js release-assets/);
     assertInOrder(verify, [
       "actions/download-artifact@",
@@ -143,6 +147,8 @@ describe("release workflow contract", () => {
     assert.match(publish, /package-manager-cache: false/);
     assert.match(publish, /npm install --global npm@11\.16\.0/);
     assert.match(publish, /actions\/download-artifact@[0-9a-f]{40}/);
+    assert.match(publish, /name: release-assets-\$\{\{ github\.run_id \}\}/);
+    assert.equal(publish.includes("github.run_attempt"), false);
     assert.match(publish, /path: release-assets/);
     assertInOrder(publish, [
       "actions/download-artifact@",
@@ -169,7 +175,8 @@ describe("release workflow contract", () => {
     assert.match(publish, /actions\/download-artifact@[0-9a-f]{40}/);
     assert.match(publish, /node scripts\/verify-release-assets\.js release-assets/);
     assert.match(publish, /gh release create \"\$TAG\" release-assets\/\* --verify-tag/);
-    assert.match(publish, /existing mutable Draft Release/);
+    assert.match(publish, /typeof r\.draft.*typeof r\.prerelease/);
+    assert.match(publish, /existing Draft or prerelease GitHub Release/);
     assert.match(publish, /gh release download \"\$TAG\" --dir published-assets/);
     assert.match(publish, /node scripts\/verify-release-assets\.js published-assets/);
     assert.match(publish, /diff -qr release-assets published-assets/);
@@ -189,7 +196,7 @@ describe("release workflow contract", () => {
     }
 
     const publishGitHub = jobBlock(releaseWorkflow, "publish-release");
-    assert.match(publishGitHub, /existing mutable Draft Release.*not trusted/);
+    assert.match(publishGitHub, /existing Draft or prerelease GitHub Release.*not trusted/);
     assert.match(publishGitHub, /diff -qr release-assets published-assets/);
   });
 

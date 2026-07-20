@@ -7,6 +7,17 @@ const path = require("node:path");
 
 const STABLE_VERSION_PATTERN = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 
+function isStableVersion(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const match = STABLE_VERSION_PATTERN.exec(value);
+  return match !== null && match.slice(1).every(
+    (component) => Number(component) <= Number.MAX_SAFE_INTEGER,
+  );
+}
+
 function releaseError(message, observed, hint) {
   return {
     ok: false,
@@ -48,7 +59,7 @@ function validateReleasePreflight(packageJson, packageLockJson, tag) {
   ];
 
   for (const [field, value] of versionFields) {
-    if (typeof value !== "string" || !STABLE_VERSION_PATTERN.test(value)) {
+    if (!isStableVersion(value)) {
       return releaseError(
         `${field} must be a stable release version in X.Y.Z form`,
         observed,
@@ -70,7 +81,7 @@ function validateReleasePreflight(packageJson, packageLockJson, tag) {
     if (
       typeof tag !== "string" ||
       !tag.startsWith("v") ||
-      !STABLE_VERSION_PATTERN.test(tag.slice(1))
+      !isStableVersion(tag.slice(1))
     ) {
       return releaseError(
         "--tag must use the stable release form vX.Y.Z",
