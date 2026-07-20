@@ -523,6 +523,7 @@ func nextForTask(ref string, task *iagents.AgentTask, spec *iagents.AgentSpec, g
 						Command:  fmt.Sprintf("lark-cli agents send %s --context-id %s --task-id %s %s%s", ref, ctxID, task.TaskID, strings.Join(parts, " "), sendArgs),
 						Template: true,
 					}}
+				}
 			}
 			// No structured group (provider supplied none and normalization had
 			// nothing to synthesize from): plain free-text continuation — the

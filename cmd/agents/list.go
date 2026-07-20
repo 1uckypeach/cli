@@ -175,12 +175,16 @@ func agentListSchemeRun(opts *listOptions) error {
 		// --page-size is validated uniformly in RunE (alongside validateFormat), so
 		// this paginated path does not re-check it here.
 		// Enumeration is a real online call with no agent_id, so it runs the same
-		// two gates every ref-addressed online verb runs (via resolveSpec +
-		// preflightScopesForRef): the user|bot identity whitelist and the
-		// all-or-nothing scope preflight — keyed on the scheme since there is no ref.
+		// gates every ref-addressed online verb runs (via resolveSpec +
+		// preflightScopesForRef): the global user|bot whitelist, the provider's
+		// identity subset, and the all-or-nothing scope preflight — keyed on the
+		// scheme since there is no ref.
 		// agentID is empty (enumeration is not scoped to a single agent).
 		id := f.ResolveAs(opts.Cmd.Context(), opts.Cmd, core.Identity(opts.As))
 		if err := f.CheckIdentity(id, supportedIdentities); err != nil {
+			return err
+		}
+		if err := checkProviderIdentity(f, id, prov); err != nil {
 			return err
 		}
 		identity = string(id)

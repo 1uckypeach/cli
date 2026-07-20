@@ -43,13 +43,30 @@ var sleep = func(ctx context.Context, d time.Duration) bool {
 }
 
 // resolveSpec is the fully-offline resolution path: it resolves the effective
-// identity, enforces the user|bot whitelist, and looks up the AgentSpec
+// identity, enforces both the global user|bot whitelist and the provider's
+// advertised identity subset, and looks up the AgentSpec
 // addressed by ref — WITHOUT constructing a client or touching the network. It
 // is the FIRST step of every verb, so a malformed ref, an unknown scheme /
 // unknown catalog id, AND a capability gate all surface at exit 2 BEFORE the
 // config gate — an unconfigured user still gets the precise error, not
 // not_configured. A real API verb then calls runtimeFor to build the client.
 func resolveSpec(f *cmdutil.Factory, cmd *cobra.Command, ref, asStr string) (iagents.Provider, *iagents.AgentSpec, string, core.Identity, error) {
+	prov, spec, agentID, id, err := resolveSpecForCard(f, cmd, ref, asStr)
+	if err != nil {
+		return iagents.Provider{}, nil, "", "", err
+	}
+	if err := checkProviderIdentity(f, id, prov); err != nil {
+		return iagents.Provider{}, nil, "", "", err
+	}
+	return prov, spec, agentID, id, nil
+}
+
+// resolveSpecForCard resolves the effective identity and ref without enforcing
+// the provider's identity subset. A static card is the discovery surface that
+// tells callers which identities the provider supports, so it must remain
+// available even when the current/default identity is unsupported. Actual
+// operations use resolveSpec above and therefore still enforce the subset.
+func resolveSpecForCard(f *cmdutil.Factory, cmd *cobra.Command, ref, asStr string) (iagents.Provider, *iagents.AgentSpec, string, core.Identity, error) {
 	id := f.ResolveAs(cmd.Context(), cmd, core.Identity(asStr))
 	if err := f.CheckIdentity(id, supportedIdentities); err != nil {
 		return iagents.Provider{}, nil, "", "", err
@@ -62,6 +79,23 @@ func resolveSpec(f *cmdutil.Factory, cmd *cobra.Command, ref, asStr string) (iag
 		return iagents.Provider{}, nil, "", "", wrapRefResolveError(err)
 	}
 	return prov, spec, agentID, id, nil
+}
+
+func providerSupportsIdentity(prov iagents.Provider, id core.Identity) bool {
+	for _, identity := range prov.Identities {
+		if string(identity.Type) == string(id) {
+			return true
+		}
+	}
+	return false
+}
+
+func checkProviderIdentity(f *cmdutil.Factory, id core.Identity, prov iagents.Provider) error {
+	providerIdentities := make([]string, 0, len(prov.Identities))
+	for _, identity := range prov.Identities {
+		providerIdentities = append(providerIdentities, string(identity.Type))
+	}
+	return f.CheckIdentity(id, providerIdentities)
 }
 
 // runtimeFor builds the identity-pinned Runtime for a verb that actually calls

@@ -90,7 +90,7 @@ func agentCardRun(opts *cardOptions) error {
 	f := opts.Factory
 	// Resolution is fully offline (no client), so `agents card` works before
 	// config init. The capability matrix + static metadata are always available.
-	prov, spec, agentID, id, err := resolveSpec(f, opts.Cmd, opts.Ref, opts.As)
+	prov, spec, agentID, id, err := resolveSpecForCard(f, opts.Cmd, opts.Ref, opts.As)
 	if err != nil {
 		return err
 	}
@@ -106,10 +106,14 @@ func agentCardRun(opts *cardOptions) error {
 
 	// Best-effort remote enrichment: if a client is configured, pass a runtime so
 	// a provider's Describe can fill Name/Description from the platform; otherwise
-	// rt stays nil and BuildCard returns the offline (caps + static) card.
+	// rt stays nil and BuildCard returns the offline (caps + static) card. An
+	// unsupported current identity also keeps the static card available: the card
+	// itself is how callers discover the provider's supported identity subset.
 	var rt iagents.Runtime
-	if r, rerr := runtimeFor(f, id, agentID, nil); rerr == nil {
-		rt = r
+	if providerSupportsIdentity(prov, id) {
+		if r, rerr := runtimeFor(f, id, agentID, nil); rerr == nil {
+			rt = r
+		}
 	}
 	card := iagents.BuildCard(opts.Cmd.Context(), prov, spec, agentID, resolvedBrand(f), rt)
 

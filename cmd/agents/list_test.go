@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -468,6 +469,45 @@ func TestAgentListScheme_OnlineChecksIdentity(t *testing.T) {
 	}
 	if called {
 		t.Error("ListAgents must NOT be called when the identity whitelist fails")
+	}
+}
+
+// TestAgentListScheme_OnlineChecksProviderIdentity covers the provider-level
+// identity subset in addition to the global user|bot vocabulary. A user-only
+// online provider must reject bot before constructing/calling ListAgents.
+func TestAgentListScheme_OnlineChecksProviderIdentity(t *testing.T) {
+	called := false
+	spec := catSpec("", "", "")
+	iagents.Register(iagents.Provider{
+		Scheme:        "fakeliveuseronly",
+		Label:         "test fake (user-only live-enum)",
+		AgentIDSource: "test only",
+		Identities:    []iagents.IdentitySpec{{Type: iagents.IdentityUser}},
+		Instance:      &spec,
+		ListAgents: func(context.Context, iagents.Runtime, iagents.PageParams) ([]iagents.AgentSummary, iagents.PageInfo, error) {
+			called = true
+			return nil, iagents.PageInfo{}, nil
+		},
+	})
+
+	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
+	f, _, _, _ := cmdutil.TestFactory(t, cfg)
+	opts := &listOptions{
+		Factory: f, Cmd: resolveCmd(t, true, "bot"), Format: "json",
+		Scheme: "fakeliveuseronly", As: "bot", PageSize: defaultPageSize,
+	}
+
+	err := agentListRun(opts)
+	if err == nil {
+		t.Fatal("bot should be rejected by a user-only online provider")
+	}
+	p, ok := errs.ProblemOf(err)
+	var validationErr *errs.ValidationError
+	if !ok || p.Subtype != errs.SubtypeInvalidArgument || !errors.As(err, &validationErr) || validationErr.Param != "--as" {
+		t.Fatalf("provider identity rejection should be invalid_argument for --as, got problem=%+v err=%v", p, err)
+	}
+	if called {
+		t.Error("ListAgents must NOT be called when the provider identity check fails")
 	}
 }
 
