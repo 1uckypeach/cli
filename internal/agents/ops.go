@@ -153,6 +153,9 @@ func OpAvailableForBrand(brands []core.LarkBrand, brand core.LarkBrand) bool {
 // Float is a literal helper for CardParam.Min/Max.
 func Float(v float64) *float64 { return &v }
 
+// Int is a literal helper for ContextDetail.TaskCount.
+func Int(v int) *int { return &v }
+
 // ── Typed parameter access for provider handlers ──
 //
 // The framework validates every parameter against its declaration BEFORE a

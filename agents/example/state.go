@@ -370,13 +370,12 @@ func (s *memoryStore) listContexts(agentID string, page agents.PageParams) ([]ag
 	lo, hi, info := pageWindow(len(recs), page)
 	out := make([]agents.ContextSummary, 0, hi-lo)
 	for _, ctx := range recs[lo:hi] {
-		updatedAt, taskCount, awaiting, _ := s.contextRollupLocked(ctx)
+		updatedAt, _, awaiting, _ := s.contextRollupLocked(ctx)
 		out = append(out, agents.ContextSummary{
 			ContextID:     ctx.ContextID,
 			CreatedAt:     ctx.CreatedAt,
 			UpdatedAt:     updatedAt,
 			Title:         ctx.Title,
-			TaskCount:     taskCount,
 			AwaitingInput: awaiting,
 		})
 	}
@@ -400,11 +399,13 @@ func (s *memoryStore) getContext(agentID, ctxID string) (*agents.ContextDetail, 
 	}
 	updatedAt, taskCount, awaiting, active := s.contextRollupLocked(ctx)
 	detail := &agents.ContextDetail{
-		ContextID:     ctx.ContextID,
-		CreatedAt:     ctx.CreatedAt,
-		UpdatedAt:     updatedAt,
-		Title:         ctx.Title,
-		TaskCount:     taskCount,
+		ContextID: ctx.ContextID,
+		CreatedAt: ctx.CreatedAt,
+		UpdatedAt: updatedAt,
+		Title:     ctx.Title,
+		// The mock can always count its tasks; a real provider whose backend
+		// does not return a total leaves TaskCount nil (unknown ≠ 0).
+		TaskCount:     &taskCount,
 		AwaitingInput: awaiting,
 	}
 	if active != nil {

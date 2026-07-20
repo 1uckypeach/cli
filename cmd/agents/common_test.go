@@ -567,7 +567,7 @@ func TestContextGetContentSafetyBlocked(t *testing.T) {
 	opts.CtxID = "sess_1"
 	setScripted(t, scriptedHooks{getContext: func(ctxID string) (*iagents.ContextDetail, error) {
 		return &iagents.ContextDetail{
-			ContextID: ctxID, TaskCount: 1,
+			ContextID: ctxID, TaskCount: iagents.Int(1),
 			ActiveTask: &iagents.TaskSummary{TaskID: "chat_1", State: iagents.StateCompleted, Summary: "untrusted"},
 		}, nil
 	}})
