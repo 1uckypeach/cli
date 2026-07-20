@@ -38,7 +38,6 @@ metadata:
 - `<td>` 直接子元素只有 `<fill>`（背景）、`<content>`（文字）和边框配置（一般不用），不能嵌套 `<shape>`、`<img>`、`<icon>`。
 - `<shape type="rect">` 只是形状不是容器，`<icon>`、`<img>`、`<shape type="text">` 和其他 `<shape>` 必须与它平级靠坐标叠放。
 - 填充渐变颜色必须用 `<fill><fillColor color="linear-gradient(135deg, rgba(R,G,B,A) 0%, rgba(R,G,B,A) 100%)"/></fill>`。
-- 必须使用 NotifyHuman 工具交付 PPT 链接；编辑已有 PPT 也必须交付 PPT 链接，无论之前是否交付过相同链接。
 - 编辑页面前必须阅读 [`lark-slides-edit-workflows.md`](references/lark-slides-edit-workflows.md)。
 - 绘制图表前必须阅读 [`slides_chart_demo.xml`](references/slides_chart_demo.xml)。
 - 当用户要求无损复述历史上下文时，必须无损复述以上权威经验、必读的技能文档（需要重新阅读）和易错元素语法（尤其是 `<table>` 和 `<chart>`）。
