@@ -12,12 +12,9 @@ import (
 	iagents "github.com/larksuite/cli/internal/agents"
 )
 
-// Base Agent scopes are checked as one provider-level set before every real
-// API operation. The Open Platform app and user token must grant both scopes.
-const (
-	baseAgentReadScope  = "base:ai:read"
-	baseAgentWriteScope = "base:ai:write"
-)
+// Base Agent scope is checked before every real API operation. Both the Open
+// Platform app and the user token must grant it.
+const baseAgentExecuteScope = "base:agent:execute"
 
 // adapterAgentID is deliberately private: callers always use base:assistant,
 // and a future Adapter-side ID change is isolated to this mapping.
@@ -104,7 +101,7 @@ func Provider() iagents.Provider {
 		Scheme:         "base",
 		Label:          "Base Assistant",
 		AgentIDSource:  "Use the fixed agent reference base:assistant",
-		RequiredScopes: []string{baseAgentReadScope, baseAgentWriteScope},
+		RequiredScopes: []string{baseAgentExecuteScope},
 		Identities:     []iagents.IdentitySpec{{Type: iagents.IdentityUser}},
 		Catalog:        []iagents.AgentSpec{assistantSpec},
 	}

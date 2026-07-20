@@ -95,7 +95,7 @@ func problem(t *testing.T, err error, category errs.Category, subtype errs.Subty
 func TestProviderConformance(t *testing.T) {
 	agenttest.RunConformance(t, "base", "assistant")
 	p := Provider()
-	wantScopes := []string{"base:ai:read", "base:ai:write"}
+	wantScopes := []string{"base:agent:execute"}
 	if !reflect.DeepEqual(p.RequiredScopes, wantScopes) {
 		t.Fatalf("RequiredScopes=%v", p.RequiredScopes)
 	}

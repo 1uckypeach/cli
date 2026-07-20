@@ -15,8 +15,8 @@ lark-cli agents card base:assistant --operation all --format json
 
 ## scope 与身份前置
 
-- 仅支持 `--as user`。`--as bot` 会在 Provider 内拒绝，不发送请求。
-- Base Agent 使用 `base:ai:read` 与 `base:ai:write` 做 provider 级 all-or-nothing 预检。scope 与公网 API pathPrefix 需要由 Base Adapter / 开放平台 owner 完成 provision；在正式发布前，以 `missing_scope` 返回中的 `missing_scopes` 与授权 hint 为权威，不要拿其它 `base:*` scope 代替。
+- 仅支持 `--as user`。`--as bot` 会在通用离线身份预检中拒绝，不发送请求（`--dry-run` 与真实调用一致）。
+- Base Agent 仅使用 `base:agent:execute` 做 provider 级预检，并且只支持 user identity。scope 与公网 API pathPrefix 需要由 Base Adapter / 开放平台 owner 完成 provision；在正式发布前，以 `missing_scope` 返回中的 `missing_scopes` 与授权 hint 为权威，不要拿其它 `base:*` scope 代替。
 - `base_token` 是 7 个操作的必填业务参数，通过 `--param base_token=<base-token>` 传递；它可以由 `meta.next` 续带。
 
 ## 参数与命令
