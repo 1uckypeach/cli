@@ -12,46 +12,26 @@ function isStableVersion(value) {
 }
 
 function releaseError(message, observed, hint) {
-  return {
-    ok: false,
-    error: {
-      type: "release_preflight",
-      message,
-      observed,
-      hint,
-    },
-  };
-}
-
-function observedVersions(packageVersion, lockVersion, lockRootVersion, tagVersion) {
-  return {
-    packageVersion: packageVersion === undefined ? null : packageVersion,
-    lockVersion: lockVersion === undefined ? null : lockVersion,
-    lockRootVersion: lockRootVersion === undefined ? null : lockRootVersion,
-    tagVersion: tagVersion === undefined ? null : tagVersion,
-  };
+  return { ok: false, error: { type: "release_preflight", message, observed, hint } };
 }
 
 function validateReleasePreflight(packageJson, packageLockJson, tag) {
   const packageVersion = packageJson && packageJson.version;
   const lockVersion = packageLockJson && packageLockJson.version;
-  const lockRootVersion = packageLockJson &&
-    packageLockJson.packages &&
-    packageLockJson.packages[""] &&
-    packageLockJson.packages[""].version;
-  const observed = observedVersions(
-    packageVersion,
-    lockVersion,
-    lockRootVersion,
-    null,
-  );
-  const versionFields = [
+  const lockRootVersion = packageLockJson && packageLockJson.packages &&
+    packageLockJson.packages[""] && packageLockJson.packages[""].version;
+  const observed = {
+    packageVersion: packageVersion ?? null,
+    lockVersion: lockVersion ?? null,
+    lockRootVersion: lockRootVersion ?? null,
+    tagVersion: null,
+  };
+
+  for (const [field, value] of [
     ["package.json.version", packageVersion],
     ["package-lock.json.version", lockVersion],
     ['package-lock.json.packages[""].version', lockRootVersion],
-  ];
-
-  for (const [field, value] of versionFields) {
+  ]) {
     if (!isStableVersion(value)) {
       return releaseError(
         `${field} must be a stable release version in X.Y.Z form`,
@@ -69,101 +49,61 @@ function validateReleasePreflight(packageJson, packageLockJson, tag) {
     );
   }
 
-  let tagVersion = null;
-  if (tag !== undefined) {
-    if (
-      typeof tag !== "string" ||
-      !tag.startsWith("v") ||
-      !isStableVersion(tag.slice(1))
-    ) {
-      return releaseError(
-        "--tag must use the stable release form vX.Y.Z",
-        { ...observed, tag },
-        `Use --tag v${packageVersion}; prerelease and build metadata are not allowed for production releases.`,
-      );
-    }
-
-    tagVersion = tag.slice(1);
-    if (tagVersion !== packageVersion) {
-      return releaseError(
-        "Tag version does not match the package version",
-        {
-          ...observedVersions(packageVersion, lockVersion, lockRootVersion, tagVersion),
-          tag,
-        },
-        `Use --tag v${packageVersion}.`,
-      );
-    }
+  if (tag === undefined) {
+    return { ok: true, data: observed };
+  }
+  if (typeof tag !== "string" || !tag.startsWith("v") || !isStableVersion(tag.slice(1))) {
+    return releaseError(
+      "--tag must use the stable release form vX.Y.Z",
+      { ...observed, tag },
+      `Use --tag v${packageVersion}; prerelease and build metadata are not allowed for production releases.`,
+    );
   }
 
-  return {
-    ok: true,
-    data: {
-      packageVersion,
-      lockVersion,
-      lockRootVersion,
-      tagVersion,
-    },
-  };
+  const tagVersion = tag.slice(1);
+  if (tagVersion !== packageVersion) {
+    return releaseError(
+      "Tag version does not match the package version",
+      { ...observed, tagVersion, tag },
+      `Use --tag v${packageVersion}.`,
+    );
+  }
+  return { ok: true, data: { ...observed, tagVersion } };
 }
 
-function parseTagArgument(args) {
-  if (args.length === 0) {
-    return { tag: undefined };
-  }
-  if (args.length === 2 && args[0] === "--tag") {
-    return { tag: args[1] };
-  }
-  return {
-    error: releaseError(
-      "Expected no arguments or --tag vX.Y.Z",
-      { arguments: args },
-      "Run release:check without arguments or pass exactly one --tag value.",
-    ),
-  };
+function writeResult(result) {
+  (result.ok ? process.stdout : process.stderr).write(`${JSON.stringify(result)}\n`);
+  if (!result.ok) process.exitCode = 1;
 }
 
 function main() {
-  const parsedArguments = parseTagArgument(process.argv.slice(2));
-  if (parsedArguments.error) {
-    process.stderr.write(`${JSON.stringify(parsedArguments.error)}\n`);
-    process.exitCode = 1;
+  const args = process.argv.slice(2);
+  let tag;
+  if (args.length === 2 && args[0] === "--tag") {
+    tag = args[1];
+  } else if (args.length !== 0) {
+    writeResult(releaseError(
+      "Expected no arguments or --tag vX.Y.Z",
+      { arguments: args },
+      "Run release:check without arguments or pass exactly one --tag value.",
+    ));
     return;
   }
 
   const repoRoot = path.resolve(__dirname, "..");
-  let packageJson;
-  let packageLockJson;
   try {
-    packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
-    packageLockJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package-lock.json"), "utf8"));
+    const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+    const packageLockJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package-lock.json"), "utf8"));
+    writeResult(validateReleasePreflight(packageJson, packageLockJson, tag));
   } catch (error) {
-    const result = releaseError(
+    writeResult(releaseError(
       "Could not read release package metadata",
       { reason: error.message },
       "Ensure package.json and package-lock.json exist and contain valid JSON.",
-    );
-    process.stderr.write(`${JSON.stringify(result)}\n`);
-    process.exitCode = 1;
-    return;
-  }
-
-  const result = validateReleasePreflight(
-    packageJson,
-    packageLockJson,
-    parsedArguments.tag,
-  );
-  const stream = result.ok ? process.stdout : process.stderr;
-  stream.write(`${JSON.stringify(result)}\n`);
-  if (!result.ok) {
-    process.exitCode = 1;
+    ));
   }
 }
 
-module.exports = {
-  validateReleasePreflight,
-};
+module.exports = { validateReleasePreflight };
 
-if (require.main === module) {
-  main();
-}
+if (require.main === module) main();

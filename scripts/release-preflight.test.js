@@ -60,9 +60,7 @@ switch (args[0]) {
     print(process.env.FAKE_BRANCH || "main");
     break;
   case "diff": {
-    const status = args.includes("--cached")
-      ? process.env.FAKE_STAGED_DIFF_STATUS
-      : process.env.FAKE_UNSTAGED_DIFF_STATUS;
+    const status = process.env.FAKE_DIFF_STATUS;
     if (status) {
       process.exit(Number(status));
     }
@@ -80,7 +78,7 @@ switch (args[0]) {
       print(process.env.FAKE_MAIN_SHA);
       break;
     }
-    if (ref.startsWith("refs/tags/") && ref.endsWith("^{commit}")) {
+    if (ref.startsWith("refs/tags/")) {
       if (fs.existsSync(localTagPath)) {
         print(fs.readFileSync(localTagPath, "utf8").trim());
         break;
@@ -94,11 +92,8 @@ switch (args[0]) {
   case "ls-remote": {
     const tagRef = args.find((arg) => arg.startsWith("refs/tags/") && !arg.endsWith("^{}"));
     const kind = process.env.FAKE_REMOTE_TAG_KIND || "absent";
-    if (kind === "lightweight") {
+    if (kind === "lightweight" || kind === "annotated") {
       print(process.env.FAKE_REMOTE_TAG_SHA + "\t" + tagRef);
-    } else if (kind === "annotated") {
-      print((process.env.FAKE_REMOTE_TAG_OBJECT_SHA || "cccccccc") + "\t" + tagRef);
-      print(process.env.FAKE_REMOTE_TAG_SHA + "\t" + tagRef + "^{}");
     }
     break;
   }
@@ -361,14 +356,13 @@ describe("release configuration", () => {
     const preflight = script.indexOf('node "${SCRIPT_DIR}/release-preflight.js" --tag "${TAG}"');
     const requiredGates = [
       'CURRENT_BRANCH=$(git branch --show-current)',
-      'git diff --quiet -- package.json package-lock.json',
-      'git diff --cached --quiet -- package.json package-lock.json',
+      'git diff --quiet HEAD -- package.json package-lock.json',
       "git fetch origin main",
       'git rev-parse "FETCH_HEAD^{commit}"',
     ];
     const tagOperations = [
-      'git rev-parse -q --verify "refs/tags/${TAG}^{commit}"',
-      'git ls-remote --tags origin "refs/tags/${TAG}" "refs/tags/${TAG}^{}"',
+      'git rev-parse -q --verify "refs/tags/${TAG}"',
+      'git ls-remote --tags origin "refs/tags/${TAG}"',
       'git tag "${TAG}" "${HEAD_SHA}"',
       'git push origin "refs/tags/${TAG}"',
     ];
@@ -415,19 +409,14 @@ describe("tag-release.sh behavior", () => {
     assertNoTagOperations(calls);
   });
 
-  it("rejects staged or unstaged package metadata before tag operations", (t) => {
-    for (const env of [
-      { FAKE_UNSTAGED_DIFF_STATUS: "1" },
-      { FAKE_STAGED_DIFF_STATUS: "1" },
-    ]) {
-      const fixture = createReleaseFixture(t, env);
-      const result = runTagRelease(fixture);
-      const calls = readGitCalls(fixture);
+  it("rejects uncommitted package metadata before tag operations", (t) => {
+    const fixture = createReleaseFixture(t, { FAKE_DIFF_STATUS: "1" });
+    const result = runTagRelease(fixture);
+    const calls = readGitCalls(fixture);
 
-      assert.equal(result.status, 1);
-      assert.match(result.stderr, /package\.json or package-lock\.json/i);
-      assertNoTagOperations(calls);
-    }
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /package\.json or package-lock\.json/i);
+    assertNoTagOperations(calls);
   });
 
   it("rejects HEAD that differs from fetched main before tag operations", (t) => {
@@ -453,20 +442,7 @@ describe("tag-release.sh behavior", () => {
     assert.equal(calls.some((args) => args.includes("origin/main")), false);
   });
 
-  it("retries only the push when a failed push left the correct local tag", (t) => {
-    const fixture = createReleaseFixture(t, { FAKE_PUSH_FAIL_ONCE: "23" });
-
-    const first = runTagRelease(fixture);
-    const second = runTagRelease(fixture);
-    const calls = readGitCalls(fixture);
-
-    assert.equal(first.status, 23);
-    assert.equal(second.status, 0, second.stderr);
-    assert.equal(calls.filter((args) => args[0] === "tag").length, 1);
-    assert.equal(calls.filter((args) => args[0] === "push").length, 2);
-  });
-
-  it("fails when an existing local tag points at another commit", (t) => {
+  it("fails when the local tag already exists", (t) => {
     const fixture = createReleaseFixture(t);
     fs.writeFileSync(path.join(fixture.stateDir, "local-tag"), "bbbbbbbb");
 
@@ -474,12 +450,12 @@ describe("tag-release.sh behavior", () => {
     const calls = readGitCalls(fixture);
 
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /local tag .* does not point to HEAD/i);
+    assert.match(result.stderr, /local tag .* already exists/i);
     assert.equal(calls.some((args) => args[0] === "ls-remote"), false);
     assert.equal(calls.some((args) => args[0] === "push"), false);
   });
 
-  it("accepts matching lightweight and annotated remote tag targets", (t) => {
+  it("fails when a lightweight or annotated remote tag already exists", (t) => {
     for (const kind of ["lightweight", "annotated"]) {
       const fixture = createReleaseFixture(t, {
         FAKE_REMOTE_TAG_KIND: kind,
@@ -489,25 +465,11 @@ describe("tag-release.sh behavior", () => {
       const result = runTagRelease(fixture);
       const calls = readGitCalls(fixture);
 
-      assert.equal(result.status, 0, `${kind}: ${result.stderr}`);
+      assert.equal(result.status, 1, `${kind}: ${result.stderr}`);
+      assert.match(result.stderr, /remote tag .* already exists/i);
       assert.equal(calls.some((args) => args[0] === "tag"), false);
       assert.equal(calls.some((args) => args[0] === "push"), false);
     }
-  });
-
-  it("fails when an existing remote tag targets another commit", (t) => {
-    const fixture = createReleaseFixture(t, {
-      FAKE_REMOTE_TAG_KIND: "annotated",
-      FAKE_REMOTE_TAG_SHA: "bbbbbbbb",
-    });
-
-    const result = runTagRelease(fixture);
-    const calls = readGitCalls(fixture);
-
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /remote tag .* does not point to HEAD/i);
-    assert.equal(calls.some((args) => args[0] === "tag"), false);
-    assert.equal(calls.some((args) => args[0] === "push"), false);
   });
 
   it("reports an invalid package version before invoking git", (t) => {

@@ -86,121 +86,50 @@ describe("release workflow contract", () => {
       'git merge-base --is-ancestor "$HEAD_SHA" "$MAIN_SHA"',
     ]);
     assert.equal(preflight.includes("gh release"), false);
-    assert.equal(preflight.includes("gh api"), false);
+    assert.equal(preflight.includes("npm publish"), false);
   });
 
-  it("builds immutable run-scoped assets without publishing a release", () => {
-    const goreleaser = jobBlock(releaseWorkflow, "goreleaser");
-
-    assert.match(goreleaser, /needs: preflight/);
-    assert.deepEqual(permissionLines(goreleaser), ["contents: read"]);
-    assert.match(goreleaser, /goreleaser\/goreleaser-action@[0-9a-f]{40}/);
-    assert.match(goreleaser, /args: release --clean --skip=publish/);
-    assert.match(goreleaser, /cp dist\/\*\.tar\.gz dist\/\*\.zip dist\/checksums\.txt release-assets\//);
-    assert.match(goreleaser, /actions\/upload-artifact@[0-9a-f]{40}/);
-    assert.match(goreleaser, /name: release-assets-\$\{\{ github\.run_id \}\}/);
-    assert.match(goreleaser, /overwrite: true/);
-    assert.equal(goreleaser.includes("github.run_attempt"), false);
-    assert.equal(goreleaser.includes("GITHUB_TOKEN"), false);
-  });
-
-  it("verifies all assets from the run-scoped build artifact", () => {
-    const verify = jobBlock(releaseWorkflow, "verify-release-assets");
-
-    assert.match(verify, /needs: \[preflight, goreleaser\]/);
-    assert.deepEqual(permissionLines(verify), ["contents: read"]);
-    assert.match(verify, /actions\/checkout@[0-9a-f]{40}/);
-    assert.match(verify, /actions\/download-artifact@[0-9a-f]{40}/);
-    assert.match(verify, /name: release-assets-\$\{\{ github\.run_id \}\}/);
-    assert.equal(verify.includes("github.run_attempt"), false);
-    assert.match(verify, /node scripts\/verify-release-assets\.js release-assets/);
-    assertInOrder(verify, [
-      "actions/download-artifact@",
-      "node scripts/verify-release-assets.js release-assets",
-    ]);
-    assert.equal(verify.includes("gh release"), false);
-  });
-
-  it("publishes GitHub and npm behind one protected production job", () => {
+  it("publishes GitHub and npm after one protected production approval", () => {
     const publish = jobBlock(releaseWorkflow, "publish-release");
 
-    assert.match(publish, /needs: verify-release-assets/);
+    assert.match(publish, /needs: preflight/);
     assert.deepEqual(permissionLines(publish), ["contents: write", "id-token: write"]);
     assert.match(publish, /^    environment: npm-production$/m);
+    assert.match(publish, /actions\/setup-go@[0-9a-f]{40}/);
+    assert.match(publish, /actions\/setup-python@[0-9a-f]{40}/);
     assert.match(
       publish,
       /actions\/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6/,
     );
     assert.match(publish, /node-version: '22.14.0'/);
     assert.match(publish, /registry-url: 'https:\/\/registry\.npmjs\.org'/);
-    assert.match(publish, /package-manager-cache: false/);
     assert.match(publish, /npm install --global npm@11\.16\.0/);
-    assert.match(publish, /actions\/download-artifact@[0-9a-f]{40}/);
-    assert.match(publish, /name: release-assets-\$\{\{ github\.run_id \}\}/);
-    assert.equal(publish.includes("github.run_attempt"), false);
-    assert.match(publish, /path: release-assets/);
+    assert.match(publish, /goreleaser\/goreleaser-action@[0-9a-f]{40}/);
+    assert.match(publish, /args: release --clean/);
+    assert.equal(publish.includes("--skip=publish"), false);
+    assert.match(publish, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
     assertInOrder(publish, [
-      "actions/download-artifact@",
-      "node scripts/release-preflight.js --tag \"$TAG\"",
-      "node scripts/verify-release-assets.js release-assets",
-      "cp release-assets/checksums.txt checksums.txt",
-      "gh release create \"$TAG\" release-assets/* --verify-tag",
-      "gh release download \"$TAG\" --dir published-assets",
-      "node scripts/verify-release-assets.js published-assets",
-      "diff -qr release-assets published-assets",
-      "npm pack --json",
-      "npm view \"${PACKAGE_NAME}@${VERSION}\" dist.integrity",
-      "npm publish \"$TARBALL\" --access public",
+      "actions/setup-go@",
+      "actions/setup-python@",
+      "actions/setup-node@",
+      "npm install --global npm@11.16.0",
+      "goreleaser/goreleaser-action@",
+      "cp dist/checksums.txt checksums.txt",
+      "npm publish --access public",
     ]);
-    assert.match(publish, /LOCAL_INTEGRITY/);
-    assert.match(publish, /REMOTE_INTEGRITY/);
-    assert.match(publish, /LOCAL_INTEGRITY.*REMOTE_INTEGRITY|REMOTE_INTEGRITY.*LOCAL_INTEGRITY/s);
-    assert.equal(/npm publish\s+(?:--access public\s*)?$/.test(publish), false);
-  });
-
-  it("verifies both new and existing GitHub Releases before npm publishing", () => {
-    const publish = jobBlock(releaseWorkflow, "publish-release");
-
-    assert.match(publish, /actions\/download-artifact@[0-9a-f]{40}/);
-    assert.match(publish, /node scripts\/verify-release-assets\.js release-assets/);
-    assert.match(publish, /gh release create \"\$TAG\" release-assets\/\* --verify-tag/);
-    assert.match(publish, /typeof r\.draft.*typeof r\.prerelease/);
-    assert.match(publish, /existing Draft or prerelease GitHub Release/);
-    assert.match(publish, /gh release download \"\$TAG\" --dir published-assets/);
-    assert.match(publish, /node scripts\/verify-release-assets\.js published-assets/);
-    assert.match(publish, /diff -qr release-assets published-assets/);
-    assert.equal(publish.includes("gh release edit"), false);
-    assert.equal(/gh release create[^\n]*\n\s*exit 0/.test(publish), false);
-  });
-
-  it("keeps pre-publication jobs isolated from existing releases", () => {
-    for (const jobName of [
-      "preflight",
-      "goreleaser",
+    for (const forbidden of [
+      "actions/upload-artifact",
+      "actions/download-artifact",
       "verify-release-assets",
+      "gh release download",
+      "npm pack",
+      "npm view",
+      "LOCAL_INTEGRITY",
+      "REMOTE_INTEGRITY",
+      "secrets.NPM_TOKEN",
+      "NODE_AUTH_TOKEN",
+      "npm stage",
     ]) {
-      const job = jobBlock(releaseWorkflow, jobName);
-      assert.equal(job.includes("gh release download"), false, jobName);
-      assert.equal(job.includes("releases/tags/"), false, jobName);
-    }
-
-    const publishGitHub = jobBlock(releaseWorkflow, "publish-release");
-    assert.match(publishGitHub, /existing Draft or prerelease GitHub Release.*not trusted/);
-    assert.match(publishGitHub, /diff -qr release-assets published-assets/);
-  });
-
-  it("keeps job order and removes legacy release credentials", () => {
-    assertInOrder(releaseWorkflow, [
-      "  preflight:",
-      "  goreleaser:",
-      "  verify-release-assets:",
-      "  publish-release:",
-    ]);
-    assert.equal(
-      (releaseWorkflow.match(/^    environment: npm-production$/gm) || []).length,
-      1,
-    );
-    for (const forbidden of ["secrets.NPM_TOKEN", "NODE_AUTH_TOKEN", "npm stage"] ) {
       assert.equal(releaseWorkflow.includes(forbidden), false, forbidden);
     }
   });
