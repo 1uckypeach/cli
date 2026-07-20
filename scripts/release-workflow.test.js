@@ -118,6 +118,7 @@ describe("release workflow contract", () => {
       "sha256sum --check checksums.txt",
       "cp dist/checksums.txt checksums.txt",
       "npm pack --ignore-scripts --json",
+      "tar -tzf \"$PACK_FILE\" | grep -qx 'package/checksums.txt'",
       "actions/upload-artifact@",
       'npm stage publish "${{ steps.pack.outputs.filename }}" --access public --tag beta',
     ]);

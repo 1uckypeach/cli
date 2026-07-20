@@ -528,15 +528,19 @@ describe("tag-release.sh behavior", () => {
   });
 
   it("rejects a workflow that can publish live", (t) => {
-    const fixture = createReleaseFixture(t, {
-      FAKE_WORKFLOW: "args: release --clean --skip=publish\nrun: npm publish --access public",
-    });
+    for (const workflow of [
+      "args: release --clean --skip=publish\nrun: npm publish --access public",
+      "args: release --clean --skip=publish\nrun: npm stage publish package.tgz --access public --tag beta\nrun: gh release create v1.2.3-beta.0",
+      "args: release --clean --skip=publish\npermissions:\n  contents: write\nrun: npm stage publish package.tgz --access public --tag beta",
+      "args: release --clean --skip=publish\nenv:\n  GITHUB_TOKEN: ${{ github.token }}\nrun: npm stage publish package.tgz --access public --tag beta",
+    ]) {
+      const fixture = createReleaseFixture(t, { FAKE_WORKFLOW: workflow });
+      const result = runTagRelease(fixture);
 
-    const result = runTagRelease(fixture);
-
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /must be stage-only/i);
-    assertNoTagWrites(readGitCalls(fixture));
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /must be stage-only/i);
+      assertNoTagWrites(readGitCalls(fixture));
+    }
   });
 
   it("fails closed when npm cannot prove that the version is unused", (t) => {

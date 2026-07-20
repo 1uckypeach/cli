@@ -101,6 +101,7 @@ jobs:
           PACK_JSON="$(npm pack --ignore-scripts --json)"
           PACK_FILE="$(node -e 'const p=JSON.parse(process.argv[1]); if(p.length!==1 || !p[0].filename) process.exit(1); process.stdout.write(p[0].filename)' "$PACK_JSON")"
           test -s "$PACK_FILE"
+          tar -tzf "$PACK_FILE" | grep -qx 'package/checksums.txt'
           echo "filename=$PACK_FILE" >> "$GITHUB_OUTPUT"
 
       - name: Collect rehearsal assets
