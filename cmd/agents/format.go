@@ -157,13 +157,13 @@ func printTaskSummariesTSV(w io.Writer, tasks []iagents.TaskSummary) {
 }
 
 // printContextsTSV renders the list-class pretty view for contexts. The Title is
-// agent-controlled and ANSI-stripped; TaskCount / AwaitingInput are the
-// conversation-layer rollup used to spot which session needs attention.
+// agent-controlled and ANSI-stripped; AwaitingInput is the conversation-layer
+// rollup used to spot which session needs attention.
 func printContextsTSV(w io.Writer, contexts []iagents.ContextSummary) {
-	fmt.Fprintf(w, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tTASK_COUNT\tAWAITING_INPUT\n")
+	fmt.Fprintf(w, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tAWAITING_INPUT\n")
 	for _, c := range contexts {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%t\n",
-			stripANSI(c.ContextID), stripANSI(c.CreatedAt), stripANSI(c.UpdatedAt), stripANSI(c.Title), c.TaskCount, c.AwaitingInput)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%t\n",
+			stripANSI(c.ContextID), stripANSI(c.CreatedAt), stripANSI(c.UpdatedAt), stripANSI(c.Title), c.AwaitingInput)
 	}
 }
 
@@ -189,7 +189,11 @@ func printContextDetailPretty(w io.Writer, detail *iagents.ContextDetail) {
 	if detail.Title != "" {
 		fmt.Fprintf(w, "title: %s\n", kvValue(detail.Title))
 	}
-	fmt.Fprintf(w, "task_count: %d\n", detail.TaskCount)
+	// nil TaskCount = the provider cannot supply the count; omit the line
+	// rather than printing a misleading 0.
+	if detail.TaskCount != nil {
+		fmt.Fprintf(w, "task_count: %d\n", *detail.TaskCount)
+	}
 	fmt.Fprintf(w, "awaiting_input: %t\n", detail.AwaitingInput)
 	if at := detail.ActiveTask; at != nil {
 		fmt.Fprintf(w, "active_task: %s · %s · %s\n", kvValue(string(at.State)), kvValue(at.UpdatedAt), kvValue(at.Summary))

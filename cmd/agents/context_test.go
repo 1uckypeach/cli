@@ -163,14 +163,15 @@ func TestContextListEmitsContexts(t *testing.T) {
 // TestContextListSortedByUpdatedAtDesc pins the ordering + enriched-field
 // contract: the provider returns contexts in most-recent-first order (its
 // contract), and the command emits them verbatim while carrying the updated_at /
-// task_count / awaiting_input rollup for each.
+// awaiting_input rollup for each (task_count is a `context get` field, never a
+// list one).
 func TestContextListSortedByUpdatedAtDesc(t *testing.T) {
 	opts, _ := contextTestOpts(t, "list")
 	setScripted(t, scriptedHooks{listContexts: func(iagents.PageParams) ([]iagents.ContextSummary, iagents.PageInfo, error) {
 		return []iagents.ContextSummary{
-			{ContextID: "new", UpdatedAt: "2026-07-05T12:00:00Z", TaskCount: 3, AwaitingInput: true},
-			{ContextID: "mid", UpdatedAt: "2026-07-05T11:00:00Z", TaskCount: 2},
-			{ContextID: "old", UpdatedAt: "2026-07-05T10:00:00Z", TaskCount: 1},
+			{ContextID: "new", UpdatedAt: "2026-07-05T12:00:00Z", AwaitingInput: true},
+			{ContextID: "mid", UpdatedAt: "2026-07-05T11:00:00Z"},
+			{ContextID: "old", UpdatedAt: "2026-07-05T10:00:00Z"},
 		}, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
@@ -198,8 +199,8 @@ func TestContextListSortedByUpdatedAtDesc(t *testing.T) {
 	if first["updated_at"] != "2026-07-05T12:00:00Z" {
 		t.Errorf("contexts[0].updated_at should be carried, got %v", first["updated_at"])
 	}
-	if first["task_count"] != float64(3) {
-		t.Errorf("contexts[0].task_count should be 3, got %v", first["task_count"])
+	if _, ok := first["task_count"]; ok {
+		t.Errorf("context list entries must not carry task_count, got %v", first["task_count"])
 	}
 	if first["awaiting_input"] != true {
 		t.Errorf("contexts[0].awaiting_input should be true, got %v", first["awaiting_input"])
@@ -286,7 +287,7 @@ func TestContextGetEmitsDetail(t *testing.T) {
 	setScripted(t, scriptedHooks{getContext: func(ctxID string) (*iagents.ContextDetail, error) {
 		return &iagents.ContextDetail{
 			ContextID: ctxID, Title: "销售分析", CreatedAt: "2026-07-05T10:01:11+08:00",
-			UpdatedAt: "2026-07-05T12:00:00+08:00", TaskCount: 2, AwaitingInput: true,
+			UpdatedAt: "2026-07-05T12:00:00+08:00", TaskCount: iagents.Int(2), AwaitingInput: true,
 			ActiveTask: &iagents.TaskSummary{
 				TaskID: "chat_2", State: iagents.StateInputRequired,
 				UpdatedAt: "2026-07-05T12:00:00+08:00", Summary: "请提供季度",
@@ -422,7 +423,7 @@ func TestContextListPretty(t *testing.T) {
 		t.Fatalf("context list --format pretty should not error: %v", err)
 	}
 	s := string(out.Bytes())
-	if !strings.HasPrefix(s, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tTASK_COUNT\tAWAITING_INPUT\n") {
+	if !strings.HasPrefix(s, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tAWAITING_INPUT\n") {
 		t.Errorf("pretty output should start with a header row, got %q", s)
 	}
 	if !strings.Contains(s, "sess_1") || !strings.Contains(s, "销售分析") {
@@ -468,7 +469,7 @@ func TestContextGetPretty(t *testing.T) {
 	setScripted(t, scriptedHooks{getContext: func(ctxID string) (*iagents.ContextDetail, error) {
 		return &iagents.ContextDetail{
 			ContextID: ctxID, Title: "\x1b[31m销售分析\x1b[0m",
-			TaskCount: 1, AwaitingInput: false,
+			TaskCount: iagents.Int(1), AwaitingInput: false,
 			ActiveTask: &iagents.TaskSummary{
 				TaskID: "chat_1", State: iagents.StateCompleted, IsTerminal: true, Summary: "分析完成",
 			},

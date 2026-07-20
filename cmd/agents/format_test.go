@@ -298,16 +298,17 @@ func TestPrintTaskSummariesTSV(t *testing.T) {
 }
 
 // TestPrintContextsTSV pins the context-list pretty spec: header row (now
-// carrying the UPDATED_AT / TASK_COUNT / AWAITING_INPUT rollup columns) plus
-// rows, with the agent-controlled Title stripped of ANSI escapes.
+// carrying the UPDATED_AT / AWAITING_INPUT rollup columns — no TASK_COUNT,
+// which is a `context get` field) plus rows, with the agent-controlled Title
+// stripped of ANSI escapes.
 func TestPrintContextsTSV(t *testing.T) {
 	out := &bytes.Buffer{}
 	printContextsTSV(out, []iagents.ContextSummary{
 		{ContextID: "sess_1", CreatedAt: "2026-07-05T10:00:00+08:00", UpdatedAt: "2026-07-05T12:00:00+08:00",
-			Title: "\x1b[2J销售分析", TaskCount: 3, AwaitingInput: true},
+			Title: "\x1b[2J销售分析", AwaitingInput: true},
 	})
 	text := out.String()
-	if !strings.HasPrefix(text, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tTASK_COUNT\tAWAITING_INPUT\n") {
+	if !strings.HasPrefix(text, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tAWAITING_INPUT\n") {
 		t.Errorf("should have a header row with the rollup columns, got %q", text)
 	}
 	if !strings.Contains(text, "销售分析") {
@@ -316,9 +317,10 @@ func TestPrintContextsTSV(t *testing.T) {
 	if strings.Contains(text, "\x1b") {
 		t.Errorf("ANSI sequences in Title must be stripped: %q", text)
 	}
-	// The rollup columns (task_count + awaiting_input) trail the row.
-	if !strings.Contains(text, "\t3\ttrue") {
-		t.Errorf("should carry the task_count + awaiting_input rollup, got %q", text)
+	// The awaiting_input rollup directly trails the title — no TASK_COUNT column
+	// in between.
+	if !strings.Contains(text, "销售分析\ttrue\n") {
+		t.Errorf("should carry the awaiting_input rollup right after the title, got %q", text)
 	}
 }
 
@@ -334,7 +336,7 @@ func TestPrintContextDetailPretty(t *testing.T) {
 		CreatedAt:     "2026-07-05T10:00:00+08:00",
 		UpdatedAt:     "2026-07-05T12:00:00+08:00",
 		Title:         "\x1b[31m分析\x1b[0m",
-		TaskCount:     2,
+		TaskCount:     iagents.Int(2),
 		AwaitingInput: true,
 		ActiveTask: &iagents.TaskSummary{
 			TaskID: "chat_2", State: iagents.StateInputRequired,
@@ -360,6 +362,14 @@ func TestPrintContextDetailPretty(t *testing.T) {
 	// The full task enumeration must NOT appear here anymore.
 	if strings.Contains(text, "tasks:") {
 		t.Errorf("context get should no longer render a tasks[] list, got:\n%s", text)
+	}
+
+	// nil TaskCount = the provider cannot supply the count: the line is omitted
+	// instead of printing a misleading 0.
+	out.Reset()
+	printContextDetailPretty(out, &iagents.ContextDetail{ContextID: "sess_2"})
+	if strings.Contains(out.String(), "task_count") {
+		t.Errorf("a nil TaskCount should omit the task_count line, got %q", out.String())
 	}
 }
 

@@ -155,8 +155,8 @@ func TestEchoMultiTurn(t *testing.T) {
 	if len(ctxs) != 1 || ctxs[0].ContextID != t1.ContextID {
 		t.Fatalf("should have exactly 1 context with a matching id, got %+v", ctxs)
 	}
-	if ctxs[0].TaskCount != 2 || ctxs[0].AwaitingInput {
-		t.Errorf("context summary should roll up task_count=2, awaiting_input=false, got %+v", ctxs[0])
+	if ctxs[0].AwaitingInput {
+		t.Errorf("context summary should roll up awaiting_input=false, got %+v", ctxs[0])
 	}
 	if ctxs[0].UpdatedAt == "" {
 		t.Error("context summary should carry updated_at")
@@ -168,7 +168,7 @@ func TestEchoMultiTurn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if detail.TaskCount != 2 {
+	if detail.TaskCount == nil || *detail.TaskCount != 2 {
 		t.Fatalf("context detail should report task_count=2, got %+v", detail)
 	}
 	if detail.AwaitingInput {
@@ -518,8 +518,8 @@ func TestContextRollupPicksLatestUpdated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if detail.TaskCount != 3 {
-		t.Errorf("task_count should be 3, got %d", detail.TaskCount)
+	if detail.TaskCount == nil || *detail.TaskCount != 3 {
+		t.Errorf("task_count should be 3, got %+v", detail)
 	}
 	if !detail.AwaitingInput {
 		t.Error("awaiting_input should be true (t_b is input_required)")
@@ -542,7 +542,7 @@ func TestContextRollupPicksLatestUpdated(t *testing.T) {
 	if len(ctxs) != 1 {
 		t.Fatalf("expected 1 context, got %d", len(ctxs))
 	}
-	if ctxs[0].UpdatedAt != "2026-07-05T00:00:00Z" || ctxs[0].TaskCount != 3 || !ctxs[0].AwaitingInput {
+	if ctxs[0].UpdatedAt != "2026-07-05T00:00:00Z" || !ctxs[0].AwaitingInput {
 		t.Errorf("context summary rollup wrong: %+v", ctxs[0])
 	}
 }

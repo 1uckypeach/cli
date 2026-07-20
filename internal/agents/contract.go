@@ -99,12 +99,15 @@ type TaskSummary struct {
 
 // ContextSummary is a single context summary in the context list output. It is
 // the conversation-layer rollup used to pick which conversation needs attention.
+// It deliberately carries NO task_count: at the list level no triage decision
+// consumes it (awaiting_input / updated_at do that work), and requiring a
+// per-context total in a list call would force real providers into N+1 counting.
+// The count lives on ContextDetail (`context get`).
 type ContextSummary struct {
 	ContextID     string `json:"context_id"`
 	CreatedAt     string `json:"created_at,omitempty"`
 	UpdatedAt     string `json:"updated_at,omitempty"` // ISO 8601; last activity across the context's tasks
 	Title         string `json:"title,omitempty"`
-	TaskCount     int    `json:"task_count"`               // number of tasks in the context
 	AwaitingInput bool   `json:"awaiting_input,omitempty"` // a task is paused in input_required/auth_required (needs the caller)
 }
 
@@ -113,11 +116,15 @@ type ContextSummary struct {
 // most likely act on. The full task enumeration lives in `agents task list
 // --context-id`, so ContextDetail deliberately does NOT embed the whole tasks[].
 type ContextDetail struct {
-	ContextID     string       `json:"context_id"`
-	CreatedAt     string       `json:"created_at,omitempty"`
-	UpdatedAt     string       `json:"updated_at,omitempty"`
-	Title         string       `json:"title,omitempty"`
-	TaskCount     int          `json:"task_count"`
+	ContextID string `json:"context_id"`
+	CreatedAt string `json:"created_at,omitempty"`
+	UpdatedAt string `json:"updated_at,omitempty"`
+	Title     string `json:"title,omitempty"`
+	// TaskCount is the number of tasks in the context. A pointer so the three
+	// states stay distinct on the wire: nil = the provider cannot supply the
+	// count (field omitted), &0 = a genuinely empty context, &n = n tasks. A
+	// plain int with omitempty would silently conflate 0 with unknown.
+	TaskCount     *int         `json:"task_count,omitempty"`
 	AwaitingInput bool         `json:"awaiting_input,omitempty"`
 	ActiveTask    *TaskSummary `json:"active_task,omitempty"` // the task with the latest updated_at (nil for an empty context)
 }

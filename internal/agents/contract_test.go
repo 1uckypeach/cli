@@ -95,27 +95,24 @@ func TestTaskSummaryJSON(t *testing.T) {
 	}
 }
 
-// TestContextSummaryJSON pins the rollup shape: task_count ALWAYS appears (no
-// omitempty, so a zero count stays explicit); awaiting_input is omitted when
-// false; updated_at is carried.
+// TestContextSummaryJSON pins the rollup shape: the summary carries NO
+// task_count (the count lives on ContextDetail only); awaiting_input is
+// omitted when false; updated_at is carried.
 func TestContextSummaryJSON(t *testing.T) {
-	b, _ := json.Marshal(ContextSummary{ContextID: "sess_1", TaskCount: 0})
+	b, _ := json.Marshal(ContextSummary{ContextID: "sess_1"})
 	var m map[string]interface{}
 	_ = json.Unmarshal(b, &m)
-	if _, ok := m["task_count"]; !ok {
-		t.Error("task_count must always be present (no omitempty), even when 0")
+	if _, ok := m["task_count"]; ok {
+		t.Error("ContextSummary must not carry task_count (list-level counts were removed)")
 	}
 	if _, ok := m["awaiting_input"]; ok {
 		t.Error("awaiting_input should be omitted via omitempty when false")
 	}
 
 	b, _ = json.Marshal(ContextSummary{ContextID: "sess_1",
-		UpdatedAt: "2026-07-07T00:01:00Z", TaskCount: 2, AwaitingInput: true})
+		UpdatedAt: "2026-07-07T00:01:00Z", AwaitingInput: true})
 	m = map[string]interface{}{}
 	_ = json.Unmarshal(b, &m)
-	if tc, _ := m["task_count"].(float64); tc != 2 {
-		t.Errorf("task_count should be 2, got %v", m["task_count"])
-	}
 	if m["awaiting_input"] != true {
 		t.Errorf("awaiting_input should be true, got %v", m["awaiting_input"])
 	}
@@ -126,17 +123,18 @@ func TestContextSummaryJSON(t *testing.T) {
 
 // TestContextDetailJSON pins that context detail NO LONGER embeds a full tasks[]:
 // it carries task_count + awaiting_input + a single nested active_task (omitted
-// when nil).
+// when nil). task_count is tri-state: nil = unknown (omitted), &0 = genuinely
+// empty, &n = n tasks.
 func TestContextDetailJSON(t *testing.T) {
-	b, _ := json.Marshal(ContextDetail{ContextID: "sess_1", TaskCount: 2, AwaitingInput: true,
+	b, _ := json.Marshal(ContextDetail{ContextID: "sess_1", TaskCount: Int(2), AwaitingInput: true,
 		ActiveTask: &TaskSummary{TaskID: "chat_1", State: StateInputRequired, Summary: "按大区还是品类拆?"}})
 	var m map[string]interface{}
 	_ = json.Unmarshal(b, &m)
 	if _, ok := m["tasks"]; ok {
 		t.Error("ContextDetail must NOT embed a full tasks[] anymore")
 	}
-	if _, ok := m["task_count"]; !ok {
-		t.Error("task_count must always be present")
+	if tc, _ := m["task_count"].(float64); tc != 2 {
+		t.Errorf("task_count should be 2, got %v", m["task_count"])
 	}
 	if m["awaiting_input"] != true {
 		t.Errorf("awaiting_input should be true, got %v", m["awaiting_input"])
@@ -149,14 +147,27 @@ func TestContextDetailJSON(t *testing.T) {
 		t.Errorf("active_task.summary should be carried, got %v", at["summary"])
 	}
 
-	// active_task is omitted for an empty context; awaiting_input stays omitted when false.
-	b, _ = json.Marshal(ContextDetail{ContextID: "empty", TaskCount: 0})
+	// A genuinely empty context keeps an explicit 0 (not conflated with unknown);
+	// active_task is omitted; awaiting_input stays omitted when false.
+	b, _ = json.Marshal(ContextDetail{ContextID: "empty", TaskCount: Int(0)})
 	m = map[string]interface{}{}
 	_ = json.Unmarshal(b, &m)
+	if tc, ok := m["task_count"].(float64); !ok || tc != 0 {
+		t.Errorf("an explicit &0 task_count must stay on the wire as 0, got %v", m["task_count"])
+	}
 	if _, ok := m["active_task"]; ok {
 		t.Error("active_task should be omitted via omitempty when nil")
 	}
 	if _, ok := m["awaiting_input"]; ok {
 		t.Error("awaiting_input should be omitted via omitempty when false")
+	}
+
+	// nil task_count = the provider cannot supply the count: the field is
+	// omitted entirely, so unknown is never mistaken for an empty context.
+	b, _ = json.Marshal(ContextDetail{ContextID: "unknown"})
+	m = map[string]interface{}{}
+	_ = json.Unmarshal(b, &m)
+	if _, ok := m["task_count"]; ok {
+		t.Error("a nil TaskCount should omit task_count from the wire (unknown ≠ 0)")
 	}
 }
