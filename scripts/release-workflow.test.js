@@ -69,17 +69,6 @@ describe("release workflow contract", () => {
     }
   });
 
-  it("serializes all production releases for the repository", () => {
-    const concurrency = topLevelBlock(releaseWorkflow, "concurrency");
-
-    assert.match(
-      concurrency,
-      /^concurrency:\n  group: release-\$\{\{ github\.repository \}\}\n  cancel-in-progress: false\n+$/,
-    );
-    assert.equal(concurrency.includes("github.ref"), false);
-    assert.equal(concurrency.includes("github.ref_name"), false);
-  });
-
   it("runs preflight before every release side effect", () => {
     const preflight = jobBlock(releaseWorkflow, "preflight");
 

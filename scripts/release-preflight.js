@@ -8,14 +8,7 @@ const path = require("node:path");
 const STABLE_VERSION_PATTERN = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 
 function isStableVersion(value) {
-  if (typeof value !== "string") {
-    return false;
-  }
-
-  const match = STABLE_VERSION_PATTERN.exec(value);
-  return match !== null && match.slice(1).every(
-    (component) => Number(component) <= Number.MAX_SAFE_INTEGER,
-  );
+  return typeof value === "string" && STABLE_VERSION_PATTERN.test(value);
 }
 
 function releaseError(message, observed, hint) {

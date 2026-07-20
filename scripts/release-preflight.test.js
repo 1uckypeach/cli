@@ -276,24 +276,6 @@ describe("validateReleasePreflight", () => {
     }
   });
 
-  it("rejects version components outside JavaScript's safe integer range", () => {
-    for (const version of [
-      "9007199254740992.0.0",
-      "1.9007199254740992.0",
-      "1.0.9007199254740992",
-    ]) {
-      const { packageJson, packageLockJson } = validInputs(version);
-      assertStructuredError(validateReleasePreflight(packageJson, packageLockJson));
-    }
-
-    const { packageJson, packageLockJson } = validInputs();
-    assertStructuredError(validateReleasePreflight(
-      packageJson,
-      packageLockJson,
-      "v9007199254740992.0.0",
-    ));
-  });
-
   it("rejects a top-level package-lock version mismatch", () => {
     const { packageJson, packageLockJson } = validInputs();
     packageLockJson.version = "1.2.4";

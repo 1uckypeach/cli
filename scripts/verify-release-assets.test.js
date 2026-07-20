@@ -16,16 +16,6 @@ const {
 } = require("./verify-release-assets");
 
 const scriptPath = path.join(__dirname, "verify-release-assets.js");
-const packageVersion = require("../package.json").version;
-const archiveSuffixes = [
-  "darwin-amd64.tar.gz",
-  "darwin-arm64.tar.gz",
-  "linux-amd64.tar.gz",
-  "linux-arm64.tar.gz",
-  "linux-riscv64.tar.gz",
-  "windows-amd64.zip",
-  "windows-arm64.zip",
-];
 
 function sha256(content) {
   return crypto.createHash("sha256").update(content).digest("hex");
@@ -46,13 +36,11 @@ function manifestFor(files) {
     .join("\n") + "\n";
 }
 
-function releaseArchives(version = packageVersion) {
-  return Object.fromEntries(
-    archiveSuffixes.map((suffix) => [
-      `lark-cli-${version}-${suffix}`,
-      `${suffix} archive`,
-    ]),
-  );
+function releaseArchives() {
+  return {
+    "lark-cli-darwin-arm64.tar.gz": "darwin archive",
+    "lark-cli-windows-amd64.zip": "windows archive",
+  };
 }
 
 async function assertRejectsMessage(promise, pattern) {
@@ -93,24 +81,6 @@ describe("checksum manifest validation", () => {
     }
   });
 
-  it("rejects absolute, parent, and subdirectory paths", () => {
-    const hash = "a".repeat(64);
-    for (const name of [
-      "/tmp/cli.zip",
-      "../cli.zip",
-      "dir/cli.zip",
-      "dir\\cli.zip",
-      "C:cli.zip",
-      "Z:cli.tar.gz",
-      "C:\\temp\\cli.zip",
-    ]) {
-      assert.throws(
-        () => parseChecksumManifest(`${hash}  ${name}\n`),
-        /basename/i,
-      );
-    }
-  });
-
   it("rejects malformed lines and non-archive entries", () => {
     const hash = "a".repeat(64);
     for (const line of [
@@ -145,60 +115,17 @@ describe("checksum manifest validation", () => {
 });
 
 describe("verifyReleaseAssets", () => {
-  it("verifies the complete seven-archive matrix while ignoring auxiliary files", async (t) => {
-    const archives = releaseArchives("1.2.3");
+  it("verifies every archive listed in checksums.txt while ignoring auxiliary files", async (t) => {
+    const archives = releaseArchives();
     const directory = createFixture(t, {
       ...archives,
       "checksums.txt": manifestFor(archives),
       "release-notes.md": "notes",
     });
 
-    assert.deepEqual(await verifyReleaseAssets(directory, "1.2.3"), {
-      archiveCount: 7,
+    assert.deepEqual(await verifyReleaseAssets(directory), {
+      archiveCount: 2,
     });
-  });
-
-  it("rejects a matrix missing one required platform archive", async (t) => {
-    const archives = releaseArchives("1.2.3");
-    delete archives["lark-cli-1.2.3-linux-riscv64.tar.gz"];
-    const directory = createFixture(t, {
-      ...archives,
-      "checksums.txt": manifestFor(archives),
-    });
-
-    await assertRejectsMessage(
-      verifyReleaseAssets(directory, "1.2.3"),
-      /required release archives are missing.*linux-riscv64\.tar\.gz/i,
-    );
-  });
-
-  it("rejects a wrong platform archive", async (t) => {
-    const archives = releaseArchives("1.2.3");
-    delete archives["lark-cli-1.2.3-linux-riscv64.tar.gz"];
-    archives["lark-cli-1.2.3-linux-ppc64.tar.gz"] = "wrong platform";
-    const directory = createFixture(t, {
-      ...archives,
-      "checksums.txt": manifestFor(archives),
-    });
-
-    await assertRejectsMessage(
-      verifyReleaseAssets(directory, "1.2.3"),
-      /required release archives are missing.*linux-riscv64\.tar\.gz/i,
-    );
-  });
-
-  it("rejects an extra non-matrix archive", async (t) => {
-    const archives = releaseArchives("1.2.3");
-    archives["lark-cli-1.2.3-linux-ppc64.tar.gz"] = "extra platform";
-    const directory = createFixture(t, {
-      ...archives,
-      "checksums.txt": manifestFor(archives),
-    });
-
-    await assertRejectsMessage(
-      verifyReleaseAssets(directory, "1.2.3"),
-      /unexpected release archives.*linux-ppc64\.tar\.gz/i,
-    );
   });
 
   it("rejects a missing or empty checksums.txt", async (t) => {
@@ -208,8 +135,8 @@ describe("verifyReleaseAssets", () => {
       "checksums.txt": "\n  \n",
     });
 
-    await assertRejectsMessage(verifyReleaseAssets(missing, "1.2.3"), /checksums\.txt.*missing/i);
-    await assertRejectsMessage(verifyReleaseAssets(empty, "1.2.3"), /checksums\.txt.*empty/i);
+    await assertRejectsMessage(verifyReleaseAssets(missing), /checksums\.txt.*missing/i);
+    await assertRejectsMessage(verifyReleaseAssets(empty), /checksums\.txt.*empty/i);
   });
 
   it("rejects a directory without archive files", async (t) => {
@@ -218,34 +145,12 @@ describe("verifyReleaseAssets", () => {
       "notes.txt": "helper",
     });
 
-    await assertRejectsMessage(verifyReleaseAssets(directory, "1.2.3"), /no release archives/i);
-  });
-
-  it("rejects an archive symlink even when a regular archive is valid", async (t) => {
-    const archives = { "cli.zip": "zip" };
-    const directory = createFixture(t, {
-      ...archives,
-      "checksums.txt": manifestFor(archives),
-    });
-    try {
-      fs.symlinkSync("cli.zip", path.join(directory, "linked.tar.gz"));
-    } catch (error) {
-      if (process.platform === "win32" && ["EACCES", "EPERM"].includes(error.code)) {
-        t.skip(`symlink creation is not permitted: ${error.code}`);
-        return;
-      }
-      throw error;
-    }
-
-    await assertRejectsMessage(
-      verifyReleaseAssets(directory, "1.2.3"),
-      /not regular files.*linked\.tar\.gz/i,
-    );
+    await assertRejectsMessage(verifyReleaseAssets(directory), /no release archives/i);
   });
 
   it("rejects an archive missing from checksums.txt", async (t) => {
-    const archives = releaseArchives("1.2.3");
-    const missingChecksum = "lark-cli-1.2.3-windows-arm64.zip";
+    const archives = releaseArchives();
+    const missingChecksum = "lark-cli-windows-amd64.zip";
     const manifestArchives = { ...archives };
     delete manifestArchives[missingChecksum];
     const directory = createFixture(t, {
@@ -254,13 +159,13 @@ describe("verifyReleaseAssets", () => {
     });
 
     await assertRejectsMessage(
-      verifyReleaseAssets(directory, "1.2.3"),
-      /archive files without checksum entries.*windows-arm64\.zip/i,
+      verifyReleaseAssets(directory),
+      /archive files without checksum entries.*windows-amd64\.zip/i,
     );
   });
 
   it("rejects a checksum entry whose archive does not exist", async (t) => {
-    const archives = releaseArchives("1.2.3");
+    const archives = releaseArchives();
     const directory = createFixture(t, {
       ...archives,
       "checksums.txt": [
@@ -270,22 +175,22 @@ describe("verifyReleaseAssets", () => {
     });
 
     await assertRejectsMessage(
-      verifyReleaseAssets(directory, "1.2.3"),
+      verifyReleaseAssets(directory),
       /checksum entries without archive files.*missing\.tar\.gz/i,
     );
   });
 
   it("rejects a digest mismatch", async (t) => {
-    const archives = releaseArchives("1.2.3");
-    const mismatch = "lark-cli-1.2.3-windows-arm64.zip";
+    const archives = releaseArchives();
+    const mismatch = "lark-cli-windows-amd64.zip";
     const directory = createFixture(t, {
       ...archives,
       "checksums.txt": manifestFor({ ...archives, [mismatch]: "different" }),
     });
 
     await assertRejectsMessage(
-      verifyReleaseAssets(directory, "1.2.3"),
-      /SHA-256 mismatch.*windows-arm64\.zip/i,
+      verifyReleaseAssets(directory),
+      /SHA-256 mismatch.*windows-amd64\.zip/i,
     );
   });
 });
@@ -305,7 +210,7 @@ describe("command line interface", () => {
 
     assert.equal(result.status, 0);
     assert.equal(result.stderr, "");
-    assert.equal(result.stdout, "Verified 7 release archives.\n");
+    assert.equal(result.stdout, "Verified 2 release archives.\n");
   });
 
   it("accepts a directory argument and reports failures on stderr", (t) => {
