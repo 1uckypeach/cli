@@ -88,7 +88,6 @@ jobs:
       - name: Verify release checksums
         run: |
           set -euo pipefail
-          printf '%064d  dist/rehearsal-checksum-mismatch\n' 0 >> dist/checksums.txt
           test -s dist/checksums.txt
           (cd dist && sha256sum --check checksums.txt)
           cp dist/checksums.txt checksums.txt
