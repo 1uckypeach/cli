@@ -11,6 +11,13 @@ if [[ ! -f "$workflow" ]]; then
   exit 1
 fi
 
+# Parse the workflow as real YAML so a structurally invalid file (for example a
+# run: block scalar broken by an un-indented continuation line) fails here
+# instead of silently failing to load at GitHub Actions runtime. The grep
+# assertions below check content but cannot catch YAML structural errors. Ruby
+# ships a YAML parser on both ubuntu-latest CI and dev machines.
+ruby -ryaml -e "YAML.load_file(ARGV[0])" "$workflow" >/dev/null
+
 grep -Eq '^[[:space:]]+workflow_dispatch:[[:space:]]*$' "$workflow"
 grep -Eq '^[[:space:]]+schedule:[[:space:]]*$' "$workflow"
 if grep -Eq '^[[:space:]]*(push|pull_request|pull_request_target|merge_group):|^[[:space:]]*on:[[:space:]]*\[[^]]*(push|pull_request|pull_request_target|merge_group)' "$workflow"; then
