@@ -26,7 +26,7 @@ lark-cli slides +xml-get --as user \
 
 ## Automated XML Text Overlap Lint
 
-slides +xml-get 保存 XML 到本地文件后，必须运行 XML 语法和文本重叠静态检查；输入可以是单个 <slide> 或完整 <presentation>。
+`slides +xml-get` 保存 XML 到本地文件后，必须运行 XML 语法和文本重叠静态检查；输入可以是单个 `<slide>` 或完整 `<presentation>`。
 
 ```bash
 python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentation.xml>
