@@ -91,25 +91,25 @@ describe("release workflow contract", () => {
     assert.equal(preflight.includes("npm publish"), false);
   });
 
-  it("builds artifacts and stages npm after one protected approval", () => {
-    const publish = jobBlock(releaseWorkflow, "stage-release");
+  it("builds a verified staging asset before approval", () => {
+    const build = jobBlock(releaseWorkflow, "build-stage-assets");
 
-    assert.match(publish, /needs: preflight/);
-    assert.deepEqual(permissionLines(publish), ["contents: read", "id-token: write"]);
-    assert.match(publish, /^    environment: npm-production$/m);
-    assert.match(publish, /actions\/setup-go@[0-9a-f]{40}/);
-    assert.match(publish, /actions\/setup-python@[0-9a-f]{40}/);
+    assert.match(build, /needs: preflight/);
+    assert.deepEqual(permissionLines(build), ["contents: read"]);
+    assert.doesNotMatch(build, /^    environment:/m);
+    assert.match(build, /actions\/setup-go@[0-9a-f]{40}/);
+    assert.match(build, /actions\/setup-python@[0-9a-f]{40}/);
     assert.match(
-      publish,
+      build,
       /actions\/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6/,
     );
-    assert.match(publish, /node-version: '22.14.0'/);
-    assert.match(publish, /registry-url: 'https:\/\/registry\.npmjs\.org'/);
-    assert.match(publish, /package-manager-cache: false/);
-    assert.match(publish, /npm install --global npm@11\.16\.0/);
-    assert.match(publish, /goreleaser\/goreleaser-action@[0-9a-f]{40}/);
-    assert.match(publish, /args: release --clean --skip=publish/);
-    assertInOrder(publish, [
+    assert.match(build, /node-version: '22.14.0'/);
+    assert.match(build, /registry-url: 'https:\/\/registry\.npmjs\.org'/);
+    assert.match(build, /package-manager-cache: false/);
+    assert.match(build, /npm install --global npm@11\.16\.0/);
+    assert.match(build, /goreleaser\/goreleaser-action@[0-9a-f]{40}/);
+    assert.match(build, /args: release --clean --skip=publish/);
+    assertInOrder(build, [
       "actions/setup-go@",
       "actions/setup-python@",
       "actions/setup-node@",
@@ -120,11 +120,28 @@ describe("release workflow contract", () => {
       "npm pack --ignore-scripts --json",
       "tar -tzf \"$PACK_FILE\" | grep -qx 'package/checksums.txt'",
       "actions/upload-artifact@",
-      'npm stage publish "${{ steps.pack.outputs.filename }}" --access public --tag beta',
+    ]);
+    assert.equal(build.includes("npm stage publish"), false);
+  });
+
+  it("limits the protected job to verifying and staging the prepared npm asset", () => {
+    const publish = jobBlock(releaseWorkflow, "stage-publish");
+
+    assert.match(publish, /needs: build-stage-assets/);
+    assert.deepEqual(permissionLines(publish), ["id-token: write"]);
+    assert.match(publish, /^    environment: npm-production$/m);
+    assert.doesNotMatch(publish, /actions\/checkout@/);
+    assert.doesNotMatch(publish, /goreleaser\/goreleaser-action@/);
+    assert.doesNotMatch(publish, /GITHUB_TOKEN:/);
+    assertInOrder(publish, [
+      "actions/setup-node@",
+      "npm install --global npm@11.16.0",
+      "actions/download-artifact@",
+      "sha256sum --check checksums.txt",
+      "tar -tzf \"$PACK_FILE\" | grep -qx 'package/checksums.txt'",
+      'npm stage publish "${{ steps.asset.outputs.filename }}" --access public --tag beta',
     ]);
     for (const forbidden of [
-      "actions/download-artifact",
-      "verify-release-assets",
       "gh release download",
       "npm view",
       "LOCAL_INTEGRITY",

@@ -52,13 +52,11 @@ jobs:
             fi
           fi
 
-  stage-release:
+  build-stage-assets:
     needs: preflight
     runs-on: ubuntu-22.04
-    environment: npm-production
     permissions:
       contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -120,5 +118,38 @@ jobs:
           if-no-files-found: error
           overwrite: true
 
+  stage-publish:
+    needs: build-stage-assets
+    runs-on: ubuntu-22.04
+    environment: npm-production
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22.14.0'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Install pinned npm
+        run: npm install --global npm@11.16.0
+
+      - name: Download rehearsal artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: staged-release-assets-${{ github.run_id }}
+          path: staged-release-assets
+
+      - name: Verify rehearsal asset
+        id: asset
+        run: |
+          set -euo pipefail
+          (cd staged-release-assets && sha256sum --check checksums.txt)
+          PACK_FILE="$(find staged-release-assets -maxdepth 1 -type f -name '*.tgz' -print -quit)"
+          test -n "$PACK_FILE"
+          test -s "$PACK_FILE"
+          tar -tzf "$PACK_FILE" | grep -qx 'package/checksums.txt'
+          echo "filename=$PACK_FILE" >> "$GITHUB_OUTPUT"
+
       - name: Stage npm package
-        run: npm stage publish "${{ steps.pack.outputs.filename }}" --access public --tag beta
+        run: npm stage publish "${{ steps.asset.outputs.filename }}" --access public --tag beta
