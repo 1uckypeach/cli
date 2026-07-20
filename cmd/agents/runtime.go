@@ -6,6 +6,7 @@ package agents
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 
@@ -101,6 +102,26 @@ func (r *cmdRuntime) do(ctx context.Context, req client.RawApiRequest) (json.Raw
 			return nil, err
 		}
 		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "api %s %s: %s", req.Method, req.URL, err).WithCause(err)
+	}
+	if top, ok := result.(map[string]interface{}); ok {
+		topLogID, _ := top["log_id"].(string)
+		var nestedLogID string
+		if errBlock, ok := top["error"].(map[string]interface{}); ok {
+			nestedLogID, _ = errBlock["log_id"].(string)
+		}
+		for _, candidate := range []string{
+			topLogID,
+			nestedLogID,
+			resp.Header.Get(larkcore.HttpHeaderKeyLogId),
+			resp.Header.Get(larkcore.HttpHeaderKeyRequestId),
+		} {
+			if logID := strings.TrimSpace(candidate); logID != "" {
+				// CheckResponse classifies errors from the top-level envelope, so
+				// always promote the selected ID there in its normalized form.
+				top["log_id"] = logID
+				break
+			}
+		}
 	}
 	if apiErr := r.client.CheckResponse(result, r.as); apiErr != nil {
 		return nil, apiErr

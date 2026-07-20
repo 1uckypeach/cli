@@ -131,6 +131,77 @@ func TestCmdRuntime_CallAPI_APIError(t *testing.T) {
 	}
 }
 
+// TestCmdRuntime_CallAPI_HeaderOnlyLogID pins that the Agent runtime lifts the
+// response-header log ID into the typed error when the JSON body omits log_id.
+func TestCmdRuntime_CallAPI_HeaderOnlyLogID(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		body   string
+		header string
+	}{
+		{name: "x-tt-logid", body: `{"code":5000,"msg":""}`, header: larkcore.HttpHeaderKeyLogId},
+		{name: "request-id fallback", body: `{"code":5000,"msg":""}`, header: larkcore.HttpHeaderKeyRequestId},
+		{name: "invalid body log ids", body: `{"code":5000,"msg":"","log_id":123,"error":{"log_id":"  "}}`, header: larkcore.HttpHeaderKeyLogId},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rt := stubRoundTripper{respond: func(r *http.Request) (*http.Response, error) {
+				resp, err := jsonResponse(200, tc.body)(r)
+				resp.Header.Set(tc.header, "header-log-123")
+				return resp, err
+			}}
+			r := newTestCmdRuntime(rt, core.AsUser, "agt_1")
+
+			_, err := r.CallAPI(context.Background(), "POST", "/open-apis/base/v3/bases/b1/ai/agents/assistant/messages", nil, map[string]any{"text": "hi"})
+			if err == nil {
+				t.Fatal("a non-zero API code should surface as an error")
+			}
+			p, ok := errs.ProblemOf(err)
+			if !ok {
+				t.Fatalf("API error should be typed, got %T: %v", err, err)
+			}
+			if p.LogID != "header-log-123" {
+				t.Errorf("LogID = %q, want header-log-123", p.LogID)
+			}
+		})
+	}
+}
+
+// TestCmdRuntime_CallAPI_BodyLogIDTakesPrecedence pins that a body-provided
+// log_id remains authoritative when the response header carries another ID.
+func TestCmdRuntime_CallAPI_BodyLogIDTakesPrecedence(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "top-level", body: `{"code":5000,"msg":"","log_id":"body-log-456"}`, want: "body-log-456"},
+		{name: "top-level trimmed", body: `{"code":5000,"msg":"","log_id":"  body-log-456  "}`, want: "body-log-456"},
+		{name: "nested error", body: `{"code":5000,"msg":"","error":{"log_id":"body-log-456"}}`, want: "body-log-456"},
+		{name: "top-level whitespace falls back to nested", body: `{"code":5000,"msg":"","log_id":"  ","error":{"log_id":" nested-log-789 "}}`, want: "nested-log-789"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rt := stubRoundTripper{respond: func(r *http.Request) (*http.Response, error) {
+				resp, err := jsonResponse(200, tc.body)(r)
+				resp.Header.Set(larkcore.HttpHeaderKeyLogId, "header-log-123")
+				return resp, err
+			}}
+			r := newTestCmdRuntime(rt, core.AsUser, "agt_1")
+
+			_, err := r.CallAPI(context.Background(), "POST", "/open-apis/base/v3/bases/b1/ai/agents/assistant/messages", nil, map[string]any{"text": "hi"})
+			if err == nil {
+				t.Fatal("a non-zero API code should surface as an error")
+			}
+			p, ok := errs.ProblemOf(err)
+			if !ok {
+				t.Fatalf("API error should be typed, got %T: %v", err, err)
+			}
+			if p.LogID != tc.want {
+				t.Errorf("LogID = %q, want %q", p.LogID, tc.want)
+			}
+		})
+	}
+}
+
 // TestCmdRuntime_CallAPI_TransportError pins the transport-error branch: a
 // RoundTrip failure is classified as a network transport error.
 func TestCmdRuntime_CallAPI_TransportError(t *testing.T) {
