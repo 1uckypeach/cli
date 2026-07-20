@@ -9,8 +9,8 @@
 1. 记录创建或编辑返回的 `xml_presentation_id`，以及已知的 `slide_id` / `revision_id`。`slide_id` 是 review 状态唯一关联键；页码仅可作为展示信息。
 2. 用 `slides +xml-get` 回读全文 XML 到本地文件，并以当前结果建立本次 review 的 `slide_ids` 页清单。首次新建且页集合未变时，可复用创建响应；增删页、整页替换或重排后必须刷新清单。
 3. 运行 XML 静态检查，检查实际页数、主要元素、空白/破损页、主视觉和布局风险。
-4. 静态检查通过后，用 `slides +screenshot` 对第 1 步的全部 `slide_ids` 截图。每批最多 10 页，输出到 `.lark-slides/review/<deck-or-task-id>/screenshots/`。
-5. 实际打开每张截图，按下方 rubric 逐页标记 `pass` 或 `fix`；截图文件存在但未被查看时，状态必须为 `not_reviewed`。
+4. 先在 `.lark-slides/review/<deck-or-task-id>/visual-review.md` 为全部 `slide_ids` 建立记录，初始状态均为 `not_reviewed`；静态检查通过后再用 `slides +screenshot` 截图。每批最多 10 页，输出到 `.lark-slides/review/<deck-or-task-id>/screenshots/`。
+5. 实际打开每张截图，按下方 rubric 逐页标记 `pass` 或 `fix`；截图文件存在但未被查看时，状态必须保留为 `not_reviewed`。**关键页抽查只可作为排障/预览，不能缩小本次 review 页清单，也不能支持“全部通过”的结论。**
 6. `fix` 页用 `+replace-slide` 或对应写入操作修复后，重新回读并重新截图该页；不要沿用修复前的截图结论。
 7. 截图白名单或服务端限制导致无法获取图片时，记录错误和受影响页，完成其余 XML 静态检查，并将视觉状态标记为 `not_verified`。
 8. 在最终回复中给出简短验证记录，明确区分静态检查和真实视觉 review。
@@ -26,7 +26,7 @@ lark-cli slides +xml-get --as user \
 
 ## Automated XML Text Overlap Lint
 
-`slides +xml-get` 保存 XML 到本地文件后，优先运行 XML 语法和文本重叠静态检查：
+slides +xml-get 保存 XML 到本地文件后，必须运行 XML 语法和文本重叠静态检查；输入可以是单个 <slide> 或完整 <presentation>。
 
 ```bash
 python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentation.xml>
@@ -152,7 +152,7 @@ python3 skills/lark-slides/scripts/xml_text_overlap_lint.py --input <presentatio
 | p002 | screenshots/p002.png | fix | bottom labels are clipped | enlarge text box, then rescreenshot |
 ```
 
-只有所有目标页均为 `pass` 才能写“已完成视觉 review”。截图不可用时沿用上文的 `not_verified` 状态，并说明原因。
+只有记录中的每个目标 `slide_id` 都是 `pass`，且记录数等于当前页清单数，才可写“已完成视觉 review”。截图不可用时沿用上文的 `not_verified` 状态，并说明原因。
 
 ## Verification Record
 

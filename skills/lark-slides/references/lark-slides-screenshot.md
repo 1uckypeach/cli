@@ -25,12 +25,12 @@ lark-cli slides +screenshot --as user \
 
 | 参数 | 必需 | 说明 |
 |------|------|------|
-| `--presentation` | list 模式必需 | `xml_presentation_id`、`/slides/` URL，或解析后为 slides 的 `/wiki/` URL。传 `--content` 时不能使用 |
-| `--slide-id` | list 模式标准入参 | 页面 short ID；截图、修复和 review 状态均以它关联；多页截图时重复传入；一次最多 10 页 |
-| `--slide-number` | 用户只提供“第 N 页”或旧 deck 暂未取得 `slide_id` 时使用；成功定位后必须取得对应 `slide_id`，后续不再用页号关联截图或 review 状态 |
+| `--presentation` | list 模式必需 | `xml_presentation_id`、`/slides/` URL，或解析后为 slides 的 `/wiki/` URL；只标识演示文稿，不会默认截图全部页面。传 `--content` 时不能使用 |
+| `--slide-id` | list 模式标准入参 | 页面 short ID；截图、修复和 review 状态均以它关联；多页截图时重复传入；一次最多 10 页。先从创建响应或 `slides +xml-get` 取得当前 `slide_ids` |
+| `--slide-number` | 用户只提供“第 N 页”或旧 deck 暂未取得 `slide_id` 时使用；成功定位后必须取得对应 `slide_id`，后续不再用页号关联截图或 review 状态。不能省略 `--slide-id` 和 `--slide-number` 两者 |
 | `--content` | render 模式必需 | 要直接渲染的 `<slide>` XML 片段；支持直接传值、`@file`、`-` stdin。传入后不能同时传 `--slide-id` / `--slide-number` |
-| `--output-dir` | 否 | 输出目录，默认 `.lark-slides/screenshots`；必须是当前目录内的相对路径 |
-| `--output-name` | 否 | render 模式的输出文件名 stem；未指定时优先用返回的 `slide_id`，否则用 `rendered-slide`。若目标文件已存在，会自动追加递增后缀避免覆盖 |
+| `--output-dir` | 否 | 输出目录，默认 `.lark-slides/screenshots`；必须是当前目录内的相对路径。截图可能返回多张图片，使用目录而不是 `--output` 文件路径 |
+| `--output-name` | 否 | 仅 render 模式（`--content`）的输出文件名 stem；未指定时优先用返回的 `slide_id`，否则用 `rendered-slide`。若目标文件已存在，会自动追加递增后缀避免覆盖 |
 
 ## 示例
 
@@ -56,7 +56,7 @@ lark-cli slides +screenshot --as user \
   --output-dir .lark-slides/review/<deck-or-task-id>/screenshots
 ```
 
-随后必须用具备图像查看能力的工具打开每个返回的 `path`，逐页记录 `pass/fix`。截图落盘或批量请求成功都不等于已完成视觉 review。
+随后必须用具备图像查看能力的工具打开每个返回的 `path`，逐页记录 `pass/fix`。截图落盘、批量请求成功或只查看关键页，都不等于已完成视觉 review。
 
 ### 渲染 XML 预览
 

@@ -1194,7 +1194,7 @@ def lint_xml(xml: str, source_path: str | None = None) -> dict[str, Any]:
 
 
 def print_usage() -> None:
-    print("Usage:\n  python3 xml_text_overlap_lint.py --input <presentation.xml>", file=sys.stderr)
+    print("Usage:\n  python3 xml_text_overlap_lint.py --input <presentation-or-slide.xml>", file=sys.stderr)
 
 
 def run_cli(argv: list[str] | None = None) -> None:
