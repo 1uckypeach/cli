@@ -485,6 +485,49 @@ func TestBatchUpdate_WrapperKeysDisjointFromSubOpFlags(t *testing.T) {
 	}
 }
 
+// TestBatchUpdate_AggregatesMultipleOpErrors pins op-level aggregation: when
+// several operations are invalid, one reply names them all (numbered, with
+// each op's own error) instead of failing on the first bad op only. A single
+// bad op keeps the historical single-error message (no aggregate wrapper).
+func TestBatchUpdate_AggregatesMultipleOpErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("two bad ops reported together", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := runShortcutCapturingErr(t, BatchUpdate, []string{
+			"--url", testURL,
+			"--operations", `[
+				{"shortcut":"+cells-set-magic","input":{}},
+				{"shortcut":"+cells-set","input":{"sheet_name":"s","range":"A1"}},
+				{"shortcut":"+cells-clear","input":{"sheet_name":"s","range":"A1"}}
+			]`,
+			"--yes", "--dry-run",
+		})
+		requireValidation(t, err, "2 of 3 operations failed validation")
+		for _, want := range []string{"1) ", "2) ", "operations[0]", "operations[1]"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("aggregated op error should contain %q, got %q", want, err.Error())
+			}
+		}
+	})
+
+	t.Run("single bad op keeps plain message", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := runShortcutCapturingErr(t, BatchUpdate, []string{
+			"--url", testURL,
+			"--operations", `[
+				{"shortcut":"+cells-set-magic","input":{}},
+				{"shortcut":"+cells-clear","input":{"sheet_name":"s","range":"A1"}}
+			]`,
+			"--yes", "--dry-run",
+		})
+		requireValidation(t, err, "not allowed in +batch-update")
+		if strings.Contains(err.Error(), "operations failed validation") {
+			t.Errorf("single bad op must not get the aggregate wrapper, got %q", err.Error())
+		}
+	})
+}
+
 // TestBatchUpdate_PrescriptiveHints pins the recovery hints that ride on the
 // highest-frequency batch failures, so an agent can repair its payload in a
 // single retry without --help / --print-schema round trips.

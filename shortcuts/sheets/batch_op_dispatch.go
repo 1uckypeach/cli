@@ -4,6 +4,7 @@
 package sheets
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -433,7 +434,14 @@ func translateBatchOp(raw interface{}, token string, index int) (map[string]inte
 // matrix, on the operations axis.
 const maxBatchOperations = 100
 
-// translateBatchOperations 翻译整个 ops 数组；fail-fast，遇错立即返回。
+// batchOpErrorDisplayLimit bounds how many per-op validation failures ride
+// on one aggregated --operations error, mirroring the schema validator's
+// display cap.
+const batchOpErrorDisplayLimit = 5
+
+// translateBatchOperations 翻译整个 ops 数组。逐 op 校验并**收集全部失败**
+// 一次性返回（不再 fail-fast）——agent 一轮就能修完所有坏 op，而不是
+// 修一个、重试、再撞下一个。cell 安全上限仍是全局判定，命中即返回。
 func translateBatchOperations(rawOps []interface{}, token string) ([]interface{}, error) {
 	if len(rawOps) == 0 {
 		return nil, sheetsValidationForFlag("operations", "--operations must be a non-empty JSON array")
@@ -445,10 +453,15 @@ func translateBatchOperations(rawOps []interface{}, token string) ([]interface{}
 	}
 	out := make([]interface{}, 0, len(rawOps))
 	var totalCells int64
+	var opErrs []error
 	for i, raw := range rawOps {
 		translated, err := translateBatchOp(raw, token, i)
 		if err != nil {
-			return nil, err
+			opErrs = append(opErrs, err)
+			continue
+		}
+		if len(opErrs) > 0 {
+			continue // already failing — keep scanning for more bad ops, skip cell math.
 		}
 		totalCells += translatedCellCount(translated)
 		if totalCells > maxStampMatrixCells {
@@ -458,7 +471,27 @@ func translateBatchOperations(rawOps []interface{}, token string) ([]interface{}
 		}
 		out = append(out, translated)
 	}
-	return out, nil
+	switch len(opErrs) {
+	case 0:
+		return out, nil
+	case 1:
+		return nil, opErrs[0] // single failure keeps the historical error byte-for-byte.
+	}
+	shown := opErrs
+	truncated := false
+	if len(shown) > batchOpErrorDisplayLimit {
+		shown = shown[:batchOpErrorDisplayLimit]
+		truncated = true
+	}
+	parts := make([]string, 0, len(shown))
+	for i, e := range shown {
+		parts = append(parts, fmt.Sprintf("%d) %s", i+1, e.Error()))
+	}
+	msg := fmt.Sprintf("%d of %d operations failed validation: %s", len(opErrs), len(rawOps), strings.Join(parts, "; "))
+	if truncated {
+		msg += fmt.Sprintf("; (%d more not shown — fix these first)", len(opErrs)-batchOpErrorDisplayLimit)
+	}
+	return nil, sheetsValidationForFlag("operations", "%s", msg).WithCause(opErrs[0])
 }
 
 func translatedCellCount(op map[string]interface{}) int64 {
