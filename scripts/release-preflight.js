@@ -16,10 +16,9 @@ function releaseError(message, observed, hint) {
 }
 
 function validateReleasePreflight(packageJson, packageLockJson, tag) {
-  const packageVersion = packageJson && packageJson.version;
-  const lockVersion = packageLockJson && packageLockJson.version;
-  const lockRootVersion = packageLockJson && packageLockJson.packages &&
-    packageLockJson.packages[""] && packageLockJson.packages[""].version;
+  const packageVersion = packageJson?.version;
+  const lockVersion = packageLockJson?.version;
+  const lockRootVersion = packageLockJson?.packages?.[""]?.version;
   const observed = {
     packageVersion: packageVersion ?? null,
     lockVersion: lockVersion ?? null,
