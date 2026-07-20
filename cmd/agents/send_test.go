@@ -371,6 +371,25 @@ func TestSendDryRun(t *testing.T) {
 	}
 }
 
+// TestSendDryRunRejectsProviderUnsupportedIdentity ensures --dry-run obeys the
+// same provider identity contract as a live send while remaining network-free.
+func TestSendDryRunRejectsProviderUnsupportedIdentity(t *testing.T) {
+	opts := sendTestOpts(t)
+	opts.Ref = "fakeuseronly:agt_x"
+	opts.Text = "分析销售"
+	opts.DryRun = true
+
+	err := agentSendRun(opts)
+	if err == nil {
+		t.Fatal("bot dry-run should be rejected by a user-only provider")
+	}
+	p, ok := errs.ProblemOf(err)
+	var validationErr *errs.ValidationError
+	if !ok || p.Subtype != errs.SubtypeInvalidArgument || !errors.As(err, &validationErr) || validationErr.Param != "--as" {
+		t.Fatalf("bot dry-run should fail as invalid_argument for --as, got problem=%+v err=%v", p, err)
+	}
+}
+
 // TestSendStartsTask pins the happy path: a single Send fires and returns the
 // submitted / working task in a success envelope immediately (no polling), with
 // a meta.next hint pointing at task get --watch.

@@ -31,6 +31,12 @@ type scriptedHooks struct {
 // registered provider is fixed per package run, the hooks can be re-pointed).
 var scripted scriptedHooks
 
+// fakeUserOnlyDescribe is a test seam for the user-only provider's optional
+// dynamic Card enrichment. Card tests use it to prove an unsupported identity
+// gets the static card without invoking Describe, while a supported identity
+// may enrich it.
+var fakeUserOnlyDescribe func(iagents.Runtime) (*iagents.CardInfo, error)
+
 // setScripted installs the hooks for one test and restores the empty (panic
 // tripwire) set on cleanup.
 func setScripted(t *testing.T, h scriptedHooks) {
@@ -101,6 +107,17 @@ func scriptedSpec() *iagents.AgentSpec {
 	}
 }
 
+func scriptedUserOnlySpec() *iagents.AgentSpec {
+	spec := scriptedSpec()
+	spec.Describe = func(_ context.Context, rt iagents.Runtime) (*iagents.CardInfo, error) {
+		if fakeUserOnlyDescribe == nil {
+			panic("scripted user-only provider: Describe hook not set")
+		}
+		return fakeUserOnlyDescribe(rt)
+	}
+	return spec
+}
+
 // fakescopedAllScopes is the full RequiredScopes set of the fakescoped test
 // provider, sorted — the all-or-nothing preflight requires every one for any
 // real API verb.
@@ -139,6 +156,7 @@ func minimalSpec() *iagents.AgentSpec {
 //   - fakescoped: a 4-scope RequiredScopes set, for the scope-preflight tests.
 //   - fakemin: the same 4-scope set on the minimal spec — the vehicle for
 //     unwired-verb gating (its capability gate must answer before preflight).
+//   - fakeuseronly: no RequiredScopes, user identity only.
 var registerScriptedOnce sync.Once
 
 func registerScripted() {
@@ -165,6 +183,13 @@ func registerScripted() {
 			RequiredScopes: fakescopedAllScopes,
 			Identities:     []iagents.IdentitySpec{{Type: iagents.IdentityUser}, {Type: iagents.IdentityBot}},
 			Instance:       minimalSpec(),
+		})
+		iagents.Register(iagents.Provider{
+			Scheme:        "fakeuseronly",
+			Label:         "test fake (user only)",
+			AgentIDSource: "test only",
+			Identities:    []iagents.IdentitySpec{{Type: iagents.IdentityUser}},
+			Instance:      scriptedUserOnlySpec(),
 		})
 	})
 }

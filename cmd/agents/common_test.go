@@ -697,6 +697,34 @@ func TestResolveSpec_IdentityRejected(t *testing.T) {
 	}
 }
 
+// TestResolveSpec_ProviderIdentityRejected pins the provider-level identity
+// contract. A user-only provider must reject bot before dry-run or any API
+// operation can proceed, while user identity remains available offline.
+func TestResolveSpec_ProviderIdentityRejected(t *testing.T) {
+	registerScripted()
+
+	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
+	botCmd := resolveCmd(t, true, "bot")
+	_, spec, _, _, err := resolveSpec(f, botCmd, "fakeuseronly:agt_x", "bot")
+	if err == nil || spec != nil {
+		t.Fatal("bot should be rejected by a user-only provider")
+	}
+	p, ok := errs.ProblemOf(err)
+	var validationErr *errs.ValidationError
+	if !ok || p.Subtype != errs.SubtypeInvalidArgument || !errors.As(err, &validationErr) || validationErr.Param != "--as" {
+		t.Fatalf("provider identity rejection should be invalid_argument for --as, got problem=%+v err=%v", p, err)
+	}
+
+	userCmd := resolveCmd(t, true, "user")
+	_, spec, _, id, err := resolveSpec(f, userCmd, "fakeuseronly:agt_x", "user")
+	if err != nil {
+		t.Fatalf("user should be accepted by a user-only provider: %v", err)
+	}
+	if spec == nil || id != core.AsUser {
+		t.Fatalf("should return spec + user identity, got spec=%v id=%s", spec, id)
+	}
+}
+
 // TestRuntimeFor_APIClientError surfaces a NewAPIClient failure (Config error).
 func TestRuntimeFor_APIClientError(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})

@@ -91,6 +91,55 @@ func TestAgentCardRun_ExampleStaticCard(t *testing.T) {
 	}
 }
 
+// TestAgentCardRun_UserOnlyProviderRemainsDiscoverable pins the separation
+// between Card discovery and operation identity enforcement. An unsupported
+// default bot identity still gets the static user-only Card without Describe;
+// a supported user identity may use the configured runtime to enrich it.
+func TestAgentCardRun_UserOnlyProviderRemainsDiscoverable(t *testing.T) {
+	registerScripted()
+	describeCalls := 0
+	fakeUserOnlyDescribe = func(rt iagents.Runtime) (*iagents.CardInfo, error) {
+		describeCalls++
+		if rt.IsBot() {
+			t.Fatal("Describe must not run with the provider-unsupported bot identity")
+		}
+		return &iagents.CardInfo{Name: "enriched for user"}, nil
+	}
+	t.Cleanup(func() { fakeUserOnlyDescribe = nil })
+
+	botFactory := unconfiguredFactory(t)
+	botCmd := resolveCmd(t, false, "") // unconfigured auto-detect falls back to bot
+	botOut := botFactory.IOStreams.Out.(interface{ Bytes() []byte })
+	if err := agentCardRun(&cardOptions{Factory: botFactory, Cmd: botCmd, Ref: "fakeuseronly:agt_x", Format: "json"}); err != nil {
+		t.Fatalf("the static user-only Card should remain discoverable under default bot: %v", err)
+	}
+	if describeCalls != 0 {
+		t.Fatalf("unsupported bot identity must skip dynamic Describe, calls=%d", describeCalls)
+	}
+	var botEnv output.Envelope
+	if err := json.Unmarshal(botOut.Bytes(), &botEnv); err != nil || !botEnv.OK {
+		t.Fatalf("bot discovery should emit a valid success envelope: err=%v out=%s", err, botOut.Bytes())
+	}
+
+	userFactory, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
+	userCmd := resolveCmd(t, true, "user")
+	userOut := userFactory.IOStreams.Out.(interface{ Bytes() []byte })
+	if err := agentCardRun(&cardOptions{Factory: userFactory, Cmd: userCmd, Ref: "fakeuseronly:agt_x", As: "user", Format: "json"}); err != nil {
+		t.Fatalf("the supported user identity should read and enrich the Card: %v", err)
+	}
+	if describeCalls != 1 {
+		t.Fatalf("supported user identity should invoke Describe once, calls=%d", describeCalls)
+	}
+	var userEnv output.Envelope
+	if err := json.Unmarshal(userOut.Bytes(), &userEnv); err != nil {
+		t.Fatalf("user Card output should be valid JSON: %v (%s)", err, userOut.Bytes())
+	}
+	data, _ := userEnv.Data.(map[string]interface{})
+	if data["name"] != "enriched for user" {
+		t.Fatalf("supported user identity should receive dynamic enrichment, got %v", data["name"])
+	}
+}
+
 // TestAgentCardRun_PrettyFormat verifies that with --format pretty (opt-in
 // since the json default flip), the card renders as a human-readable listing.
 // The output must surface the identity and capability names in plain text so
