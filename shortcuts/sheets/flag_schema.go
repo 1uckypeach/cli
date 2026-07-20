@@ -159,7 +159,7 @@ func splitSchemaPath(flagName string) (string, []string) {
 // sliceSchemaByPath walks a decoded JSON Schema along dotted path segments.
 // Each segment matches a key under "properties"; array levels are descended
 // implicitly through "items" (an explicit "items" segment also works), and
-// oneOf branches are searched for the first one carrying the key. A miss
+// oneOf / anyOf branches are searched for the first one carrying the key. A miss
 // errors with the keys actually available at that level so the caller can
 // re-issue the path without a full dump.
 func sliceSchemaByPath(schema interface{}, flagName string, path []string) (interface{}, error) {
@@ -179,7 +179,7 @@ func sliceSchemaByPath(schema interface{}, flagName string, path []string) (inte
 }
 
 // schemaChild resolves one path segment against a schema node, descending
-// through items / oneOf wrappers as needed.
+// through items / oneOf / anyOf wrappers as needed.
 func schemaChild(node interface{}, seg string) (interface{}, bool) {
 	for depth := 0; depth < 8; depth++ {
 		m, ok := node.(map[string]interface{})
@@ -207,13 +207,20 @@ func schemaChild(node interface{}, seg string) (interface{}, bool) {
 				}
 			}
 		}
+		if branches, ok := m["anyOf"].([]interface{}); ok {
+			for _, b := range branches {
+				if child, ok := schemaChild(b, seg); ok {
+					return child, true
+				}
+			}
+		}
 		return nil, false
 	}
 	return nil, false
 }
 
 // schemaChildKeys lists the property keys reachable at a schema node (through
-// items / oneOf wrappers), for the path-miss error.
+// items / oneOf / anyOf wrappers), for the path-miss error.
 func schemaChildKeys(node interface{}) []string {
 	seen := map[string]struct{}{}
 	var collect func(n interface{}, depth int)
@@ -236,6 +243,11 @@ func schemaChildKeys(node interface{}) []string {
 			return
 		}
 		if branches, ok := m["oneOf"].([]interface{}); ok {
+			for _, b := range branches {
+				collect(b, depth+1)
+			}
+		}
+		if branches, ok := m["anyOf"].([]interface{}); ok {
 			for _, b := range branches {
 				collect(b, depth+1)
 			}
