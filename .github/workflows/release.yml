@@ -25,28 +25,39 @@ jobs:
       - name: Validate tag and commit
         env:
           TAG: ${{ github.ref_name }}
+          REHEARSAL_BRANCH: test/npm-staged-publish-rehearsal
         run: |
           set -euo pipefail
           node scripts/release-preflight.js --tag "$TAG"
-          git fetch origin main
           HEAD_SHA="$(git rev-parse --verify 'HEAD^{commit}')"
-          MAIN_SHA="$(git rev-parse --verify 'FETCH_HEAD^{commit}')"
           TAG_SHA="$(git rev-parse --verify "refs/tags/${TAG}^{commit}")"
           if [[ "$TAG_SHA" != "$HEAD_SHA" ]]; then
             echo "Tag ${TAG} does not resolve to the checked-out HEAD commit." >&2
             exit 1
           fi
-          if ! git merge-base --is-ancestor "$HEAD_SHA" "$MAIN_SHA"; then
-            echo "Tag ${TAG} does not point to a commit contained in origin/main." >&2
-            exit 1
+
+          if [[ "$TAG" == *-beta.* ]]; then
+            git fetch origin "$REHEARSAL_BRANCH"
+            REHEARSAL_SHA="$(git rev-parse --verify 'FETCH_HEAD^{commit}')"
+            if [[ "$HEAD_SHA" != "$REHEARSAL_SHA" ]]; then
+              echo "Beta rehearsal tag ${TAG} must point to the current origin/${REHEARSAL_BRANCH} commit." >&2
+              exit 1
+            fi
+          else
+            git fetch origin main
+            MAIN_SHA="$(git rev-parse --verify 'FETCH_HEAD^{commit}')"
+            if ! git merge-base --is-ancestor "$HEAD_SHA" "$MAIN_SHA"; then
+              echo "Tag ${TAG} does not point to a commit contained in origin/main." >&2
+              exit 1
+            fi
           fi
 
-  publish-release:
+  stage-release:
     needs: preflight
     runs-on: ubuntu-22.04
     environment: npm-production
     permissions:
-      contents: write
+      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -65,6 +76,7 @@ jobs:
         with:
           node-version: '22.14.0'
           registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
 
       - name: Install pinned npm
         run: npm install --global npm@11.16.0
@@ -73,15 +85,39 @@ jobs:
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
         with:
           version: '~> v2'
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+          args: release --clean --skip=publish
 
-      - name: Include release checksums
+      - name: Verify release checksums
         run: |
           set -euo pipefail
           test -s dist/checksums.txt
+          (cd dist && sha256sum --check checksums.txt)
           cp dist/checksums.txt checksums.txt
 
-      - name: Publish to npm
-        run: npm publish --access public
+      - name: Pack npm tarball
+        id: pack
+        run: |
+          set -euo pipefail
+          PACK_JSON="$(npm pack --ignore-scripts --json)"
+          PACK_FILE="$(node -e 'const p=JSON.parse(process.argv[1]); if(p.length!==1 || !p[0].filename) process.exit(1); process.stdout.write(p[0].filename)' "$PACK_JSON")"
+          test -s "$PACK_FILE"
+          echo "filename=$PACK_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Collect rehearsal assets
+        env:
+          PACK_FILE: ${{ steps.pack.outputs.filename }}
+        run: |
+          set -euo pipefail
+          mkdir staged-release-assets
+          cp dist/*.tar.gz dist/*.zip dist/checksums.txt "$PACK_FILE" staged-release-assets/
+
+      - name: Upload rehearsal artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: staged-release-assets-${{ github.run_id }}
+          path: staged-release-assets/
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Stage npm package
+        run: npm stage publish "${{ steps.pack.outputs.filename }}" --access public --tag beta

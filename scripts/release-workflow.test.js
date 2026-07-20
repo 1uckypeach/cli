@@ -79,21 +79,23 @@ describe("release workflow contract", () => {
       "actions/setup-node@",
       "node-version: '22.14.0'",
       "node scripts/release-preflight.js --tag \"$TAG\"",
-      "git fetch origin main",
       "git rev-parse --verify 'HEAD^{commit}'",
-      "git rev-parse --verify 'FETCH_HEAD^{commit}'",
       "git rev-parse --verify \"refs/tags/${TAG}^{commit}\"",
+      'if [[ "$TAG" == *-beta.* ]]',
+      'git fetch origin "$REHEARSAL_BRANCH"',
+      "git rev-parse --verify 'FETCH_HEAD^{commit}'",
+      "git fetch origin main",
       'git merge-base --is-ancestor "$HEAD_SHA" "$MAIN_SHA"',
     ]);
     assert.equal(preflight.includes("gh release"), false);
     assert.equal(preflight.includes("npm publish"), false);
   });
 
-  it("publishes GitHub and npm after one protected production approval", () => {
-    const publish = jobBlock(releaseWorkflow, "publish-release");
+  it("builds artifacts and stages npm after one protected approval", () => {
+    const publish = jobBlock(releaseWorkflow, "stage-release");
 
     assert.match(publish, /needs: preflight/);
-    assert.deepEqual(permissionLines(publish), ["contents: write", "id-token: write"]);
+    assert.deepEqual(permissionLines(publish), ["contents: read", "id-token: write"]);
     assert.match(publish, /^    environment: npm-production$/m);
     assert.match(publish, /actions\/setup-go@[0-9a-f]{40}/);
     assert.match(publish, /actions\/setup-python@[0-9a-f]{40}/);
@@ -103,35 +105,37 @@ describe("release workflow contract", () => {
     );
     assert.match(publish, /node-version: '22.14.0'/);
     assert.match(publish, /registry-url: 'https:\/\/registry\.npmjs\.org'/);
+    assert.match(publish, /package-manager-cache: false/);
     assert.match(publish, /npm install --global npm@11\.16\.0/);
     assert.match(publish, /goreleaser\/goreleaser-action@[0-9a-f]{40}/);
-    assert.match(publish, /args: release --clean/);
-    assert.equal(publish.includes("--skip=publish"), false);
-    assert.match(publish, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
+    assert.match(publish, /args: release --clean --skip=publish/);
     assertInOrder(publish, [
       "actions/setup-go@",
       "actions/setup-python@",
       "actions/setup-node@",
       "npm install --global npm@11.16.0",
       "goreleaser/goreleaser-action@",
+      "sha256sum --check checksums.txt",
       "cp dist/checksums.txt checksums.txt",
-      "npm publish --access public",
+      "npm pack --ignore-scripts --json",
+      "actions/upload-artifact@",
+      'npm stage publish "${{ steps.pack.outputs.filename }}" --access public --tag beta',
     ]);
     for (const forbidden of [
-      "actions/upload-artifact",
       "actions/download-artifact",
       "verify-release-assets",
       "gh release download",
-      "npm pack",
       "npm view",
       "LOCAL_INTEGRITY",
       "REMOTE_INTEGRITY",
       "secrets.NPM_TOKEN",
       "NODE_AUTH_TOKEN",
-      "npm stage",
+      "GITHUB_TOKEN:",
+      "gh release create",
     ]) {
       assert.equal(releaseWorkflow.includes(forbidden), false, forbidden);
     }
+    assert.equal(/(^|\s)npm publish(?:\s|$)/m.test(publish), false);
   });
 });
 

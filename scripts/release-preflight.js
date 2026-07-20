@@ -6,9 +6,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const STABLE_VERSION_PATTERN = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
+const REHEARSAL_VERSION_PATTERN = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-beta\.(0|[1-9][0-9]*)$/;
 
-function isStableVersion(value) {
-  return typeof value === "string" && STABLE_VERSION_PATTERN.test(value);
+function isReleaseVersion(value) {
+  return typeof value === "string" &&
+    (STABLE_VERSION_PATTERN.test(value) || REHEARSAL_VERSION_PATTERN.test(value));
 }
 
 function releaseError(message, observed, hint) {
@@ -31,11 +33,11 @@ function validateReleasePreflight(packageJson, packageLockJson, tag) {
     ["package-lock.json.version", lockVersion],
     ['package-lock.json.packages[""].version', lockRootVersion],
   ]) {
-    if (!isStableVersion(value)) {
+    if (!isReleaseVersion(value)) {
       return releaseError(
-        `${field} must be a stable release version in X.Y.Z form`,
+        `${field} must use X.Y.Z or the rehearsal form X.Y.Z-beta.N`,
         observed,
-        "Use the same stable X.Y.Z version in all package fields; prerelease and build metadata are not allowed for production releases.",
+        "Use the same version in all package fields; only stable releases and the temporary beta rehearsal form are allowed.",
       );
     }
   }
@@ -51,11 +53,11 @@ function validateReleasePreflight(packageJson, packageLockJson, tag) {
   if (tag === undefined) {
     return { ok: true, data: observed };
   }
-  if (typeof tag !== "string" || !tag.startsWith("v") || !isStableVersion(tag.slice(1))) {
+  if (typeof tag !== "string" || !tag.startsWith("v") || !isReleaseVersion(tag.slice(1))) {
     return releaseError(
-      "--tag must use the stable release form vX.Y.Z",
+      "--tag must use vX.Y.Z or the rehearsal form vX.Y.Z-beta.N",
       { ...observed, tag },
-      `Use --tag v${packageVersion}; prerelease and build metadata are not allowed for production releases.`,
+      `Use --tag v${packageVersion}.`,
     );
   }
 

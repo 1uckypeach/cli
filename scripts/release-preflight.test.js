@@ -20,6 +20,7 @@ function createReleaseFixture(t, env = {}) {
   const binDir = path.join(root, "bin");
   const stateDir = path.join(root, "state");
   const logPath = path.join(root, "git-calls.jsonl");
+  const npmLogPath = path.join(root, "npm-calls.jsonl");
   fs.mkdirSync(scriptsDir);
   fs.mkdirSync(binDir);
   fs.mkdirSync(stateDir);
@@ -31,10 +32,10 @@ function createReleaseFixture(t, env = {}) {
     path.join(repoRoot, "scripts/tag-release.sh"),
     path.join(scriptsDir, "tag-release.sh"),
   );
-  fs.writeFileSync(path.join(root, "package.json"), '{"version":"1.2.3"}\n');
+  fs.writeFileSync(path.join(root, "package.json"), '{"version":"1.2.3-beta.0"}\n');
   fs.writeFileSync(
     path.join(root, "package-lock.json"),
-    '{"version":"1.2.3","packages":{"":{"version":"1.2.3"}}}\n',
+    '{"version":"1.2.3-beta.0","packages":{"":{"version":"1.2.3-beta.0"}}}\n',
   );
 
   const fakeGitPath = path.join(binDir, "git");
@@ -57,15 +58,11 @@ function print(value) {
 
 switch (args[0]) {
   case "branch":
-    print(process.env.FAKE_BRANCH || "main");
+    print(process.env.FAKE_BRANCH || "test/npm-staged-publish-rehearsal");
     break;
-  case "diff": {
-    const status = process.env.FAKE_DIFF_STATUS;
-    if (status) {
-      process.exit(Number(status));
-    }
+  case "status":
+    if (process.env.FAKE_STATUS_OUTPUT) print(process.env.FAKE_STATUS_OUTPUT);
     break;
-  }
   case "fetch":
     break;
   case "rev-parse": {
@@ -75,7 +72,7 @@ switch (args[0]) {
       break;
     }
     if (ref === "FETCH_HEAD^{commit}") {
-      print(process.env.FAKE_MAIN_SHA);
+      print(process.env.FAKE_REHEARSAL_SHA);
       break;
     }
     if (ref.startsWith("refs/tags/")) {
@@ -97,6 +94,9 @@ switch (args[0]) {
     }
     break;
   }
+  case "show":
+    print(process.env.FAKE_WORKFLOW);
+    break;
   case "tag":
     fs.writeFileSync(localTagPath, args[2] || process.env.FAKE_HEAD_SHA);
     break;
@@ -114,6 +114,21 @@ switch (args[0]) {
 }
 `);
   fs.chmodSync(fakeGitPath, 0o755);
+
+  const fakeNpmPath = path.join(binDir, "npm");
+  fs.writeFileSync(fakeNpmPath, String.raw`#!/usr/bin/env node
+const fs = require("node:fs");
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.FAKE_NPM_LOG, JSON.stringify(args) + "\n");
+if (args[0] !== "view") {
+  process.stderr.write("unexpected npm command: " + args.join(" ") + "\n");
+  process.exit(97);
+}
+const output = process.env.FAKE_NPM_VIEW_OUTPUT || "npm error code E404\nnpm error 404 Not Found";
+(Number(process.env.FAKE_NPM_VIEW_STATUS || "1") === 0 ? process.stdout : process.stderr).write(output + "\n");
+process.exit(Number(process.env.FAKE_NPM_VIEW_STATUS || "1"));
+`);
+  fs.chmodSync(fakeNpmPath, 0o755);
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   return {
@@ -126,20 +141,24 @@ switch (args[0]) {
       LANG: "C",
       LC_ALL: "C",
       FAKE_GIT_LOG: logPath,
+      FAKE_NPM_LOG: npmLogPath,
       FAKE_GIT_STATE_DIR: stateDir,
       FAKE_EXPECTED_GIT_CWD: fs.realpathSync(root),
       FAKE_HEAD_SHA: "aaaaaaaa",
-      FAKE_MAIN_SHA: "aaaaaaaa",
+      FAKE_REHEARSAL_SHA: "aaaaaaaa",
+      FAKE_WORKFLOW: "args: release --clean --skip=publish\nrun: npm stage publish package.tgz --access public --tag beta",
       ...env,
     },
   };
 }
 
-function runTagRelease(fixture, cwd = fixture.root) {
-  return spawnSync("bash", [path.join(fixture.root, "scripts/tag-release.sh")], {
+function runTagRelease(fixture, options = {}) {
+  const { cwd = fixture.root, args = [], input = "" } = options;
+  return spawnSync("bash", [path.join(fixture.root, "scripts/tag-release.sh"), ...args], {
     cwd,
     env: fixture.env,
     encoding: "utf8",
+    input,
   });
 }
 
@@ -162,6 +181,10 @@ function assertNoTagOperations(calls) {
     (args[0] === "rev-parse" && args.some((arg) => arg.startsWith("refs/tags/"))),
   );
   assert.deepEqual(tagOperations, []);
+}
+
+function assertNoTagWrites(calls) {
+  assert.equal(calls.some((args) => args[0] === "tag" || args[0] === "push"), false);
 }
 
 function validInputs(version = "1.2.3") {
@@ -195,37 +218,35 @@ function assertInOrder(source, snippets) {
 }
 
 describe("validateReleasePreflight", () => {
-  it("accepts matching stable versions and an optional matching tag", () => {
-    const { packageJson, packageLockJson } = validInputs("1.2.3");
+  it("accepts matching stable and beta rehearsal versions", () => {
+    for (const version of ["1.2.3", "1.2.3-beta.0"]) {
+      const { packageJson, packageLockJson } = validInputs(version);
 
-    assert.deepEqual(validateReleasePreflight(packageJson, packageLockJson), {
-      ok: true,
-      data: {
-        packageVersion: "1.2.3",
-        lockVersion: "1.2.3",
-        lockRootVersion: "1.2.3",
-        tagVersion: null,
-      },
-    });
-    assert.deepEqual(
-      validateReleasePreflight(
-        packageJson,
-        packageLockJson,
-        "v1.2.3",
-      ),
-      {
+      assert.deepEqual(validateReleasePreflight(packageJson, packageLockJson), {
         ok: true,
         data: {
-          packageVersion: "1.2.3",
-          lockVersion: "1.2.3",
-          lockRootVersion: "1.2.3",
-          tagVersion: "1.2.3",
+          packageVersion: version,
+          lockVersion: version,
+          lockRootVersion: version,
+          tagVersion: null,
         },
-      },
-    );
+      });
+      assert.deepEqual(
+        validateReleasePreflight(packageJson, packageLockJson, `v${version}`),
+        {
+          ok: true,
+          data: {
+            packageVersion: version,
+            lockVersion: version,
+            lockRootVersion: version,
+            tagVersion: version,
+          },
+        },
+      );
+    }
   });
 
-  it("rejects prerelease package versions with the stable release contract", () => {
+  it("rejects prerelease forms other than beta rehearsal versions", () => {
     const { packageJson, packageLockJson } = validInputs("1.2.3-rc.1");
 
     const result = validateReleasePreflight(packageJson, packageLockJson);
@@ -233,11 +254,11 @@ describe("validateReleasePreflight", () => {
     assertStructuredError(result);
     assert.equal(
       result.error.message,
-      "package.json.version must be a stable release version in X.Y.Z form",
+      "package.json.version must use X.Y.Z or the rehearsal form X.Y.Z-beta.N",
     );
     assert.equal(
       result.error.hint,
-      "Use the same stable X.Y.Z version in all package fields; prerelease and build metadata are not allowed for production releases.",
+      "Use the same version in all package fields; only stable releases and the temporary beta rehearsal form are allowed.",
     );
   });
 
@@ -249,11 +270,11 @@ describe("validateReleasePreflight", () => {
     assertStructuredError(result);
     assert.equal(
       result.error.message,
-      "package.json.version must be a stable release version in X.Y.Z form",
+      "package.json.version must use X.Y.Z or the rehearsal form X.Y.Z-beta.N",
     );
     assert.equal(
       result.error.hint,
-      "Use the same stable X.Y.Z version in all package fields; prerelease and build metadata are not allowed for production releases.",
+      "Use the same version in all package fields; only stable releases and the temporary beta rehearsal form are allowed.",
     );
   });
 
@@ -356,15 +377,17 @@ describe("release configuration", () => {
     const preflight = script.indexOf('node "${SCRIPT_DIR}/release-preflight.js" --tag "${TAG}"');
     const requiredGates = [
       'CURRENT_BRANCH=$(git branch --show-current)',
-      'git diff --quiet HEAD -- package.json package-lock.json',
-      "git fetch origin main",
+      'git status --porcelain',
+      'git fetch origin "${REHEARSAL_BRANCH}"',
       'git rev-parse "FETCH_HEAD^{commit}"',
+      'git show "${HEAD_SHA}:.github/workflows/release.yml"',
+      'npm view "@larksuite/cli@${VERSION}" version',
     ];
     const tagOperations = [
       'git rev-parse -q --verify "refs/tags/${TAG}"',
       'git ls-remote --tags origin "refs/tags/${TAG}"',
       'git tag "${TAG}" "${HEAD_SHA}"',
-      'git push origin "refs/tags/${TAG}"',
+      'git push origin "refs/tags/${TAG}:refs/tags/${TAG}"',
     ];
 
     assert.ok(preflight >= 0, "release preflight invocation is missing");
@@ -384,6 +407,12 @@ describe("release configuration", () => {
       assert.ok(index >= 0, `tag operation is missing: ${operation}`);
       assert.ok(preflight < index, `preflight must run before: ${operation}`);
     }
+    assertInOrder(script, [
+      'if [ "${PUSH_TAG}" != true ]',
+      'read -r CONFIRM_TAG',
+      'git tag "${TAG}" "${HEAD_SHA}"',
+      'git push origin "refs/tags/${TAG}:refs/tags/${TAG}"',
+    ]);
   });
 });
 
@@ -393,53 +422,53 @@ describe("tag-release.sh behavior", () => {
     const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tag-release-cwd-"));
     t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
 
-    const result = runTagRelease(fixture, outside);
+    const result = runTagRelease(fixture, { cwd: outside });
 
     assert.equal(result.status, 0, result.stderr);
   });
 
-  it("rejects a non-main branch before querying or modifying tags", (t) => {
+  it("rejects a non-rehearsal branch before querying or modifying tags", (t) => {
     const fixture = createReleaseFixture(t, { FAKE_BRANCH: "feature/release" });
 
     const result = runTagRelease(fixture);
     const calls = readGitCalls(fixture);
 
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /must be tagged from main/i);
+    assert.match(result.stderr, /must be created from test\/npm-staged-publish-rehearsal/i);
     assertNoTagOperations(calls);
   });
 
-  it("rejects uncommitted package metadata before tag operations", (t) => {
-    const fixture = createReleaseFixture(t, { FAKE_DIFF_STATUS: "1" });
+  it("rejects a dirty working tree before tag operations", (t) => {
+    const fixture = createReleaseFixture(t, { FAKE_STATUS_OUTPUT: " M README.md" });
     const result = runTagRelease(fixture);
     const calls = readGitCalls(fixture);
 
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /package\.json or package-lock\.json/i);
+    assert.match(result.stderr, /working tree must be clean/i);
     assertNoTagOperations(calls);
   });
 
-  it("rejects HEAD that differs from fetched main before tag operations", (t) => {
-    const fixture = createReleaseFixture(t, { FAKE_MAIN_SHA: "bbbbbbbb" });
+  it("rejects HEAD that differs from the fetched rehearsal branch", (t) => {
+    const fixture = createReleaseFixture(t, { FAKE_REHEARSAL_SHA: "bbbbbbbb" });
 
     const result = runTagRelease(fixture);
     const calls = readGitCalls(fixture);
 
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /HEAD must exactly match origin\/main/i);
+    assert.match(result.stderr, /HEAD must exactly match origin\/test\/npm-staged-publish-rehearsal/i);
     assertNoTagOperations(calls);
   });
 
-  it("compares HEAD with the exact fetched main commit", (t) => {
+  it("compares HEAD with the exact fetched rehearsal commit", (t) => {
     const fixture = createReleaseFixture(t);
 
     const result = runTagRelease(fixture);
     const calls = readGitCalls(fixture);
 
     assert.equal(result.status, 0, result.stderr);
-    assert.ok(calls.some((args) => args.join(" ") === "fetch origin main"));
+    assert.ok(calls.some((args) => args.join(" ") === "fetch origin test/npm-staged-publish-rehearsal"));
     assert.ok(calls.some((args) => args.join(" ") === "rev-parse FETCH_HEAD^{commit}"));
-    assert.equal(calls.some((args) => args.includes("origin/main")), false);
+    assert.equal(calls.some((args) => args.includes("origin/test/npm-staged-publish-rehearsal")), false);
   });
 
   it("fails when the local tag already exists", (t) => {
@@ -470,6 +499,98 @@ describe("tag-release.sh behavior", () => {
       assert.equal(calls.some((args) => args[0] === "tag"), false);
       assert.equal(calls.some((args) => args[0] === "push"), false);
     }
+  });
+
+  it("check mode completes without creating or pushing a tag", (t) => {
+    const fixture = createReleaseFixture(t);
+
+    const result = runTagRelease(fixture);
+    const calls = readGitCalls(fixture);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /No tag was created or pushed/);
+    assertNoTagWrites(calls);
+  });
+
+  it("rejects a production version before invoking git", (t) => {
+    const fixture = createReleaseFixture(t);
+    fs.writeFileSync(path.join(fixture.root, "package.json"), '{"version":"1.2.3"}\n');
+    fs.writeFileSync(
+      path.join(fixture.root, "package-lock.json"),
+      '{"version":"1.2.3","packages":{"":{"version":"1.2.3"}}}\n',
+    );
+
+    const result = runTagRelease(fixture);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /require an X\.Y\.Z-beta\.N version/);
+    assert.deepEqual(readGitCalls(fixture), []);
+  });
+
+  it("rejects a workflow that can publish live", (t) => {
+    const fixture = createReleaseFixture(t, {
+      FAKE_WORKFLOW: "args: release --clean --skip=publish\nrun: npm publish --access public",
+    });
+
+    const result = runTagRelease(fixture);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /must be stage-only/i);
+    assertNoTagWrites(readGitCalls(fixture));
+  });
+
+  it("fails closed when npm cannot prove that the version is unused", (t) => {
+    const fixture = createReleaseFixture(t, {
+      FAKE_NPM_VIEW_OUTPUT: "npm error code ETIMEDOUT",
+    });
+
+    const result = runTagRelease(fixture);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /npm version lookup failed/i);
+    assertNoTagWrites(readGitCalls(fixture));
+  });
+
+  it("rejects an existing npm version", (t) => {
+    const fixture = createReleaseFixture(t, {
+      FAKE_NPM_VIEW_STATUS: "0",
+      FAKE_NPM_VIEW_OUTPUT: "1.2.3-beta.0",
+    });
+
+    const result = runTagRelease(fixture);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /already exists on npm/i);
+    assertNoTagWrites(readGitCalls(fixture));
+  });
+
+  it("requires the full tag confirmation in push mode", (t) => {
+    const fixture = createReleaseFixture(t);
+
+    const result = runTagRelease(fixture, { args: ["--push"], input: "no\n" });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /confirmation did not exactly match/i);
+    assertNoTagWrites(readGitCalls(fixture));
+  });
+
+  it("pushes only the exact confirmed tag ref", (t) => {
+    const fixture = createReleaseFixture(t);
+
+    const result = runTagRelease(fixture, {
+      args: ["--push"],
+      input: "v1.2.3-beta.0\n",
+    });
+    const calls = readGitCalls(fixture);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(calls.some((args) => args.join(" ") === "tag v1.2.3-beta.0 aaaaaaaa"));
+    assert.ok(calls.some((args) =>
+      args.join(" ") === "push origin refs/tags/v1.2.3-beta.0:refs/tags/v1.2.3-beta.0"));
+    assert.equal(
+      calls.some((args) => args[0] === "push" && args.includes("--tags")),
+      false,
+    );
   });
 
   it("reports an invalid package version before invoking git", (t) => {
