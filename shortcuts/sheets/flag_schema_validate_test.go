@@ -723,6 +723,75 @@ func TestValidateValueAgainstSchema_DeepMismatchRealSchema(t *testing.T) {
 	}
 }
 
+// TestValidateValueAgainstSchema_AggregatesMultipleErrors pins the
+// aggregate path: a payload with several independent problems reports them
+// all in one numbered reply (each with its own teaching hint) instead of
+// the fail-fast fix-one-retry-hit-the-next loop.
+func TestValidateValueAgainstSchema_AggregatesMultipleErrors(t *testing.T) {
+	t.Parallel()
+	fv := mapFlagView{command: "+cells-set"}
+	// Two independent problems in one --cells payload: cell[0][0].rich_text[0]
+	// misses required "type"; cell[0][1].note has the wrong type.
+	value := parseValue(t, `[[{"rich_text":[{"text":"x"}]},{"note":12.5}]]`)
+	err := validateValueAgainstSchema(fv, "cells", value)
+	if err == nil {
+		t.Fatal("payload with two problems must fail")
+	}
+	msg := err.Error()
+	for _, want := range []string{
+		"2 validation errors:",
+		`1) required property "type" is missing`,
+		`one of ["text"`, // teaching hint rides along in aggregate mode too
+		`2) [0][1].note: expected type "string"`,
+		"--print-schema",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("want %q in aggregated error; got %q", want, msg)
+		}
+	}
+}
+
+// TestValidateValueAgainstSchema_AggregateCapTruncates pins the display
+// cap: a pathological payload reports schemaErrorDisplayLimit entries and
+// an explicit truncation tail, never the full flood.
+func TestValidateValueAgainstSchema_AggregateCapTruncates(t *testing.T) {
+	t.Parallel()
+	fv := mapFlagView{command: "+cells-set"}
+	// Seven cells all missing required rich_text "type" → 7 independent errors.
+	row := make([]string, 0, 7)
+	for i := 0; i < 7; i++ {
+		row = append(row, `{"rich_text":[{"text":"x"}]}`)
+	}
+	value := parseValue(t, `[[`+strings.Join(row, ",")+`]]`)
+	err := validateValueAgainstSchema(fv, "cells", value)
+	if err == nil {
+		t.Fatal("payload with seven problems must fail")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "5+ validation errors:") {
+		t.Errorf("want capped header '5+ validation errors:'; got %q", msg)
+	}
+	if !strings.Contains(msg, "more errors not shown") {
+		t.Errorf("want truncation tail; got %q", msg)
+	}
+	if strings.Contains(msg, "6)") {
+		t.Errorf("must not render entries beyond the display limit; got %q", msg)
+	}
+}
+
+// TestCollectSchemaErrors_OneOfProbeDoesNotLeak pins that failed oneOf
+// alternatives don't leak probe errors into the caller's collector when a
+// later alternative matches.
+func TestCollectSchemaErrors_OneOfProbeDoesNotLeak(t *testing.T) {
+	t.Parallel()
+	schema := parseSchema(t, `{"oneOf":[{"type":"string"},{"type":"number"}]}`)
+	c := &schemaErrorCollector{}
+	collectSchemaErrors(42.0, schema, "", c)
+	if len(c.errs) != 0 {
+		t.Errorf("number matches the second oneOf alternative; want no errors, got %v", c.errs)
+	}
+}
+
 func TestOneLineDescription(t *testing.T) {
 	t.Parallel()
 	if got := oneLineDescription("   "); got != "" {
