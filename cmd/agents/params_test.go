@@ -524,8 +524,8 @@ func TestCardOperationSubquery(t *testing.T) {
 // response carries parameters_source:"template".
 func TestCardOperationInstanceShape(t *testing.T) {
 	registerScripted()
-	opts, _ := cardTestOpts(t, "fakeflow:agt_x")
-	opts.Operation = "task_cancel" // scriptedSpec deliberately leaves CancelTask unwired
+	opts, _ := cardTestOpts(t, "fakemin:agt_x")
+	opts.Operation = "task_cancel" // minimalSpec leaves CancelTask unwired
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 	if err := agentCardRun(opts); err != nil {
 		t.Fatalf("card --operation should not error: %v", err)

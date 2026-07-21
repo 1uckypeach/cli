@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,6 +52,11 @@ type taskRecord struct {
 	AgentID string           `json:"agent_id"`
 	Seq     int              `json:"seq"`
 	Task    agents.AgentTask `json:"task"`
+	// Accepted is the acceptance record of the task's question group (§10.1 key
+	// encoding), written atomically with the state transition: it is what a
+	// late/second submission gets echoed back as resolved_answers — the
+	// machine-readable "who won" signal.
+	Accepted map[string][]string `json:"accepted,omitempty"`
 }
 
 // contextRecord is a multi-turn context's storage form. TaskIDs is appended in
@@ -147,6 +153,19 @@ func newID(prefix string) string {
 	return prefix + "_" + hex.EncodeToString(b[:])
 }
 
+// newGroupSuffix mints the per-group question-id suffix (4 hex chars,
+// key-safe): random at GROUP-CREATION time — the randomness is what makes a
+// successor group's minted ids necessarily differ (§6.2 cross-group
+// uniqueness), which in turn is what makes a stale retry hit unknown_question
+// instead of silently answering the next group.
+func newGroupSuffix() string {
+	var b [2]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return time.Now().UTC().Format("0405")
+	}
+	return hex.EncodeToString(b[:])
+}
+
 // createContext creates a new context and returns its id (the first-turn send goes here).
 func (s *memoryStore) createContext(agentID, title string) (string, error) {
 	s.mu.Lock()
@@ -212,7 +231,26 @@ func (s *memoryStore) getTask(agentID, taskID string) (agents.AgentTask, error) 
 			"未知的 task id '%s'（example:%s 名下不存在）", taskID, agentID).
 			WithHint("运行 lark-cli agents task list example:%s 查看现有任务", agentID)
 	}
-	return rec.Task, nil
+	task := rec.Task
+	// AgentTask is returned by value, but InputRequired is a pointer — clone it
+	// so the command layer's in-place normalization can never write through into
+	// the store (one-process runs must behave like per-process runs).
+	task.InputRequired = cloneGroup(rec.Task.InputRequired)
+	return task, nil
+}
+
+// cloneGroup deep-copies a question group (nil-safe).
+func cloneGroup(ir *agents.InputRequired) *agents.InputRequired {
+	if ir == nil {
+		return nil
+	}
+	out := *ir
+	out.Questions = make([]agents.Question, len(ir.Questions))
+	for i, q := range ir.Questions {
+		out.Questions[i] = q
+		out.Questions[i].Options = append([]agents.Option(nil), q.Options...)
+	}
+	return &out
 }
 
 // setTaskState updates a task's state (used by reporter's cancel).
@@ -230,13 +268,22 @@ func (s *memoryStore) setTaskState(taskID string, state agents.TaskState) error 
 	return s.saveLocked()
 }
 
-// answerDecision applies a structured answer to a task's pending input_required
-// decision: it validates the decision id + option, marks the decision submitted
-// (recording the winning option), and transitions the task to completed. It is
-// the mock's stand-in for server-side arbitration — a second answer to an
-// already-submitted decision returns a conflict (the "already arbitrated" path),
-// which is exactly the signal a real multi-endpoint backend would return.
-func (s *memoryStore) answerDecision(agentID, taskID, decisionID, optionID string) (agents.AgentTask, error) {
+// answerGroup applies a group answer (§10.1 key encoding) to a task's pending
+// input_required question group. It is the mock's stand-in for a STRICT-posture
+// server (a form backend): every question required, bare values validated
+// against the stored options, single-select cardinality enforced, the skip
+// option exclusive — with every violation collected into ONE ValidationError
+// (params[] entries with the Reason enum + the question declaration as Spec) so
+// the caller fixes everything in a single resend. A tolerant LLM-backed
+// provider may instead consume partial/free answers — validation POLICY is the
+// provider's own; only the error FORMAT here is contractual.
+//
+// Acceptance is atomic under the store lock (validate → record Accepted →
+// leave input_required in one critical section, the reply message inside it) —
+// two racing submissions get exactly one winner; the loser (and any late
+// retry) gets failed_precondition carrying resolved_answers, the
+// machine-readable "already decided, here is what won" signal.
+func (s *memoryStore) answerGroup(agentID, ctxID, taskID string, answers map[string][]string, remark string) (agents.AgentTask, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.loadLocked()
@@ -246,46 +293,156 @@ func (s *memoryStore) answerDecision(agentID, taskID, decisionID, optionID strin
 			"未知的 task id '%s'（example:%s 名下不存在）", taskID, agentID).
 			WithHint("运行 lark-cli agents task list example:%s 查看现有任务", agentID)
 	}
+	// context_id+task_id is the group's unique address (§2.1) — the CLI forces
+	// both flags for that binding, so honoring only half of it here would teach
+	// integrators to silently ignore the other half.
+	if ctxID != "" && ctxID != rec.Task.ContextID {
+		return agents.AgentTask{}, errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"context_id '%s' 与任务 '%s' 所属会话不符", ctxID, taskID).
+			WithHint("用 lark-cli agents task get example:%s %s 确认该任务的 context_id", agentID, taskID)
+	}
 	ir := rec.Task.InputRequired
-	if ir == nil {
-		return agents.AgentTask{}, errs.NewValidationError(errs.SubtypeFailedPrecondition,
-			"任务 '%s' 没有待答决策", taskID).
-			WithHint("用 lark-cli agents task get example:%s %s 查看当前状态", agentID, taskID)
+	if rec.Task.State != agents.StateInputRequired || ir == nil {
+		e := errs.NewValidationError(errs.SubtypeFailedPrecondition,
+			"任务 '%s' 已不在等待输入", taskID).
+			WithHint("用 lark-cli agents task get example:%s %s 查看当前状态与结果", agentID, taskID)
+		if rec.Accepted != nil {
+			// The group was already resolved (another endpoint, or a retry whose
+			// first attempt landed): echo what won, machine-readable.
+			e = e.WithResolvedAnswers(rec.Accepted)
+		}
+		return agents.AgentTask{}, e
 	}
-	if ir.DecisionID != decisionID {
+
+	byID := make(map[string]agents.Question, len(ir.Questions))
+	currentIDs := make([]string, 0, len(ir.Questions))
+	for _, q := range ir.Questions {
+		byID[q.QuestionID] = q
+		currentIDs = append(currentIDs, q.QuestionID)
+	}
+
+	// Deterministic violation order: sorted answer keys, then missing questions
+	// in group order.
+	keys := make([]string, 0, len(answers))
+	for k := range answers {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var viols []errs.InvalidParam
+	answered := make(map[string]bool, len(answers))
+	for _, key := range keys {
+		values := answers[key]
+		qid, isText := agents.SplitAnswerKey(key)
+		q, known := byID[qid]
+		if !known {
+			// A stale retry (the group changed under the caller) lands exactly
+			// here — Suggestions carries the CURRENT group's keys so the caller
+			// can tell "typo" from "new group" without a discovery round-trip.
+			viols = append(viols, errs.InvalidParam{Name: key, Reason: "unknown_question",
+				Suggestions: currentIDs})
+			continue
+		}
+		answered[qid] = true
+		if isText {
+			// Free text is always consumable here (the strict-but-LLM-ish demo
+			// posture); a pure form backend MAY reject it with reason
+			// invalid_option-style clarity instead — never silently drop it.
+			if len(q.Options) == 0 {
+				if _, both := answers[qid]; both {
+					viols = append(viols, errs.InvalidParam{Name: key, Reason: "conflict", Spec: q})
+				}
+			}
+			continue
+		}
+		if len(q.Options) == 0 {
+			// Text question answered via the bare-value alias: legal, but only one
+			// text per question.
+			if len(values) > 1 {
+				viols = append(viols, errs.InvalidParam{Name: key, Reason: "count_violation", Spec: q})
+			}
+			continue
+		}
+		picked := 0
+		for _, v := range values {
+			if _, ok := optionLabel(q.Options, v); !ok {
+				viols = append(viols, errs.InvalidParam{Name: key, Reason: "invalid_option", Spec: q})
+			} else {
+				picked++
+			}
+		}
+		if !q.MultiSelect && len(values) > 1 {
+			viols = append(viols, errs.InvalidParam{Name: key, Reason: "count_violation", Spec: q})
+		}
+		if picked > 1 && hasValue(values, "skip") {
+			// planner's own policy: its skip option means "let the agent decide"
+			// and is exclusive with real picks.
+			viols = append(viols, errs.InvalidParam{Name: key, Reason: "conflict", Spec: q})
+		}
+	}
+	// Strict posture: every question of the group is required.
+	for _, q := range ir.Questions {
+		if !answered[q.QuestionID] {
+			viols = append(viols, errs.InvalidParam{Name: q.QuestionID, Reason: "missing", Spec: q})
+		}
+	}
+	if len(viols) > 0 {
 		return agents.AgentTask{}, errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"decision_id '%s' 与该任务当前决策 '%s' 不匹配", decisionID, ir.DecisionID)
+			"%d 个答案有问题", len(viols)).
+			WithParams(viols...).
+			WithHint("按 params 里的题目声明修正后整组重发（含未报错的题）")
 	}
-	// Already answered → conflict (the arbitration path). Checked BEFORE the state
-	// check, because answering moves the task to completed while keeping the
-	// submitted decision on record — a re-answer must read as "already decided",
-	// not "no longer awaiting input".
-	if ir.Submitted {
-		return agents.AgentTask{}, errs.NewAPIError(errs.SubtypeConflict,
-			"该决策已在其它入口被答复（%s），无需重复应答", ir.SubmittedOptionID).
-			WithHint("用 lark-cli agents task get example:%s %s 查看已定结果", agentID, taskID)
-	}
-	if rec.Task.State != agents.StateInputRequired {
-		return agents.AgentTask{}, errs.NewValidationError(errs.SubtypeFailedPrecondition,
-			"任务 '%s' 当前不在等待输入", taskID).
-			WithHint("用 lark-cli agents task get example:%s %s 查看当前状态", agentID, taskID)
-	}
-	label, ok := optionLabel(ir.Options, optionID)
-	if !ok {
-		return agents.AgentTask{}, errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"option_id '%s' 不在该决策的可选项中", optionID).
-			WithHint("用 lark-cli agents task get example:%s %s 查看 options", agentID, taskID)
-	}
-	ir.Submitted = true
-	ir.SubmittedOptionID = optionID
+
+	// Atomic acceptance: record + reply + state transition in one critical
+	// section, snapshot write last.
+	rec.Accepted = answers
 	rec.Task.State = agents.StateCompleted
 	rec.Task.IsTerminal = true
+	if remark != "" {
+		// The §4.1 message-level remark (--text alongside --answer) is part of
+		// the user's message — record it, never silently drop it (§6.4).
+		rec.Task.Messages = append(rec.Task.Messages, agents.Message{
+			Role: "user", Parts: []agents.Part{{Type: "text", Text: remark}},
+		})
+	}
 	rec.Task.Messages = append(rec.Task.Messages, agents.Message{
 		Role:  "agent",
-		Parts: []agents.Part{{Type: "text", Text: "已按「" + label + "」生成报表。"}},
+		Parts: []agents.Part{{Type: "text", Text: acceptanceReply(ir, answers)}},
 	})
 	rec.Task.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	return rec.Task, s.saveLocked()
+}
+
+// acceptanceReply composes the post-acceptance agent message, resolving option
+// ids back to labels from the stored group — the §6.1 store-and-resolve
+// pattern: the wire carried keys, the business reads values.
+func acceptanceReply(ir *agents.InputRequired, answers map[string][]string) string {
+	var parts []string
+	for _, q := range ir.Questions {
+		var vals []string
+		for _, v := range answers[q.QuestionID] {
+			if label, ok := optionLabel(q.Options, v); ok {
+				vals = append(vals, label)
+			} else {
+				vals = append(vals, v)
+			}
+		}
+		vals = append(vals, answers[q.QuestionID+agents.AnswerTextSuffix]...)
+		if len(vals) > 0 {
+			parts = append(parts, q.Question+"「"+strings.Join(vals, "、")+"」")
+		}
+	}
+	return "已按答复出报表：" + strings.Join(parts, "；")
+}
+
+// hasValue reports whether vals contains v.
+func hasValue(vals []string, v string) bool {
+	for _, x := range vals {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }
 
 // optionLabel returns the label of optionID within opts (ok=false if not found).
@@ -487,13 +644,16 @@ func taskSummaryOf(task agents.AgentTask) agents.TaskSummary {
 	}
 }
 
-// taskSummaryText is the one-line content digest: the pending prompt for a task
+// taskSummaryText is the one-line content digest: the pending group's triage
+// digest (§3.3: label else first question, question count suffixed) for a task
 // awaiting input, otherwise the last agent message's text. It returns RAW text
 // (only rune-truncated) — ANSI-stripping + flattening for pretty/TSV is the
 // command layer's job, and it is empty when nothing is available.
 func taskSummaryText(task agents.AgentTask) string {
-	if task.InputRequired != nil && task.InputRequired.Prompt != "" {
-		return truncateRunes(task.InputRequired.Prompt, summaryMaxRunes)
+	if task.State == agents.StateInputRequired && task.InputRequired != nil {
+		if s := task.InputRequired.SummaryText(); s != "" {
+			return truncateRunes(s, summaryMaxRunes)
+		}
 	}
 	for i := len(task.Messages) - 1; i >= 0; i-- {
 		if task.Messages[i].Role != "agent" {

@@ -8,15 +8,22 @@ import (
 	"testing"
 )
 
+// TestAgentTaskJSON pins the question-group wire shape (design doc §3): group
+// label/description, questions[] with question_id/question/options/multi_select,
+// option description, and the deleted decision-era fields staying deleted.
 func TestAgentTaskJSON(t *testing.T) {
 	at := AgentTask{TaskID: "chat_1", ContextID: "sess_1", State: StateInputRequired,
 		IsTerminal: false,
 		InputRequired: &InputRequired{
-			DecisionID: "dec_7f3a",
-			Prompt:     "按大区还是品类拆?",
-			InputType:  InputTypeSingleSelect,
-			Options:    []Option{{OptionID: "by_region", Label: "按大区"}, {OptionID: "by_category", Label: "按品类"}},
-		}}
+			Label:       "报表生成确认",
+			Description: "生成前需确认以下口径",
+			Questions: []Question{
+				{QuestionID: "q1_a8", Question: "按什么维度拆分？",
+					Options: []Option{{OptionID: "by_region", Label: "按大区", Description: "华东/华北/华南汇总"}, {OptionID: "by_category", Label: "按品类"}}},
+				{QuestionID: "q2_a8", Question: "时间范围？"},
+				{QuestionID: "q3_a8", Question: "包含哪些区域？", MultiSelect: true,
+					Options: []Option{{OptionID: "east", Label: "华东"}, {OptionID: "north", Label: "华北"}}},
+			}}}
 	b, _ := json.Marshal(at)
 	var m map[string]interface{}
 	_ = json.Unmarshal(b, &m)
@@ -27,19 +34,40 @@ func TestAgentTaskJSON(t *testing.T) {
 	if !ok {
 		t.Fatal("input_required should appear as an object in the input_required state")
 	}
-	if ir["decision_id"] != "dec_7f3a" || ir["input_type"] != "single_select" {
-		t.Errorf("decision_id/input_type should serialize, got %v", ir)
+	if ir["label"] != "报表生成确认" || ir["description"] != "生成前需确认以下口径" {
+		t.Errorf("group label/description should serialize, got %v", ir)
 	}
-	opts, ok := ir["options"].([]interface{})
-	if !ok || len(opts) != 2 {
-		t.Fatalf("options should serialize as a 2-element array of {option_id,label}, got %v", ir["options"])
+	qs, ok := ir["questions"].([]interface{})
+	if !ok || len(qs) != 3 {
+		t.Fatalf("questions should serialize as a 3-element array, got %v", ir["questions"])
 	}
-	if o0, _ := opts[0].(map[string]interface{}); o0["option_id"] != "by_region" || o0["label"] != "按大区" {
-		t.Errorf("options[0] should be {option_id,label}, got %v", opts[0])
+	q1, _ := qs[0].(map[string]interface{})
+	if q1["question_id"] != "q1_a8" || q1["question"] != "按什么维度拆分？" {
+		t.Errorf("questions[0] should carry question_id/question, got %v", q1)
 	}
-	// submitted is false → omitted via omitempty.
-	if _, present := ir["submitted"]; present {
-		t.Errorf("unset submitted should be omitted via omitempty, got %v", ir["submitted"])
+	if _, present := q1["multi_select"]; present {
+		t.Errorf("false multi_select should be omitted via omitempty, got %v", q1["multi_select"])
+	}
+	opts, _ := q1["options"].([]interface{})
+	if len(opts) != 2 {
+		t.Fatalf("questions[0].options should be 2 elements, got %v", q1["options"])
+	}
+	if o0, _ := opts[0].(map[string]interface{}); o0["option_id"] != "by_region" || o0["label"] != "按大区" || o0["description"] != "华东/华北/华南汇总" {
+		t.Errorf("options[0] should be {option_id,label,description}, got %v", opts[0])
+	}
+	q2, _ := qs[1].(map[string]interface{})
+	if _, present := q2["options"]; present {
+		t.Errorf("a text question must omit options entirely, got %v", q2["options"])
+	}
+	q3, _ := qs[2].(map[string]interface{})
+	if q3["multi_select"] != true {
+		t.Errorf("multi_select=true should serialize, got %v", q3["multi_select"])
+	}
+	// The decision era is over: no group-level machine id, no arbitration fields.
+	for _, gone := range []string{"decision_id", "input_type", "prompt", "submitted", "submitted_option_id"} {
+		if _, present := ir[gone]; present {
+			t.Errorf("deleted field %q must stay off the wire, got %v", gone, ir[gone])
+		}
 	}
 	// unset artifacts should be omitted via omitempty
 	if _, ok := m["artifacts"]; ok {

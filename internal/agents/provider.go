@@ -18,14 +18,28 @@ type SendInput struct {
 	ContextID string
 	TaskID    string
 
-	// Structured answer to an input_required decision (see InputRequired). The
-	// caller echoes DecisionID and either picks OptionIDs (single/multi_select) or
-	// leaves them empty and answers via Text (input_type=text). An empty
-	// DecisionID means this send is not answering a decision. A provider
-	// serializes these into the reply message's A2A DataPart; the server
-	// arbitrates (and MAY reject an already-answered decision as a conflict).
-	DecisionID string
-	OptionIDs  []string
+	// Answers is the structured reply to the task's pending input_required
+	// question group, keyed per the design doc §10.1 encoding: key is a
+	// question_id (bare form — each value must hit one of that question's
+	// OptionIDs) or "<question_id>.text" (free-text form — exactly one value,
+	// CLI-guarded). Values keep argv order; repeated bare values on a
+	// multi-select accumulate. A nil/empty map means this send is not answering.
+	// The provider serializes Answers into the reply message's A2A DataPart
+	// (kind=answers). Whether to validate semantics (missing/option/count) is
+	// the provider's own policy — tolerant LLM backends may consume partial or
+	// free answers, strict form backends validate — but any violation it DOES
+	// report must use the collect-all ValidationError shape with per-question
+	// params entries (Reason enum), acceptance must be atomic (validate + record
+	// + leave input_required as one step, side effects after), and nothing may
+	// be silently dropped. Text, when present alongside Answers, is the
+	// message-level remark (TextPart) — never a question's answer.
+	//
+	// Wire note (§6.7 messageId, deferred to the adapter): the deterministic
+	// answer-submission id — hash(TaskID + the canonical Answers encoding) — is
+	// NOT carried here; the adapter assembling the A2A message computes it into
+	// Message.messageId so a same-command retry dedupes server-side. There is no
+	// wire in-repo yet, so the framework deliberately ships no dead field.
+	Answers map[string][]string
 }
 
 // CardInfo is the per-agent descriptive metadata a provider supplies for its

@@ -197,7 +197,7 @@ func TestNormalizeTaskSummaries_DerivesFromState(t *testing.T) {
 	if ts[1].IsTerminal {
 		t.Error("working summary should derive is_terminal=false")
 	}
-	if normalizeTask(nil) != nil {
+	if normalizeTask(nil) != "" {
 		t.Error("normalizeTask(nil) should be nil-safe")
 	}
 }

@@ -78,11 +78,14 @@ type renderOpts struct {
 }
 
 var reporterSpec = agents.AgentSpec{
-	ID:            "reporter",
-	Name:          "报表生成器",
-	Description:   "对任意请求产出一份内联 CSV 报表 artifact，示范 artifact 下载与任务取消链路。",
-	FileInput:     true,
-	InputRequired: true,
+	ID:          "reporter",
+	Name:        "报表生成器",
+	Description: "对任意请求产出一份内联 CSV 报表 artifact，示范 artifact 下载与任务取消链路。",
+	FileInput:   true,
+	// InputRequired is deliberately NOT declared: reporter never pauses (tasks
+	// are born terminal), and a question-asking flag would obligate an
+	// every-brand CancelTask (§6.8 registration check) — its CancelTask is the
+	// brand-scoping demo below. The HITL demo lives on planner.
 	// Send declares demo business params covering the whole declaration
 	// surface: enum + default (report_format), integer + min/max + default
 	// (quarters). Both optional with defaults, so a bare send behaves exactly
@@ -117,37 +120,49 @@ var reporterSpec = agents.AgentSpec{
 	DownloadArtifact: agents.ArtifactDownloadOp{Handler: downloadArtifact},
 }
 
-// plannerSpec demonstrates the input_required HITL flow: the first send opens a
-// single-select decision and the task stays non-terminal in input_required;
-// answering it with --decision-id/--option completes the task, and a second
-// answer to the same decision returns a conflict (the "already arbitrated"
-// path). It wires the read verbs but not cancel/artifact.
+// plannerSpec demonstrates the input_required HITL flow (design doc §3-§8):
+// the first send pauses on a THREE-question group (single-select + free-text +
+// multi-select with a skip option), answered atomically in one send via
+// --answer; a second submission gets failed_precondition + resolved_answers.
+// It wires CancelTask because a question-asking agent must be walkaway-able
+// (§6.8 — Register enforces this), and the read verbs; not artifact.
 var plannerSpec = agents.AgentSpec{
 	ID:            "planner",
 	Name:          "报表规划器",
-	Description:   "先反问「按什么维度拆」（input_required 单选决策），你用 --decision-id/--option 选定后再出报表。示范 HITL 决策链路。",
+	Description:   "先弹一组确认问题（单选/自由文本/多选，input_required），你用 --answer 一次答清后再出报表。示范 HITL 问题组链路。",
 	InputRequired: true,
 	Send:          agents.SendOp{Handler: plannerSend},
 	GetTask:       agents.TaskGetOp{Handler: getTask},
 	ListTasks:     agents.TaskListOp{Handler: listTasks},
+	CancelTask:    agents.TaskCancelOp{Handler: cancelTask},
 	ListContexts:  agents.ContextListOp{Handler: listContexts},
 	GetContext:    agents.ContextGetOp{Handler: getContext},
 	DeleteContext: agents.ContextDeleteOp{Handler: deleteContext},
 }
 
-// plannerSend opens a decision on a fresh request, or applies the answer when
-// --decision-id + --option is supplied (continuing the decision's task).
+// plannerSend pauses a fresh request on a question group, or applies the
+// --answer submission (continuing the group's own task). A bare --text aimed
+// at the paused task is rejected with guidance — NEVER forked into a sibling
+// task (§6.5): the group contains select questions, so free text cannot be
+// consumed as the whole answer here.
 func plannerSend(ctx context.Context, rt agents.Runtime, in agents.SendInput) (*agents.AgentTask, error) {
-	if in.DecisionID != "" {
-		if len(in.OptionIDs) != 1 {
+	if len(in.Answers) > 0 {
+		if in.TaskID == "" {
+			// The CLI guard already enforces this; the belt holds for direct hook calls.
 			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
-				"planner 的决策是单选，请用恰好一个 --option").WithParam("--option")
+				"回答问题组需提供 --task-id").WithParam("--task-id")
 		}
-		task, err := store.answerDecision(rt.AgentID(), in.TaskID, in.DecisionID, in.OptionIDs[0])
+		task, err := store.answerGroup(rt.AgentID(), in.ContextID, in.TaskID, in.Answers, in.Text)
 		if err != nil {
 			return nil, err
 		}
 		return &task, nil
+	}
+	if in.TaskID != "" {
+		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"该任务在等待问题组答复，且组内含选择题，无法用 --text 自由作答").
+			WithParam("--text").
+			WithHint("用 lark-cli agents task get example:%s %s 查看问题组，按 meta.next 的 --answer 模板作答", rt.AgentID(), in.TaskID)
 	}
 	ctxID := in.ContextID
 	if ctxID == "" {
@@ -157,6 +172,23 @@ func plannerSend(ctx context.Context, rt agents.Runtime, in agents.SendInput) (*
 			return nil, err
 		}
 	}
+	// Mint the group's question ids at CREATION time with a fresh per-group
+	// suffix (§6.2): the group is persisted with these ids and every later
+	// task get echoes them verbatim; a successor group would mint a different
+	// suffix, which is the stale-retry protection.
+	questions := []agents.Question{
+		{Question: "按什么维度拆分？", Options: []agents.Option{
+			{OptionID: "by_region", Label: "按大区", Description: "华东/华北/华南汇总"},
+			{OptionID: "by_category", Label: "按品类", Description: "SKU 一级类目"},
+		}},
+		{Question: "时间范围？"},
+		{Question: "包含哪些区域？", MultiSelect: true, Options: []agents.Option{
+			{OptionID: "east", Label: "华东"},
+			{OptionID: "north", Label: "华北"},
+			{OptionID: "skip", Label: "由 agent 决定", Description: "与其它选项互斥"},
+		}},
+	}
+	agents.MintQuestionIDs(questions, newGroupSuffix())
 	task, err := store.createTask(rt.AgentID(), ctxID, func(int) agents.AgentTask {
 		return agents.AgentTask{
 			TaskID:    newID("task"),
@@ -164,16 +196,12 @@ func plannerSend(ctx context.Context, rt agents.Runtime, in agents.SendInput) (*
 			State:     agents.StateInputRequired,
 			Messages: []agents.Message{
 				{Role: "user", Parts: []agents.Part{{Type: "text", Text: in.Text}}},
-				{Role: "agent", Parts: []agents.Part{{Type: "text", Text: "先确认口径：报表按什么维度拆分？"}}},
+				{Role: "agent", Parts: []agents.Part{{Type: "text", Text: "生成报表前需确认以下口径。"}}},
 			},
 			InputRequired: &agents.InputRequired{
-				DecisionID: newID("dec"),
-				Prompt:     "报表按什么维度拆分？",
-				InputType:  agents.InputTypeSingleSelect,
-				Options: []agents.Option{
-					{OptionID: "by_region", Label: "按大区"},
-					{OptionID: "by_category", Label: "按品类"},
-				},
+				Label:       "报表生成确认",
+				Description: "生成前需确认以下口径",
+				Questions:   questions,
 			},
 		}
 	})
@@ -240,6 +268,16 @@ func reporterSend(ctx context.Context, rt agents.Runtime, in agents.SendInput) (
 // via --task-id returns failed_precondition (the request is valid but the target
 // state does not satisfy it, so the AI knows to start a new task instead).
 func newTurn(agentID string, in agents.SendInput, build func(round int) (reply string, artifacts []agents.Artifact)) (*agents.AgentTask, error) {
+	if len(in.Answers) > 0 {
+		// No pending question group exists on a born-terminal agent — reject
+		// loudly rather than silently dropping the answers (§6.4's no-silent-drop
+		// bottom line; reporter passes the CLI's input_required capability gate,
+		// so this is reachable there).
+		return nil, errs.NewValidationError(errs.SubtypeFailedPrecondition,
+			"该 agent 没有待答的问题组").
+			WithParam("--answer").
+			WithHint("--answer 只用于回答停在 input_required 的任务；起新任务用 --text")
+	}
 	if in.TaskID != "" {
 		return nil, errs.NewValidationError(errs.SubtypeFailedPrecondition,
 			"example 的任务发出即完成（终态），无法向已有任务续发").

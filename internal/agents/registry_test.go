@@ -95,6 +95,12 @@ func TestRegisterPanicBranches(t *testing.T) {
 		{"instance template with ID", func(p *Provider) { p.Instance.ID = "oops" }, "instance template must have empty ID"},
 		{"missing core Send", func(p *Provider) { p.Instance.Send = SendOp{} }, "missing core Send"},
 		{"missing core GetTask", func(p *Provider) { p.Instance.GetTask = TaskGetOp{} }, "missing core GetTask"},
+		{"InputRequired without CancelTask", func(p *Provider) { p.Instance.InputRequired = true }, "wires no CancelTask"},
+		{"InputRequired with narrower CancelTask brands", func(p *Provider) {
+			p.Instance.InputRequired = true
+			p.Instance.CancelTask = TaskCancelOp{Brands: []core.LarkBrand{core.BrandFeishu},
+				Handler: func(context.Context, Runtime, string) error { return nil }}
+		}, "brand-scoped narrower"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

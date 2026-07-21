@@ -94,6 +94,20 @@ func checkSpec(scheme string, s *AgentSpec, catalog bool) {
 	if !s.GetTask.wired() {
 		panic("agent: spec missing core GetTask handler: " + scheme + ":" + s.ID)
 	}
+	// An agent that can pause on a question group MUST also let the user walk
+	// away from it: with no TTL in the contract, question-asking without
+	// task_cancel leaves an abandoned group holding awaiting_input forever
+	// (design doc §6.8) — a registration-time coding error, not a runtime one.
+	// The check includes brand coverage: a CancelTask scoped narrower than the
+	// agent's own visibility recreates the dead end on the uncovered brand.
+	if s.InputRequired {
+		if !s.CancelTask.wired() {
+			panic("agent: spec declares InputRequired but wires no CancelTask (提问型 agent 必须可取消): " + scheme + ":" + s.ID)
+		}
+		if len(s.CancelTask.Brands) > 0 && !brandsCover(s.CancelTask.Brands, s.Brands) {
+			panic("agent: spec declares InputRequired but CancelTask is brand-scoped narrower than the agent (提问型 agent 的取消不得窄于其可见品牌): " + scheme + ":" + s.ID)
+		}
+	}
 	if catalog && s.ID == "" {
 		panic("agent: catalog spec missing ID: " + scheme)
 	}
@@ -134,6 +148,22 @@ func checkSpec(scheme string, s *AgentSpec, catalog bool) {
 // the Register-time fail-fast guard for spec.Brands and each Op.Brands.
 func validBrand(b core.LarkBrand) bool {
 	return b == core.BrandFeishu || b == core.BrandLark
+}
+
+// brandsCover reports whether opBrands covers every brand the agent itself is
+// visible under (specBrands empty = all known brands). Used by the
+// InputRequired⇒CancelTask registration check.
+func brandsCover(opBrands, specBrands []core.LarkBrand) bool {
+	agentBrands := specBrands
+	if len(agentBrands) == 0 {
+		agentBrands = []core.LarkBrand{core.BrandFeishu, core.BrandLark}
+	}
+	for _, b := range agentBrands {
+		if !OpAvailableForBrand(opBrands, b) {
+			return false
+		}
+	}
+	return true
 }
 
 // SpecAvailableForBrand reports whether the WHOLE agent is visible/usable under
