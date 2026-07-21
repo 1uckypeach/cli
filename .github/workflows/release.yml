@@ -149,7 +149,12 @@ jobs:
           test -n "$PACK_FILE"
           test -s "$PACK_FILE"
           tar -tzf "$PACK_FILE" | grep -qx 'package/checksums.txt'
-          echo "filename=$PACK_FILE" >> "$GITHUB_OUTPUT"
+          mkdir staged-package
+          tar -xzf "$PACK_FILE" -C staged-package
+          test -f staged-package/package/package.json
+          test -s staged-package/package/checksums.txt
+          echo "directory=staged-package/package" >> "$GITHUB_OUTPUT"
 
       - name: Stage npm package
-        run: npm stage publish "${{ steps.asset.outputs.filename }}" --access public --tag beta
+        working-directory: ${{ steps.asset.outputs.directory }}
+        run: npm stage publish --access public --tag beta
