@@ -30,17 +30,17 @@ type chatMembersAddSpec struct {
 }
 
 type chatMembersAddResponse struct {
-	InvalidIDList         []interface{}
-	NotExistedIDList      []interface{}
-	PendingApprovalIDList []interface{}
+	InvalidIDList         []string
+	NotExistedIDList      []string
+	PendingApprovalIDList []string
 }
 
 type chatMembersAddResult struct {
 	ChatID                string               `json:"chat_id"`
 	SuccessCount          int                  `json:"success_count"`
-	InvalidIDList         []interface{}        `json:"invalid_id_list"`
-	NotExistedIDList      []interface{}        `json:"not_existed_id_list"`
-	PendingApprovalIDList []interface{}        `json:"pending_approval_id_list"`
+	InvalidIDList         []string             `json:"invalid_id_list"`
+	NotExistedIDList      []string             `json:"not_existed_id_list"`
+	PendingApprovalIDList []string             `json:"pending_approval_id_list"`
 	FailedMemberType      string               `json:"failed_member_type,omitempty"`
 	OutcomeUnknown        bool                 `json:"outcome_unknown,omitempty"`
 	Error                 *chatMembersAddError `json:"error,omitempty"`
@@ -231,7 +231,7 @@ func callChatMembersAddBatch(
 	if err != nil {
 		return chatMembersAddResponse{}, err
 	}
-	return projectChatMembersAddResponse(data), nil
+	return projectChatMembersAddResponse(data, ids)
 }
 
 func chatMembersAddParams(memberIDType string) map[string]interface{} {
@@ -247,27 +247,87 @@ func chatMembersAddBody(ids []string) map[string]interface{} {
 	}
 }
 
-func projectChatMembersAddResponse(data map[string]interface{}) chatMembersAddResponse {
-	return chatMembersAddResponse{
-		InvalidIDList:         projectChatMembersAddList(data, "invalid_id_list"),
-		NotExistedIDList:      projectChatMembersAddList(data, "not_existed_id_list"),
-		PendingApprovalIDList: projectChatMembersAddList(data, "pending_approval_id_list"),
+func projectChatMembersAddResponse(data map[string]interface{}, requestedIDs []string) (chatMembersAddResponse, error) {
+	response := chatMembersAddResponse{}
+	fields := []struct {
+		name   string
+		target *[]string
+	}{
+		{name: "invalid_id_list", target: &response.InvalidIDList},
+		{name: "not_existed_id_list", target: &response.NotExistedIDList},
+		{name: "pending_approval_id_list", target: &response.PendingApprovalIDList},
+	}
+
+	requested := make(map[string]struct{}, len(requestedIDs))
+	for _, id := range requestedIDs {
+		requested[id] = struct{}{}
+	}
+	seen := make(map[string]struct{})
+
+	for _, field := range fields {
+		values, err := projectChatMembersAddList(data, field.name)
+		if err != nil {
+			return chatMembersAddResponse{}, err
+		}
+		for _, id := range values {
+			if _, ok := requested[id]; !ok {
+				return chatMembersAddResponse{}, newInvalidChatMembersAddResponseError(
+					field.name,
+					"contains an identifier outside the request",
+				)
+			}
+			if _, ok := seen[id]; ok {
+				return chatMembersAddResponse{}, newInvalidChatMembersAddResponseError(
+					field.name,
+					"contains a duplicate identifier",
+				)
+			}
+			seen[id] = struct{}{}
+		}
+		*field.target = values
+	}
+
+	return response, nil
+}
+
+func projectChatMembersAddList(data map[string]interface{}, key string) ([]string, error) {
+	raw, exists := data[key]
+	if !exists {
+		return []string{}, nil
+	}
+
+	switch values := raw.(type) {
+	case []string:
+		return append([]string{}, values...), nil
+	case []interface{}:
+		result := make([]string, 0, len(values))
+		for _, value := range values {
+			id, ok := value.(string)
+			if !ok {
+				return nil, newInvalidChatMembersAddResponseError(key, "contains a non-string element")
+			}
+			result = append(result, id)
+		}
+		return result, nil
+	default:
+		return nil, newInvalidChatMembersAddResponseError(key, "is not an array of strings")
 	}
 }
 
-func projectChatMembersAddList(data map[string]interface{}, key string) []interface{} {
-	values, ok := data[key].([]interface{})
-	if !ok {
-		return []interface{}{}
-	}
-	return append([]interface{}{}, values...)
+func newInvalidChatMembersAddResponseError(field, reason string) error {
+	cause := fmt.Errorf("%s %s", field, reason)
+	return errs.NewInternalError(
+		errs.SubtypeInvalidResponse,
+		"API returned invalid %s",
+		field,
+	).WithCause(cause)
 }
 
 func mergeChatMembersAddResponse(responses ...chatMembersAddResponse) chatMembersAddResponse {
 	merged := chatMembersAddResponse{
-		InvalidIDList:         []interface{}{},
-		NotExistedIDList:      []interface{}{},
-		PendingApprovalIDList: []interface{}{},
+		InvalidIDList:         []string{},
+		NotExistedIDList:      []string{},
+		PendingApprovalIDList: []string{},
 	}
 	for _, response := range responses {
 		merged.InvalidIDList = append(merged.InvalidIDList, response.InvalidIDList...)

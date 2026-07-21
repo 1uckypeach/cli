@@ -4,6 +4,7 @@
 package im
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -570,7 +571,10 @@ func TestExecuteChatMembersAddPassesThroughUserAPIError(t *testing.T) {
 }
 
 func TestProjectChatMembersAddResponseUsesEmptySlices(t *testing.T) {
-	got := projectChatMembersAddResponse(map[string]interface{}{})
+	got, err := projectChatMembersAddResponse(map[string]interface{}{}, []string{"ou_a"})
+	if err != nil {
+		t.Fatalf("projectChatMembersAddResponse() error = %v", err)
+	}
 	if got.InvalidIDList == nil || got.NotExistedIDList == nil || got.PendingApprovalIDList == nil {
 		t.Fatalf("projectChatMembersAddResponse() = %#v, want non-nil empty slices", got)
 	}
@@ -581,48 +585,126 @@ func TestProjectChatMembersAddResponseUsesEmptySlices(t *testing.T) {
 
 func TestProjectChatMembersAddResponsePreservesAllLists(t *testing.T) {
 	data := map[string]interface{}{
-		"invalid_id_list": []interface{}{
-			map[string]interface{}{"id": "first-invalid", "reason": "invalid"},
-			map[string]interface{}{"id": "second-invalid", "reason": "invalid"},
-		},
-		"not_existed_id_list": []interface{}{
-			map[string]interface{}{"id": "first-missing", "reason": "not_existed"},
-			map[string]interface{}{"id": "second-missing", "reason": "not_existed"},
-		},
-		"pending_approval_id_list": []interface{}{
-			map[string]interface{}{"id": "first-pending", "reason": "pending"},
-			map[string]interface{}{"id": "second-pending", "reason": "pending"},
-		},
+		"invalid_id_list":          []interface{}{"ou_invalid_a", "ou_invalid_b"},
+		"not_existed_id_list":      []string{"ou_missing_a", "ou_missing_b"},
+		"pending_approval_id_list": []interface{}{"ou_pending_a", "ou_pending_b"},
+	}
+	requested := []string{
+		"ou_invalid_a", "ou_invalid_b",
+		"ou_missing_a", "ou_missing_b",
+		"ou_pending_a", "ou_pending_b",
 	}
 
-	got := projectChatMembersAddResponse(data)
+	got, err := projectChatMembersAddResponse(data, requested)
+	if err != nil {
+		t.Fatalf("projectChatMembersAddResponse() error = %v", err)
+	}
 	want := chatMembersAddResponse{
-		InvalidIDList:         data["invalid_id_list"].([]interface{}),
-		NotExistedIDList:      data["not_existed_id_list"].([]interface{}),
-		PendingApprovalIDList: data["pending_approval_id_list"].([]interface{}),
+		InvalidIDList:         []string{"ou_invalid_a", "ou_invalid_b"},
+		NotExistedIDList:      []string{"ou_missing_a", "ou_missing_b"},
+		PendingApprovalIDList: []string{"ou_pending_a", "ou_pending_b"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("projectChatMembersAddResponse() = %#v, want %#v", got, want)
 	}
 }
 
+func TestExecuteChatMembersAddRejectsInvalidResponseLists(t *testing.T) {
+	tests := []struct {
+		name string
+		data map[string]interface{}
+	}{
+		{
+			name: "field is not an array",
+			data: map[string]interface{}{"invalid_id_list": "invalid-shape"},
+		},
+		{
+			name: "array element is not a string",
+			data: map[string]interface{}{"invalid_id_list": []interface{}{"ou_a", float64(1)}},
+		},
+		{
+			name: "duplicate inside one list",
+			data: map[string]interface{}{"invalid_id_list": []interface{}{"ou_a", "ou_a"}},
+		},
+		{
+			name: "duplicate across lists",
+			data: map[string]interface{}{
+				"invalid_id_list":     []interface{}{"ou_a"},
+				"not_existed_id_list": []interface{}{"ou_a"},
+			},
+		},
+		{
+			name: "identifier was not requested",
+			data: map[string]interface{}{"pending_approval_id_list": []interface{}{"ou_unexpected"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runtime := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+					"code": 0,
+					"data": tt.data,
+				}), nil
+			}))
+			setChatMembersAddTestFlags(t, runtime, "oc_test", "ou_a,ou_b", "")
+
+			err := executeChatMembersAdd(runtime, chatMembersAddSpec{
+				ChatID: "oc_test",
+				Users:  []string{"ou_a", "ou_b"},
+			})
+			if err == nil {
+				t.Fatal("executeChatMembersAdd() error = nil, want invalid response error")
+			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok {
+				t.Fatalf("ProblemOf(%v) returned ok=false", err)
+			}
+			if problem.Category != errs.CategoryInternal || problem.Subtype != errs.SubtypeInvalidResponse {
+				t.Fatalf(
+					"problem = category %q subtype %q, want category %q subtype %q",
+					problem.Category,
+					problem.Subtype,
+					errs.CategoryInternal,
+					errs.SubtypeInvalidResponse,
+				)
+			}
+			if errors.Unwrap(err) == nil {
+				t.Fatal("invalid response error has no cause")
+			}
+			for _, id := range []string{"ou_a", "ou_b", "ou_unexpected"} {
+				if strings.Contains(err.Error(), id) {
+					t.Fatalf("error message contains member identifier %q", id)
+				}
+			}
+			out, ok := runtime.Factory.IOStreams.Out.(*bytes.Buffer)
+			if !ok {
+				t.Fatalf("stdout buffer has type %T", runtime.Factory.IOStreams.Out)
+			}
+			if out.Len() != 0 {
+				t.Fatalf("stdout = %q, want no success data", out.String())
+			}
+		})
+	}
+}
+
 func TestMergeChatMembersAddResponsesPreservesRequestOrder(t *testing.T) {
 	users := chatMembersAddResponse{
-		InvalidIDList:         []interface{}{"ou_invalid"},
-		NotExistedIDList:      []interface{}{"ou_missing"},
-		PendingApprovalIDList: []interface{}{"ou_pending"},
+		InvalidIDList:         []string{"ou_invalid"},
+		NotExistedIDList:      []string{"ou_missing"},
+		PendingApprovalIDList: []string{"ou_pending"},
 	}
 	bots := chatMembersAddResponse{
-		InvalidIDList:         []interface{}{"cli_invalid"},
-		NotExistedIDList:      []interface{}{"cli_missing"},
-		PendingApprovalIDList: []interface{}{"cli_pending"},
+		InvalidIDList:         []string{"cli_invalid"},
+		NotExistedIDList:      []string{"cli_missing"},
+		PendingApprovalIDList: []string{"cli_pending"},
 	}
 
 	got := mergeChatMembersAddResponse(users, bots)
 	want := chatMembersAddResponse{
-		InvalidIDList:         []interface{}{"ou_invalid", "cli_invalid"},
-		NotExistedIDList:      []interface{}{"ou_missing", "cli_missing"},
-		PendingApprovalIDList: []interface{}{"ou_pending", "cli_pending"},
+		InvalidIDList:         []string{"ou_invalid", "cli_invalid"},
+		NotExistedIDList:      []string{"ou_missing", "cli_missing"},
+		PendingApprovalIDList: []string{"ou_pending", "cli_pending"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("mergeChatMembersAddResponse() = %#v, want %#v", got, want)
@@ -641,9 +723,9 @@ func TestChatMembersAddResultSuccessCount(t *testing.T) {
 			name:      "subtracts all unfinished lists",
 			requested: 5,
 			response: chatMembersAddResponse{
-				InvalidIDList:         []interface{}{"invalid"},
-				NotExistedIDList:      []interface{}{"missing"},
-				PendingApprovalIDList: []interface{}{"pending"},
+				InvalidIDList:         []string{"invalid"},
+				NotExistedIDList:      []string{"missing"},
+				PendingApprovalIDList: []string{"pending"},
 			},
 			want: 2,
 		},
@@ -651,9 +733,9 @@ func TestChatMembersAddResultSuccessCount(t *testing.T) {
 			name:      "clamps excessive unfinished count to zero",
 			requested: 2,
 			response: chatMembersAddResponse{
-				InvalidIDList:         []interface{}{1, 2},
-				NotExistedIDList:      []interface{}{3},
-				PendingApprovalIDList: []interface{}{4},
+				InvalidIDList:         []string{"invalid-a", "invalid-b"},
+				NotExistedIDList:      []string{"missing"},
+				PendingApprovalIDList: []string{"pending"},
 			},
 			want: 0,
 		},
