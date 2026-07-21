@@ -4,12 +4,16 @@
 package im
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/shortcuts/common"
 )
@@ -19,6 +23,9 @@ const (
 	imChatMembersAddUserLimit  = 50
 	imChatMembersAddBotLimit   = 5
 	imChatMembersAddIDMaxBytes = 256
+
+	imChatMembersAddReadbackHint = "List current chat members with lark-cli im +chat-members-list --chat-id <chat_id> --page-all before retrying; retry only members not confirmed present."
+	imChatBotsAddReadbackHint    = "List current chat members with lark-cli im +chat-members-list --chat-id <chat_id> --page-all before retrying; retry only bots not confirmed present."
 )
 
 var imChatMembersAddIDSuffix = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -42,7 +49,7 @@ type chatMembersAddResult struct {
 	NotExistedIDList      []string             `json:"not_existed_id_list"`
 	PendingApprovalIDList []string             `json:"pending_approval_id_list"`
 	FailedMemberType      string               `json:"failed_member_type,omitempty"`
-	OutcomeUnknown        bool                 `json:"outcome_unknown,omitempty"`
+	OutcomeUnknown        bool                 `json:"-"`
 	Error                 *chatMembersAddError `json:"error,omitempty"`
 }
 
@@ -60,6 +67,22 @@ type chatMembersAddError struct {
 	GrantedScopes   []string      `json:"granted_scopes,omitempty"`
 	Identity        string        `json:"identity,omitempty"`
 	ConsoleURL      string        `json:"console_url,omitempty"`
+}
+
+func (r chatMembersAddResult) MarshalJSON() ([]byte, error) {
+	type resultAlias chatMembersAddResult
+	var outcomeUnknown *bool
+	if r.FailedMemberType != "" {
+		value := r.OutcomeUnknown
+		outcomeUnknown = &value
+	}
+	return json.Marshal(struct {
+		resultAlias
+		OutcomeUnknown *bool `json:"outcome_unknown,omitempty"`
+	}{
+		resultAlias:    resultAlias(r),
+		OutcomeUnknown: outcomeUnknown,
+	})
 }
 
 func readChatMembersAddSpec(runtime *common.RuntimeContext) (chatMembersAddSpec, error) {
@@ -188,31 +211,123 @@ func buildChatMembersAddDryRun(spec chatMembersAddSpec) *common.DryRunAPI {
 
 func executeChatMembersAdd(runtime *common.RuntimeContext, spec chatMembersAddSpec) error {
 	responses := make([]chatMembersAddResponse, 0, 2)
+	completedCount := 0
 	if len(spec.Users) > 0 {
 		response, err := callChatMembersAddBatch(runtime, spec.ChatID, "open_id", spec.Users)
 		if err != nil {
-			return err
+			return withChatMembersAddUnknownOutcome(err, false)
 		}
 		responses = append(responses, response)
+		completedCount += len(spec.Users)
 	}
 	if len(spec.Bots) > 0 {
 		response, err := callChatMembersAddBatch(runtime, spec.ChatID, "app_id", spec.Bots)
 		if err != nil {
-			return err
+			if completedCount == 0 {
+				return withChatMembersAddUnknownOutcome(err, true)
+			}
+			projectedErr := withChatMembersAddUnknownOutcome(err, true)
+			merged := mergeChatMembersAddResponse(responses...)
+			result := newChatMembersAddResult(spec.ChatID, completedCount, merged)
+			result.FailedMemberType = "bot"
+			result.OutcomeUnknown = errs.IsNetwork(err)
+			result.Error = projectChatMembersAddError(projectedErr, true)
+			return runtime.OutPartialFailure(result, nil)
 		}
 		responses = append(responses, response)
+		completedCount += len(spec.Bots)
 	}
 
 	merged := mergeChatMembersAddResponse(responses...)
-	result := chatMembersAddResult{
-		ChatID:                spec.ChatID,
-		SuccessCount:          confirmedChatMembersAddCount(len(spec.Users)+len(spec.Bots), merged),
-		InvalidIDList:         merged.InvalidIDList,
-		NotExistedIDList:      merged.NotExistedIDList,
-		PendingApprovalIDList: merged.PendingApprovalIDList,
+	result := newChatMembersAddResult(spec.ChatID, completedCount, merged)
+	if hasUnfinishedChatMembersAdd(result) {
+		return runtime.OutPartialFailure(result, nil)
 	}
-	runtime.Out(result, nil)
+	runtime.OutFormat(result, &output.Meta{Count: result.SuccessCount}, func(w io.Writer) {
+		renderChatMembersAddPretty(w, result)
+	})
 	return nil
+}
+
+func newChatMembersAddResult(chatID string, completedCount int, response chatMembersAddResponse) chatMembersAddResult {
+	return chatMembersAddResult{
+		ChatID:                chatID,
+		SuccessCount:          confirmedChatMembersAddCount(completedCount, response),
+		InvalidIDList:         response.InvalidIDList,
+		NotExistedIDList:      response.NotExistedIDList,
+		PendingApprovalIDList: response.PendingApprovalIDList,
+	}
+}
+
+func hasUnfinishedChatMembersAdd(result chatMembersAddResult) bool {
+	return len(result.InvalidIDList) > 0 ||
+		len(result.NotExistedIDList) > 0 ||
+		len(result.PendingApprovalIDList) > 0
+}
+
+func renderChatMembersAddPretty(w io.Writer, result chatMembersAddResult) {
+	fmt.Fprintf(w, "Chat: %s\n", result.ChatID)
+	fmt.Fprintf(w, "Added members: %d\n", result.SuccessCount)
+}
+
+func withChatMembersAddUnknownOutcome(err error, botBatch bool) error {
+	var networkErr *errs.NetworkError
+	if !errors.As(err, &networkErr) {
+		return err
+	}
+
+	cloned := *networkErr
+	cloned.Problem = networkErr.Problem
+	cloned.Retryable = false
+	cloned.Hint = chatMembersAddUnknownOutcomeHint(botBatch)
+	return &cloned
+}
+
+func projectChatMembersAddError(err error, botBatch bool) *chatMembersAddError {
+	problem, ok := errs.ProblemOf(err)
+	if !ok {
+		return &chatMembersAddError{
+			Type:      errs.CategoryInternal,
+			Subtype:   errs.SubtypeUnknown,
+			Message:   "member request failed",
+			Retryable: false,
+		}
+	}
+
+	projected := &chatMembersAddError{
+		Type:           problem.Category,
+		Subtype:        problem.Subtype,
+		Code:           problem.Code,
+		Message:        problem.Message,
+		Hint:           problem.Hint,
+		LogID:          problem.LogID,
+		Troubleshooter: problem.Troubleshooter,
+		Retryable:      problem.Retryable,
+	}
+
+	var networkErr *errs.NetworkError
+	if errors.As(err, &networkErr) {
+		projected.Retryable = false
+		projected.Hint = chatMembersAddUnknownOutcomeHint(botBatch)
+	}
+
+	var permissionErr *errs.PermissionError
+	if errors.As(err, &permissionErr) {
+		projected.MissingScopes = append([]string(nil), permissionErr.MissingScopes...)
+		projected.RequestedScopes = append([]string(nil), permissionErr.RequestedScopes...)
+		projected.GrantedScopes = append([]string(nil), permissionErr.GrantedScopes...)
+		projected.Identity = permissionErr.Identity
+		projected.ConsoleURL = permissionErr.ConsoleURL
+	}
+
+	return projected
+}
+
+func chatMembersAddUnknownOutcomeHint(botBatch bool) string {
+	if botBatch {
+		return imChatBotsAddReadbackHint
+	}
+	return imChatMembersAddReadbackHint
 }
 
 func callChatMembersAddBatch(

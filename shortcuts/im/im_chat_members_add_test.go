@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/spf13/cobra"
 )
@@ -568,6 +569,470 @@ func TestExecuteChatMembersAddPassesThroughUserAPIError(t *testing.T) {
 	if requestCount != 1 {
 		t.Fatalf("request count = %d, want 1; bot request must not execute", requestCount)
 	}
+}
+
+func TestExecuteChatMembersAddReturnsPartialFailureForRejectedIDs(t *testing.T) {
+	runtime := newUserShortcutRuntime(t, chatMembersAddSuccessTransport(t, map[string]interface{}{
+		"invalid_id_list":          []interface{}{"ou_invalid"},
+		"not_existed_id_list":      []interface{}{"ou_missing"},
+		"pending_approval_id_list": []interface{}{"ou_pending"},
+	}))
+	setChatMembersAddTestFlags(t, runtime, "oc_test", "ou_ok,ou_invalid,ou_missing,ou_pending", "")
+
+	err := executeChatMembersAdd(runtime, chatMembersAddSpec{
+		ChatID: "oc_test",
+		Users:  []string{"ou_ok", "ou_invalid", "ou_missing", "ou_pending"},
+	})
+	assertChatMembersAddPartialFailure(t, err)
+
+	data := decodeChatMembersAddPartialOutput(t, runtime)
+	if got := int(data["success_count"].(float64)); got != 1 {
+		t.Fatalf("success_count = %d, want 1", got)
+	}
+	assertChatMembersAddOutputLists(t, data,
+		[]string{"ou_invalid"}, []string{"ou_missing"}, []string{"ou_pending"})
+}
+
+func TestExecuteChatMembersAddStopsAfterUserAPIError(t *testing.T) {
+	causeMarker := "log-chat-members-add"
+	requestCount := 0
+	runtime := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestCount++
+		return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+			"code": 99991672,
+			"msg":  "app scope not applied",
+			"error": map[string]interface{}{
+				"log_id": causeMarker,
+				"permission_violations": []interface{}{
+					map[string]interface{}{"subject": "im:chat.members:write_only"},
+				},
+			},
+		}), nil
+	}))
+	setChatMembersAddTestFlags(t, runtime, "oc_test", "ou_private", "cli_private")
+
+	err := executeChatMembersAdd(runtime, chatMembersAddSpec{
+		ChatID: "oc_test",
+		Users:  []string{"ou_private"},
+		Bots:   []string{"cli_private"},
+	})
+	var permissionErr *errs.PermissionError
+	if !errors.As(err, &permissionErr) {
+		t.Fatalf("error = %T, want *errs.PermissionError", err)
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatal("ProblemOf() returned ok=false")
+	}
+	if problem.Category != errs.CategoryAuthorization || problem.Subtype != errs.SubtypeAppScopeNotApplied || problem.Code != 99991672 || problem.LogID != causeMarker {
+		t.Fatalf("problem = %#v, want preserved permission metadata", problem)
+	}
+	if requestCount != 1 {
+		t.Fatalf("request count = %d, want 1", requestCount)
+	}
+	if got := chatMembersAddStdout(t, runtime); got != "" {
+		t.Fatalf("stdout = %q, want empty", got)
+	}
+}
+
+func TestExecuteChatMembersAddDisablesRetryForUnknownUserOutcome(t *testing.T) {
+	transportCause := errors.New("transport marker")
+	runtime := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return nil, transportCause
+	}))
+	setChatMembersAddTestFlags(t, runtime, "oc_test", "ou_private", "")
+
+	err := executeChatMembersAdd(runtime, chatMembersAddSpec{ChatID: "oc_test", Users: []string{"ou_private"}})
+	var networkErr *errs.NetworkError
+	if !errors.As(err, &networkErr) {
+		t.Fatalf("error = %T, want *errs.NetworkError", err)
+	}
+	if networkErr.Retryable {
+		t.Fatal("network error Retryable = true, want false")
+	}
+	assertChatMembersAddReadbackHint(t, networkErr.Hint, false)
+	if !errors.Is(err, transportCause) {
+		t.Fatalf("error does not preserve transport cause: %v", err)
+	}
+	if strings.Contains(networkErr.Hint, "ou_private") {
+		t.Fatal("network hint contains a member identifier")
+	}
+	if got := chatMembersAddStdout(t, runtime); got != "" {
+		t.Fatalf("stdout = %q, want empty", got)
+	}
+}
+
+func TestExecuteChatMembersAddReturnsPriorResultWhenBotRequestFails(t *testing.T) {
+	requestCount := 0
+	runtime := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestCount++
+		if requestCount == 1 {
+			return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+				"code": 0,
+				"data": map[string]interface{}{
+					"invalid_id_list": []interface{}{"ou_invalid"},
+				},
+			}), nil
+		}
+		return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+			"code": 99991672,
+			"msg":  "app scope not applied",
+			"error": map[string]interface{}{
+				"log_id":         "log-bot-request",
+				"troubleshooter": "https://example.invalid/troubleshooter",
+				"permission_violations": []interface{}{
+					map[string]interface{}{"subject": "im:chat.members:write_only"},
+				},
+			},
+		}), nil
+	}))
+	setChatMembersAddTestFlags(t, runtime, "oc_test", "ou_ok,ou_invalid", "cli_private")
+
+	err := executeChatMembersAdd(runtime, chatMembersAddSpec{
+		ChatID: "oc_test",
+		Users:  []string{"ou_ok", "ou_invalid"},
+		Bots:   []string{"cli_private"},
+	})
+	assertChatMembersAddPartialFailure(t, err)
+	if requestCount != 2 {
+		t.Fatalf("request count = %d, want 2", requestCount)
+	}
+
+	data := decodeChatMembersAddPartialOutput(t, runtime)
+	if data["failed_member_type"] != "bot" || data["outcome_unknown"] != false {
+		t.Fatalf("failure metadata = %#v, want failed bot with known outcome", data)
+	}
+	if got := int(data["success_count"].(float64)); got != 1 {
+		t.Fatalf("success_count = %d, want 1", got)
+	}
+	assertChatMembersAddOutputLists(t, data, []string{"ou_invalid"}, []string{}, []string{})
+	errorData, ok := data["error"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("error projection = %T, want object", data["error"])
+	}
+	for key, want := range map[string]interface{}{
+		"type":           string(errs.CategoryAuthorization),
+		"subtype":        string(errs.SubtypeAppScopeNotApplied),
+		"code":           float64(99991672),
+		"log_id":         "log-bot-request",
+		"troubleshooter": "https://example.invalid/troubleshooter",
+		"retryable":      false,
+		"identity":       "user",
+	} {
+		if got := errorData[key]; got != want {
+			t.Errorf("error.%s = %#v, want %#v", key, got, want)
+		}
+	}
+	if _, ok := errorData["missing_scopes"].([]interface{}); !ok {
+		t.Fatalf("error.missing_scopes = %T, want array", errorData["missing_scopes"])
+	}
+	if message, _ := errorData["message"].(string); message == "" {
+		t.Fatal("error.message is empty")
+	}
+	errOut := chatMembersAddStderr(t, runtime)
+	if strings.Contains(errOut, "ou_") || strings.Contains(errOut, "cli_") || strings.Contains(errOut, "PermissionError") {
+		t.Fatalf("stderr exposes member data or an error object: %q", errOut)
+	}
+}
+
+func TestProjectChatMembersAddErrorCopiesPermissionFields(t *testing.T) {
+	cause := errors.New("permission cause")
+	source := errs.NewPermissionError(errs.SubtypeMissingScope, "permission denied").
+		WithHint("grant required scopes").
+		WithLogID("log-projection").
+		WithCode(99991679).
+		WithRetryable().
+		WithMissingScopes("scope.missing").
+		WithRequestedScopes("scope.requested").
+		WithGrantedScopes("scope.granted").
+		WithIdentity("bot").
+		WithConsoleURL("https://example.invalid/console").
+		WithCause(cause)
+	source.Troubleshooter = "https://example.invalid/help"
+
+	got := projectChatMembersAddError(source, false)
+	if got == nil {
+		t.Fatal("projectChatMembersAddError() = nil")
+	}
+	if got.Type != source.Category || got.Subtype != source.Subtype || got.Code != source.Code || got.Message != source.Message || got.Hint != source.Hint || got.LogID != source.LogID || got.Troubleshooter != source.Troubleshooter || !got.Retryable {
+		t.Fatalf("projected common fields = %#v, want %#v", got, source.Problem)
+	}
+	if !reflect.DeepEqual(got.MissingScopes, source.MissingScopes) || !reflect.DeepEqual(got.RequestedScopes, source.RequestedScopes) || !reflect.DeepEqual(got.GrantedScopes, source.GrantedScopes) || got.Identity != source.Identity || got.ConsoleURL != source.ConsoleURL {
+		t.Fatalf("projected permission fields = %#v, want copied fields", got)
+	}
+	source.MissingScopes[0] = "mutated"
+	source.RequestedScopes[0] = "mutated"
+	source.GrantedScopes[0] = "mutated"
+	if got.MissingScopes[0] == "mutated" || got.RequestedScopes[0] == "mutated" || got.GrantedScopes[0] == "mutated" {
+		t.Fatal("projected permission slices alias source slices")
+	}
+}
+
+func TestWithChatMembersAddUnknownOutcomePreservesDeterministicError(t *testing.T) {
+	cause := errors.New("permission cause")
+	source := errs.NewPermissionError(errs.SubtypeMissingScope, "permission denied").WithCause(cause)
+
+	got := withChatMembersAddUnknownOutcome(source, false)
+	if got != source {
+		t.Fatalf("deterministic error = %T, want original pointer", got)
+	}
+	if !errors.Is(got, cause) {
+		t.Fatal("deterministic error cause was not preserved")
+	}
+}
+
+func TestWithChatMembersAddUnknownOutcomeCopiesNetworkError(t *testing.T) {
+	cause := errors.New("network cause")
+	source := errs.NewNetworkError(errs.SubtypeNetworkTimeout, "request timed out").
+		WithHint("retry request").
+		WithLogID("log-network").
+		WithCode(504).
+		WithRetryable().
+		WithCause(cause)
+	source.Troubleshooter = "https://example.invalid/network-help"
+
+	err := withChatMembersAddUnknownOutcome(source, false)
+	var got *errs.NetworkError
+	if !errors.As(err, &got) {
+		t.Fatalf("error = %T, want *errs.NetworkError", err)
+	}
+	if got == source {
+		t.Fatal("withChatMembersAddUnknownOutcome() returned the source pointer")
+	}
+	if got.Category != source.Category || got.Subtype != source.Subtype || got.Code != source.Code || got.Message != source.Message || got.LogID != source.LogID || got.Troubleshooter != source.Troubleshooter {
+		t.Fatalf("network problem = %#v, want source metadata preserved", got.Problem)
+	}
+	if got.Retryable {
+		t.Fatal("network error Retryable = true, want false")
+	}
+	assertChatMembersAddReadbackHint(t, got.Hint, false)
+	if !errors.Is(got, cause) {
+		t.Fatal("network error cause was not preserved")
+	}
+	if source.Hint != "retry request" || !source.Retryable {
+		t.Fatalf("source network error was mutated: %#v", source.Problem)
+	}
+}
+
+func TestExecuteChatMembersAddMarksBotNetworkOutcomeUnknown(t *testing.T) {
+	requestCount := 0
+	transportCause := errors.New("bot transport marker")
+	runtime := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestCount++
+		if requestCount == 1 {
+			return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+				"code": 0,
+				"data": map[string]interface{}{},
+			}), nil
+		}
+		return nil, transportCause
+	}))
+	setChatMembersAddTestFlags(t, runtime, "oc_test", "ou_ok", "cli_private")
+
+	err := executeChatMembersAdd(runtime, chatMembersAddSpec{
+		ChatID: "oc_test",
+		Users:  []string{"ou_ok"},
+		Bots:   []string{"cli_private"},
+	})
+	assertChatMembersAddPartialFailure(t, err)
+	data := decodeChatMembersAddPartialOutput(t, runtime)
+	if data["failed_member_type"] != "bot" || data["outcome_unknown"] != true {
+		t.Fatalf("failure metadata = %#v, want failed bot with unknown outcome", data)
+	}
+	if got := int(data["success_count"].(float64)); got != 1 {
+		t.Fatalf("success_count = %d, want 1", got)
+	}
+	errorData := data["error"].(map[string]interface{})
+	if retryable, ok := errorData["retryable"].(bool); !ok || retryable {
+		t.Fatalf("error.retryable = %#v, want false", errorData["retryable"])
+	}
+	hint, _ := errorData["hint"].(string)
+	assertChatMembersAddReadbackHint(t, hint, true)
+	if _, exists := errorData["cause"]; exists {
+		t.Fatal("serialized error projection contains cause")
+	}
+}
+
+func TestExecuteChatMembersAddBotOnlyFailureBehavior(t *testing.T) {
+	t.Run("deterministic error passes through", func(t *testing.T) {
+		runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+				"code": 99991672,
+				"msg":  "app scope not applied",
+			}), nil
+		}))
+		setChatMembersAddTestFlags(t, runtime, "oc_test", "", "cli_private")
+		err := executeChatMembersAdd(runtime, chatMembersAddSpec{ChatID: "oc_test", Bots: []string{"cli_private"}})
+		var permissionErr *errs.PermissionError
+		if !errors.As(err, &permissionErr) {
+			t.Fatalf("error = %T, want *errs.PermissionError", err)
+		}
+		if got := chatMembersAddStdout(t, runtime); got != "" {
+			t.Fatalf("stdout = %q, want empty", got)
+		}
+	})
+
+	t.Run("network error disables retry", func(t *testing.T) {
+		transportCause := errors.New("bot-only transport marker")
+		runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return nil, transportCause
+		}))
+		setChatMembersAddTestFlags(t, runtime, "oc_test", "", "cli_private")
+		err := executeChatMembersAdd(runtime, chatMembersAddSpec{ChatID: "oc_test", Bots: []string{"cli_private"}})
+		var networkErr *errs.NetworkError
+		if !errors.As(err, &networkErr) {
+			t.Fatalf("error = %T, want *errs.NetworkError", err)
+		}
+		if networkErr.Retryable {
+			t.Fatal("network error Retryable = true, want false")
+		}
+		assertChatMembersAddReadbackHint(t, networkErr.Hint, true)
+		if got := chatMembersAddStdout(t, runtime); got != "" {
+			t.Fatalf("stdout = %q, want empty", got)
+		}
+	})
+}
+
+func TestExecuteChatMembersAddSuccessOutput(t *testing.T) {
+	t.Run("json", func(t *testing.T) {
+		runtime := newUserShortcutRuntime(t, chatMembersAddSuccessTransport(t, map[string]interface{}{}))
+		setChatMembersAddTestFlags(t, runtime, "oc_test", "ou_a,ou_b", "")
+		err := executeChatMembersAdd(runtime, chatMembersAddSpec{ChatID: "oc_test", Users: []string{"ou_a", "ou_b"}})
+		if err != nil {
+			t.Fatalf("executeChatMembersAdd() error = %v", err)
+		}
+		data, meta := decodeChatMembersAddSuccessOutput(t, runtime)
+		if data["chat_id"] != "oc_test" || int(data["success_count"].(float64)) != 2 {
+			t.Fatalf("success data = %#v", data)
+		}
+		for _, key := range []string{"failed_member_type", "outcome_unknown", "error"} {
+			if _, exists := data[key]; exists {
+				t.Errorf("success data contains failure-only field %q", key)
+			}
+		}
+		if meta == nil || meta.Count != 2 {
+			t.Fatalf("meta = %#v, want count 2", meta)
+		}
+		assertChatMembersAddOutputLists(t, data, []string{}, []string{}, []string{})
+	})
+
+	t.Run("pretty", func(t *testing.T) {
+		runtime := newUserShortcutRuntime(t, chatMembersAddSuccessTransport(t, map[string]interface{}{}))
+		runtime.Format = "pretty"
+		setChatMembersAddTestFlags(t, runtime, "oc_test", "ou_private", "")
+		err := executeChatMembersAdd(runtime, chatMembersAddSpec{ChatID: "oc_test", Users: []string{"ou_private"}})
+		if err != nil {
+			t.Fatalf("executeChatMembersAdd() error = %v", err)
+		}
+		got := chatMembersAddStdout(t, runtime)
+		want := "Chat: oc_test\nAdded members: 1\n"
+		if got != want {
+			t.Fatalf("pretty output = %q, want %q", got, want)
+		}
+		if strings.Contains(got, "ou_private") {
+			t.Fatal("pretty output contains a member identifier")
+		}
+	})
+}
+
+func chatMembersAddSuccessTransport(t *testing.T, data map[string]interface{}) shortcutRoundTripFunc {
+	t.Helper()
+	return shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return shortcutJSONResponse(http.StatusOK, map[string]interface{}{"code": 0, "data": data}), nil
+	})
+}
+
+func assertChatMembersAddPartialFailure(t *testing.T, err error) {
+	t.Helper()
+	var partialErr *output.PartialFailureError
+	if !errors.As(err, &partialErr) {
+		t.Fatalf("error = %T (%v), want *output.PartialFailureError", err, err)
+	}
+	if partialErr.Code != output.ExitAPI || output.ExitCodeOf(err) != output.ExitAPI {
+		t.Fatalf("partial failure exit = %d/%d, want %d", partialErr.Code, output.ExitCodeOf(err), output.ExitAPI)
+	}
+}
+
+func decodeChatMembersAddEnvelope(t *testing.T, runtime *common.RuntimeContext) (bool, map[string]interface{}, *output.Meta) {
+	t.Helper()
+	var envelope struct {
+		OK   bool                   `json:"ok"`
+		Data map[string]interface{} `json:"data"`
+		Meta *output.Meta           `json:"meta"`
+	}
+	if err := json.Unmarshal([]byte(chatMembersAddStdout(t, runtime)), &envelope); err != nil {
+		t.Fatalf("decode stdout: %v", err)
+	}
+	return envelope.OK, envelope.Data, envelope.Meta
+}
+
+func decodeChatMembersAddPartialOutput(t *testing.T, runtime *common.RuntimeContext) map[string]interface{} {
+	t.Helper()
+	ok, data, _ := decodeChatMembersAddEnvelope(t, runtime)
+	if ok {
+		t.Fatal("stdout envelope ok = true, want false")
+	}
+	return data
+}
+
+func decodeChatMembersAddSuccessOutput(t *testing.T, runtime *common.RuntimeContext) (map[string]interface{}, *output.Meta) {
+	t.Helper()
+	ok, data, meta := decodeChatMembersAddEnvelope(t, runtime)
+	if !ok {
+		t.Fatal("stdout envelope ok = false, want true")
+	}
+	return data, meta
+}
+
+func assertChatMembersAddOutputLists(t *testing.T, data map[string]interface{}, invalid, notExisted, pending []string) {
+	t.Helper()
+	for key, want := range map[string][]string{
+		"invalid_id_list":          invalid,
+		"not_existed_id_list":      notExisted,
+		"pending_approval_id_list": pending,
+	} {
+		raw, ok := data[key].([]interface{})
+		if !ok {
+			t.Fatalf("%s = %T, want non-nil array", key, data[key])
+		}
+		got := make([]string, len(raw))
+		for i := range raw {
+			got[i], _ = raw[i].(string)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s = %#v, want %#v", key, got, want)
+		}
+	}
+}
+
+func assertChatMembersAddReadbackHint(t *testing.T, hint string, botsOnly bool) {
+	t.Helper()
+	for _, want := range []string{"im +chat-members-list", "--chat-id <chat_id>", "--page-all", "only"} {
+		if !strings.Contains(hint, want) {
+			t.Errorf("hint = %q, want substring %q", hint, want)
+		}
+	}
+	if botsOnly && !strings.Contains(strings.ToLower(hint), "bot") {
+		t.Errorf("hint = %q, want bot-specific retry guidance", hint)
+	}
+}
+
+func chatMembersAddStdout(t *testing.T, runtime *common.RuntimeContext) string {
+	t.Helper()
+	out, ok := runtime.Factory.IOStreams.Out.(*bytes.Buffer)
+	if !ok {
+		t.Fatalf("stdout buffer has type %T", runtime.Factory.IOStreams.Out)
+	}
+	return out.String()
+}
+
+func chatMembersAddStderr(t *testing.T, runtime *common.RuntimeContext) string {
+	t.Helper()
+	errOut, ok := runtime.Factory.IOStreams.ErrOut.(*bytes.Buffer)
+	if !ok {
+		t.Fatalf("stderr buffer has type %T", runtime.Factory.IOStreams.ErrOut)
+	}
+	return errOut.String()
 }
 
 func TestProjectChatMembersAddResponseUsesEmptySlices(t *testing.T) {
