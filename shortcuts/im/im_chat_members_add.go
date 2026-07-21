@@ -232,9 +232,7 @@ func executeChatMembersAdd(runtime *common.RuntimeContext, spec chatMembersAddSp
 			result.FailedMemberType = "bot"
 			result.OutcomeUnknown = isChatMembersAddOutcomeUnknown(err)
 			result.Error = projectChatMembersAddError(projectedErr, true)
-			if err := writeChatMembersAddProgressWarning(runtime, result.SuccessCount); err != nil {
-				return err
-			}
+			writeChatMembersAddProgressWarning(runtime, result.SuccessCount)
 			return runtime.OutPartialFailure(result, nil)
 		}
 		responses = append(responses, response)
@@ -349,19 +347,13 @@ func isChatMembersAddOutcomeUnknown(err error) bool {
 	return ok && problem.Subtype == errs.SubtypeInvalidResponse
 }
 
-func writeChatMembersAddProgressWarning(runtime *common.RuntimeContext, successCount int) error {
-	if _, err := fmt.Fprintf(
+func writeChatMembersAddProgressWarning(runtime *common.RuntimeContext, successCount int) {
+	// The stdout partial result is authoritative, so a stderr warning failure is best-effort only.
+	_, _ = fmt.Fprintf(
 		runtime.IO().ErrOut,
 		"Added %d user member(s) before the bot member request failed.\n",
 		successCount,
-	); err != nil {
-		return errs.NewInternalError(
-			errs.SubtypeFileIO,
-			"write chat member progress to stderr: %v",
-			err,
-		).WithCause(err)
-	}
-	return nil
+	)
 }
 
 func callChatMembersAddBatch(

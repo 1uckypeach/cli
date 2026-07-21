@@ -1102,7 +1102,7 @@ func TestExecuteChatMembersAddMarksBotNetworkOutcomeUnknown(t *testing.T) {
 	}
 }
 
-func TestExecuteChatMembersAddReturnsTypedErrorWhenProgressWarningFails(t *testing.T) {
+func TestExecuteChatMembersAddPreservesPartialResultWhenProgressWarningFails(t *testing.T) {
 	requestCount := 0
 	writeCause := errors.New("stderr write failed")
 	runtime := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -1118,7 +1118,8 @@ func TestExecuteChatMembersAddReturnsTypedErrorWhenProgressWarningFails(t *testi
 			"msg":  "app scope not applied",
 		}), nil
 	}))
-	runtime.Factory.IOStreams.ErrOut = chatMembersAddFailingWriter{err: writeCause}
+	failingWriter := &chatMembersAddFailingWriter{err: writeCause}
+	runtime.Factory.IOStreams.ErrOut = failingWriter
 	setChatMembersAddTestFlags(t, runtime, "oc_test", "ou_ok", "cli_private")
 
 	err := executeChatMembersAdd(runtime, chatMembersAddSpec{
@@ -1126,18 +1127,22 @@ func TestExecuteChatMembersAddReturnsTypedErrorWhenProgressWarningFails(t *testi
 		Users:  []string{"ou_ok"},
 		Bots:   []string{"cli_private"},
 	})
-	var internalErr *errs.InternalError
-	if !errors.As(err, &internalErr) {
-		t.Fatalf("error = %T, want *errs.InternalError", err)
+	assertChatMembersAddPartialFailure(t, err)
+	data := decodeChatMembersAddPartialOutput(t, runtime)
+	if data["chat_id"] != "oc_test" || int(data["success_count"].(float64)) != 1 {
+		t.Fatalf("partial result = %#v, want chat and one confirmed user", data)
 	}
-	if internalErr.Subtype != errs.SubtypeFileIO {
-		t.Fatalf("error subtype = %q, want %q", internalErr.Subtype, errs.SubtypeFileIO)
+	if data["failed_member_type"] != "bot" || data["outcome_unknown"] != false {
+		t.Fatalf("failure metadata = %#v, want deterministic bot failure", data)
 	}
-	if !errors.Is(err, writeCause) {
-		t.Fatal("stderr write error cause was not preserved")
+	assertChatMembersAddOutputLists(t, data, []string{}, []string{}, []string{})
+	errorData, ok := data["error"].(map[string]interface{})
+	if !ok || errorData["type"] != string(errs.CategoryAuthorization) {
+		t.Fatalf("error projection = %#v, want authorization error", data["error"])
 	}
-	if got := chatMembersAddStdout(t, runtime); got != "" {
-		t.Fatalf("stdout = %q, want empty", got)
+	wantWarning := "Added 1 user member(s) before the bot member request failed.\n"
+	if len(failingWriter.attempts) != 1 || failingWriter.attempts[0] != wantWarning {
+		t.Fatalf("stderr attempts = %#v, want one warning", failingWriter.attempts)
 	}
 }
 
@@ -1324,10 +1329,12 @@ func chatMembersAddStderr(t *testing.T, runtime *common.RuntimeContext) string {
 }
 
 type chatMembersAddFailingWriter struct {
-	err error
+	err      error
+	attempts []string
 }
 
-func (w chatMembersAddFailingWriter) Write([]byte) (int, error) {
+func (w *chatMembersAddFailingWriter) Write(p []byte) (int, error) {
+	w.attempts = append(w.attempts, string(p))
 	return 0, w.err
 }
 
