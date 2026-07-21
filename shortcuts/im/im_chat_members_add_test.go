@@ -434,6 +434,141 @@ func TestExecuteChatMembersAddUsersBeforeBots(t *testing.T) {
 	}
 }
 
+func TestExecuteChatMembersAddUsersOnly(t *testing.T) {
+	got := executeSingleChatMembersAddRequest(t, "user", chatMembersAddSpec{
+		ChatID: "oc_test/slash",
+		Users:  []string{"ou_b", "ou_a"},
+	})
+	assertSingleChatMembersAddRequest(t, got, "open_id", []string{"ou_b", "ou_a"})
+}
+
+func TestExecuteChatMembersAddBotsOnly(t *testing.T) {
+	got := executeSingleChatMembersAddRequest(t, "bot", chatMembersAddSpec{
+		ChatID: "oc_test/slash",
+		Bots:   []string{"cli_b", "cli_a"},
+	})
+	assertSingleChatMembersAddRequest(t, got, "app_id", []string{"cli_b", "cli_a"})
+}
+
+type chatMembersAddRequestRecord struct {
+	method       string
+	escapedPath  string
+	memberIDType string
+	succeedType  string
+	idList       []string
+}
+
+func executeSingleChatMembersAddRequest(t *testing.T, identity string, spec chatMembersAddSpec) chatMembersAddRequestRecord {
+	t.Helper()
+
+	var requests []chatMembersAddRequestRecord
+	transport := shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var body struct {
+			IDList []string `json:"id_list"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			t.Fatalf("json.Decode() error = %v", err)
+		}
+		requests = append(requests, chatMembersAddRequestRecord{
+			method:       req.Method,
+			escapedPath:  req.URL.EscapedPath(),
+			memberIDType: req.URL.Query().Get("member_id_type"),
+			succeedType:  req.URL.Query().Get("succeed_type"),
+			idList:       body.IDList,
+		})
+		return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{},
+		}), nil
+	})
+
+	var runtime *common.RuntimeContext
+	switch identity {
+	case "user":
+		runtime = newUserShortcutRuntime(t, transport)
+	case "bot":
+		runtime = newBotShortcutRuntime(t, transport)
+	default:
+		t.Fatalf("unsupported test identity %q", identity)
+	}
+	setChatMembersAddTestFlags(t, runtime, spec.ChatID, strings.Join(spec.Users, ","), strings.Join(spec.Bots, ","))
+
+	if err := executeChatMembersAdd(runtime, spec); err != nil {
+		t.Fatalf("executeChatMembersAdd() error = %v", err)
+	}
+	if len(requests) != 1 {
+		t.Fatalf("request count = %d, want 1", len(requests))
+	}
+	return requests[0]
+}
+
+func assertSingleChatMembersAddRequest(t *testing.T, got chatMembersAddRequestRecord, wantMemberIDType string, wantIDs []string) {
+	t.Helper()
+
+	if got.method != http.MethodPost {
+		t.Errorf("method = %q, want %q", got.method, http.MethodPost)
+	}
+	if got.escapedPath != "/open-apis/im/v1/chats/oc_test%2Fslash/members" {
+		t.Errorf("escaped path = %q, want encoded chat ID", got.escapedPath)
+	}
+	if got.memberIDType != wantMemberIDType {
+		t.Errorf("member_id_type = %q, want %q", got.memberIDType, wantMemberIDType)
+	}
+	if got.succeedType != "1" {
+		t.Errorf("succeed_type = %q, want %q", got.succeedType, "1")
+	}
+	if !reflect.DeepEqual(got.idList, wantIDs) {
+		t.Errorf("id_list = %#v, want %#v", got.idList, wantIDs)
+	}
+}
+
+func TestExecuteChatMembersAddPassesThroughUserAPIError(t *testing.T) {
+	requestCount := 0
+	runtime := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestCount++
+		if got := req.URL.Query().Get("member_id_type"); got != "open_id" {
+			t.Fatalf("member_id_type = %q, want first request to use open_id", got)
+		}
+		return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+			"code": 123456789,
+			"msg":  "member request rejected",
+			"error": map[string]interface{}{
+				"log_id": "log-chat-members-add",
+			},
+		}), nil
+	}))
+	setChatMembersAddTestFlags(t, runtime, "oc_test", "ou_a", "cli_a")
+
+	err := executeChatMembersAdd(runtime, chatMembersAddSpec{
+		ChatID: "oc_test",
+		Users:  []string{"ou_a"},
+		Bots:   []string{"cli_a"},
+	})
+	if err == nil {
+		t.Fatal("executeChatMembersAdd() error = nil, want typed API error")
+	}
+	var apiErr *errs.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("executeChatMembersAdd() error = %T, want *errs.APIError", err)
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("ProblemOf(%v) returned ok=false", err)
+	}
+	if problem.Category != errs.CategoryAPI || problem.Subtype != errs.SubtypeUnknown {
+		t.Errorf("problem category/subtype = %q/%q, want %q/%q", problem.Category, problem.Subtype, errs.CategoryAPI, errs.SubtypeUnknown)
+	}
+	if problem.Code != 123456789 {
+		t.Errorf("problem code = %d, want %d", problem.Code, 123456789)
+	}
+	if problem.LogID != "log-chat-members-add" {
+		t.Errorf("problem log_id = %q, want %q", problem.LogID, "log-chat-members-add")
+	}
+	if requestCount != 1 {
+		t.Fatalf("request count = %d, want 1; bot request must not execute", requestCount)
+	}
+}
+
 func TestProjectChatMembersAddResponseUsesEmptySlices(t *testing.T) {
 	got := projectChatMembersAddResponse(map[string]interface{}{})
 	if got.InvalidIDList == nil || got.NotExistedIDList == nil || got.PendingApprovalIDList == nil {
@@ -441,6 +576,33 @@ func TestProjectChatMembersAddResponseUsesEmptySlices(t *testing.T) {
 	}
 	if len(got.InvalidIDList) != 0 || len(got.NotExistedIDList) != 0 || len(got.PendingApprovalIDList) != 0 {
 		t.Fatalf("projectChatMembersAddResponse() = %#v, want empty slices", got)
+	}
+}
+
+func TestProjectChatMembersAddResponsePreservesAllLists(t *testing.T) {
+	data := map[string]interface{}{
+		"invalid_id_list": []interface{}{
+			map[string]interface{}{"id": "first-invalid", "reason": "invalid"},
+			map[string]interface{}{"id": "second-invalid", "reason": "invalid"},
+		},
+		"not_existed_id_list": []interface{}{
+			map[string]interface{}{"id": "first-missing", "reason": "not_existed"},
+			map[string]interface{}{"id": "second-missing", "reason": "not_existed"},
+		},
+		"pending_approval_id_list": []interface{}{
+			map[string]interface{}{"id": "first-pending", "reason": "pending"},
+			map[string]interface{}{"id": "second-pending", "reason": "pending"},
+		},
+	}
+
+	got := projectChatMembersAddResponse(data)
+	want := chatMembersAddResponse{
+		InvalidIDList:         data["invalid_id_list"].([]interface{}),
+		NotExistedIDList:      data["not_existed_id_list"].([]interface{}),
+		PendingApprovalIDList: data["pending_approval_id_list"].([]interface{}),
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("projectChatMembersAddResponse() = %#v, want %#v", got, want)
 	}
 }
 
