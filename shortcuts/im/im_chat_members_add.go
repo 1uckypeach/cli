@@ -25,14 +25,28 @@ const (
 	imChatMembersAddBotLimit   = 5
 	imChatMembersAddIDMaxBytes = 256
 
-	imChatMembersAddReadbackHint = "List current chat members with lark-cli im +chat-members-list --chat-id <chat_id> --page-all before retrying; retry only members not confirmed present."
-	imChatBotsAddReadbackHint    = "List current chat members with lark-cli im +chat-members-list --chat-id <chat_id> --page-all before retrying; retry only bots not confirmed present."
+	imChatMembersAddReadbackHint = "List current chat members with lark-cli im +chat-members-list --chat-id <chat_id> --member-types user --page-all --page-limit 0 --as <same-identity> before retrying. Treat a member not found as missing only when has_more:false and truncations has no entry for member_type user; otherwise do not retry the unknown batch. Retry only user members not confirmed present."
+	imChatBotsAddReadbackHint    = "List current chat members with lark-cli im +chat-members-list --chat-id <chat_id> --member-types bot --page-all --page-limit 0 --as <same-identity> before retrying. Treat a member not found as missing only when has_more:false and truncations has no entry for member_type bot; otherwise do not retry the unknown batch. Retry only bots not confirmed present."
 )
 
 var (
 	imChatMembersAddIDSuffix             = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
-	errChatMembersAddMissingResponseData = errors.New("chat member response data is missing or invalid")
+	errChatMembersAddMissingResponseData = chatMembersAddInvalidResponseCause{
+		reason: "chat member response data is missing or invalid",
+	}
 )
+
+type chatMembersAddInvalidResponseCause struct {
+	field  string
+	reason string
+}
+
+func (e chatMembersAddInvalidResponseCause) Error() string {
+	if e.field == "" {
+		return e.reason
+	}
+	return e.field + " " + e.reason
+}
 
 type chatMembersAddSpecContextKey struct{}
 
@@ -523,7 +537,7 @@ func projectChatMembersAddList(data map[string]interface{}, key string) ([]strin
 }
 
 func newInvalidChatMembersAddResponseError(field, reason string) error {
-	cause := fmt.Errorf("%s %s", field, reason)
+	cause := chatMembersAddInvalidResponseCause{field: field, reason: reason}
 	return errs.NewInternalError(
 		errs.SubtypeInvalidResponse,
 		"API returned invalid %s",

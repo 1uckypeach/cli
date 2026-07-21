@@ -1676,13 +1676,35 @@ func assertChatMembersAddOutputLists(t *testing.T, data map[string]interface{}, 
 
 func assertChatMembersAddReadbackHint(t *testing.T, hint string, botsOnly bool) {
 	t.Helper()
-	for _, want := range []string{"im +chat-members-list", "--chat-id <chat_id>", "--page-all", "only"} {
+	wantHint := "List current chat members with lark-cli im +chat-members-list --chat-id <chat_id> --member-types user --page-all --page-limit 0 --as <same-identity> before retrying. Treat a member not found as missing only when has_more:false and truncations has no entry for member_type user; otherwise do not retry the unknown batch. Retry only user members not confirmed present."
+	wantMemberType := "user"
+	if botsOnly {
+		wantHint = "List current chat members with lark-cli im +chat-members-list --chat-id <chat_id> --member-types bot --page-all --page-limit 0 --as <same-identity> before retrying. Treat a member not found as missing only when has_more:false and truncations has no entry for member_type bot; otherwise do not retry the unknown batch. Retry only bots not confirmed present."
+		wantMemberType = "bot"
+	}
+	if hint != wantHint {
+		t.Errorf("hint = %q, want %q", hint, wantHint)
+	}
+	for _, want := range []string{
+		"im +chat-members-list",
+		"--chat-id <chat_id>",
+		"--member-types " + wantMemberType,
+		"--page-all",
+		"--page-limit 0",
+		"--as <same-identity>",
+		"has_more:false",
+		"truncations",
+		"member_type " + wantMemberType,
+		"only",
+	} {
 		if !strings.Contains(hint, want) {
 			t.Errorf("hint = %q, want substring %q", hint, want)
 		}
 	}
-	if botsOnly && !strings.Contains(strings.ToLower(hint), "bot") {
-		t.Errorf("hint = %q, want bot-specific retry guidance", hint)
+	for _, prohibited := range []string{"oc_test", "ou_", "cli_", "tenant-token", "test-secret", "invalid-data-shape"} {
+		if strings.Contains(hint, prohibited) {
+			t.Errorf("hint contains protected runtime data %q", prohibited)
+		}
 	}
 }
 
