@@ -167,6 +167,7 @@ func parseAnswers(raw []string) (map[string][]string, error) {
 // field it forgot. Returns the parsed answers map for the answer mode (nil
 // otherwise).
 func deriveSendMode(opts *sendOptions) (sendMode, map[string][]string, error) {
+	hasText := strings.TrimSpace(opts.Text) != ""
 	if len(opts.Answers) > 0 {
 		// answer: continues the pending group's own task, so both ids are required.
 		if opts.ContextID == "" || opts.TaskID == "" {
@@ -189,8 +190,8 @@ func deriveSendMode(opts *sendOptions) (sendMode, map[string][]string, error) {
 			WithParam("--task-id").
 			WithHint("补充 --context-id <ctx-id> 后重发；该任务所属会话可用 lark-cli agents task get <agent_ref> <task-id> 输出的 context_id 确认")
 	}
-	if opts.Text == "" {
-		return "", nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--text 不能为空").
+	if !hasText {
+		return "", nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--text 必须包含非空白字符").
 			WithParam("--text").
 			WithHint(`补充 --text "<消息内容>" 后重发；若在回答问题组，用 --answer <question_id>=<option_id> 或 --answer <question_id>.text=<文本>`)
 	}

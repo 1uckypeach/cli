@@ -74,28 +74,38 @@ func sendTestOpts(t *testing.T) *sendOptions {
 	}
 }
 
-// TestSendRequiresText pins that an empty --text is a validation error
+// TestSendRequiresText pins that an empty or whitespace-only --text is a validation error
 // (subtype invalid_argument) raised before any provider is built.
 func TestSendRequiresText(t *testing.T) {
-	err := agentSendRun(&sendOptions{Ref: "example:agt_x", Text: ""})
-	if err == nil {
-		t.Fatal("missing --text should raise a validation error")
-	}
-	if !errs.IsValidation(err) {
-		t.Fatalf("want validation error, got %T", err)
-	}
-	p, ok := errs.ProblemOf(err)
-	if !ok || p.Subtype != errs.SubtypeInvalidArgument {
-		t.Fatalf("subtype should be invalid_argument, got %+v", p)
-	}
-	// hint contract: a missing --text must carry a copy-pasteable remediation
-	// hint, and the param uses the -- prefix.
-	if !strings.Contains(p.Hint, "--text") {
-		t.Errorf("hint should guide adding --text, got %q", p.Hint)
-	}
-	var verr *errs.ValidationError
-	if !errors.As(err, &verr) || verr.Param != "--text" {
-		t.Errorf("param should be --text, got %+v", verr)
+	for name, text := range map[string]string{
+		"empty":            "",
+		"spaces":           "   ",
+		"tab":              "\t",
+		"newline":          "\n",
+		"full width space": "\u3000",
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := agentSendRun(&sendOptions{Ref: "example:agt_x", Text: text})
+			if err == nil {
+				t.Fatal("missing --text should raise a validation error")
+			}
+			if !errs.IsValidation(err) {
+				t.Fatalf("want validation error, got %T", err)
+			}
+			p, ok := errs.ProblemOf(err)
+			if !ok || p.Subtype != errs.SubtypeInvalidArgument {
+				t.Fatalf("subtype should be invalid_argument, got %+v", p)
+			}
+			// hint contract: a missing --text must carry a copy-pasteable remediation
+			// hint, and the param uses the -- prefix.
+			if !strings.Contains(p.Hint, "--text") {
+				t.Errorf("hint should guide adding --text, got %q", p.Hint)
+			}
+			var verr *errs.ValidationError
+			if !errors.As(err, &verr) || verr.Param != "--text" {
+				t.Errorf("param should be --text, got %+v", verr)
+			}
+		})
 	}
 }
 
