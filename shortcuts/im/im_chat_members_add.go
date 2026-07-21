@@ -4,10 +4,14 @@
 package im
 
 import (
+	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/shortcuts/common"
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 )
 
 const imChatMembersAddPathFmt = "/open-apis/im/v1/chats/%s/members"
@@ -69,4 +73,86 @@ func validateChatMembersAdd(runtime *common.RuntimeContext) error {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "at least one of --users or --bots is required")
 	}
 	return nil
+}
+
+// chatMembersAddResult is the merged ledger across the users-call and the
+// bots-call.
+type chatMembersAddResult struct {
+	succeeded       []string
+	invalid         []string
+	notExisted      []string
+	pendingApproval []string
+	callErrors      []map[string]interface{}
+}
+
+func newChatMembersAddResult() *chatMembersAddResult {
+	return &chatMembersAddResult{
+		succeeded:       []string{},
+		invalid:         []string{},
+		notExisted:      []string{},
+		pendingApproval: []string{},
+		callErrors:      []map[string]interface{}{},
+	}
+}
+
+// addChatMembersBatch issues one chat.members.create call for a single
+// member_id_type and folds the outcome into res. A full-call error (e.g.
+// missing scope, chat-wide bot cap exceeded) is recorded as a call_errors
+// entry carrying the affected id_list, rather than aborting the other call.
+func addChatMembersBatch(runtime *common.RuntimeContext, chatID, memberType, memberIDType string, ids []string, res *chatMembersAddResult) {
+	path := fmt.Sprintf(imChatMembersAddPathFmt, validate.EncodePathSegment(chatID))
+	data, err := runtime.DoAPIJSONTyped(http.MethodPost, path,
+		larkcore.QueryParams{
+			"member_id_type": []string{memberIDType},
+			"succeed_type":   []string{"1"},
+		},
+		map[string]interface{}{"id_list": ids},
+	)
+	if err != nil {
+		res.callErrors = append(res.callErrors, map[string]interface{}{
+			"member_type": memberType,
+			"id_list":     ids,
+			"error":       err.Error(),
+		})
+		return
+	}
+
+	invalid := stringsFromAny(data["invalid_id_list"])
+	notExisted := stringsFromAny(data["not_existed_id_list"])
+	pending := stringsFromAny(data["pending_approval_id_list"])
+	res.invalid = append(res.invalid, invalid...)
+	res.notExisted = append(res.notExisted, notExisted...)
+	res.pendingApproval = append(res.pendingApproval, pending...)
+
+	failed := make(map[string]struct{}, len(invalid)+len(notExisted)+len(pending))
+	for _, id := range invalid {
+		failed[id] = struct{}{}
+	}
+	for _, id := range notExisted {
+		failed[id] = struct{}{}
+	}
+	for _, id := range pending {
+		failed[id] = struct{}{}
+	}
+	for _, id := range ids {
+		if _, isFailed := failed[id]; !isFailed {
+			res.succeeded = append(res.succeeded, id)
+		}
+	}
+}
+
+// stringsFromAny converts a JSON-decoded []interface{} of strings to []string,
+// skipping any non-string entries defensively.
+func stringsFromAny(v interface{}) []string {
+	arr, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(arr))
+	for _, item := range arr {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }

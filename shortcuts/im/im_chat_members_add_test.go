@@ -152,3 +152,69 @@ func newChatMembersAddTestRuntime(t *testing.T, rtRoundTripper http.RoundTripper
 	runtime.Cmd = cmd
 	return runtime
 }
+
+func TestAddChatMembersBatch_AllSucceed(t *testing.T) {
+	rt := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return shortcutJSONResponse(200, map[string]interface{}{"code": 0, "data": map[string]interface{}{}}), nil
+	}))
+	res := newChatMembersAddResult()
+	addChatMembersBatch(rt, "oc_x", "user", "open_id", []string{"ou_a", "ou_b"}, res)
+
+	if !equalStringSlices(res.succeeded, []string{"ou_a", "ou_b"}) {
+		t.Errorf("succeeded = %v, want [ou_a ou_b]", res.succeeded)
+	}
+	if len(res.invalid) != 0 || len(res.notExisted) != 0 || len(res.pendingApproval) != 0 || len(res.callErrors) != 0 {
+		t.Errorf("expected no failures, got %+v", res)
+	}
+}
+
+func TestAddChatMembersBatch_PartialFailure(t *testing.T) {
+	rt := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return shortcutJSONResponse(200, map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{
+				"invalid_id_list":          []interface{}{"ou_c"},
+				"not_existed_id_list":      []interface{}{"ou_d"},
+				"pending_approval_id_list": []interface{}{"ou_e"},
+			},
+		}), nil
+	}))
+	res := newChatMembersAddResult()
+	addChatMembersBatch(rt, "oc_x", "user", "open_id", []string{"ou_a", "ou_b", "ou_c", "ou_d", "ou_e"}, res)
+
+	if !equalStringSlices(res.succeeded, []string{"ou_a", "ou_b"}) {
+		t.Errorf("succeeded = %v, want [ou_a ou_b]", res.succeeded)
+	}
+	if !equalStringSlices(res.invalid, []string{"ou_c"}) {
+		t.Errorf("invalid = %v, want [ou_c]", res.invalid)
+	}
+	if !equalStringSlices(res.notExisted, []string{"ou_d"}) {
+		t.Errorf("notExisted = %v, want [ou_d]", res.notExisted)
+	}
+	if !equalStringSlices(res.pendingApproval, []string{"ou_e"}) {
+		t.Errorf("pendingApproval = %v, want [ou_e]", res.pendingApproval)
+	}
+}
+
+func TestAddChatMembersBatch_CallLevelFailure(t *testing.T) {
+	rt := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return shortcutJSONResponse(400, map[string]interface{}{"code": 123, "msg": "bot count exceeds chat limit"}), nil
+	}))
+	res := newChatMembersAddResult()
+	addChatMembersBatch(rt, "oc_x", "bot", "app_id", []string{"cli_y"}, res)
+
+	if len(res.succeeded) != 0 {
+		t.Errorf("succeeded = %v, want empty (call failed)", res.succeeded)
+	}
+	if len(res.callErrors) != 1 {
+		t.Fatalf("callErrors = %v, want 1 entry", res.callErrors)
+	}
+	ce := res.callErrors[0]
+	if ce["member_type"] != "bot" {
+		t.Errorf("call_errors[0].member_type = %v, want bot", ce["member_type"])
+	}
+	ids, _ := ce["id_list"].([]string)
+	if !equalStringSlices(ids, []string{"cli_y"}) {
+		t.Errorf("call_errors[0].id_list = %v, want [cli_y]", ids)
+	}
+}
