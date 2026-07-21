@@ -242,8 +242,8 @@ func missingPermissionNames(result *clie2e.Result) []string {
 	fallbackNames := map[string]struct{}{}
 	missingScopeFailure := false
 	for _, raw := range []string{result.Stdout, result.Stderr} {
-		payload := strings.TrimSpace(raw)
-		if !gjson.Valid(payload) {
+		payload := extractTrailingJSONEnvelope(raw)
+		if payload == "" {
 			continue
 		}
 		subtype := gjson.Get(payload, "error.subtype").String()
@@ -280,6 +280,30 @@ func missingPermissionNames(result *clie2e.Result) []string {
 	}
 	sort.Strings(resultNames)
 	return resultNames
+}
+
+func extractTrailingJSONEnvelope(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	if strings.HasPrefix(trimmed, "{") && gjson.Valid(trimmed) {
+		return trimmed
+	}
+
+	searchEnd := len(trimmed)
+	for searchEnd > 0 {
+		candidateStart := strings.LastIndex(trimmed[:searchEnd], "{")
+		if candidateStart < 0 {
+			return ""
+		}
+		candidate := strings.TrimSpace(trimmed[candidateStart:])
+		if gjson.Valid(candidate) {
+			return candidate
+		}
+		searchEnd = candidateStart
+	}
+	return ""
 }
 
 func isMissingIMMemberScope(subtype string, code int64) bool {
@@ -338,6 +362,22 @@ func TestMissingIMMemberPermissionNames(t *testing.T) {
 			want:   []string{"scope code 99991679"},
 		},
 		{
+			name:   "page progress before missing scope",
+			stderr: "[page 1] fetching...\n{\"error\":{\"type\":\"authorization\",\"subtype\":\"missing_scope\",\"missing_scopes\":[\"im:chat.members:read\"]}}",
+			want:   []string{"im:chat.members:read"},
+		},
+		{
+			name: "page progress before multiline scope envelope",
+			stderr: "[page 1] fetching...\n{\n" +
+				"  \"error\": {\n" +
+				"    \"type\": \"authorization\",\n" +
+				"    \"subtype\": \"app_scope_not_applied\",\n" +
+				"    \"missing_scopes\": [\"im:chat.members:write_only\"]\n" +
+				"  }\n" +
+				"}\n",
+			want: []string{chatMembersAddWriteScope},
+		},
+		{
 			name:   "authorization category alone",
 			stderr: `{"error":{"type":"authorization","subtype":"unknown"}}`,
 		},
@@ -346,8 +386,16 @@ func TestMissingIMMemberPermissionNames(t *testing.T) {
 			stderr: `{"error":{"type":"authorization","subtype":"permission_denied"}}`,
 		},
 		{
+			name:   "page progress before permission denied",
+			stderr: "[page 1] fetching...\n{\"error\":{\"type\":\"authorization\",\"subtype\":\"permission_denied\"}}",
+		},
+		{
 			name:   "not in chat resource state",
 			stderr: `{"error":{"type":"validation","subtype":"failed_precondition","message":"not in chat"}}`,
+		},
+		{
+			name:   "page progress before resource state error",
+			stderr: "[page 1] fetching...\n{\"error\":{\"type\":\"validation\",\"subtype\":\"failed_precondition\",\"message\":\"not in chat\"}}",
 		},
 		{
 			name:   "no invite permission",
@@ -360,6 +408,14 @@ func TestMissingIMMemberPermissionNames(t *testing.T) {
 		{
 			name:   "unknown error",
 			stderr: `{"error":{"type":"internal","subtype":"unknown"}}`,
+		},
+		{
+			name:   "non JSON progress text",
+			stderr: "[page 1] fetching...\nrequest failed",
+		},
+		{
+			name:   "embedded JSON does not cover text end",
+			stderr: `[page {"error":{"subtype":"missing_scope"}}] fetching...`,
 		},
 	}
 
@@ -380,8 +436,8 @@ func resultErrorSummary(result *clie2e.Result) string {
 		return "result=nil"
 	}
 	for _, raw := range []string{result.Stderr, result.Stdout} {
-		payload := strings.TrimSpace(raw)
-		if !gjson.Valid(payload) {
+		payload := extractTrailingJSONEnvelope(raw)
+		if payload == "" {
 			continue
 		}
 		return "type=" + gjson.Get(payload, "error.type").String() +
