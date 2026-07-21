@@ -177,10 +177,10 @@ func TestSendAnswerRequiresTaskContext(t *testing.T) {
 func TestSendAnswerGrammar(t *testing.T) {
 	err := agentSendRun(&sendOptions{Ref: "example:agt_x", ContextID: "sess_1", TaskID: "task_1",
 		Answers: []string{
-			"noequals",           // 非 key=value
-			"q1.txt=x",           // 后缀拼错：非法 key
-			"--text=x",           // flag 形状 key：首字符非法
-			"q2=",                // 空值
+			"noequals",               // 非 key=value
+			"q1.txt=x",               // 后缀拼错：非法 key
+			"--text=x",               // flag 形状 key：首字符非法
+			"q2=",                    // 空值
 			"q3.text=a", "q3.text=b", // .text 不累积
 		}})
 	if err == nil {

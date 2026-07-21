@@ -253,9 +253,9 @@ func TestStateSurvivesReload(t *testing.T) {
 // group (§10.1 key encoding): q1 by option, q2 by text, q3 multi-select.
 func plannerAnswers(ir *agents.InputRequired) map[string][]string {
 	return map[string][]string{
-		ir.Questions[0].QuestionID:                            {"by_region"},
-		ir.Questions[1].QuestionID + agents.AnswerTextSuffix:  {"2024 全年"},
-		ir.Questions[2].QuestionID:                            {"east", "north"},
+		ir.Questions[0].QuestionID:                           {"by_region"},
+		ir.Questions[1].QuestionID + agents.AnswerTextSuffix: {"2024 全年"},
+		ir.Questions[2].QuestionID:                           {"east", "north"},
 	}
 }
 
@@ -366,9 +366,9 @@ func TestPlannerCollectAllValidation(t *testing.T) {
 	_, err = plannerSend(ctx, rt, agents.SendInput{
 		ContextID: t1.ContextID, TaskID: t1.TaskID,
 		Answers: map[string][]string{
-			"q1_stale":                 {"by_region"},        // 陈旧/拼错键 → unknown_question
-			ir.Questions[0].QuestionID: {"nonexistent"},      // 非法选项 → invalid_option
-			ir.Questions[2].QuestionID: {"east", "skip"},     // skip 与实值互斥 → conflict
+			"q1_stale":                 {"by_region"},    // 陈旧/拼错键 → unknown_question
+			ir.Questions[0].QuestionID: {"nonexistent"},  // 非法选项 → invalid_option
+			ir.Questions[2].QuestionID: {"east", "skip"}, // skip 与实值互斥 → conflict
 			// Questions[1] 未答 → missing
 		},
 	})
