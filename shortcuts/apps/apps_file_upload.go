@@ -33,6 +33,15 @@ const fileUploadMaxBytes = 100 * 1024 * 1024
 // absolute paths (and paths outside the working directory), bypassing the
 // SafeInputPath jail — the source file is only read locally and streamed to the
 // app's storage, so an operator may upload from anywhere on the machine.
+//
+// Why the accepted risk is bounded: the upload destination is CONTROLLED, not
+// attacker-chosen. The miaoda apps flow reads the local file and then uploads it
+// to the remote server — the bytes are PUT to a presigned upload_url returned by
+// miaoda's own file_pre_upload endpoint (step 1), i.e. a miaoda-owned domain,
+// into the caller's own app storage under their own user token. Widening --file
+// only changes what can be READ locally (already readable by the token holder),
+// not where it can be SENT, so this is not an arbitrary-exfiltration primitive
+// and the security risk is acceptable.
 var AppsFileUpload = common.Shortcut{
 	Service:     appsService,
 	Command:     "+file-upload",
