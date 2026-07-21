@@ -50,7 +50,7 @@ fi
 WORKFLOW=$(git show "${HEAD_SHA}:.github/workflows/release.yml")
 if ! grep -Fq 'args: release --clean --skip=publish' <<<"${WORKFLOW}" ||
    ! grep -Eq 'npm stage publish .*--tag beta' <<<"${WORKFLOW}" ||
-   grep -Eq '(^|[[:space:]])npm publish([[:space:]]|$)' <<<"${WORKFLOW}" ||
+   grep -Eq '^[[:space:]]*(run:[[:space:]]*)?npm[[:space:]]+publish([[:space:]]|$)' <<<"${WORKFLOW}" ||
    grep -Eq 'gh[[:space:]]+release([[:space:]]|$)' <<<"${WORKFLOW}" ||
    grep -Eq 'contents:[[:space:]]*write' <<<"${WORKFLOW}" ||
    grep -Fq 'GITHUB_TOKEN:' <<<"${WORKFLOW}"; then

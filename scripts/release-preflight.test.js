@@ -512,6 +512,22 @@ describe("tag-release.sh behavior", () => {
     assertNoTagWrites(calls);
   });
 
+  it("allows a stage-only workflow whose step label mentions npm publish", (t) => {
+    const fixture = createReleaseFixture(t, {
+      FAKE_WORKFLOW: [
+        "args: release --clean --skip=publish",
+        "- name: Verify npm publish asset",
+        "  run: |",
+        "    npm stage publish --access public --tag beta",
+      ].join("\\n"),
+    });
+
+    const result = runTagRelease(fixture);
+
+    assert.equal(result.status, 0, result.stderr);
+    assertNoTagWrites(readGitCalls(fixture));
+  });
+
   it("rejects a production version before invoking git", (t) => {
     const fixture = createReleaseFixture(t);
     fs.writeFileSync(path.join(fixture.root, "package.json"), '{"version":"1.2.3"}\n');
