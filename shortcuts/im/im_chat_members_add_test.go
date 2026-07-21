@@ -4,12 +4,16 @@
 package im
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/spf13/cobra"
 )
@@ -216,5 +220,138 @@ func TestAddChatMembersBatch_CallLevelFailure(t *testing.T) {
 	ids, _ := ce["id_list"].([]string)
 	if !equalStringSlices(ids, []string{"cli_y"}) {
 		t.Errorf("call_errors[0].id_list = %v, want [cli_y]", ids)
+	}
+}
+
+func TestImChatMembersAddExecute_AllSucceed(t *testing.T) {
+	var gotPaths []string
+	rt := newChatMembersAddTestRuntime(t,
+		shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			gotPaths = append(gotPaths, req.URL.Path+"?"+req.URL.RawQuery)
+			return shortcutJSONResponse(200, map[string]interface{}{"code": 0, "data": map[string]interface{}{}}), nil
+		}),
+		map[string]string{"chat-id": "oc_x"},
+		map[string][]string{"users": {"ou_a"}, "bots": {"cli_x"}},
+	)
+
+	err := ImChatMembersAdd.Execute(context.Background(), rt)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if len(gotPaths) != 2 {
+		t.Fatalf("want 2 API calls (users + bots), got %d: %v", len(gotPaths), gotPaths)
+	}
+
+	out := rt.Factory.IOStreams.Out.(interface{ String() string }).String()
+	if !strings.Contains(out, `"ok": true`) {
+		t.Errorf("output = %s, want ok:true", out)
+	}
+	if !strings.Contains(out, `"success_count": 2`) {
+		t.Errorf("output = %s, want success_count 2", out)
+	}
+}
+
+func TestImChatMembersAddExecute_PartialFailure(t *testing.T) {
+	rt := newChatMembersAddTestRuntime(t,
+		shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if req.URL.Query().Get("member_id_type") == "open_id" {
+				return shortcutJSONResponse(200, map[string]interface{}{
+					"code": 0,
+					"data": map[string]interface{}{"invalid_id_list": []interface{}{"ou_c"}},
+				}), nil
+			}
+			return shortcutJSONResponse(200, map[string]interface{}{"code": 0, "data": map[string]interface{}{}}), nil
+		}),
+		map[string]string{"chat-id": "oc_x"},
+		map[string][]string{"users": {"ou_a", "ou_c"}, "bots": {"cli_x"}},
+	)
+
+	err := ImChatMembersAdd.Execute(context.Background(), rt)
+	var pfErr *output.PartialFailureError
+	if !errors.As(err, &pfErr) {
+		t.Fatalf("Execute() error = %T %v, want partial failure", err, err)
+	}
+	if pfErr.Code != output.ExitAPI {
+		t.Fatalf("partial failure exit code = %d, want %d (ExitAPI)", pfErr.Code, output.ExitAPI)
+	}
+
+	out := rt.Factory.IOStreams.Out.(interface{ String() string }).String()
+	if !strings.Contains(out, `"ok": false`) {
+		t.Errorf("output = %s, want ok:false", out)
+	}
+	if !strings.Contains(out, `"failure_count": 1`) {
+		t.Errorf("output = %s, want failure_count 1", out)
+	}
+	if !strings.Contains(out, `"success_count": 2`) {
+		t.Errorf("output = %s, want success_count 2", out)
+	}
+}
+
+func TestImChatMembersAddDryRun_TwoCallsWhenBothFlags(t *testing.T) {
+	rt := newChatMembersAddTestRuntime(t, nil,
+		map[string]string{"chat-id": "oc_x"},
+		map[string][]string{"users": {"ou_a"}, "bots": {"cli_x"}},
+	)
+	dry := ImChatMembersAdd.DryRun(context.Background(), rt)
+	b, err := json.Marshal(dry)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	if strings.Count(string(b), `"method":"POST"`) != 2 {
+		t.Errorf("dry-run json = %s, want 2 POST calls", b)
+	}
+}
+
+// TestImChatMembersAddExecute_BothCallsAuthFailure_ReturnsTypedError covers
+// the spec rule: when BOTH the users-call and the bots-call fail at the
+// auth/permission classification layer, Execute must return that typed error
+// directly (no ledger, no OutPartialFailure) instead of folding it into
+// call_errors. Lark error code 99991672 ("app_missing_scope") is the same
+// fixture code internal/errclass/classify_test.go uses to assert
+// CategoryAuthorization — using it here means DoAPIJSONTyped's real
+// classifier produces the *errs.PermissionError, not a hand-built stand-in.
+func TestImChatMembersAddExecute_BothCallsAuthFailure_ReturnsTypedError(t *testing.T) {
+	rt := newChatMembersAddTestRuntime(t,
+		shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return shortcutJSONResponse(200, map[string]interface{}{"code": 99991672, "msg": "app_missing_scope"}), nil
+		}),
+		map[string]string{"chat-id": "oc_x"},
+		map[string][]string{"users": {"ou_a"}, "bots": {"cli_x"}},
+	)
+
+	err := ImChatMembersAdd.Execute(context.Background(), rt)
+	var permErr *errs.PermissionError
+	if !errors.As(err, &permErr) {
+		t.Fatalf("Execute() error = %T %v, want *errs.PermissionError (both calls failed at auth layer)", err, err)
+	}
+
+	out := rt.Factory.IOStreams.Out.(interface{ String() string }).String()
+	if out != "" {
+		t.Errorf("Execute() must not write a ledger when returning the typed error directly, got stdout = %s", out)
+	}
+}
+
+// TestImChatMembersAddExecute_SingleCallAuthFailure_StillBuildsLedger covers
+// the companion rule: when only ONE call was attempted (only --users given)
+// and it fails at the auth layer, spec does not apply the "both failed"
+// short-circuit — it still builds a ledger (call_errors + OutPartialFailure).
+func TestImChatMembersAddExecute_SingleCallAuthFailure_StillBuildsLedger(t *testing.T) {
+	rt := newChatMembersAddTestRuntime(t,
+		shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return shortcutJSONResponse(200, map[string]interface{}{"code": 99991672, "msg": "app_missing_scope"}), nil
+		}),
+		map[string]string{"chat-id": "oc_x"},
+		map[string][]string{"users": {"ou_a"}},
+	)
+
+	err := ImChatMembersAdd.Execute(context.Background(), rt)
+	var pfErr *output.PartialFailureError
+	if !errors.As(err, &pfErr) {
+		t.Fatalf("Execute() error = %T %v, want partial failure (single call, not the both-failed short-circuit)", err, err)
+	}
+
+	out := rt.Factory.IOStreams.Out.(interface{ String() string }).String()
+	if !strings.Contains(out, `"failure_count": 1`) {
+		t.Errorf("output = %s, want failure_count 1 (call_errors ledger entry)", out)
 	}
 }

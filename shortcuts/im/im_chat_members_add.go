@@ -4,6 +4,7 @@
 package im
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -76,13 +77,17 @@ func validateChatMembersAdd(runtime *common.RuntimeContext) error {
 }
 
 // chatMembersAddResult is the merged ledger across the users-call and the
-// bots-call.
+// bots-call. rawCallErrors is parallel to callErrors (same append order) and
+// carries the original typed error instead of its stringified form, so the
+// caller can classify it (e.g. auth/permission) without re-parsing error
+// text; it never enters the JSON output.
 type chatMembersAddResult struct {
 	succeeded       []string
 	invalid         []string
 	notExisted      []string
 	pendingApproval []string
 	callErrors      []map[string]interface{}
+	rawCallErrors   []error
 }
 
 func newChatMembersAddResult() *chatMembersAddResult {
@@ -114,6 +119,7 @@ func addChatMembersBatch(runtime *common.RuntimeContext, chatID, memberType, mem
 			"id_list":     ids,
 			"error":       err.Error(),
 		})
+		res.rawCallErrors = append(res.rawCallErrors, err)
 		return
 	}
 
@@ -155,4 +161,138 @@ func stringsFromAny(v interface{}) []string {
 		}
 	}
 	return out
+}
+
+// ImChatMembersAdd is the +chat-members-add shortcut: adds users and/or bots
+// to a group chat. --users (open_id) and --bots (app_id) map to two
+// independent underlying calls to POST /open-apis/im/v1/chats/{chat_id}/members
+// (member_id_type differs per call — a single call cannot mix open_id and
+// app_id, because chat.members.create only accepts one member_id_type per
+// request). Both calls use succeed_type=1 (best effort): valid IDs are added
+// even if others are invalid/nonexistent/pending approval, so a single
+// resigned user does not block everyone else. Results are merged into one
+// ledger so the caller doesn't have to reconcile two API responses by hand.
+var ImChatMembersAdd = common.Shortcut{
+	Service:     "im",
+	Command:     "+chat-members-add",
+	Description: "Add users and/or bots to a group chat; user/bot; batches --users (open_id) and --bots (app_id) into up to 2 API calls under best-effort semantics; returns a merged succeeded/invalid/not_existed/pending_approval ledger",
+	Risk:        "write",
+	Scopes:      []string{"im:chat", "im:chat.members:write_only"},
+	AuthTypes:   []string{"user", "bot"},
+	HasFormat:   true,
+	Flags: []common.Flag{
+		{Name: "chat-id", Required: true, Desc: "chat ID to add members to (oc_xxx)"},
+		{Name: "users", Type: "string_slice", Desc: "user open_ids to invite (ou_xxx); comma-separated or repeat the flag; max 50"},
+		{Name: "bots", Type: "string_slice", Desc: "bot app_ids to invite (cli_xxx); comma-separated or repeat the flag; max 5"},
+	},
+	Tips: []string{
+		"lark-cli im +chat-members-add --chat-id oc_xxx --users ou_a,ou_b --bots cli_x",
+		"--users and --bots are independent; at least one is required, but providing both issues two API calls internally and merges the results into one ledger.",
+		"Partial failures (resigned users, nonexistent IDs, pending approval) don't block the other valid IDs from being added — check failure_count and the per-reason lists in the result.",
+	},
+	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
+		return validateChatMembersAdd(runtime)
+	},
+	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
+		chatID := strings.TrimSpace(runtime.Str("chat-id"))
+		users, _ := collectMemberAddIDs(runtime, "users", "ou_", chatMembersAddMaxUsers)
+		bots, _ := collectMemberAddIDs(runtime, "bots", "cli_", chatMembersAddMaxBots)
+		path := fmt.Sprintf(imChatMembersAddPathFmt, validate.EncodePathSegment(chatID))
+
+		dry := common.NewDryRunAPI()
+		if len(users) > 0 {
+			dry.POST(path).
+				Params(map[string]interface{}{"member_id_type": "open_id", "succeed_type": 1}).
+				Body(map[string]interface{}{"id_list": users})
+		}
+		if len(bots) > 0 {
+			dry.POST(path).
+				Params(map[string]interface{}{"member_id_type": "app_id", "succeed_type": 1}).
+				Body(map[string]interface{}{"id_list": bots})
+		}
+		return dry
+	},
+	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
+		return executeChatMembersAdd(runtime)
+	},
+}
+
+// executeChatMembersAdd issues one call per non-empty member list and merges
+// the results. The two calls are independent: a full-call failure on one
+// (e.g. bot count over the chat-wide cap) does not prevent the other from
+// running or from having its successes reported.
+func executeChatMembersAdd(runtime *common.RuntimeContext) error {
+	chatID := strings.TrimSpace(runtime.Str("chat-id"))
+	users, err := collectMemberAddIDs(runtime, "users", "ou_", chatMembersAddMaxUsers)
+	if err != nil {
+		return err
+	}
+	bots, err := collectMemberAddIDs(runtime, "bots", "cli_", chatMembersAddMaxBots)
+	if err != nil {
+		return err
+	}
+
+	res := newChatMembersAddResult()
+	attempted := 0
+	if len(users) > 0 {
+		attempted++
+		addChatMembersBatch(runtime, chatID, "user", "open_id", users, res)
+	}
+	if len(bots) > 0 {
+		attempted++
+		addChatMembersBatch(runtime, chatID, "bot", "app_id", bots, res)
+	}
+
+	// Per spec: only when BOTH attempted calls failed, and both failures
+	// classify as auth/permission errors, surface the typed error directly
+	// instead of building a ledger. A single attempted call failing this way
+	// still falls through to the normal ledger path below.
+	if attempted == 2 && len(res.rawCallErrors) == 2 && allAuthClassified(res.rawCallErrors) {
+		return res.rawCallErrors[0]
+	}
+
+	total := len(users) + len(bots)
+	failureCount := len(res.invalid) + len(res.notExisted) + len(res.pendingApproval)
+	for _, ce := range res.callErrors {
+		if ids, ok := ce["id_list"].([]string); ok {
+			failureCount += len(ids)
+		}
+	}
+	successCount := total - failureCount
+
+	outData := map[string]interface{}{
+		"chat_id":                  chatID,
+		"succeeded_id_list":        res.succeeded,
+		"invalid_id_list":          res.invalid,
+		"not_existed_id_list":      res.notExisted,
+		"pending_approval_id_list": res.pendingApproval,
+		"call_errors":              res.callErrors,
+		"success_count":            successCount,
+		"failure_count":            failureCount,
+		"total":                    total,
+	}
+
+	if failureCount > 0 {
+		return runtime.OutPartialFailure(outData, nil)
+	}
+	runtime.Out(outData, nil)
+	return nil
+}
+
+// allAuthClassified reports whether every error in errsList classifies as an
+// auth/permission-category typed error (errs.CategoryAuthentication or
+// errs.CategoryAuthorization). An empty slice is not "all classified" — the
+// caller only calls this when len(errsList) == 2, but the explicit false
+// guards against a future call site passing an empty slice by mistake.
+func allAuthClassified(errsList []error) bool {
+	if len(errsList) == 0 {
+		return false
+	}
+	for _, e := range errsList {
+		cat := errs.CategoryOf(e)
+		if cat != errs.CategoryAuthentication && cat != errs.CategoryAuthorization {
+			return false
+		}
+	}
+	return true
 }
