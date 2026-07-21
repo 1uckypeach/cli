@@ -29,7 +29,10 @@ const (
 	imChatBotsAddReadbackHint    = "List current chat members with lark-cli im +chat-members-list --chat-id <chat_id> --page-all before retrying; retry only bots not confirmed present."
 )
 
-var imChatMembersAddIDSuffix = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+var (
+	imChatMembersAddIDSuffix             = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+	errChatMembersAddMissingResponseData = errors.New("chat member response data is missing or invalid")
+)
 
 type chatMembersAddSpecContextKey struct{}
 
@@ -429,6 +432,12 @@ func callChatMembersAddBatch(
 	)
 	if err != nil {
 		return chatMembersAddResponse{}, err
+	}
+	if data == nil {
+		return chatMembersAddResponse{}, errs.NewInternalError(
+			errs.SubtypeInvalidResponse,
+			"API returned missing or invalid chat member response data",
+		).WithCause(errChatMembersAddMissingResponseData)
 	}
 	return projectChatMembersAddResponse(data, ids)
 }
