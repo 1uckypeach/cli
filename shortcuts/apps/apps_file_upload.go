@@ -10,11 +10,11 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
-	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -27,6 +27,12 @@ const fileUploadMaxBytes = 100 * 1024 * 1024
 // 2. 客户端 PUT 文件字节到 presigned upload_url，取响应 ETag
 // 3. POST /apps/{app_id}/storage/file_upload_callback {upload_id,etag} → 文件元数据
 // file_name 取本地 basename；path 由平台生成 16 位 ID（不可指定）。仅收 --file。
+//
+// NOTE: unlike other --file consumers, file-upload reads the local path via os
+// directly instead of the sandboxed rctx.FileIO(). This deliberately allows
+// absolute paths (and paths outside the working directory), bypassing the
+// SafeInputPath jail — the source file is only read locally and streamed to the
+// app's storage, so an operator may upload from anywhere on the machine.
 var AppsFileUpload = common.Shortcut{
 	Service:     appsService,
 	Command:     "+file-upload",
@@ -51,7 +57,11 @@ var AppsFileUpload = common.Shortcut{
 		if f == "" {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--file is required").WithParam("--file")
 		}
-		st, err := rctx.FileIO().Stat(f)
+		// --file is stat'd via os directly rather than rctx.FileIO(): file-upload
+		// intentionally accepts any local path — including absolute and paths
+		// outside the working directory — which the shared FileIO sandbox rejects.
+		//nolint:forbidigo // shortcuts cannot import internal/vfs; file-upload deliberately reads an arbitrary local path to upload (see command doc).
+		st, err := os.Stat(f)
 		if err != nil {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--file: %v", err).WithParam("--file").WithCause(err)
 		}
@@ -76,7 +86,10 @@ var AppsFileUpload = common.Shortcut{
 			return err
 		}
 		localPath := strings.TrimSpace(rctx.Str("file"))
-		content, err := cmdutil.ReadInputFile(rctx.FileIO(), localPath)
+		// Read via os directly (not rctx.FileIO()) so an absolute / out-of-tree
+		// path is accepted; see the Stat call in Validate for the rationale.
+		//nolint:forbidigo // shortcuts cannot import internal/vfs; file-upload deliberately reads an arbitrary local path to upload (see command doc).
+		content, err := os.ReadFile(localPath)
 		if err != nil {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--file: %v", err).WithParam("--file").WithCause(err)
 		}

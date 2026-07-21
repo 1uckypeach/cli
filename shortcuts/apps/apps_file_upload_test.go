@@ -149,6 +149,54 @@ func TestAppsFileUpload_EndToEnd(t *testing.T) {
 	}
 }
 
+// TestAppsFileUpload_AcceptsAbsolutePath 验证 file-upload 接受绝对路径（且位于工作目录之外）：
+// 此处 NOT chdir，--file 传 t.TempDir() 下的绝对路径，正好落在 cwd 之外，
+// 旧的 FileIO 沙箱会拒（must be a relative path within the current directory），
+// 改用 os 直读后应成功直传。
+func TestAppsFileUpload_AcceptsAbsolutePath(t *testing.T) {
+	var putBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		putBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("ETag", `"etag-abs"`)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	// 绝对路径，且不 chdir 进去 → 相对 cwd 在目录树之外。
+	dir := t.TempDir()
+	absFile := filepath.Join(dir, "report.pdf")
+	if !filepath.IsAbs(absFile) {
+		t.Fatalf("test setup: %q is not absolute", absFile)
+	}
+	if err := os.WriteFile(absFile, []byte("PDFBYTES"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	factory, stdout, reg := newAppsExecuteFactory(t)
+	reg.Register(&httpmock.Stub{
+		Method: "POST", URL: "/open-apis/spark/v1/apps/app_x/storage/file_pre_upload",
+		Body: map[string]interface{}{"code": 0, "data": map[string]interface{}{"upload_url": srv.URL, "upload_id": "up-abs"}},
+	})
+	reg.Register(&httpmock.Stub{
+		Method: "POST", URL: "/open-apis/spark/v1/apps/app_x/storage/file_upload_callback",
+		Body: map[string]interface{}{"code": 0, "data": map[string]interface{}{
+			"file_name": "report.pdf", "path": "/1858537546760999.pdf", "size_bytes": 8,
+		}},
+	})
+
+	if err := runAppsShortcut(t, AppsFileUpload,
+		[]string{"+file-upload", "--app-id", "app_x", "--file", absFile, "--as", "user"}, factory, stdout); err != nil {
+		t.Fatalf("execute with absolute path err=%v", err)
+	}
+	if string(putBody) != "PDFBYTES" {
+		t.Fatalf("PUT body = %q, want file bytes", putBody)
+	}
+}
+
 // TestSanitizeUploadFileName_Cases 验证 sanitizeUploadFileName：空格转 %20、去 TOS 非法字符、全非法兜底、非 ASCII 百分号编码。
 func TestSanitizeUploadFileName_Cases(t *testing.T) {
 	cases := []struct{ in, want string }{
