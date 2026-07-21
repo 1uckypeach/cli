@@ -6,6 +6,7 @@ package base
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -289,6 +290,22 @@ func TestTaskHooksAndMapping(t *testing.T) {
 	wantQuery := map[string]string{"context_id": "c1", "cursor": "next", "limit": "20", "state": "running"}
 	if !reflect.DeepEqual(rt.calls[1].query, wantQuery) {
 		t.Fatalf("query=%v want %v", rt.calls[1].query, wantQuery)
+	}
+}
+
+func TestListTasksRequiresContextID(t *testing.T) {
+	for _, contextID := range []string{"", " \t\n"} {
+		rt := &fakeRuntime{params: map[string]string{"base_token": "b1"}}
+		_, _, err := assistantSpec.ListTasks.Handler(context.Background(), rt, contextID, iagents.PageParams{})
+		problem(t, err, errs.CategoryValidation, errs.SubtypeInvalidArgument)
+
+		var validationErr *errs.ValidationError
+		if !errors.As(err, &validationErr) || validationErr.Param != "--context-id" {
+			t.Fatalf("contextID=%q error=%+v", contextID, err)
+		}
+		if len(rt.calls) != 0 {
+			t.Fatalf("contextID=%q made API calls: %+v", contextID, rt.calls)
+		}
 	}
 }
 

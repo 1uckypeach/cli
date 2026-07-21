@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/larksuite/cli/errs"
 	iagents "github.com/larksuite/cli/internal/agents"
@@ -80,6 +81,11 @@ func getTask(ctx context.Context, rt iagents.Runtime, taskID string) (*iagents.A
 }
 
 func listTasks(ctx context.Context, rt iagents.Runtime, contextID string, page iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
+	if strings.TrimSpace(contextID) == "" {
+		return nil, iagents.PageInfo{}, errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"base:assistant task list requires --context-id").WithParam("--context-id").
+			WithHint("pass --context-id <context-id> from a Base Agent task or context response")
+	}
 	p, err := iagents.BindParams[listTasksParams](rt)
 	if err != nil {
 		return nil, iagents.PageInfo{}, err
