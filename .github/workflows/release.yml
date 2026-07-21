@@ -52,7 +52,7 @@ jobs:
             fi
           fi
 
-  build-stage-assets:
+  build-release:
     needs: preflight
     runs-on: ubuntu-22.04
     permissions:
@@ -85,29 +85,29 @@ jobs:
           version: '~> v2'
           args: release --clean --skip=publish
 
-      - name: Verify release checksums
+      - name: Include release checksums
         run: |
           set -euo pipefail
           test -s dist/checksums.txt
           (cd dist && sha256sum --check checksums.txt)
           cp dist/checksums.txt checksums.txt
 
-      - name: Collect rehearsal assets
+      - name: Collect release asset
         run: |
           set -euo pipefail
-          mkdir staged-release-assets
-          cp dist/*.tar.gz dist/*.zip dist/checksums.txt staged-release-assets/
+          mkdir npm-publish-asset
+          cp dist/*.tar.gz dist/*.zip dist/checksums.txt npm-publish-asset/
 
-      - name: Upload rehearsal artifact
+      - name: Upload release asset
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: staged-release-assets-${{ github.run_id }}
-          path: staged-release-assets/
+          name: npm-publish-asset-${{ github.run_id }}
+          path: npm-publish-asset/
           if-no-files-found: error
           overwrite: true
 
-  stage-publish:
-    needs: build-stage-assets
+  publish-npm:
+    needs: build-release
     runs-on: ubuntu-22.04
     environment: npm-production
     permissions:
@@ -125,17 +125,17 @@ jobs:
       - name: Install pinned npm
         run: npm install --global npm@11.16.0
 
-      - name: Download rehearsal artifact
+      - name: Download release asset
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: staged-release-assets-${{ github.run_id }}
-          path: staged-release-assets
+          name: npm-publish-asset-${{ github.run_id }}
+          path: npm-publish-asset
 
-      - name: Verify rehearsal asset
+      - name: Verify npm publish asset
         run: |
           set -euo pipefail
-          (cd staged-release-assets && sha256sum --check checksums.txt)
-          cp staged-release-assets/checksums.txt checksums.txt
+          (cd npm-publish-asset && sha256sum --check checksums.txt)
+          cp npm-publish-asset/checksums.txt checksums.txt
           PACK_JSON="$(npm pack --ignore-scripts --json)"
           PACK_FILE="$(node -e 'const p=JSON.parse(process.argv[1]); if(p.length!==1 || !p[0].filename) process.exit(1); process.stdout.write(p[0].filename)' "$PACK_JSON")"
           test -s "$PACK_FILE"
