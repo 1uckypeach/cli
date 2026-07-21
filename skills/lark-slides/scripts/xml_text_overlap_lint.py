@@ -679,10 +679,6 @@ def extract_elements(slide_xml: str) -> list[dict[str, Any]]:
                 font_size = extract_numeric_attribute(content_attrs, "fontSize")
                 if font_size is None:
                     font_size = extract_numeric_attribute(attrs, "fontSize")
-
-                font_size = extract_numeric_attribute(content_attrs, "fontSize")
-                if font_size is None:
-                    font_size = extract_numeric_attribute(attrs, "fontSize")
                 element.update(
                     {
                         "textType": extract_attribute(content_attrs, "textType"),
