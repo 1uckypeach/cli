@@ -383,6 +383,12 @@ func serviceMethodRun(opts *ServiceMethodOptions) error {
 	if err := output.ValidateJqFlags(opts.JqExpr, opts.Output, opts.Format); err != nil {
 		return err
 	}
+	// Reject an unknown --format as a typed error rather than degrading to JSON.
+	// Parsed before the dry-run branch so both dry-run and emit reject it.
+	format, err := output.ParseFormatStrict(opts.Format)
+	if err != nil {
+		return err
+	}
 
 	config, err := f.Config()
 	if err != nil {
@@ -407,6 +413,15 @@ func serviceMethodRun(opts *ServiceMethodOptions) error {
 		}
 		return serviceDryRun(f, request, config, opts)
 	}
+	// pretty is a shortcut-only presentation format; the raw service command has
+	// no pretty renderer for responses, so reject it before the confirmation and
+	// client init rather than fall back. (Dry-run keeps its own plain-text pretty
+	// preview, handled above.)
+	if format == output.FormatPretty {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"--format pretty is not supported here (use json, ndjson, table, or csv)").
+			WithParam("--format")
+	}
 
 	if opts.Method.Risk == cmdutil.RiskHighRiskWrite {
 		if yes, _ := opts.Cmd.Flags().GetBool("yes"); !yes {
@@ -420,10 +435,6 @@ func serviceMethodRun(opts *ServiceMethodOptions) error {
 	}
 
 	out := f.IOStreams.Out
-	format, formatOK := output.ParseFormat(opts.Format)
-	if !formatOK {
-		fmt.Fprintf(f.IOStreams.ErrOut, "warning: unknown format %q, falling back to json\n", opts.Format)
-	}
 
 	// Scope-insufficient (99991679) and all other Lark API codes route through
 	// errclass.BuildAPIError via ac.CheckResponse, producing *errs.PermissionError
@@ -718,7 +729,7 @@ func servicePaginate(ctx context.Context, ac *client.APIClient, request client.R
 			// Streaming formats intentionally emit each page after that page has
 			// passed safety scanning. A later page may still fail, so callers
 			// must use the exit code to distinguish complete vs partial output.
-			return emitter.StreamPage(items, output.StreamOptions{Format: format.String()})
+			return emitter.StreamPage(items, output.StreamOptions{Format: format})
 		}, pagOpts)
 		if err != nil {
 			return err

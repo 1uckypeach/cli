@@ -701,7 +701,7 @@ func wrapLegacyPrettyRenderer(prettyFn func(w io.Writer)) output.PrettyRenderer 
 // Out prints a success JSON envelope to stdout.
 func (ctx *RuntimeContext) Out(data interface{}, meta *output.Meta) {
 	ctx.handleEmitterError(ctx.newEmitter().Success(data, output.EmitOptions{
-		Format: "",
+		Format: output.FormatJSON,
 		Raw:    false,
 		JQ:     ctx.JqExpr,
 		Meta:   meta,
@@ -713,7 +713,7 @@ func (ctx *RuntimeContext) Out(data interface{}, meta *output.Meta) {
 // that should be preserved as-is in JSON output.
 func (ctx *RuntimeContext) OutRaw(data interface{}, meta *output.Meta) {
 	ctx.handleEmitterError(ctx.newEmitter().Success(data, output.EmitOptions{
-		Format: "",
+		Format: output.FormatJSON,
 		Raw:    true,
 		JQ:     ctx.JqExpr,
 		Meta:   meta,
@@ -732,7 +732,7 @@ func (ctx *RuntimeContext) OutRaw(data interface{}, meta *output.Meta) {
 // stdout-carries-the-answer silent-exit signal).
 func (ctx *RuntimeContext) OutPartialFailure(data interface{}, meta *output.Meta) error {
 	ctx.handleEmitterError(ctx.newEmitter().PartialFailure(data, output.EmitOptions{
-		Format: "",
+		Format: output.FormatJSON,
 		Raw:    false,
 		JQ:     ctx.JqExpr,
 		Meta:   meta,
@@ -748,8 +748,11 @@ func (ctx *RuntimeContext) OutPartialFailure(data interface{}, meta *output.Meta
 // When JqExpr is set, envelope filtering takes precedence over format.
 // The Emitter handles content safety scanning for every format.
 func (ctx *RuntimeContext) OutFormat(data interface{}, meta *output.Meta, prettyFn func(w io.Writer)) {
+	// ctx.Format was validated by ParseFormatStrict at the shortcut boundary, so
+	// the lenient parse here can never yield an unknown value.
+	format, _ := output.ParseFormat(ctx.Format)
 	ctx.handleEmitterError(ctx.newEmitter().Success(data, output.EmitOptions{
-		Format: ctx.Format,
+		Format: format,
 		Raw:    false,
 		JQ:     ctx.JqExpr,
 		Meta:   meta,
@@ -760,8 +763,11 @@ func (ctx *RuntimeContext) OutFormat(data interface{}, meta *output.Meta, pretty
 // OutFormatRaw is like OutFormat but with HTML escaping disabled in JSON output.
 // Use this when the data contains XML/HTML content that should be preserved as-is.
 func (ctx *RuntimeContext) OutFormatRaw(data interface{}, meta *output.Meta, prettyFn func(w io.Writer)) {
+	// ctx.Format was validated by ParseFormatStrict at the shortcut boundary, so
+	// the lenient parse here can never yield an unknown value.
+	format, _ := output.ParseFormat(ctx.Format)
 	ctx.handleEmitterError(ctx.newEmitter().Success(data, output.EmitOptions{
-		Format: ctx.Format,
+		Format: format,
 		Raw:    true,
 		JQ:     ctx.JqExpr,
 		Meta:   meta,
@@ -930,6 +936,17 @@ func runShortcut(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, botOnly bo
 	}
 	if err := output.ValidateJqFlags(rctx.JqExpr, "", rctx.Format); err != nil {
 		return err
+	}
+	// Reject an unknown --format as a typed error before the shortcut runs, so
+	// neither the emit path nor dry-run degrades to JSON. This enforces the
+	// framework format contract (json | ndjson | table | csv | pretty) and so
+	// applies only to the framework-injected flag. A shortcut that declares its
+	// own format flag (e.g. base +record-list's markdown|json, mail +watch's
+	// json|data) owns a different enum, already validated by validateEnumFlags.
+	if !shortcutDeclaresFormatFlag(s) {
+		if _, err := output.ParseFormatStrict(rctx.Format); err != nil {
+			return err
+		}
 	}
 	if s.Validate != nil {
 		if err := s.Validate(rctx.ctx, rctx); err != nil {
@@ -1166,6 +1183,21 @@ func registerShortcutFlags(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut) 
 func shortcutDeclaresJSONFlag(s *Shortcut) bool {
 	for _, fl := range s.Flags {
 		if fl.Name == "json" {
+			return true
+		}
+	}
+	return false
+}
+
+// shortcutDeclaresFormatFlag reports whether the shortcut itself declares a flag
+// named "format" in its Flags list (e.g. base +record-list's markdown|json or
+// mail +watch's json|data), as opposed to the framework-injected --format.
+// Self-declared format flags own their enum (enforced by validateEnumFlags) and
+// must not be run through the framework's strict json|ndjson|table|csv|pretty
+// contract.
+func shortcutDeclaresFormatFlag(s *Shortcut) bool {
+	for _, fl := range s.Flags {
+		if fl.Name == "format" {
 			return true
 		}
 	}

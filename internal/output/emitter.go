@@ -6,9 +6,7 @@ package output
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
-	"maps"
 
 	"github.com/larksuite/cli/errs"
 )
@@ -35,17 +33,19 @@ type EmitterConfig struct {
 
 // EmitOptions describes one result's wire representation.
 //
-// The format contract is explicit: JSON (including the empty default) uses an
+// The format contract is explicit: FormatJSON (the zero value) uses an
 // Envelope; pretty, table, csv, and ndjson render naked business data. JQ takes
 // precedence over Format and filters the JSON Envelope. Raw affects only JSON
-// envelope encoding and jq's complex-value encoding.
+// envelope encoding and jq's complex-value encoding. Format is a canonical
+// typed value — boundaries reject unknown formats via ParseFormatStrict, so the
+// Emitter never sees one and never falls back.
 //
 // JQSafetyWarning preserves the legacy difference between RuntimeContext.emit
 // (false) and WriteSuccessEnvelope (true) until their callers are migrated.
 type EmitOptions struct {
 	Raw             bool
 	Meta            *Meta
-	Format          string
+	Format          Format
 	JQ              string
 	DryRun          bool
 	Pretty          PrettyRenderer
@@ -59,7 +59,7 @@ type EmitOptions struct {
 // the aggregated result, which the caller's pagination layer owns before it
 // streams pages.
 type StreamOptions struct {
-	Format string
+	Format Format
 	Pretty PrettyRenderer
 }
 
@@ -73,7 +73,7 @@ type Emitter struct {
 	colorEnabled   bool
 	noticeProvider NoticeProvider
 
-	streamFormat    string
+	streamFormat    Format
 	streamFormatter *PaginatedFormatter
 }
 
@@ -106,9 +106,9 @@ func (e *Emitter) Success(data interface{}, opts EmitOptions) error {
 	}
 
 	switch opts.Format {
-	case "", "json":
+	case FormatJSON:
 		return e.emitEnvelope(data, true, opts)
-	case "pretty":
+	case FormatPretty:
 		return e.emitPretty(data, opts)
 	default:
 		return e.emitFormatted(data, opts.Format)
@@ -150,7 +150,7 @@ func (e *Emitter) StreamPage(data interface{}, opts StreamOptions) error {
 		}
 	}
 
-	if opts.Format == "pretty" {
+	if opts.Format == FormatPretty {
 		if opts.Pretty == nil {
 			return errs.NewInternalError(errs.SubtypeUnknown,
 				"pretty output requires a renderer")
@@ -160,13 +160,9 @@ func (e *Emitter) StreamPage(data interface{}, opts StreamOptions) error {
 		})
 	}
 
-	format, known := ParseFormat(opts.Format)
-	if !known && e.streamFormatter == nil && e.errOut != nil {
-		fmt.Fprintf(e.errOut, "warning: unknown format %q, falling back to json\n", opts.Format)
-	}
 	if e.streamFormatter == nil {
 		e.streamFormat = opts.Format
-		e.streamFormatter = NewPaginatedFormatter(nil, format)
+		e.streamFormatter = NewPaginatedFormatter(nil, opts.Format)
 	} else if opts.Format != e.streamFormat {
 		return errs.NewInternalError(errs.SubtypeUnknown,
 			"stream output format changed from %q to %q", e.streamFormat, opts.Format)
@@ -255,7 +251,11 @@ func (e *Emitter) emitPretty(data interface{}, opts EmitOptions) error {
 	return e.emitEnvelope(data, true, opts)
 }
 
-func (e *Emitter) emitFormatted(data interface{}, rawFormat string) error {
+// emitFormatted renders naked business data for the non-envelope formats
+// (ndjson, table, csv). Success routes FormatJSON to the envelope and
+// FormatPretty to the pretty renderer, and boundaries reject unknown formats,
+// so emitFormatted only ever receives a canonical non-envelope Format.
+func (e *Emitter) emitFormatted(data interface{}, format Format) error {
 	scanResult := ScanForSafety(e.commandPath, data, e.errOut)
 	if scanResult.Blocked {
 		return scanResult.BlockErr
@@ -265,43 +265,8 @@ func (e *Emitter) emitFormatted(data interface{}, rawFormat string) error {
 			return wrapOutputError("write", err)
 		}
 	}
-
-	format, known := ParseFormat(rawFormat)
-	if !known && e.errOut != nil {
-		fmt.Fprintf(e.errOut, "warning: unknown format %q, falling back to json\n", rawFormat)
-	}
-	if format == FormatJSON {
-		return e.printLegacyDataJSON(data)
-	}
 	return e.emit(func(w io.Writer) error {
 		return WriteFormatted(w, data, format)
-	})
-}
-
-type emitterDataMap map[string]interface{}
-
-// printLegacyDataJSON matches FormatValue's JSON branch while sourcing notice
-// data from this Emitter instead of PrintJson's global PendingNotice hook.
-func (e *Emitter) printLegacyDataJSON(data interface{}) error {
-	// Normalise structs / named maps to plain generic types first, exactly as
-	// FormatValue does, so a struct or named-map payload still matches the map
-	// case below and keeps its injected _notice on the unknown-format fallback.
-	data = toGeneric(data)
-	if m, ok := data.(map[string]interface{}); ok {
-		if _, isEnvelope := m["ok"]; isEnvelope {
-			if notice := e.notice(); notice != nil {
-				m = maps.Clone(m)
-				m["_notice"] = notice
-			}
-		}
-		// The named map retains identical JSON bytes while preventing PrintJson
-		// from consulting its legacy global notice hook a second time.
-		return e.emit(func(w io.Writer) error {
-			return WriteJSON(w, emitterDataMap(m))
-		})
-	}
-	return e.emit(func(w io.Writer) error {
-		return WriteJSON(w, data)
 	})
 }
 

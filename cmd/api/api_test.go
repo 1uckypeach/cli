@@ -118,6 +118,71 @@ func TestApiCmd_DryRunWithJq(t *testing.T) {
 	}
 }
 
+// An unknown --format is a typed validation error, not a silent JSON fallback —
+// on both the emit path and (parsed before the dry-run branch) the dry-run path.
+// No stub is registered because the command must fail before any API call.
+func TestApiCmd_UnknownFormat_Rejected(t *testing.T) {
+	for _, extra := range [][]string{nil, {"--dry-run"}} {
+		name := "emit"
+		if len(extra) > 0 {
+			name = "dry-run"
+		}
+		t.Run(name, func(t *testing.T) {
+			f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+				AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+			})
+			cmd := newTestApiCmd(f, nil)
+			cmd.SetArgs(append([]string{"GET", "/open-apis/test", "--as", "bot", "--format", "bogus"}, extra...))
+			err := cmd.Execute()
+			if err == nil {
+				t.Fatal("expected a validation error for unknown --format")
+			}
+			requireProblem(t, err, errs.CategoryValidation, errs.SubtypeInvalidArgument, 0)
+			if !strings.Contains(err.Error(), "unknown output format") {
+				t.Errorf("error = %v, want unknown-format message", err)
+			}
+			if stdout.String() != "" {
+				t.Errorf("unknown --format must not write stdout, got:\n%s", stdout.String())
+			}
+		})
+	}
+}
+
+// pretty is shortcut-only: the raw api command rejects it on the emit path
+// (before client init) but keeps the dry-run plain-text preview.
+func TestApiCmd_Pretty_RejectedOnEmit(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+	})
+	cmd := newTestApiCmd(f, nil)
+	cmd.SetArgs([]string{"GET", "/open-apis/test", "--as", "bot", "--format", "pretty"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected a validation error for --format pretty on the emit path")
+	}
+	requireProblem(t, err, errs.CategoryValidation, errs.SubtypeInvalidArgument, 0)
+	if !strings.Contains(err.Error(), "pretty") {
+		t.Errorf("error = %v, want pretty-not-supported message", err)
+	}
+	if stdout.String() != "" {
+		t.Errorf("rejected --format pretty must not write stdout, got:\n%s", stdout.String())
+	}
+}
+
+func TestApiCmd_Pretty_PreservedOnDryRun(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+	})
+	cmd := newTestApiCmd(f, nil)
+	cmd.SetArgs([]string{"GET", "/open-apis/test", "--as", "bot", "--format", "pretty", "--dry-run"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("dry-run --format pretty must be accepted, got: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "# dry-run: request not sent") {
+		t.Fatalf("dry-run --format pretty lost its plain-text preview, stdout:\n%s", stdout.String())
+	}
+}
+
 // Regression: --params null parses to a nil map; writing page_size onto it must
 // not panic. Symmetric to the typed-flag overlay path in cmd/service — both
 // write into the map ParseJSONMap returns.

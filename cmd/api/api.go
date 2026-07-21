@@ -237,6 +237,12 @@ func apiRun(opts *APIOptions) error {
 	if err := output.ValidateJqFlags(opts.JqExpr, opts.Output, opts.Format); err != nil {
 		return err
 	}
+	// Reject an unknown --format as a typed error rather than degrading to JSON.
+	// Parsed before the dry-run branch so both dry-run and emit reject it.
+	format, err := output.ParseFormatStrict(opts.Format)
+	if err != nil {
+		return err
+	}
 
 	request, fileMeta, err := buildAPIRequest(opts)
 	if err != nil {
@@ -254,6 +260,14 @@ func apiRun(opts *APIOptions) error {
 		}
 		return apiDryRun(f, request, config, opts)
 	}
+	// pretty is a shortcut-only presentation format; the raw api command has no
+	// pretty renderer for responses, so reject it before client init rather than
+	// fall back. (Dry-run keeps its own plain-text pretty preview, handled above.)
+	if format == output.FormatPretty {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"--format pretty is not supported here (use json, ndjson, table, or csv)").
+			WithParam("--format")
+	}
 	// Identity info is now included in the JSON envelope; skip stderr printing.
 	// cmdutil.PrintIdentity(f.IOStreams.ErrOut, opts.As, config, f.IdentityAutoDetected)
 
@@ -263,10 +277,6 @@ func apiRun(opts *APIOptions) error {
 	}
 
 	out := f.IOStreams.Out
-	format, formatOK := output.ParseFormat(opts.Format)
-	if !formatOK {
-		fmt.Fprintf(f.IOStreams.ErrOut, "warning: unknown format %q, falling back to json\n", opts.Format)
-	}
 
 	if opts.PageAll {
 		return apiPaginate(opts.Ctx, ac, request, format, opts.JqExpr, out, f.IOStreams.ErrOut, opts.Cmd.CommandPath(),
@@ -355,7 +365,7 @@ func apiPaginate(ctx context.Context, ac *client.APIClient, request client.RawAp
 			// Streaming formats intentionally emit each page after that page has
 			// passed safety scanning. A later page may still fail, so callers
 			// must use the exit code to distinguish complete vs partial output.
-			return emitter.StreamPage(items, output.StreamOptions{Format: format.String()})
+			return emitter.StreamPage(items, output.StreamOptions{Format: format})
 		}, pagOpts)
 		if err != nil {
 			return errs.MarkRaw(err)

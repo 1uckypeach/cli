@@ -795,14 +795,11 @@ func TestServiceMethod_PageAll_StreamBusinessErrorDoesNotDumpJSON(t *testing.T) 
 	}
 }
 
-func TestServiceMethod_UnknownFormat_Warning(t *testing.T) {
-	f, _, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
+func TestServiceMethod_UnknownFormat_Rejected(t *testing.T) {
+	// No stub is registered: the unknown --format must be rejected before any
+	// API call is made.
+	f, stdout, stderr, _ := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app-fmt", AppSecret: "test-secret-fmt", Brand: core.BrandFeishu,
-	})
-
-	reg.Register(&httpmock.Stub{
-		URL:  "/open-apis/svc/v1/items",
-		Body: map[string]interface{}{"code": 0, "msg": "ok", "data": map[string]interface{}{}},
 	})
 
 	spec := meta.ServiceFromMap(map[string]interface{}{"name": "svc", "servicePath": "/open-apis/svc/v1"})
@@ -810,11 +807,21 @@ func TestServiceMethod_UnknownFormat_Warning(t *testing.T) {
 	cmd := NewCmdServiceMethod(f, spec, method, "list", "items", nil)
 	cmd.SetArgs([]string{"--as", "bot", "--format", "unknown"})
 
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	// An unknown --format is a typed validation error, not a silent JSON fallback.
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected a validation error for unknown --format")
 	}
-	if !strings.Contains(stderr.String(), "warning: unknown format") {
-		t.Errorf("expected format warning in stderr, got:\n%s", stderr.String())
+	requireProblem(t, err, errs.CategoryValidation, errs.SubtypeInvalidArgument, 0)
+	if !strings.Contains(err.Error(), "unknown output format") {
+		t.Errorf("error = %v, want unknown-format message", err)
+	}
+	if stdout.String() != "" {
+		t.Errorf("unknown --format must not write stdout, got:\n%s", stdout.String())
+	}
+	// The old degrade-to-JSON warning must be gone, not merely accompanied by an error.
+	if strings.Contains(stderr.String(), "falling back to json") {
+		t.Errorf("unknown --format must not emit the legacy fallback warning, got stderr:\n%s", stderr.String())
 	}
 }
 

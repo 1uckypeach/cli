@@ -49,7 +49,7 @@ func TestEmitterSuccessWritesAllBytes(t *testing.T) {
 	})
 	data := map[string]interface{}{"id": "1"}
 
-	err := emitter.Success(data, output.EmitOptions{Format: "json"})
+	err := emitter.Success(data, output.EmitOptions{Format: output.FormatJSON})
 	if err != nil {
 		t.Fatalf("Emitter.Success() error = %v", err)
 	}
@@ -72,7 +72,7 @@ func TestEmitterMarshalFailureReturnsTypedErrorWithoutOutput(t *testing.T) {
 		CommandPath: "lark-cli fixture +emit",
 	})
 
-	err := emitter.Success(map[string]interface{}{"unsupported": func() {}}, output.EmitOptions{Format: "json"})
+	err := emitter.Success(map[string]interface{}{"unsupported": func() {}}, output.EmitOptions{Format: output.FormatJSON})
 	if err == nil {
 		t.Fatal("Emitter.Success() error = nil, want marshal failure")
 	}
@@ -98,7 +98,7 @@ func TestEmitterWriterFailurePreservesCause(t *testing.T) {
 		CommandPath: "lark-cli fixture +emit",
 	})
 
-	err := emitter.Success(map[string]interface{}{"id": "1"}, output.EmitOptions{Format: "json"})
+	err := emitter.Success(map[string]interface{}{"id": "1"}, output.EmitOptions{Format: output.FormatJSON})
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("Emitter.Success() error = %v, want preserved writer cause", err)
 	}
@@ -119,7 +119,7 @@ func TestEmitterPrettyRendererFailurePreservesCause(t *testing.T) {
 	})
 
 	err := emitter.Success(map[string]interface{}{"id": "1"}, output.EmitOptions{
-		Format: "pretty",
+		Format: output.FormatPretty,
 		Pretty: func(io.Writer, bool) error {
 			return sentinel
 		},
@@ -151,7 +151,7 @@ func TestEmitterAlertWarningFailurePreservesCause(t *testing.T) {
 		CommandPath: "lark-cli fixture +emit",
 	})
 
-	err := emitter.Success([]interface{}{map[string]interface{}{"id": "1"}}, output.EmitOptions{Format: "table"})
+	err := emitter.Success([]interface{}{map[string]interface{}{"id": "1"}}, output.EmitOptions{Format: output.FormatTable})
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("Emitter.Success() error = %v, want preserved warning writer cause", err)
 	}
@@ -177,7 +177,7 @@ func TestNewEmitterDefaultsNilErrOutToDiscard(t *testing.T) {
 		CommandPath: "lark-cli fixture +emit",
 	})
 
-	if err := emitter.Success([]interface{}{map[string]interface{}{"id": "1"}}, output.EmitOptions{Format: "table"}); err != nil {
+	if err := emitter.Success([]interface{}{map[string]interface{}{"id": "1"}}, output.EmitOptions{Format: output.FormatTable}); err != nil {
 		t.Fatalf("Emitter.Success() error = %v", err)
 	}
 	if stdout.Len() == 0 {
@@ -198,7 +198,7 @@ func TestEmitterDoesNotMutateCallerMap(t *testing.T) {
 		},
 	})
 
-	if err := emitter.Success(data, output.EmitOptions{Format: "yaml"}); err != nil {
+	if err := emitter.Success(data, output.EmitOptions{Format: output.FormatJSON}); err != nil {
 		t.Fatalf("Emitter.Success() error = %v", err)
 	}
 	if !reflect.DeepEqual(data, want) {
@@ -220,7 +220,7 @@ func TestEmitterDoesNotOverwriteCallerNotice(t *testing.T) {
 		},
 	})
 
-	if err := emitter.Success(data, output.EmitOptions{Format: "yaml"}); err != nil {
+	if err := emitter.Success(data, output.EmitOptions{Format: output.FormatJSON}); err != nil {
 		t.Fatalf("Emitter.Success() error = %v", err)
 	}
 	if got := data["_notice"]; !reflect.DeepEqual(got, existing) {
@@ -248,7 +248,7 @@ func TestEmitterReadsNoticeProviderAtMostOncePerEmission(t *testing.T) {
 		},
 	})
 
-	if err := emitter.Success(map[string]interface{}{"ok": true}, output.EmitOptions{Format: "yaml"}); err != nil {
+	if err := emitter.Success(map[string]interface{}{"ok": true}, output.EmitOptions{Format: output.FormatJSON}); err != nil {
 		t.Fatalf("Emitter.Success() error = %v", err)
 	}
 	if calls != 1 {
@@ -265,7 +265,7 @@ func TestEmitterRawJSONPropagatesWriteError(t *testing.T) {
 		CommandPath: "lark-cli fixture +emit",
 	})
 	err := emitter.Success(map[string]interface{}{"id": "1"}, output.EmitOptions{
-		Raw: true, Format: "json",
+		Raw: true, Format: output.FormatJSON,
 	})
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("Emitter.Success() error = %v, want preserved writer cause", err)
@@ -285,7 +285,7 @@ func TestEmitterInvalidJQReturnsErrorWithoutStderr(t *testing.T) {
 		CommandPath: "lark-cli fixture +emit",
 	})
 	err := emitter.Success(map[string]interface{}{"id": "1"}, output.EmitOptions{
-		Format: "json",
+		Format: output.FormatJSON,
 		JQ:     "this is not valid jq (((",
 	})
 	if err == nil {
@@ -308,7 +308,7 @@ func TestEmitterJQRuntimeErrorPreservesTypedError(t *testing.T) {
 		CommandPath: "lark-cli fixture +emit",
 	})
 	err := emitter.Success(map[string]interface{}{"id": "1"}, output.EmitOptions{
-		Format: "json",
+		Format: output.FormatJSON,
 		JQ:     `error("boom")`,
 	})
 	if err == nil {
@@ -323,28 +323,5 @@ func TestEmitterJQRuntimeErrorPreservesTypedError(t *testing.T) {
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("Success() jq runtime error wrote stdout %q, want empty", stdout.String())
-	}
-}
-
-func TestEmitterUnknownFormatStructKeepsNotice(t *testing.T) {
-	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "off")
-	type payload struct {
-		OK    bool   `json:"ok"`
-		Value string `json:"value"`
-	}
-	stdout := &bytes.Buffer{}
-	emitter := output.NewEmitter(output.EmitterConfig{
-		Out:         stdout,
-		ErrOut:      io.Discard,
-		CommandPath: "lark-cli fixture +emit",
-		NoticeProvider: func() map[string]interface{} {
-			return map[string]interface{}{"update": map[string]interface{}{"latest": "9.9.9"}}
-		},
-	})
-	if err := emitter.Success(payload{OK: true, Value: "fixture"}, output.EmitOptions{Format: "yaml"}); err != nil {
-		t.Fatalf("Success() error = %v", err)
-	}
-	if !strings.Contains(stdout.String(), "_notice") {
-		t.Fatalf("struct payload on unknown-format fallback dropped _notice:\n%s", stdout.String())
 	}
 }
