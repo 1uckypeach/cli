@@ -37,6 +37,10 @@ func TestImChatMembersAddMetadata(t *testing.T) {
 	if ImChatMembersAdd.Command != "+chat-members-add" {
 		t.Fatalf("Command = %q, want +chat-members-add", ImChatMembersAdd.Command)
 	}
+	wantDescription := "Add user open_id values and bot app_id values to a chat; users are processed first; partial results return ok:false"
+	if ImChatMembersAdd.Description != wantDescription {
+		t.Fatalf("Description = %q, want %q", ImChatMembersAdd.Description, wantDescription)
+	}
 	if ImChatMembersAdd.Risk != "high-risk-write" {
 		t.Fatalf("Risk = %q, want high-risk-write", ImChatMembersAdd.Risk)
 	}
@@ -60,11 +64,19 @@ func TestImChatMembersAddMetadata(t *testing.T) {
 
 	wantFlags := []common.Flag{
 		{Name: "chat-id", Required: true, Desc: "chat ID or supported chat URL (oc_xxx)"},
-		{Name: "users", Desc: "comma-separated user open IDs (ou_xxx), max 50 unique IDs"},
-		{Name: "bots", Desc: "comma-separated bot app IDs (cli_xxx), max 5 unique IDs"},
+		{Name: "users", Desc: "comma-separated user open_id values (ou_xxx), max 50 unique IDs"},
+		{Name: "bots", Desc: "comma-separated bot app_id values (cli_xxx), max 5 unique IDs"},
 	}
 	if !reflect.DeepEqual(ImChatMembersAdd.Flags, wantFlags) {
 		t.Fatalf("Flags = %#v, want %#v", ImChatMembersAdd.Flags, wantFlags)
+	}
+	wantTips := []string{
+		"At least one of --users or --bots is required; duplicate IDs are removed in first-seen order.",
+		"When both are present, user members are added before bot members in separate requests with succeed_type=1.",
+		"Partial member results return ok:false and exit 1; outcome_unknown requires listing current members before retrying.",
+	}
+	if !reflect.DeepEqual(ImChatMembersAdd.Tips, wantTips) {
+		t.Fatalf("Tips = %#v, want %#v", ImChatMembersAdd.Tips, wantTips)
 	}
 }
 

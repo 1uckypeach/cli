@@ -38,15 +38,15 @@ type chatMembersAddSpecContextKey struct{}
 var ImChatMembersAdd = common.Shortcut{
 	Service:     "im",
 	Command:     "+chat-members-add",
-	Description: "Add user open IDs and bot app IDs to a chat; users are processed first; partial results return ok:false",
+	Description: "Add user open_id values and bot app_id values to a chat; users are processed first; partial results return ok:false",
 	Risk:        "high-risk-write",
 	Scopes:      []string{"im:chat.members:write_only"},
 	AuthTypes:   []string{"user", "bot"},
 	HasFormat:   true,
 	Flags: []common.Flag{
 		{Name: "chat-id", Required: true, Desc: "chat ID or supported chat URL (oc_xxx)"},
-		{Name: "users", Desc: "comma-separated user open IDs (ou_xxx), max 50 unique IDs"},
-		{Name: "bots", Desc: "comma-separated bot app IDs (cli_xxx), max 5 unique IDs"},
+		{Name: "users", Desc: "comma-separated user open_id values (ou_xxx), max 50 unique IDs"},
+		{Name: "bots", Desc: "comma-separated bot app_id values (cli_xxx), max 5 unique IDs"},
 	},
 	Tips: []string{
 		"At least one of --users or --bots is required; duplicate IDs are removed in first-seen order.",
