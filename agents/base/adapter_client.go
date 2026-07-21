@@ -91,19 +91,19 @@ func listTasks(ctx context.Context, rt iagents.Runtime, contextID string, page i
 		query["limit"] = strconv.Itoa(page.Size)
 	}
 	putQuery(query, "state", p.State)
-	got, err := callPayload[[]adapterTask](ctx, rt, "GET", agentRoot(p.BaseToken)+"/tasks", query, nil)
+	got, err := callPayload[adapterTaskList](ctx, rt, "GET", agentRoot(p.BaseToken)+"/tasks", query, nil)
 	if err != nil {
 		return nil, iagents.PageInfo{}, err
 	}
-	out := make([]iagents.TaskSummary, 0, len(got))
-	for _, item := range got {
+	out := make([]iagents.TaskSummary, 0, len(got.Tasks))
+	for _, item := range got.Tasks {
 		summary, err := mapTaskSummary(item)
 		if err != nil {
 			return nil, iagents.PageInfo{}, err
 		}
 		out = append(out, summary)
 	}
-	return out, iagents.PageInfo{}, nil
+	return out, iagents.PageInfo{HasMore: got.HasMore, NextToken: got.NextCursor}, nil
 }
 
 func cancelTask(ctx context.Context, rt iagents.Runtime, taskID string) error {
@@ -132,19 +132,19 @@ func listContexts(ctx context.Context, rt iagents.Runtime, page iagents.PagePara
 		query["limit"] = strconv.Itoa(page.Size)
 	}
 	putQuery(query, "status", p.Status)
-	got, err := callPayload[[]adapterContext](ctx, rt, "GET", agentRoot(p.BaseToken)+"/contexts", query, nil)
+	got, err := callPayload[adapterContextList](ctx, rt, "GET", agentRoot(p.BaseToken)+"/contexts", query, nil)
 	if err != nil {
 		return nil, iagents.PageInfo{}, err
 	}
-	out := make([]iagents.ContextSummary, 0, len(got))
-	for _, item := range got {
+	out := make([]iagents.ContextSummary, 0, len(got.Contexts))
+	for _, item := range got.Contexts {
 		mapped, err := mapContextSummary(item)
 		if err != nil {
 			return nil, iagents.PageInfo{}, err
 		}
 		out = append(out, mapped)
 	}
-	return out, iagents.PageInfo{}, nil
+	return out, iagents.PageInfo{HasMore: got.HasMore, NextToken: got.NextCursor}, nil
 }
 
 func getContext(ctx context.Context, rt iagents.Runtime, contextID string) (*iagents.ContextDetail, error) {

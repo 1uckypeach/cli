@@ -289,6 +289,66 @@ func TestTaskHooksAndMapping(t *testing.T) {
 	}
 }
 
+func TestListHooksMapPaginationEnvelope(t *testing.T) {
+	rt := &fakeRuntime{
+		params: map[string]string{"base_token": "b1", "state": "done", "status": "active"},
+		responses: []json.RawMessage{
+			dataResponse(t, `{"tasks":[{"task_id":"t1","context_id":"c1","state":"done","updated_at":1710000060}],"has_more":true,"next_cursor":"task-next"}`),
+			dataResponse(t, `{"contexts":[{"context_id":"c1","title":"Quarterly plan","created_at":1710000000,"updated_at":1710000060}],"has_more":true,"next_cursor":"context-next"}`),
+		},
+	}
+
+	tasks, taskPage, err := assistantSpec.ListTasks.Handler(context.Background(), rt, "c1", iagents.PageParams{Size: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 1 || taskPage != (iagents.PageInfo{HasMore: true, NextToken: "task-next"}) {
+		t.Fatalf("tasks=%+v page=%+v", tasks, taskPage)
+	}
+
+	contexts, contextPage, err := assistantSpec.ListContexts.Handler(context.Background(), rt, iagents.PageParams{Size: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contexts) != 1 || contextPage != (iagents.PageInfo{HasMore: true, NextToken: "context-next"}) {
+		t.Fatalf("contexts=%+v page=%+v", contexts, contextPage)
+	}
+}
+
+func TestListHooksRejectMalformedPaginationEnvelope(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  string
+		contexts bool
+	}{
+		{name: "null task response", payload: `null`},
+		{name: "missing tasks", payload: `{"has_more":false}`},
+		{name: "missing task has_more", payload: `{"tasks":[]}`},
+		{name: "task cursor missing", payload: `{"tasks":[],"has_more":true}`},
+		{name: "unexpected task cursor", payload: `{"tasks":[],"has_more":false,"next_cursor":"next"}`},
+		{name: "null contexts", payload: `{"contexts":null,"has_more":false}`, contexts: true},
+		{name: "missing contexts", payload: `{"has_more":false}`, contexts: true},
+		{name: "missing context has_more", payload: `{"contexts":[]}`, contexts: true},
+		{name: "context cursor missing", payload: `{"contexts":[],"has_more":true}`, contexts: true},
+		{name: "null context cursor", payload: `{"contexts":[],"has_more":false,"next_cursor":null}`, contexts: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rt := &fakeRuntime{
+				params:    map[string]string{"base_token": "b1"},
+				responses: []json.RawMessage{dataResponse(t, test.payload)},
+			}
+			var err error
+			if test.contexts {
+				_, _, err = assistantSpec.ListContexts.Handler(context.Background(), rt, iagents.PageParams{})
+			} else {
+				_, _, err = assistantSpec.ListTasks.Handler(context.Background(), rt, "c1", iagents.PageParams{})
+			}
+			problem(t, err, errs.CategoryInternal, errs.SubtypeInvalidResponse)
+		})
+	}
+}
+
 func TestUnknownStateAndInvalidPayloadAreTyped(t *testing.T) {
 	for _, payload := range []string{`{"schema_version":1,"task_id":"t1","status":"paused","outputs":[]}`, `{not-json`} {
 		rt := &fakeRuntime{params: map[string]string{"base_token": "b1"}, responses: []json.RawMessage{dataResponse(t, payload)}}

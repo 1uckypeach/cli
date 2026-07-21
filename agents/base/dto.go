@@ -3,7 +3,11 @@
 
 package base
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+)
 
 type adapterSendRequest struct {
 	ContextID      string            `json:"context_id,omitempty"`
@@ -55,6 +59,21 @@ type adapterTask struct {
 	// compatibility path. New v1 responses must use Outputs.
 	Messages  []adapterMessage  `json:"messages,omitempty"`
 	Artifacts []adapterArtifact `json:"artifacts,omitempty"`
+}
+
+type adapterTaskList struct {
+	Tasks      []adapterTask `json:"tasks"`
+	HasMore    bool          `json:"has_more"`
+	NextCursor string        `json:"next_cursor,omitempty"`
+}
+
+func (l *adapterTaskList) UnmarshalJSON(data []byte) error {
+	tasks, hasMore, nextCursor, err := decodeAdapterList[adapterTask](data, "tasks")
+	if err != nil {
+		return err
+	}
+	*l = adapterTaskList{Tasks: tasks, HasMore: hasMore, NextCursor: nextCursor}
+	return nil
 }
 
 type adapterOutput struct {
@@ -161,6 +180,74 @@ type adapterContext struct {
 	CreatedAt json.RawMessage `json:"created_at,omitempty"`
 	UpdatedAt json.RawMessage `json:"updated_at,omitempty"`
 	Tasks     []adapterTask   `json:"tasks,omitempty"`
+}
+
+type adapterContextList struct {
+	Contexts   []adapterContext `json:"contexts"`
+	HasMore    bool             `json:"has_more"`
+	NextCursor string           `json:"next_cursor,omitempty"`
+}
+
+func (l *adapterContextList) UnmarshalJSON(data []byte) error {
+	contexts, hasMore, nextCursor, err := decodeAdapterList[adapterContext](data, "contexts")
+	if err != nil {
+		return err
+	}
+	*l = adapterContextList{Contexts: contexts, HasMore: hasMore, NextCursor: nextCursor}
+	return nil
+}
+
+func decodeAdapterList[T any](data []byte, itemsField string) ([]T, bool, string, error) {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 {
+		return nil, false, "", fmt.Errorf("Base Agent list response is empty")
+	}
+	if trimmed[0] == '[' {
+		var items []T
+		if err := json.Unmarshal(trimmed, &items); err != nil {
+			return nil, false, "", err
+		}
+		return items, false, "", nil
+	}
+	if trimmed[0] != '{' {
+		return nil, false, "", fmt.Errorf("Base Agent list response must be an object")
+	}
+
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &envelope); err != nil {
+		return nil, false, "", err
+	}
+	itemsRaw, ok := envelope[itemsField]
+	if !ok || bytes.Equal(bytes.TrimSpace(itemsRaw), []byte("null")) {
+		return nil, false, "", fmt.Errorf("Base Agent list response is missing %q", itemsField)
+	}
+	var items []T
+	if err := json.Unmarshal(itemsRaw, &items); err != nil {
+		return nil, false, "", fmt.Errorf("decode Base Agent list response %q: %w", itemsField, err)
+	}
+
+	hasMoreRaw, ok := envelope["has_more"]
+	if !ok || bytes.Equal(bytes.TrimSpace(hasMoreRaw), []byte("null")) {
+		return nil, false, "", fmt.Errorf("Base Agent list response is missing %q", "has_more")
+	}
+	var hasMore bool
+	if err := json.Unmarshal(hasMoreRaw, &hasMore); err != nil {
+		return nil, false, "", fmt.Errorf("decode Base Agent list response %q: %w", "has_more", err)
+	}
+
+	var nextCursor string
+	if nextCursorRaw, ok := envelope["next_cursor"]; ok {
+		if bytes.Equal(bytes.TrimSpace(nextCursorRaw), []byte("null")) {
+			return nil, false, "", fmt.Errorf("Base Agent list response %q must be a string", "next_cursor")
+		}
+		if err := json.Unmarshal(nextCursorRaw, &nextCursor); err != nil {
+			return nil, false, "", fmt.Errorf("decode Base Agent list response %q: %w", "next_cursor", err)
+		}
+	}
+	if hasMore != (nextCursor != "") {
+		return nil, false, "", fmt.Errorf("Base Agent list response has inconsistent pagination fields")
+	}
+	return items, hasMore, nextCursor, nil
 }
 
 type adapterBusinessError struct {
