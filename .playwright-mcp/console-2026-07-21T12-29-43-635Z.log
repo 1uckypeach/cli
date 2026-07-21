@@ -1,0 +1,1474 @@
+[    2384ms] [LOG] [20:29:45] WARNING: Do not share your user_id with anyone.  It can be used to impersonate you. @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[    2384ms] [LOG] [20:29:46] user_id: upNI9y90_ @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[    2490ms] [LOG] [20:29:46] Connected to websocket server. @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[    3031ms] [LOG] [QueueFeatureIcon.settings] has_ladder_options=true enabled_ladders=2v2,duel,ffa ladder_option_keys=all @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[    3452ms] [LOG] [20:29:47] Reconnected to websocket server. @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[    4214ms] [LOG] [20:29:47] Player is supporter: false @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[    4215ms] [LOG] [20:29:47] username: null @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[    4223ms] [LOG] [20:29:47] Loaded social data: 0 online, 0 offline friends, 0 blocked players @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[    5350ms] [WARNING] [GPT] PubAdsService.enableSingleRequest is deprecated, use googletag.setConfig({singleRequest: ...}) instead.
+https://goo.gle/gpt-message#170 @ https://securepubads.g.doubleclick.net/pagead/managed/js/gpt/m202607160101/pubads_impl.js?cb=31099788:18
+[   32337ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32337ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32352ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32352ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32434ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32434ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32534ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32534ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32634ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32634ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32734ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32734ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32834ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32834ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32843ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32843ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32934ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   32934ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33034ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33034ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33134ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33134ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33234ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33234ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33302ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33302ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33333ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33334ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33343ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33343ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33433ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33433ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33534ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33534ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33634ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33634ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33734ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33734ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33834ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33834ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33843ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33843ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33934ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   33934ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34034ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34034ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34134ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34134ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34234ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34234ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34334ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34334ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34343ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34343ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34434ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34434ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34534ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34534ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34631ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34631ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34731ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34731ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34830ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34831ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34842ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34842ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34930ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   34931ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35030ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35031ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35130ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35130ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35230ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35231ms] [LOG] nextProps {state: 0, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35329ms] [LOG] state 0 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35329ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35333ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35334ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35341ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35341ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35430ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35431ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35530ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35531ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35630ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35630ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35730ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35730ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35831ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35831ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35841ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35842ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35930ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   35931ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36031ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36031ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36130ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36131ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36230ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36231ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36330ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36331ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36341ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36342ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36430ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36431ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36531ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36531ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36630ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36631ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36730ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36731ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36830ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36831ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36841ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36842ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36931ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   36931ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37031ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37031ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37131ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37131ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37231ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37231ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37330ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37331ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37341ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37342ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37430ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37430ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37530ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37531ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37630ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37631ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37730ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37731ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37831ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37831ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37841ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37842ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37931ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   37931ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38031ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38031ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38131ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38131ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38231ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38231ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38331ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38331ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38342ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38342ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38431ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38431ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38531ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38531ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38631ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38631ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38731ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38731ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38831ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38831ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38841ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38842ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38931ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   38931ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39031ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39031ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39131ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39131ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39231ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39231ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39331ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39331ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39341ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39341ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39430ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39431ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39531ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39531ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39631ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39631ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39731ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39731ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39831ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39831ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39841ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39841ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39930ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   39931ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40030ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40031ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40131ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40131ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40231ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40231ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40331ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40331ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40341ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40341ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40430ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40431ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40530ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40531ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40631ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40631ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40730ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40731ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40815ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40815ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40830ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40831ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40842ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40842ms] [LOG] nextProps {state: 1, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40843ms] [LOG] state 1 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40843ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40845ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40845ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   40930ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41230ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41331ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   41931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42231ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42331ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42342ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42931ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   42931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43231ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43331ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43431ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   43931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44231ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44431ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44842ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44931ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   44931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45231ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45331ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45431ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   45931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46431ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46842ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46931ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   46931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47231ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47842ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   47931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48431ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48931ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   48931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49231ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49331ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49842ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49931ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   49931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50231ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50431ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50842ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50842ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50931ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   50931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51342ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   51931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52342ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52431ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52931ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   52931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53431ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53855ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53855ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   53931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54331ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   54931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55231ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55431ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   55931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   56931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57430ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57931ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   57931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   58931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59030ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59331ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59430ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   59931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   60930ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61430ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61530ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   61931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62231ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62431ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   62931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63430ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   63931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64333ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64333ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64431ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   64931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65431ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   65930ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66231ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66331ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   66931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67231ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68231ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68331ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68431ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68740ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68740ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69930ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70430ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   70930ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71231ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   71931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72331ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72931ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   72931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73331ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73431ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   73931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74131ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74331ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74430ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   74931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75331ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75430ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75630ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75731ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75831ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75930ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   75930ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76030ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76530ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76730ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76731ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76830ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76831ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76841ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76841ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76931ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   76931ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77031ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77031ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77130ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77131ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77230ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77231ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77330ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77331ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77341ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77341ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77430ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77431ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77531ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77531ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77631ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77631ms] [LOG] nextProps {state: 3, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77645ms] [LOG] state 3 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77645ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77730ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77730ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77831ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77831ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77843ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77843ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77931ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   77931ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78031ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78031ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78130ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78230ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78330ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78331ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78341ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78341ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78430ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78431ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78530ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78531ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78631ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78631ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78730ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78731ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78830ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78831ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78931ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   78931ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79030ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79031ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79130ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79231ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79330ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79331ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79341ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79341ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79430ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79431ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79530ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79531ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79630ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79631ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79731ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79731ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79830ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79831ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79930ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79931ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79954ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   79955ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80030ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80030ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80130ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80231ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80330ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80331ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80341ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80341ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80343ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80343ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80430ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80431ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80530ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80531ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80631ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80631ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80730ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80731ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80830ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80831ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80930ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   80931ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81031ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81031ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81130ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81230ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81330ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81331ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81341ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81341ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81430ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81431ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81530ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81531ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81630ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81631ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81730ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81731ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81830ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81831ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81930ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   81930ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82030ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82031ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82131ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82230ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82331ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82331ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82341ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82341ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82431ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82431ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82530ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82531ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82559ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82559ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82630ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82631ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82731ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82731ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82830ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82831ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82845ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82845ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82930ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   82930ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83031ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83031ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83130ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83230ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83330ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83331ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83341ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83341ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83430ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83431ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83530ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83531ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83630ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83631ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83731ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83731ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83830ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83831ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83930ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   83931ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84030ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84031ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84130ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84231ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84330ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84331ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84341ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84341ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84430ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84430ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84530ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84531ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84631ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84631ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84730ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84731ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84830ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84831ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84930ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   84930ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85030ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85031ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85131ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85230ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85330ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85331ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85341ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85341ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85430ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85431ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85530ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85531ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85630ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85631ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85730ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85731ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85830ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85831ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85930ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   85930ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86030ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86031ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86130ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86230ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86330ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86331ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86341ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86341ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86431ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86431ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86530ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86531ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86630ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86631ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86730ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86731ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86831ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86831ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86930ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   86931ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87030ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87031ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87130ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87230ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87331ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87331ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87341ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87341ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87430ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87431ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87530ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87531ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87630ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87631ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87730ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87731ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87830ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87831ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87930ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   87931ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88030ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88031ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88130ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88230ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88330ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88331ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88341ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88341ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88430ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88430ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88531ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88531ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88631ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88631ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88730ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88731ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88830ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88830ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88930ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   88931ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89030ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89031ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89130ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89230ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89330ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89331ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89341ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89341ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89430ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89431ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89530ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89531ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89630ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89631ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89730ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89731ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89831ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89831ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89930ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   89931ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90030ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90031ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90130ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90231ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90330ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90331ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90341ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90341ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90430ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90430ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90530ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90531ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90630ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90631ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90731ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90731ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90831ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90831ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90930ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   90931ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91031ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91031ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91130ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91230ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91330ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91331ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91341ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91341ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91430ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91431ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91531ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91531ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91630ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91631ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91731ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91731ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91830ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91831ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91841ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91841ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91931ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   91931ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   92030ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   92031ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   92130ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   92131ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   92231ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   92231ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0

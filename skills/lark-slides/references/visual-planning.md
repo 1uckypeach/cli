@@ -13,7 +13,7 @@
   - `medium`: title plus 2-4 concise bullets or labeled regions.
   - `high`: use a table, columns, grouped labels, or annotations. Do not use one long bullet box.
 - Do not create a deck where every content page is title plus bullets. For 4 or more pages, use at least 4 different layout structures when the content allows.
-- Keep safe outer margins around `40` px on standard content pages, and fill the content area densely with a card grid rather than leaving large empty space. Only go full-bleed for an intentional image or cover treatment.
+- Keep safe outer margins around `40` px on standard content pages. Only go full-bleed for an intentional image or cover treatment. How densely to fill the content area, and whether to use a card grid, is set by the selected design system.
 - Reserve vertical space for titles. A typical content title area is `y=36..90`; main content should usually start at `y>=110`.
 - Avoid crowding the bottom edge. Keep non-background content above `y=500` unless it is a footer.
 - Keep backgrounds consistent with the deck's `visual_system.background_strategy`. Normal content pages should use the same base background unless there is a clear page-role reason to change.
