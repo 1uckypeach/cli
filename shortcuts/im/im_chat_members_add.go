@@ -68,6 +68,7 @@ var ImChatMembersAdd = common.Shortcut{
 	Tips: []string{
 		"At least one of --users or --bots is required; duplicate IDs are removed in first-seen order.",
 		"When both are present, user members are added before bot members in separate requests with succeed_type=1.",
+		"--as user uses the authenticated user's chat membership and invite permissions; --as bot uses the app bot's chat membership and invite permissions.",
 		"Partial member results return ok:false and exit 1; outcome_unknown requires listing current members before retrying.",
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
@@ -234,6 +235,19 @@ func dedupeChatMemberIDs(ids []string) []string {
 
 func validateChatMembersAddID(param, id, prefix string) error {
 	if !strings.HasPrefix(id, prefix) {
+		if param == "--users" {
+			return errs.NewValidationError(
+				errs.SubtypeInvalidArgument,
+				"invalid user ID format, should start with 'ou_' (e.g., ou_abc123)",
+			).WithParam(param)
+		}
+		if param == "--bots" {
+			return errs.NewValidationError(
+				errs.SubtypeInvalidArgument,
+				"invalid bot id %q: expected app ID (cli_xxx)",
+				id,
+			).WithParam(param)
+		}
 		return errs.NewValidationError(
 			errs.SubtypeInvalidArgument,
 			"invalid %s: identifier must start with %s",

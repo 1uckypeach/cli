@@ -34,6 +34,16 @@ At least one of `--users` or `--bots` must be present. Duplicate values are remo
 
 Both `--as user` and `--as bot` are supported. The selected identity requires the `im:chat.members:write_only` scope and sufficient permission to add members to the target chat.
 
+## Resolve Member Identifiers
+
+Use only identifiers obtained from a verified command response:
+
+- For the currently authorized user, use either `contact +get-user --as user` or `auth status --json --verify` and read `identities.user.openId`.
+- For the current configured application bot, use `auth status --json --verify` and read the top-level `appId`.
+- For any other bot, list a chat that contains that bot and read `bots[].app_id` from a complete `+chat-members-list` result. If the lookup fails, `has_more:true`, or bot truncation is present, stop before the write instead of substituting the current application ID or guessing an ID.
+
+Keep identifier lookup chats separate from the write target. A chat used only to discover `bots[].app_id` must never replace the original `--chat-id`.
+
 ## Request Behavior
 
 User and bot members are always sent in separate requests because they use different identifier types. The user request runs first with `member_id_type=open_id`; the bot request follows with `member_id_type=app_id`. Every request fixes `succeed_type=1`, so members that can be added continue to be added while member-level failures are returned in the response.
@@ -97,6 +107,16 @@ lark-cli im +chat-members-list \
 ```
 
 The bot list is sufficient for an absence check only when `has_more:false` and `truncations` contains no entry for `member_type:"bot"`. If `has_more:true` or bot truncation is present, a missing identifier does not prove that the bot was not added; do not retry the unknown bot batch. When the list is complete, process only bots that are not confirmed present. Do not repeat the complete `+chat-members-add` command, because the service may have accepted the bot request before the response became unavailable.
+
+For `outcome_unknown:true` after a confirmed user batch, apply this checklist in order:
+
+1. Preserve the original target `chat_id` and the original `--as` identity.
+2. Treat the confirmed user batch as complete. Every recovery command must omit `--users`.
+3. Resolve each bot `app_id` from a verified source as described above. Do not replace an unverified bot with `auth status.appId` unless the requested bot is explicitly the current configured application bot.
+4. List the original target chat's bot members with `--member-types bot --page-all --page-limit 0` and the same identity.
+5. If the listing is incomplete or fails, stop and report that error. If the list is complete, omit bots already present and retry only missing bots with `--bots <unconfirmed-app-ids> --yes` against the original target chat.
+
+The confirmed user count is never rolled back by a later bot failure. Replaying `--users`, changing the target chat, changing identity, or retrying a bot already present can duplicate or misdirect a high-impact write.
 
 Deterministic permission, authentication, and API errors use `outcome_unknown:false`. Handle these through the structured `error` fields. The confirmed user additions remain in the chat.
 

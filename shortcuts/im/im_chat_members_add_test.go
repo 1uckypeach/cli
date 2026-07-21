@@ -73,6 +73,7 @@ func TestImChatMembersAddMetadata(t *testing.T) {
 	wantTips := []string{
 		"At least one of --users or --bots is required; duplicate IDs are removed in first-seen order.",
 		"When both are present, user members are added before bot members in separate requests with succeed_type=1.",
+		"--as user uses the authenticated user's chat membership and invite permissions; --as bot uses the app bot's chat membership and invite permissions.",
 		"Partial member results return ok:false and exit 1; outcome_unknown requires listing current members before retrying.",
 	}
 	if !reflect.DeepEqual(ImChatMembersAdd.Tips, wantTips) {
@@ -313,10 +314,11 @@ func TestReadChatMembersAddSpec(t *testing.T) {
 			wantParam: "--chat-id",
 		},
 		{
-			name:      "invalid user prefix",
-			chatID:    "oc_chat_a",
-			users:     "user_a",
-			wantParam: "--users",
+			name:        "invalid user prefix",
+			chatID:      "oc_chat_a",
+			users:       "user_a",
+			wantParam:   "--users",
+			wantMessage: "invalid user ID format, should start with 'ou_' (e.g., ou_abc123)",
 		},
 		{
 			name:      "empty user suffix",
@@ -325,10 +327,11 @@ func TestReadChatMembersAddSpec(t *testing.T) {
 			wantParam: "--users",
 		},
 		{
-			name:      "invalid bot prefix",
-			chatID:    "oc_chat_a",
-			bots:      "bot_a",
-			wantParam: "--bots",
+			name:        "invalid bot prefix",
+			chatID:      "oc_chat_a",
+			bots:        "bot_a",
+			wantParam:   "--bots",
+			wantMessage: `invalid bot id "bot_a": expected app ID (cli_xxx)`,
 		},
 		{
 			name:      "empty bot suffix",
