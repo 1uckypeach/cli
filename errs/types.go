@@ -154,9 +154,18 @@ func (e *ValidationError) WithParam(param string) *ValidationError {
 }
 
 // WithResolvedAnswers attaches the already-accepted answer set to a
-// failed_precondition (see the ResolvedAnswers field doc).
+// failed_precondition (see the ResolvedAnswers field doc). The map and its
+// value slices are cloned — the builder never aliases caller-owned memory
+// (same immutability rule as WithMissingScopes/slices.Clone).
 func (e *ValidationError) WithResolvedAnswers(answers map[string][]string) *ValidationError {
-	e.ResolvedAnswers = answers
+	if len(answers) == 0 {
+		return e
+	}
+	cp := make(map[string][]string, len(answers))
+	for k, v := range answers {
+		cp[k] = slices.Clone(v)
+	}
+	e.ResolvedAnswers = cp
 	return e
 }
 
