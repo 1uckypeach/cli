@@ -124,54 +124,76 @@ func TestSendTaskIDRequiresContextID(t *testing.T) {
 	}
 }
 
-// TestSendAnswerDecisionByOption pins the structured input_required answer path:
-// --decision-id + --option needs no --text, and both reach the provider hook.
-func TestSendAnswerDecisionByOption(t *testing.T) {
+// TestSendAnswerGroup pins the structured input_required answer path: --answer
+// entries need no --text, and they reach the provider hook as the §10.1 map
+// encoding — keys verbatim (bare vs .text), values in argv order, multi-select
+// accumulated, exact duplicates deduplicated.
+func TestSendAnswerGroup(t *testing.T) {
 	opts := sendTestOpts(t)
 	opts.ContextID = "sess_1"
 	opts.TaskID = "task_1"
-	opts.DecisionID = "dec_7f3a"
-	opts.Options = []string{"by_region"}
-	// deliberately no opts.Text — the chosen option is the answer.
+	opts.Answers = []string{
+		"q1_a8=by_region",
+		"q2_a8.text=2024 全年",
+		"q3_a8=east", "q3_a8=north", "q3_a8=east", // exact dup → deduped
+	}
+	// deliberately no opts.Text — the answers ARE the message.
 	var got iagents.SendInput
 	setScripted(t, scriptedHooks{send: func(in iagents.SendInput) (*iagents.AgentTask, error) {
 		got = in
 		return &iagents.AgentTask{TaskID: "task_1", ContextID: "sess_1", State: iagents.StateCompleted}, nil
 	}})
 	if err := agentSendRun(opts); err != nil {
-		t.Fatalf("answering a decision by --option should not require --text: %v", err)
+		t.Fatalf("answering a group should not require --text: %v", err)
 	}
-	if got.DecisionID != "dec_7f3a" {
-		t.Errorf("SendInput.DecisionID should reach the hook, got %q", got.DecisionID)
+	if v := got.Answers["q1_a8"]; len(v) != 1 || v[0] != "by_region" {
+		t.Errorf("bare answer should reach the hook as-is, got %v", got.Answers["q1_a8"])
 	}
-	if len(got.OptionIDs) != 1 || got.OptionIDs[0] != "by_region" {
-		t.Errorf("SendInput.OptionIDs should reach the hook, got %v", got.OptionIDs)
+	if v := got.Answers["q2_a8.text"]; len(v) != 1 || v[0] != "2024 全年" {
+		t.Errorf(".text key should stay verbatim in the map, got %v", got.Answers["q2_a8.text"])
 	}
-}
-
-// TestSendOptionRequiresDecisionID pins that --option without --decision-id is a
-// validation error raised before any provider is built.
-func TestSendOptionRequiresDecisionID(t *testing.T) {
-	err := agentSendRun(&sendOptions{Ref: "example:agt_x", Text: "x", Options: []string{"by_region"}})
-	if err == nil {
-		t.Fatal("--option without --decision-id should error")
-	}
-	var verr *errs.ValidationError
-	if !errors.As(err, &verr) || verr.Param != "--option" {
-		t.Errorf("param should be --option, got %+v", verr)
+	if v := got.Answers["q3_a8"]; len(v) != 2 || v[0] != "east" || v[1] != "north" {
+		t.Errorf("multi-select should accumulate in argv order and dedupe exact repeats, got %v", got.Answers["q3_a8"])
 	}
 }
 
-// TestSendDecisionRequiresTaskContext pins that answering a decision needs the
-// task/context it belongs to.
-func TestSendDecisionRequiresTaskContext(t *testing.T) {
-	err := agentSendRun(&sendOptions{Ref: "example:agt_x", DecisionID: "dec_1", Options: []string{"by_region"}})
+// TestSendAnswerRequiresTaskContext pins that answering a group needs the
+// task/context it belongs to (mode-first guard, before key parsing).
+func TestSendAnswerRequiresTaskContext(t *testing.T) {
+	err := agentSendRun(&sendOptions{Ref: "example:agt_x", Answers: []string{"q1=by_region"}})
 	if err == nil {
-		t.Fatal("--decision-id without --context-id/--task-id should error")
+		t.Fatal("--answer without --context-id/--task-id should error")
 	}
 	var verr *errs.ValidationError
-	if !errors.As(err, &verr) || verr.Param != "--decision-id" {
-		t.Errorf("param should be --decision-id, got %+v", verr)
+	if !errors.As(err, &verr) || verr.Param != "--answer" {
+		t.Errorf("param should be --answer, got %+v", verr)
+	}
+}
+
+// TestSendAnswerGrammar pins the offline --answer key/value grammar in one
+// collect-all pass: a non-key=value entry, a near-miss suffix (.txt), a
+// flag-lookalike key, an empty value, and a duplicated .text entry are ALL
+// reported in one error; none of them reaches any provider.
+func TestSendAnswerGrammar(t *testing.T) {
+	err := agentSendRun(&sendOptions{Ref: "example:agt_x", ContextID: "sess_1", TaskID: "task_1",
+		Answers: []string{
+			"noequals",           // 非 key=value
+			"q1.txt=x",           // 后缀拼错：非法 key
+			"--text=x",           // flag 形状 key：首字符非法
+			"q2=",                // 空值
+			"q3.text=a", "q3.text=b", // .text 不累积
+		}})
+	if err == nil {
+		t.Fatal("illegal --answer entries should error offline")
+	}
+	var verr *errs.ValidationError
+	if !errors.As(err, &verr) || verr.Param != "--answer" {
+		t.Fatalf("param should be --answer, got %+v", verr)
+	}
+	for _, frag := range []string{"noequals", "q1.txt", "--text", "q2", "q3.text"} {
+		if !strings.Contains(verr.Problem.Message, frag) {
+			t.Errorf("collect-all message should name %q, got %q", frag, verr.Problem.Message)
+		}
 	}
 }
 

@@ -63,7 +63,15 @@ type ValidationError struct {
 	Problem
 	Param  string         `json:"param,omitempty"`
 	Params []InvalidParam `json:"params,omitempty"`
-	Cause  error          `json:"-"`
+	// ResolvedAnswers is the failed_precondition extension for the agents
+	// input_required flow (per-Subtype extension field, same convention as
+	// PermissionError.MissingScopes): when a question-group answer arrives after
+	// the group was already resolved (another endpoint answered first, or a
+	// retry landed twice), the provider echoes WHAT was accepted — keyed like
+	// the answer submission itself — so an AI caller can tell the user the
+	// outcome without parsing prose.
+	ResolvedAnswers map[string][]string `json:"resolved_answers,omitempty"`
+	Cause           error               `json:"-"`
 }
 
 // InvalidParam is one structured validation diagnostic: the parameter that
@@ -142,6 +150,13 @@ func (e *ValidationError) WithRetryable() *ValidationError {
 
 func (e *ValidationError) WithParam(param string) *ValidationError {
 	e.Param = param
+	return e
+}
+
+// WithResolvedAnswers attaches the already-accepted answer set to a
+// failed_precondition (see the ResolvedAnswers field doc).
+func (e *ValidationError) WithResolvedAnswers(answers map[string][]string) *ValidationError {
+	e.ResolvedAnswers = answers
 	return e
 }
 

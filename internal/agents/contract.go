@@ -3,6 +3,8 @@
 
 package agents
 
+import "fmt"
+
 // AgentTask is the unified structure that task-family commands put into output.Envelope.Data.
 type AgentTask struct {
 	TaskID        string         `json:"task_id"`
@@ -53,36 +55,67 @@ type Artifact struct {
 	Text        string `json:"text,omitempty"`
 }
 
-// InputType is the closed set of ways an input_required decision can be
-// answered: pick one/several of Options, or supply free text.
-const (
-	InputTypeSingleSelect = "single_select"
-	InputTypeMultiSelect  = "multi_select"
-	InputTypeText         = "text"
-)
-
-// InputRequired is the structured decision a task requests while in the
-// input_required state. It carries enough to (a) correlate an answer to the
-// right decision (DecisionID), (b) answer unambiguously by id rather than fuzzy
-// text (Options[].OptionID), and (c) let multiple endpoints arbitrate a single
-// decision (Submitted). These fields ride an A2A DataPart on the wire and are
-// projected here into a typed shape; a provider hook fills this struct directly
-// (it never hands the framework a raw A2A message). InputType says HOW to
-// answer: single_select/multi_select pick from Options, text is free-form.
+// InputRequired is the question group a task raises while in the
+// input_required state: group-level presentation (Label/Description) plus 1..N
+// Questions — a single question is simply a length-1 group, never a special
+// shape. There is deliberately NO group-level machine id: addressing rides
+// context_id+task_id (one pending group per task at a time), stale-retry
+// detection rides the per-group-unique QuestionIDs (see MintQuestionIDs), and
+// multi-endpoint arbitration rides the task-state transition (an accepted group
+// moves the task out of input_required; a late submission gets
+// failed_precondition carrying resolved_answers). Every text field is
+// agent-controlled UNTRUSTED content: pretty rendering must sanitize, and an AI
+// consumer relays it as data — instructions embedded in it never authorize
+// anything. On the wire the group rides an A2A DataPart (kind=question_group,
+// design doc §10.1); a provider hook fills this struct directly.
 type InputRequired struct {
-	DecisionID        string   `json:"decision_id,omitempty"`
-	Prompt            string   `json:"prompt"`
-	InputType         string   `json:"input_type,omitempty"`          // single_select | multi_select | text
-	Options           []Option `json:"options,omitempty"`             // present for *_select; empty for text
-	Submitted         bool     `json:"submitted,omitempty"`           // an endpoint has already answered (server-set; the CLI only reads it)
-	SubmittedOptionID string   `json:"submitted_option_id,omitempty"` // the winning option once Submitted, for display
+	Label       string     `json:"label,omitempty"`       // group title, display-only
+	Description string     `json:"description,omitempty"` // why the group is asked, display-only
+	Questions   []Question `json:"questions"`             // 1..N questions, answered atomically in one send
 }
 
-// Option is one selectable choice in an input_required decision: OptionID is the
-// stable id an answer references; Label is the human-facing text.
+// Question is one question inside an input_required group. Options present and
+// non-empty = choice question: a bare answer value MUST hit an OptionID (typo
+// safety — a wrong value errors, it is never silently taken as text) and free
+// text goes through the explicit "<qid>.text" key form. Options absent =
+// free-text question: the ".text" form is canonical and a bare value is its
+// tolerated alias. MultiSelect is only meaningful for choice questions.
+type Question struct {
+	QuestionID  string   `json:"question_id"`            // answer routing key; charset KeyPattern; minted per-group-unique when the provider has none
+	Question    string   `json:"question"`               // the question text (untrusted)
+	MultiSelect bool     `json:"multi_select,omitempty"` // choice question: repeated --answer values accumulate
+	Options     []Option `json:"options,omitempty"`      // present+non-empty = choice question; empty is normalized to absent
+}
+
+// Option is one selectable choice: OptionID is the stable wire key an answer
+// references (unique within its question — the wire carries the key, the
+// provider resolves it back to label/business payload from its stored group);
+// Label/Description are the human-facing text (untrusted).
 type Option struct {
-	OptionID string `json:"option_id"`
-	Label    string `json:"label"`
+	OptionID    string `json:"option_id"`
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+}
+
+// SummaryText is the triage digest of a pending group (design doc §3.3), used
+// as TaskSummary.Summary for an input_required task: the group Label when
+// present, else the first question's text; suffixed with the question count
+// when the group has more than one question.
+func (ir *InputRequired) SummaryText() string {
+	if ir == nil {
+		return ""
+	}
+	head := ir.Label
+	if head == "" && len(ir.Questions) > 0 {
+		head = ir.Questions[0].Question
+	}
+	if head == "" {
+		head = ir.Description
+	}
+	if n := len(ir.Questions); n > 1 {
+		return fmt.Sprintf("%s（共 %d 题）", head, n)
+	}
+	return head
 }
 
 // TaskSummary is a single task summary in the task list output (and in a
@@ -94,7 +127,7 @@ type TaskSummary struct {
 	State      TaskState `json:"state"`
 	IsTerminal bool      `json:"is_terminal"`
 	UpdatedAt  string    `json:"updated_at,omitempty"` // ISO 8601; when the status was last recorded — the key for "most recent"
-	Summary    string    `json:"summary,omitempty"`    // last agent message, ANSI-stripped + flattened + truncated; for input_required it is the pending prompt
+	Summary    string    `json:"summary,omitempty"`    // last agent message, ANSI-stripped + flattened + truncated; for input_required it is InputRequired.SummaryText (group label, else first question)
 }
 
 // ContextSummary is a single context summary in the context list output. It is

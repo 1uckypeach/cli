@@ -17,30 +17,62 @@ import (
 	"github.com/larksuite/cli/internal/output"
 )
 
-// TestPrintTaskPrettyRendersDecision pins that printTaskPretty surfaces a
-// structured input_required decision (prompt + decision_id + options), with all
-// agent-controlled fields ANSI-stripped.
-func TestPrintTaskPrettyRendersDecision(t *testing.T) {
+// TestPrintTaskPrettyRendersQuestionGroup pins that printTaskPretty surfaces an
+// input_required question group: group headline (label — description), numbered
+// questions with their answer-form annotation (自由文本 / 可多选), and
+// id: label — description option rows — with all agent-controlled fields
+// ANSI-stripped.
+func TestPrintTaskPrettyRendersQuestionGroup(t *testing.T) {
 	out := &bytes.Buffer{}
 	printTaskPretty(out, &iagents.AgentTask{
 		TaskID: "task_1", State: iagents.StateInputRequired,
 		InputRequired: &iagents.InputRequired{
-			DecisionID: "dec_7f3a",
-			Prompt:     "按大区还是品类\x1b[2J拆?",
-			Options: []iagents.Option{
-				{OptionID: "by_region", Label: "按大区"},
-				{OptionID: "by_category", Label: "按品类"},
+			Label:       "报表生成确认",
+			Description: "生成前需确认\x1b[2J口径",
+			Questions: []iagents.Question{
+				{QuestionID: "q1_a8", Question: "按什么维度拆分？", Options: []iagents.Option{
+					{OptionID: "by_region", Label: "按大区", Description: "华东/华北/华南汇总"},
+					{OptionID: "by_category", Label: "按品类"},
+				}},
+				{QuestionID: "q2_a8", Question: "时间范围？"},
+				{QuestionID: "q3_a8", Question: "包含哪些区域？", MultiSelect: true, Options: []iagents.Option{
+					{OptionID: "east", Label: "华东"},
+				}},
 			},
 		},
 	})
 	text := out.String()
-	for _, want := range []string{"input_required:", "decision_id: dec_7f3a", "option by_region: 按大区", "option by_category: 按品类"} {
+	for _, want := range []string{
+		"input_required: 报表生成确认 — 生成前需确认",
+		"[1] 按什么维度拆分？",
+		"by_region: 按大区 — 华东/华北/华南汇总",
+		"by_category: 按品类",
+		"[2] 时间范围？（自由文本）",
+		"[3] 包含哪些区域？（可多选）",
+		"east: 华东",
+	} {
 		if !strings.Contains(text, want) {
-			t.Errorf("pretty task should render decision part %q, got:\n%s", want, text)
+			t.Errorf("pretty task should render question-group part %q, got:\n%s", want, text)
 		}
 	}
 	if strings.Contains(text, "\x1b") {
-		t.Errorf("ANSI in the decision prompt must be stripped, got %q", text)
+		t.Errorf("ANSI in group text must be stripped, got %q", text)
+	}
+
+	// A single untitled question renders as the headline itself — no numbering.
+	out.Reset()
+	printTaskPretty(out, &iagents.AgentTask{
+		TaskID: "task_2", State: iagents.StateInputRequired,
+		InputRequired: &iagents.InputRequired{Questions: []iagents.Question{
+			{QuestionID: "q1_b2", Question: "请补充时间范围"},
+		}},
+	})
+	single := out.String()
+	if !strings.Contains(single, "input_required: 请补充时间范围（自由文本）") {
+		t.Errorf("single untitled question should be the headline, got:\n%s", single)
+	}
+	if strings.Contains(single, "[1]") {
+		t.Errorf("single question must not be numbered, got:\n%s", single)
 	}
 }
 

@@ -375,7 +375,7 @@ func TestSendPreflightPassesWithScopeAndSends(t *testing.T) {
 }
 
 // TestTaskCancelPreflightWired pins the task cancel wiring: the capability
-// gate (fakescoped card declares task_cancel=false) answers before
+// gate (fakemin card declares task_cancel=false) answers before
 // provider/preflight, so a scope-missing user token yields
 // unsupported_capability, not missing_scope — proving the wired
 // preflight does not change the gate-first ordering.
@@ -384,7 +384,7 @@ func TestTaskCancelPreflightWired(t *testing.T) {
 	f, _ := userFactory(t)
 	err := agentTaskCancelRun(&taskOptions{
 		Factory: f, Cmd: userLeafCmd(t, "agents", "task", "cancel"),
-		Ref: "fakescoped:agt_x", TaskID: "t1", As: "user",
+		Ref: "fakemin:agt_x", TaskID: "t1", As: "user",
 	})
 	if err == nil {
 		t.Fatal("task cancel with task_cancel=false should be blocked by the capability gate")

@@ -186,37 +186,61 @@ func TestNextForTaskWatchNotWait(t *testing.T) {
 	}
 }
 
-// TestNextForTaskStructuredDecision pins that an input_required task carrying a
-// structured decision (decision_id + options) yields a next command that answers
-// by --decision-id/--option; a decision whose server-supplied decision_id fails
-// the safeNextID whitelist falls back to the free-text form (never interpolated).
-func TestNextForTaskStructuredDecision(t *testing.T) {
-	withDecision := nextForTask("example:planner", &iagents.AgentTask{
+// TestNextForTaskQuestionGroup pins that an input_required task carrying a
+// question group yields ONE per-question --answer template (bare <option_id>
+// for a choice, marked repeatable for multi-select, .text=<文本> for free text,
+// design doc §4.4); a group with any whitelist-failing question_id falls back
+// to the free-text continuation (a key the CLI's own guard would reject is
+// never emitted).
+func TestNextForTaskQuestionGroup(t *testing.T) {
+	group := nextForTask("example:planner", &iagents.AgentTask{
 		TaskID: "task_1", ContextID: "ctx_1", State: iagents.StateInputRequired,
 		InputRequired: &iagents.InputRequired{
-			DecisionID: "dec_7f3a",
-			Prompt:     "按大区还是品类?",
-			Options:    []iagents.Option{{OptionID: "by_region", Label: "按大区"}},
+			Label: "报表生成确认",
+			Questions: []iagents.Question{
+				{QuestionID: "q1_a8", Question: "维度?", Options: []iagents.Option{{OptionID: "by_region", Label: "按大区"}}},
+				{QuestionID: "q2_a8", Question: "时间?"},
+				{QuestionID: "q3_a8", Question: "区域?", MultiSelect: true, Options: []iagents.Option{{OptionID: "east", Label: "华东"}}},
+			},
 		},
 	}, nil, nil, iagents.VerbSend)
-	if len(withDecision) != 1 || !withDecision[0].Template {
-		t.Fatalf("structured decision next must be one template action, got %+v", withDecision)
+	if len(group) != 1 || !group[0].Template {
+		t.Fatalf("question-group next must be one template action, got %+v", group)
 	}
-	for _, want := range []string{"--decision-id dec_7f3a", "--option <option_id>", "--task-id task_1"} {
-		if !strings.Contains(withDecision[0].Command, want) {
-			t.Errorf("structured decision command should contain %q, got %q", want, withDecision[0].Command)
+	for _, want := range []string{
+		"--answer q1_a8=<option_id>",
+		"--answer q2_a8.text=<文本>",
+		"--answer q3_a8=<option_id 多选可重复>",
+		"--task-id task_1",
+	} {
+		if !strings.Contains(group[0].Command, want) {
+			t.Errorf("question-group command should contain %q, got %q", want, group[0].Command)
 		}
 	}
-	// A decision_id with shell metacharacters must NOT be interpolated → fall back.
+	if !strings.Contains(group[0].Label, "转达给用户") {
+		t.Errorf("label must be relay-first wording, got %q", group[0].Label)
+	}
+	// A question_id with shell metacharacters must NOT be interpolated → the
+	// whole group falls back to the --text continuation.
 	badID := nextForTask("example:planner", &iagents.AgentTask{
 		TaskID: "task_1", ContextID: "ctx_1", State: iagents.StateInputRequired,
 		InputRequired: &iagents.InputRequired{
-			DecisionID: "dec bad;rm", Prompt: "x",
-			Options: []iagents.Option{{OptionID: "o1", Label: "l1"}},
+			Questions: []iagents.Question{{QuestionID: "q bad;rm", Question: "x"}},
 		},
 	}, nil, nil, iagents.VerbSend)
-	if len(badID) != 1 || strings.Contains(badID[0].Command, "--decision-id") || !strings.Contains(badID[0].Command, "--text") {
-		t.Errorf("a whitelist-failing decision_id should fall back to the --text form, got %+v", badID)
+	if len(badID) != 1 || strings.Contains(badID[0].Command, "--answer") || !strings.Contains(badID[0].Command, "--text") {
+		t.Errorf("a whitelist-failing question_id should fall back to the --text form, got %+v", badID)
+	}
+	// A flag-lookalike question_id ("--text" passes a bare charset test but not
+	// the alphanumeric-first rule) must likewise never be interpolated.
+	flagLike := nextForTask("example:planner", &iagents.AgentTask{
+		TaskID: "task_1", ContextID: "ctx_1", State: iagents.StateInputRequired,
+		InputRequired: &iagents.InputRequired{
+			Questions: []iagents.Question{{QuestionID: "--text", Question: "x"}},
+		},
+	}, nil, nil, iagents.VerbSend)
+	if len(flagLike) != 1 || strings.Contains(flagLike[0].Command, "--answer") {
+		t.Errorf("a flag-lookalike question_id must fall back, got %+v", flagLike)
 	}
 }
 

@@ -120,13 +120,23 @@ func cardHint(ref, what string) string {
 // scanning before emission on BOTH paths (and the pretty path additionally
 // ANSI-strips agent text). A --jq expression, when the leaf command registers
 // one, implies structured JSON and filters stdout.
-func emitTask(f *cmdutil.Factory, cmd *cobra.Command, task *iagents.AgentTask, next []output.NextAction, format string) error {
+func emitTask(f *cmdutil.Factory, cmd *cobra.Command, task *iagents.AgentTask, next []output.NextAction, format string, notices ...string) error {
 	out := f.IOStreams.Out
 	errOut := f.IOStreams.ErrOut
 
 	scan := output.ScanForSafety(cmd.CommandPath(), task, errOut)
 	if scan.Blocked {
 		return scan.BlockErr
+	}
+
+	// Normalization notices (provider contract defects, §3.2) must be visible on
+	// BOTH surfaces: stderr for humans, envelope _notice for the JSON consumer.
+	var defect string
+	for _, n := range notices {
+		if n != "" {
+			defect = n
+			fmt.Fprintf(errOut, "notice: %s\n", n)
+		}
 	}
 
 	if format == "pretty" && jqExpr(cmd) == "" {
@@ -142,6 +152,12 @@ func emitTask(f *cmdutil.Factory, cmd *cobra.Command, task *iagents.AgentTask, n
 		Identity: string(f.ResolvedIdentity),
 		Data:     task,
 		Notice:   output.GetNotice(),
+	}
+	if defect != "" {
+		if env.Notice == nil {
+			env.Notice = map[string]interface{}{}
+		}
+		env.Notice["provider_defect"] = defect
 	}
 	if len(next) > 0 {
 		// Identity carry follows the CLI-family convention (shortcuts never pin
@@ -295,15 +311,22 @@ func capabilityError(ref, capHuman, capKey string) error {
 	).WithHint("%s", cardHint(ref, "支持的能力"))
 }
 
-// normalizeTask derives the redundant IsTerminal flag from State — the single
-// source of truth — the moment a task enters the command layer, so a provider
-// that forgets (or mis-fills) the flag can never skew watch exit codes or an
-// AI caller's stop-polling decision. nil-safe; returns t for call-site chaining.
-func normalizeTask(t *iagents.AgentTask) *iagents.AgentTask {
-	if t != nil {
-		t.IsTerminal = t.State.IsTerminal()
+// normalizeTask canonicalizes a provider task the moment it enters the command
+// layer: IsTerminal is re-derived from State (the single source of truth, so a
+// provider that mis-fills the flag can never skew watch exit codes or an AI
+// caller's stop-polling decision), and the input_required question group runs
+// the central §3.2 normalization (size caps, empty options → absent, bare
+// prompt → one ordinary free-text question, non-conforming keys → whole-group
+// degrade). The returned notice — a provider defect worth seeing — must reach
+// the caller's output surface (emitTask routes it into the JSON envelope
+// _notice and onto stderr for pretty) instead of being silently smoothed over.
+// nil-safe.
+func normalizeTask(t *iagents.AgentTask) (notice string) {
+	if t == nil {
+		return ""
 	}
-	return t
+	t.IsTerminal = t.State.IsTerminal()
+	return iagents.NormalizeInputRequired(t)
 }
 
 // normalizeTaskSummaries derives IsTerminal from State for every summary (same

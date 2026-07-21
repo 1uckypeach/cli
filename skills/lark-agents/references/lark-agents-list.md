@@ -70,7 +70,7 @@ lark-cli agents list --format pretty
       {
         "agent_ref": "example:planner",
         "name": "报表规划器",
-        "description": "先反问「按什么维度拆」（input_required 单选决策），你用 --decision-id/--option 选定后再出报表。示范 HITL 决策链路。"
+        "description": "先弹一组确认问题（单选/自由文本/多选，input_required），你用 --answer 一次答清后再出报表。示范 HITL 问题组链路。"
       },
       {
         "agent_ref": "example:reporter",

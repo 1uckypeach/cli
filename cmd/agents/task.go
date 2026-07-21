@@ -318,8 +318,8 @@ func agentTaskGetRun(opts *taskOptions) error {
 
 	// Derive IsTerminal from State (single source of truth) before any consumer
 	// — emitTask's output and semanticExitError below both read the flag.
-	normalizeTask(task)
-	if err := emitTask(f, opts.Cmd, task, nextForTask(opts.Ref, task, spec, vp.Given, iagents.VerbTaskGet), opts.Format); err != nil {
+	notice := normalizeTask(task)
+	if err := emitTask(f, opts.Cmd, task, nextForTask(opts.Ref, task, spec, vp.Given, iagents.VerbTaskGet), opts.Format, notice); err != nil {
 		return err
 	}
 	// Under --watch a non-successful terminal state signals exit 1; a

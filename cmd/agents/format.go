@@ -122,19 +122,53 @@ func printTaskPretty(w io.Writer, task *iagents.AgentTask) {
 		fmt.Fprintf(w, "reply: %s\n", truncateRunes(kvValue(reply), 120))
 	}
 	fmt.Fprintf(w, "artifacts: %d\n", len(task.Artifacts))
-	// input_required decision: prompt + selectable options + arbitration state.
-	// Every field is agent-controlled, so all go through kvValue.
+	// input_required question group: group headline, then numbered questions
+	// with their answer form and options. Every field is agent-controlled, so
+	// all go through kvValue.
 	if ir := task.InputRequired; ir != nil {
-		fmt.Fprintf(w, "input_required: %s\n", truncateRunes(kvValue(ir.Prompt), 120))
-		if ir.DecisionID != "" {
-			fmt.Fprintf(w, "  decision_id: %s\n", kvValue(ir.DecisionID))
+		head := ir.Label
+		if head != "" && ir.Description != "" {
+			head += " — " + ir.Description
+		} else if head == "" {
+			head = ir.Description
 		}
-		if ir.Submitted {
-			fmt.Fprintf(w, "  submitted: true (%s)\n", kvValue(ir.SubmittedOptionID))
+		if head == "" && len(ir.Questions) == 1 {
+			// single untitled question: headline IS the question, no numbering.
+			q := ir.Questions[0]
+			fmt.Fprintf(w, "input_required: %s%s\n", truncateRunes(kvValue(q.Question), 120), questionKindSuffix(q))
+			printOptionsPretty(w, "  ", q.Options)
+			return
 		}
-		for _, o := range ir.Options {
-			fmt.Fprintf(w, "  option %s: %s\n", kvValue(o.OptionID), kvValue(o.Label))
+		fmt.Fprintf(w, "input_required: %s\n", truncateRunes(kvValue(head), 120))
+		for i, q := range ir.Questions {
+			fmt.Fprintf(w, "  [%d] %s%s\n", i+1, truncateRunes(kvValue(q.Question), 120), questionKindSuffix(q))
+			printOptionsPretty(w, "      ", q.Options)
 		}
+	}
+}
+
+// questionKindSuffix annotates a question row with its answer form: free text
+// or multi-select (a plain single-select needs no annotation — options below it
+// say enough).
+func questionKindSuffix(q iagents.Question) string {
+	if len(q.Options) == 0 {
+		return "（自由文本）"
+	}
+	if q.MultiSelect {
+		return "（可多选）"
+	}
+	return ""
+}
+
+// printOptionsPretty renders one "id: label — description" row per option under
+// the given indent; every field is agent-controlled and goes through kvValue.
+func printOptionsPretty(w io.Writer, indent string, opts []iagents.Option) {
+	for _, o := range opts {
+		row := fmt.Sprintf("%s: %s", kvValue(o.OptionID), kvValue(o.Label))
+		if o.Description != "" {
+			row += " — " + kvValue(o.Description)
+		}
+		fmt.Fprintf(w, "%s%s\n", indent, row)
 	}
 }
 

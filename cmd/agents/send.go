@@ -21,20 +21,19 @@ import (
 
 // sendOptions holds all inputs for `agents send <ref>`.
 type sendOptions struct {
-	Factory    *cmdutil.Factory
-	Cmd        *cobra.Command
-	Ref        string
-	Text       string
-	Files      []string
-	Params     []string
-	ContextID  string
-	TaskID     string
-	DecisionID string
-	Options    []string
-	DryRun     bool
-	Yes        bool
-	As         string
-	Format     string
+	Factory   *cmdutil.Factory
+	Cmd       *cobra.Command
+	Ref       string
+	Text      string
+	Files     []string
+	Params    []string
+	ContextID string
+	TaskID    string
+	Answers   []string // raw --answer key=value entries, argv order
+	DryRun    bool
+	Yes       bool
+	As        string
+	Format    string
 }
 
 // NewCmdAgentSend builds `agents send <agent_ref>`: send a message to a remote
@@ -52,7 +51,7 @@ func NewCmdAgentSend(f *cmdutil.Factory, runF func(*sendOptions) error) *cobra.C
 		Use:   "send <agent_ref>",
 		Short: "Send a message to a remote agent (start a new task or continue an existing one)",
 		Long: "Send one message to the remote agent addressed by agent_ref. Without --context-id/--task-id it starts a new task; " +
-			"with --context-id (optionally --task-id) it continues the same multi-turn context (including replying to input_required/auth_required). " +
+			"with --context-id (optionally --task-id) it continues the same multi-turn context; with --answer it answers the task's pending input_required question group. " +
 			"--dry-run only validates locally and prints the request preview without calling the API. A send fires and returns the current task immediately; " +
 			"poll progress with agents task get <agent_ref> <task-id> --watch (see meta.next).",
 		Args: exactArgsWithUsage(1),
@@ -68,13 +67,12 @@ func NewCmdAgentSend(f *cmdutil.Factory, runF func(*sendOptions) error) *cobra.C
 			return agentSendRun(opts)
 		},
 	}
-	cmd.Flags().StringVar(&opts.Text, "text", "", "消息正文（必填）")
+	cmd.Flags().StringVar(&opts.Text, "text", "", "消息的自由文本部分：起任务/续聊的正文，或随 --answer 的整体附言（--text 永远不是某道题的答案）")
 	cmd.Flags().StringArrayVar(&opts.Files, "file", nil, "随消息外发的本地文件路径，可重复；文件会被上传到远端 provider（内容离开本机）")
 	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.ContextID, "context-id", "", "多轮上下文 id（续发同一会话）")
 	cmd.Flags().StringVar(&opts.TaskID, "task-id", "", "向已有任务续发（须与 --context-id 一起用）")
-	cmd.Flags().StringVar(&opts.DecisionID, "decision-id", "", "回答 input_required 决策：目标 decision_id（配合 --option 或 --text；须与 --context-id/--task-id 一起用）")
-	cmd.Flags().StringArrayVar(&opts.Options, "option", nil, "回答决策选中的 option_id，可重复（单选给 1 个、多选给多个）；自由文本决策改用 --text")
+	cmd.Flags().StringArrayVar(&opts.Answers, "answer", nil, "回答 input_required 问题组，可重复：给选项键用 <question_id>=<option_id>（多选重复同 key），给文字用 <question_id>.text=<文本>；须与 --context-id/--task-id 一起用")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "只做本地校验并打印请求预览，不调用 API")
 	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "确认用 --file 把本地文件外发上传到远端（不加则 exit 10，不上传）")
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
@@ -92,63 +90,114 @@ func NewCmdAgentSend(f *cmdutil.Factory, runF func(*sendOptions) error) *cobra.C
 
 // sendMode is send's semantic mode, derived from the flags by a fixed priority
 // (the user never passes a mode). The discriminator formalizes what the guards
-// enforce: answer needs the decision's task+context and takes --option in
-// place of --text; continue/start need --text.
+// enforce: answer needs the pending group's task+context and takes --answer
+// entries (with --text as an optional message-level remark); continue/start
+// need --text.
 type sendMode string
 
 const (
-	modeStart    sendMode = "start"    // no context/task/decision — a fresh task
+	modeStart    sendMode = "start"    // no context/task/answers — a fresh task
 	modeContinue sendMode = "continue" // has context (optionally task) — same conversation
-	modeAnswer   sendMode = "answer"   // has decision — structured input_required reply
+	modeAnswer   sendMode = "answer"   // has --answer entries — input_required group reply
 )
 
-// deriveSendMode classifies the send and runs the per-mode client-side guards
-// (all offline, all holding under a nil Factory). Guard errors are the
-// long-standing typed messages; conflicting combinations never silently fall
-// back to another mode. Guard PRECEDENCE is deliberate mode-first: with several
-// simultaneous mistakes the mode-defining flag's guard wins (e.g. --option
-// without --decision-id reports the option guard, not the missing --text) —
-// the caller learns which MODE it got wrong before which field it forgot.
-func deriveSendMode(opts *sendOptions) (sendMode, error) {
-	// --option only means anything when answering a specific decision.
-	if len(opts.Options) > 0 && opts.DecisionID == "" {
-		return "", errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"--option 需与 --decision-id 一起使用").
-			WithParam("--option").
-			WithHint("先用 agents task get 查看 input_required 的 decision_id，再 --decision-id <id> --option <option_id>")
+// answerKeyPattern is the offline --answer key grammar: a KeyPattern-conforming
+// question id plus at most one case-sensitive ".text" suffix. Anything else —
+// ".txt", ".TEXT", a bare ".text", two dots, a '-'-leading flag-lookalike — is
+// rejected before any network access, because the only two legal key shapes are
+// <qid> and <qid>.text and a near-miss silently becoming an unknown question_id
+// at the provider would send the AI down the wrong recovery branch.
+var answerKeyPattern = regexp.MustCompile(`^` + iagents.KeyCharsetRE + `(\.text)?$`)
+
+// parseAnswers parses the raw --answer key=value entries into the §10.1 map
+// encoding (values in argv order), running every offline guard in one
+// collect-all pass so a multi-error submission is fixed in one round-trip:
+// key=value shape, key grammar, non-empty value, no duplicate .text entry per
+// question. Exact duplicate bare values are deduplicated (an AI retry glitch is
+// idempotent, not an error). Semantic validation (does the qid exist, is the
+// value a legal option) is deliberately NOT here — the CLI is stateless and
+// does not hold the question group; that is the provider's policy (§6.3).
+func parseAnswers(raw []string) (map[string][]string, error) {
+	answers := make(map[string][]string, len(raw))
+	var viols []string
+	for _, entry := range raw {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			viols = append(viols, fmt.Sprintf("%s（非 key=value 形）", entry))
+			continue
+		}
+		if !answerKeyPattern.MatchString(key) {
+			viols = append(viols, fmt.Sprintf("%s（key 非法：合法形态只有 <question_id> 与 <question_id>.text）", key))
+			continue
+		}
+		if value == "" {
+			viols = append(viols, fmt.Sprintf("%s（空答案无意义：选项题给 option_id、文字给非空文本；不想答的题不要带这个 key）", key))
+			continue
+		}
+		if _, isText := iagents.SplitAnswerKey(key); isText && len(answers[key]) > 0 {
+			viols = append(viols, fmt.Sprintf("%s（同一题的 .text 只能出现一次，文本不累积）", key))
+			continue
+		}
+		dup := false
+		for _, v := range answers[key] {
+			if v == value {
+				dup = true // exact duplicate → dedupe silently
+				break
+			}
+		}
+		if !dup {
+			answers[key] = append(answers[key], value)
+		}
 	}
-	if opts.DecisionID != "" {
-		// answer: continues the decision's own task, so both ids are required.
+	if len(viols) > 0 {
+		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"非法的 --answer: %s", strings.Join(viols, "；")).
+			WithParam("--answer").
+			WithHint("给选项键用 --answer <question_id>=<option_id>（多选重复同 key），给文字用 --answer <question_id>.text=<文本>，逐条修正后整组重发")
+	}
+	return answers, nil
+}
+
+// deriveSendMode classifies the send and runs the per-mode client-side guards
+// (all offline, all holding under a nil Factory). Conflicting combinations
+// never silently fall back to another mode. Guard PRECEDENCE is deliberate
+// mode-first: with several simultaneous mistakes the mode-defining flag's guard
+// wins (e.g. --answer without --context-id reports the answer guard, not the
+// missing --text) — the caller learns which MODE it got wrong before which
+// field it forgot. Returns the parsed answers map for the answer mode (nil
+// otherwise).
+func deriveSendMode(opts *sendOptions) (sendMode, map[string][]string, error) {
+	if len(opts.Answers) > 0 {
+		// answer: continues the pending group's own task, so both ids are required.
 		if opts.ContextID == "" || opts.TaskID == "" {
-			return "", errs.NewValidationError(errs.SubtypeInvalidArgument,
-				"回答决策需同时提供 --context-id 与 --task-id").
-				WithParam("--decision-id").
-				WithHint("--decision-id 必须与该决策所属任务的 --context-id/--task-id 一起提供")
+			return "", nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
+				"回答问题组需同时提供 --context-id 与 --task-id").
+				WithParam("--answer").
+				WithHint("--answer 必须与该问题组所属任务的 --context-id/--task-id 一起提供（照抄 task get 输出 meta.next 的命令模板）")
 		}
-		// Answering by option needs no --text (the chosen option IS the answer);
-		// a text-typed decision answer still requires --text.
-		if opts.Text == "" && len(opts.Options) == 0 {
-			return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "--text 不能为空").
-				WithParam("--text").
-				WithHint(`补充 --text "<消息内容>" 后重发；若在回答决策，用 --option <option_id> 选择`)
+		answers, err := parseAnswers(opts.Answers)
+		if err != nil {
+			return "", nil, err
 		}
-		return modeAnswer, nil
+		// --text stays optional here: it is the message-level remark, never a
+		// question's answer.
+		return modeAnswer, answers, nil
 	}
 	if opts.TaskID != "" && opts.ContextID == "" {
-		return "", errs.NewValidationError(errs.SubtypeInvalidArgument,
+		return "", nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
 			"--task-id 需与 --context-id 一起使用").
 			WithParam("--task-id").
 			WithHint("补充 --context-id <ctx-id> 后重发；该任务所属会话可用 lark-cli agents task get <agent_ref> <task-id> 输出的 context_id 确认")
 	}
 	if opts.Text == "" {
-		return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "--text 不能为空").
+		return "", nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--text 不能为空").
 			WithParam("--text").
-			WithHint(`补充 --text "<消息内容>" 后重发；若在回答决策，用 --option <option_id> 选择`)
+			WithHint(`补充 --text "<消息内容>" 后重发；若在回答问题组，用 --answer <question_id>=<option_id> 或 --answer <question_id>.text=<文本>`)
 	}
 	if opts.ContextID != "" {
-		return modeContinue, nil
+		return modeContinue, nil, nil
 	}
-	return modeStart, nil
+	return modeStart, nil, nil
 }
 
 // agentSendRun validates the send inputs, resolves the provider, and either
@@ -157,7 +206,8 @@ func deriveSendMode(opts *sendOptions) (sendMode, error) {
 // send fires once and returns the current task immediately (exit 0); the
 // caller polls progress via the meta.next `task get ... --watch` hint.
 func agentSendRun(opts *sendOptions) error {
-	if _, err := deriveSendMode(opts); err != nil {
+	_, answers, err := deriveSendMode(opts)
+	if err != nil {
 		return err
 	}
 	if err := validateSendFiles(opts.Files); err != nil {
@@ -188,18 +238,24 @@ func agentSendRun(opts *sendOptions) error {
 	}
 
 	in := iagents.SendInput{
-		Text:       opts.Text,
-		Files:      opts.Files,
-		ContextID:  opts.ContextID,
-		TaskID:     opts.TaskID,
-		DecisionID: opts.DecisionID,
-		OptionIDs:  opts.Options,
+		Text:      opts.Text,
+		Files:     opts.Files,
+		ContextID: opts.ContextID,
+		TaskID:    opts.TaskID,
+		Answers:   answers,
 	}
 
 	// --dry-run is a client-side behavior: always available, never
 	// gated by the Card's dry_run capability, and never touches the API.
 	if opts.DryRun {
 		return emitDryRun(f, opts.Cmd, opts.Ref, in, vp.Resolved, opts.Format)
+	}
+
+	// An agent that never enters input_required cannot take a group answer, so
+	// --answer against it is unsupported_capability — gated offline (mirrors the
+	// --file/file_input gate) to save the caller a doomed round-trip.
+	if len(in.Answers) > 0 && !card.Supports(iagents.CapInputRequired) {
+		return capabilityError(opts.Ref, "send with --answer", iagents.CapInputRequired)
 	}
 
 	if len(in.Files) > 0 {
@@ -239,12 +295,12 @@ func agentSendRun(opts *sendOptions) error {
 	if err != nil {
 		return err
 	}
-	normalizeTask(task)
+	notice := normalizeTask(task)
 
 	// A send fires and returns the current task immediately (exit 0). Progress is
 	// polled separately via the meta.next `task get <agent_ref> <task-id> --watch`
 	// hint — send no longer blocks on the task reaching a stop condition.
-	return emitTask(f, opts.Cmd, task, nextForTask(opts.Ref, task, spec, vp.Given, iagents.VerbSend), opts.Format)
+	return emitTask(f, opts.Cmd, task, nextForTask(opts.Ref, task, spec, vp.Given, iagents.VerbSend), opts.Format, notice)
 }
 
 // validateSendFiles is the local gate on --file paths, running before any
@@ -301,11 +357,8 @@ func emitDryRun(f *cmdutil.Factory, cmd *cobra.Command, ref string, in iagents.S
 		if in.TaskID != "" {
 			fmt.Fprintf(out, "task_id: %s\n", kvValue(in.TaskID))
 		}
-		if in.DecisionID != "" {
-			fmt.Fprintf(out, "decision_id: %s\n", kvValue(in.DecisionID))
-		}
-		if len(in.OptionIDs) > 0 {
-			fmt.Fprintf(out, "options: %d\n", len(in.OptionIDs))
+		if len(in.Answers) > 0 {
+			fmt.Fprintf(out, "answers: %d\n", len(in.Answers))
 		}
 		return nil
 	}
@@ -327,11 +380,9 @@ func emitDryRun(f *cmdutil.Factory, cmd *cobra.Command, ref string, in iagents.S
 	if in.TaskID != "" {
 		would["task_id"] = in.TaskID
 	}
-	if in.DecisionID != "" {
-		would["decision_id"] = in.DecisionID
-	}
-	if len(in.OptionIDs) > 0 {
-		would["option_ids"] = in.OptionIDs
+	if len(in.Answers) > 0 {
+		// §10.1 键编码原样预览：预演即所得。
+		would["answers"] = in.Answers
 	}
 	env := output.Envelope{
 		OK:       true,
@@ -350,13 +401,18 @@ func emitDryRun(f *cmdutil.Factory, cmd *cobra.Command, ref string, in iagents.S
 }
 
 // nextIDPattern is the character whitelist for server-supplied identifiers
-// (task_id / context_id) before they are interpolated into a meta.next command
-// string: letters, digits, '_' and '-' only. It is deliberately stricter than
-// validate.ResourceName — that check is a denylist aimed at URL-path safety and
-// would pass shell metacharacters (spaces, ';', backticks, quotes), which are
-// exactly what matters here: meta.next is defined as "AI executes this
-// verbatim", so a server-controlled id is a command-injection surface.
-var nextIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+// (task_id / context_id / question_id) before they are interpolated into a
+// meta.next command string: first character alphanumeric, then letters, digits,
+// '_' and '-'. It is deliberately stricter than validate.ResourceName — that
+// check is a denylist aimed at URL-path safety and would pass shell
+// metacharacters (spaces, ';', backticks, quotes), which are exactly what
+// matters here: meta.next is defined as "AI executes this verbatim", so a
+// server-controlled id is a command-injection surface. The alphanumeric first
+// character additionally rejects flag-lookalike ids ("--text", "-o") that would
+// survive a bare charset test yet hijack the flag surface when an AI re-composes
+// the command. It matches iagents.KeyPattern by construction — the two layers
+// must agree or a key accepted at one becomes a dead end at the other.
+var nextIDPattern = regexp.MustCompile(`^` + iagents.KeyCharsetRE + `$`)
 
 // safeNextID reports whether s may be interpolated into a meta.next command.
 func safeNextID(s string) bool {
@@ -428,27 +484,50 @@ func nextForTask(ref string, task *iagents.AgentTask, spec *iagents.AgentSpec, g
 			}}
 		}
 		if task.State == iagents.StateInputRequired {
-			// A send that already needs input: point at the continue command
-			// against the same task/context. The --text value is
-			// always a placeholder, so this hint is a template — which is also why
-			// a missing or whitelist-failing context_id can degrade to the
-			// <context_id> placeholder instead of dropping the hint.
+			// A task pausing on a question group: expand ONE per-question template
+			// (design doc §4.4) so the AI never hand-assembles the answer grammar —
+			// the placeholder names the answer form per question type (bare
+			// <option_id> for a choice, marked repeatable for multi-select,
+			// .text=<文本> for free text). All values are placeholders, so the hint
+			// is always a template — which is also why a missing or
+			// whitelist-failing context_id can degrade to the <context_id>
+			// placeholder instead of dropping the hint. Every question_id is
+			// server-supplied and must pass the safeNextID whitelist before
+			// interpolation (normalization upstream guarantees this; a violation
+			// here degrades to the free-text continuation rather than emitting a
+			// key the CLI's own guard would reject).
 			ctxID := task.ContextID
 			if ctxID == "" || !safeNextID(ctxID) {
 				ctxID = "<context_id>"
 			}
-			// If the agent supplied a structured decision (decision_id + options),
-			// point at answering it by option_id; the decision_id is server-supplied,
-			// so it must pass the safeNextID whitelist before interpolation. Fall back
-			// to a free-text continuation otherwise.
 			sendArgs, _ := paramArgsFor(spec, iagents.VerbSend, given)
-			if ir := task.InputRequired; ir != nil && ir.DecisionID != "" && safeNextID(ir.DecisionID) && len(ir.Options) > 0 {
-				return []output.NextAction{{
-					Label:    "回答该 input_required 决策（从 options 里选一个 option_id）",
-					Command:  fmt.Sprintf("lark-cli agents send %s --context-id %s --task-id %s --decision-id %s --option <option_id>%s", ref, ctxID, task.TaskID, ir.DecisionID, sendArgs),
-					Template: true,
-				}}
+			if ir := task.InputRequired; ir != nil && len(ir.Questions) > 0 {
+				parts := make([]string, 0, len(ir.Questions))
+				for _, q := range ir.Questions {
+					if !safeNextID(q.QuestionID) {
+						parts = nil
+						break
+					}
+					switch {
+					case len(q.Options) == 0:
+						parts = append(parts, fmt.Sprintf("--answer %s.text=<文本>", q.QuestionID))
+					case q.MultiSelect:
+						parts = append(parts, fmt.Sprintf("--answer %s=<option_id 多选可重复>", q.QuestionID))
+					default:
+						parts = append(parts, fmt.Sprintf("--answer %s=<option_id>", q.QuestionID))
+					}
+				}
+				if parts != nil {
+					return []output.NextAction{{
+						Label:    "把问题组转达给用户后按其答复提交（用户先前指令已唯一确定答案时可代答，须说明依据）；选项都不合适的题用 <question_id>.text=<文本>",
+						Command:  fmt.Sprintf("lark-cli agents send %s --context-id %s --task-id %s %s%s", ref, ctxID, task.TaskID, strings.Join(parts, " "), sendArgs),
+						Template: true,
+					}}
+				}
 			}
+			// No structured group (provider supplied none and normalization had
+			// nothing to synthesize from): plain free-text continuation — the
+			// provider treats a message to its paused task as the answer (§6.5).
 			return []output.NextAction{{
 				Label:    "补充输入后向同一任务续发",
 				Command:  fmt.Sprintf("lark-cli agents send %s --context-id %s --task-id %s --text <你的答复>%s", ref, ctxID, task.TaskID, sendArgs),

@@ -6,6 +6,7 @@ package example
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -73,8 +74,11 @@ func TestCapabilityMatrixDiverges(t *testing.T) {
 	if !ec.ContextList || !ec.ContextGet || !ec.ContextDelete || !ec.TaskGet || !ec.TaskList {
 		t.Errorf("echo should support context_list/get/delete + task_get/task_list, got %+v", ec)
 	}
-	if !(rc.ArtifactDownload && rc.FileInput && rc.TaskCancel && rc.InputRequired && rc.ContextList && rc.ContextGet && rc.ContextDelete && rc.TaskGet && rc.TaskList) {
-		t.Errorf("reporter should have everything enabled, got %+v", rc)
+	if !(rc.ArtifactDownload && rc.FileInput && rc.TaskCancel && rc.ContextList && rc.ContextGet && rc.ContextDelete && rc.TaskGet && rc.TaskList) {
+		t.Errorf("reporter should have everything but input_required enabled, got %+v", rc)
+	}
+	if rc.InputRequired {
+		t.Error("reporter never pauses — input_required must be false (its brand-scoped CancelTask would otherwise violate the §6.8 registration check)")
 	}
 }
 
@@ -245,11 +249,22 @@ func TestStateSurvivesReload(t *testing.T) {
 	}
 }
 
-// TestPlannerDecisionFlow drives the input_required HITL loop end to end on the
-// reference provider: the first send opens a non-terminal decision, answering it
-// by option completes the task and records the winning option, and a second
-// answer to the same decision is a conflict (the arbitration path).
-func TestPlannerDecisionFlow(t *testing.T) {
+// plannerAnswers builds the full valid answer set for a freshly opened planner
+// group (§10.1 key encoding): q1 by option, q2 by text, q3 multi-select.
+func plannerAnswers(ir *agents.InputRequired) map[string][]string {
+	return map[string][]string{
+		ir.Questions[0].QuestionID:                            {"by_region"},
+		ir.Questions[1].QuestionID + agents.AnswerTextSuffix:  {"2024 全年"},
+		ir.Questions[2].QuestionID:                            {"east", "north"},
+	}
+}
+
+// TestPlannerGroupFlow drives the input_required HITL loop end to end on the
+// reference provider: the first send pauses on a three-question group with
+// creation-minted per-group keys, one --answer submission completes the task
+// with option ids resolved back to labels, and a second submission gets
+// failed_precondition carrying resolved_answers (the "already decided" path).
+func TestPlannerGroupFlow(t *testing.T) {
 	swapStore(t)
 	rt := fakeRuntime{agentID: "planner"}
 	ctx := context.Background()
@@ -259,45 +274,141 @@ func TestPlannerDecisionFlow(t *testing.T) {
 		t.Fatalf("planner open send: %v", err)
 	}
 	if t1.State != agents.StateInputRequired || t1.InputRequired == nil {
-		t.Fatalf("first send should open an input_required decision, got %+v", t1)
+		t.Fatalf("first send should pause on a question group, got %+v", t1)
 	}
 	ir := t1.InputRequired
-	if ir.DecisionID == "" || ir.InputType != agents.InputTypeSingleSelect || len(ir.Options) != 2 {
-		t.Fatalf("decision should carry id + single_select + 2 options, got %+v", ir)
+	if ir.Label == "" || len(ir.Questions) != 3 {
+		t.Fatalf("group should carry a label and 3 questions, got %+v", ir)
 	}
-	if ir.Submitted {
-		t.Error("a freshly opened decision should not be submitted")
+	if len(ir.Questions[0].Options) != 2 || len(ir.Questions[1].Options) != 0 ||
+		!ir.Questions[2].MultiSelect || len(ir.Questions[2].Options) != 3 {
+		t.Fatalf("question shapes wrong: %+v", ir.Questions)
+	}
+	for _, q := range ir.Questions {
+		if !agents.KeyPattern.MatchString(q.QuestionID) {
+			t.Errorf("minted question_id must satisfy KeyPattern, got %q", q.QuestionID)
+		}
+	}
+	// Per-group suffix: all three ids share ONE suffix (creation-minted, §6.2 —
+	// per-question suffixes would break the group-anchor staleness design)…
+	suffix := t1.InputRequired.Questions[0].QuestionID
+	suffix = suffix[strings.LastIndex(suffix, "_")+1:]
+	for _, q := range t1.InputRequired.Questions {
+		if !strings.HasSuffix(q.QuestionID, "_"+suffix) {
+			t.Errorf("all question ids must share the group suffix %q, got %q", suffix, q.QuestionID)
+		}
+	}
+	// …and a SECOND group (new ask in the same context) mints a different one —
+	// the stale-retry protection.
+	t2, err := plannerSend(ctx, rt, agents.SendInput{ContextID: t1.ContextID, Text: "再来一份"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	q2id := t2.InputRequired.Questions[0].QuestionID
+	if q2id == t1.InputRequired.Questions[0].QuestionID {
+		t.Errorf("a successor group must mint different question ids, both got %q", q2id)
 	}
 
 	done, err := plannerSend(ctx, rt, agents.SendInput{
-		ContextID: t1.ContextID, TaskID: t1.TaskID,
-		DecisionID: ir.DecisionID, OptionIDs: []string{"by_region"},
+		ContextID: t1.ContextID, TaskID: t1.TaskID, Answers: plannerAnswers(ir),
 	})
 	if err != nil {
-		t.Fatalf("answering the decision: %v", err)
+		t.Fatalf("answering the group: %v", err)
 	}
 	if done.State != agents.StateCompleted {
 		t.Fatalf("answered task should be completed, got %s", done.State)
 	}
-	if done.InputRequired == nil || !done.InputRequired.Submitted || done.InputRequired.SubmittedOptionID != "by_region" {
-		t.Errorf("decision should be marked submitted with the winning option, got %+v", done.InputRequired)
+	var acceptReply string
+	for i := len(done.Messages) - 1; i >= 0; i-- {
+		if done.Messages[i].Role == "agent" && len(done.Messages[i].Parts) > 0 {
+			acceptReply = done.Messages[i].Parts[0].Text
+			break
+		}
+	}
+	if !strings.Contains(acceptReply, "按大区") || !strings.Contains(acceptReply, "2024 全年") {
+		t.Errorf("acceptance reply should resolve option ids to labels and echo text answers, got %q", acceptReply)
 	}
 
+	// Second submission (another endpoint / a retry whose first attempt landed):
+	// failed_precondition + resolved_answers echoing what won.
 	_, err = plannerSend(ctx, rt, agents.SendInput{
-		ContextID: t1.ContextID, TaskID: t1.TaskID,
-		DecisionID: ir.DecisionID, OptionIDs: []string{"by_category"},
+		ContextID: t1.ContextID, TaskID: t1.TaskID, Answers: plannerAnswers(ir),
 	})
 	if err == nil {
-		t.Fatal("answering an already-submitted decision should conflict")
+		t.Fatal("re-answering a resolved group should fail")
 	}
-	if p, ok := errs.ProblemOf(err); !ok || p.Subtype != errs.SubtypeConflict {
-		t.Fatalf("re-answer should be a conflict, got %+v (%v)", p, err)
+	if p, ok := errs.ProblemOf(err); !ok || p.Subtype != errs.SubtypeFailedPrecondition {
+		t.Fatalf("re-answer should be failed_precondition, got %+v (%v)", p, err)
+	}
+	var verr *errs.ValidationError
+	if !errors.As(err, &verr) || verr.ResolvedAnswers == nil {
+		t.Fatalf("re-answer must carry resolved_answers (who won), got %+v", verr)
+	}
+	if v := verr.ResolvedAnswers[ir.Questions[0].QuestionID]; len(v) != 1 || v[0] != "by_region" {
+		t.Errorf("resolved_answers should echo the accepted set, got %v", verr.ResolvedAnswers)
 	}
 }
 
-// TestPlannerRejectsUnknownOption pins that an option_id not in the decision is
-// invalid_argument and leaves the decision unanswered.
-func TestPlannerRejectsUnknownOption(t *testing.T) {
+// TestPlannerCollectAllValidation pins the strict-posture server validation in
+// one submission: an unknown key (stale retry), a bad option, a skip+value
+// conflict, and a missing question are ALL reported in one invalid_argument
+// whose params[] carry the Reason enum and the question declaration — and the
+// rejected submission changes nothing.
+func TestPlannerCollectAllValidation(t *testing.T) {
+	swapStore(t)
+	rt := fakeRuntime{agentID: "planner"}
+	ctx := context.Background()
+	t1, err := plannerSend(ctx, rt, agents.SendInput{Text: "出报表"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ir := t1.InputRequired
+	_, err = plannerSend(ctx, rt, agents.SendInput{
+		ContextID: t1.ContextID, TaskID: t1.TaskID,
+		Answers: map[string][]string{
+			"q1_stale":                 {"by_region"},        // 陈旧/拼错键 → unknown_question
+			ir.Questions[0].QuestionID: {"nonexistent"},      // 非法选项 → invalid_option
+			ir.Questions[2].QuestionID: {"east", "skip"},     // skip 与实值互斥 → conflict
+			// Questions[1] 未答 → missing
+		},
+	})
+	if err == nil {
+		t.Fatal("a violating submission should error")
+	}
+	p, ok := errs.ProblemOf(err)
+	if !ok || p.Subtype != errs.SubtypeInvalidArgument {
+		t.Fatalf("want invalid_argument, got %+v (%v)", p, err)
+	}
+	var verr *errs.ValidationError
+	if !errors.As(err, &verr) {
+		t.Fatal(err)
+	}
+	reasons := map[string]string{}
+	for _, ip := range verr.Params {
+		reasons[ip.Reason] = ip.Name
+	}
+	for _, want := range []string{"unknown_question", "invalid_option", "conflict", "missing"} {
+		if _, hit := reasons[want]; !hit {
+			t.Errorf("collect-all params should include reason %q, got %v", want, verr.Params)
+		}
+	}
+	if !strings.Contains(p.Hint, "整组重发") {
+		t.Errorf("hint must state the full-group resend rule, got %q", p.Hint)
+	}
+
+	got, err := getTask(ctx, rt, t1.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.State != agents.StateInputRequired {
+		t.Errorf("a rejected submission must change nothing, got state=%s", got.State)
+	}
+}
+
+// TestPlannerBareTextNoSiblingFork pins the §6.5 rule: a bare --text aimed at
+// the paused task is rejected with guidance toward --answer — it must NOT fork
+// a sibling task (the pre-v0.3 behavior this replaces).
+func TestPlannerBareTextNoSiblingFork(t *testing.T) {
 	swapStore(t)
 	rt := fakeRuntime{agentID: "planner"}
 	ctx := context.Background()
@@ -306,18 +417,38 @@ func TestPlannerRejectsUnknownOption(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = plannerSend(ctx, rt, agents.SendInput{
-		ContextID: t1.ContextID, TaskID: t1.TaskID,
-		DecisionID: t1.InputRequired.DecisionID, OptionIDs: []string{"nonexistent"},
+		ContextID: t1.ContextID, TaskID: t1.TaskID, Text: "按大区吧",
 	})
-	if p, ok := errs.ProblemOf(err); !ok || p.Subtype != errs.SubtypeInvalidArgument {
-		t.Fatalf("unknown option should be invalid_argument, got %+v (%v)", p, err)
+	if err == nil {
+		t.Fatal("bare --text at a paused select-question group should be rejected")
 	}
-	got, err := getTask(ctx, rt, t1.TaskID)
+	if p, ok := errs.ProblemOf(err); !ok || p.Subtype != errs.SubtypeInvalidArgument || !strings.Contains(p.Hint, "--answer") {
+		t.Fatalf("rejection should guide to --answer, got %+v (%v)", p, err)
+	}
+	// No sibling task was created: the context still holds exactly one task.
+	tasks, _, err := listTasks(ctx, rt, t1.ContextID, agents.PageParams{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.State != agents.StateInputRequired || got.InputRequired.Submitted {
-		t.Errorf("a rejected option must not change the decision, got state=%s submitted=%v", got.State, got.InputRequired.Submitted)
+	if len(tasks) != 1 {
+		t.Fatalf("bare --text must not fork a sibling task, got %d tasks", len(tasks))
+	}
+}
+
+// TestNewTurnRejectsAnswers pins the no-silent-drop bottom line on born-terminal
+// agents: reporter passes the CLI's input_required capability gate, so its hook
+// must reject --answer loudly instead of consuming it as a plain turn.
+func TestNewTurnRejectsAnswers(t *testing.T) {
+	swapStore(t)
+	rt := fakeRuntime{agentID: "reporter"}
+	_, err := reporterSend(context.Background(), rt, agents.SendInput{
+		Answers: map[string][]string{"q1": {"x"}},
+	})
+	if err == nil {
+		t.Fatal("answers at a born-terminal agent should be rejected, not dropped")
+	}
+	if p, ok := errs.ProblemOf(err); !ok || p.Subtype != errs.SubtypeFailedPrecondition {
+		t.Fatalf("want failed_precondition, got %+v (%v)", p, err)
 	}
 }
 
@@ -506,7 +637,7 @@ func TestContextRollupPicksLatestUpdated(t *testing.T) {
 	// t_b has the LATEST updated_at yet is created before t_c, and is input_required.
 	store.Tasks["t_b"] = &taskRecord{AgentID: "echo", Seq: 3, Task: agents.AgentTask{
 		TaskID: "t_b", ContextID: "ctx_1", State: agents.StateInputRequired,
-		UpdatedAt: "2026-07-05T00:00:00Z", InputRequired: &agents.InputRequired{Prompt: "按大区还是品类拆?"},
+		UpdatedAt: "2026-07-05T00:00:00Z", InputRequired: &agents.InputRequired{Questions: []agents.Question{{QuestionID: "q1_x", Question: "按大区还是品类拆?"}}},
 	}}
 	store.Tasks["t_c"] = &taskRecord{AgentID: "echo", Seq: 4, Task: agents.AgentTask{
 		TaskID: "t_c", ContextID: "ctx_1", State: agents.StateCompleted, IsTerminal: true,
@@ -558,11 +689,19 @@ func TestTaskSummaryText(t *testing.T) {
 	}
 	prompt := taskSummaryText(agents.AgentTask{
 		State:         agents.StateInputRequired,
-		InputRequired: &agents.InputRequired{Prompt: "补充预算区间?"},
+		InputRequired: &agents.InputRequired{Questions: []agents.Question{{QuestionID: "q1_x", Question: "补充预算区间?"}}},
 		Messages:      agentMessage("忽略我"),
 	})
 	if prompt != "补充预算区间?" {
-		t.Errorf("input_required summary should be the pending prompt, got %q", prompt)
+		t.Errorf("input_required summary should be the pending question, got %q", prompt)
+	}
+	multi := taskSummaryText(agents.AgentTask{
+		State: agents.StateInputRequired,
+		InputRequired: &agents.InputRequired{Label: "报表生成确认",
+			Questions: []agents.Question{{QuestionID: "q1_x", Question: "a?"}, {QuestionID: "q2_x", Question: "b?"}}},
+	})
+	if multi != "报表生成确认（共 2 题）" {
+		t.Errorf("multi-question summary should be label + count, got %q", multi)
 	}
 }
 
@@ -702,5 +841,129 @@ func TestListContextsPagination(t *testing.T) {
 	}
 	if p1[0].ContextID == p2[0].ContextID || p1[1].ContextID == p2[0].ContextID {
 		t.Errorf("page 2 must not overlap page 1: p1=%v p2=%v", p1, p2)
+	}
+}
+
+// TestPlannerCountAndAliasRules pins the remaining §4.2/§6.3 value rules the
+// main flow doesn't reach: count_violation on both branches (single-select
+// with two picks; text question with two bare values), the bare-value alias on
+// a text question (MUST be accepted as .text), and the .text supplement on a
+// single-select never counting toward cardinality.
+func TestPlannerCountAndAliasRules(t *testing.T) {
+	swapStore(t)
+	rt := fakeRuntime{agentID: "planner"}
+	ctx := context.Background()
+	t1, err := plannerSend(ctx, rt, agents.SendInput{Text: "出报表"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ir := t1.InputRequired
+	q1, q2, q3 := ir.Questions[0].QuestionID, ir.Questions[1].QuestionID, ir.Questions[2].QuestionID
+
+	// count_violation: two picks on the single-select, two bare texts on the
+	// text question.
+	_, err = plannerSend(ctx, rt, agents.SendInput{
+		ContextID: t1.ContextID, TaskID: t1.TaskID,
+		Answers: map[string][]string{
+			q1: {"by_region", "by_category"},
+			q2: {"a", "b"},
+			q3: {"east"},
+		},
+	})
+	var verr *errs.ValidationError
+	if !errors.As(err, &verr) {
+		t.Fatal(err)
+	}
+	counts := 0
+	for _, ip := range verr.Params {
+		if ip.Reason == "count_violation" {
+			counts++
+		}
+	}
+	if counts != 2 {
+		t.Fatalf("both count_violation branches should fire, got %+v", verr.Params)
+	}
+
+	// Accept path: bare-value alias on the text question + .text supplement on
+	// the single-select (never counted toward cardinality).
+	done, err := plannerSend(ctx, rt, agents.SendInput{
+		ContextID: t1.ContextID, TaskID: t1.TaskID,
+		Answers: map[string][]string{
+			q1:           {"by_region"},
+			q1 + ".text": {"海外先不算"},
+			q2:           {"2024 全年"}, // bare alias of .text
+			q3:           {"east"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("alias + supplement must be accepted: %v", err)
+	}
+	if done.State != agents.StateCompleted {
+		t.Fatalf("got %s", done.State)
+	}
+}
+
+// TestPlannerGroupSurvivesReload pins the §6.2 conformance promise: keys are
+// minted at creation and persist — a FRESH store instance (new process) replays
+// identical question ids, and answering with those ids still routes.
+func TestPlannerGroupSurvivesReload(t *testing.T) {
+	swapStore(t)
+	rt := fakeRuntime{agentID: "planner"}
+	ctx := context.Background()
+	t1, err := plannerSend(ctx, rt, agents.SendInput{Text: "出报表"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := []string{t1.InputRequired.Questions[0].QuestionID, t1.InputRequired.Questions[1].QuestionID, t1.InputRequired.Questions[2].QuestionID}
+
+	store = newMemoryStore(store.path) // simulate a fresh CLI process
+	got, err := getTask(ctx, rt, t1.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, q := range got.InputRequired.Questions {
+		if q.QuestionID != ids[i] {
+			t.Fatalf("question ids must be identical across processes (render-time minting is non-conforming): %v vs %v", q.QuestionID, ids[i])
+		}
+	}
+	if _, err := plannerSend(ctx, rt, agents.SendInput{
+		ContextID: t1.ContextID, TaskID: t1.TaskID, Answers: plannerAnswers(got.InputRequired),
+	}); err != nil {
+		t.Fatalf("answering with reloaded ids must route: %v", err)
+	}
+}
+
+// TestPlannerConcurrentAnswers pins §6.7 atomicity: two racing submissions get
+// exactly one winner; the loser sees failed_precondition with resolved_answers
+// equal to the winner's set.
+func TestPlannerConcurrentAnswers(t *testing.T) {
+	swapStore(t)
+	rt := fakeRuntime{agentID: "planner"}
+	ctx := context.Background()
+	t1, err := plannerSend(ctx, rt, agents.SendInput{Text: "出报表"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	answers := plannerAnswers(t1.InputRequired)
+	errsCh := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			_, err := plannerSend(ctx, rt, agents.SendInput{
+				ContextID: t1.ContextID, TaskID: t1.TaskID, Answers: answers,
+			})
+			errsCh <- err
+		}()
+	}
+	e1, e2 := <-errsCh, <-errsCh
+	if (e1 == nil) == (e2 == nil) {
+		t.Fatalf("exactly one submission must win, got %v / %v", e1, e2)
+	}
+	loser := e1
+	if loser == nil {
+		loser = e2
+	}
+	var verr *errs.ValidationError
+	if !errors.As(loser, &verr) || verr.ResolvedAnswers == nil {
+		t.Fatalf("loser must get failed_precondition with resolved_answers, got %v", loser)
 	}
 }
