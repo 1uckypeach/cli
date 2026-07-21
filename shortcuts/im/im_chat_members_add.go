@@ -31,6 +31,9 @@ func readChatMembersAddSpec(runtime *common.RuntimeContext) (chatMembersAddSpec,
 	if err != nil {
 		return chatMembersAddSpec{}, err
 	}
+	if err := validateChatMembersAddID("--chat-id", chatID, "oc_"); err != nil {
+		return chatMembersAddSpec{}, err
+	}
 
 	spec := chatMembersAddSpec{
 		ChatID: chatID,
@@ -49,25 +52,23 @@ func readChatMembersAddSpec(runtime *common.RuntimeContext) (chatMembersAddSpec,
 	if len(spec.Users) > imChatMembersAddUserLimit {
 		return chatMembersAddSpec{}, errs.NewValidationError(
 			errs.SubtypeInvalidArgument,
-			"--users exceeds the maximum of %d (got %d)",
+			"--users accepts at most %d unique IDs",
 			imChatMembersAddUserLimit,
-			len(spec.Users),
 		).WithParam("--users")
 	}
 	if len(spec.Bots) > imChatMembersAddBotLimit {
 		return chatMembersAddSpec{}, errs.NewValidationError(
 			errs.SubtypeInvalidArgument,
-			"--bots exceeds the maximum of %d (got %d)",
+			"--bots accepts at most %d unique IDs",
 			imChatMembersAddBotLimit,
-			len(spec.Bots),
 		).WithParam("--bots")
 	}
 
 	for _, id := range spec.Users {
-		if _, err := common.ValidateUserIDTyped("--users", id); err != nil {
+		if err := validateChatMembersAddID("--users", id, "ou_"); err != nil {
 			return chatMembersAddSpec{}, err
 		}
-		if err := validateChatMembersAddID("--users", id, "ou_"); err != nil {
+		if _, err := common.ValidateUserIDTyped("--users", id); err != nil {
 			return chatMembersAddSpec{}, err
 		}
 	}
@@ -101,28 +102,33 @@ func validateChatMembersAddID(param, id, prefix string) error {
 	if !strings.HasPrefix(id, prefix) {
 		return errs.NewValidationError(
 			errs.SubtypeInvalidArgument,
-			"invalid %s value %q: must start with %s",
+			"invalid %s: identifier must start with %s",
 			param,
-			id,
 			prefix,
 		).WithParam(param)
 	}
 	if len(id) > imChatMembersAddIDMaxBytes {
 		return errs.NewValidationError(
 			errs.SubtypeInvalidArgument,
-			"invalid %s value: identifier exceeds %d bytes",
+			"invalid %s: identifier must not exceed %d bytes",
 			param,
 			imChatMembersAddIDMaxBytes,
 		).WithParam(param)
 	}
 
 	suffix := strings.TrimPrefix(id, prefix)
+	if suffix == "" {
+		return errs.NewValidationError(
+			errs.SubtypeInvalidArgument,
+			"invalid %s: identifier suffix cannot be empty",
+			param,
+		).WithParam(param)
+	}
 	if !imChatMembersAddIDSuffix.MatchString(suffix) {
 		return errs.NewValidationError(
 			errs.SubtypeInvalidArgument,
-			"invalid %s value %q: identifier suffix must contain only ASCII letters, digits, underscores, or hyphens",
+			"invalid %s: identifier suffix must use only ASCII letters, digits, underscores, or hyphens",
 			param,
-			id,
 		).WithParam(param)
 	}
 	return nil
