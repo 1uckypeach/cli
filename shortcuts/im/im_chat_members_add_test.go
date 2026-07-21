@@ -586,6 +586,9 @@ func TestExecuteChatMembersAddReturnsPartialFailureForRejectedIDs(t *testing.T) 
 	assertChatMembersAddPartialFailure(t, err)
 
 	data := decodeChatMembersAddPartialOutput(t, runtime)
+	if got := data["chat_id"]; got != "oc_test" {
+		t.Fatalf("chat_id = %#v, want %q", got, "oc_test")
+	}
 	if got := int(data["success_count"].(float64)); got != 1 {
 		t.Fatalf("success_count = %d, want 1", got)
 	}
@@ -732,6 +735,62 @@ func TestExecuteChatMembersAddReturnsPriorResultWhenBotRequestFails(t *testing.T
 	errOut := chatMembersAddStderr(t, runtime)
 	if strings.Contains(errOut, "ou_") || strings.Contains(errOut, "cli_") || strings.Contains(errOut, "PermissionError") {
 		t.Fatalf("stderr exposes member data or an error object: %q", errOut)
+	}
+}
+
+func TestExecuteChatMembersAddReturnsPriorResultWhenBotResponseIsInvalid(t *testing.T) {
+	requestCount := 0
+	runtime := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestCount++
+		if requestCount == 1 {
+			return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+				"code": 0,
+				"data": map[string]interface{}{
+					"invalid_id_list":          []interface{}{"ou_invalid"},
+					"not_existed_id_list":      []interface{}{},
+					"pending_approval_id_list": []interface{}{},
+				},
+			}), nil
+		}
+		return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{
+				"invalid_id_list": "invalid-response-shape",
+			},
+		}), nil
+	}))
+	setChatMembersAddTestFlags(t, runtime, "oc_test", "ou_ok,ou_invalid", "cli_private")
+
+	err := executeChatMembersAdd(runtime, chatMembersAddSpec{
+		ChatID: "oc_test",
+		Users:  []string{"ou_ok", "ou_invalid"},
+		Bots:   []string{"cli_private"},
+	})
+	assertChatMembersAddPartialFailure(t, err)
+	if requestCount != 2 {
+		t.Fatalf("request count = %d, want 2", requestCount)
+	}
+
+	data := decodeChatMembersAddPartialOutput(t, runtime)
+	if data["chat_id"] != "oc_test" {
+		t.Fatalf("chat_id = %#v, want %q", data["chat_id"], "oc_test")
+	}
+	if data["failed_member_type"] != "bot" || data["outcome_unknown"] != false {
+		t.Fatalf("failure metadata = %#v, want failed bot with known outcome", data)
+	}
+	if got := int(data["success_count"].(float64)); got != 1 {
+		t.Fatalf("success_count = %d, want 1", got)
+	}
+	assertChatMembersAddOutputLists(t, data, []string{"ou_invalid"}, []string{}, []string{})
+	errorData, ok := data["error"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("error projection = %T, want object", data["error"])
+	}
+	if got := errorData["type"]; got != string(errs.CategoryInternal) {
+		t.Fatalf("error.type = %#v, want %q", got, errs.CategoryInternal)
+	}
+	if got := errorData["subtype"]; got != string(errs.SubtypeInvalidResponse) {
+		t.Fatalf("error.subtype = %#v, want %q", got, errs.SubtypeInvalidResponse)
 	}
 }
 
