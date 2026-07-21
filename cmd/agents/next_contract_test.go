@@ -248,12 +248,14 @@ func TestNextForTaskDoesNotSuggestStructuredAnswerWhenCapabilityIsDisabled(t *te
 	next := nextForTask("base:assistant", &iagents.AgentTask{
 		TaskID: "task_1", ContextID: "ctx_1", State: iagents.StateInputRequired,
 		InputRequired: &iagents.InputRequired{
-			DecisionID: "q_scene",
-			Prompt:     "请选择场景",
-			Options:    []iagents.Option{{OptionID: "opt_create", Label: "新建"}},
+			Questions: []iagents.Question{{
+				QuestionID: "q_scene",
+				Question:   "请选择场景",
+				Options:    []iagents.Option{{OptionID: "opt_create", Label: "新建"}},
+			}},
 		},
 	}, &iagents.AgentSpec{InputRequired: false}, nil, iagents.VerbTaskGet)
-	if len(next) != 1 || !strings.Contains(next[0].Command, "--text <你的答复>") || strings.Contains(next[0].Command, "--decision-id") {
+	if len(next) != 1 || !strings.Contains(next[0].Command, "--text <你的答复>") || strings.Contains(next[0].Command, "--answer") {
 		t.Fatalf("disabled structured input must fall back to text continuation, got %+v", next)
 	}
 }

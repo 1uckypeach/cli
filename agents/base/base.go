@@ -117,9 +117,9 @@ func validateSendRuntime(rt iagents.Runtime, in iagents.SendInput) error {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument,
 			"base:assistant does not support file input").WithParam("--file")
 	}
-	if in.DecisionID != "" || len(in.OptionIDs) > 0 {
+	if len(in.Answers) > 0 {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"base:assistant does not support structured input_required answers").WithParam("--decision-id")
+			"base:assistant does not support structured input_required answers").WithParam("--answer")
 	}
 	return nil
 }

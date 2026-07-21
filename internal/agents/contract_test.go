@@ -85,10 +85,12 @@ func TestStructuredArtifactAndInputDetailsJSON(t *testing.T) {
 			Data: map[string]interface{}{"resource": map[string]string{"block_id": "block_1"}},
 		}},
 		InputRequired: &InputRequired{
-			DecisionID: "q_1", OutputID: "102:question:1", Source: "base_agent", GroupID: "grp_1",
-			Prompt: "请选择", InputType: InputTypeSingleSelect,
-			Options: []Option{{OptionID: "opt_1", Label: "新建", Description: "创建新表"}},
-			Data:    map[string]interface{}{"forms": []interface{}{}},
+			Label: "请选择",
+			Questions: []Question{{
+				QuestionID: "q_1",
+				Question:   "选择操作",
+				Options:    []Option{{OptionID: "opt_1", Label: "新建", Description: "创建新表"}},
+			}},
 		},
 	}
 	b, err := json.Marshal(at)
@@ -105,8 +107,10 @@ func TestStructuredArtifactAndInputDetailsJSON(t *testing.T) {
 		t.Fatalf("artifact=%v", artifact)
 	}
 	input := payload["input_required"].(map[string]interface{})
-	options := input["options"].([]interface{})
-	if options[0].(map[string]interface{})["description"] != "创建新表" || input["data"] == nil || input["output_id"] != "102:question:1" || input["source"] != "base_agent" || input["group_id"] != "grp_1" {
+	questions := input["questions"].([]interface{})
+	question := questions[0].(map[string]interface{})
+	options := question["options"].([]interface{})
+	if input["label"] != "请选择" || question["question_id"] != "q_1" || options[0].(map[string]interface{})["description"] != "创建新表" {
 		t.Fatalf("input_required=%v", input)
 	}
 }

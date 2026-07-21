@@ -80,7 +80,7 @@ func mapVersionedTask(in adapterTask) (*iagents.AgentTask, error) {
 		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
 			"Base Adapter returned waiting_for_input without an unresolved required clarification")
 	case state == iagents.StateInputRequired:
-		inputRequired = mapInputRequired(*pending.Clarification, *pending)
+		inputRequired = mapInputRequired(*pending.Clarification)
 	case !state.IsTerminal() && pending != nil:
 		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
 			"Base Adapter returned status %q with unresolved clarification %q", in.Status, pending.Clarification.ID).
@@ -231,13 +231,13 @@ func latestPendingClarification(outputs []adapterOutput) *adapterOutput {
 }
 
 type clarificationDecision struct {
-	id        string
-	prompt    string
-	inputType string
-	options   []iagents.Option
+	id          string
+	prompt      string
+	multiSelect bool
+	options     []iagents.Option
 }
 
-func mapInputRequired(in adapterClarification, output adapterOutput) *iagents.InputRequired {
+func mapInputRequired(in adapterClarification) *iagents.InputRequired {
 	decision := findClarificationQuestion(in.Questions, in.Title, true)
 	if decision == nil {
 		for _, form := range in.Forms {
@@ -270,20 +270,18 @@ func mapInputRequired(in adapterClarification, output adapterOutput) *iagents.In
 		}
 	}
 	if decision == nil {
-		decision = &clarificationDecision{id: in.ID, prompt: in.Title, inputType: iagents.InputTypeText}
+		decision = &clarificationDecision{id: in.ID, prompt: in.Title}
 	}
 	if decision.prompt == "" {
 		decision.prompt = "请补充信息"
 	}
 	return &iagents.InputRequired{
-		DecisionID: decision.id,
-		OutputID:   output.ID,
-		Source:     output.Source,
-		GroupID:    output.GroupID,
-		Prompt:     decision.prompt,
-		InputType:  decision.inputType,
-		Options:    decision.options,
-		Data:       in,
+		Questions: []iagents.Question{{
+			QuestionID:  decision.id,
+			Question:    decision.prompt,
+			MultiSelect: decision.multiSelect,
+			Options:     decision.options,
+		}},
 	}
 }
 
@@ -300,17 +298,6 @@ func findClarificationQuestion(questions []adapterClarificationQuestion, prefix 
 }
 
 func decisionFromQuestion(in adapterClarificationQuestion, prefix string) *clarificationDecision {
-	inputType := iagents.InputTypeText
-	switch strings.ToLower(in.Type) {
-	case "single_select":
-		inputType = iagents.InputTypeSingleSelect
-	case "multi_select":
-		inputType = iagents.InputTypeMultiSelect
-	case "entity_select", "group_select":
-		if len(in.Options) > 0 {
-			inputType = iagents.InputTypeSingleSelect
-		}
-	}
 	options := make([]iagents.Option, 0, len(in.Options))
 	for _, option := range in.Options {
 		options = append(options, iagents.Option{
@@ -320,10 +307,10 @@ func decisionFromQuestion(in adapterClarificationQuestion, prefix string) *clari
 		})
 	}
 	return &clarificationDecision{
-		id:        in.ID,
-		prompt:    joinPrompt(prefix, in.Prompt),
-		inputType: inputType,
-		options:   options,
+		id:          in.ID,
+		prompt:      joinPrompt(prefix, in.Prompt),
+		multiSelect: strings.EqualFold(in.Type, "multi_select") && len(options) > 0,
+		options:     options,
 	}
 }
 
@@ -332,7 +319,7 @@ func decisionFromButtons(id, prompt string, buttons []adapterClarificationButton
 	for _, button := range buttons {
 		options = append(options, iagents.Option{OptionID: button.ID, Label: button.Label})
 	}
-	return &clarificationDecision{id: id, prompt: prompt, inputType: iagents.InputTypeSingleSelect, options: options}
+	return &clarificationDecision{id: id, prompt: prompt, options: options}
 }
 
 func clarificationActionPrompt(in adapterClarification) string {

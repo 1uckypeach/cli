@@ -212,8 +212,7 @@ func TestSendContinuationAndIdempotency(t *testing.T) {
 func TestSendRejectsDisabledInputs(t *testing.T) {
 	tests := []iagents.SendInput{
 		{Text: "x", Files: []string{"a.txt"}},
-		{Text: "x", DecisionID: "d1"},
-		{Text: "x", OptionIDs: []string{"o1"}},
+		{Text: "x", Answers: map[string][]string{"q1": {"o1"}}},
 	}
 	for _, in := range tests {
 		rt := &fakeRuntime{params: map[string]string{"base_token": "b1"}}
@@ -425,18 +424,18 @@ func TestVersionedTaskMapsOutputsAndClarification(t *testing.T) {
 	if got := task.Messages[0].Parts[1]; got.OutputID != "101:data_qa_chart:1" || got.Source != "base_agent" || got.GroupID != "grp_1" {
 		t.Fatalf("data part metadata=%+v", got)
 	}
-	if task.InputRequired == nil || task.InputRequired.DecisionID != "q_scene" ||
-		task.InputRequired.InputType != iagents.InputTypeSingleSelect || len(task.InputRequired.Options) != 1 {
+	if task.InputRequired == nil || len(task.InputRequired.Questions) != 1 {
 		t.Fatalf("input_required=%+v", task.InputRequired)
 	}
-	if task.InputRequired.Prompt != "请补充信息：高级设置：请选择场景" {
-		t.Fatalf("prompt=%q", task.InputRequired.Prompt)
+	question := task.InputRequired.Questions[0]
+	if question.QuestionID != "q_scene" || question.MultiSelect || len(question.Options) != 1 {
+		t.Fatalf("question=%+v", question)
 	}
-	if task.InputRequired.Options[0].Description != "创建新表" || task.InputRequired.Data == nil {
-		t.Fatalf("input_required details=%+v", task.InputRequired)
+	if question.Question != "请补充信息：高级设置：请选择场景" {
+		t.Fatalf("question=%q", question.Question)
 	}
-	if task.InputRequired.OutputID != "102:question:1" || task.InputRequired.Source != "base_agent" || task.InputRequired.GroupID != "grp_1" {
-		t.Fatalf("input_required metadata=%+v", task.InputRequired)
+	if question.Options[0].Description != "创建新表" {
+		t.Fatalf("question details=%+v", question)
 	}
 	if len(task.Artifacts) != 1 {
 		t.Fatalf("artifacts=%+v", task.Artifacts)
@@ -477,7 +476,8 @@ func TestVersionedTaskUsesLatestPendingClarification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if task.InputRequired == nil || task.InputRequired.DecisionID != "new" || task.InputRequired.Prompt != "新问题" {
+	if task.InputRequired == nil || len(task.InputRequired.Questions) != 1 ||
+		task.InputRequired.Questions[0].QuestionID != "new" || task.InputRequired.Questions[0].Question != "新问题" {
 		t.Fatalf("input_required=%+v", task.InputRequired)
 	}
 }
