@@ -409,7 +409,6 @@ func mapContextSummary(in adapterContext) (iagents.ContextSummary, error) {
 		CreatedAt: createdAt,
 		UpdatedAt: updatedAt,
 		Title:     in.Title,
-		TaskCount: 0,
 	}, nil
 }
 
@@ -423,7 +422,7 @@ func mapContextDetail(in adapterContext) (*iagents.ContextDetail, error) {
 		CreatedAt: summary.CreatedAt,
 		UpdatedAt: summary.UpdatedAt,
 		Title:     summary.Title,
-		TaskCount: len(in.Tasks),
+		TaskCount: iagents.Int(len(in.Tasks)),
 	}
 	if len(in.Tasks) > 0 {
 		var active iagents.TaskSummary

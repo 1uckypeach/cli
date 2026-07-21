@@ -13,6 +13,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	iagents "github.com/larksuite/cli/internal/agents"
 	"github.com/larksuite/cli/internal/agents/agenttest"
+	"github.com/larksuite/cli/internal/core"
 )
 
 func init() { iagents.Register(Provider()) }
@@ -102,12 +103,14 @@ func TestProviderConformance(t *testing.T) {
 	if len(p.Catalog) != 1 || p.Catalog[0].ID != "assistant" {
 		t.Fatalf("catalog=%+v", p.Catalog)
 	}
-	caps := iagents.DeriveCapabilities(&p.Catalog[0])
-	if !caps.TaskGet || !caps.TaskList || !caps.TaskCancel || !caps.ContextList || !caps.ContextGet || !caps.ContextDelete {
-		t.Fatalf("missing required capability: %+v", caps)
-	}
-	if caps.FileInput || caps.InputRequired || caps.ArtifactDownload {
-		t.Fatalf("unsupported capability advertised: %+v", caps)
+	for _, brand := range []core.LarkBrand{core.BrandFeishu, core.BrandLark} {
+		caps := iagents.DeriveCapabilities(&p.Catalog[0], brand)
+		if !caps.TaskGet || !caps.TaskList || !caps.TaskCancel || !caps.ContextList || !caps.ContextGet || !caps.ContextDelete {
+			t.Fatalf("brand=%s missing required capability: %+v", brand, caps)
+		}
+		if caps.FileInput || caps.InputRequired || caps.ArtifactDownload {
+			t.Fatalf("brand=%s unsupported capability advertised: %+v", brand, caps)
+		}
 	}
 	agenttest.CheckParamsBinding[sendParams](t, &p.Catalog[0], iagents.VerbSend)
 	agenttest.CheckParamsBinding[getTaskParams](t, &p.Catalog[0], iagents.VerbTaskGet)
@@ -559,7 +562,7 @@ func TestContextHooks(t *testing.T) {
 	if pageInfo != (iagents.PageInfo{}) {
 		t.Fatalf("pageInfo=%+v", pageInfo)
 	}
-	if len(contexts) != 1 || contexts[0].TaskCount != 0 {
+	if len(contexts) != 1 {
 		t.Fatalf("contexts=%+v", contexts)
 	}
 	wantQuery := map[string]string{"cursor": "next", "limit": "10", "status": "active"}
@@ -570,7 +573,7 @@ func TestContextHooks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if detail.TaskCount != 2 || detail.ActiveTask == nil || detail.ActiveTask.TaskID != "new" {
+	if detail.TaskCount == nil || *detail.TaskCount != 2 || detail.ActiveTask == nil || detail.ActiveTask.TaskID != "new" {
 		t.Fatalf("detail=%+v", detail)
 	}
 	if err := assistantSpec.DeleteContext.Handler(context.Background(), rt, "c1"); err != nil {
@@ -614,6 +617,9 @@ func TestMapContextDetailRollsUpTasks(t *testing.T) {
 			},
 			activeID: "10",
 		},
+		{
+			name: "empty context has a known zero task count",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -627,6 +633,15 @@ func TestMapContextDetailRollsUpTasks(t *testing.T) {
 				detail, err := mapContextDetail(adapterContext{ContextID: "c1", Tasks: tasks})
 				if err != nil {
 					t.Fatal(err)
+				}
+				if detail.TaskCount == nil || *detail.TaskCount != len(tasks) {
+					t.Fatalf("reverse=%v task_count=%v tasks=%d", reverse, detail.TaskCount, len(tasks))
+				}
+				if test.activeID == "" {
+					if detail.ActiveTask != nil {
+						t.Fatalf("reverse=%v detail=%+v", reverse, detail)
+					}
+					continue
 				}
 				if detail.ActiveTask == nil || detail.ActiveTask.TaskID != test.activeID || detail.AwaitingInput != test.awaitingInput {
 					t.Fatalf("reverse=%v detail=%+v", reverse, detail)
