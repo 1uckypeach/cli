@@ -6,6 +6,7 @@ package im
 import (
 	"context"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -238,16 +239,24 @@ func missingPermissionNames(result *clie2e.Result) []string {
 	}
 
 	names := map[string]struct{}{}
-	permissionFailure := false
+	fallbackNames := map[string]struct{}{}
+	missingScopeFailure := false
 	for _, raw := range []string{result.Stdout, result.Stderr} {
 		payload := strings.TrimSpace(raw)
 		if !gjson.Valid(payload) {
 			continue
 		}
-		category := gjson.Get(payload, "error.type").String()
 		subtype := gjson.Get(payload, "error.subtype").String()
-		if category == "authorization" || strings.Contains(subtype, "scope") || subtype == "permission_denied" {
-			permissionFailure = true
+		code := gjson.Get(payload, "error.code").Int()
+		if !isMissingIMMemberScope(subtype, code) {
+			continue
+		}
+
+		missingScopeFailure = true
+		if isMissingIMMemberScopeCode(code) {
+			fallbackNames["scope code "+strconv.FormatInt(code, 10)] = struct{}{}
+		} else {
+			fallbackNames["IM chat member scope"] = struct{}{}
 		}
 		for _, scope := range gjson.Get(payload, "error.missing_scopes").Array() {
 			if name := scope.String(); name != "" {
@@ -256,24 +265,13 @@ func missingPermissionNames(result *clie2e.Result) []string {
 		}
 	}
 
-	combined := strings.ToLower(result.Stdout + "\n" + result.Stderr)
-	if strings.Contains(combined, "missing_scope") ||
-		strings.Contains(combined, "permission denied") ||
-		strings.Contains(combined, "99991672") ||
-		strings.Contains(combined, "99991676") ||
-		strings.Contains(combined, "99991679") {
-		permissionFailure = true
-	}
-	for _, scope := range []string{chatMembersAddWriteScope, "im:chat.members:read"} {
-		if strings.Contains(combined, scope) {
-			names[scope] = struct{}{}
-		}
-	}
-	if !permissionFailure {
+	if !missingScopeFailure {
 		return nil
 	}
 	if len(names) == 0 {
-		names["IM chat member permission"] = struct{}{}
+		for name := range fallbackNames {
+			names[name] = struct{}{}
+		}
 	}
 
 	resultNames := make([]string, 0, len(names))
@@ -282,6 +280,99 @@ func missingPermissionNames(result *clie2e.Result) []string {
 	}
 	sort.Strings(resultNames)
 	return resultNames
+}
+
+func isMissingIMMemberScope(subtype string, code int64) bool {
+	switch subtype {
+	case "missing_scope", "app_scope_not_applied", "token_scope_insufficient":
+		return true
+	default:
+		return isMissingIMMemberScopeCode(code)
+	}
+}
+
+func isMissingIMMemberScopeCode(code int64) bool {
+	switch code {
+	case 99991672, 99991676, 99991679:
+		return true
+	default:
+		return false
+	}
+}
+
+func TestMissingIMMemberPermissionNames(t *testing.T) {
+	tests := []struct {
+		name   string
+		stderr string
+		stdout string
+		want   []string
+	}{
+		{
+			name:   "missing scope subtype",
+			stderr: `{"error":{"type":"authorization","subtype":"missing_scope","missing_scopes":["im:chat.members:read"]}}`,
+			want:   []string{"im:chat.members:read"},
+		},
+		{
+			name:   "app scope not applied subtype",
+			stderr: `{"error":{"type":"authorization","subtype":"app_scope_not_applied","missing_scopes":["im:chat.members:write_only"]}}`,
+			want:   []string{chatMembersAddWriteScope},
+		},
+		{
+			name:   "token scope insufficient subtype",
+			stderr: `{"error":{"type":"authorization","subtype":"token_scope_insufficient"}}`,
+			want:   []string{"IM chat member scope"},
+		},
+		{
+			name:   "app scope not applied code",
+			stderr: `{"error":{"type":"api_error","code":99991672}}`,
+			want:   []string{"scope code 99991672"},
+		},
+		{
+			name:   "token scope insufficient code",
+			stderr: `{"error":{"type":"api_error","code":99991676}}`,
+			want:   []string{"scope code 99991676"},
+		},
+		{
+			name:   "missing scope code on stdout",
+			stdout: `{"error":{"type":"api_error","code":99991679}}`,
+			want:   []string{"scope code 99991679"},
+		},
+		{
+			name:   "authorization category alone",
+			stderr: `{"error":{"type":"authorization","subtype":"unknown"}}`,
+		},
+		{
+			name:   "ordinary permission denied",
+			stderr: `{"error":{"type":"authorization","subtype":"permission_denied"}}`,
+		},
+		{
+			name:   "not in chat resource state",
+			stderr: `{"error":{"type":"validation","subtype":"failed_precondition","message":"not in chat"}}`,
+		},
+		{
+			name:   "no invite permission",
+			stderr: `{"error":{"type":"authorization","subtype":"permission_denied","message":"no invite permission"}}`,
+		},
+		{
+			name:   "scope substring is not accepted",
+			stderr: `{"error":{"type":"authorization","subtype":"unknown_scope_state"}}`,
+		},
+		{
+			name:   "unknown error",
+			stderr: `{"error":{"type":"internal","subtype":"unknown"}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := &clie2e.Result{
+				ExitCode: 3,
+				Stdout:   tt.stdout,
+				Stderr:   tt.stderr,
+			}
+			require.Equal(t, tt.want, missingPermissionNames(result))
+		})
+	}
 }
 
 func resultErrorSummary(result *clie2e.Result) string {
