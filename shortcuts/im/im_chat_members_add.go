@@ -230,8 +230,11 @@ func executeChatMembersAdd(runtime *common.RuntimeContext, spec chatMembersAddSp
 			merged := mergeChatMembersAddResponse(responses...)
 			result := newChatMembersAddResult(spec.ChatID, completedCount, merged)
 			result.FailedMemberType = "bot"
-			result.OutcomeUnknown = errs.IsNetwork(err)
+			result.OutcomeUnknown = isChatMembersAddOutcomeUnknown(err)
 			result.Error = projectChatMembersAddError(projectedErr, true)
+			if err := writeChatMembersAddProgressWarning(runtime, result.SuccessCount); err != nil {
+				return err
+			}
 			return runtime.OutPartialFailure(result, nil)
 		}
 		responses = append(responses, response)
@@ -272,15 +275,24 @@ func renderChatMembersAddPretty(w io.Writer, result chatMembersAddResult) {
 
 func withChatMembersAddUnknownOutcome(err error, botBatch bool) error {
 	var networkErr *errs.NetworkError
-	if !errors.As(err, &networkErr) {
-		return err
+	if errors.As(err, &networkErr) {
+		cloned := *networkErr
+		cloned.Problem = networkErr.Problem
+		cloned.Retryable = false
+		cloned.Hint = chatMembersAddUnknownOutcomeHint(botBatch)
+		return &cloned
 	}
 
-	cloned := *networkErr
-	cloned.Problem = networkErr.Problem
-	cloned.Retryable = false
-	cloned.Hint = chatMembersAddUnknownOutcomeHint(botBatch)
-	return &cloned
+	var internalErr *errs.InternalError
+	if errors.As(err, &internalErr) && internalErr.Subtype == errs.SubtypeInvalidResponse {
+		cloned := *internalErr
+		cloned.Problem = internalErr.Problem
+		cloned.Retryable = false
+		cloned.Hint = chatMembersAddUnknownOutcomeHint(botBatch)
+		return &cloned
+	}
+
+	return err
 }
 
 func projectChatMembersAddError(err error, botBatch bool) *chatMembersAddError {
@@ -305,8 +317,7 @@ func projectChatMembersAddError(err error, botBatch bool) *chatMembersAddError {
 		Retryable:      problem.Retryable,
 	}
 
-	var networkErr *errs.NetworkError
-	if errors.As(err, &networkErr) {
+	if isChatMembersAddOutcomeUnknown(err) {
 		projected.Retryable = false
 		projected.Hint = chatMembersAddUnknownOutcomeHint(botBatch)
 	}
@@ -328,6 +339,29 @@ func chatMembersAddUnknownOutcomeHint(botBatch bool) string {
 		return imChatBotsAddReadbackHint
 	}
 	return imChatMembersAddReadbackHint
+}
+
+func isChatMembersAddOutcomeUnknown(err error) bool {
+	if errs.IsNetwork(err) {
+		return true
+	}
+	problem, ok := errs.ProblemOf(err)
+	return ok && problem.Subtype == errs.SubtypeInvalidResponse
+}
+
+func writeChatMembersAddProgressWarning(runtime *common.RuntimeContext, successCount int) error {
+	if _, err := fmt.Fprintf(
+		runtime.IO().ErrOut,
+		"Added %d user member(s) before the bot member request failed.\n",
+		successCount,
+	); err != nil {
+		return errs.NewInternalError(
+			errs.SubtypeFileIO,
+			"write chat member progress to stderr: %v",
+			err,
+		).WithCause(err)
+	}
+	return nil
 }
 
 func callChatMembersAddBatch(

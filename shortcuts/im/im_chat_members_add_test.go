@@ -733,6 +733,10 @@ func TestExecuteChatMembersAddReturnsPriorResultWhenBotRequestFails(t *testing.T
 		t.Fatal("error.message is empty")
 	}
 	errOut := chatMembersAddStderr(t, runtime)
+	wantErrOut := "Added 1 user member(s) before the bot member request failed.\n"
+	if errOut != wantErrOut {
+		t.Fatalf("stderr = %q, want %q", errOut, wantErrOut)
+	}
 	if strings.Contains(errOut, "ou_") || strings.Contains(errOut, "cli_") || strings.Contains(errOut, "PermissionError") {
 		t.Fatalf("stderr exposes member data or an error object: %q", errOut)
 	}
@@ -775,8 +779,8 @@ func TestExecuteChatMembersAddReturnsPriorResultWhenBotResponseIsInvalid(t *test
 	if data["chat_id"] != "oc_test" {
 		t.Fatalf("chat_id = %#v, want %q", data["chat_id"], "oc_test")
 	}
-	if data["failed_member_type"] != "bot" || data["outcome_unknown"] != false {
-		t.Fatalf("failure metadata = %#v, want failed bot with known outcome", data)
+	if data["failed_member_type"] != "bot" || data["outcome_unknown"] != true {
+		t.Fatalf("failure metadata = %#v, want failed bot with unknown outcome", data)
 	}
 	if got := int(data["success_count"].(float64)); got != 1 {
 		t.Fatalf("success_count = %d, want 1", got)
@@ -791,6 +795,185 @@ func TestExecuteChatMembersAddReturnsPriorResultWhenBotResponseIsInvalid(t *test
 	}
 	if got := errorData["subtype"]; got != string(errs.SubtypeInvalidResponse) {
 		t.Fatalf("error.subtype = %#v, want %q", got, errs.SubtypeInvalidResponse)
+	}
+	if retryable, ok := errorData["retryable"].(bool); !ok || retryable {
+		t.Fatalf("error.retryable = %#v, want false", errorData["retryable"])
+	}
+	hint, _ := errorData["hint"].(string)
+	assertChatMembersAddReadbackHint(t, hint, true)
+	wantErrOut := "Added 1 user member(s) before the bot member request failed.\n"
+	if got := chatMembersAddStderr(t, runtime); got != wantErrOut {
+		t.Fatalf("stderr = %q, want %q", got, wantErrOut)
+	}
+}
+
+func TestExecuteChatMembersAddMarksMalformedBotResponsesUnknown(t *testing.T) {
+	tests := []struct {
+		name     string
+		response func() *http.Response
+	}{
+		{
+			name: "invalid JSON",
+			response: func() *http.Response {
+				return shortcutRawResponse(http.StatusOK, []byte(`{"code":`), http.Header{
+					"Content-Type": []string{"application/json"},
+				})
+			},
+		},
+		{
+			name: "non-object JSON",
+			response: func() *http.Response {
+				return shortcutRawResponse(http.StatusOK, []byte(`[]`), http.Header{
+					"Content-Type": []string{"application/json"},
+				})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			requestCount := 0
+			runtime := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+				requestCount++
+				if requestCount == 1 {
+					return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+						"code": 0,
+						"data": map[string]interface{}{},
+					}), nil
+				}
+				return tt.response(), nil
+			}))
+			setChatMembersAddTestFlags(t, runtime, "oc_test", "ou_ok", "cli_private")
+
+			err := executeChatMembersAdd(runtime, chatMembersAddSpec{
+				ChatID: "oc_test",
+				Users:  []string{"ou_ok"},
+				Bots:   []string{"cli_private"},
+			})
+			assertChatMembersAddPartialFailure(t, err)
+			data := decodeChatMembersAddPartialOutput(t, runtime)
+			if data["failed_member_type"] != "bot" || data["outcome_unknown"] != true {
+				t.Fatalf("failure metadata = %#v, want failed bot with unknown outcome", data)
+			}
+			if got := int(data["success_count"].(float64)); got != 1 {
+				t.Fatalf("success_count = %d, want 1", got)
+			}
+			assertChatMembersAddOutputLists(t, data, []string{}, []string{}, []string{})
+			errorData := data["error"].(map[string]interface{})
+			if errorData["type"] != string(errs.CategoryInternal) || errorData["subtype"] != string(errs.SubtypeInvalidResponse) {
+				t.Fatalf("error projection = %#v, want internal/invalid_response", errorData)
+			}
+			if retryable, ok := errorData["retryable"].(bool); !ok || retryable {
+				t.Fatalf("error.retryable = %#v, want false", errorData["retryable"])
+			}
+			assertChatMembersAddReadbackHint(t, errorData["hint"].(string), true)
+			wantErrOut := "Added 1 user member(s) before the bot member request failed.\n"
+			if got := chatMembersAddStderr(t, runtime); got != wantErrOut {
+				t.Fatalf("stderr = %q, want %q", got, wantErrOut)
+			}
+		})
+	}
+}
+
+func TestExecuteChatMembersAddDisablesRetryForInvalidFirstResponse(t *testing.T) {
+	tests := []struct {
+		name     string
+		botBatch bool
+		response func() *http.Response
+	}{
+		{
+			name: "invalid user JSON",
+			response: func() *http.Response {
+				return shortcutRawResponse(http.StatusOK, []byte(`{"code":`), http.Header{
+					"Content-Type": []string{"application/json"},
+				})
+			},
+		},
+		{
+			name:     "non-object bot JSON",
+			botBatch: true,
+			response: func() *http.Response {
+				return shortcutRawResponse(http.StatusOK, []byte(`[]`), http.Header{
+					"Content-Type": []string{"application/json"},
+				})
+			},
+		},
+		{
+			name: "invalid user member list",
+			response: func() *http.Response {
+				return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+					"code": 0,
+					"data": map[string]interface{}{"invalid_id_list": "invalid-response-shape"},
+				})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			transport := shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return tt.response(), nil
+			})
+			spec := chatMembersAddSpec{ChatID: "oc_test", Users: []string{"ou_private"}}
+			runtime := newUserShortcutRuntime(t, transport)
+			if tt.botBatch {
+				spec = chatMembersAddSpec{ChatID: "oc_test", Bots: []string{"cli_private"}}
+				runtime = newBotShortcutRuntime(t, transport)
+			}
+			setChatMembersAddTestFlags(t, runtime, "oc_test", strings.Join(spec.Users, ","), strings.Join(spec.Bots, ","))
+
+			err := executeChatMembersAdd(runtime, spec)
+			var internalErr *errs.InternalError
+			if !errors.As(err, &internalErr) {
+				t.Fatalf("error = %T, want *errs.InternalError", err)
+			}
+			if internalErr.Subtype != errs.SubtypeInvalidResponse || internalErr.Retryable {
+				t.Fatalf("problem = %#v, want non-retryable invalid_response", internalErr.Problem)
+			}
+			assertChatMembersAddReadbackHint(t, internalErr.Hint, tt.botBatch)
+			if errors.Unwrap(internalErr) == nil {
+				t.Fatal("invalid response cause was not preserved")
+			}
+			if got := chatMembersAddStdout(t, runtime); got != "" {
+				t.Fatalf("stdout = %q, want empty", got)
+			}
+			if got := chatMembersAddStderr(t, runtime); got != "" {
+				t.Fatalf("stderr = %q, want empty", got)
+			}
+		})
+	}
+}
+
+func TestWithChatMembersAddUnknownOutcomeCopiesInvalidResponseError(t *testing.T) {
+	cause := errors.New("invalid response cause")
+	source := errs.NewInternalError(errs.SubtypeInvalidResponse, "invalid response").
+		WithHint("inspect raw response").
+		WithLogID("log-invalid-response").
+		WithCode(502).
+		WithRetryable().
+		WithCause(cause)
+	source.Troubleshooter = "https://example.invalid/invalid-response-help"
+
+	err := withChatMembersAddUnknownOutcome(source, false)
+	var got *errs.InternalError
+	if !errors.As(err, &got) {
+		t.Fatalf("error = %T, want *errs.InternalError", err)
+	}
+	if got == source {
+		t.Fatal("withChatMembersAddUnknownOutcome() returned the source pointer")
+	}
+	if got.Category != source.Category || got.Subtype != source.Subtype || got.Code != source.Code || got.Message != source.Message || got.LogID != source.LogID || got.Troubleshooter != source.Troubleshooter {
+		t.Fatalf("internal problem = %#v, want source metadata preserved", got.Problem)
+	}
+	if got.Retryable {
+		t.Fatal("invalid response Retryable = true, want false")
+	}
+	assertChatMembersAddReadbackHint(t, got.Hint, false)
+	if !errors.Is(got, cause) {
+		t.Fatal("invalid response cause was not preserved")
+	}
+	if source.Hint != "inspect raw response" || !source.Retryable {
+		t.Fatalf("source invalid response error was mutated: %#v", source.Problem)
 	}
 }
 
@@ -829,7 +1012,7 @@ func TestProjectChatMembersAddErrorCopiesPermissionFields(t *testing.T) {
 
 func TestWithChatMembersAddUnknownOutcomePreservesDeterministicError(t *testing.T) {
 	cause := errors.New("permission cause")
-	source := errs.NewPermissionError(errs.SubtypeMissingScope, "permission denied").WithCause(cause)
+	source := errs.NewPermissionError(errs.SubtypeMissingScope, "permission denied").WithRetryable().WithCause(cause)
 
 	got := withChatMembersAddUnknownOutcome(source, false)
 	if got != source {
@@ -837,6 +1020,9 @@ func TestWithChatMembersAddUnknownOutcomePreservesDeterministicError(t *testing.
 	}
 	if !errors.Is(got, cause) {
 		t.Fatal("deterministic error cause was not preserved")
+	}
+	if !source.Retryable {
+		t.Fatal("deterministic error retryable field changed")
 	}
 }
 
@@ -909,6 +1095,49 @@ func TestExecuteChatMembersAddMarksBotNetworkOutcomeUnknown(t *testing.T) {
 	assertChatMembersAddReadbackHint(t, hint, true)
 	if _, exists := errorData["cause"]; exists {
 		t.Fatal("serialized error projection contains cause")
+	}
+	wantErrOut := "Added 1 user member(s) before the bot member request failed.\n"
+	if got := chatMembersAddStderr(t, runtime); got != wantErrOut {
+		t.Fatalf("stderr = %q, want %q", got, wantErrOut)
+	}
+}
+
+func TestExecuteChatMembersAddReturnsTypedErrorWhenProgressWarningFails(t *testing.T) {
+	requestCount := 0
+	writeCause := errors.New("stderr write failed")
+	runtime := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestCount++
+		if requestCount == 1 {
+			return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+				"code": 0,
+				"data": map[string]interface{}{},
+			}), nil
+		}
+		return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+			"code": 99991672,
+			"msg":  "app scope not applied",
+		}), nil
+	}))
+	runtime.Factory.IOStreams.ErrOut = chatMembersAddFailingWriter{err: writeCause}
+	setChatMembersAddTestFlags(t, runtime, "oc_test", "ou_ok", "cli_private")
+
+	err := executeChatMembersAdd(runtime, chatMembersAddSpec{
+		ChatID: "oc_test",
+		Users:  []string{"ou_ok"},
+		Bots:   []string{"cli_private"},
+	})
+	var internalErr *errs.InternalError
+	if !errors.As(err, &internalErr) {
+		t.Fatalf("error = %T, want *errs.InternalError", err)
+	}
+	if internalErr.Subtype != errs.SubtypeFileIO {
+		t.Fatalf("error subtype = %q, want %q", internalErr.Subtype, errs.SubtypeFileIO)
+	}
+	if !errors.Is(err, writeCause) {
+		t.Fatal("stderr write error cause was not preserved")
+	}
+	if got := chatMembersAddStdout(t, runtime); got != "" {
+		t.Fatalf("stdout = %q, want empty", got)
 	}
 }
 
@@ -1092,6 +1321,14 @@ func chatMembersAddStderr(t *testing.T, runtime *common.RuntimeContext) string {
 		t.Fatalf("stderr buffer has type %T", runtime.Factory.IOStreams.ErrOut)
 	}
 	return errOut.String()
+}
+
+type chatMembersAddFailingWriter struct {
+	err error
+}
+
+func (w chatMembersAddFailingWriter) Write([]byte) (int, error) {
+	return 0, w.err
 }
 
 func TestProjectChatMembersAddResponseUsesEmptySlices(t *testing.T) {
