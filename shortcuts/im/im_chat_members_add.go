@@ -177,9 +177,16 @@ var ImChatMembersAdd = common.Shortcut{
 	Command:     "+chat-members-add",
 	Description: "Add users and/or bots to a group chat; user/bot; batches --users (open_id) and --bots (app_id) into up to 2 API calls under best-effort semantics; returns a merged succeeded/invalid/not_existed/pending_approval ledger",
 	Risk:        "write",
-	Scopes:      []string{"im:chat", "im:chat.members:write_only"},
-	AuthTypes:   []string{"user", "bot"},
-	HasFormat:   true,
+	// Declare the narrowest scope the API accepts so tokens carrying only
+	// im:chat.members:write_only are honored (same rationale as
+	// +chat-members-list): chat.members.create's raw meta lists
+	// ["im:chat", "im:chat.members:write_only"] as OR alternatives, but the
+	// local scope precheck (internal/auth/scope.go's MissingScopes) treats
+	// every entry in Scopes as required (AND semantics), so listing both here
+	// would wrongly reject a token that only carries the narrow scope.
+	Scopes:    []string{"im:chat.members:write_only"},
+	AuthTypes: []string{"user", "bot"},
+	HasFormat: true,
 	Flags: []common.Flag{
 		{Name: "chat-id", Required: true, Desc: "chat ID to add members to (oc_xxx)"},
 		{Name: "users", Type: "string_slice", Desc: "user open_ids to invite (ou_xxx); comma-separated or repeat the flag; max 50"},

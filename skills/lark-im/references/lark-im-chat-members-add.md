@@ -68,4 +68,4 @@ This only applies when **both** `--users` and `--bots` were supplied (so both ca
 | `invalid --users value ...: must start with "ou_"` | Wrong ID type in `--users` | Use `open_id` (`ou_xxx`), not `union_id`/`user_id`/`app_id` |
 | `invalid --bots value ...: must start with "cli_"` | Wrong ID type in `--bots` | Use the app's `app_id` (`cli_xxx`) |
 | `--users exceeds the maximum of 50` / `--bots exceeds the maximum of 5` | Batch too large | Split into multiple calls |
-| Permission denied | Missing `im:chat` or `im:chat.members:write_only`, or caller not in the chat / not owner-admin when restricted | Bot: enable both scopes in the console. User: `lark-cli auth login --scope "im:chat,im:chat.members:write_only"`; confirm the caller is in the chat |
+| Permission denied | Missing `im:chat.members:write_only`, or caller not in the chat / not owner-admin when restricted | Bot: enable the scope in the console. User: `lark-cli auth login --scope "im:chat.members:write_only"`; confirm the caller is in the chat |
