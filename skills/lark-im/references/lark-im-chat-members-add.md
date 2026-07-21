@@ -17,7 +17,7 @@ lark-cli im +chat-members-add \
   --yes
 ```
 
-To preview both requests without changing the chat, replace `--yes` with `--dry-run`. Dry-run does not require `--yes`.
+Append `--yes` only after the operator has explicitly confirmed the requested member changes. Before confirmation, replace `--yes` with `--dry-run` to inspect both requests without changing the chat, or omit `--yes` to receive the `confirmation_required` error and exit code `10`. After confirmation, execute the command with `--yes` to perform the write.
 
 ## Parameters
 
@@ -27,7 +27,7 @@ To preview both requests without changing the chat, replace `--yes` with `--dry-
 | `--users <ids>` | At least one member type is required | Up to 50 unique values | Comma-separated user `open_id` values in `ou_xxx` form |
 | `--bots <ids>` | At least one member type is required | Up to 5 unique values | Comma-separated bot application `app_id` values in `cli_xxx` form |
 | `--as <identity>` | No | `user` or `bot` | Identity used for both requests |
-| `--yes` | Required for execution | - | Confirms the high-impact write operation |
+| `--yes` | Required for execution | - | Performs the write only after explicit operator confirmation |
 | `--dry-run` | No | - | Prints the request preview without executing it or requiring `--yes` |
 
 At least one of `--users` or `--bots` must be present. Duplicate values are removed automatically while preserving first-seen order. Limits are applied after deduplication.
@@ -55,23 +55,23 @@ The `data` object contains one combined result. It reports only the chat identif
 A successful response exits `0` with `ok:true`:
 
 ```json
-{"ok":true,"data":{"chat_id":"oc_xxx","success_count":3,"invalid_id_list":[],"not_existed_id_list":[],"pending_approval_id_list":[]},"meta":{"count":3}}
+{"ok":true,"identity":"user","data":{"chat_id":"oc_xxx","success_count":3,"invalid_id_list":[],"not_existed_id_list":[],"pending_approval_id_list":[]},"meta":{"count":3}}
 ```
 
 If any member-level failure array is non-empty, stdout carries `ok:false` with the complete result and the process exits `1`. Members already accepted by the service remain in the chat:
 
 ```json
-{"ok":false,"data":{"chat_id":"oc_xxx","success_count":1,"invalid_id_list":["ou_invalid"],"not_existed_id_list":["cli_missing"],"pending_approval_id_list":["ou_pending"]}}
+{"ok":false,"identity":"user","data":{"chat_id":"oc_xxx","success_count":1,"invalid_id_list":["ou_invalid"],"not_existed_id_list":["cli_missing"],"pending_approval_id_list":["ou_pending"]}}
 ```
 
 Scripts and agents must read `success_count` and all three arrays even when the process exits `1`.
 
 ## Bot Request Failure
 
-When the user request has completed and the bot request returns an error, the partial result also contains `failed_member_type:"bot"`, `outcome_unknown`, and a structured `error` object. `success_count` and the three arrays describe only the confirmed user request result; the shortcut does not guess the bot outcome.
+The partial-result fields described in this section appear only when the user batch has already returned a normal API response with `code=0`, including a response with member-level failure arrays, and the following bot batch fails. In that case, `data` also contains `failed_member_type:"bot"`, `outcome_unknown`, and a structured `error` object. `success_count` and the three arrays describe only the confirmed user response; the shortcut does not guess the bot outcome.
 
 ```json
-{"ok":false,"data":{"chat_id":"oc_xxx","success_count":1,"invalid_id_list":[],"not_existed_id_list":[],"pending_approval_id_list":[],"failed_member_type":"bot","outcome_unknown":true,"error":{"type":"network","subtype":"network_transport","message":"member request failed","hint":"List current chat members before retrying; retry only bots not confirmed present.","retryable":false}}}
+{"ok":false,"identity":"user","data":{"chat_id":"oc_xxx","success_count":1,"invalid_id_list":[],"not_existed_id_list":[],"pending_approval_id_list":[],"failed_member_type":"bot","outcome_unknown":true,"error":{"type":"network","subtype":"network_transport","message":"member request failed","hint":"List current chat members with lark-cli im +chat-members-list --chat-id <chat_id> --page-all before retrying; retry only bots not confirmed present.","retryable":false}}}
 ```
 
 `outcome_unknown:true` covers network or transport failures and responses that cannot be parsed or validated. First read the current members with the same identity:
@@ -86,6 +86,8 @@ lark-cli im +chat-members-list \
 After the readback, process only bots that are not confirmed present. Do not repeat the complete `+chat-members-add` command, because the service may have accepted the bot request before the response became unavailable.
 
 Deterministic permission, authentication, and API errors use `outcome_unknown:false`. Handle these through the structured `error` fields. The confirmed user additions remain in the chat.
+
+When only `--bots` is supplied, the bot request is the first batch and there is no preceding user result. A deterministic failure returns the standard typed error envelope with top-level `ok:false`, `identity`, and `error`; it does not include `data.failed_member_type`, `data.outcome_unknown`, or any preceding result. A network or transport failure, or a response that cannot be parsed or validated, also remains a top-level typed error. Automatic retry is disabled and `error.hint` requires a `+chat-members-list` readback, but the failure still has no partial-result fields. Use the same identity for readback and retry only bots that are not confirmed present.
 
 ## References
 

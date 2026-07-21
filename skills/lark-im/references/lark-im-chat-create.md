@@ -85,6 +85,8 @@ Bot may fail to invite users who are mutually invisible to it during group creat
 
 3. **Add other members via user identity** (requires the current user to be in the group):
 
+   Add `--yes` only after the operator has explicitly confirmed these member changes. Before confirmation, use the same command with `--dry-run` instead of `--yes` to inspect the request, or omit `--yes` to receive `confirmation_required` and exit code `10`. After confirmation, execute the command shown below.
+
    ```bash
    lark-cli im +chat-members-add \
      --chat-id "<chat_id from step 2>" \
