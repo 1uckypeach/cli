@@ -55,6 +55,10 @@ The shortcut always uses best-effort semantics (`succeed_type=1`): a single resi
 
 `pending_approval_id_list` is a distinct case: those members were **not** added — they're waiting on an owner/admin decision. Don't treat that bucket as "succeeded".
 
+## Auth-failure short-circuit (both calls, both auth errors)
+
+This only applies when **both** `--users` and `--bots` were supplied (so both calls are attempted) **and both** calls fail with an auth/permission-classified error (e.g. missing scope, unauthenticated). In that specific case the command returns that error directly as a normal error envelope — it does **not** build the usual ledger (`chat_id`/`succeeded_id_list`/.../`success_count`), and does not go through the partial-failure path above. If only one of `--users`/`--bots` is given, or only one of the two calls fails this way, the normal ledger output still applies.
+
 ## Common Errors and Troubleshooting
 
 | Symptom | Root Cause | Solution |
@@ -64,5 +68,4 @@ The shortcut always uses best-effort semantics (`succeed_type=1`): a single resi
 | `invalid --users value ...: must start with "ou_"` | Wrong ID type in `--users` | Use `open_id` (`ou_xxx`), not `union_id`/`user_id`/`app_id` |
 | `invalid --bots value ...: must start with "cli_"` | Wrong ID type in `--bots` | Use the app's `app_id` (`cli_xxx`) |
 | `--users exceeds the maximum of 50` / `--bots exceeds the maximum of 5` | Batch too large | Split into multiple calls |
-| Permission denied | Missing `im:chat.members:write_only`, or caller not in the chat / not owner-admin when restricted | Bot: enable the scope in the console. User: `lark-cli auth login --scope "im:chat.members:write_only"`; confirm the caller is in the chat |
-```
+| Permission denied | Missing `im:chat` or `im:chat.members:write_only`, or caller not in the chat / not owner-admin when restricted | Bot: enable both scopes in the console. User: `lark-cli auth login --scope "im:chat,im:chat.members:write_only"`; confirm the caller is in the chat |
