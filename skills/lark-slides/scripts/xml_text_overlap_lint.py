@@ -195,21 +195,14 @@ def strip_xml_paragraphs(value: str) -> str:
     return strip_xml(value, preserve_line_breaks=True)
 
 
-<<<<<<< HEAD
 def extract_text_paragraphs(value: str, default_font_size: int | float) -> list[dict[str, Any]]:
-=======
-def extract_text_paragraphs(value: str) -> list[dict[str, str | None]]:
->>>>>>> fa6106b7 (feat update to v10(rev59))
     paragraphs = []
     for attrs, body in re.findall(r"<p\b([^>]*)>([\s\S]*?)</p\s*>", value):
         paragraphs.append(
             {
                 "text": strip_xml(body, preserve_line_breaks=True),
-<<<<<<< HEAD
                 "fontSize": extract_max_span_font_size(body, default_font_size),
                 "textAlign": extract_attribute(attrs, "textAlign"),
-=======
->>>>>>> fa6106b7 (feat update to v10(rev59))
                 "lineSpacing": extract_attribute(attrs, "lineSpacing"),
                 "beforeLineSpacing": extract_attribute(attrs, "beforeLineSpacing"),
                 "afterLineSpacing": extract_attribute(attrs, "afterLineSpacing"),
@@ -218,7 +211,6 @@ def extract_text_paragraphs(value: str) -> list[dict[str, str | None]]:
     return paragraphs
 
 
-<<<<<<< HEAD
 def extract_max_span_font_size(value: str, default_font_size: int | float) -> int | float:
     font_sizes = [
         font_size
@@ -228,8 +220,6 @@ def extract_max_span_font_size(value: str, default_font_size: int | float) -> in
     return max([default_font_size, *font_sizes])
 
 
-=======
->>>>>>> fa6106b7 (feat update to v10(rev59))
 def extract_tag_attributes(value: str, tag: str) -> str:
     match = re.search(fr"<{re.escape(tag)}\b([^>]*)>", value)
     return match.group(1) if match else ""
@@ -686,42 +676,31 @@ def extract_elements(slide_xml: str) -> list[dict[str, Any]]:
                 )
             if kind == "shape":
                 content_attrs = extract_tag_attributes(content, "content")
-<<<<<<< HEAD
                 font_size = extract_numeric_attribute(content_attrs, "fontSize")
                 if font_size is None:
                     font_size = extract_numeric_attribute(attrs, "fontSize")
-=======
->>>>>>> fa6106b7 (feat update to v10(rev59))
+
+                font_size = extract_numeric_attribute(content_attrs, "fontSize")
+                if font_size is None:
+                    font_size = extract_numeric_attribute(attrs, "fontSize")
                 element.update(
                     {
                         "textType": extract_attribute(content_attrs, "textType"),
                         "textAlign": extract_attribute(content_attrs, "textAlign"),
-<<<<<<< HEAD
                         "verticalAlign": extract_attribute(content_attrs, "verticalAlign") or "middle",
                         "vert": extract_attribute(attrs, "vert") or "horz",
-=======
->>>>>>> fa6106b7 (feat update to v10(rev59))
                         "autoFit": extract_attribute(content_attrs, "autoFit"),
                         "wrap": extract_attribute(content_attrs, "wrap"),
                         "lineSpacing": extract_attribute(content_attrs, "lineSpacing"),
                         "beforeLineSpacing": extract_attribute(content_attrs, "beforeLineSpacing"),
                         "afterLineSpacing": extract_attribute(content_attrs, "afterLineSpacing"),
                         "paddingTop": extract_numeric_attribute(content_attrs, "paddingTop") or 0,
-<<<<<<< HEAD
                         "paddingRight": extract_numeric_attribute(content_attrs, "paddingRight") or 0,
                         "paddingBottom": extract_numeric_attribute(content_attrs, "paddingBottom") or 0,
                         "paddingLeft": extract_numeric_attribute(content_attrs, "paddingLeft") or 0,
                         "fontSize": font_size if font_size is not None else 16,
                         "text": strip_xml_paragraphs(content),
                         "paragraphs": extract_text_paragraphs(content, font_size if font_size is not None else 16),
-=======
-                        "paddingBottom": extract_numeric_attribute(content_attrs, "paddingBottom") or 0,
-                        "fontSize": float(
-                            extract_attribute(content_attrs, "fontSize") or extract_attribute(attrs, "fontSize") or 16
-                        ),
-                        "text": strip_xml_paragraphs(content),
-                        "paragraphs": extract_text_paragraphs(content),
->>>>>>> fa6106b7 (feat update to v10(rev59))
                     }
                 )
             elements.append(element)
@@ -1341,10 +1320,7 @@ def lint_slide(
         *detect_elements_out_of_canvas(elements, slide_width, slide_height),
         *detect_table_layout_size_mismatches(elements),
         *detect_text_may_overflow_shapes(elements),
-<<<<<<< HEAD
         *detect_image_text_occlusions(elements),
-=======
->>>>>>> fa6106b7 (feat update to v10(rev59))
     ]
 
     for index, left in enumerate(elements):
@@ -1423,7 +1399,7 @@ def lint_xml(xml: str, source_path: str | None = None) -> dict[str, Any]:
 
 
 def print_usage() -> None:
-    print("Usage:\n  python3 xml_text_overlap_lint.py --input <presentation-or-slide.xml>", file=sys.stderr)
+    print("Usage:\n  python3 xml_text_overlap_lint.py --input <presentation.xml>", file=sys.stderr)
 
 
 def run_cli(argv: list[str] | None = None) -> None:
