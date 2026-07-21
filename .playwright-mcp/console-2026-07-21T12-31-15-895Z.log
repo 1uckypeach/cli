@@ -1,0 +1,20 @@
+[   67986ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67986ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67987ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67987ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67990ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67990ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   67993ms] [LOG] [20:32:23] Disconnected from server. @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68070ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68071ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68081ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68081ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68170ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68171ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68271ms] [LOG] state 2 @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68271ms] [LOG] nextProps {state: 2, scores: Array(2), playerIndex: 0, numCities: 0, playerDidWin: undefined} @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68374ms] [LOG] [20:32:24] WARNING: Do not share your user_id with anyone.  It can be used to impersonate you. @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68374ms] [LOG] [20:32:24] user_id: upNI9y90_ @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68408ms] [LOG] [20:32:24] Connected to websocket server. @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   68738ms] [LOG] [QueueFeatureIcon.settings] has_ladder_options=true enabled_ladders=2v2,duel,ffa ladder_option_keys=all @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0
+[   69866ms] [LOG] [20:32:25] Reconnected to websocket server. @ https://generals.io/generals-main-prod-v31.4.2-1627209a.js:0

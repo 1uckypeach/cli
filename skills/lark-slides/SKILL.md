@@ -18,12 +18,9 @@ metadata:
 
 - 你有充足的时间完成这个 PPT，质量永远比速度重要，交付前必须跑静态检查（[`scripts/xml_text_overlap_lint.py`](scripts/xml_text_overlap_lint.py)）并解决所有文本元素重叠问题。
 - PPT 的尺寸是 960x540，必须严格确保主体内容在页面边界内。
-- 任何体裁的 PPT 都必须保证图文并茂、图片丰富，禁止重复使用同一张图片。
-- 必须使用思源宋体（衬线字体），不要用默认的思源黑体。
+- 禁止重复使用同一张图片。
 - 必须在完成 PPT 素材收集之后，包括阅读附件（如果用户上传了附件则附件内的信息重要性最高）、联网搜索、图片搜索（真实实体对应的图片必须使用搜图工具）、图片生成（使用生图工具），再进入 PPT 生成流程。
-- 封面页的主视觉必须是 `<img>`（来自生图工具或搜图工具），不要使用 `<shape>` 或 `<icon>` 拼出封面视觉。
 - 禁止用 `<shape>` 和 `<line>` 拟形具体物项，必须使用生图工具生成的 `<img>`。
-- 禁止在 `headline` 或 `title` 下方放置用于分隔或装饰的 `rect` 或 `<line>`。
 - 禁止在任何页面内部使用无意义的装饰线条或色块条带，页面任何一边都不要使用贴边窄条。
 - 必须在生图工具的指令参数中写明“不要出现任何文字和颜色色号”，生成图片后检查是否出现文字，如果出现文字必须重做、不可接受。
 - 禁止使用 emoji 图标，任何位置都不能出现。
@@ -43,45 +40,22 @@ metadata:
 - 必须使用 NotifyHuman 工具交付 PPT 链接；编辑已有 PPT 也必须交付 PPT 链接，无论之前是否交付过相同链接。
 - 编辑页面前必须阅读 [`lark-slides-edit-workflows.md`](references/lark-slides-edit-workflows.md)。
 - 绘制图表前必须阅读 [`slides_chart_demo.xml`](references/slides_chart_demo.xml)。
-- 当用户要求无损复述历史上下文时，必须无损复述以上权威经验、下方豆包设计原则、必读的技能文档（需要重新阅读）和易错元素语法（尤其是 `<table>` 和 `<chart>`）。
+- 当用户要求无损复述历史上下文时，必须无损复述以上权威经验、选定的设计系统（场景文档或兜底 [doubao-design.md](references/doubao-design.md)）、必读的技能文档（需要重新阅读）和易错元素语法（尤其是 `<table>` 和 `<chart>`）。
 
-## 豆包设计原则
+## 设计系统
 
-适用范围：
+**演示文稿的设计系统由场景决定，是规划的第一步。** 读 [references/slides_categories.md](references/slides_categories.md) 判定场景（只选一个主场景），再按它为该场景指向的文档作为本 deck 的设计系统。
 
-- 必须以豆包设计原则为最高准则，除非用户直接提供模板或设计方案。
-- 例外声明：不适用于 `title-cover` 和 `section-divider`。
-
-核心要求：
-
-- 必须采用信息密度极高的图文卡片布局，追求充实饱满、图文丰富、数据驱动、可逐行细读的版面，宁可密而满，不要空而疏。
-- 信息密度不够时可以通过文字扩写增加文字数量，但扩写必须保证有事实依据、有引用来源，不能凭空捏造，不能与用户上传的附件（如有）中的信息冲突。
-- **!!!信息密度极高!!!图多!!!卡多!!!字多!!!**
-
-排版布局：
-
-- 卡片布局：卡片按多行网格铺满页面，版面对称、均衡、不留白。网格数、图文比例按内容变化，避免每页雷同。使用更多卡片做细分承载，避免在单张卡片里堆砌大量文字（例如 8 张 50 字卡片优于 2 张 200 字卡片），多个要点必须拆分为多张子卡片。
-- 卡片样式：方角卡片，纯平无渐变背景填充（全局一致），默认无边框无装饰，仅在需要强调时可用细边框或色条（不用于纯装饰）。
-- 卡片结构：视觉锚点（关键词、编号、符号或 IconPark 图标）+ 标题（无背景填充） + 内容（包括文字、图片、图表、表格、子卡片）。
-- 文字卡片：多数页面必须满足 6-8 张文字卡片、200-400 文字数量，文字内容像浓缩的分析文稿，必须使用长句。多个要点或列表多项必须做成多张子卡片，关键词和短句必须做成方角标签卡片。高密度文字所在的文本框的 `<content>` 必须设置 `wrap="true" autoFit="normal-auto-fit"` 属性自动换行和缩排，避免文字溢出。
-- 图片卡片：多数页面必须满足 1-3 张图片卡片，素材收集阶段必须进行图片搜索和图片生成，数量不足时使用生图工具补充。
-- 图表卡片：数据信息不要用文字卡片，必须用图表卡片可视化，包括表格、原生图表、时间线、流程图等。原生图表有内置标题不需要卡片标题。
-- 间距要求：页面内容不要贴边、不要溢出，卡片内容不要贴边、不要溢出，卡片之间不要相连、不要重叠。
-- 对齐方式：正文默认左对齐；表格里的文字默认居中，长句、段落和列表设置左对齐；图表、图片、文本框设置在卡片内居中。
-
-视觉风格：
-
-- 美学：纯平无渐变，干净、明亮、清爽但信息饱满；靠卡片和对齐网格在高密度下维持秩序感；同排卡片文字数量应相近以保持观感整齐。高密度文字所在的文本框必须突出重点（关键信息加粗）和信息分组（分区段后换行，注意换行会占用高度空间，或拆分为多个文本框），让高密度文字也有主次和节奏，提高可读性，而不是成片纯文字块。
-- 字体：必须使用思源宋体（衬线字体），不要用默认的思源黑体。
-- 字号：标题 28-36pt、正文 12-14pt、注释 10-12pt，关键指标 16-32pt（核心指标数字可用 36-52pt），下面配 10-14pt 标签与简短解读，需要容纳更多文字时允许使用更小的字号。
-- 图标：内嵌 IconPark 图标（可用关键词、编号、符号替代）作为视觉锚点。
-- 配色：全局统一，克制颜色数量，限制仅用 1 个背景色（纯白或冷淡色）、1 个主色、1 个强调色和 1 个辅助色，使用莫兰迪/深莫兰迪配色，禁止高饱和配色，背景与主体色彩搭配协调自然。
+- **不匹配任何场景**时，回退到兜底设计系统 [references/doubao-design.md](references/doubao-design.md)（信息密度极高的图文卡片布局）。
+- 选定的设计系统（场景文档或兜底）与其它通用建议冲突时，**以选定的设计系统为准**（例如卡片用法、字体、图片密度）。
+- 用户直接提供模板、品牌规范、配色、字体或参考风格时，以用户为准。
+- `title-cover` 和 `section-divider` 不受兜底设计系统约束。
 
 ## Quick Reference
 
 | 用户需求 | 优先动作 | 关键文档 / 命令 |
 |----------|----------|-----------------|
-| 新建 PPT | 先规划 `slide_plan.json`，再按复杂度选择一步或两步创建 | `planning-layer.md`、`visual-planning.md`、`asset-planning.md`、`slides +create` |
+| 新建 PPT | 先判定场景选定设计系统，再规划 `slide_plan.json`，按复杂度选择一步或两步创建 | `slides_categories.md`（选场景设计系统）、`planning-layer.md`、`visual-planning.md`、`asset-planning.md`、`slides +create` |
 | 用户直接提供模板 | 将模板导入为 Slides 再编辑 | `lark-slides-pptx-template-workflows.md` |
 | 编辑单个标题、文本块、图片或局部元素 | 优先块级替换/插入，不改页序 | `slides +replace-slide`、`lark-slides-replace-slide.md` |
 | 读取或分析已有 PPT | 解析 slides/wiki token，用 shortcut 回读全文 XML 或读取单页 XML，保存 `xml_presentation_id`、`slide_id`、`revision_id` | `slides +xml-get`、`xml_presentation.slide.get`、`lark-slides-xml-presentations-get.md` |
@@ -100,6 +74,8 @@ metadata:
 **CRITICAL — 生成任何 XML 之前，MUST 先用 Read 工具读取 [xml-schema-quick-ref.md](references/xml-schema-quick-ref.md)，禁止凭记忆猜测 XML 结构。**
 
 **CRITICAL — 新建演示文稿或大幅改写页面时，MUST 先生成 `.lark-slides/plan/<deck-or-task-id>/slide_plan.json`，再生成 XML。先创建对应目录，规划层规则和中间产物生命周期见 [planning-layer.md](references/planning-layer.md)。仅替换一个标题、插入一个块等小型已有页编辑可豁免。**
+
+**CRITICAL — 选定设计系统是规划的第一步：生成 `slide_plan.json` 前 MUST 先读取 [references/slides_categories.md](references/slides_categories.md) 判定演示文稿所属场景（共 7 类：分析决策 / 商业提案 / 管理汇报 / 学术研究 / 教育培训 / 技术工程 / 品牌创意，只选一个主场景）。匹配到场景 → 按场景表列出的英文文档名读取对应的 `references/*.md`（如 `academic-research.md`）作为本 deck 的设计系统，按其表达重点与方法组织每页，并将选定场景写入 `slide_plan.json`；不匹配任何场景 → 回退到兜底设计系统 [references/doubao-design.md](references/doubao-design.md)。选定的设计系统与兜底/通用建议冲突时以选定的设计系统为准；用户已指定模板/品牌/配色/字体/参考风格时以用户为准。后续 `visual-planning`、`asset-planning` 都服务于选定的设计系统。**
 
 **CRITICAL — 新建演示文稿或大幅改写页面时，生成 XML 前 MUST 读取 [visual-planning.md](references/visual-planning.md)，确保 `layout_type`、`visual_focus`、`text_density` 实际改变页面几何、主视觉和文本量。**
 
@@ -212,9 +188,10 @@ lark-cli auth login --domain slides
 必须在完成 PPT 素材收集之后，包括阅读附件（如果用户上传了附件则附件内的信息重要性最高）、联网搜索、图片搜索（真实实体对应的图片必须使用搜图工具）、图片生成（使用生图工具），再进入 PPT 生成流程。
 
 ```text
-Step 1: 需求分析 & 读取知识
+Step 1: 需求分析 & 选定设计系统 & 读取知识
   - 分析主题、受众、页数、风格；
   - 若用户直接提供模板，按 lark-slides-pptx-template-workflows.md 处理
+  - **选定设计系统（规划第一步）**：读 references/slides_categories.md 判定所属场景，按其场景表列出的英文文件名读对应场景文档（如 references/academic-research.md）；不匹配任何场景时回退到 references/doubao-design.md；用户已指定风格时以用户为准
   - 读取 xml-schema-quick-ref.md；新建 / 大幅改写时还要读取 planning-layer.md、visual-planning.md、asset-planning.md
   - 涉及图表读取 slides_chart_demo.xml
 

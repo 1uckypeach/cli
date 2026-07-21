@@ -1,0 +1,6 @@
+- generic [ref=f6e2]:
+  - generic [ref=f6e3]: "404"
+  - generic [ref=f6e4]: This is not the page you're looking for.
+  - link [ref=f6e5] [cursor=pointer]:
+    - /url: /
+    - button "Go Home?" [ref=f6e6]
