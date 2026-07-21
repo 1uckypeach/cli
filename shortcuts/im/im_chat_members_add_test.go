@@ -4,8 +4,11 @@
 package im
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -284,7 +287,233 @@ func TestDedupeChatMemberIDs(t *testing.T) {
 	}
 }
 
+func TestBuildChatMembersAddDryRun(t *testing.T) {
+	tests := []struct {
+		name       string
+		spec       chatMembersAddSpec
+		wantTypes  []string
+		wantBodies [][]string
+	}{
+		{
+			name: "users only",
+			spec: chatMembersAddSpec{
+				ChatID: "oc_test/slash",
+				Users:  []string{"ou_b", "ou_a"},
+			},
+			wantTypes:  []string{"open_id"},
+			wantBodies: [][]string{{"ou_b", "ou_a"}},
+		},
+		{
+			name: "bots only",
+			spec: chatMembersAddSpec{
+				ChatID: "oc_test/slash",
+				Bots:   []string{"cli_b", "cli_a"},
+			},
+			wantTypes:  []string{"app_id"},
+			wantBodies: [][]string{{"cli_b", "cli_a"}},
+		},
+		{
+			name: "users before bots",
+			spec: chatMembersAddSpec{
+				ChatID: "oc_test/slash",
+				Users:  []string{"ou_b", "ou_a"},
+				Bots:   []string{"cli_b", "cli_a"},
+			},
+			wantTypes:  []string{"open_id", "app_id"},
+			wantBodies: [][]string{{"ou_b", "ou_a"}, {"cli_b", "cli_a"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dryRun := buildChatMembersAddDryRun(tt.spec)
+			encoded, err := json.Marshal(dryRun)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+			var payload struct {
+				API []struct {
+					Method string                 `json:"method"`
+					URL    string                 `json:"url"`
+					Params map[string]interface{} `json:"params"`
+					Body   struct {
+						IDList []string `json:"id_list"`
+					} `json:"body"`
+				} `json:"api"`
+			}
+			if err := json.Unmarshal(encoded, &payload); err != nil {
+				t.Fatalf("json.Unmarshal() error = %v", err)
+			}
+			if len(payload.API) != len(tt.wantTypes) {
+				t.Fatalf("api call count = %d, want %d", len(payload.API), len(tt.wantTypes))
+			}
+			for i, call := range payload.API {
+				if call.Method != http.MethodPost {
+					t.Errorf("api[%d].method = %q, want %q", i, call.Method, http.MethodPost)
+				}
+				if call.URL != "/open-apis/im/v1/chats/oc_test%2Fslash/members" {
+					t.Errorf("api[%d].url = %q, want safely encoded chat ID", i, call.URL)
+				}
+				if got := call.Params["member_id_type"]; got != tt.wantTypes[i] {
+					t.Errorf("api[%d].params.member_id_type = %#v, want %q", i, got, tt.wantTypes[i])
+				}
+				if got := call.Params["succeed_type"]; got != "1" {
+					t.Errorf("api[%d].params.succeed_type = %#v, want %q", i, got, "1")
+				}
+				if !reflect.DeepEqual(call.Body.IDList, tt.wantBodies[i]) {
+					t.Errorf("api[%d].body.id_list = %#v, want %#v", i, call.Body.IDList, tt.wantBodies[i])
+				}
+			}
+		})
+	}
+}
+
+func TestExecuteChatMembersAddUsersBeforeBots(t *testing.T) {
+	type recordedCall struct {
+		method       string
+		escapedPath  string
+		memberIDType string
+		succeedType  string
+		body         struct {
+			IDList []string `json:"id_list"`
+		}
+	}
+	var calls []recordedCall
+	runtime := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var call recordedCall
+		call.method = req.Method
+		call.escapedPath = req.URL.EscapedPath()
+		call.memberIDType = req.URL.Query().Get("member_id_type")
+		call.succeedType = req.URL.Query().Get("succeed_type")
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			t.Fatalf("io.ReadAll() error = %v", err)
+		}
+		if err := json.Unmarshal(body, &call.body); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		calls = append(calls, call)
+		return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{},
+		}), nil
+	}))
+	setChatMembersAddTestFlags(t, runtime, "oc_test", "ou_b,ou_a,ou_b", "cli_b,cli_a,cli_b")
+
+	err := executeChatMembersAdd(runtime, chatMembersAddSpec{
+		ChatID: "oc_test",
+		Users:  []string{"ou_b", "ou_a"},
+		Bots:   []string{"cli_b", "cli_a"},
+	})
+	if err != nil {
+		t.Fatalf("executeChatMembersAdd() error = %v", err)
+	}
+
+	if len(calls) != 2 {
+		t.Fatalf("call count = %d, want 2", len(calls))
+	}
+	for i, call := range calls {
+		if call.method != http.MethodPost {
+			t.Errorf("calls[%d].method = %q, want %q", i, call.method, http.MethodPost)
+		}
+		if call.escapedPath != "/open-apis/im/v1/chats/oc_test/members" {
+			t.Errorf("calls[%d].escapedPath = %q", i, call.escapedPath)
+		}
+		if got := call.succeedType; got != "1" {
+			t.Errorf("calls[%d].succeed_type = %q, want %q", i, got, "1")
+		}
+	}
+	if got, want := []string{calls[0].memberIDType, calls[1].memberIDType}, []string{"open_id", "app_id"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("member_id_type order = %#v, want %#v", got, want)
+	}
+	if got, want := calls[0].body.IDList, []string{"ou_b", "ou_a"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("user id_list = %#v, want %#v", got, want)
+	}
+	if got, want := calls[1].body.IDList, []string{"cli_b", "cli_a"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("bot id_list = %#v, want %#v", got, want)
+	}
+}
+
+func TestProjectChatMembersAddResponseUsesEmptySlices(t *testing.T) {
+	got := projectChatMembersAddResponse(map[string]interface{}{})
+	if got.InvalidIDList == nil || got.NotExistedIDList == nil || got.PendingApprovalIDList == nil {
+		t.Fatalf("projectChatMembersAddResponse() = %#v, want non-nil empty slices", got)
+	}
+	if len(got.InvalidIDList) != 0 || len(got.NotExistedIDList) != 0 || len(got.PendingApprovalIDList) != 0 {
+		t.Fatalf("projectChatMembersAddResponse() = %#v, want empty slices", got)
+	}
+}
+
+func TestMergeChatMembersAddResponsesPreservesRequestOrder(t *testing.T) {
+	users := chatMembersAddResponse{
+		InvalidIDList:         []interface{}{"ou_invalid"},
+		NotExistedIDList:      []interface{}{"ou_missing"},
+		PendingApprovalIDList: []interface{}{"ou_pending"},
+	}
+	bots := chatMembersAddResponse{
+		InvalidIDList:         []interface{}{"cli_invalid"},
+		NotExistedIDList:      []interface{}{"cli_missing"},
+		PendingApprovalIDList: []interface{}{"cli_pending"},
+	}
+
+	got := mergeChatMembersAddResponse(users, bots)
+	want := chatMembersAddResponse{
+		InvalidIDList:         []interface{}{"ou_invalid", "cli_invalid"},
+		NotExistedIDList:      []interface{}{"ou_missing", "cli_missing"},
+		PendingApprovalIDList: []interface{}{"ou_pending", "cli_pending"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("mergeChatMembersAddResponse() = %#v, want %#v", got, want)
+	}
+}
+
+func TestChatMembersAddResultSuccessCount(t *testing.T) {
+	tests := []struct {
+		name      string
+		requested int
+		response  chatMembersAddResponse
+		want      int
+	}{
+		{name: "all confirmed", requested: 4, response: chatMembersAddResponse{}, want: 4},
+		{
+			name:      "subtracts all unfinished lists",
+			requested: 5,
+			response: chatMembersAddResponse{
+				InvalidIDList:         []interface{}{"invalid"},
+				NotExistedIDList:      []interface{}{"missing"},
+				PendingApprovalIDList: []interface{}{"pending"},
+			},
+			want: 2,
+		},
+		{
+			name:      "clamps excessive unfinished count to zero",
+			requested: 2,
+			response: chatMembersAddResponse{
+				InvalidIDList:         []interface{}{1, 2},
+				NotExistedIDList:      []interface{}{3},
+				PendingApprovalIDList: []interface{}{4},
+			},
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := confirmedChatMembersAddCount(tt.requested, tt.response); got != tt.want {
+				t.Fatalf("confirmedChatMembersAddCount() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
 func newChatMembersAddTestRuntime(t *testing.T, chatID, users, bots string) *common.RuntimeContext {
+	t.Helper()
+	runtime := &common.RuntimeContext{}
+	setChatMembersAddTestFlags(t, runtime, chatID, users, bots)
+	return runtime
+}
+
+func setChatMembersAddTestFlags(t *testing.T, runtime *common.RuntimeContext, chatID, users, bots string) {
 	t.Helper()
 
 	cmd := &cobra.Command{Use: "test"}
@@ -300,7 +529,7 @@ func newChatMembersAddTestRuntime(t *testing.T, chatID, users, bots string) *com
 			t.Fatalf("set %s: %v", name, err)
 		}
 	}
-	return &common.RuntimeContext{Cmd: cmd}
+	runtime.Cmd = cmd
 }
 
 func makeChatMembersAddIDs(prefix string, count int) []string {

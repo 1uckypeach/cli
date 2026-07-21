@@ -4,10 +4,13 @@
 package im
 
 import (
+	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -24,6 +27,39 @@ type chatMembersAddSpec struct {
 	ChatID string
 	Users  []string
 	Bots   []string
+}
+
+type chatMembersAddResponse struct {
+	InvalidIDList         []interface{}
+	NotExistedIDList      []interface{}
+	PendingApprovalIDList []interface{}
+}
+
+type chatMembersAddResult struct {
+	ChatID                string               `json:"chat_id"`
+	SuccessCount          int                  `json:"success_count"`
+	InvalidIDList         []interface{}        `json:"invalid_id_list"`
+	NotExistedIDList      []interface{}        `json:"not_existed_id_list"`
+	PendingApprovalIDList []interface{}        `json:"pending_approval_id_list"`
+	FailedMemberType      string               `json:"failed_member_type,omitempty"`
+	OutcomeUnknown        bool                 `json:"outcome_unknown,omitempty"`
+	Error                 *chatMembersAddError `json:"error,omitempty"`
+}
+
+type chatMembersAddError struct {
+	Type            errs.Category `json:"type"`
+	Subtype         errs.Subtype  `json:"subtype,omitempty"`
+	Code            int           `json:"code,omitempty"`
+	Message         string        `json:"message"`
+	Hint            string        `json:"hint,omitempty"`
+	LogID           string        `json:"log_id,omitempty"`
+	Troubleshooter  string        `json:"troubleshooter,omitempty"`
+	Retryable       bool          `json:"retryable"`
+	MissingScopes   []string      `json:"missing_scopes,omitempty"`
+	RequestedScopes []string      `json:"requested_scopes,omitempty"`
+	GrantedScopes   []string      `json:"granted_scopes,omitempty"`
+	Identity        string        `json:"identity,omitempty"`
+	ConsoleURL      string        `json:"console_url,omitempty"`
 }
 
 func readChatMembersAddSpec(runtime *common.RuntimeContext) (chatMembersAddSpec, error) {
@@ -132,4 +168,126 @@ func validateChatMembersAddID(param, id, prefix string) error {
 		).WithParam(param)
 	}
 	return nil
+}
+
+func buildChatMembersAddDryRun(spec chatMembersAddSpec) *common.DryRunAPI {
+	dryRun := common.NewDryRunAPI()
+	path := fmt.Sprintf(imChatMembersAddPathFormat, validate.EncodePathSegment(spec.ChatID))
+	if len(spec.Users) > 0 {
+		dryRun.POST(path).
+			Params(chatMembersAddParams("open_id")).
+			Body(chatMembersAddBody(spec.Users))
+	}
+	if len(spec.Bots) > 0 {
+		dryRun.POST(path).
+			Params(chatMembersAddParams("app_id")).
+			Body(chatMembersAddBody(spec.Bots))
+	}
+	return dryRun
+}
+
+func executeChatMembersAdd(runtime *common.RuntimeContext, spec chatMembersAddSpec) error {
+	responses := make([]chatMembersAddResponse, 0, 2)
+	if len(spec.Users) > 0 {
+		response, err := callChatMembersAddBatch(runtime, spec.ChatID, "open_id", spec.Users)
+		if err != nil {
+			return err
+		}
+		responses = append(responses, response)
+	}
+	if len(spec.Bots) > 0 {
+		response, err := callChatMembersAddBatch(runtime, spec.ChatID, "app_id", spec.Bots)
+		if err != nil {
+			return err
+		}
+		responses = append(responses, response)
+	}
+
+	merged := mergeChatMembersAddResponse(responses...)
+	result := chatMembersAddResult{
+		ChatID:                spec.ChatID,
+		SuccessCount:          confirmedChatMembersAddCount(len(spec.Users)+len(spec.Bots), merged),
+		InvalidIDList:         merged.InvalidIDList,
+		NotExistedIDList:      merged.NotExistedIDList,
+		PendingApprovalIDList: merged.PendingApprovalIDList,
+	}
+	runtime.Out(result, nil)
+	return nil
+}
+
+func callChatMembersAddBatch(
+	runtime *common.RuntimeContext,
+	chatID string,
+	memberIDType string,
+	ids []string,
+) (chatMembersAddResponse, error) {
+	path := fmt.Sprintf(imChatMembersAddPathFormat, validate.EncodePathSegment(chatID))
+	data, err := runtime.CallAPITyped(
+		http.MethodPost,
+		path,
+		chatMembersAddParams(memberIDType),
+		chatMembersAddBody(ids),
+	)
+	if err != nil {
+		return chatMembersAddResponse{}, err
+	}
+	return projectChatMembersAddResponse(data), nil
+}
+
+func chatMembersAddParams(memberIDType string) map[string]interface{} {
+	return map[string]interface{}{
+		"member_id_type": memberIDType,
+		"succeed_type":   "1",
+	}
+}
+
+func chatMembersAddBody(ids []string) map[string]interface{} {
+	return map[string]interface{}{
+		"id_list": ids,
+	}
+}
+
+func projectChatMembersAddResponse(data map[string]interface{}) chatMembersAddResponse {
+	return chatMembersAddResponse{
+		InvalidIDList:         projectChatMembersAddList(data, "invalid_id_list"),
+		NotExistedIDList:      projectChatMembersAddList(data, "not_existed_id_list"),
+		PendingApprovalIDList: projectChatMembersAddList(data, "pending_approval_id_list"),
+	}
+}
+
+func projectChatMembersAddList(data map[string]interface{}, key string) []interface{} {
+	values, ok := data[key].([]interface{})
+	if !ok {
+		return []interface{}{}
+	}
+	return append([]interface{}{}, values...)
+}
+
+func mergeChatMembersAddResponse(responses ...chatMembersAddResponse) chatMembersAddResponse {
+	merged := chatMembersAddResponse{
+		InvalidIDList:         []interface{}{},
+		NotExistedIDList:      []interface{}{},
+		PendingApprovalIDList: []interface{}{},
+	}
+	for _, response := range responses {
+		merged.InvalidIDList = append(merged.InvalidIDList, response.InvalidIDList...)
+		merged.NotExistedIDList = append(merged.NotExistedIDList, response.NotExistedIDList...)
+		merged.PendingApprovalIDList = append(merged.PendingApprovalIDList, response.PendingApprovalIDList...)
+	}
+	return merged
+}
+
+func confirmedChatMembersAddCount(requested int, response chatMembersAddResponse) int {
+	if requested <= 0 {
+		return 0
+	}
+	unfinished := len(response.InvalidIDList) + len(response.NotExistedIDList) + len(response.PendingApprovalIDList)
+	confirmed := requested - unfinished
+	if confirmed < 0 {
+		return 0
+	}
+	if confirmed > requested {
+		return requested
+	}
+	return confirmed
 }
