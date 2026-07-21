@@ -4,6 +4,7 @@
 package im
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,10 +31,64 @@ const (
 
 var imChatMembersAddIDSuffix = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
+type chatMembersAddSpecContextKey struct{}
+
+// ImChatMembersAdd is the +chat-members-add shortcut. User open IDs and bot
+// app IDs are sent in separate requests, with the user request first.
+var ImChatMembersAdd = common.Shortcut{
+	Service:     "im",
+	Command:     "+chat-members-add",
+	Description: "Add user open IDs and bot app IDs to a chat; users are processed first; partial results return ok:false",
+	Risk:        "high-risk-write",
+	Scopes:      []string{"im:chat.members:write_only"},
+	AuthTypes:   []string{"user", "bot"},
+	HasFormat:   true,
+	Flags: []common.Flag{
+		{Name: "chat-id", Required: true, Desc: "chat ID or supported chat URL (oc_xxx)"},
+		{Name: "users", Desc: "comma-separated user open IDs (ou_xxx), max 50 unique IDs"},
+		{Name: "bots", Desc: "comma-separated bot app IDs (cli_xxx), max 5 unique IDs"},
+	},
+	Tips: []string{
+		"At least one of --users or --bots is required; duplicate IDs are removed in first-seen order.",
+		"When both are present, user members are added before bot members in separate requests with succeed_type=1.",
+		"Partial member results return ok:false and exit 1; outcome_unknown requires listing current members before retrying.",
+	},
+	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
+		spec, err := readChatMembersAddSpec(runtime)
+		if err != nil {
+			return err
+		}
+		runtime.Cmd.SetContext(context.WithValue(ctx, chatMembersAddSpecContextKey{}, spec))
+		return nil
+	},
+	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
+		spec, _ := validatedChatMembersAddSpec(runtime)
+		return buildChatMembersAddDryRun(spec)
+	},
+	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
+		spec, ok := validatedChatMembersAddSpec(runtime)
+		if !ok {
+			return errs.NewInternalError(
+				errs.SubtypeUnknown,
+				"validated chat member specification is unavailable",
+			)
+		}
+		return executeChatMembersAdd(runtime, spec)
+	},
+}
+
 type chatMembersAddSpec struct {
 	ChatID string
 	Users  []string
 	Bots   []string
+}
+
+func validatedChatMembersAddSpec(runtime *common.RuntimeContext) (chatMembersAddSpec, bool) {
+	if runtime == nil || runtime.Cmd == nil || runtime.Cmd.Context() == nil {
+		return chatMembersAddSpec{}, false
+	}
+	spec, ok := runtime.Cmd.Context().Value(chatMembersAddSpecContextKey{}).(chatMembersAddSpec)
+	return spec, ok
 }
 
 type chatMembersAddResponse struct {

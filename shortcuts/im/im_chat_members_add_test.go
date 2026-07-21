@@ -5,6 +5,7 @@ package im
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,13 +13,206 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	lark "github.com/larksuite/oapi-sdk-go/v3"
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
+
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/cmdutil"
+	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/spf13/cobra"
 )
+
+func TestImChatMembersAddMetadata(t *testing.T) {
+	t.Parallel()
+
+	if ImChatMembersAdd.Service != "im" {
+		t.Fatalf("Service = %q, want im", ImChatMembersAdd.Service)
+	}
+	if ImChatMembersAdd.Command != "+chat-members-add" {
+		t.Fatalf("Command = %q, want +chat-members-add", ImChatMembersAdd.Command)
+	}
+	if ImChatMembersAdd.Risk != "high-risk-write" {
+		t.Fatalf("Risk = %q, want high-risk-write", ImChatMembersAdd.Risk)
+	}
+	if want := []string{"im:chat.members:write_only"}; !reflect.DeepEqual(ImChatMembersAdd.Scopes, want) {
+		t.Fatalf("Scopes = %#v, want %#v", ImChatMembersAdd.Scopes, want)
+	}
+	if want := []string{"user", "bot"}; !reflect.DeepEqual(ImChatMembersAdd.AuthTypes, want) {
+		t.Fatalf("AuthTypes = %#v, want %#v", ImChatMembersAdd.AuthTypes, want)
+	}
+	if !ImChatMembersAdd.HasFormat {
+		t.Fatal("HasFormat = false, want true")
+	}
+	if ImChatMembersAdd.Validate == nil || ImChatMembersAdd.DryRun == nil || ImChatMembersAdd.Execute == nil {
+		t.Fatalf(
+			"hooks = Validate:%t DryRun:%t Execute:%t, want all configured",
+			ImChatMembersAdd.Validate != nil,
+			ImChatMembersAdd.DryRun != nil,
+			ImChatMembersAdd.Execute != nil,
+		)
+	}
+
+	wantFlags := []common.Flag{
+		{Name: "chat-id", Required: true, Desc: "chat ID or supported chat URL (oc_xxx)"},
+		{Name: "users", Desc: "comma-separated user open IDs (ou_xxx), max 50 unique IDs"},
+		{Name: "bots", Desc: "comma-separated bot app IDs (cli_xxx), max 5 unique IDs"},
+	}
+	if !reflect.DeepEqual(ImChatMembersAdd.Flags, wantFlags) {
+		t.Fatalf("Flags = %#v, want %#v", ImChatMembersAdd.Flags, wantFlags)
+	}
+}
+
+func TestImChatMembersAddConfirmation(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      []string
+		wantCalls int32
+		wantCode  int
+	}{
+		{
+			name: "missing yes is rejected before transport",
+			args: []string{
+				"+chat-members-add", "--chat-id", "oc_chat_a", "--users", "ou_user_a", "--as", "user",
+			},
+			wantCode: output.ExitConfirmationRequired,
+		},
+		{
+			name: "yes allows transport",
+			args: []string{
+				"+chat-members-add", "--chat-id", "oc_chat_a", "--users", "ou_user_a", "--as", "user", "--yes",
+			},
+			wantCalls: 1,
+		},
+		{
+			name: "dry run bypasses confirmation and transport",
+			args: []string{
+				"+chat-members-add", "--chat-id", "oc_chat_a", "--users", "ou_user_a", "--as", "user", "--dry-run",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			factory, stdout, calls := newChatMembersAddMountedTestFactory(t, tt.wantCalls > 0)
+			parent := &cobra.Command{Use: "im", SilenceErrors: true, SilenceUsage: true}
+			ImChatMembersAdd.Mount(parent, factory)
+			parent.SetArgs(tt.args)
+
+			err := parent.Execute()
+			if tt.wantCode != 0 {
+				problem, ok := errs.ProblemOf(err)
+				if !ok || problem.Subtype != errs.SubtypeConfirmationRequired {
+					t.Fatalf("error = %T %v, want subtype %q", err, err, errs.SubtypeConfirmationRequired)
+				}
+				if code := output.ExitCodeOf(err); code != tt.wantCode {
+					t.Fatalf("exit code = %d, want %d", code, tt.wantCode)
+				}
+			} else if err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if got := calls.Load(); got != tt.wantCalls {
+				t.Fatalf("transport calls = %d, want %d", got, tt.wantCalls)
+			}
+			if strings.Contains(tt.name, "dry run") && !strings.Contains(stdout.String(), "/open-apis/im/v1/chats/oc_chat_a/members") {
+				t.Fatalf("dry-run output does not contain members API path: %s", stdout.String())
+			}
+		})
+	}
+}
+
+func TestImChatMembersAddHooksShareNormalizedSpec(t *testing.T) {
+	var requestPath string
+	var requestBody struct {
+		IDList []string `json:"id_list"`
+	}
+	runtime := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestPath = req.URL.Path
+		if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		return shortcutJSONResponse(http.StatusOK, map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{},
+		}), nil
+	}))
+	setChatMembersAddTestFlags(t, runtime, "oc_original", "ou_b,ou_a,ou_b", "")
+
+	if err := ImChatMembersAdd.Validate(context.Background(), runtime); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if err := runtime.Cmd.Flags().Set("chat-id", "oc_changed"); err != nil {
+		t.Fatalf("set chat-id: %v", err)
+	}
+	if err := runtime.Cmd.Flags().Set("users", "ou_changed"); err != nil {
+		t.Fatalf("set users: %v", err)
+	}
+
+	dryRunJSON, err := json.Marshal(ImChatMembersAdd.DryRun(context.Background(), runtime))
+	if err != nil {
+		t.Fatalf("marshal DryRun() result: %v", err)
+	}
+	if !strings.Contains(string(dryRunJSON), "/open-apis/im/v1/chats/oc_original/members") ||
+		!strings.Contains(string(dryRunJSON), `"id_list":["ou_b","ou_a"]`) {
+		t.Fatalf("DryRun() did not use normalized spec: %s", dryRunJSON)
+	}
+
+	if err := ImChatMembersAdd.Execute(context.Background(), runtime); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if requestPath != "/open-apis/im/v1/chats/oc_original/members" {
+		t.Fatalf("request path = %q, want normalized chat path", requestPath)
+	}
+	if want := []string{"ou_b", "ou_a"}; !reflect.DeepEqual(requestBody.IDList, want) {
+		t.Fatalf("request IDs = %#v, want %#v", requestBody.IDList, want)
+	}
+}
+
+func newChatMembersAddMountedTestFactory(
+	t *testing.T,
+	registerSuccess bool,
+) (*cmdutil.Factory, *bytes.Buffer, *atomic.Int32) {
+	t.Helper()
+
+	config := &core.CliConfig{
+		AppID:      "test-app",
+		AppSecret:  "test-secret",
+		Brand:      core.BrandFeishu,
+		UserOpenId: "ou_test_user",
+	}
+	factory, stdout, _, registry := cmdutil.TestFactory(t, config)
+	if registerSuccess {
+		registry.Register(&httpmock.Stub{
+			Method: http.MethodPost,
+			URL:    "/open-apis/im/v1/chats/oc_chat_a/members",
+			Body: map[string]interface{}{
+				"code": 0,
+				"data": map[string]interface{}{},
+			},
+		})
+	}
+
+	var calls atomic.Int32
+	transport := shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		return registry.RoundTrip(req)
+	})
+	sdk := lark.NewClient(
+		config.AppID,
+		config.AppSecret,
+		lark.WithEnableTokenCache(false),
+		lark.WithLogLevel(larkcore.LogLevelError),
+		lark.WithOpenBaseUrl(core.ResolveOpenBaseURL(config.Brand)),
+		lark.WithHttpClient(&http.Client{Transport: transport}),
+	)
+	factory.LarkClient = func() (*lark.Client, error) { return sdk, nil }
+	return factory, stdout, &calls
+}
 
 func TestReadChatMembersAddSpec(t *testing.T) {
 	userIDsOverLimit := make([]string, imChatMembersAddUserLimit+1)
