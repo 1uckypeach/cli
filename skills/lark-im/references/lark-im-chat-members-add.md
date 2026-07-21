@@ -38,7 +38,18 @@ Both `--as user` and `--as bot` are supported. The selected identity requires th
 
 User and bot members are always sent in separate requests because they use different identifier types. The user request runs first with `member_id_type=open_id`; the bot request follows with `member_id_type=app_id`. Every request fixes `succeed_type=1`, so members that can be added continue to be added while member-level failures are returned in the response.
 
-If the user request fails for any reason, execution stops immediately and the bot request is not sent. A network, transport, or invalid-response failure in this first request is non-retryable until the current user members have been read back with `+chat-members-list`; retry only users that are not confirmed present. If the user request succeeds and the bot request fails, confirmed user results remain in the output and in the chat. The operation has no transaction or automatic rollback.
+If the user request fails for any reason, execution stops immediately and the bot request is not sent. For a network, transport, or invalid-response failure in this first request, read back every visible user member with the same identity before considering a retry:
+
+```bash
+lark-cli im +chat-members-list \
+  --chat-id oc_xxx \
+  --member-types user \
+  --page-all \
+  --page-limit 0 \
+  --as <same-identity>
+```
+
+The user list is sufficient for an absence check only when `has_more:false` and `truncations` contains no entry for `member_type:"user"`. If `has_more:true` or user truncation is present, a missing identifier does not prove that the user was not added; do not retry the unknown user batch. When the list is complete, retry only users that are not confirmed present. If the user request succeeds and the bot request fails, confirmed user results remain in the output and in the chat. The operation has no transaction or automatic rollback. See [List chat members](lark-im-chat-members-list.md) for pagination and truncation details.
 
 ## Output
 
@@ -74,20 +85,22 @@ The partial-result fields described in this section appear only when the user ba
 {"ok":false,"identity":"user","data":{"chat_id":"oc_xxx","success_count":1,"invalid_id_list":[],"not_existed_id_list":[],"pending_approval_id_list":[],"failed_member_type":"bot","outcome_unknown":true,"error":{"type":"network","subtype":"network_transport","message":"member request failed","hint":"List current chat members with lark-cli im +chat-members-list --chat-id <chat_id> --page-all before retrying; retry only bots not confirmed present.","retryable":false}}}
 ```
 
-`outcome_unknown:true` covers network or transport failures and responses that cannot be parsed or validated. First read the current members with the same identity:
+`outcome_unknown:true` covers network or transport failures and responses that cannot be parsed or validated. The JSON example preserves the implementation's exact fixed `error.hint`. For a safe absence check, add the bot filter and unlimited page count to the basic command named by that hint, then read the members with the same identity:
 
 ```bash
 lark-cli im +chat-members-list \
   --chat-id oc_xxx \
+  --member-types bot \
   --page-all \
+  --page-limit 0 \
   --as <same-identity>
 ```
 
-After the readback, process only bots that are not confirmed present. Do not repeat the complete `+chat-members-add` command, because the service may have accepted the bot request before the response became unavailable.
+The bot list is sufficient for an absence check only when `has_more:false` and `truncations` contains no entry for `member_type:"bot"`. If `has_more:true` or bot truncation is present, a missing identifier does not prove that the bot was not added; do not retry the unknown bot batch. When the list is complete, process only bots that are not confirmed present. Do not repeat the complete `+chat-members-add` command, because the service may have accepted the bot request before the response became unavailable.
 
 Deterministic permission, authentication, and API errors use `outcome_unknown:false`. Handle these through the structured `error` fields. The confirmed user additions remain in the chat.
 
-When only `--bots` is supplied, the bot request is the first batch and there is no preceding user result. A deterministic failure returns the standard typed error envelope with top-level `ok:false`, `identity`, and `error`; it does not include `data.failed_member_type`, `data.outcome_unknown`, or any preceding result. A network or transport failure, or a response that cannot be parsed or validated, also remains a top-level typed error. Automatic retry is disabled and `error.hint` requires a `+chat-members-list` readback, but the failure still has no partial-result fields. Use the same identity for readback and retry only bots that are not confirmed present.
+When only `--bots` is supplied, the bot request is the first batch and there is no preceding user result. A deterministic failure returns the standard typed error envelope with top-level `ok:false`, `identity`, and `error`; it does not include `data.failed_member_type`, `data.outcome_unknown`, or any preceding result. A network or transport failure, or a response that cannot be parsed or validated, also remains a top-level typed error. Automatic retry is disabled and `error.hint` requires a `+chat-members-list` readback, but the failure still has no partial-result fields. Apply the same complete bot readback conditions above, use the same identity, and retry only bots that are not confirmed present.
 
 ## References
 
