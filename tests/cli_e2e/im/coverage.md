@@ -1,9 +1,9 @@
 # IM CLI E2E Coverage
 
 ## Metrics
-- Denominator: 30 leaf commands
-- Covered: 11
-- Coverage: 36.7%
+- Denominator: 31 leaf commands
+- Covered: 12
+- Coverage: 38.7%
 
 ## Summary
 - TestIM_ChatUpdateWorkflow: proves `im +chat-create`, `im +chat-update`, and `im chats get`; key `t.Run(...)` proof points are `update chat name as bot`, `update chat description as bot`, and `get updated chat as bot`.
@@ -14,6 +14,8 @@
 - TestIM_MessageReplyWorkflowAsBot: proves threaded reply flow through `reply to message in thread as bot` and `list thread replies as bot`, reading back the reply from `im +threads-messages-list`.
 - TestIM_MessagesSendAudioDryRunRejectsNonOpus: proves the `im +messages-send --audio` dry-run validation rejects non-Opus local audio before upload, with typed validation metadata and recovery guidance.
 - TestIM_MessageForwardWorkflowAsUser: proves UAT-backed API forwarding through `im messages forward` and `im threads forward` using a fresh message/thread fixture; skips the forward assertions when the current test app/UAT lacks IM forward permission.
+- TestIM_ChatMembersAddDryRun: proves `im +chat-members-add` builds users-only, bots-only, and users-before-bots requests with fixed `succeed_type=1`, preserved first-seen order, duplicate removal, and no `--yes` requirement during dry-run.
+- TestIM_ChatMembersAddWorkflow: proves live user and bot member additions through two isolated private chats, checks each target member is initially absent, and reads the added `open_id` or `app_id` back from `im +chat-members-list`.
 - Blocked area: `im +chat-search` did not reliably return freshly created private chats in UAT, and `im +messages-search` did not reliably index freshly sent messages in time for a deterministic read-after-write assertion, so both remain uncovered.
 
 ## Command Table
@@ -21,6 +23,7 @@
 | Status | Cmd | Type | Testcase | Key parameter shapes | Notes / uncovered reason |
 | --- | --- | --- | --- | --- | --- |
 | ✓ | im +chat-create | shortcut | im/chat_message_workflow_test.go::TestIM_ChatMessageWorkflowAsUser/create chat as user; im/chat_workflow_test.go::TestIM_ChatUpdateWorkflow; im/chat_workflow_test.go::TestIM_ChatsGetWorkflow; im/chat_workflow_test.go::TestIM_ChatsLinkWorkflow; im/message_get_workflow_test.go::TestIM_MessageGetWorkflowAsUser; im/message_reply_workflow_test.go::TestIM_MessageReplyWorkflowAsBot | `--name`; `--type private` | covered via workflow setup with created chat IDs asserted |
+| ✓ | im +chat-members-add | shortcut | im/chat_members_add_dryrun_test.go::TestIM_ChatMembersAddDryRun; im/chat_members_add_workflow_test.go::TestIM_ChatMembersAddWorkflow/add user as bot and read back; im/chat_members_add_workflow_test.go::TestIM_ChatMembersAddWorkflow/add bot as user and read back | dry-run: users only, bots only, users then bots; live: `--users <open_id> --as bot --yes`, `--bots <app_id> --as user --yes` | dry-run proves request count, request order, fixed parameters, and duplicate removal; live tests confirm absence before add and presence after add |
 | ✓ | im +chat-messages-list | shortcut | im/chat_message_workflow_test.go::TestIM_ChatMessageWorkflowAsUser/list chat messages as user; im/message_reply_workflow_test.go::TestIM_MessageReplyWorkflowAsBot/list thread replies as bot | `--chat-id`; `--start`; `--end` | reads back created message and discovers thread ID |
 | ✕ | im +chat-search | shortcut |  | none | UAT did not reliably return freshly created private chats, so it is left uncovered |
 | ✓ | im +chat-update | shortcut | im/chat_workflow_test.go::TestIM_ChatUpdateWorkflow/update chat name as bot; im/chat_workflow_test.go::TestIM_ChatUpdateWorkflow/update chat description as bot | `--chat-id`; `--name`; `--description` | |
