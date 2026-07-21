@@ -185,6 +185,32 @@ func TestImChatMembersAddHooksShareNormalizedSpec(t *testing.T) {
 	}
 }
 
+func TestImChatMembersAddHooksRequireValidatedSpec(t *testing.T) {
+	runtime := newChatMembersAddTestRuntime(t, "oc_chat_a", "ou_user_a", "")
+
+	dryRun := ImChatMembersAdd.DryRun(context.Background(), runtime)
+	if dryRun != nil {
+		t.Fatalf("DryRun() = %#v, want nil without a validated spec", dryRun)
+	}
+	dryRunErr := cmdutil.WriteDryRun(dryRun, cmdutil.DryRunOutputOptions{
+		Format: "json",
+		Out:    io.Discard,
+	})
+	problem, ok := errs.ProblemOf(dryRunErr)
+	if !ok || problem.Category != errs.CategoryInternal || problem.Subtype != errs.SubtypeUnknown {
+		t.Fatalf("WriteDryRun() error = %T %v, want internal unknown", dryRunErr, dryRunErr)
+	}
+	if !strings.Contains(dryRunErr.Error(), "dry-run produced no request preview") {
+		t.Fatalf("WriteDryRun() error = %q, want missing preview message", dryRunErr.Error())
+	}
+
+	executeErr := ImChatMembersAdd.Execute(context.Background(), runtime)
+	problem, ok = errs.ProblemOf(executeErr)
+	if !ok || problem.Category != errs.CategoryInternal || problem.Subtype != errs.SubtypeUnknown {
+		t.Fatalf("Execute() error = %T %v, want internal unknown", executeErr, executeErr)
+	}
+}
+
 func newChatMembersAddMountedTestFactory(
 	t *testing.T,
 	registerSuccess bool,

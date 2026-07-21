@@ -4,11 +4,15 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -23,6 +27,194 @@ type scopeCheckTokenResolver struct {
 
 func (r *scopeCheckTokenResolver) ResolveToken(ctx context.Context, req credential.TokenSpec) (*credential.TokenResult, error) {
 	return r.result, r.err
+}
+
+type orderedScopeTokenResolver struct {
+	calls  int
+	events *[]string
+	result *credential.TokenResult
+}
+
+func (r *orderedScopeTokenResolver) ResolveToken(_ context.Context, req credential.TokenSpec) (*credential.TokenResult, error) {
+	r.calls++
+	if r.events != nil {
+		*r.events = append(*r.events, "resolve:"+string(req.Type))
+	}
+	return r.result, nil
+}
+
+func TestRunShortcut_HighRiskScopePreflightOrdering(t *testing.T) {
+	tests := []struct {
+		identity  core.Identity
+		tokenType credential.TokenType
+	}{
+		{identity: core.AsUser, tokenType: credential.TokenTypeUAT},
+		{identity: core.AsBot, tokenType: credential.TokenTypeTAT},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.identity), func(t *testing.T) {
+			t.Run("confirmation before scope preflight", func(t *testing.T) {
+				resolver := &orderedScopeTokenResolver{
+					result: &credential.TokenResult{Token: "token", Scopes: "test:write"},
+				}
+				executeCalls := 0
+				shortcut := scopeOrderingShortcut(&executeCalls, nil)
+				factory, cmd := scopeOrderingRuntime(t, shortcut, resolver, tt.identity)
+
+				err := runShortcut(cmd, factory, shortcut, false)
+				problem, ok := errs.ProblemOf(err)
+				if !ok || problem.Subtype != errs.SubtypeConfirmationRequired {
+					t.Fatalf("error = %T %v, want confirmation_required", err, err)
+				}
+				if resolver.calls != 0 {
+					t.Fatalf("token resolver calls = %d, want 0", resolver.calls)
+				}
+				if executeCalls != 0 {
+					t.Fatalf("Execute calls = %d, want 0", executeCalls)
+				}
+			})
+
+			t.Run("dry run before scope preflight", func(t *testing.T) {
+				resolver := &orderedScopeTokenResolver{
+					result: &credential.TokenResult{Token: "token", Scopes: "test:write"},
+				}
+				executeCalls := 0
+				shortcut := scopeOrderingShortcut(&executeCalls, nil)
+				factory, cmd := scopeOrderingRuntime(t, shortcut, resolver, tt.identity)
+				if err := cmd.Flags().Set("dry-run", "true"); err != nil {
+					t.Fatalf("set dry-run: %v", err)
+				}
+
+				if err := runShortcut(cmd, factory, shortcut, false); err != nil {
+					t.Fatalf("runShortcut() error = %v", err)
+				}
+				if resolver.calls != 0 {
+					t.Fatalf("token resolver calls = %d, want 0", resolver.calls)
+				}
+				if executeCalls != 0 {
+					t.Fatalf("Execute calls = %d, want 0", executeCalls)
+				}
+				stdout := factory.IOStreams.Out.(*bytes.Buffer).String()
+				if !strings.Contains(stdout, "/open-apis/test/v1/items") {
+					t.Fatalf("dry-run output has no request preview: %s", stdout)
+				}
+			})
+
+			t.Run("confirmed execution checks scopes first", func(t *testing.T) {
+				events := []string{}
+				resolver := &orderedScopeTokenResolver{
+					events: &events,
+					result: &credential.TokenResult{Token: "token", Scopes: "test:write"},
+				}
+				executeCalls := 0
+				shortcut := scopeOrderingShortcut(&executeCalls, &events)
+				factory, cmd := scopeOrderingRuntime(t, shortcut, resolver, tt.identity)
+				if err := cmd.Flags().Set("yes", "true"); err != nil {
+					t.Fatalf("set yes: %v", err)
+				}
+
+				if err := runShortcut(cmd, factory, shortcut, false); err != nil {
+					t.Fatalf("runShortcut() error = %v", err)
+				}
+				if resolver.calls != 1 {
+					t.Fatalf("token resolver calls = %d, want 1", resolver.calls)
+				}
+				wantEvents := []string{"resolve:" + string(tt.tokenType), "execute"}
+				if !reflect.DeepEqual(events, wantEvents) {
+					t.Fatalf("events = %#v, want %#v", events, wantEvents)
+				}
+			})
+		})
+	}
+}
+
+func TestRunShortcut_LowRiskExecutionStillChecksScopes(t *testing.T) {
+	events := []string{}
+	resolver := &orderedScopeTokenResolver{
+		events: &events,
+		result: &credential.TokenResult{Token: "token", Scopes: "test:write"},
+	}
+	executeCalls := 0
+	shortcut := scopeOrderingShortcut(&executeCalls, &events)
+	shortcut.Risk = "read"
+	factory, cmd := scopeOrderingRuntime(t, shortcut, resolver, core.AsUser)
+
+	if err := runShortcut(cmd, factory, shortcut, false); err != nil {
+		t.Fatalf("runShortcut() error = %v", err)
+	}
+	if resolver.calls != 1 {
+		t.Fatalf("token resolver calls = %d, want 1", resolver.calls)
+	}
+	if want := []string{"resolve:uat", "execute"}; !reflect.DeepEqual(events, want) {
+		t.Fatalf("events = %#v, want %#v", events, want)
+	}
+}
+
+func TestRunShortcut_LocalValidationPrecedesScopeAndConfirmation(t *testing.T) {
+	resolver := &orderedScopeTokenResolver{
+		result: &credential.TokenResult{Token: "token", Scopes: "test:write"},
+	}
+	executeCalls := 0
+	shortcut := scopeOrderingShortcut(&executeCalls, nil)
+	shortcut.Flags = append(shortcut.Flags, Flag{Name: "value"})
+	shortcut.Validate = func(_ context.Context, runtime *RuntimeContext) error {
+		if runtime.Str("value") == "" {
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--value is required").WithParam("--value")
+		}
+		return nil
+	}
+	factory, cmd := scopeOrderingRuntime(t, shortcut, resolver, core.AsUser)
+
+	err := runShortcut(cmd, factory, shortcut, false)
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeInvalidArgument {
+		t.Fatalf("error = %T %v, want validation invalid_argument", err, err)
+	}
+	if resolver.calls != 0 {
+		t.Fatalf("token resolver calls = %d, want 0", resolver.calls)
+	}
+	if executeCalls != 0 {
+		t.Fatalf("Execute calls = %d, want 0", executeCalls)
+	}
+}
+
+func scopeOrderingShortcut(executeCalls *int, events *[]string) *Shortcut {
+	return &Shortcut{
+		Service:     "test",
+		Command:     "+scope-order",
+		Risk:        "high-risk-write",
+		Scopes:      []string{"test:write"},
+		AuthTypes:   []string{"user", "bot"},
+		Description: "test scope ordering",
+		DryRun: func(_ context.Context, _ *RuntimeContext) *DryRunAPI {
+			return NewDryRunAPI().GET("/open-apis/test/v1/items")
+		},
+		Execute: func(_ context.Context, _ *RuntimeContext) error {
+			(*executeCalls)++
+			if events != nil {
+				*events = append(*events, "execute")
+			}
+			return nil
+		},
+	}
+}
+
+func scopeOrderingRuntime(
+	t *testing.T,
+	shortcut *Shortcut,
+	resolver *orderedScopeTokenResolver,
+	identity core.Identity,
+) (*cmdutil.Factory, *cobra.Command) {
+	t.Helper()
+
+	factory := newTestFactory()
+	factory.Credential = credential.NewCredentialProvider(nil, nil, resolver, nil)
+	cmd := newTestShortcutCmd(shortcut, factory)
+	if err := cmd.Flags().Set("as", string(identity)); err != nil {
+		t.Fatalf("set as: %v", err)
+	}
+	return factory, cmd
 }
 
 // TestEnhancePermissionError_TypedPermissionErrorRouted pins typed routing:

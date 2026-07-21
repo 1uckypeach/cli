@@ -62,7 +62,10 @@ var ImChatMembersAdd = common.Shortcut{
 		return nil
 	},
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
-		spec, _ := validatedChatMembersAddSpec(runtime)
+		spec, ok := validatedChatMembersAddSpec(runtime)
+		if !ok {
+			return nil
+		}
 		return buildChatMembersAddDryRun(spec)
 	},
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {

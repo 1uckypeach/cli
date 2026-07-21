@@ -874,7 +874,8 @@ func (s Shortcut) mountDeclarative(ctx context.Context, parent *cobra.Command, f
 }
 
 // runShortcut is the execution pipeline for a declarative shortcut.
-// Each step is a clear phase: identity → config → scopes → context → validate → execute.
+// Each step is a clear phase: identity → config → context → validate →
+// dry-run or confirmation → scopes → execute.
 func runShortcut(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, botOnly bool) error {
 	// --print-schema short-circuits everything below: it's pure local
 	// introspection, no identity / scope / network needed. The flag is
@@ -913,10 +914,6 @@ func runShortcut(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, botOnly bo
 	// Identity info is now included in the JSON envelope; skip stderr printing.
 	// cmdutil.PrintIdentity(f.IOStreams.ErrOut, as, config, false)
 
-	if err := checkShortcutScopes(f, cmd.Context(), as, config, s.ScopesForIdentity(string(as))); err != nil {
-		return err
-	}
-
 	rctx, err := newRuntimeContext(cmd, f, s, config, as, botOnly)
 	if err != nil {
 		return err
@@ -943,6 +940,10 @@ func runShortcut(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, botOnly bo
 
 	if s.Risk == "high-risk-write" && !rctx.Bool("yes") {
 		return cmdutil.RequireConfirmation(s.Service + " " + s.Command)
+	}
+
+	if err := checkShortcutScopes(f, rctx.ctx, as, config, s.ScopesForIdentity(string(as))); err != nil {
+		return err
 	}
 
 	if err := s.Execute(rctx.ctx, rctx); err != nil {
