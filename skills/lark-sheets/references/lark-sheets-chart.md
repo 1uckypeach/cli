@@ -11,11 +11,20 @@
 | 操作需求 | 使用工具 | 说明 |
 |---------|---------|------|
 | 查看已有图表 | `+chart-list` | 获取图表的类型、数据源和样式配置 |
-| 按类型和范围创建基础图 | `+chart-create-basic` | 支持 column/bar/line/area/pie/scatter/combo/radar；无需构造 snapshot |
-| 更新标题、轴、图例、标签、堆叠或平滑 | `+chart-config-update` | 无需回写 snapshot，未传字段保持不变 |
+| 按类型和范围创建基础图 | `+chart-create-basic` | 支持 column/bar/line/area/pie/scatter/combo/radar、行/列方向与整图配色；无需构造 snapshot |
+| 批量创建基础图或更新常用配置 | `+batch-update` | 把多个 `+chart-create-basic` / `+chart-config-update` 合并为一次严格批处理 |
+| 更新标题、轴、图例、标签、堆叠、平滑或整图配色 | `+chart-config-update` | 无需回写 snapshot，未传字段保持不变 |
 | 高级创建/更新、删除图表 | `+chart-{create|update|delete}` | 按系列/数据点精细设置等高级需求才使用原始 properties |
 
 典型工作流：先确认表头和精确数据范围，用 `+chart-create-basic` 一次创建并尽量在同次调用中带上已知标题/轴/标签要求；创建后用 `+chart-list` 验证。已有图表的常用配置修正用 `+chart-config-update`。只有用户要求单个系列、数据点或高级引擎字段时，才读取现有 snapshot 并调 `+chart-update --properties`。不要为了常用配置先输出整份 schema，也不要删除重建已经创建成功的图表。
+
+**多图表工作流**：先完成所有辅助数据和表头，列出每张目标图的类型、精确数据范围、标题和落点；确认清单后，用一次 `+batch-update` 批量执行 `+chart-create-basic`。批次成功后，每个受影响的 sheet 各调用一次 `+chart-list`，验证数量、类型、系列和范围。数据尚未稳定时不要提前创建图表；已经成功创建的图表有配置差异时批量使用 `+chart-config-update`，不要删除重建。
+
+**数量词必须展开**：用户说“每个 / 每天 / 分别 / 逐一 / 各一张图”时，先从数据中数出实体数 `N`，把这 `N` 张图逐项写进清单，再加上其它汇总图得到目标总数 `M`；一个包含全部实体的多系列图不能替代这 `N` 张独立图。批次前断言 operations 中恰有 `M` 个图表创建，批次后断言图表总数、逐图标题与实体集合一致。
+
+**范围与系列前置校验**：清单中同时记录每张图的表头范围、纳入列、明确排除列、数据方向和预期系列数。表头在首列时用默认 `--data-direction column`；表头在首行、每行代表一个系列时用 `--data-direction row`。创建前根据实际表头确认边界，不凭字母猜范围；创建后系列数不符时，使用 `+chart-update --properties` 局部更新 `snapshot.data.refs` / `dim1` / `dim2.series`（数组整段替换），不要删除后重建。批次跨多个 sheet 时，每个受影响的 sheet 各调用一次 `+chart-list`。
+
+**整图配色优先走语义参数**：只要求统一主题或一组系列颜色时，在创建时传 `--color-palette` 或 `--colors`，已有图表用 `+chart-config-update` 更新；二者互斥。只有指定某个系列或某个数据点的颜色时才使用原始 snapshot。
 
 ## 需求→图表类型映射（创建前必查）
 
@@ -131,7 +140,8 @@ _公共四件套 · 系统：`--dry-run`_
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `--chart-type` | string | required | 图表类型（可选值：`column` / `bar` / `line` / `area` / `pie` / `scatter` / `combo` / `radar`） |
-| `--data-range` | string | required | 含表头的连续 A1 数据范围，至少 2 行 2 列；combo 至少 3 列 |
+| `--data-range` | string | required | 含表头的连续 A1 数据范围，至少 2 行 2 列；combo 在数据系列方向上至少 3 行或 3 列 |
+| `--data-direction` | string | optional | 数据系列方向；column 表示首列为类别，row 表示首行为类别（可选值：`column` / `row`）（默认 `column`） |
 | `--title` | string | optional | 图表标题 |
 | `--subtitle` | string | optional | 图表副标题 |
 | `--legend-position` | string | optional | 图例位置；hidden 隐藏图例（可选值：`top` / `bottom` / `left` / `right` / `hidden`） |
@@ -144,6 +154,8 @@ _公共四件套 · 系统：`--dry-run`_
 | `--data-label-position` | string | optional | 数据标签位置（可选值：`auto` / `top` / `bottom` / `left` / `right` / `center` / `inside` / `outside`） |
 | `--stack` | string | optional | 堆叠模式（可选值：`none` / `normal` / `percent`） |
 | `--smooth` | bool | optional | 是否使用平滑曲线；可显式传 false |
+| `--color-palette` | string | optional | 预设整图配色主题；与 --colors 互斥（可选值：`brandColorSeries@v2` / `rainbowColorSeries@v2` / `complementaryColorSeries@v2` / `converseColorSeries@v2` / `primaryColorSeries@v2` / `singleColorSeries-B-@v2` / `singleColorSeries-W-@v2` / `singleColorSeries-G-@v2` / `singleColorSeries-Y-@v2` / `singleColorSeries-O-@v2` / `singleColorSeries-R-@v2` / `singleColorSeries-D-@v2`） |
+| `--colors` | string_slice | optional | 自定义整图系列颜色，逗号分隔且至少 2 个十六进制色值；与 --color-palette 互斥 |
 | `--anchor-cell` | string | optional | 可选图表锚点单元格，如 F2；省略时放到数据范围右侧 |
 | `--width` | int | optional | 可选图表宽度；必须与 --height 同时传 |
 | `--height` | int | optional | 可选图表高度；必须与 --width 同时传 |
@@ -167,6 +179,8 @@ _公共四件套 · 系统：`--dry-run`_
 | `--data-label-position` | string | optional | 数据标签位置（可选值：`auto` / `top` / `bottom` / `left` / `right` / `center` / `inside` / `outside`） |
 | `--stack` | string | optional | 堆叠模式（可选值：`none` / `normal` / `percent`） |
 | `--smooth` | bool | optional | 是否使用平滑曲线；可显式传 false |
+| `--color-palette` | string | optional | 预设整图配色主题；与 --colors 互斥（可选值：`brandColorSeries@v2` / `rainbowColorSeries@v2` / `complementaryColorSeries@v2` / `converseColorSeries@v2` / `primaryColorSeries@v2` / `singleColorSeries-B-@v2` / `singleColorSeries-W-@v2` / `singleColorSeries-G-@v2` / `singleColorSeries-Y-@v2` / `singleColorSeries-O-@v2` / `singleColorSeries-R-@v2` / `singleColorSeries-D-@v2`） |
+| `--colors` | string_slice | optional | 自定义整图系列颜色，逗号分隔且至少 2 个十六进制色值；与 --color-palette 互斥 |
 
 ### `+chart-create`
 
@@ -232,6 +246,38 @@ lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
   --chart-type combo --data-range "'Sheet1'!A1:D13" \
   --title "价格与效率" --y-axis-title "价格" --secondary-y-axis-title "效率" \
   --anchor-cell F2 --width 700 --height 400
+```
+
+多张基础图一次创建。先把所有数据准备完成，再生成 `ops.json`：
+
+```json
+[
+  {
+    "shortcut": "+chart-create-basic",
+    "input": {
+      "sheet_name": "Sheet1",
+      "chart_type": "column",
+      "data_range": "'Sheet1'!A1:C10",
+      "title": "分类对比",
+      "anchor_cell": "F2"
+    }
+  },
+  {
+    "shortcut": "+chart-create-basic",
+    "input": {
+      "sheet_name": "Sheet1",
+      "chart_type": "line",
+      "data_range": "'Sheet1'!E1:G10",
+      "title": "趋势变化",
+      "anchor_cell": "F18"
+    }
+  }
+]
+```
+
+```bash
+lark-cli sheets +batch-update --url "..." --operations @ops.json --yes
+lark-cli sheets +chart-list --url "..." --sheet-name "Sheet1"
 ```
 
 ### `+chart-config-update`

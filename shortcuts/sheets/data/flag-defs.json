@@ -3408,7 +3408,19 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "Contiguous A1 data range including headers; at least 2 rows and 2 columns, or 3 columns for combo"
+        "desc": "Contiguous A1 data range including headers; at least 2 rows and 2 columns, or 3 rows/columns along the data direction for combo"
+      },
+      {
+        "name": "data-direction",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Data series direction; column uses the first column as categories, row uses the first row",
+        "default": "column",
+        "enum": [
+          "column",
+          "row"
+        ]
       },
       {
         "name": "title",
@@ -3537,6 +3549,34 @@
         "type": "bool",
         "required": "optional",
         "desc": "Use smooth curves; false is accepted explicitly"
+      },
+      {
+        "name": "color-palette",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Preset chart-level color palette; mutually exclusive with --colors",
+        "enum": [
+          "brandColorSeries@v2",
+          "rainbowColorSeries@v2",
+          "complementaryColorSeries@v2",
+          "converseColorSeries@v2",
+          "primaryColorSeries@v2",
+          "singleColorSeries-B-@v2",
+          "singleColorSeries-W-@v2",
+          "singleColorSeries-G-@v2",
+          "singleColorSeries-Y-@v2",
+          "singleColorSeries-O-@v2",
+          "singleColorSeries-R-@v2",
+          "singleColorSeries-D-@v2"
+        ]
+      },
+      {
+        "name": "colors",
+        "kind": "own",
+        "type": "string_slice",
+        "required": "optional",
+        "desc": "Custom chart-level series colors as a comma-separated list of at least two hex colors; mutually exclusive with --color-palette"
       },
       {
         "name": "anchor-cell",
@@ -3733,6 +3773,34 @@
         "type": "bool",
         "required": "optional",
         "desc": "Use smooth curves; false is accepted explicitly"
+      },
+      {
+        "name": "color-palette",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Preset chart-level color palette; mutually exclusive with --colors",
+        "enum": [
+          "brandColorSeries@v2",
+          "rainbowColorSeries@v2",
+          "complementaryColorSeries@v2",
+          "converseColorSeries@v2",
+          "primaryColorSeries@v2",
+          "singleColorSeries-B-@v2",
+          "singleColorSeries-W-@v2",
+          "singleColorSeries-G-@v2",
+          "singleColorSeries-Y-@v2",
+          "singleColorSeries-O-@v2",
+          "singleColorSeries-R-@v2",
+          "singleColorSeries-D-@v2"
+        ]
+      },
+      {
+        "name": "colors",
+        "kind": "own",
+        "type": "string_slice",
+        "required": "optional",
+        "desc": "Custom chart-level series colors as a comma-separated list of at least two hex colors; mutually exclusive with --color-palette"
       },
       {
         "name": "dry-run",
