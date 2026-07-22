@@ -11,6 +11,7 @@ import (
 	"io"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/larksuite/cli/errs"
@@ -27,15 +28,35 @@ func (w contractFailingWriter) Write([]byte) (int, error) {
 }
 
 type contractSafetyProvider struct {
-	alert *extcs.Alert
+	mu          sync.Mutex
+	alert       *extcs.Alert
+	match       string
+	calls       int
+	scannedData interface{}
 }
 
 func (p *contractSafetyProvider) Name() string {
 	return "emitter-contract"
 }
 
-func (p *contractSafetyProvider) Scan(context.Context, extcs.ScanRequest) (*extcs.Alert, error) {
+func (p *contractSafetyProvider) Scan(_ context.Context, req extcs.ScanRequest) (*extcs.Alert, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.calls++
+	p.scannedData = req.Data
+	if p.match != "" {
+		text, ok := req.Data.(string)
+		if !ok || !strings.Contains(text, p.match) {
+			return nil, nil
+		}
+	}
 	return p.alert, nil
+}
+
+func (p *contractSafetyProvider) snapshot() (int, interface{}) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.calls, p.scannedData
 }
 
 func TestEmitterSuccessWritesAllBytes(t *testing.T) {
@@ -133,6 +154,165 @@ func TestEmitterPrettyRendererFailurePreservesCause(t *testing.T) {
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("Emitter.Success() stdout = %q, want empty", stdout.String())
+	}
+}
+
+func TestEmitterPrettyBlockScansRenderedTextBeforeWriting(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	const rendered = "captured blocked phrase\n"
+	provider := &contractSafetyProvider{
+		alert: &extcs.Alert{
+			Provider:     "emitter-contract",
+			MatchedRules: []string{"fixture-rule"},
+		},
+		match: "blocked phrase",
+	}
+	extcs.Register(provider)
+	t.Cleanup(func() { extcs.Register(nil) })
+	stdout := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      io.Discard,
+		CommandPath: "lark-cli fixture +emit",
+	})
+
+	err := emitter.Success(map[string]interface{}{"summary": "clean"}, output.EmitOptions{
+		Format: output.FormatPretty,
+		Pretty: func(w io.Writer, _ bool) error {
+			_, writeErr := io.WriteString(w, rendered)
+			return writeErr
+		},
+	})
+	var safetyErr *errs.ContentSafetyError
+	if !errors.As(err, &safetyErr) {
+		t.Fatalf("Emitter.Success() error = %T, want *errs.ContentSafetyError", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("Emitter.Success() stdout = %q, want empty", stdout.String())
+	}
+	if calls, scannedData := provider.snapshot(); calls != 1 || scannedData != rendered {
+		t.Fatalf("content safety scan = (%d, %#v), want (1, %q)", calls, scannedData, rendered)
+	}
+}
+
+func TestEmitterPrettyWarnScansRenderedTextAndWritesOutput(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "warn")
+	const rendered = "captured blocked phrase\n"
+	provider := &contractSafetyProvider{
+		alert: &extcs.Alert{
+			Provider:     "emitter-contract",
+			MatchedRules: []string{"fixture-rule"},
+		},
+		match: "blocked phrase",
+	}
+	extcs.Register(provider)
+	t.Cleanup(func() { extcs.Register(nil) })
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      stderr,
+		CommandPath: "lark-cli fixture +emit",
+	})
+
+	err := emitter.Success(map[string]interface{}{"summary": "clean"}, output.EmitOptions{
+		Format: output.FormatPretty,
+		Pretty: func(w io.Writer, _ bool) error {
+			_, writeErr := io.WriteString(w, rendered)
+			return writeErr
+		},
+	})
+	if err != nil {
+		t.Fatalf("Emitter.Success() error = %v", err)
+	}
+	if stdout.String() != rendered {
+		t.Fatalf("Emitter.Success() stdout = %q, want %q", stdout.String(), rendered)
+	}
+	wantWarning := "warning: content safety alert from emitter-contract (rules: fixture-rule)\n"
+	if stderr.String() != wantWarning {
+		t.Fatalf("Emitter.Success() stderr = %q, want %q", stderr.String(), wantWarning)
+	}
+	if calls, scannedData := provider.snapshot(); calls != 1 || scannedData != rendered {
+		t.Fatalf("content safety scan = (%d, %#v), want (1, %q)", calls, scannedData, rendered)
+	}
+}
+
+func TestEmitterPrettyOffWritesRenderedOutputWithoutScanning(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "off")
+	const rendered = "captured blocked phrase\n"
+	provider := &contractSafetyProvider{
+		alert: &extcs.Alert{
+			Provider:     "emitter-contract",
+			MatchedRules: []string{"fixture-rule"},
+		},
+		match: "blocked phrase",
+	}
+	extcs.Register(provider)
+	t.Cleanup(func() { extcs.Register(nil) })
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      stderr,
+		CommandPath: "lark-cli fixture +emit",
+	})
+
+	err := emitter.Success(map[string]interface{}{"summary": "clean"}, output.EmitOptions{
+		Format: output.FormatPretty,
+		Pretty: func(w io.Writer, _ bool) error {
+			_, writeErr := io.WriteString(w, rendered)
+			return writeErr
+		},
+	})
+	if err != nil {
+		t.Fatalf("Emitter.Success() error = %v", err)
+	}
+	if stdout.String() != rendered {
+		t.Fatalf("Emitter.Success() stdout = %q, want %q", stdout.String(), rendered)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("Emitter.Success() stderr = %q, want empty", stderr.String())
+	}
+	if calls, _ := provider.snapshot(); calls != 0 {
+		t.Fatalf("content safety provider calls = %d, want 0", calls)
+	}
+}
+
+func TestEmitterStreamPagePrettyScansRenderedTextBeforeWriting(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	const rendered = "streamed blocked phrase\n"
+	provider := &contractSafetyProvider{
+		alert: &extcs.Alert{
+			Provider:     "emitter-contract",
+			MatchedRules: []string{"fixture-rule"},
+		},
+		match: "blocked phrase",
+	}
+	extcs.Register(provider)
+	t.Cleanup(func() { extcs.Register(nil) })
+	stdout := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      io.Discard,
+		CommandPath: "lark-cli fixture +emit",
+	})
+
+	err := emitter.StreamPage(map[string]interface{}{"summary": "clean"}, output.StreamOptions{
+		Format: output.FormatPretty,
+		Pretty: func(w io.Writer, _ bool) error {
+			_, writeErr := io.WriteString(w, rendered)
+			return writeErr
+		},
+	})
+	var safetyErr *errs.ContentSafetyError
+	if !errors.As(err, &safetyErr) {
+		t.Fatalf("Emitter.StreamPage() error = %T, want *errs.ContentSafetyError", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("Emitter.StreamPage() stdout = %q, want empty", stdout.String())
+	}
+	if calls, scannedData := provider.snapshot(); calls != 1 || scannedData != rendered {
+		t.Fatalf("content safety scan = (%d, %#v), want (1, %q)", calls, scannedData, rendered)
 	}
 }
 

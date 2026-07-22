@@ -140,6 +140,14 @@ func (e *Emitter) StreamPage(data interface{}, opts StreamOptions) error {
 		return err
 	}
 
+	if opts.Format == FormatPretty {
+		if opts.Pretty == nil {
+			return errs.NewInternalError(errs.SubtypeUnknown,
+				"pretty output requires a renderer")
+		}
+		return e.emitPrettyRenderer(opts.Pretty)
+	}
+
 	scanResult := ScanForSafety(e.commandPath, data, e.errOut)
 	if scanResult.Blocked {
 		return scanResult.BlockErr
@@ -148,16 +156,6 @@ func (e *Emitter) StreamPage(data interface{}, opts StreamOptions) error {
 		if err := WriteAlertWarning(e.errOut, scanResult.Alert); err != nil {
 			return wrapOutputError("write", err)
 		}
-	}
-
-	if opts.Format == FormatPretty {
-		if opts.Pretty == nil {
-			return errs.NewInternalError(errs.SubtypeUnknown,
-				"pretty output requires a renderer")
-		}
-		return e.emit(func(w io.Writer) error {
-			return opts.Pretty(w, e.colorEnabled)
-		})
 	}
 
 	if e.streamFormatter == nil {
@@ -230,7 +228,24 @@ func (e *Emitter) emitEnvelope(data interface{}, ok bool, opts EmitOptions) erro
 }
 
 func (e *Emitter) emitPretty(data interface{}, opts EmitOptions) error {
-	scanResult := ScanForSafety(e.commandPath, data, e.errOut)
+	if opts.Pretty != nil {
+		return e.emitPrettyRenderer(opts.Pretty)
+	}
+
+	// RuntimeContext.outFormat falls back through Out/OutRaw when no pretty
+	// renderer is supplied.
+	return e.emitEnvelope(data, true, opts)
+}
+
+func (e *Emitter) emitPrettyRenderer(renderer PrettyRenderer) error {
+	// Buffer pretty output so the safety scan sees the exact text that will be
+	// written to stdout, including anything captured by the opaque renderer.
+	var buf bytes.Buffer
+	if err := renderer(&buf, e.colorEnabled); err != nil {
+		return wrapOutputError("render", err)
+	}
+
+	scanResult := ScanForSafety(e.commandPath, buf.String(), e.errOut)
 	if scanResult.Blocked {
 		return scanResult.BlockErr
 	}
@@ -239,16 +254,10 @@ func (e *Emitter) emitPretty(data interface{}, opts EmitOptions) error {
 			return wrapOutputError("write", err)
 		}
 	}
-	if opts.Pretty != nil {
-		return e.emit(func(w io.Writer) error {
-			return opts.Pretty(w, e.colorEnabled)
-		})
+	if _, err := io.Copy(e.out, &buf); err != nil {
+		return wrapOutputError("write", err)
 	}
-
-	// RuntimeContext.outFormat falls back through Out/OutRaw when no pretty
-	// renderer is supplied. Keep that second scan visible in the leaf contract
-	// until production callers are migrated and the legacy behavior is removed.
-	return e.emitEnvelope(data, true, opts)
+	return nil
 }
 
 // emitFormatted renders naked business data for the non-envelope formats
