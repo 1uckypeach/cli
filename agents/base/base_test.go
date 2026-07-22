@@ -134,7 +134,7 @@ func TestSendBuildsAdapterRequest(t *testing.T) {
 	rt := &fakeRuntime{
 		agentID:   "assistant",
 		params:    map[string]string{"base_token": "basc/token", "active_table_id": "tbl1"},
-		responses: []json.RawMessage{dataResponse(t, `{"schema_version":1,"task_id":"task-1","context_id":"ctx-1","status":"pending","outputs":[]}`)},
+		responses: []json.RawMessage{dataResponse(t, `{"schema_version":1,"task_id":"task-1","context_id":"ctx-1","status":"pending","created_at":"1710000000","updated_at":"1710000060","outputs":[]}`)},
 	}
 	task, err := assistantSpec.Send.Handler(context.Background(), rt, iagents.SendInput{Text: "build a dashboard"})
 	if err != nil {
@@ -142,6 +142,9 @@ func TestSendBuildsAdapterRequest(t *testing.T) {
 	}
 	if task.TaskID != "task-1" || task.ContextID != "ctx-1" || task.State != iagents.StateSubmitted || task.IsTerminal {
 		t.Fatalf("task=%+v", task)
+	}
+	if task.CreatedAt != "2024-03-09T16:00:00Z" || task.UpdatedAt != "2024-03-09T16:01:00Z" {
+		t.Fatalf("task timestamps=%+v", task)
 	}
 	if len(rt.calls) != 1 {
 		t.Fatalf("calls=%d", len(rt.calls))
@@ -709,6 +712,9 @@ func TestVersionedTaskPreservesPreselectedQuestionsFromBackendResponse(t *testin
 	if task.State != iagents.StateInputRequired || task.InputRequired == nil {
 		t.Fatalf("task=%+v", task)
 	}
+	if task.CreatedAt != "2026-07-22T12:00:11Z" || task.UpdatedAt != "2026-07-22T12:00:58Z" {
+		t.Fatalf("task timestamps=%+v", task)
+	}
 	if task.InputRequired.Label != "Additional information" || len(task.InputRequired.Questions) != 3 {
 		t.Fatalf("input_required=%+v", task.InputRequired)
 	}
@@ -735,6 +741,8 @@ func TestVersionedTaskTerminalStateIgnoresHistoricalClarification(t *testing.T) 
 				SchemaVersion: 1,
 				TaskID:        "t1",
 				Status:        status,
+				CreatedAt:     json.RawMessage(`"1710000000"`),
+				UpdatedAt:     json.RawMessage(`"1710000060"`),
 				Outputs: []adapterOutput{{
 					Type:          "clarification",
 					Clarification: &adapterClarification{ID: "old", Required: true},
@@ -745,6 +753,9 @@ func TestVersionedTaskTerminalStateIgnoresHistoricalClarification(t *testing.T) 
 			}
 			if !task.IsTerminal || task.InputRequired != nil {
 				t.Fatalf("task=%+v", task)
+			}
+			if task.CreatedAt != "2024-03-09T16:00:00Z" || task.UpdatedAt != "2024-03-09T16:01:00Z" {
+				t.Fatalf("task timestamps=%+v", task)
 			}
 			if status == "canceled" && task.State != iagents.StateCanceled {
 				t.Fatalf("canceled state=%s", task.State)
@@ -779,6 +790,7 @@ func TestVersionedTaskProtocolInconsistenciesAreTyped(t *testing.T) {
 	tests := []adapterTask{
 		{SchemaVersion: 2, TaskID: "t1", Status: "running"},
 		{SchemaVersion: 1, TaskID: "t1", Status: "waiting_for_input"},
+		{SchemaVersion: 1, TaskID: "t1", Status: "running", CreatedAt: json.RawMessage(`"not-a-time"`)},
 		{SchemaVersion: 1, TaskID: "t1", Status: "running", Outputs: []adapterOutput{{ID: "x", Type: "data"}}},
 	}
 	for _, input := range tests {
