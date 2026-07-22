@@ -233,6 +233,18 @@ func TestBatchOp_BodyMatchesStandalone(t *testing.T) {
 			subInput: `{"sheet-id":"sh1","chart-id":"c1"}`,
 		},
 		{
+			shortcut: "+chart-create-basic",
+			sc:       ChartCreateBasic,
+			args:     []string{"--sheet-id", "sh1", "--chart-type", "column", "--data-range", "A1:C10", "--title", "Sales", "--data-labels", "value", "--anchor-cell", "F2"},
+			subInput: `{"sheet-id":"sh1","chart-type":"column","data-range":"A1:C10","title":"Sales","data-labels":"value","anchor-cell":"F2"}`,
+		},
+		{
+			shortcut: "+chart-config-update",
+			sc:       ChartConfigUpdate,
+			args:     []string{"--sheet-id", "sh1", "--chart-id", "c1", "--title", "Updated", "--data-labels", "category", "--data-label-position", "top"},
+			subInput: `{"sheet-id":"sh1","chart-id":"c1","title":"Updated","data-labels":"category","data-label-position":"top"}`,
+		},
+		{
 			shortcut: "+pivot-create",
 			sc:       PivotCreate,
 			// +pivot-create renamed --sheet-id / --sheet-name → --target-sheet-id /

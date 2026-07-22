@@ -51,6 +51,8 @@ func TestChartCreateBasic_ConfigAndPlacement(t *testing.T) {
 		"--title", "Trend",
 		"--legend-position", "bottom",
 		"--smooth=false",
+		"--data-direction", "row",
+		"--color-palette", "brandColorSeries@v2",
 	})
 	input := decodeToolInput(t, body, "manage_chart_object")
 	basic, _ := input["basic_chart"].(map[string]interface{})
@@ -62,8 +64,38 @@ func TestChartCreateBasic_ConfigAndPlacement(t *testing.T) {
 	if size["width"] != float64(640) || size["height"] != float64(360) {
 		t.Errorf("size = %#v", size)
 	}
-	if basic["title"] != "Trend" || basic["legend_position"] != "bottom" || basic["smooth"] != false {
+	if basic["title"] != "Trend" || basic["legend_position"] != "bottom" || basic["smooth"] != false ||
+		basic["data_direction"] != "row" || basic["color_palette"] != "brandColorSeries@v2" {
 		t.Errorf("semantic config = %#v", basic)
+	}
+}
+
+func TestChartSemanticShortcuts_InBatchUpdate(t *testing.T) {
+	body := parseDryRunBody(t, BatchUpdate, []string{
+		"--url", testURL,
+		"--operations", `[
+			{"shortcut":"+chart-create-basic","input":{"sheet-id":"sh1","chart-type":"column","data-range":"A1:C10","title":"Sales"}},
+			{"shortcut":"+chart-create-basic","input":{"sheet-id":"sh1","chart-type":"line","data-range":"E1:G10","title":"Trend"}}
+		]`,
+		"--yes",
+	})
+	input := decodeToolInput(t, body, "batch_update")
+	ops := input["operations"].([]interface{})
+	if len(ops) != 2 {
+		t.Fatalf("operations len = %d, want 2", len(ops))
+	}
+	for i, op := range ops {
+		item := op.(map[string]interface{})
+		if item["tool_name"] != "manage_chart_object" {
+			t.Fatalf("operations[%d].tool_name = %v", i, item["tool_name"])
+		}
+		chartInput := item["input"].(map[string]interface{})
+		if chartInput["operation"] != "create" {
+			t.Fatalf("operations[%d].input.operation = %v", i, chartInput["operation"])
+		}
+		if _, ok := chartInput["basic_chart"].(map[string]interface{}); !ok {
+			t.Fatalf("operations[%d].input.basic_chart = %#v", i, chartInput["basic_chart"])
+		}
 	}
 }
 
@@ -76,6 +108,7 @@ func TestChartConfigUpdate_PartialFields(t *testing.T) {
 		"--y-axis-title", "Revenue",
 		"--stack", "percent",
 		"--smooth=false",
+		"--colors", "#112233,#445566",
 	})
 	input := decodeToolInput(t, body, "manage_chart_object")
 	if input["operation"] != "update" || input["chart_id"] != "chart-1" {
@@ -87,6 +120,10 @@ func TestChartConfigUpdate_PartialFields(t *testing.T) {
 	updates, _ := input["config_updates"].(map[string]interface{})
 	if updates["y_axis_title"] != "Revenue" || updates["stack"] != "percent" || updates["smooth"] != false {
 		t.Errorf("config_updates = %#v", updates)
+	}
+	colors, _ := updates["colors"].([]interface{})
+	if len(colors) != 2 || colors[0] != "#112233" || colors[1] != "#445566" {
+		t.Errorf("config_updates.colors = %#v", updates["colors"])
 	}
 }
 
@@ -101,6 +138,9 @@ func TestChartSemanticShortcuts_Validation(t *testing.T) {
 		{name: "invalid semantic enum", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--legend-position", "diagonal"}},
 		{name: "range too small", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:A4"}},
 		{name: "combo needs two series", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "combo", "--data-range", "A1:B4"}},
+		{name: "invalid direction", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--data-direction", "horizontal"}},
+		{name: "colors need two values", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--colors", "#112233"}},
+		{name: "palette and colors are exclusive", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--color-palette", "brandColorSeries@v2", "--colors", "#112233,#445566"}},
 		{name: "size must be paired", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--width", "640"}},
 	}
 	for _, tt := range tests {
