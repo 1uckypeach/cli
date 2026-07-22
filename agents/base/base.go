@@ -7,6 +7,7 @@ package base
 
 import (
 	"context"
+	"strings"
 
 	"github.com/larksuite/cli/errs"
 	iagents "github.com/larksuite/cli/internal/agents"
@@ -92,7 +93,7 @@ var assistantSpec = iagents.AgentSpec{
 	GetContext:    iagents.ContextGetOp{Params: baseTokenParam(), Handler: getContext},
 	DeleteContext: iagents.ContextDeleteOp{Params: baseTokenParam(), Handler: deleteContext},
 	FileInput:     false,
-	InputRequired: false,
+	InputRequired: true,
 }
 
 // Provider returns the single offline-discoverable Base assistant.
@@ -117,9 +118,16 @@ func validateSendRuntime(rt iagents.Runtime, in iagents.SendInput) error {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument,
 			"base:assistant does not support file input").WithParam("--file")
 	}
-	if len(in.Answers) > 0 {
+	// The unified contract lets an answer carry a message-level --text remark,
+	// but the Base bridge maps CLI answers straight onto the pending clarification
+	// card and has no channel for a separate remark: SaveUserMessage rewrites the
+	// user message from the card answers alone. Reject the combination explicitly
+	// (a Base-only deviation from the framework contract) instead of silently
+	// dropping the remark. The backend enforces the same rule for direct HTTP.
+	if len(in.Answers) > 0 && strings.TrimSpace(in.Text) != "" {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"base:assistant does not support structured input_required answers").WithParam("--answer")
+			"base:assistant does not support a remark when answering input_required").WithParam("--text").
+			WithHint("answer the question group with --answer only, then send --text as a follow-up message on the same task")
 	}
 	return nil
 }
