@@ -630,13 +630,32 @@ func TestVersionedTaskTerminalStateIgnoresHistoricalClarification(t *testing.T) 
 	}
 }
 
+func TestVersionedTaskRunningStateIgnoresStaleClarification(t *testing.T) {
+	task, err := mapTask(adapterTask{
+		SchemaVersion: 1,
+		TaskID:        "t1",
+		Status:        "running",
+		Outputs: []adapterOutput{{
+			Type: "clarification",
+			Clarification: &adapterClarification{
+				ID:       "old",
+				Title:    "Stale question",
+				Required: true,
+			},
+		}},
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.State != iagents.StateWorking || task.IsTerminal || task.InputRequired != nil {
+		t.Fatalf("task=%+v", task)
+	}
+}
+
 func TestVersionedTaskProtocolInconsistenciesAreTyped(t *testing.T) {
 	tests := []adapterTask{
 		{SchemaVersion: 2, TaskID: "t1", Status: "running"},
 		{SchemaVersion: 1, TaskID: "t1", Status: "waiting_for_input"},
-		{SchemaVersion: 1, TaskID: "t1", Status: "running", Outputs: []adapterOutput{{
-			Type: "clarification", Clarification: &adapterClarification{ID: "q1", Required: true},
-		}}},
 		{SchemaVersion: 1, TaskID: "t1", Status: "running", Outputs: []adapterOutput{{ID: "x", Type: "data"}}},
 	}
 	for _, input := range tests {
