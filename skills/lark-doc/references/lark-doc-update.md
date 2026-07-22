@@ -23,7 +23,7 @@
 | `--doc` | 是 | 文档 URL 或 token |
 | `--command` | 是 | 操作指令（见下方指令速查表） |
 | `--doc-format` | 否 | 内容格式：`xml`（默认，始终优先使用）\| `markdown`（仅用户明确要求时） |
-| `--content` | 视指令 | 写入内容（`str_replace` 传空字符串可实现删除） |
+| `--content` | 视指令 | 写入内容（`str_replace` 传空字符串可实现删除）。XML 正文中的 `<` 和 `&` 必须转义，详见 [`lark-doc-xml.md`](lark-doc-xml.md)「正文文本转义」 |
 | `--reference-map` | 否 | 结构化 `reference_map` JSON object；必须与 `--content` 一起使用。普通写入优先把结构写在正文里；该参数主要用于保留或回放已有 `document.reference_map`。支持直接 JSON、`@reference-map.json`（相对路径）或 `-` 从 stdin 读取。 |
 | `--pattern` | 视指令 | 匹配文本（str_replace） |
 | `--block-id` | 视指令 | 目标 block ID（block_* 操作），逗号分隔可批量删除，-1 表示末尾 |
@@ -52,6 +52,8 @@
 - `block_move_after`：被移动 ID 通常保留，但位置、章节、range 语义变化；后续依赖位置时重新 fetch
 - `str_replace`：简单行内替换通常不改变 ID；跨行 / 大段替换后如继续 block 级操作，先重新 fetch
 
+批量删除前必须使用当前 revision 的 fetch 结果确认每个 block ID 仍存在。任何会删除或替换目标块的写操作之后，都要重新 fetch，再构造下一批 `block_delete`；不要凭历史输出猜测 ID，也不要给批量大小编造未经服务端确认的固定上限。
+
 ## 指令示例
 
 ### str_replace — 全文文本替换
@@ -60,7 +62,9 @@
 > - **XML 模式（默认）**：`--pattern` 只支持**行内匹配**，不能跨 block / 跨段落匹配。涉及整段或多 block 的改动，请改用 `block_replace`。
 > - **Markdown 模式**（`--doc-format markdown`）：`--pattern` 同时支持**行内和跨行匹配**，可以用多行字符串匹配并替换一整段内容。
 >   - 还支持**`前缀...后缀` 省略号语法**：用 `...`（三个英文句点）串联起始与结束片段，匹配从前缀到后缀之间的全部内容（含中间被省略部分）。适合一段很长、但首尾特征明显的文本，避免把整段都塞进 `--pattern`。
->   - 前缀、后缀本身仍遵循 Markdown 转义规则；省略号中间的内容**会被替换**为 `--content` 的完整文本，不会被保留。
+>   - 前缀、后缀本身仍遵循 Markdown 转义规则，并且组合后必须唯一定位一个范围；省略号中间的内容**会被替换**为 `--content` 的完整文本，不会被保留。
+> - 同一个 pattern 命中多处时会返回 `1014_str_replace_multiple_matches`，不会自动选择第一处或替换全部。增加前后文，或改用带 block ID 的 `block_replace`。
+> - 如果 `--pattern` 与 `--content` 相同，本次调用没有实质变化；直接跳过，不要发送。
 
 ```bash
 # 简单文本替换
@@ -196,6 +200,13 @@ lark-cli docs +update --doc "<doc_id>" --command block_move_after \
 | `updated_blocks_count` | 实际更新的 block 数量 |
 | `warnings` | 警告信息列表 |
 | `document.new_blocks` | 本次操作新增的 block 列表（如画板）。`block_id` 可用于后续精确编辑；`block_token` 是资源块 token（如画板）可交给 `lark-whiteboard` 等 skill 继续操作 |
+
+### 结果判读
+
+- `result = success` 且 `warnings = []`：完全成功。
+- `result = success` 或 `partial_success` 且有 warnings：服务端完成了至少一部分写入；先检查 warning 和最终文档，不要直接重发整段内容。
+- warnings 包含 `1011_no_document_changes`：本次调用是 no-op。不要重试相同请求；检查目标内容是否已经是最终状态，或 pattern 与 replacement 是否相同。
+- `updated_blocks_count = 0` 且有其他 warning：根据具体 degrade code 修正输入，不能把“0 个更新”当成成功写入。
 
 ## 典型工作流
 

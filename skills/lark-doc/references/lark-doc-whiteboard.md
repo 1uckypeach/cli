@@ -38,11 +38,14 @@ SubAgent 插入 SVG。
 ### 步骤 2A: 使用 mermaid 插入图表
 
 ```xml
-
-<whiteboard type="mermaid">
-    mermaid 代码...
+<whiteboard type="mermaid">flowchart TD
+    A["开始"] --> B["处理"]
+    B -->|"是"| C["结束"]
+    B -->|"否"| A
 </whiteboard>
 ```
+
+Mermaid 内容保持为纯 Mermaid 语法。Unicode、空格或含标点的节点/连线标签统一用双引号包裹；复杂语法在写入前先用 Mermaid 兼容的本地渲染器验证。不要把“某一种未加引号的中文写法”描述成服务端必然失败——以实际 parser 校验结果为准。
 
 如果 Mermaid 已在本地文件中，可写成 `<whiteboard type="mermaid" path="@diagram.mmd"></whiteboard>`；CLI 会在写入前读取文件并展开为内联内容。
 
