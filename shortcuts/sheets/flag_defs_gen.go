@@ -247,7 +247,7 @@ var flagDefs = map[string]commandDef{
 			{Name: "sheet-id", Kind: "public", Type: "string", Required: "xor", Desc: "Sheet reference_id (XOR with `--sheet-name`)"},
 			{Name: "sheet-name", Kind: "public", Type: "string", Required: "xor", Desc: "Sheet name (XOR with `--sheet-id`)"},
 			{Name: "chart-type", Kind: "own", Type: "string", Required: "required", Desc: "Chart type", Enum: []string{"column", "bar", "line", "area", "pie", "scatter", "combo", "radar"}},
-			{Name: "data-range", Kind: "own", Type: "string", Required: "required", Desc: "One contiguous A1 range including headers, or comma-separated aligned ranges preserved as independent refs without gap columns"},
+			{Name: "data-range", Kind: "own", Type: "string", Required: "required", Desc: "One contiguous A1 range including headers, or comma-separated same-sheet ranges; aligned non-overlapping ranges stay independent, otherwise they merge to the smallest enclosing rectangle"},
 			{Name: "data-direction", Kind: "own", Type: "string", Required: "optional", Desc: "Data series direction; column uses the first column as categories, row uses the first row", Default: "column", Enum: []string{"column", "row"}},
 			{Name: "title", Kind: "own", Type: "string", Required: "optional", Desc: "Chart title"},
 			{Name: "subtitle", Kind: "own", Type: "string", Required: "optional", Desc: "Chart subtitle"},
