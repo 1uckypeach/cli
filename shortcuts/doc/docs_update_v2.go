@@ -35,8 +35,8 @@ func v2UpdateFlags() []common.Flag {
 		{Name: "doc-format", Desc: "content format for --content; xml is default for precise rich edits, markdown for user-provided Markdown or plain append/overwrite", Default: "xml", Enum: []string{"xml", "markdown"}},
 		{Name: "content", Desc: "replacement or inserted content; XML by default or Markdown when --doc-format markdown; empty with str_replace deletes match. " + docsContentSkillHelp + "; use --help for the latest command flags", Input: []string{common.File, common.Stdin}},
 		{Name: "reference-map", Desc: docsUpdateReferenceMapFlagDesc, Input: []string{common.File, common.Stdin}},
-		{Name: "pattern", Desc: "str_replace match pattern; XML mode is inline text, Markdown mode can match multiline text"},
-		{Name: "block-id", Desc: "target block ID(s) for block operations (comma-separated for batch delete); -1 means document end where supported"},
+		{Name: "pattern", Desc: "str_replace match pattern; XML mode accepts inline text only, Markdown mode can match multiline text; pattern must differ from --content"},
+		{Name: "block-id", Desc: "target block ID(s) for block operations (comma-separated unique IDs for batch delete); -1 means document end where supported"},
 		{Name: "src-block-ids", Desc: "comma-separated source block ids for block_copy_insert_after and block_move_after"},
 		{Name: "revision-id", Desc: "base revision id; -1 means latest", Type: "int", Default: "-1"},
 	}
@@ -73,9 +73,21 @@ func validateUpdateV2(_ context.Context, runtime *common.RuntimeContext) error {
 		if pattern == "" {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--command str_replace requires --pattern").WithParam("--pattern")
 		}
+		if runtime.Str("doc-format") == "xml" && strings.ContainsAny(pattern, "\r\n") {
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "XML str_replace --pattern must be inline and cannot contain line breaks; use --doc-format markdown or a block operation for multiline changes").WithParam("--pattern")
+		}
+		if pattern == content {
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "str_replace --pattern and --content are identical, so the request would make no document changes").WithParams(
+				errs.InvalidParam{Name: "--pattern", Reason: "identical to --content"},
+				errs.InvalidParam{Name: "--content", Reason: "identical to --pattern"},
+			)
+		}
 	case "block_delete":
 		if blockID == "" {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--command block_delete requires --block-id").WithParam("--block-id")
+		}
+		if err := validateBlockDeleteIDs(blockID); err != nil {
+			return err
 		}
 	case "block_insert_after":
 		if blockID == "" {
@@ -120,6 +132,21 @@ func validateUpdateV2(_ context.Context, runtime *common.RuntimeContext) error {
 	if content != "" {
 		_, err := resolveDocsV2ContentReferenceMap(runtime)
 		return err
+	}
+	return nil
+}
+
+func validateBlockDeleteIDs(raw string) error {
+	seen := make(map[string]struct{})
+	for _, part := range strings.Split(raw, ",") {
+		blockID := strings.TrimSpace(part)
+		if blockID == "" {
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--block-id contains an empty ID; provide a comma-separated list of non-empty block IDs").WithParam("--block-id")
+		}
+		if _, ok := seen[blockID]; ok {
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--block-id contains duplicate ID %q; each block may be deleted only once per request", blockID).WithParam("--block-id")
+		}
+		seen[blockID] = struct{}{}
 	}
 	return nil
 }

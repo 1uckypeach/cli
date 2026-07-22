@@ -193,6 +193,12 @@ func TestValidateCreateV2Contract(t *testing.T) {
 			wantParam:  "", // mutual exclusion: enumerated in Params
 			wantParams: []string{"--parent-token", "--parent-position"},
 		},
+		{
+			name:       "title flag conflicts with XML title element",
+			str:        map[string]string{"title": "Flag title", "doc-format": "xml", "content": "<title>Content title</title><p>body</p>"},
+			wantParam:  "",
+			wantParams: []string{"--title", "--content"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -357,8 +363,23 @@ func TestValidateUpdateV2Contract(t *testing.T) {
 			wantParam: "--pattern",
 		},
 		{
+			name:      "XML str_replace rejects multiline pattern",
+			str:       map[string]string{"doc": testDocxToken, "command": "str_replace", "doc-format": "xml", "pattern": "line one\nline two", "content": "replacement"},
+			wantParam: "--pattern",
+		},
+		{
 			name:      "block_delete without block id",
 			str:       map[string]string{"doc": testDocxToken, "command": "block_delete"},
+			wantParam: "--block-id",
+		},
+		{
+			name:      "block_delete rejects empty ID",
+			str:       map[string]string{"doc": testDocxToken, "command": "block_delete", "block-id": "blkA,,blkB"},
+			wantParam: "--block-id",
+		},
+		{
+			name:      "block_delete rejects duplicate ID",
+			str:       map[string]string{"doc": testDocxToken, "command": "block_delete", "block-id": "blkA, blkA"},
 			wantParam: "--block-id",
 		},
 		{
@@ -424,4 +445,15 @@ func TestValidateUpdateV2Contract(t *testing.T) {
 			assertValidationContract(t, err, errs.SubtypeInvalidArgument, tc.wantParam)
 		})
 	}
+}
+
+func TestValidateUpdateV2RejectsNoOpStrReplace(t *testing.T) {
+	rt := docValidateRuntime(t, map[string]string{
+		"doc":     testDocxToken,
+		"command": "str_replace",
+		"pattern": "already final",
+		"content": "already final",
+	}, nil, nil)
+	err := validateUpdateV2(context.Background(), rt)
+	assertValidationContract(t, err, errs.SubtypeInvalidArgument, "", "--pattern", "--content")
 }

@@ -16,7 +16,7 @@ import (
 // v2CreateFlags returns the flag definitions for the v2 (OpenAPI) create path.
 func v2CreateFlags() []common.Flag {
 	return []common.Flag{
-		{Name: "title", Desc: "document title; when provided, the CLI prepends it to --content as <title>...</title> so the title wins over later content titles"},
+		{Name: "title", Desc: "document title; the CLI prepends it to --content as <title>...</title>. In XML mode, do not combine it with a <title> element in --content"},
 		{Name: "content", Desc: "document body; XML by default or Markdown when --doc-format markdown. " + docsContentSkillHelp + "; use --help for the latest command flags", Input: []string{common.File, common.Stdin}},
 		{Name: "reference-map", Desc: docsReferenceMapFlagDesc, Input: []string{common.File, common.Stdin}},
 		{Name: "doc-format", Desc: "content format; xml is default and supports richer DocxXML blocks, markdown imports plain Markdown", Default: "xml", Enum: []string{"xml", "markdown"}},
@@ -45,11 +45,33 @@ func validateCreateV2(_ context.Context, runtime *common.RuntimeContext) error {
 	if runtime.Str("content") == "" && title == "" {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--content is required unless --title is provided").WithParam("--content")
 	}
+	if title != "" && runtime.Str("doc-format") == "xml" && xmlFragmentContainsTitle(runtime.Str("content")) {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--title conflicts with a <title> element in XML --content; use exactly one title source").WithParams(
+			errs.InvalidParam{Name: "--title", Reason: "conflicts with the XML <title> element in --content"},
+			errs.InvalidParam{Name: "--content", Reason: "already contains an XML <title> element"},
+		)
+	}
 	if runtime.Str("content") != "" {
 		_, err := resolveDocsV2ContentReferenceMap(runtime)
 		return err
 	}
 	return nil
+}
+
+// xmlFragmentContainsTitle reports whether a DocxXML fragment contains a title
+// element. Wrapping the fragment allows the XML decoder to inspect multiple
+// top-level blocks without changing the content sent to the service.
+func xmlFragmentContainsTitle(content string) bool {
+	decoder := xml.NewDecoder(strings.NewReader("<root>" + content + "</root>"))
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			return false
+		}
+		if start, ok := token.(xml.StartElement); ok && strings.EqualFold(start.Name.Local, "title") {
+			return true
+		}
+	}
 }
 
 func dryRunCreateV2(_ context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
