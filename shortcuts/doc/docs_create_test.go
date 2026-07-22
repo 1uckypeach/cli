@@ -17,6 +17,46 @@ import (
 
 // ── V2 (OpenAPI) tests ──
 
+func TestStripTopLevelXMLTitles(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "single title",
+			content: "<title>Content title</title><p>body</p>",
+			want:    "<p>body</p>",
+		},
+		{
+			name:    "multiple titles",
+			content: "<title>First</title>\n<p>body</p>\n<title>Second</title>",
+			want:    "<p>body</p>",
+		},
+		{
+			name:    "nested title is preserved",
+			content: "<callout><title>Nested</title></callout><p>body</p>",
+			want:    "<callout><title>Nested</title></callout><p>body</p>",
+		},
+		{
+			name:    "malformed XML is preserved",
+			content: "<title>Content title</title><p>A & B</p>",
+			want:    "<title>Content title</title><p>A & B</p>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := stripTopLevelXMLTitles(tt.content); got != tt.want {
+				t.Fatalf("stripTopLevelXMLTitles() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDocsCreateV2BotAutoGrantSuccess(t *testing.T) {
 	t.Parallel()
 

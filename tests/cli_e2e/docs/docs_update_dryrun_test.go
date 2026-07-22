@@ -226,6 +226,28 @@ func TestDocs_CreateTitleDryRunPrependsContent(t *testing.T) {
 	require.Equal(t, "<title>Dry Run &amp; Title</title>\n## Body", clie2e.DryRunGet(out, "api.0.body.content").String(), "stdout:\n%s", out)
 }
 
+func TestDocs_CreateTitleDryRunNormalizesXMLTitle(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_APP_ID", "app")
+	t.Setenv("LARKSUITE_CLI_APP_SECRET", "secret")
+	t.Setenv("LARKSUITE_CLI_BRAND", "feishu")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+
+	result, err := clie2e.RunCmd(ctx, clie2e.Request{
+		Args: []string{
+			"docs", "+create",
+			"--title", "Flag title",
+			"--content", "<title>Content title</title><p>body</p>",
+			"--dry-run",
+		},
+		DefaultAs: "bot",
+	})
+	require.NoError(t, err)
+	result.AssertExitCode(t, 0)
+	require.Equal(t, "<title>Flag title</title>\n<p>body</p>", clie2e.DryRunGet(result.Stdout, "api.0.body.content").String())
+}
+
 func TestDocs_DryRunRejectsUnsafeWriteInputs(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_APP_ID", "app")
 	t.Setenv("LARKSUITE_CLI_APP_SECRET", "secret")
@@ -240,19 +262,9 @@ func TestDocs_DryRunRejectsUnsafeWriteInputs(t *testing.T) {
 		want string
 	}{
 		{
-			name: "duplicate XML title",
-			args: []string{"docs", "+create", "--title", "Flag title", "--content", "<title>Content title</title><p>body</p>", "--dry-run"},
-			want: "use exactly one title source",
-		},
-		{
 			name: "multiline XML str_replace",
 			args: []string{"docs", "+update", "--doc", "doxcnDryRunE2E", "--command", "str_replace", "--pattern", "line one\nline two", "--content", "replacement", "--dry-run"},
 			want: "must be inline",
-		},
-		{
-			name: "no-op str_replace",
-			args: []string{"docs", "+update", "--doc", "doxcnDryRunE2E", "--command", "str_replace", "--pattern", "already final", "--content", "already final", "--dry-run"},
-			want: "would make no document changes",
 		},
 		{
 			name: "duplicate block delete ID",

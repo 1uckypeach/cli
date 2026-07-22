@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"errors"
+	"io"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
@@ -16,7 +18,7 @@ import (
 // v2CreateFlags returns the flag definitions for the v2 (OpenAPI) create path.
 func v2CreateFlags() []common.Flag {
 	return []common.Flag{
-		{Name: "title", Desc: "document title; the CLI prepends it to --content as <title>...</title>. In XML mode, do not combine it with a <title> element in --content"},
+		{Name: "title", Desc: "document title; the CLI prepends it to --content as <title>...</title>. In XML mode, top-level <title> elements in --content are removed so this flag wins without duplicate-title warnings"},
 		{Name: "content", Desc: "document body; XML by default or Markdown when --doc-format markdown. " + docsContentSkillHelp + "; use --help for the latest command flags", Input: []string{common.File, common.Stdin}},
 		{Name: "reference-map", Desc: docsReferenceMapFlagDesc, Input: []string{common.File, common.Stdin}},
 		{Name: "doc-format", Desc: "content format; xml is default and supports richer DocxXML blocks, markdown imports plain Markdown", Default: "xml", Enum: []string{"xml", "markdown"}},
@@ -45,33 +47,11 @@ func validateCreateV2(_ context.Context, runtime *common.RuntimeContext) error {
 	if runtime.Str("content") == "" && title == "" {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--content is required unless --title is provided").WithParam("--content")
 	}
-	if title != "" && runtime.Str("doc-format") == "xml" && xmlFragmentContainsTitle(runtime.Str("content")) {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--title conflicts with a <title> element in XML --content; use exactly one title source").WithParams(
-			errs.InvalidParam{Name: "--title", Reason: "conflicts with the XML <title> element in --content"},
-			errs.InvalidParam{Name: "--content", Reason: "already contains an XML <title> element"},
-		)
-	}
 	if runtime.Str("content") != "" {
 		_, err := resolveDocsV2ContentReferenceMap(runtime)
 		return err
 	}
 	return nil
-}
-
-// xmlFragmentContainsTitle reports whether a DocxXML fragment contains a title
-// element. Wrapping the fragment allows the XML decoder to inspect multiple
-// top-level blocks without changing the content sent to the service.
-func xmlFragmentContainsTitle(content string) bool {
-	decoder := xml.NewDecoder(strings.NewReader("<root>" + content + "</root>"))
-	for {
-		token, err := decoder.Token()
-		if err != nil {
-			return false
-		}
-		if start, ok := token.(xml.StartElement); ok && strings.EqualFold(start.Name.Local, "title") {
-			return true
-		}
-	}
 }
 
 func dryRunCreateV2(_ context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
@@ -130,12 +110,71 @@ func buildCreateContentWithBody(runtime *common.RuntimeContext, content string) 
 	if title == "" {
 		return content
 	}
+	if runtime.Str("doc-format") == "xml" {
+		content = stripTopLevelXMLTitles(content)
+	}
 
 	titleTag := "<title>" + escapeDocTitleText(title) + "</title>"
 	if content == "" {
 		return titleTag
 	}
 	return titleTag + "\n" + content
+}
+
+type docContentRange struct {
+	start int64
+	end   int64
+}
+
+// stripTopLevelXMLTitles preserves the established --title-wins contract while
+// avoiding duplicate-title warnings from XML content. If the fragment is not
+// well-formed XML, it is left untouched for the service to diagnose.
+func stripTopLevelXMLTitles(content string) string {
+	const wrapperStart = "<root>"
+	wrapped := wrapperStart + content + "</root>"
+	decoder := xml.NewDecoder(strings.NewReader(wrapped))
+	wrapperLen := int64(len(wrapperStart))
+	depth := 0
+	activeStart := int64(-1)
+	ranges := make([]docContentRange, 0, 1)
+
+	for {
+		tokenStart := decoder.InputOffset()
+		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return content
+		}
+
+		switch value := token.(type) {
+		case xml.StartElement:
+			if depth == 1 && value.Name.Space == "" && value.Name.Local == "title" {
+				activeStart = tokenStart - wrapperLen
+			}
+			depth++
+		case xml.EndElement:
+			depth--
+			if activeStart >= 0 && depth == 1 && value.Name.Space == "" && value.Name.Local == "title" {
+				ranges = append(ranges, docContentRange{start: activeStart, end: decoder.InputOffset() - wrapperLen})
+				activeStart = -1
+			}
+		}
+	}
+
+	if len(ranges) == 0 {
+		return content
+	}
+
+	var result strings.Builder
+	cursor := int64(0)
+	for _, item := range ranges {
+		result.WriteString(content[int(cursor):int(item.start)])
+		cursor = item.end
+	}
+	result.WriteString(content[int(cursor):])
+	return strings.TrimSpace(result.String())
 }
 
 func escapeDocTitleText(title string) string {

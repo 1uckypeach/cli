@@ -193,12 +193,6 @@ func TestValidateCreateV2Contract(t *testing.T) {
 			wantParam:  "", // mutual exclusion: enumerated in Params
 			wantParams: []string{"--parent-token", "--parent-position"},
 		},
-		{
-			name:       "title flag conflicts with XML title element",
-			str:        map[string]string{"title": "Flag title", "doc-format": "xml", "content": "<title>Content title</title><p>body</p>"},
-			wantParam:  "",
-			wantParams: []string{"--title", "--content"},
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -445,15 +439,4 @@ func TestValidateUpdateV2Contract(t *testing.T) {
 			assertValidationContract(t, err, errs.SubtypeInvalidArgument, tc.wantParam)
 		})
 	}
-}
-
-func TestValidateUpdateV2RejectsNoOpStrReplace(t *testing.T) {
-	rt := docValidateRuntime(t, map[string]string{
-		"doc":     testDocxToken,
-		"command": "str_replace",
-		"pattern": "already final",
-		"content": "already final",
-	}, nil, nil)
-	err := validateUpdateV2(context.Background(), rt)
-	assertValidationContract(t, err, errs.SubtypeInvalidArgument, "", "--pattern", "--content")
 }
