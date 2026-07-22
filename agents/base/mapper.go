@@ -84,10 +84,11 @@ func mapVersionedTask(in adapterTask) (*iagents.AgentTask, error) {
 		if err != nil {
 			return nil, err
 		}
-	case !state.IsTerminal() && pending != nil:
-		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
-			"Base Adapter returned status %q with unresolved clarification %q", in.Status, pending.Clarification.ID).
-			WithHint("the Base Agent service should return status waiting_for_input while clarification is pending")
+	default:
+		// Job status is authoritative. Clarification outputs are persisted on a
+		// separate path and can briefly remain unresolved after an answer moves
+		// the task back to running. Treat that card as historical so --watch keeps
+		// polling instead of surfacing an invalid-response error.
 	}
 	return &iagents.AgentTask{
 		TaskID:        taskID(in),
