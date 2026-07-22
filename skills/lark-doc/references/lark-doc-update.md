@@ -205,7 +205,7 @@ lark-cli docs +update --doc "<doc_id>" --command block_move_after \
 
 - `result = success` 且 `warnings = []`：完全成功。
 - `result = success` 或 `partial_success` 且有 warnings：不要仅凭 result 判断是否发生写入；先按 warning 类型检查最终文档，再决定是否需要修正输入。
-- warnings 包含 `1011_no_document_changes`：本次调用是 no-op。不要重试相同请求；检查目标内容是否已经是最终状态，或 pattern 与 replacement 是否相同。
+- warnings 包含 `1011_no_document_changes` 且 `updated_blocks_count = 0`：本次调用是 no-op。不要重试相同请求；检查目标内容是否已经是最终状态，或 pattern 与 replacement 是否相同。若同时出现其他 warning 或更新计数非零，先检查最终文档再判断影响。
 - `updated_blocks_count = 0` 且有其他 warning：根据具体 degrade code 修正输入，不能把“0 个更新”当成成功写入。
 
 ## 典型工作流

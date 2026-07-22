@@ -58,8 +58,8 @@ lark-cli docs +create --doc-format markdown --title "项目计划" --content $'#
 
 | 参数                  | 必填 | 说明                                          |
 | ------------------- | -- |---------------------------------------------|
-| `--title`           | 否  | 文档标题。与 XML 内容中的 `<title>` 二选一：Markdown 导入时使用 `--title`；XML 创建推荐在 `--content` 开头写 `<title>...</title>`，不要同时传 `--title` |
-| `--content`         | 视情况 | 文档内容（XML 或 Markdown 格式）；不传 `--content` 时必须传 `--title`。XML 正文中的 `<` 和 `&` 必须转义，详见 [`lark-doc-xml.md`](lark-doc-xml.md)「正文文本转义」 |
+| `--title`           | 否  | 文档标题，XML 和 Markdown 均可使用；传入时它是权威标题。若 XML 内容已经用 `<title>` 提供标题，则不要再传 `--title` |
+| `--content`         | 视情况 | 文档内容（XML 或 Markdown 格式）；不传 `--content` 时必须传 `--title`。未传 `--title` 的 XML 可在开头写 `<title>...</title>`。XML 正文中的 `<` 和 `&` 必须转义，详见 [`lark-doc-xml.md`](lark-doc-xml.md)「正文文本转义」 |
 | `--reference-map` | 否 | 结构化 `reference_map` JSON object；必须与 `--content` 一起使用。普通写入优先把结构写在正文里；该参数主要用于保留或回放已有 `document.reference_map`。支持直接 JSON、`@reference-map.json`（相对路径）或 `-` 从 stdin 读取。 |
 | `--doc-format`      | 否  | 内容格式：`xml`（默认，始终优先使用）\| `markdown`（仅用户明确要求时） |
 | `--parent-token`    | 否  | 父文件夹或知识库节点 token（与 `--parent-position` 互斥）  |
@@ -67,7 +67,7 @@ lark-cli docs +create --doc-format markdown --title "项目计划" --content $'#
 
 ## 最佳实践
 
-- **标题只有一个来源**：XML 内容使用开头的 `<title>`；Markdown 内容使用 `--title`。读取 `@file.xml` 前先确认文件内是否已经包含 `<title>`，避免与 `--title` 重复
+- **标题只有一个来源**：优先使用 `--title`；如果 XML 文件已经在开头包含 `<title>`，则省略 `--title`。读取 `@file.xml` 前先确认标题来源，避免重复
 - **较长文档**：参考 [`lark-doc-create-workflow.md`](style/lark-doc-create-workflow.md) 先建骨架再分段写入；短文档可一次写完整内容
 - **表达形式**：由用户目标和内容决定。需要结构化表达时可参考 [`lark-doc-style.md`](style/lark-doc-style.md)，但不要默认套用固定开头、固定富 block 比例或固定图表
 
