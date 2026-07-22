@@ -73,6 +73,14 @@ func mapVersionedTask(in adapterTask) (*iagents.AgentTask, error) {
 	if err != nil {
 		return nil, err
 	}
+	createdAt, err := mapTime(in.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	updatedAt, err := mapTime(in.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
 	pending := latestPendingClarification(in.Outputs)
 	var inputRequired *iagents.InputRequired
 	switch {
@@ -95,6 +103,8 @@ func mapVersionedTask(in adapterTask) (*iagents.AgentTask, error) {
 		ContextID:     in.ContextID,
 		State:         state,
 		IsTerminal:    state.IsTerminal(),
+		CreatedAt:     createdAt,
+		UpdatedAt:     updatedAt,
 		Messages:      messages,
 		Artifacts:     artifacts,
 		InputRequired: inputRequired,
