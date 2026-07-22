@@ -382,11 +382,14 @@ func serviceMethodRun(opts *ServiceMethodOptions) error {
 	if err := output.ValidateJqFlags(opts.JqExpr, opts.Output, opts.Format); err != nil {
 		return err
 	}
-	// Reject an unknown --format as a typed error rather than degrading to JSON.
-	// Parsed before the dry-run branch so both dry-run and emit reject it.
-	format, err := output.ParseFormatStrict(opts.Format)
-	if err != nil {
-		return err
+	// Parse before the dry-run branch so both dry-run and emit reject unknown
+	// values. Raw service responses accept four formats; pretty remains available
+	// only for the dry-run request preview handled below.
+	format, ok := output.ParseFormat(opts.Format)
+	if !ok {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"unknown output format %q (want json, ndjson, table, or csv)", opts.Format).
+			WithParam("--format")
 	}
 
 	config, err := f.Config()
@@ -408,9 +411,9 @@ func serviceMethodRun(opts *ServiceMethodOptions) error {
 
 	if opts.DryRun {
 		if fileMeta != nil {
-			return cmdutil.PrintDryRunWithFile(request, config, serviceDryRunOutputOptions(f, opts), *fileMeta)
+			return cmdutil.PrintDryRunWithFile(request, config, serviceDryRunOutputOptions(f, opts, format), *fileMeta)
 		}
-		return serviceDryRun(f, request, config, opts)
+		return serviceDryRun(f, request, config, opts, format)
 	}
 	// pretty is a shortcut-only presentation format; the raw service command has
 	// no pretty renderer for responses, so reject it before the confirmation and
@@ -677,13 +680,13 @@ func buildServiceRequest(opts *ServiceMethodOptions) (client.RawApiRequest, *cmd
 	return request, nil, nil
 }
 
-func serviceDryRun(f *cmdutil.Factory, request client.RawApiRequest, config *core.CliConfig, opts *ServiceMethodOptions) error {
-	return cmdutil.PrintDryRun(request, config, serviceDryRunOutputOptions(f, opts))
+func serviceDryRun(f *cmdutil.Factory, request client.RawApiRequest, config *core.CliConfig, opts *ServiceMethodOptions, format output.Format) error {
+	return cmdutil.PrintDryRun(request, config, serviceDryRunOutputOptions(f, opts, format))
 }
 
-func serviceDryRunOutputOptions(f *cmdutil.Factory, opts *ServiceMethodOptions) cmdutil.DryRunOutputOptions {
+func serviceDryRunOutputOptions(f *cmdutil.Factory, opts *ServiceMethodOptions, format output.Format) cmdutil.DryRunOutputOptions {
 	return cmdutil.DryRunOutputOptions{
-		Format:      opts.Format,
+		Format:      format.String(),
 		JqExpr:      opts.JqExpr,
 		CommandPath: opts.Cmd.CommandPath(),
 		Identity:    opts.As,

@@ -339,6 +339,62 @@ func TestRunShortcut_DryRunJSONUsesEnvelope(t *testing.T) {
 	}
 }
 
+func TestRunShortcut_DryRunMixedCasePrettyUsesPlainTextPreview(t *testing.T) {
+	s := &Shortcut{
+		Service:   "test",
+		Command:   "test-shortcut",
+		AuthTypes: []string{"bot"},
+		DryRun: func(context.Context, *RuntimeContext) *cmdutil.DryRunAPI {
+			return cmdutil.NewDryRunAPI().GET("/open-apis/test")
+		},
+		Execute: func(context.Context, *RuntimeContext) error {
+			t.Fatal("Execute should not run in dry-run")
+			return nil
+		},
+	}
+	f := newTestFactory()
+	cmd := newTestShortcutCmd(s, f)
+	cmd.Flags().Set("dry-run", "true")
+	cmd.Flags().Set("format", "Pretty")
+	cmd.Flags().Set("as", "bot")
+
+	if err := runShortcut(cmd, f, s, false); err != nil {
+		t.Fatalf("runShortcut() error = %v", err)
+	}
+	stdout := f.IOStreams.Out.(*bytes.Buffer)
+	if !strings.Contains(stdout.String(), "# dry-run: request not sent") {
+		t.Fatalf("dry-run --format Pretty lost its plain-text preview, stdout:\n%s", stdout.String())
+	}
+}
+
+func TestRunShortcut_UnknownFormatErrorIncludesPretty(t *testing.T) {
+	s := &Shortcut{
+		Service:   "test",
+		Command:   "test-shortcut",
+		AuthTypes: []string{"bot"},
+		Execute: func(context.Context, *RuntimeContext) error {
+			t.Fatal("Execute should not run for an unknown format")
+			return nil
+		},
+	}
+	f := newTestFactory()
+	cmd := newTestShortcutCmd(s, f)
+	cmd.Flags().Set("format", "tabel")
+	cmd.Flags().Set("as", "bot")
+
+	err := runShortcut(cmd, f, s, false)
+	if err == nil {
+		t.Fatal("expected a validation error for unknown --format")
+	}
+	assertValidationParam(t, err, "--format")
+	if !strings.Contains(strings.ToLower(err.Error()), "pretty") {
+		t.Fatalf("shortcut unknown-format error = %v, want pretty in allowed choices", err)
+	}
+	if stdout := f.IOStreams.Out.(*bytes.Buffer); stdout.Len() != 0 {
+		t.Fatalf("unknown --format wrote stdout:\n%s", stdout.String())
+	}
+}
+
 func TestRunShortcut_DryRunWithJq(t *testing.T) {
 	s := &Shortcut{
 		Service:   "test",

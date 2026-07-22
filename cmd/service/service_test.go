@@ -257,6 +257,21 @@ func TestServiceMethod_DryRunWithJq(t *testing.T) {
 	}
 }
 
+func TestServiceMethod_DryRunMixedCasePrettyUsesPlainTextPreview(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, testConfig)
+	spec := meta.ServiceFromMap(map[string]interface{}{"name": "svc", "servicePath": "/open-apis/svc/v1"})
+	method := meta.FromMap(map[string]interface{}{"path": "items", "httpMethod": "GET", "parameters": map[string]interface{}{}})
+	cmd := NewCmdServiceMethod(f, spec, method, "list", "items", nil)
+	cmd.SetArgs([]string{"--as", "bot", "--dry-run", "--format", "Pretty"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("dry-run --format Pretty must be accepted, got: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "# dry-run: request not sent") {
+		t.Fatalf("dry-run --format Pretty lost its plain-text preview, stdout:\n%s", stdout.String())
+	}
+}
+
 func TestServiceMethod_PathParamRejectsTraversal(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -815,6 +830,9 @@ func TestServiceMethod_UnknownFormat_Rejected(t *testing.T) {
 	requireProblem(t, err, errs.CategoryValidation, errs.SubtypeInvalidArgument, 0)
 	if !strings.Contains(err.Error(), "unknown output format") {
 		t.Errorf("error = %v, want unknown-format message", err)
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "pretty") {
+		t.Errorf("error = %v, raw service format choices must exclude pretty", err)
 	}
 	if stdout.String() != "" {
 		t.Errorf("unknown --format must not write stdout, got:\n%s", stdout.String())

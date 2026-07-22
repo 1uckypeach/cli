@@ -235,11 +235,14 @@ func apiRun(opts *APIOptions) error {
 	if err := output.ValidateJqFlags(opts.JqExpr, opts.Output, opts.Format); err != nil {
 		return err
 	}
-	// Reject an unknown --format as a typed error rather than degrading to JSON.
-	// Parsed before the dry-run branch so both dry-run and emit reject it.
-	format, err := output.ParseFormatStrict(opts.Format)
-	if err != nil {
-		return err
+	// Parse before the dry-run branch so both dry-run and emit reject unknown
+	// values. Raw API responses accept four formats; pretty remains available
+	// only for the dry-run request preview handled below.
+	format, ok := output.ParseFormat(opts.Format)
+	if !ok {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"unknown output format %q (want json, ndjson, table, or csv)", opts.Format).
+			WithParam("--format")
 	}
 
 	request, fileMeta, err := buildAPIRequest(opts)
@@ -254,9 +257,9 @@ func apiRun(opts *APIOptions) error {
 
 	if opts.DryRun {
 		if fileMeta != nil {
-			return cmdutil.PrintDryRunWithFile(request, config, dryRunOutputOptions(f, opts), *fileMeta)
+			return cmdutil.PrintDryRunWithFile(request, config, dryRunOutputOptions(f, opts, format), *fileMeta)
 		}
-		return apiDryRun(f, request, config, opts)
+		return apiDryRun(f, request, config, opts, format)
 	}
 	// pretty is a shortcut-only presentation format; the raw api command has no
 	// pretty renderer for responses, so reject it before client init rather than
@@ -312,13 +315,13 @@ func apiRun(opts *APIOptions) error {
 	return nil
 }
 
-func apiDryRun(f *cmdutil.Factory, request client.RawApiRequest, config *core.CliConfig, opts *APIOptions) error {
-	return cmdutil.PrintDryRun(request, config, dryRunOutputOptions(f, opts))
+func apiDryRun(f *cmdutil.Factory, request client.RawApiRequest, config *core.CliConfig, opts *APIOptions, format output.Format) error {
+	return cmdutil.PrintDryRun(request, config, dryRunOutputOptions(f, opts, format))
 }
 
-func dryRunOutputOptions(f *cmdutil.Factory, opts *APIOptions) cmdutil.DryRunOutputOptions {
+func dryRunOutputOptions(f *cmdutil.Factory, opts *APIOptions, format output.Format) cmdutil.DryRunOutputOptions {
 	return cmdutil.DryRunOutputOptions{
-		Format:      opts.Format,
+		Format:      format.String(),
 		JqExpr:      opts.JqExpr,
 		CommandPath: opts.Cmd.CommandPath(),
 		Identity:    opts.As,

@@ -35,6 +35,42 @@ type contractSafetyProvider struct {
 	scannedData interface{}
 }
 
+type truncatingContractSafetyProvider struct {
+	alert *extcs.Alert
+	match string
+}
+
+func (p *truncatingContractSafetyProvider) Name() string {
+	return "truncating-emitter-contract"
+}
+
+func (p *truncatingContractSafetyProvider) Scan(_ context.Context, req extcs.ScanRequest) (*extcs.Alert, error) {
+	// This deliberately differs from the production scanner's private limit; it
+	// models any provider that bounds work independently for each string.
+	const perStringCap = 160 << 10
+	var containsMatch func(any) bool
+	containsMatch = func(data any) bool {
+		switch value := data.(type) {
+		case string:
+			if len(value) > perStringCap {
+				value = value[:perStringCap]
+			}
+			return strings.Contains(value, p.match)
+		case []any:
+			for _, item := range value {
+				if containsMatch(item) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if !containsMatch(req.Data) {
+		return nil, nil
+	}
+	return p.alert, nil
+}
+
 func (p *contractSafetyProvider) Name() string {
 	return "emitter-contract"
 }
@@ -192,6 +228,45 @@ func TestEmitterPrettyBlockScansRenderedTextBeforeWriting(t *testing.T) {
 	}
 	if calls, scannedData := provider.snapshot(); calls != 1 || scannedData != rendered {
 		t.Fatalf("content safety scan = (%d, %#v), want (1, %q)", calls, scannedData, rendered)
+	}
+}
+
+func TestEmitterPrettyBlockScansLargeRenderedTextPastPerStringCap(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	const match = "blocked phrase"
+	// Place the match beyond the scanner's per-string cap and across a scan
+	// window boundary. A single-string scan misses it; overlapping windows keep
+	// the complete match visible to the provider.
+	rendered := strings.Repeat("a", 188410) + match + "\n"
+	provider := &truncatingContractSafetyProvider{
+		alert: &extcs.Alert{
+			Provider:     "truncating-emitter-contract",
+			MatchedRules: []string{"fixture-rule"},
+		},
+		match: match,
+	}
+	extcs.Register(provider)
+	t.Cleanup(func() { extcs.Register(nil) })
+	stdout := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      io.Discard,
+		CommandPath: "lark-cli fixture +emit",
+	})
+
+	err := emitter.Success(map[string]interface{}{"summary": "clean"}, output.EmitOptions{
+		Format: output.FormatPretty,
+		Pretty: func(w io.Writer, _ bool) error {
+			_, writeErr := io.WriteString(w, rendered)
+			return writeErr
+		},
+	})
+	var safetyErr *errs.ContentSafetyError
+	if !errors.As(err, &safetyErr) {
+		t.Fatalf("Emitter.Success() error = %T, want *errs.ContentSafetyError", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("Emitter.Success() wrote %d stdout bytes, want empty", stdout.Len())
 	}
 }
 

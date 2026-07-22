@@ -141,6 +141,9 @@ func TestApiCmd_UnknownFormat_Rejected(t *testing.T) {
 			if !strings.Contains(err.Error(), "unknown output format") {
 				t.Errorf("error = %v, want unknown-format message", err)
 			}
+			if strings.Contains(strings.ToLower(err.Error()), "pretty") {
+				t.Errorf("error = %v, raw api format choices must exclude pretty", err)
+			}
 			if stdout.String() != "" {
 				t.Errorf("unknown --format must not write stdout, got:\n%s", stdout.String())
 			}
@@ -169,12 +172,12 @@ func TestApiCmd_Pretty_RejectedOnEmit(t *testing.T) {
 	}
 }
 
-func TestApiCmd_Pretty_PreservedOnDryRun(t *testing.T) {
+func TestApiCmd_MixedCasePretty_PreservedOnDryRun(t *testing.T) {
 	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
 	})
 	cmd := newTestApiCmd(f, nil)
-	cmd.SetArgs([]string{"GET", "/open-apis/test", "--as", "bot", "--format", "pretty", "--dry-run"})
+	cmd.SetArgs([]string{"GET", "/open-apis/test", "--as", "bot", "--format", "Pretty", "--dry-run"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("dry-run --format pretty must be accepted, got: %v", err)
 	}

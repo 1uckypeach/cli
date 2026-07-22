@@ -1148,8 +1148,13 @@ func handleShortcutDryRun(f *cmdutil.Factory, rctx *RuntimeContext, s *Shortcut)
 		// Same data.context contract as the service/api dry-run paths.
 		dryResult.Context(rctx.Config.AppID, rctx.UserOpenId())
 	}
+	dryRunFormat := rctx.Format
+	if !shortcutDeclaresFormatFlag(s) {
+		format, _ := output.ParseFormat(rctx.Format)
+		dryRunFormat = format.String()
+	}
 	return cmdutil.WriteDryRun(dryResult, cmdutil.DryRunOutputOptions{
-		Format:      rctx.Format,
+		Format:      dryRunFormat,
 		JqExpr:      rctx.JqExpr,
 		CommandPath: rctx.Cmd.CommandPath(),
 		Identity:    rctx.As(),

@@ -11,6 +11,14 @@ import (
 	"github.com/larksuite/cli/errs"
 )
 
+const (
+	// Keep each pretty-output scan window comfortably below the content-safety
+	// scanner's per-string limit. The overlap covers rule matches that cross a
+	// window boundary without coupling this package to that private limit.
+	prettySafetyScanWindowBytes  = 64 << 10
+	prettySafetyScanOverlapBytes = 4 << 10
+)
+
 // NoticeProvider supplies the notice attached to a structured envelope.
 // The provider is captured by an Emitter so emission never reads the global
 // PendingNotice hook implicitly.
@@ -241,7 +249,8 @@ func (e *Emitter) emitPrettyRenderer(renderer PrettyRenderer) error {
 		return wrapOutputError("render", err)
 	}
 
-	scanResult := ScanForSafety(e.commandPath, buf.String(), e.errOut)
+	rendered := buf.String()
+	scanResult := ScanForSafety(e.commandPath, prettySafetyScanData(rendered), e.errOut)
 	if scanResult.Blocked {
 		return scanResult.BlockErr
 	}
@@ -254,6 +263,23 @@ func (e *Emitter) emitPrettyRenderer(renderer PrettyRenderer) error {
 		return wrapOutputError("write", err)
 	}
 	return nil
+}
+
+func prettySafetyScanData(rendered string) any {
+	if len(rendered) <= prettySafetyScanWindowBytes {
+		return rendered
+	}
+
+	step := prettySafetyScanWindowBytes - prettySafetyScanOverlapBytes
+	windows := make([]any, 0, (len(rendered)+step-1)/step)
+	for start := 0; start < len(rendered); start += step {
+		end := min(start+prettySafetyScanWindowBytes, len(rendered))
+		windows = append(windows, rendered[start:end])
+		if end == len(rendered) {
+			break
+		}
+	}
+	return windows
 }
 
 // emitFormatted renders naked business data for the non-envelope formats
