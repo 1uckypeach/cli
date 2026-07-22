@@ -86,6 +86,49 @@ func TestChartCreateBasic_MultipleAlignedRanges(t *testing.T) {
 	}
 }
 
+func TestChartCreateBasic_MergesMisalignedOrOverlappingRanges(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "separated rows", input: "'Sheet1'!A1:M1,'Sheet1'!A3:M3", expected: "'Sheet1'!A1:M3"},
+		{name: "overlapping columns", input: "A1:B10,B1:C10", expected: "A1:C10"},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			body := parseDryRunBody(t, ChartCreateBasic, []string{
+				"--url", testURL,
+				"--sheet-id", testSheetID,
+				"--chart-type", "line",
+				"--data-range", tt.input,
+			})
+			input := decodeToolInput(t, body, "manage_chart_object")
+			basic := input["basic_chart"].(map[string]interface{})
+			if basic["data_range"] != tt.expected {
+				t.Fatalf("basic_chart.data_range = %v, want %q", basic["data_range"], tt.expected)
+			}
+		})
+	}
+}
+
+func TestChartCreateBasic_RejectsCrossSheetRanges(t *testing.T) {
+	t.Parallel()
+	_, _, err := runShortcutCapturingErr(t, ChartCreateBasic, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-type", "line",
+		"--data-range", "'A'!A1:A10,'B'!C1:D10",
+	})
+	if err == nil {
+		t.Fatal("expected cross-sheet ranges to fail")
+	}
+}
+
 func TestChartSemanticShortcuts_InBatchUpdate(t *testing.T) {
 	body := parseDryRunBody(t, BatchUpdate, []string{
 		"--url", testURL,

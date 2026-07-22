@@ -3408,7 +3408,7 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "One contiguous A1 range including headers, or comma-separated aligned ranges preserved as independent refs without gap columns"
+        "desc": "One contiguous A1 range including headers, or comma-separated same-sheet ranges; aligned non-overlapping ranges stay independent, otherwise they merge to the smallest enclosing rectangle"
       },
       {
         "name": "data-direction",
