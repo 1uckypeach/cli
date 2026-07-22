@@ -148,7 +148,7 @@ p, h1-h9, ul, ol, li, table, thead, tbody, tr, th, td, blockquote, pre, code, hr
 - `<th>` / `<td>` 增加 `background-color` 和 `vertical-align`（top | middle | bottom）
 - 有表头时第一行在 `<thead>` 用 `<th>`，其余在 `<tbody>` 用 `<td>`
 - 合并单元格仅起始格输出 `colspan` / `rowspan`，被合并的格不出现
-- `<td>` / `<th>` 可以包含文本、行内样式、段落或列表；不要为了统一格式强制额外包 `<p>`。
+- `<td>` / `<th>` 可以直接包含文本，也可以使用受支持的行内样式或块内容；不要把额外包 `<p>` 当成强制规则。
 - `<tr>` / `<td>` / `<th>` / `<colgroup>` 不能作为 create/append/block_insert_after 的孤立根块；必须放在完整 `<table>` 中。
 - `<col span="N">` 本身代表 N 列；不要按 `<col>` 元素个数机械判断表格列数。
 

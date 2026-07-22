@@ -6,8 +6,8 @@
 
 | Skill             | 核心职责                                                      | 约束                              |
 |-------------------|-----------------------------------------------------------|---------------------------------|
-| `lark-doc`        | 识别画板机会、使用 Mermaid/SVG 创建图表、调度 SubAgent、插入简单 SVG 画板或复杂空白画板 | 主 Agent 不直接创作画板内容；              |
-| `lark-whiteboard` | 查询/导出已有画板；复杂图表生成（Mermaid/DSL/SVG 路由、场景选型、渲染验证）；写入已有/空白画板  | 仅特别复杂的图表或已有画板更新时由独立 SubAgent 读取 |
+| `lark-doc`        | 识别画板机会；主 Agent 可直接生成并插入简单 Mermaid；调度 SubAgent 处理 SVG、复杂图表和已有画板更新 | 简单 Mermaid 写入前仍需验证语法 |
+| `lark-whiteboard` | 查询/导出已有画板；复杂图表生成（Mermaid/DSL/SVG 路由、场景选型、渲染验证）；写入已有/空白画板 | SVG、复杂图表或已有画板更新时由独立 SubAgent 读取 |
 
 ## 画板适用规则
 
@@ -36,6 +36,8 @@ SubAgent 插入 SVG。
 建议优先使用 SVG 插入图表，除非其属于思维导图、时序图、类图、饼图、甘特图这类可以直接使用 mermaid 语法描述，且不适宜用 SVG 绘制的图表
 
 ### 步骤 2A: 使用 mermaid 插入图表
+
+简单 Mermaid 由主 Agent 直接生成并插入，不需要启动 SubAgent；复杂图表仍按职责边界交给 SubAgent。
 
 ```xml
 <whiteboard type="mermaid">flowchart TD
