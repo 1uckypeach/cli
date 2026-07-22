@@ -2,18 +2,20 @@
 
 ## 真对象硬约束
 
-当用户要求"画个图 / 数据可视化 / 趋势图 / 对比图 / 占比图"时，**必须**通过 `+chart-{create|update|delete}` 创建真实的图表对象。**禁止**用本地脚本调 matplotlib / seaborn 生成图片再插入到表格代替——静态图片无法随源数据更新，且失去交互能力。判断标准：交付后 `+chart-list` 必须能返回该对象。
+当用户要求"画个图 / 数据可视化 / 趋势图 / 对比图 / 占比图"时，**必须**通过图表创建命令创建真实的图表对象。**禁止**用本地脚本调 matplotlib / seaborn 生成图片再插入到表格代替——静态图片无法随源数据更新，且失去交互能力。判断标准：交付后 `+chart-list` 必须能返回该对象。
 
 ## 使用场景
 
-读写图表对象。本 reference 覆盖 4 个 shortcut：
+读写图表对象。基础创建和常用更新优先用语义 shortcut，只在高级配置时使用原始 snapshot：
 
 | 操作需求 | 使用工具 | 说明 |
 |---------|---------|------|
 | 查看已有图表 | `+chart-list` | 获取图表的类型、数据源和样式配置 |
-| 创建/更新/删除图表 | `+chart-{create|update|delete}` | 对图表对象执行写入操作 |
+| 按类型和范围创建基础图 | `+chart-create-basic` | 支持 column/bar/line/area/pie/scatter/combo/radar；无需构造 snapshot |
+| 更新标题、轴、图例、标签、堆叠或平滑 | `+chart-config-update` | 无需回写 snapshot，未传字段保持不变 |
+| 高级创建/更新、删除图表 | `+chart-{create|update|delete}` | 按系列/数据点精细设置等高级需求才使用原始 properties |
 
-典型工作流：先读取现有图表了解配置 → 执行创建/更新/删除 → 再次读取验证结果。
+典型工作流：先确认表头和精确数据范围，用 `+chart-create-basic` 一次创建并尽量在同次调用中带上已知标题/轴/标签要求；创建后用 `+chart-list` 验证。已有图表的常用配置修正用 `+chart-config-update`。只有用户要求单个系列、数据点或高级引擎字段时，才读取现有 snapshot 并调 `+chart-update --properties`。不要为了常用配置先输出整份 schema，也不要删除重建已经创建成功的图表。
 
 ## 需求→图表类型映射（创建前必查）
 
@@ -28,6 +30,8 @@
 **多图表需求**：当用户同时提到多种分析（如"统计占比 + 对比数量"），必须创建多个图表，每个对应一种类型，不要只做一个。
 
 **`--properties` 结构锚点（构造前必读）**：`--properties` 顶层只有 `position` / `offset` / `size` / `snapshot` 四个字段，**没有**顶层 `data`，也没有再嵌一层 `properties`。图表数据配置全部挂在 `snapshot.data` 下——下文及示例里出现的 `refs` / `headerMode` / `dim1` / `dim2` / `nameRef` 一律指 `snapshot.data.refs` / `snapshot.data.headerMode` / `snapshot.data.dim1` / `snapshot.data.dim2`（及其下的 `serie.nameRef` / `series[].nameRef`）；样式 / 堆叠 / 数据标签等在 `snapshot.plotArea` 下。**构造起点优先用 `lark-cli sheets +chart-create --print-example <column|bar|line|area|pie|scatter|radar|combo>` 拿最小可用模板改参**（本地即时返回）；查深层字段用点分路径切片 `--print-schema --flag-name properties.snapshot.plotArea.axes`，别整篇 dump 翻页。完整结构以 `--print-schema --flag-name properties` 为准。
+
+**`+chart-update` 局部更新硬规则（更新前必读）**：默认只在 `--properties` 中传实际变化的字段，未传字段保持不变；不要复制并回写完整 snapshot。`snapshot` 内普通对象递归合并，`refs` / `axes` / `series` 等数组整体替换——修改数组中的一项时，应先读取当前数组、改好后只回写该完整数组，不需要携带 snapshot 的其它字段。`snapshot.data.isStaticData` 不能通过 update 改变；需要切换静态/非静态数据时删除后重建。
 
 **常见配置错误（必须注意）**：
 - **图表类型选择错误**：用户说"堆积柱形图/百分比堆积"时，应在 `properties.snapshot.plotArea.plot.extra.stack` 中配置堆叠；百分比堆叠需在该 stack 下设置 `percentage: true`。用户说"占比/比例"时，优先考虑饼图或百分比堆积图。注意区分 `column`（柱形图，纵向）与 `bar`（条形图，横向）是两个不同的 type 取值，"对比/各 XX" 类纵向柱默认用 `column`
@@ -104,6 +108,8 @@
 | Shortcut | Risk | 分组 |
 | --- | --- | --- |
 | `+chart-list` | read | 对象 |
+| `+chart-create-basic` | write | 对象 |
+| `+chart-config-update` | write | 对象 |
 | `+chart-create` | write | 对象 |
 | `+chart-update` | write | 对象 |
 | `+chart-delete` | high-risk-write | 对象 |
@@ -117,6 +123,50 @@ _公共四件套 · 系统：`--dry-run`_
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `--chart-id` | string | optional | 指定单个图表 reference_id 过滤 |
+
+### `+chart-create-basic`
+
+_公共四件套 · 系统：`--dry-run`_
+
+| Flag | Type | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `--chart-type` | string | required | 图表类型（可选值：`column` / `bar` / `line` / `area` / `pie` / `scatter` / `combo` / `radar`） |
+| `--data-range` | string | required | 含表头的连续 A1 数据范围，至少 2 行 2 列；combo 至少 3 列 |
+| `--title` | string | optional | 图表标题 |
+| `--subtitle` | string | optional | 图表副标题 |
+| `--legend-position` | string | optional | 图例位置；hidden 隐藏图例（可选值：`top` / `bottom` / `left` / `right` / `hidden`） |
+| `--x-axis-title` | string | optional | X 轴标题 |
+| `--y-axis-title` | string | optional | 左 Y 轴标题 |
+| `--secondary-y-axis-title` | string | optional | 右 Y 轴标题 |
+| `--x-axis-label-angle` | int | optional | X 轴标签旋转角度（可选值：`-90` / `-45` / `0` / `45` / `90`） |
+| `--y-axis-label-angle` | int | optional | 左 Y 轴标签旋转角度（可选值：`-90` / `-45` / `0` / `45` / `90`） |
+| `--data-labels` | string | optional | 数据标签内容；none 隐藏标签（可选值：`none` / `value` / `percentage` / `value_percentage` / `category` / `series`） |
+| `--data-label-position` | string | optional | 数据标签位置（可选值：`auto` / `top` / `bottom` / `left` / `right` / `center` / `inside` / `outside`） |
+| `--stack` | string | optional | 堆叠模式（可选值：`none` / `normal` / `percent`） |
+| `--smooth` | bool | optional | 是否使用平滑曲线；可显式传 false |
+| `--anchor-cell` | string | optional | 可选图表锚点单元格，如 F2；省略时放到数据范围右侧 |
+| `--width` | int | optional | 可选图表宽度；必须与 --height 同时传 |
+| `--height` | int | optional | 可选图表高度；必须与 --width 同时传 |
+
+### `+chart-config-update`
+
+_公共四件套 · 系统：`--dry-run`_
+
+| Flag | Type | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `--chart-id` | string | required | 目标图表 reference_id |
+| `--title` | string | optional | 图表标题 |
+| `--subtitle` | string | optional | 图表副标题 |
+| `--legend-position` | string | optional | 图例位置；hidden 隐藏图例（可选值：`top` / `bottom` / `left` / `right` / `hidden`） |
+| `--x-axis-title` | string | optional | X 轴标题 |
+| `--y-axis-title` | string | optional | 左 Y 轴标题 |
+| `--secondary-y-axis-title` | string | optional | 右 Y 轴标题 |
+| `--x-axis-label-angle` | int | optional | X 轴标签旋转角度（可选值：`-90` / `-45` / `0` / `45` / `90`） |
+| `--y-axis-label-angle` | int | optional | 左 Y 轴标签旋转角度（可选值：`-90` / `-45` / `0` / `45` / `90`） |
+| `--data-labels` | string | optional | 数据标签内容；none 隐藏标签（可选值：`none` / `value` / `percentage` / `value_percentage` / `category` / `series`） |
+| `--data-label-position` | string | optional | 数据标签位置（可选值：`auto` / `top` / `bottom` / `left` / `right` / `center` / `inside` / `outside`） |
+| `--stack` | string | optional | 堆叠模式（可选值：`none` / `normal` / `percent`） |
+| `--smooth` | bool | optional | 是否使用平滑曲线；可显式传 false |
 
 ### `+chart-create`
 
@@ -134,7 +184,7 @@ _公共四件套 · 系统：`--dry-run`_
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `--chart-id` | string | required | 目标图表 reference_id |
-| `--properties` | string + File + Stdin（复合 JSON） | required | 完整或足够完整的图表配置 JSON（先 `+chart-list` 回读再 patch） |
+| `--properties` | string + File + Stdin（复合 JSON） | required | 图表配置补丁 JSON；默认只传变化字段，未传字段保持不变；普通对象递归合并，数组整体替换 |
 
 ### `+chart-delete`
 
@@ -165,6 +215,36 @@ _创建/更新的图表属性_
 ### `+chart-list`
 
 输出契约：返回按工作表分组的图表列表，每个图表含 `chart_id` / `position` / `details.snapshot` 等。
+
+### `+chart-create-basic`
+
+首列自动作为维度，后续列作为数值系列。饼图只使用第二列数值；散点图以首列为 X、后续列为 Y；组合图以第二列为左轴柱，后续列为右轴折线。数据范围必须包含真实表头；如果是数据子集且表头在范围外，改用高级 `+chart-create` 的 detached 模式。
+
+```bash
+# 柱形图：默认放在数据范围右侧
+lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
+  --chart-type column --data-range "'Sheet1'!A1:C10" \
+  --title "销售额对比" --x-axis-title "品类" --y-axis-title "销售额" \
+  --legend-position bottom --data-labels value --data-label-position top
+
+# 双轴组合图：首个数值列为左轴柱，其余数值列为右轴折线
+lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
+  --chart-type combo --data-range "'Sheet1'!A1:D13" \
+  --title "价格与效率" --y-axis-title "价格" --secondary-y-axis-title "效率" \
+  --anchor-cell F2 --width 700 --height 400
+```
+
+### `+chart-config-update`
+
+只传需要改的字段。`--data-labels none` 会删除数据标签；`--legend-position hidden` 会隐藏图例；`--smooth=false` 可显式关闭平滑曲线。
+
+```bash
+lark-cli sheets +chart-config-update --url "..." --sheet-id "$SID" --chart-id "chrXXX" \
+  --title "新标题" --x-axis-label-angle -45 --legend-position right
+
+lark-cli sheets +chart-config-update --url "..." --sheet-id "$SID" --chart-id "chrXXX" \
+  --data-labels value_percentage --data-label-position outside --stack percent
+```
 
 ### `+chart-create`
 
@@ -293,22 +373,23 @@ JSON
 
 ### `+chart-update`
 
-**Update 三步法**（缺一步会丢字段）：
-
-1. `+chart-list --chart-id <id>` 拿到完整 snapshot
-2. 在拿到的 snapshot 上**局部**修改要改的字段，其余保持不变
-3. 把**完整 snapshot** 整个回写到 `--properties.snapshot`
+默认提交**最小 patch**。例如只修改标题时，只传标题字段：
 
 ```bash
 lark-cli sheets +chart-update --url "..." --sheet-id "$SID" --chart-id "chrXXX" \
   --properties '{
-    "position":{"row":0,"col":"A"},
-    "size":{"width":480,"height":320},
-    "snapshot": <完整快照（由 +chart-list 取回后局部修改）>
+    "snapshot":{"title":{"text":"新的图表标题"}}
   }'
 ```
 
-> 关键：**不能只提交局部 snapshot**，否则未传字段会被还原为默认值。`+chart-update` 的语义是 PUT（整体覆盖），不是 PATCH。
+只调整尺寸时，不需要传 `snapshot`：
+
+```bash
+lark-cli sheets +chart-update --url "..." --sheet-id "$SID" --chart-id "chrXXX" \
+  --properties '{"size":{"width":640,"height":360}}'
+```
+
+> 数组采用整体替换语义。比如只修改一个坐标轴时，先用 `+chart-list --chart-id <id>` 取得当前 `snapshot.plotArea.axes`，修改目标项后，仅回写 `{"snapshot":{"plotArea":{"axes":[...]}}}`；不要同时回写标题、数据源、图例等未变化字段。
 
 ### `+chart-delete`
 

@@ -3355,6 +3355,394 @@
       }
     ]
   },
+  "+chart-create-basic": {
+    "risk": "write",
+    "flags": [
+      {
+        "name": "url",
+        "kind": "public",
+        "type": "string",
+        "required": "xor",
+        "desc": "Spreadsheet URL (XOR with `--spreadsheet-token`)"
+      },
+      {
+        "name": "spreadsheet-token",
+        "kind": "public",
+        "type": "string",
+        "required": "xor",
+        "desc": "Spreadsheet token (XOR with `--url`)"
+      },
+      {
+        "name": "sheet-id",
+        "kind": "public",
+        "type": "string",
+        "required": "xor",
+        "desc": "Sheet reference_id (XOR with `--sheet-name`)"
+      },
+      {
+        "name": "sheet-name",
+        "kind": "public",
+        "type": "string",
+        "required": "xor",
+        "desc": "Sheet name (XOR with `--sheet-id`)"
+      },
+      {
+        "name": "chart-type",
+        "kind": "own",
+        "type": "string",
+        "required": "required",
+        "desc": "Chart type",
+        "enum": [
+          "column",
+          "bar",
+          "line",
+          "area",
+          "pie",
+          "scatter",
+          "combo",
+          "radar"
+        ]
+      },
+      {
+        "name": "data-range",
+        "kind": "own",
+        "type": "string",
+        "required": "required",
+        "desc": "Contiguous A1 data range including headers; at least 2 rows and 2 columns, or 3 columns for combo"
+      },
+      {
+        "name": "title",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Chart title"
+      },
+      {
+        "name": "subtitle",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Chart subtitle"
+      },
+      {
+        "name": "legend-position",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Legend position; hidden removes the legend",
+        "enum": [
+          "top",
+          "bottom",
+          "left",
+          "right",
+          "hidden"
+        ]
+      },
+      {
+        "name": "x-axis-title",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "X-axis title"
+      },
+      {
+        "name": "y-axis-title",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Left Y-axis title"
+      },
+      {
+        "name": "secondary-y-axis-title",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Right Y-axis title"
+      },
+      {
+        "name": "x-axis-label-angle",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "X-axis label angle",
+        "enum": [
+          "-90",
+          "-45",
+          "0",
+          "45",
+          "90"
+        ]
+      },
+      {
+        "name": "y-axis-label-angle",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Left Y-axis label angle",
+        "enum": [
+          "-90",
+          "-45",
+          "0",
+          "45",
+          "90"
+        ]
+      },
+      {
+        "name": "data-labels",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Data label content; none removes labels",
+        "enum": [
+          "none",
+          "value",
+          "percentage",
+          "value_percentage",
+          "category",
+          "series"
+        ]
+      },
+      {
+        "name": "data-label-position",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Data label position",
+        "enum": [
+          "auto",
+          "top",
+          "bottom",
+          "left",
+          "right",
+          "center",
+          "inside",
+          "outside"
+        ]
+      },
+      {
+        "name": "stack",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Stacking mode",
+        "enum": [
+          "none",
+          "normal",
+          "percent"
+        ]
+      },
+      {
+        "name": "smooth",
+        "kind": "own",
+        "type": "bool",
+        "required": "optional",
+        "desc": "Use smooth curves; false is accepted explicitly"
+      },
+      {
+        "name": "anchor-cell",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Optional chart anchor cell such as F2; defaults to the right of the data range"
+      },
+      {
+        "name": "width",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Optional chart width; must be paired with --height"
+      },
+      {
+        "name": "height",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Optional chart height; must be paired with --width"
+      },
+      {
+        "name": "dry-run",
+        "kind": "system",
+        "type": "bool",
+        "required": "optional",
+        "desc": "Print the request template; no side effects"
+      }
+    ]
+  },
+  "+chart-config-update": {
+    "risk": "write",
+    "flags": [
+      {
+        "name": "url",
+        "kind": "public",
+        "type": "string",
+        "required": "xor",
+        "desc": "Spreadsheet URL (XOR with `--spreadsheet-token`)"
+      },
+      {
+        "name": "spreadsheet-token",
+        "kind": "public",
+        "type": "string",
+        "required": "xor",
+        "desc": "Spreadsheet token (XOR with `--url`)"
+      },
+      {
+        "name": "sheet-id",
+        "kind": "public",
+        "type": "string",
+        "required": "xor",
+        "desc": "Sheet reference_id (XOR with `--sheet-name`)"
+      },
+      {
+        "name": "sheet-name",
+        "kind": "public",
+        "type": "string",
+        "required": "xor",
+        "desc": "Sheet name (XOR with `--sheet-id`)"
+      },
+      {
+        "name": "chart-id",
+        "kind": "own",
+        "type": "string",
+        "required": "required",
+        "desc": "Target chart reference_id"
+      },
+      {
+        "name": "title",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Chart title"
+      },
+      {
+        "name": "subtitle",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Chart subtitle"
+      },
+      {
+        "name": "legend-position",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Legend position; hidden removes the legend",
+        "enum": [
+          "top",
+          "bottom",
+          "left",
+          "right",
+          "hidden"
+        ]
+      },
+      {
+        "name": "x-axis-title",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "X-axis title"
+      },
+      {
+        "name": "y-axis-title",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Left Y-axis title"
+      },
+      {
+        "name": "secondary-y-axis-title",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Right Y-axis title"
+      },
+      {
+        "name": "x-axis-label-angle",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "X-axis label angle",
+        "enum": [
+          "-90",
+          "-45",
+          "0",
+          "45",
+          "90"
+        ]
+      },
+      {
+        "name": "y-axis-label-angle",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Left Y-axis label angle",
+        "enum": [
+          "-90",
+          "-45",
+          "0",
+          "45",
+          "90"
+        ]
+      },
+      {
+        "name": "data-labels",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Data label content; none removes labels",
+        "enum": [
+          "none",
+          "value",
+          "percentage",
+          "value_percentage",
+          "category",
+          "series"
+        ]
+      },
+      {
+        "name": "data-label-position",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Data label position",
+        "enum": [
+          "auto",
+          "top",
+          "bottom",
+          "left",
+          "right",
+          "center",
+          "inside",
+          "outside"
+        ]
+      },
+      {
+        "name": "stack",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Stacking mode",
+        "enum": [
+          "none",
+          "normal",
+          "percent"
+        ]
+      },
+      {
+        "name": "smooth",
+        "kind": "own",
+        "type": "bool",
+        "required": "optional",
+        "desc": "Use smooth curves; false is accepted explicitly"
+      },
+      {
+        "name": "dry-run",
+        "kind": "system",
+        "type": "bool",
+        "required": "optional",
+        "desc": "Print the request template; no side effects"
+      }
+    ]
+  },
   "+chart-create": {
     "risk": "write",
     "flags": [
@@ -3456,7 +3844,7 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "Full or sufficiently complete chart config JSON (read back with `+chart-list` first, then patch)",
+        "desc": "Chart config patch JSON; send changed fields only by default; omitted fields are preserved, objects merge recursively, and arrays replace as a whole",
         "input": [
           "file",
           "stdin"

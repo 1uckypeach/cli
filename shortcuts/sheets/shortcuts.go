@@ -131,6 +131,7 @@ func shortcutList() []common.Shortcut {
 
 		// Object CRUD (3 per skill)
 		ChartCreate, ChartUpdate, ChartDelete,
+		ChartCreateBasic, ChartConfigUpdate,
 		PivotCreate, PivotUpdate, PivotDelete,
 		CondFormatCreate, CondFormatUpdate, CondFormatDelete,
 		FilterCreate, FilterUpdate, FilterDelete,
