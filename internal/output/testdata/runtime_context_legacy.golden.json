@@ -22,9 +22,9 @@
         "exit_code": 2
       }
     },
-    "jq_safety_alert_without_stderr_warning": {
+    "jq_safety_alert_writes_stderr_warning": {
       "stdout": "1\n",
-      "stderr": ""
+      "stderr": "warning: content safety alert from emitter-oracle (rules: fixture-rule)\n"
     },
     "jq_scalar": {
       "stdout": "Alice\n",

@@ -236,7 +236,7 @@ func TestEmitterMatchesRuntimeContextLegacyOracle(t *testing.T) {
 			useFormat: true,
 		},
 		{
-			name: "jq_safety_alert_without_stderr_warning",
+			name: "jq_safety_alert_writes_stderr_warning",
 			data: func() interface{} {
 				return map[string]interface{}{"id": "1"}
 			},
@@ -539,11 +539,10 @@ func TestEmitterMatchesWriteSuccessEnvelopeLegacyOracle(t *testing.T) {
 				Identity:       "bot",
 				NoticeProvider: func() map[string]interface{} { return notice },
 			}, true, output.EmitOptions{
-				Format:          output.FormatJSON,
-				Raw:             false,
-				JQ:              tc.jq,
-				DryRun:          tc.dryRun,
-				JQSafetyWarning: true,
+				Format: output.FormatJSON,
+				Raw:    false,
+				JQ:     tc.jq,
+				DryRun: tc.dryRun,
 			})
 			assertEmitterGolden(t, want, current)
 

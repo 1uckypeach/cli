@@ -39,17 +39,13 @@ type EmitterConfig struct {
 // envelope encoding and jq's complex-value encoding. Format is a canonical
 // typed value — boundaries reject unknown formats via ParseFormatStrict, so the
 // Emitter never sees one and never falls back.
-//
-// JQSafetyWarning preserves the legacy difference between RuntimeContext.emit
-// (false) and WriteSuccessEnvelope (true) until their callers are migrated.
 type EmitOptions struct {
-	Raw             bool
-	Meta            *Meta
-	Format          Format
-	JQ              string
-	DryRun          bool
-	Pretty          PrettyRenderer
-	JQSafetyWarning bool
+	Raw    bool
+	Meta   *Meta
+	Format Format
+	JQ     string
+	DryRun bool
+	Pretty PrettyRenderer
 }
 
 // StreamOptions describes one streamed page's wire representation. Streaming
@@ -191,7 +187,7 @@ func (e *Emitter) emitEnvelope(data interface{}, ok bool, opts EmitOptions) erro
 	}
 
 	if opts.JQ != "" {
-		if scanResult.Alert != nil && opts.JQSafetyWarning {
+		if scanResult.Alert != nil {
 			if err := WriteAlertWarning(e.errOut, scanResult.Alert); err != nil {
 				return wrapOutputError("write", err)
 			}

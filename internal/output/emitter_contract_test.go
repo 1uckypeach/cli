@@ -456,6 +456,41 @@ func TestEmitterRawJSONPropagatesWriteError(t *testing.T) {
 	}
 }
 
+func TestEmitterJQSafetyAlertAlwaysWritesStderrWarning(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "warn")
+	extcs.Register(&contractSafetyProvider{alert: &extcs.Alert{
+		Provider:     "emitter-contract",
+		MatchedRules: []string{"fixture-rule"},
+	}})
+	t.Cleanup(func() { extcs.Register(nil) })
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      stderr,
+		CommandPath: "lark-cli fixture +emit",
+	})
+
+	err := emitter.Success(map[string]interface{}{"id": "1"}, output.EmitOptions{
+		Format: output.FormatJSON,
+		JQ:     ".data",
+	})
+	if err != nil {
+		t.Fatalf("Emitter.Success() error = %v", err)
+	}
+	wantStdout := "{\n  \"id\": \"1\"\n}\n"
+	if stdout.String() != wantStdout {
+		t.Fatalf("Emitter.Success() stdout = %q, want %q", stdout.String(), wantStdout)
+	}
+	if strings.Contains(stdout.String(), "_content_safety_alert") {
+		t.Fatalf("Emitter.Success() stdout contains filtered safety alert: %q", stdout.String())
+	}
+	wantWarning := "warning: content safety alert from emitter-contract (rules: fixture-rule)\n"
+	if !strings.Contains(stderr.String(), wantWarning) {
+		t.Fatalf("Emitter.Success() stderr = %q, want warning containing %q", stderr.String(), wantWarning)
+	}
+}
+
 func TestEmitterInvalidJQReturnsErrorWithoutStderr(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "off")
 	stderr := &bytes.Buffer{}
