@@ -6,6 +6,7 @@ package sheets
 import (
 	"context"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/larksuite/cli/shortcuts/common"
@@ -151,7 +152,7 @@ func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[s
 	if direction == "" {
 		direction = "column"
 	}
-	dimensionCount, dataPointCount, err := validateBasicChartDataRanges(dataRange, direction)
+	normalizedDataRange, dimensionCount, dataPointCount, err := normalizeBasicChartDataRanges(dataRange, direction)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +165,7 @@ func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[s
 
 	basic := map[string]interface{}{
 		"chart_type": chartType,
-		"data_range": dataRange,
+		"data_range": normalizedDataRange,
 	}
 	if rt.Changed("data-direction") {
 		basic["data_direction"] = rt.Str("data-direction")
@@ -250,56 +251,78 @@ type chartDataRange struct {
 	rowCount, colCount int
 }
 
-func validateBasicChartDataRanges(dataRange, direction string) (dimensionCount, dataPointCount int, err error) {
+func normalizeBasicChartDataRanges(dataRange, direction string) (normalized string, dimensionCount, dataPointCount int, err error) {
 	ranges, err := splitChartDataRanges(dataRange)
 	if err != nil {
-		return 0, 0, sheetsValidationForFlag("data-range", "invalid --data-range %q: %v", dataRange, err)
+		return "", 0, 0, sheetsValidationForFlag("data-range", "invalid --data-range %q: %v", dataRange, err)
 	}
 	parsed := make([]chartDataRange, 0, len(ranges))
 	for _, value := range ranges {
 		item, parseErr := parseChartDataRange(value)
 		if parseErr != nil {
-			return 0, 0, sheetsValidationForFlag("data-range", "invalid --data-range item %q: %v", value, parseErr)
+			return "", 0, 0, sheetsValidationForFlag("data-range", "invalid --data-range item %q: %v", value, parseErr)
 		}
 		parsed = append(parsed, item)
 	}
 	first := parsed[0]
 	explicitSheet := ""
 	spans := make([][2]int, 0, len(parsed))
+	aligned := true
+	minRow, minCol := first.row, first.col
+	maxRow, maxCol := first.row+first.rowCount, first.col+first.colCount
 	for _, item := range parsed {
 		if item.sheet != "" {
 			if explicitSheet != "" && item.sheet != explicitSheet {
-				return 0, 0, sheetsValidationForFlag("data-range", "all --data-range items must belong to the same sheet")
+				return "", 0, 0, sheetsValidationForFlag("data-range", "all --data-range items must belong to the same sheet")
 			}
 			explicitSheet = item.sheet
 		}
 		if direction == "row" {
 			if item.col != first.col || item.colCount != first.colCount {
-				return 0, 0, sheetsValidationForFlag("data-range", "all --data-range items must cover the same columns for --data-direction row")
+				aligned = false
 			}
 			dimensionCount += item.rowCount
 			spans = append(spans, [2]int{item.row, item.row + item.rowCount})
 		} else {
 			if item.row != first.row || item.rowCount != first.rowCount {
-				return 0, 0, sheetsValidationForFlag("data-range", "all --data-range items must cover the same rows for --data-direction column")
+				aligned = false
 			}
 			dimensionCount += item.colCount
 			spans = append(spans, [2]int{item.col, item.col + item.colCount})
 		}
+		minRow = min(minRow, item.row)
+		minCol = min(minCol, item.col)
+		maxRow = max(maxRow, item.row+item.rowCount)
+		maxCol = max(maxCol, item.col+item.colCount)
 	}
+	overlapping := false
 	for i, current := range spans {
 		for j := 0; j < i; j++ {
 			if current[0] < spans[j][1] && spans[j][0] < current[1] {
-				return 0, 0, sheetsValidationForFlag("data-range", "--data-range items must not overlap")
+				overlapping = true
 			}
 		}
+	}
+	normalized = strings.Join(ranges, ",")
+	if len(ranges) > 1 && (!aligned || overlapping) {
+		prefix := ""
+		if explicitSheet != "" {
+			prefix = explicitSheet + "!"
+		}
+		normalized = prefix + columnIndexToLetter(minCol) + strconv.Itoa(minRow+1) + ":" + columnIndexToLetter(maxCol-1) + strconv.Itoa(maxRow)
+		dimensionCount = maxCol - minCol
+		dataPointCount = maxRow - minRow
+		if direction == "row" {
+			dimensionCount, dataPointCount = dataPointCount, dimensionCount
+		}
+		return normalized, dimensionCount, dataPointCount, nil
 	}
 	if direction == "row" {
 		dataPointCount = first.colCount
 	} else {
 		dataPointCount = first.rowCount
 	}
-	return dimensionCount, dataPointCount, nil
+	return normalized, dimensionCount, dataPointCount, nil
 }
 
 func splitChartDataRanges(value string) ([]string, error) {
