@@ -19,9 +19,33 @@ type adapterSendRequest struct {
 }
 
 type adapterMessage struct {
-	Role  string        `json:"role"`
-	Parts []adapterPart `json:"parts,omitempty"`
-	Text  string        `json:"text,omitempty"`
+	MessageID string        `json:"message_id,omitempty"`
+	Role      string        `json:"role"`
+	Parts     []adapterPart `json:"parts,omitempty"`
+	Text      string        `json:"text,omitempty"`
+}
+
+// answersDataKind marks the DataPart that carries an input_required reply.
+const answersDataKind = "answers"
+
+// answersDataSchemaVersion is the wire schema version of the answers payload.
+// It is included in the canonical encoding so a schema change forces a new
+// deterministic id (an old-schema retry never dedupes against a new one).
+const answersDataSchemaVersion = 1
+
+// answersDataPart is the typed body of a kind=answers DataPart. The bridge
+// serializes it into adapterPart.Data; the backend decodes the same shape and
+// restores the pending clarification card from payload.answers (public
+// question_id → option_id/text values). Keys/values ride argv order from the
+// command layer; the deterministic id derived alongside canonicalizes them.
+type answersDataPart struct {
+	Kind          string             `json:"kind"`
+	SchemaVersion int                `json:"schema_version"`
+	Payload       answersDataPayload `json:"payload"`
+}
+
+type answersDataPayload struct {
+	Answers map[string][]string `json:"answers"`
 }
 
 type adapterPart struct {

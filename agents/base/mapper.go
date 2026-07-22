@@ -80,7 +80,10 @@ func mapVersionedTask(in adapterTask) (*iagents.AgentTask, error) {
 		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
 			"Base Adapter returned waiting_for_input without an unresolved required clarification")
 	case state == iagents.StateInputRequired:
-		inputRequired = mapInputRequired(*pending.Clarification)
+		inputRequired, err = mapInputRequired(*pending.Clarification)
+		if err != nil {
+			return nil, err
+		}
 	case !state.IsTerminal() && pending != nil:
 		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
 			"Base Adapter returned status %q with unresolved clarification %q", in.Status, pending.Clarification.ID).
@@ -230,74 +233,78 @@ func latestPendingClarification(outputs []adapterOutput) *adapterOutput {
 	return nil
 }
 
-type clarificationDecision struct {
-	id          string
-	prompt      string
-	multiSelect bool
-	options     []iagents.Option
+// mapInputRequired expands a pending clarification into ONE question group: the
+// unified contract answers the whole group atomically, so every still-open
+// question is surfaced together — top-level questions, each form's questions
+// (prompt prefixed with the form title), and each button set as a synthetic
+// action question (the clarification/form id is the action question id, each
+// button id an option). Already-answered questions are skipped. IDs pass
+// through verbatim — the backend mints CLI-legal public ids and resolves them
+// back; the CLI never rewrites them. Conditional sub-questions are NOT
+// answerable through the flat CLI model (answering a hidden branch would be
+// wrong), so their presence is a typed failed_precondition here rather than a
+// silent drop or a late backend rejection.
+func mapInputRequired(in adapterClarification) (*iagents.InputRequired, error) {
+	questions := make([]iagents.Question, 0)
+	actions := make([]iagents.Question, 0)
+
+	topQuestions, err := expandClarificationQuestions(in.Questions, "")
+	if err != nil {
+		return nil, err
+	}
+	questions = append(questions, topQuestions...)
+	if len(in.Buttons) > 0 {
+		actions = append(actions, buttonActionQuestion(in.ID, clarificationActionPrompt(in), in.Buttons))
+	}
+	for _, form := range in.Forms {
+		formQuestions, err := expandClarificationQuestions(form.Questions, form.Title)
+		if err != nil {
+			return nil, err
+		}
+		questions = append(questions, formQuestions...)
+		if len(form.Buttons) > 0 {
+			actions = append(actions, buttonActionQuestion(form.ID, form.Title, form.Buttons))
+		}
+	}
+	// Content questions first, then synthetic action buttons — a submit/skip
+	// action reads naturally after the questions it applies to.
+	questions = append(questions, actions...)
+
+	label := strings.TrimSpace(in.Title)
+	if len(questions) == 0 {
+		// A bare clarification with neither questions nor buttons: present the
+		// title (or a default) as one free-text question. The empty-title case is
+		// also covered centrally by NormalizeInputRequired.
+		prompt := label
+		if prompt == "" {
+			prompt = "Please provide more information"
+		}
+		questions = append(questions, iagents.Question{QuestionID: in.ID, Question: prompt})
+	}
+
+	return &iagents.InputRequired{Label: label, Questions: questions}, nil
 }
 
-func mapInputRequired(in adapterClarification) *iagents.InputRequired {
-	decision := findClarificationQuestion(in.Questions, in.Title, true)
-	if decision == nil {
-		for _, form := range in.Forms {
-			decision = findClarificationQuestion(form.Questions, joinPrompt(in.Title, form.Title), true)
-			if decision != nil {
-				break
-			}
-		}
-	}
-	if decision == nil && len(in.Buttons) > 0 {
-		decision = decisionFromButtons(in.ID, clarificationActionPrompt(in), in.Buttons)
-	}
-	if decision == nil {
-		for _, form := range in.Forms {
-			if len(form.Buttons) > 0 {
-				decision = decisionFromButtons(in.ID, joinPrompt(in.Title, form.Title), form.Buttons)
-				break
-			}
-		}
-	}
-	if decision == nil {
-		decision = findClarificationQuestion(in.Questions, in.Title, false)
-	}
-	if decision == nil {
-		for _, form := range in.Forms {
-			decision = findClarificationQuestion(form.Questions, joinPrompt(in.Title, form.Title), false)
-			if decision != nil {
-				break
-			}
-		}
-	}
-	if decision == nil {
-		decision = &clarificationDecision{id: in.ID, prompt: in.Title}
-	}
-	if decision.prompt == "" {
-		decision.prompt = "请补充信息"
-	}
-	return &iagents.InputRequired{
-		Questions: []iagents.Question{{
-			QuestionID:  decision.id,
-			Question:    decision.prompt,
-			MultiSelect: decision.multiSelect,
-			Options:     decision.options,
-		}},
-	}
-}
-
-func findClarificationQuestion(questions []adapterClarificationQuestion, prefix string, requiredOnly bool) *clarificationDecision {
+// expandClarificationQuestions maps a question list into contract Questions,
+// skipping answered ones and rejecting any question that carries conditional
+// sub-questions (unsupported through the flat CLI model this phase).
+func expandClarificationQuestions(questions []adapterClarificationQuestion, formTitle string) ([]iagents.Question, error) {
+	out := make([]iagents.Question, 0, len(questions))
 	for _, question := range questions {
-		if !question.Answered && (!requiredOnly || question.Required) {
-			return decisionFromQuestion(question, prefix)
+		if len(question.SubQuestions) > 0 {
+			return nil, errs.NewValidationError(errs.SubtypeFailedPrecondition,
+				"base:assistant cannot answer a clarification with conditional sub-questions from the CLI").
+				WithHint("open this Base in the Feishu/Lark client to answer the nested question group")
 		}
-		if decision := findClarificationQuestion(question.SubQuestions, joinPrompt(prefix, question.Prompt), requiredOnly); decision != nil {
-			return decision
+		if question.Answered {
+			continue
 		}
+		out = append(out, questionFromClarification(question, formTitle))
 	}
-	return nil
+	return out, nil
 }
 
-func decisionFromQuestion(in adapterClarificationQuestion, prefix string) *clarificationDecision {
+func questionFromClarification(in adapterClarificationQuestion, formTitle string) iagents.Question {
 	options := make([]iagents.Option, 0, len(in.Options))
 	for _, option := range in.Options {
 		options = append(options, iagents.Option{
@@ -306,20 +313,27 @@ func decisionFromQuestion(in adapterClarificationQuestion, prefix string) *clari
 			Description: option.Description,
 		})
 	}
-	return &clarificationDecision{
-		id:          in.ID,
-		prompt:      joinPrompt(prefix, in.Prompt),
-		multiSelect: strings.EqualFold(in.Type, "multi_select") && len(options) > 0,
-		options:     options,
+	return iagents.Question{
+		QuestionID:  in.ID,
+		Question:    joinPrompt(formTitle, in.Prompt),
+		MultiSelect: strings.EqualFold(in.Type, "multi_select") && len(options) > 0,
+		Options:     options,
 	}
 }
 
-func decisionFromButtons(id, prompt string, buttons []adapterClarificationButton) *clarificationDecision {
+// buttonActionQuestion turns a button set into one synthetic action question:
+// the clarification/form id is the question id, each button id an option. It has
+// no free-text fallback (a button set is a pure choice), and multi-select is off
+// (a button click is a single action).
+func buttonActionQuestion(id, prompt string, buttons []adapterClarificationButton) iagents.Question {
 	options := make([]iagents.Option, 0, len(buttons))
 	for _, button := range buttons {
 		options = append(options, iagents.Option{OptionID: button.ID, Label: button.Label})
 	}
-	return &clarificationDecision{id: id, prompt: prompt, options: options}
+	if strings.TrimSpace(prompt) == "" {
+		prompt = "Select an action"
+	}
+	return iagents.Question{QuestionID: id, Question: prompt, Options: options}
 }
 
 func clarificationActionPrompt(in adapterClarification) string {
@@ -338,7 +352,7 @@ func joinPrompt(parts ...string) string {
 		}
 		out = append(out, part)
 	}
-	return strings.Join(out, "：")
+	return strings.Join(out, ": ")
 }
 
 func invalidOutput(output adapterOutput, reason string) error {

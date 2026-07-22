@@ -109,7 +109,10 @@ func TestProviderConformance(t *testing.T) {
 		if !caps.TaskGet || !caps.TaskList || !caps.TaskCancel || !caps.ContextList || !caps.ContextGet || !caps.ContextDelete {
 			t.Fatalf("brand=%s missing required capability: %+v", brand, caps)
 		}
-		if caps.FileInput || caps.InputRequired || caps.ArtifactDownload {
+		if !caps.InputRequired {
+			t.Fatalf("brand=%s must advertise input_required: %+v", brand, caps)
+		}
+		if caps.FileInput || caps.ArtifactDownload {
 			t.Fatalf("brand=%s unsupported capability advertised: %+v", brand, caps)
 		}
 	}
@@ -209,10 +212,117 @@ func TestSendContinuationAndIdempotency(t *testing.T) {
 	}
 }
 
+// TestSendAnswerBuildsDataPart is the adapter call-capture test the plan places
+// here instead of dry-run E2E (dry-run returns before the handler): answering an
+// input_required group must POST a single kind=answers DataPart, no text part, a
+// deterministic message_id == idempotency_key, and preserve context/task ids.
+func TestSendAnswerBuildsDataPart(t *testing.T) {
+	rt := &fakeRuntime{
+		agentID:   "assistant",
+		params:    map[string]string{"base_token": "b1"},
+		responses: []json.RawMessage{dataResponse(t, `{"schema_version":1,"task_id":"t1","context_id":"c1","status":"running","outputs":[]}`)},
+	}
+	in := iagents.SendInput{
+		ContextID: "c1",
+		TaskID:    "t1",
+		Answers: map[string][]string{
+			"q_scene":     {"opt_1"},
+			"q_metric":    {"opt_a", "opt_b"},
+			"q_note.text": {"group by calendar month"},
+		},
+	}
+	if _, err := assistantSpec.Send.Handler(context.Background(), rt, in); err != nil {
+		t.Fatal(err)
+	}
+	body := bodyMap(t, rt.calls[0].body)
+	if body["context_id"] != "c1" || body["task_id"] != "t1" {
+		t.Fatalf("answer body=%#v", body)
+	}
+	key, _ := body["idempotency_key"].(string)
+	if !strings.HasPrefix(key, "answer_") {
+		t.Fatalf("idempotency key=%q", key)
+	}
+	message, ok := body["message"].(map[string]any)
+	if !ok {
+		t.Fatalf("message=%#v", body["message"])
+	}
+	if message["message_id"] != key {
+		t.Fatalf("message_id %v != idempotency_key %v", message["message_id"], key)
+	}
+	if message["role"] != "user" {
+		t.Fatalf("role=%v", message["role"])
+	}
+	parts, ok := message["parts"].([]any)
+	if !ok || len(parts) != 1 {
+		t.Fatalf("parts=%#v", message["parts"])
+	}
+	part := parts[0].(map[string]any)
+	if part["type"] != "data" || part["text"] != nil {
+		t.Fatalf("answer must be a lone data part: %#v", part)
+	}
+	data := part["data"].(map[string]any)
+	if data["kind"] != "answers" || data["schema_version"] != float64(1) {
+		t.Fatalf("data=%#v", data)
+	}
+	payload := data["payload"].(map[string]any)
+	answers := payload["answers"].(map[string]any)
+	if got := answers["q_metric"].([]any); len(got) != 2 || got[0] != "opt_a" || got[1] != "opt_b" {
+		t.Fatalf("multi-select answers=%#v", got)
+	}
+	if got := answers["q_note.text"].([]any); len(got) != 1 || got[0] != "group by calendar month" {
+		t.Fatalf("text answer=%#v", got)
+	}
+}
+
+// TestDeterministicAnswerIDCanonicalization freezes the id contract: the same
+// logical answer hashes the same regardless of choice-value order or argv order,
+// a different answer hashes differently, and the id is task-scoped.
+func TestDeterministicAnswerIDCanonicalization(t *testing.T) {
+	base := map[string][]string{"q1": {"opt_a", "opt_b"}, "q2.text": {"note"}}
+	reordered := map[string][]string{"q2.text": {"note"}, "q1": {"opt_b", "opt_a"}}
+	id1, err := deterministicAnswerID("t1", base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id2, err := deterministicAnswerID("t1", reordered)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id1 != id2 {
+		t.Fatalf("same logical answer produced %q != %q", id1, id2)
+	}
+	different, _ := deterministicAnswerID("t1", map[string][]string{"q1": {"opt_a"}})
+	if different == id1 {
+		t.Fatal("different answer collided")
+	}
+	otherTask, _ := deterministicAnswerID("t2", base)
+	if otherTask == id1 {
+		t.Fatal("id must be task-scoped")
+	}
+}
+
+func TestSendRejectsAnswerWithText(t *testing.T) {
+	rt := &fakeRuntime{params: map[string]string{"base_token": "b1"}}
+	in := iagents.SendInput{
+		ContextID: "c1",
+		TaskID:    "t1",
+		Text:      "additional context",
+		Answers:   map[string][]string{"q1": {"opt_1"}},
+	}
+	_, err := assistantSpec.Send.Handler(context.Background(), rt, in)
+	problem(t, err, errs.CategoryValidation, errs.SubtypeInvalidArgument)
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) || validationErr.Param != "--text" {
+		t.Fatalf("error=%+v", err)
+	}
+	if len(rt.calls) != 0 {
+		t.Fatal("answers+text must be rejected before any API call")
+	}
+}
+
 func TestSendRejectsDisabledInputs(t *testing.T) {
 	tests := []iagents.SendInput{
 		{Text: "x", Files: []string{"a.txt"}},
-		{Text: "x", Answers: map[string][]string{"q1": {"o1"}}},
 	}
 	for _, in := range tests {
 		rt := &fakeRuntime{params: map[string]string{"base_token": "b1"}}
@@ -385,15 +495,15 @@ func TestVersionedTaskMapsOutputsAndClarification(t *testing.T) {
   "context_id": "c1",
   "status": "waiting_for_input",
   "outputs": [
-    {"id":"100:text:1","type":"text","source":"base_agent","group_id":"grp_1","text":"先给出结论"},
+    {"id":"100:text:1","type":"text","source":"base_agent","group_id":"grp_1","text":"Conclusion first"},
     {"id":"101:data_qa_chart:1","type":"data","source":"base_agent","group_id":"grp_1","data":{"kind":"qa_chart","schema_version":1,"payload":{"chartId":"chart_1","baseId":9007199254740993,"vchartSpec":{"type":"bar"}}}},
     {"id":"102:question:1","type":"clarification","source":"base_agent","group_id":"grp_1","clarification":{
-      "id":"clarify_1","title":"请补充信息","required":true,"submitted":false,
-      "questions":[{"id":"q_done","type":"text","prompt":"已回答","required":true,"answered":true,"answer":{"value":"ok"}}],
-      "forms":[{"id":"form_1","title":"高级设置","questions":[{"id":"q_scene","type":"single_select","prompt":"请选择场景","required":true,"options":[{"id":"opt_1","label":"新建","description":"创建新表"}]}],"buttons":[{"id":"btn_skip","kind":"custom","label":"跳过","action_params":"{\"action\":\"skip\"}"}]}],
-      "buttons":[{"id":"btn_submit","kind":"custom","style":"primary","label":"确认","action_params":"{\"action\":\"submit\"}"}]
+      "id":"clarify_1","title":"Additional information required","required":true,"submitted":false,
+      "questions":[{"id":"q_done","type":"text","prompt":"Already answered","required":true,"answered":true,"answer":{"value":"ok"}}],
+      "forms":[{"id":"form_1","title":"Advanced settings","questions":[{"id":"q_scene","type":"single_select","prompt":"Select a scenario","required":true,"options":[{"id":"opt_1","label":"Create","description":"Create a new table"}]}],"buttons":[{"id":"btn_skip","kind":"custom","label":"Skip","action_params":"{\"action\":\"skip\"}"}]}],
+      "buttons":[{"id":"btn_submit","kind":"custom","style":"primary","label":"Confirm","action_params":"{\"action\":\"submit\"}"}]
     }},
-    {"id":"103:artifact:1","type":"artifact","source":"table_agent","group_id":"grp_2","artifact":{"id":"artifact_1","type":"table","title":"销售表","status":"ready","resource":{"block_id":"block_1","view_id":"view_1"},"revision":128,"metadata":{"base_id":9007199254740993,"init_type":2}}}
+    {"id":"103:artifact:1","type":"artifact","source":"table_agent","group_id":"grp_2","artifact":{"id":"artifact_1","type":"table","title":"Sales table","status":"ready","resource":{"block_id":"block_1","view_id":"view_1"},"revision":128,"metadata":{"base_id":9007199254740993,"init_type":2}}}
   ]
 }`)},
 	}
@@ -408,7 +518,7 @@ func TestVersionedTaskMapsOutputsAndClarification(t *testing.T) {
 	if len(task.Messages) != 1 || len(task.Messages[0].Parts) != 2 {
 		t.Fatalf("messages=%+v", task.Messages)
 	}
-	if got := task.Messages[0].Parts[0]; got.Type != "text" || got.Text != "先给出结论" ||
+	if got := task.Messages[0].Parts[0]; got.Type != "text" || got.Text != "Conclusion first" ||
 		got.OutputID != "100:text:1" || got.Source != "base_agent" || got.GroupID != "grp_1" {
 		t.Fatalf("text part=%+v", got)
 	}
@@ -424,24 +534,37 @@ func TestVersionedTaskMapsOutputsAndClarification(t *testing.T) {
 	if got := task.Messages[0].Parts[1]; got.OutputID != "101:data_qa_chart:1" || got.Source != "base_agent" || got.GroupID != "grp_1" {
 		t.Fatalf("data part metadata=%+v", got)
 	}
-	if task.InputRequired == nil || len(task.InputRequired.Questions) != 1 {
+	if task.InputRequired == nil || len(task.InputRequired.Questions) != 3 {
 		t.Fatalf("input_required=%+v", task.InputRequired)
 	}
+	if task.InputRequired.Label != "Additional information required" {
+		t.Fatalf("group label=%q", task.InputRequired.Label)
+	}
+	// Content questions come first (answered q_done skipped), then the synthetic
+	// action buttons: top-level button set, then the form's button set.
 	question := task.InputRequired.Questions[0]
 	if question.QuestionID != "q_scene" || question.MultiSelect || len(question.Options) != 1 {
 		t.Fatalf("question=%+v", question)
 	}
-	if question.Question != "请补充信息：高级设置：请选择场景" {
+	if question.Question != "Advanced settings: Select a scenario" {
 		t.Fatalf("question=%q", question.Question)
 	}
-	if question.Options[0].Description != "创建新表" {
+	if question.Options[0].Description != "Create a new table" {
 		t.Fatalf("question details=%+v", question)
+	}
+	topAction := task.InputRequired.Questions[1]
+	if topAction.QuestionID != "clarify_1" || len(topAction.Options) != 1 || topAction.Options[0].OptionID != "btn_submit" {
+		t.Fatalf("top action question=%+v", topAction)
+	}
+	formAction := task.InputRequired.Questions[2]
+	if formAction.QuestionID != "form_1" || len(formAction.Options) != 1 || formAction.Options[0].OptionID != "btn_skip" {
+		t.Fatalf("form action question=%+v", formAction)
 	}
 	if len(task.Artifacts) != 1 {
 		t.Fatalf("artifacts=%+v", task.Artifacts)
 	}
 	artifact := task.Artifacts[0]
-	if artifact.ID != "artifact_1" || artifact.Kind != "table" || artifact.Name != "销售表" || artifact.Status != "ready" {
+	if artifact.ID != "artifact_1" || artifact.Kind != "table" || artifact.Name != "Sales table" || artifact.Status != "ready" {
 		t.Fatalf("artifact=%+v", artifact)
 	}
 	if artifact.OutputID != "103:artifact:1" || artifact.Source != "table_agent" || artifact.GroupID != "grp_2" {
@@ -674,5 +797,70 @@ func TestResultFalseUsesTypedCategory(t *testing.T) {
 		responses: []json.RawMessage{dataResponse(t, `{"result":false,"reason":"task is terminal","error":{"category":"task_terminal"}}`)},
 	}
 	err := assistantSpec.CancelTask.Handler(context.Background(), rt, "t1")
+	problem(t, err, errs.CategoryValidation, errs.SubtypeFailedPrecondition)
+}
+
+// TestMapInputRequiredExpandsFullGroup covers atomic-group mapping: multiple
+// top-level questions (multi-select preserved, answered ones skipped) plus a
+// form's questions with the form title as prompt prefix, all in one group and
+// with ids passed through verbatim for the backend to resolve.
+func TestMapInputRequiredExpandsFullGroup(t *testing.T) {
+	group, err := mapInputRequired(adapterClarification{
+		ID:    "clarify_1",
+		Title: "Configure report",
+		Questions: []adapterClarificationQuestion{
+			{ID: "q_region", Type: "single_select", Prompt: "Select a region", Options: []adapterClarificationOption{{ID: "opt_apac", Label: "APAC"}}},
+			{ID: "q_metric", Type: "multi_select", Prompt: "Select metrics", Options: []adapterClarificationOption{{ID: "opt_rev", Label: "Revenue"}, {ID: "opt_cost", Label: "Cost"}}},
+			{ID: "q_done", Type: "text", Prompt: "Already answered", Answered: true},
+		},
+		Forms: []adapterClarificationForm{{
+			ID:    "form_1",
+			Title: "Advanced",
+			Questions: []adapterClarificationQuestion{
+				{ID: "q_note", Type: "text", Prompt: "Notes"},
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if group.Label != "Configure report" {
+		t.Fatalf("label=%q", group.Label)
+	}
+	var ids []string
+	for _, q := range group.Questions {
+		ids = append(ids, q.QuestionID)
+	}
+	want := []string{"q_region", "q_metric", "q_note"}
+	if !reflect.DeepEqual(ids, want) {
+		t.Fatalf("question ids=%v want %v (answered question must be skipped)", ids, want)
+	}
+	if !group.Questions[1].MultiSelect {
+		t.Fatalf("multi_select question lost flag: %+v", group.Questions[1])
+	}
+	if group.Questions[2].Question != "Advanced: Notes" {
+		t.Fatalf("form question prompt=%q", group.Questions[2].Question)
+	}
+}
+
+// TestMapInputRequiredRejectsSubQuestions ensures a conditional sub-question is a
+// typed failed_precondition surfaced through mapTask, not a silent drop.
+func TestMapInputRequiredRejectsSubQuestions(t *testing.T) {
+	_, err := mapTask(adapterTask{
+		SchemaVersion: 1,
+		TaskID:        "t1",
+		Status:        "waiting_for_input",
+		Outputs: []adapterOutput{{
+			Type: "clarification",
+			Clarification: &adapterClarification{
+				ID: "clarify_1", Title: "T", Required: true,
+				Questions: []adapterClarificationQuestion{{
+					ID: "q_parent", Type: "single_select", Prompt: "Parent question",
+					Options:      []adapterClarificationOption{{ID: "opt_1", Label: "A"}},
+					SubQuestions: []adapterClarificationQuestion{{ID: "q_child", Type: "text", Prompt: "Child question"}},
+				}},
+			},
+		}},
+	}, false)
 	problem(t, err, errs.CategoryValidation, errs.SubtypeFailedPrecondition)
 }
