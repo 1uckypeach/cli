@@ -183,9 +183,11 @@ var batchOpDispatch = map[string]batchOpMapping{
 	}},
 
 	// ─── 对象族 CRUD (manage_*_object, operation 区分) ─────────────
-	"+chart-create": {"manage_chart_object", objCreateTranslate(chartSpec)},
-	"+chart-update": {"manage_chart_object", objUpdateTranslate(chartSpec)},
-	"+chart-delete": {"manage_chart_object", objDeleteTranslate(chartSpec)},
+	"+chart-create":        {"manage_chart_object", objCreateTranslate(chartSpec)},
+	"+chart-update":        {"manage_chart_object", objUpdateTranslate(chartSpec)},
+	"+chart-delete":        {"manage_chart_object", objDeleteTranslate(chartSpec)},
+	"+chart-create-basic":  {"manage_chart_object", chartCreateBasicInput},
+	"+chart-config-update": {"manage_chart_object", chartConfigUpdateInput},
 
 	"+pivot-create": {"manage_pivot_table_object", objCreateTranslate(pivotSpec)},
 	"+pivot-update": {"manage_pivot_table_object", objUpdateTranslate(pivotSpec)},

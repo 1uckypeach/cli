@@ -49,6 +49,8 @@
                 "+chart-create",
                 "+chart-update",
                 "+chart-delete",
+                "+chart-create-basic",
+                "+chart-config-update",
                 "+pivot-create",
                 "+pivot-update",
                 "+pivot-delete",

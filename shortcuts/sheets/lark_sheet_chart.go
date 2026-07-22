@@ -5,10 +5,13 @@ package sheets
 
 import (
 	"context"
+	"regexp"
 	"strings"
 
 	"github.com/larksuite/cli/shortcuts/common"
 )
+
+var chartHexColorPattern = regexp.MustCompile(`^#?[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$`)
 
 var chartSemanticConfigFlags = []string{
 	"title",
@@ -22,6 +25,7 @@ var chartSemanticConfigFlags = []string{
 	"data-labels",
 	"data-label-position",
 	"stack",
+	"color-palette",
 }
 
 // ChartCreateBasic creates a complete server-side chart snapshot from a chart
@@ -82,7 +86,7 @@ var ChartCreateBasic = common.Shortcut{
 var ChartConfigUpdate = common.Shortcut{
 	Service:     "sheets",
 	Command:     "+chart-config-update",
-	Description: "Update common chart titles, axes, legend, labels, stacking, or smoothing without sending a snapshot.",
+	Description: "Update common chart titles, axes, legend, labels, stacking, smoothing, or chart-level colors without sending a snapshot.",
 	Risk:        "write",
 	Scopes:      []string{"sheets:spreadsheet:write_only"},
 	AuthTypes:   []string{"user", "bot"},
@@ -144,13 +148,27 @@ func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[s
 	if err != nil || rows < 2 || cols < 2 {
 		return nil, sheetsValidationForFlag("data-range", "--data-range must be a rectangular range with at least 2 rows and 2 columns")
 	}
-	if chartType == "combo" && cols < 3 {
-		return nil, sheetsValidationForFlag("data-range", "combo chart requires at least 3 columns")
+	direction := rt.Str("data-direction")
+	if direction == "" {
+		direction = "column"
+	}
+	dimensionCount := cols
+	if direction == "row" {
+		dimensionCount = rows
+	}
+	if chartType == "combo" && dimensionCount < 3 {
+		return nil, sheetsValidationForFlag("data-range", "combo chart requires at least 3 rows or columns along --data-direction")
 	}
 
 	basic := map[string]interface{}{
 		"chart_type": chartType,
 		"data_range": dataRange,
+	}
+	if rt.Changed("data-direction") {
+		basic["data_direction"] = rt.Str("data-direction")
+	}
+	if err := validateChartColorFlags(rt); err != nil {
+		return nil, err
 	}
 	addChartSemanticConfig(rt, basic)
 
@@ -198,6 +216,9 @@ func chartConfigUpdateInput(rt flagView, token, sheetID, sheetName string) (map[
 		return nil, sheetsValidationForFlag("chart-id", "--chart-id is required")
 	}
 	updates := map[string]interface{}{}
+	if err := validateChartColorFlags(rt); err != nil {
+		return nil, err
+	}
 	addChartSemanticConfig(rt, updates)
 	if len(updates) == 0 {
 		return nil, common.ValidationErrorf("at least one chart configuration flag is required")
@@ -230,4 +251,37 @@ func addChartSemanticConfig(rt flagView, out map[string]interface{}) {
 	if rt.Changed("smooth") {
 		out["smooth"] = rt.Bool("smooth")
 	}
+	if rt.Changed("colors") {
+		out["colors"] = normalizedChartColors(rt)
+	}
+}
+
+func validateChartColorFlags(rt flagView) error {
+	if rt.Changed("color-palette") && rt.Changed("colors") {
+		return common.ValidationErrorf("--color-palette and --colors are mutually exclusive").WithParams(
+			sheetsInvalidParam("color-palette", "cannot be used with --colors"),
+			sheetsInvalidParam("colors", "cannot be used with --color-palette"),
+		)
+	}
+	if rt.Changed("colors") {
+		colors := normalizedChartColors(rt)
+		if len(colors) < 2 {
+			return sheetsValidationForFlag("colors", "--colors must contain at least two hex colors")
+		}
+		for _, color := range colors {
+			if !chartHexColorPattern.MatchString(color) {
+				return sheetsValidationForFlag("colors", "--colors contains invalid hex color %q", color)
+			}
+		}
+	}
+	return nil
+}
+
+func normalizedChartColors(rt flagView) []string {
+	raw := rt.StrSlice("colors")
+	colors := make([]string, len(raw))
+	for i := range raw {
+		colors[i] = strings.TrimSpace(raw[i])
+	}
+	return colors
 }
