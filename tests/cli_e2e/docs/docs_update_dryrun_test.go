@@ -91,10 +91,11 @@ func TestDocs_DryRunDefaultsToV2OpenAPI(t *testing.T) {
 				"docs", "+update",
 				"--doc", "doxcnDryRunE2E",
 				"--command", "block_delete",
-				"--block-id", "blkA,blkB,blkC",
+				"--block-id", "blkA, blkB,  blkC",
 				"--dry-run",
 			},
 			wantContains: []string{"/open-apis/docs_ai/v1/documents/doxcnDryRunE2E"},
+			wantBody:     map[string]any{"block_id": "blkA,blkB,blkC"},
 		},
 		{
 			name: "history list",

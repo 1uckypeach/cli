@@ -145,6 +145,14 @@ func validateBlockDeleteIDs(raw string) error {
 	return nil
 }
 
+func normalizeBlockDeleteIDs(raw string) string {
+	parts := strings.Split(raw, ",")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	return strings.Join(parts, ",")
+}
+
 func dryRunUpdateV2(_ context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
 	// Validate has already accepted --doc; parseDocumentRef cannot fail here.
 	ref, _ := parseDocumentRef(runtime.Str("doc"))
@@ -220,6 +228,9 @@ func buildUpdateBodyBase(runtime *common.RuntimeContext) map[string]interface{} 
 		body["pattern"] = v
 	}
 	if blockID != "" {
+		if cmd == "block_delete" {
+			blockID = normalizeBlockDeleteIDs(blockID)
+		}
 		body["block_id"] = blockID
 	}
 	if v := runtime.Str("src-block-ids"); v != "" {
