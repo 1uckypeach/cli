@@ -534,15 +534,18 @@ func TestVersionedTaskMapsOutputsAndClarification(t *testing.T) {
 	if got := task.Messages[0].Parts[1]; got.OutputID != "101:data_qa_chart:1" || got.Source != "base_agent" || got.GroupID != "grp_1" {
 		t.Fatalf("data part metadata=%+v", got)
 	}
-	if task.InputRequired == nil || len(task.InputRequired.Questions) != 3 {
+	if task.InputRequired == nil || len(task.InputRequired.Questions) != 4 {
 		t.Fatalf("input_required=%+v", task.InputRequired)
 	}
 	if task.InputRequired.Label != "Additional information required" {
 		t.Fatalf("group label=%q", task.InputRequired.Label)
 	}
-	// Content questions come first (answered q_done skipped), then the synthetic
+	// Content questions come first (including preselected q_done), then the synthetic
 	// action buttons: top-level button set, then the form's button set.
-	question := task.InputRequired.Questions[0]
+	if got := task.InputRequired.Questions[0]; got.QuestionID != "q_done" || got.Question != "Already answered" {
+		t.Fatalf("preselected question=%+v", got)
+	}
+	question := task.InputRequired.Questions[1]
 	if question.QuestionID != "q_scene" || question.MultiSelect || len(question.Options) != 1 {
 		t.Fatalf("question=%+v", question)
 	}
@@ -552,11 +555,11 @@ func TestVersionedTaskMapsOutputsAndClarification(t *testing.T) {
 	if question.Options[0].Description != "Create a new table" {
 		t.Fatalf("question details=%+v", question)
 	}
-	topAction := task.InputRequired.Questions[1]
+	topAction := task.InputRequired.Questions[2]
 	if topAction.QuestionID != "clarify_1" || len(topAction.Options) != 1 || topAction.Options[0].OptionID != "btn_submit" {
 		t.Fatalf("top action question=%+v", topAction)
 	}
-	formAction := task.InputRequired.Questions[2]
+	formAction := task.InputRequired.Questions[3]
 	if formAction.QuestionID != "form_1" || len(formAction.Options) != 1 || formAction.Options[0].OptionID != "btn_skip" {
 		t.Fatalf("form action question=%+v", formAction)
 	}
@@ -602,6 +605,126 @@ func TestVersionedTaskUsesLatestPendingClarification(t *testing.T) {
 	if task.InputRequired == nil || len(task.InputRequired.Questions) != 1 ||
 		task.InputRequired.Questions[0].QuestionID != "new" || task.InputRequired.Questions[0].Question != "新问题" {
 		t.Fatalf("input_required=%+v", task.InputRequired)
+	}
+}
+
+func TestVersionedTaskPreservesPreselectedQuestionsFromBackendResponse(t *testing.T) {
+	rt := &fakeRuntime{
+		params: map[string]string{"base_token": "b1"},
+		responses: []json.RawMessage{dataResponse(t, `{
+  "context_id": "ctx_dashboard",
+  "created_at": "1784721611",
+  "outputs": [
+    {
+      "data": {
+        "kind": "text_block",
+        "payload": {
+          "bizType": "spec_doc_think",
+          "contentType": "thinking",
+          "iconType": "think",
+          "sections": [{"content": "Preparing dashboard clarification.", "sectionKey": "section_dashboard"}],
+          "title": "Thinking"
+        },
+        "schema_version": 1
+      },
+      "type": "data"
+    },
+    {
+      "clarification": {
+        "buttons": [
+          {
+            "action_params": "{\"continueTurn\": true}",
+            "confirm_text": "skip",
+            "id": "opt_skip",
+            "kind": "custom",
+            "label": "Skip",
+            "message": "Skip",
+            "style": "default"
+          },
+          {
+            "action_params": "{\"continueTurn\": true}",
+            "confirm_text": "confirm",
+            "default": true,
+            "id": "opt_confirm",
+            "kind": "custom",
+            "label": "Confirm",
+            "message": "Additional information provided",
+            "style": "primary"
+          }
+        ],
+        "default_action": {
+          "action_params": "{\"continueTurn\": true}",
+          "button_text": "Confirm"
+        },
+        "id": "action_confirm",
+        "questions": [
+          {
+            "allow_custom_input": true,
+            "answer": {"value": "option_0_0"},
+            "answered": true,
+            "id": "q_business",
+            "options": [
+              {"id": "opt_progress", "label": "Task progress"},
+              {"id": "opt_project", "label": "Project overview"},
+              {"id": "opt_summary", "label": "Business summary"},
+              {"id": "opt_sales", "label": "Sales dashboard"},
+              {"id": "opt_people", "label": "Team workload"}
+            ],
+            "prompt": "What business area should this dashboard analyze?",
+            "required": false,
+            "type": "single_select"
+          },
+          {
+            "allow_custom_input": true,
+            "answer": {"value": "option_1_0"},
+            "answered": true,
+            "id": "q_data_source",
+            "options": [
+              {"id": "opt_existing_table", "label": "Existing table"},
+              {"id": "opt_new_table", "label": "New business table"}
+            ],
+            "prompt": "Which table should provide data for this dashboard?",
+            "required": false,
+            "type": "single_select"
+          }
+        ],
+        "required": true,
+        "submitted": false,
+        "title": "Additional information"
+      },
+      "type": "clarification"
+    }
+  ],
+  "schema_version": 1,
+  "status": "waiting_for_input",
+  "task_id": "task_dashboard",
+  "updated_at": "1784721658"
+}`)},
+	}
+
+	task, err := assistantSpec.GetTask.Handler(context.Background(), rt, "task_dashboard")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.State != iagents.StateInputRequired || task.InputRequired == nil {
+		t.Fatalf("task=%+v", task)
+	}
+	if task.InputRequired.Label != "Additional information" || len(task.InputRequired.Questions) != 3 {
+		t.Fatalf("input_required=%+v", task.InputRequired)
+	}
+
+	businessQuestion := task.InputRequired.Questions[0]
+	if businessQuestion.Question != "What business area should this dashboard analyze?" || len(businessQuestion.Options) != 5 {
+		t.Fatalf("business question=%+v", businessQuestion)
+	}
+	dataSourceQuestion := task.InputRequired.Questions[1]
+	if dataSourceQuestion.Question != "Which table should provide data for this dashboard?" || len(dataSourceQuestion.Options) != 2 {
+		t.Fatalf("data source question=%+v", dataSourceQuestion)
+	}
+	actionQuestion := task.InputRequired.Questions[2]
+	if actionQuestion.Question != "Additional information: Confirm" || len(actionQuestion.Options) != 2 ||
+		actionQuestion.Options[0].Label != "Skip" || actionQuestion.Options[1].Label != "Confirm" {
+		t.Fatalf("action question=%+v", actionQuestion)
 	}
 }
 
@@ -820,7 +943,7 @@ func TestResultFalseUsesTypedCategory(t *testing.T) {
 }
 
 // TestMapInputRequiredExpandsFullGroup covers atomic-group mapping: multiple
-// top-level questions (multi-select preserved, answered ones skipped) plus a
+// top-level questions (multi-select and preselected questions preserved) plus a
 // form's questions with the form title as prompt prefix, all in one group and
 // with ids passed through verbatim for the backend to resolve.
 func TestMapInputRequiredExpandsFullGroup(t *testing.T) {
@@ -850,15 +973,15 @@ func TestMapInputRequiredExpandsFullGroup(t *testing.T) {
 	for _, q := range group.Questions {
 		ids = append(ids, q.QuestionID)
 	}
-	want := []string{"q_region", "q_metric", "q_note"}
+	want := []string{"q_region", "q_metric", "q_done", "q_note"}
 	if !reflect.DeepEqual(ids, want) {
-		t.Fatalf("question ids=%v want %v (answered question must be skipped)", ids, want)
+		t.Fatalf("question ids=%v want %v (preselected question must remain visible)", ids, want)
 	}
 	if !group.Questions[1].MultiSelect {
 		t.Fatalf("multi_select question lost flag: %+v", group.Questions[1])
 	}
-	if group.Questions[2].Question != "Advanced: Notes" {
-		t.Fatalf("form question prompt=%q", group.Questions[2].Question)
+	if group.Questions[3].Question != "Advanced: Notes" {
+		t.Fatalf("form question prompt=%q", group.Questions[3].Question)
 	}
 }
 

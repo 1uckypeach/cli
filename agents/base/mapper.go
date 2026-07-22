@@ -239,12 +239,13 @@ func latestPendingClarification(outputs []adapterOutput) *adapterOutput {
 // question is surfaced together — top-level questions, each form's questions
 // (prompt prefixed with the form title), and each button set as a synthetic
 // action question (the clarification/form id is the action question id, each
-// button id an option). Already-answered questions are skipped. IDs pass
-// through verbatim — the backend mints CLI-legal public ids and resolves them
-// back; the CLI never rewrites them. Conditional sub-questions are NOT
-// answerable through the flat CLI model (answering a hidden branch would be
-// wrong), so their presence is a typed failed_precondition here rather than a
-// silent drop or a late backend rejection.
+// button id an option). Questions with preselected values remain visible while
+// the card is pending: answered=true can describe a default selection, not a
+// submitted answer. IDs pass through verbatim — the backend mints CLI-legal
+// public ids and resolves them back; the CLI never rewrites them. Conditional
+// sub-questions are NOT answerable through the flat CLI model (answering a
+// hidden branch would be wrong), so their presence is a typed
+// failed_precondition here rather than a silent drop or a late backend rejection.
 func mapInputRequired(in adapterClarification) (*iagents.InputRequired, error) {
 	questions := make([]iagents.Question, 0)
 	actions := make([]iagents.Question, 0)
@@ -286,9 +287,11 @@ func mapInputRequired(in adapterClarification) (*iagents.InputRequired, error) {
 	return &iagents.InputRequired{Label: label, Questions: questions}, nil
 }
 
-// expandClarificationQuestions maps a question list into contract Questions,
-// skipping answered ones and rejecting any question that carries conditional
-// sub-questions (unsupported through the flat CLI model this phase).
+// expandClarificationQuestions maps a pending question list into contract
+// Questions and rejects any question that carries conditional sub-questions
+// (unsupported through the flat CLI model this phase). Do not skip Answered
+// questions here: for an unsubmitted card that flag may only mean the backend
+// supplied a default or recommended value that the user can still change.
 func expandClarificationQuestions(questions []adapterClarificationQuestion, formTitle string) ([]iagents.Question, error) {
 	out := make([]iagents.Question, 0, len(questions))
 	for _, question := range questions {
@@ -296,9 +299,6 @@ func expandClarificationQuestions(questions []adapterClarificationQuestion, form
 			return nil, errs.NewValidationError(errs.SubtypeFailedPrecondition,
 				"base:assistant cannot answer a clarification with conditional sub-questions from the CLI").
 				WithHint("open this Base in the Feishu/Lark client to answer the nested question group")
-		}
-		if question.Answered {
-			continue
 		}
 		out = append(out, questionFromClarification(question, formTitle))
 	}
