@@ -944,9 +944,18 @@ func runShortcut(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, botOnly bo
 	// own format flag (e.g. base +record-list's markdown|json, mail +watch's
 	// json|data) owns a different enum, already validated by validateEnumFlags.
 	if !shortcutDeclaresFormatFlag(s) {
-		if _, err := output.ParseFormatStrict(rctx.Format); err != nil {
+		format, err := output.ParseFormatStrict(rctx.Format)
+		if err != nil {
 			return err
 		}
+		canonicalFormat := format.String()
+		if rctx.Str("format") != canonicalFormat {
+			if err := rctx.Cmd.Flags().Set("format", canonicalFormat); err != nil {
+				return errs.NewInternalError(errs.SubtypeUnknown,
+					"failed to canonicalize the framework --format value").WithCause(err)
+			}
+		}
+		rctx.Format = canonicalFormat
 	}
 	if s.Validate != nil {
 		if err := s.Validate(rctx.ctx, rctx); err != nil {

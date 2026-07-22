@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	// Keep each pretty-output scan window comfortably below the content-safety
-	// scanner's per-string limit. The overlap covers rule matches that cross a
-	// window boundary without coupling this package to that private limit.
-	prettySafetyScanWindowBytes  = 64 << 10
+	// Match the native content-safety scanner's 128 KiB per-string capacity so
+	// rendered-output scanning does not impose a smaller regex match window.
+	// The overlap keeps realistic rule matches visible across window boundaries.
+	prettySafetyScanWindowBytes  = 128 << 10
 	prettySafetyScanOverlapBytes = 4 << 10
 )
 

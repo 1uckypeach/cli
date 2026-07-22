@@ -45,9 +45,8 @@ func (p *truncatingContractSafetyProvider) Name() string {
 }
 
 func (p *truncatingContractSafetyProvider) Scan(_ context.Context, req extcs.ScanRequest) (*extcs.Alert, error) {
-	// This deliberately differs from the production scanner's private limit; it
-	// models any provider that bounds work independently for each string.
-	const perStringCap = 160 << 10
+	// Model the production scanner's native per-string capacity.
+	const perStringCap = 128 << 10
 	var containsMatch func(any) bool
 	containsMatch = func(data any) bool {
 		switch value := data.(type) {
@@ -231,13 +230,13 @@ func TestEmitterPrettyBlockScansRenderedTextBeforeWriting(t *testing.T) {
 	}
 }
 
-func TestEmitterPrettyBlockScansLargeRenderedTextPastPerStringCap(t *testing.T) {
+func TestEmitterPrettyBlockDetectsLongMatchPastFirstScanWindow(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
-	const match = "blocked phrase"
-	// Place the match beyond the scanner's per-string cap and across a scan
-	// window boundary. A single-string scan misses it; overlapping windows keep
-	// the complete match visible to the provider.
-	rendered := strings.Repeat("a", 188410) + match + "\n"
+	const nativePerStringCap = 128 << 10
+	// The match starts after the first native-capacity window and is longer than
+	// the old 64 KiB window. A native-capacity later window must retain it whole.
+	match := strings.Repeat("blocked", 10<<10)
+	rendered := strings.Repeat("a", nativePerStringCap+1) + match + "\n"
 	provider := &truncatingContractSafetyProvider{
 		alert: &extcs.Alert{
 			Provider:     "truncating-emitter-contract",

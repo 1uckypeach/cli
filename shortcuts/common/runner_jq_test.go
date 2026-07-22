@@ -367,6 +367,40 @@ func TestRunShortcut_DryRunMixedCasePrettyUsesPlainTextPreview(t *testing.T) {
 	}
 }
 
+func TestRunShortcut_MixedCaseFrameworkFormatIsCanonicalized(t *testing.T) {
+	var runtimeFormat string
+	var flagFormat string
+	prettyBranchFired := false
+	s := &Shortcut{
+		Service:   "test",
+		Command:   "test-shortcut",
+		AuthTypes: []string{"bot"},
+		Execute: func(_ context.Context, rctx *RuntimeContext) error {
+			runtimeFormat = rctx.Format
+			flagFormat = rctx.Str("format")
+			prettyBranchFired = rctx.Format == "pretty"
+			return nil
+		},
+	}
+	f := newTestFactory()
+	cmd := newTestShortcutCmd(s, f)
+	cmd.Flags().Set("format", "PRETTY")
+	cmd.Flags().Set("as", "bot")
+
+	if err := runShortcut(cmd, f, s, false); err != nil {
+		t.Fatalf("runShortcut() error = %v", err)
+	}
+	if runtimeFormat != "pretty" {
+		t.Fatalf("RuntimeContext.Format = %q, want pretty", runtimeFormat)
+	}
+	if flagFormat != "pretty" {
+		t.Fatalf("RuntimeContext.Str(\"format\") = %q, want pretty", flagFormat)
+	}
+	if !prettyBranchFired {
+		t.Fatal("downstream RuntimeContext.Format == \"pretty\" branch did not fire")
+	}
+}
+
 func TestRunShortcut_UnknownFormatErrorIncludesPretty(t *testing.T) {
 	s := &Shortcut{
 		Service:   "test",
