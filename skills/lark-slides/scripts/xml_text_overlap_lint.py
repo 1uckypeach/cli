@@ -1237,6 +1237,104 @@ def detect_whiteboard_external_overlaps(
     return issues
 
 
+def chart_external_overlay_detail(
+    chart: dict[str, Any], overlay: dict[str, Any]
+) -> dict[str, Any] | None:
+    if overlay["kind"] == "chart" or overlay["order"] <= chart["order"] or overlay["alpha"] <= 0:
+        return None
+    if not intersects(chart, overlay):
+        return None
+
+    overlap_width = intersection_width(chart, overlay)
+    overlap_height = intersection_height(chart, overlay)
+    if overlap_width < 8 or overlap_height < 8:
+        return None
+
+    overlap_area = overlap_width * overlap_height
+    overlay_area = element_area(overlay)
+    chart_area = element_area(chart)
+    if overlay_area <= 0 or chart_area <= 0 or overlap_area / overlay_area < 0.15:
+        return None
+    contained_in_chart = contains(chart, overlay)
+    if not contained_in_chart and overlap_area / chart_area < 0.15:
+        return None
+
+    return {
+        "element": overlay["id"],
+        "kind": overlay["kind"],
+        "type": overlay.get("type"),
+        "bbox": {key: overlay[key] for key in ("x", "y", "width", "height")},
+        "contained_in_chart": contained_in_chart,
+        "overlap_width": overlap_width,
+        "overlap_height": overlap_height,
+        "overlay_overlap_ratio": round(overlap_area / overlay_area, 3),
+        "chart_overlap_ratio": round(overlap_area / chart_area, 3),
+    }
+
+
+def prune_chart_overlay_text_details(
+    chart: dict[str, Any],
+    overlap_details: list[dict[str, Any]],
+    elements: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    elements_by_id = {element["id"]: element for element in elements}
+    reported_ids = {detail["element"] for detail in overlap_details}
+    pruned: list[dict[str, Any]] = []
+    for detail in overlap_details:
+        overlay = elements_by_id[detail["element"]]
+        if not is_text_element(overlay):
+            pruned.append(detail)
+            continue
+        containers = [
+            element
+            for element in elements
+            if (
+                chart["order"] < element["order"] < overlay["order"]
+                and not is_text_element(element)
+                and element["kind"] != "chart"
+                and intersects(chart, element)
+                and contains(element, overlay)
+            )
+        ]
+        if containers and not any(container["id"] in reported_ids for container in containers):
+            continue
+        pruned.append(detail)
+    return pruned
+
+
+def detect_chart_external_overlays(elements: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    for chart in [element for element in elements if element["kind"] == "chart"]:
+        overlap_details = [
+            detail
+            for overlay in elements
+            if (detail := chart_external_overlay_detail(chart, overlay)) is not None
+        ]
+        overlap_details = prune_chart_overlay_text_details(chart, overlap_details, elements)
+        if not overlap_details:
+            continue
+        overlay_ids = [detail["element"] for detail in overlap_details]
+        issues.append(
+            {
+                "level": "error",
+                "code": "chart_external_overlay",
+                "elements": [chart["id"], *overlay_ids],
+                "chart_bbox": {key: chart[key] for key in ("x", "y", "width", "height")},
+                "overlays": overlap_details,
+                "message": (
+                    f'chart {chart["id"]} is covered by {len(overlay_ids)} later sibling element(s): '
+                    f'{", ".join(overlay_ids)}'
+                ),
+                "hint": (
+                    "Move the covering elements before the chart in XML order or outside the chart bbox. "
+                    "For an intentional centered KPI, resize or reposition the chart and KPI so their declared "
+                    "bboxes do not overlap, then verify the rendered slide."
+                ),
+            }
+        )
+    return issues
+
+
 def element_canvas_bbox(element: dict[str, Any]) -> dict[str, int | float]:
     bbox = {key: element[key] for key in ("x", "y", "width", "height")}
     rotation = element["rotation"]
@@ -1380,6 +1478,7 @@ def lint_slide(
     elements = extract_elements(slide_xml)
     issues: list[dict[str, Any]] = [
         *detect_whiteboard_external_overlaps(elements, slide_width, slide_height),
+        *detect_chart_external_overlays(elements),
         *detect_elements_out_of_canvas(elements, slide_width, slide_height),
         *detect_table_layout_size_mismatches(elements),
         *detect_text_may_overflow_shapes(elements),

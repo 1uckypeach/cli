@@ -1423,6 +1423,139 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
                 self.assertEqual(result["summary"]["error_count"], 1)
                 self.assertEqual(result["slides"][0]["issues"][0]["code"], "bbox_overlap")
 
+    def test_lint_xml_reports_later_shape_and_text_covering_chart(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <chart id="chart" topLeftX="100" topLeftY="100" width="400" height="300"/>
+              <shape id="card" type="rect" topLeftX="210" topLeftY="190" width="180" height="70"/>
+              <shape id="label" type="text" topLeftX="220" topLeftY="200" width="160" height="20">
+                <content textAlign="center"><p>KPI</p></content>
+              </shape>
+            </data></slide>
+            """
+        )
+        issues = [
+            issue
+            for issue in result["slides"][0]["issues"]
+            if issue["code"] == "chart_external_overlay"
+        ]
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0]["level"], "error")
+        self.assertEqual(issues[0]["elements"], ["chart", "card", "label"])
+
+    def test_lint_xml_reports_export_kpi_overlay_with_geometry_details(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <chart id="bCd" topLeftX="505" topLeftY="130" width="400" height="320">
+                <chartPlotArea><chartPlot type="pie"><chartSeriesList><chartSeries>
+                  <chartSectors innerRadius="0.55"/>
+                </chartSeries></chartSeriesList></chartPlot></chartPlotArea>
+              </chart>
+              <shape id="bCo" type="rect" topLeftX="530" topLeftY="250" width="180" height="60"/>
+              <shape id="bCn" type="text" topLeftX="540" topLeftY="258" width="160" height="20">
+                <content textAlign="center"><p>2025年出口额</p></content>
+              </shape>
+              <shape id="bCe" type="text" topLeftX="540" topLeftY="278" width="160" height="30">
+                <content textAlign="center"><p>324.7亿$</p></content>
+              </shape>
+            </data></slide>
+            """
+        )
+        issue = next(
+            issue
+            for issue in result["slides"][0]["issues"]
+            if issue["code"] == "chart_external_overlay"
+        )
+        self.assertEqual(issue["level"], "error")
+        self.assertEqual(issue["elements"], ["bCd", "bCo", "bCn", "bCe"])
+        self.assertEqual(issue["chart_bbox"], {"x": 505, "y": 130, "width": 400, "height": 320})
+        self.assertEqual(
+            [
+                (overlay["element"], overlay["overlap_width"], overlay["overlap_height"])
+                for overlay in issue["overlays"]
+            ],
+            [("bCo", 180, 60), ("bCn", 160, 20), ("bCe", 160, 30)],
+        )
+        self.assertTrue(
+            all(overlay["overlay_overlap_ratio"] == 1 for overlay in issue["overlays"])
+        )
+
+    def test_lint_xml_allows_chart_with_earlier_background_container(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <shape id="background" type="rect" topLeftX="80" topLeftY="80" width="440" height="340"/>
+              <chart id="chart" topLeftX="100" topLeftY="100" width="400" height="300"/>
+            </data></slide>
+            """
+        )
+        self.assertFalse(
+            any(
+                issue["code"] == "chart_external_overlay"
+                for issue in result["slides"][0]["issues"]
+            )
+        )
+
+    def test_lint_xml_allows_later_shape_with_minor_chart_edge_intersection(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <chart id="chart" topLeftX="100" topLeftY="100" width="400" height="300"/>
+              <shape id="edge" type="rect" topLeftX="80" topLeftY="370" width="440" height="60"/>
+              <shape id="edge-label" type="text" topLeftX="100" topLeftY="375" width="400" height="20">
+                <content><p>Chart note</p></content>
+              </shape>
+            </data></slide>
+            """
+        )
+        self.assertFalse(
+            any(
+                issue["code"] == "chart_external_overlay"
+                for issue in result["slides"][0]["issues"]
+            )
+        )
+
+    def test_lint_xml_allows_shape_disjoint_from_chart(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <chart id="chart" topLeftX="100" topLeftY="100" width="400" height="300"/>
+              <shape id="outside" type="rect" topLeftX="520" topLeftY="180" width="100" height="80"/>
+            </data></slide>
+            """
+        )
+        self.assertFalse(
+            any(
+                issue["code"] == "chart_external_overlay"
+                for issue in result["slides"][0]["issues"]
+            )
+        )
+
+    def test_lint_xml_groups_kpi_card_background_and_text_into_one_chart_issue(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <chart id="chart" topLeftX="100" topLeftY="100" width="400" height="300"/>
+              <shape id="card" type="rect" topLeftX="210" topLeftY="190" width="180" height="70"/>
+              <shape id="caption" type="text" topLeftX="220" topLeftY="198" width="160" height="22">
+                <content textAlign="center"><p>Caption</p></content>
+              </shape>
+              <shape id="value" type="text" topLeftX="220" topLeftY="220" width="160" height="34">
+                <content textAlign="center"><p>324.7</p></content>
+              </shape>
+            </data></slide>
+            """
+        )
+        issues = [
+            issue
+            for issue in result["slides"][0]["issues"]
+            if issue["code"] == "chart_external_overlay"
+        ]
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0]["level"], "error")
+        self.assertEqual(issues[0]["elements"], ["chart", "card", "caption", "value"])
 
     def test_lint_xml_reports_vertical_text_image_overlap_as_warning(self) -> None:
         result = xml_text_overlap_lint.lint_xml(
