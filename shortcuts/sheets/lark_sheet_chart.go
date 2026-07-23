@@ -136,6 +136,58 @@ var ChartConfigUpdate = common.Shortcut{
 	},
 }
 
+// ChartDataUpdate rebinds an existing chart to a new source range. The server
+// reads the current snapshot, rebuilds its data mapping, and preserves the
+// chart's layout and visual configuration.
+var ChartDataUpdate = common.Shortcut{
+	Service:     "sheets",
+	Command:     "+chart-data-update",
+	Description: "Update an existing chart's data range or direction while preserving its layout and visual configuration.",
+	Risk:        "write",
+	Scopes:      []string{"sheets:spreadsheet:write_only"},
+	AuthTypes:   []string{"user", "bot"},
+	HasFormat:   true,
+	Flags:       flagsFor("+chart-data-update"),
+	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
+		token, err := resolveSpreadsheetToken(runtime)
+		if err != nil {
+			return err
+		}
+		sheetID, sheetName, err := resolveSheetSelector(runtime)
+		if err != nil {
+			return err
+		}
+		_, err = chartDataUpdateInput(runtime, token, sheetID, sheetName)
+		return err
+	},
+	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
+		token, _ := resolveSpreadsheetToken(runtime)
+		sheetID, sheetName, _ := resolveSheetSelector(runtime)
+		input, _ := chartDataUpdateInput(runtime, token, sheetID, sheetName)
+		return invokeToolDryRun(token, ToolKindWrite, "manage_chart_object", input)
+	},
+	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
+		token, err := resolveSpreadsheetTokenExec(runtime)
+		if err != nil {
+			return err
+		}
+		sheetID, sheetName, err := resolveSheetSelector(runtime)
+		if err != nil {
+			return err
+		}
+		input, err := chartDataUpdateInput(runtime, token, sheetID, sheetName)
+		if err != nil {
+			return err
+		}
+		out, err := callTool(ctx, runtime, token, ToolKindWrite, "manage_chart_object", input)
+		if err != nil {
+			return err
+		}
+		runtime.Out(out, nil)
+		return nil
+	},
+}
+
 func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[string]interface{}, error) {
 	if err := requireSheetSelector(sheetID, sheetName); err != nil {
 		return nil, err
@@ -243,6 +295,99 @@ func chartConfigUpdateInput(rt flagView, token, sheetID, sheetName string) (map[
 		return nil, err
 	}
 	return input, nil
+}
+
+func chartDataUpdateInput(rt flagView, token, sheetID, sheetName string) (map[string]interface{}, error) {
+	if err := requireSheetSelector(sheetID, sheetName); err != nil {
+		return nil, err
+	}
+	chartID := strings.TrimSpace(rt.Str("chart-id"))
+	if chartID == "" {
+		return nil, sheetsValidationForFlag("chart-id", "--chart-id is required")
+	}
+	dataRange := strings.TrimSpace(rt.Str("data-range"))
+	if dataRange == "" {
+		return nil, sheetsValidationForFlag("data-range", "--data-range is required")
+	}
+	ranges, err := splitChartDataRanges(dataRange)
+	if err != nil {
+		return nil, sheetsValidationForFlag("data-range", "invalid --data-range %q: %v", dataRange, err)
+	}
+	explicitSheet := ""
+	for _, value := range ranges {
+		item, parseErr := parseChartDataRange(value)
+		if parseErr != nil {
+			return nil, sheetsValidationForFlag("data-range", "invalid --data-range item %q: %v", value, parseErr)
+		}
+		if item.sheet != "" {
+			if explicitSheet != "" && item.sheet != explicitSheet {
+				return nil, sheetsValidationForFlag("data-range", "all --data-range items must belong to the same sheet")
+			}
+			explicitSheet = item.sheet
+		}
+	}
+
+	updates := map[string]interface{}{"data_range": dataRange}
+	if rt.Changed("data-direction") {
+		updates["data_direction"] = rt.Str("data-direction")
+	}
+	dim1Index := 1
+	if rt.Changed("dim1-index") {
+		dim1Index = rt.Int("dim1-index")
+		if dim1Index < 1 {
+			return nil, sheetsValidationForFlag("dim1-index", "--dim1-index must be a positive 1-based index")
+		}
+		updates["dim1_index"] = dim1Index
+	}
+	if rt.Changed("dim2-indexes") {
+		dim2Indexes, parseErr := parseChartDim2Indexes(rt.Str("dim2-indexes"))
+		if parseErr != nil {
+			return nil, sheetsValidationForFlag("dim2-indexes", "%v", parseErr)
+		}
+		for _, index := range dim2Indexes {
+			if index == dim1Index {
+				return nil, sheetsValidationForFlag(
+					"dim2-indexes",
+					"--dim2-indexes must not contain the dim1 index %d",
+					dim1Index,
+				)
+			}
+		}
+		updates["dim2_indexes"] = dim2Indexes
+	}
+	input := map[string]interface{}{
+		"excel_id":     token,
+		"operation":    "update",
+		"chart_id":     chartID,
+		"data_updates": updates,
+	}
+	sheetSelectorForToolInput(input, sheetID, sheetName)
+	if err := validateInputAgainstSchema(rt, input); err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+
+func parseChartDim2Indexes(raw string) ([]int, error) {
+	parts := strings.Split(raw, ",")
+	indexes := make([]int, 0, len(parts))
+	seen := make(map[int]struct{}, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			return nil, common.ValidationErrorf("--dim2-indexes must be a comma-separated list of positive 1-based indexes")
+		}
+		index, err := strconv.Atoi(value)
+		if err != nil || index < 1 {
+			return nil, common.ValidationErrorf("--dim2-indexes must contain only positive 1-based indexes")
+		}
+		if _, exists := seen[index]; exists {
+			return nil, common.ValidationErrorf("--dim2-indexes must not contain duplicate index %d", index)
+		}
+		seen[index] = struct{}{}
+		indexes = append(indexes, index)
+	}
+	return indexes, nil
 }
 
 type chartDataRange struct {
