@@ -4,6 +4,7 @@
 package contentsafety
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -12,8 +13,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/errs"
 	extcs "github.com/larksuite/cli/extension/contentsafety"
+	"github.com/larksuite/cli/internal/output"
 )
+
+var _ extcs.FullTextProvider = (*regexProvider)(nil)
 
 func writeTestConfig(t *testing.T, content string) string {
 	t.Helper()
@@ -185,17 +190,113 @@ func TestProvider_FullTextBypassesPerStringCap(t *testing.T) {
 		t.Fatalf("structured-data scan should retain the per-string cap, got %v", alert)
 	}
 
-	alert, err = p.Scan(context.Background(), extcs.ScanRequest{
-		Path:     "test",
-		Data:     text,
-		ErrOut:   io.Discard,
-		FullText: true,
+	alert, err = p.ScanFullText(context.Background(), extcs.ScanRequest{
+		Path:   "test",
+		Data:   text,
+		ErrOut: io.Discard,
 	})
 	if err != nil {
-		t.Fatalf("Scan() full-text error = %v", err)
+		t.Fatalf("ScanFullText() error = %v", err)
 	}
 	if alert == nil || len(alert.MatchedRules) != 1 || alert.MatchedRules[0] != "tail" {
 		t.Fatalf("full-text scan alert = %v, want tail match", alert)
+	}
+}
+
+func TestEmitterStructuredBlockFullTextWritesZeroBytesAndWarnEmits(t *testing.T) {
+	dir := writeTestConfig(t, `{
+		"allowlist": ["all"],
+		"rules": [
+			{"id": "prefix", "pattern": "PREFIX_MARKER"},
+			{"id": "tail", "pattern": "TAIL_MARKER"}
+		]
+	}`)
+	p := &regexProvider{configDir: dir}
+	extcs.Register(p)
+	t.Cleanup(func() { extcs.Register(nil) })
+	data := map[string]any{
+		"text": "PREFIX_MARKER" + strings.Repeat("x", maxStringBytes+1) + "TAIL_MARKER",
+	}
+
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	blockStdout := &bytes.Buffer{}
+	blockEmitter := output.NewEmitter(output.EmitterConfig{
+		Out:         blockStdout,
+		ErrOut:      io.Discard,
+		CommandPath: "lark-cli fixture +emit",
+	})
+	err := blockEmitter.Success(data, output.EmitOptions{Format: output.FormatJSON})
+	var safetyErr *errs.ContentSafetyError
+	if !errors.As(err, &safetyErr) {
+		t.Fatalf("block Emitter.Success() error = %T, want *errs.ContentSafetyError", err)
+	}
+	foundTail := false
+	for _, ruleID := range safetyErr.Rules {
+		if ruleID == "tail" {
+			foundTail = true
+			break
+		}
+	}
+	if !foundTail {
+		t.Fatalf("block matched rules = %v, want tail match beyond per-string cap", safetyErr.Rules)
+	}
+	if blockStdout.Len() != 0 {
+		t.Fatalf("block stdout bytes = %d, want 0", blockStdout.Len())
+	}
+
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "warn")
+	warnStdout := &bytes.Buffer{}
+	warnStderr := &bytes.Buffer{}
+	warnEmitter := output.NewEmitter(output.EmitterConfig{
+		Out:         warnStdout,
+		ErrOut:      warnStderr,
+		CommandPath: "lark-cli fixture +emit",
+	})
+	if err := warnEmitter.Success(data, output.EmitOptions{Format: output.FormatJSON}); err != nil {
+		t.Fatalf("warn Emitter.Success() error = %v", err)
+	}
+	if warnStdout.Len() == 0 {
+		t.Fatal("warn stdout bytes = 0, want emitted structured payload")
+	}
+	if !strings.Contains(warnStdout.String(), `"_content_safety_alert"`) ||
+		!strings.Contains(warnStdout.String(), `"prefix"`) {
+		t.Fatalf("warn stdout = %q, want embedded prefix content-safety warning", warnStdout.String())
+	}
+	if warnStderr.Len() != 0 {
+		t.Fatalf("warn stderr = %q, want empty for JSON envelope warning", warnStderr.String())
+	}
+}
+
+func TestEmitterStructuredBlockDepthIncompleteWritesZeroBytes(t *testing.T) {
+	dir := writeTestConfig(t, `{
+		"allowlist": ["all"],
+		"rules": [{"id": "deep", "pattern": "DEEP_MARKER"}]
+	}`)
+	p := &regexProvider{configDir: dir}
+	extcs.Register(p)
+	t.Cleanup(func() { extcs.Register(nil) })
+	var data any = "DEEP_MARKER"
+	for i := 0; i < maxDepth+5; i++ {
+		data = map[string]any{"nested": data}
+	}
+
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	stdout := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      io.Discard,
+		CommandPath: "lark-cli fixture +emit",
+	})
+	err := emitter.Success(data, output.EmitOptions{Format: output.FormatJSON})
+	var safetyErr *errs.ContentSafetyError
+	if !errors.As(err, &safetyErr) {
+		t.Fatalf("Emitter.Success() error = %T, want *errs.ContentSafetyError", err)
+	}
+	if !strings.Contains(safetyErr.Message, "scan did not complete") {
+		t.Fatalf("Emitter.Success() error = %v, want scan-incomplete message", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("block stdout bytes = %d, want 0", stdout.Len())
 	}
 }
 

@@ -28,7 +28,9 @@ const (
 // scanTimeout also bounds untruncated rendered-text scans.
 const scanTimeout = 100 * time.Millisecond
 
-var newContentSafetyContext = func() (context.Context, context.CancelFunc) {
+type scanContextFactory func() (context.Context, context.CancelFunc)
+
+func defaultContentSafetyContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), scanTimeout)
 }
 
@@ -74,7 +76,7 @@ var (
 	errScanIncomplete = errors.New("content safety scan incomplete")
 )
 
-func runContentSafety(cobraPath string, data any, errOut io.Writer, fullText bool) (*extcs.Alert, error) {
+func runContentSafety(cobraPath string, data any, errOut io.Writer, fullText bool, newScanContext scanContextFactory) (*extcs.Alert, error) {
 	m := modeFromEnv(errOut)
 	if m == modeOff {
 		return nil, nil
@@ -90,12 +92,25 @@ func runContentSafety(cobraPath string, data any, errOut io.Writer, fullText boo
 		return nil, nil
 	}
 
+	scan := p.Scan
+	if m == modeBlock {
+		fullTextProvider, ok := p.(extcs.FullTextProvider)
+		if !ok {
+			return nil, fmt.Errorf("%w: provider %q does not support complete scans",
+				errScanIncomplete, p.Name())
+		}
+		scan = fullTextProvider.ScanFullText
+	}
+
 	type result struct {
 		alert *extcs.Alert
 		err   error
 	}
 	ch := make(chan result, 1)
-	ctx, cancel := newContentSafetyContext()
+	if newScanContext == nil {
+		newScanContext = defaultContentSafetyContext
+	}
+	ctx, cancel := newScanContext()
 	defer cancel()
 
 	// A timed-out provider may outlive this call, so it cannot share errOut.
@@ -106,7 +121,7 @@ func runContentSafety(cobraPath string, data any, errOut io.Writer, fullText boo
 				ch <- result{nil, fmt.Errorf("content safety panic: %v", r)}
 			}
 		}()
-		a, e := p.Scan(ctx, extcs.ScanRequest{
+		a, e := scan(ctx, extcs.ScanRequest{
 			Path:     cmdPath,
 			Data:     data,
 			ErrOut:   scanErrBuf,

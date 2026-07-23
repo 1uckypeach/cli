@@ -42,11 +42,45 @@ type truncatingContractSafetyProvider struct {
 	pattern *regexp.Regexp
 }
 
+type legacyTruncatingContractSafetyProvider struct {
+	calls int
+	match string
+}
+
+func (p *legacyTruncatingContractSafetyProvider) Name() string {
+	return "legacy-truncating-emitter-contract"
+}
+
+func (p *legacyTruncatingContractSafetyProvider) Scan(_ context.Context, req extcs.ScanRequest) (*extcs.Alert, error) {
+	p.calls++
+	const perStringCap = 128 << 10
+	text, _ := req.Data.(string)
+	if len(text) > perStringCap {
+		text = text[:perStringCap]
+	}
+	if !strings.Contains(text, p.match) {
+		return nil, nil
+	}
+	return &extcs.Alert{
+		Provider:     p.Name(),
+		MatchedRules: []string{"fixture-rule"},
+	}, nil
+}
+
 func (p *truncatingContractSafetyProvider) Name() string {
 	return "truncating-emitter-contract"
 }
 
 func (p *truncatingContractSafetyProvider) Scan(_ context.Context, req extcs.ScanRequest) (*extcs.Alert, error) {
+	return p.scan(req)
+}
+
+func (p *truncatingContractSafetyProvider) ScanFullText(_ context.Context, req extcs.ScanRequest) (*extcs.Alert, error) {
+	req.FullText = true
+	return p.scan(req)
+}
+
+func (p *truncatingContractSafetyProvider) scan(req extcs.ScanRequest) (*extcs.Alert, error) {
 	// Model the production scanner's native per-string capacity.
 	const perStringCap = 128 << 10
 	var containsMatch func(any) bool
@@ -89,6 +123,10 @@ func (p *failingContractSafetyProvider) Scan(context.Context, extcs.ScanRequest)
 	return nil, p.err
 }
 
+func (p *failingContractSafetyProvider) ScanFullText(ctx context.Context, req extcs.ScanRequest) (*extcs.Alert, error) {
+	return p.Scan(ctx, req)
+}
+
 func (p *contractSafetyProvider) Name() string {
 	return "emitter-contract"
 }
@@ -105,6 +143,10 @@ func (p *contractSafetyProvider) Scan(_ context.Context, req extcs.ScanRequest) 
 		}
 	}
 	return p.alert, nil
+}
+
+func (p *contractSafetyProvider) ScanFullText(ctx context.Context, req extcs.ScanRequest) (*extcs.Alert, error) {
+	return p.Scan(ctx, req)
 }
 
 func (p *contractSafetyProvider) snapshot() (int, interface{}) {
@@ -135,6 +177,46 @@ func TestEmitterSuccessWritesAllBytes(t *testing.T) {
 	want = append(want, '\n')
 	if !bytes.Equal(stdout.Bytes(), want) {
 		t.Fatalf("stdout bytes = %q, want %q", stdout.Bytes(), want)
+	}
+}
+
+func TestEmitterInvalidFormatReturnsInternalErrorWithoutOutput(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "off")
+	tests := []struct {
+		name string
+		emit func(*output.Emitter) error
+	}{
+		{
+			name: "success",
+			emit: func(emitter *output.Emitter) error {
+				return emitter.Success(map[string]interface{}{"id": "1"}, output.EmitOptions{Format: output.Format(99)})
+			},
+		},
+		{
+			name: "stream page",
+			emit: func(emitter *output.Emitter) error {
+				return emitter.StreamPage(map[string]interface{}{"id": "1"}, output.StreamOptions{Format: output.Format(99)})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout := &bytes.Buffer{}
+			emitter := output.NewEmitter(output.EmitterConfig{
+				Out:         stdout,
+				ErrOut:      io.Discard,
+				CommandPath: "lark-cli fixture +emit",
+			})
+			err := tt.emit(emitter)
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != errs.CategoryInternal || problem.Subtype != errs.SubtypeUnknown {
+				t.Fatalf("emitter problem = %#v, %v; want internal/unknown", problem, ok)
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("emitter wrote %d bytes, want 0", stdout.Len())
+			}
+		})
 	}
 }
 
@@ -211,34 +293,59 @@ func TestEmitterPrettyRendererFailurePreservesCause(t *testing.T) {
 	}
 }
 
-func TestEmitterPrettyWithoutRendererReturnsTypedValidationError(t *testing.T) {
+func TestEmitterPrettyWithoutRendererFallsBackToJSONWithWarning(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "off")
 	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
 	emitter := output.NewEmitter(output.EmitterConfig{
 		Out:         stdout,
-		ErrOut:      io.Discard,
+		ErrOut:      stderr,
 		CommandPath: "lark-cli fixture +emit",
 	})
 
 	err := emitter.Success(map[string]interface{}{"id": "1"}, output.EmitOptions{
 		Format: output.FormatPretty,
 	})
-	var validationErr *errs.ValidationError
-	if !errors.As(err, &validationErr) {
-		t.Fatalf("Emitter.Success() error = %T, want *errs.ValidationError", err)
+	if err != nil {
+		t.Fatalf("Emitter.Success() error = %v, want nil", err)
 	}
-	problem, ok := errs.ProblemOf(err)
-	if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeInvalidArgument {
-		t.Fatalf("Emitter.Success() problem = %#v, %v; want validation/invalid_argument", problem, ok)
+	const wantStdout = "{\n  \"ok\": true,\n  \"data\": {\n    \"id\": \"1\"\n  }\n}\n"
+	if stdout.String() != wantStdout {
+		t.Fatalf("Emitter.Success() stdout = %q, want %q", stdout.String(), wantStdout)
 	}
-	if validationErr.Param != "--format" {
-		t.Fatalf("Emitter.Success() Param = %q, want --format", validationErr.Param)
+	const wantStderr = "warning: --format pretty is not supported by this command; showing JSON instead\n"
+	if stderr.String() != wantStderr {
+		t.Fatalf("Emitter.Success() stderr = %q, want %q", stderr.String(), wantStderr)
 	}
-	if validationErr.Message != "--format pretty is not supported by this command" {
-		t.Fatalf("Emitter.Success() message = %q", validationErr.Message)
+}
+
+func TestEmitterStreamPagePrettyWithoutRendererFallsBackToNDJSONWithSingleWarning(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "off")
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      stderr,
+		CommandPath: "lark-cli fixture +emit",
+	})
+
+	for _, page := range []interface{}{
+		[]interface{}{map[string]interface{}{"id": "1"}},
+		[]interface{}{map[string]interface{}{"id": "2"}},
+	} {
+		err := emitter.StreamPage(page, output.StreamOptions{Format: output.FormatPretty})
+		if err != nil {
+			t.Fatalf("Emitter.StreamPage() error = %v, want nil", err)
+		}
 	}
-	if stdout.Len() != 0 {
-		t.Fatalf("Emitter.Success() stdout = %q, want empty", stdout.String())
+
+	const wantStdout = "{\"id\":\"1\"}\n{\"id\":\"2\"}\n"
+	if stdout.String() != wantStdout {
+		t.Fatalf("Emitter.StreamPage() stdout = %q, want %q", stdout.String(), wantStdout)
+	}
+	const wantStderr = "warning: --format pretty is not supported by this command; showing JSON instead\n"
+	if stderr.String() != wantStderr {
+		t.Fatalf("Emitter.StreamPage() stderr = %q, want %q", stderr.String(), wantStderr)
 	}
 }
 
@@ -314,6 +421,43 @@ func TestEmitterPrettyBlockDetectsLongMatchBeyondStructuredStringCap(t *testing.
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("Emitter.Success() wrote %d stdout bytes, want empty", stdout.Len())
+	}
+}
+
+func TestEmitterPrettyBlockRejectsLegacyTruncatingProviderWithoutWriting(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	const nativePerStringCap = 128 << 10
+	const match = "TAIL_BLOCKED_MARKER"
+	rendered := strings.Repeat("a", nativePerStringCap+1) + match + "\n"
+	provider := &legacyTruncatingContractSafetyProvider{match: match}
+	extcs.Register(provider)
+	t.Cleanup(func() { extcs.Register(nil) })
+	stdout := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      io.Discard,
+		CommandPath: "lark-cli fixture +emit",
+	})
+
+	err := emitter.Success(map[string]interface{}{"summary": "clean"}, output.EmitOptions{
+		Format: output.FormatPretty,
+		Pretty: func(w io.Writer, _ bool) error {
+			_, writeErr := io.WriteString(w, rendered)
+			return writeErr
+		},
+	})
+	var safetyErr *errs.ContentSafetyError
+	if !errors.As(err, &safetyErr) {
+		t.Fatalf("Emitter.Success() error = %T, want *errs.ContentSafetyError", err)
+	}
+	if !strings.Contains(safetyErr.Message, "scan did not complete") {
+		t.Fatalf("Emitter.Success() error = %v, want scan-incomplete message", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("Emitter.Success() wrote %d stdout bytes, want 0", stdout.Len())
+	}
+	if provider.calls != 0 {
+		t.Fatalf("legacy provider Scan call count = %d, want 0", provider.calls)
 	}
 }
 

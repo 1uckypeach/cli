@@ -74,9 +74,17 @@ func (p *abortedCleanProvider) Scan(ctx context.Context, _ extcs.ScanRequest) (*
 	return nil, nil
 }
 
+func (p *abortedCleanProvider) ScanFullText(ctx context.Context, req extcs.ScanRequest) (*extcs.Alert, error) {
+	return p.Scan(ctx, req)
+}
+
 func (m *mockProvider) Name() string { return m.name }
 func (m *mockProvider) Scan(_ context.Context, _ extcs.ScanRequest) (*extcs.Alert, error) {
 	return m.alert, m.err
+}
+
+func (m *mockProvider) ScanFullText(ctx context.Context, req extcs.ScanRequest) (*extcs.Alert, error) {
+	return m.Scan(ctx, req)
 }
 
 func TestScanForSafety_ModeOff(t *testing.T) {
@@ -244,11 +252,6 @@ func TestEmitterAbortedCleanLookingScanModeBehavior(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", tt.mode)
 			scanCtx := newResultFirstCanceledContext()
-			previousContextFactory := newContentSafetyContext
-			newContentSafetyContext = func() (context.Context, context.CancelFunc) {
-				return scanCtx, func() {}
-			}
-			t.Cleanup(func() { newContentSafetyContext = previousContextFactory })
 			extcs.Register(&abortedCleanProvider{selectWaiting: scanCtx.selectWaiting})
 			t.Cleanup(func() { extcs.Register(nil) })
 
@@ -259,6 +262,9 @@ func TestEmitterAbortedCleanLookingScanModeBehavior(t *testing.T) {
 				CommandPath: "lark-cli fixture +emit",
 				Identity:    "bot",
 			})
+			emitter.scanCtx = func() (context.Context, context.CancelFunc) {
+				return scanCtx, func() {}
+			}
 			err := emitter.Success(map[string]any{"id": "1"}, EmitOptions{Format: FormatJSON})
 
 			if tt.wantBlocked {
@@ -295,6 +301,10 @@ func (s *slowProvider) Scan(ctx context.Context, _ extcs.ScanRequest) (*extcs.Al
 	case <-time.After(200 * time.Millisecond):
 		return &extcs.Alert{Provider: "slow", MatchedRules: []string{"never"}}, nil
 	}
+}
+
+func (s *slowProvider) ScanFullText(ctx context.Context, req extcs.ScanRequest) (*extcs.Alert, error) {
+	return s.Scan(ctx, req)
 }
 
 func TestWriteAlertWarning(t *testing.T) {

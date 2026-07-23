@@ -63,7 +63,7 @@ func TestFormatString(t *testing.T) {
 		{FormatTable, "table"},
 		{FormatCSV, "csv"},
 		{FormatPretty, "pretty"},
-		{Format(99), "json"}, // unknown falls back
+		{Format(99), "unknown(99)"},
 	}
 
 	for _, tt := range tests {
@@ -73,6 +73,17 @@ func TestFormatString(t *testing.T) {
 				t.Errorf("Format(%d).String() = %q, want %q", tt.format, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestFormatValid(t *testing.T) {
+	for _, format := range []Format{FormatJSON, FormatNDJSON, FormatTable, FormatCSV, FormatPretty} {
+		if !format.Valid() {
+			t.Errorf("Format(%d).Valid() = false, want true", format)
+		}
+	}
+	if Format(99).Valid() {
+		t.Error("Format(99).Valid() = true, want false")
 	}
 }
 

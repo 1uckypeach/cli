@@ -45,6 +45,10 @@ func (p *emitterSafetyProvider) Scan(context.Context, extcs.ScanRequest) (*extcs
 	return p.alert, p.err
 }
 
+func (p *emitterSafetyProvider) ScanFullText(ctx context.Context, req extcs.ScanRequest) (*extcs.Alert, error) {
+	return p.Scan(ctx, req)
+}
+
 const (
 	runtimeContextLegacyGoldenPath       = "testdata/runtime_context_legacy.golden.json"
 	writeSuccessEnvelopeLegacyGoldenPath = "testdata/write_success_envelope_legacy.golden.json"

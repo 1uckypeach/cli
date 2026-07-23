@@ -4,6 +4,7 @@
 package output
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
@@ -19,6 +20,11 @@ const (
 	FormatCSV
 	FormatPretty
 )
+
+// Valid reports whether f is one of the defined output formats.
+func (f Format) Valid() bool {
+	return f >= FormatJSON && f <= FormatPretty
+}
 
 // ParseFormat parses a format string into a Format value.
 // The second return value is false if the format string was not recognized,
@@ -62,6 +68,8 @@ func ParseFormatStrict(s string) (Format, error) {
 // String returns the string representation of a Format.
 func (f Format) String() string {
 	switch f {
+	case FormatJSON:
+		return "json"
 	case FormatNDJSON:
 		return "ndjson"
 	case FormatTable:
@@ -71,6 +79,6 @@ func (f Format) String() string {
 	case FormatPretty:
 		return "pretty"
 	default:
-		return "json"
+		return fmt.Sprintf("unknown(%d)", int(f))
 	}
 }

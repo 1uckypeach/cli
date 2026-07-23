@@ -114,6 +114,25 @@ func TestWalk_MaxDepth(t *testing.T) {
 	}
 }
 
+func TestWalk_FullTextMaxDepthReturnsIncomplete(t *testing.T) {
+	s := &scanner{
+		rules:    []rule{testRule("deep", `secret`)},
+		fullText: true,
+	}
+	var data any = "secret"
+	for i := 0; i < maxDepth+5; i++ {
+		data = map[string]any{"n": data}
+	}
+	hits := make(map[string]struct{})
+	err := s.walk(context.Background(), data, hits, 0)
+	if !errors.Is(err, errScanIncomplete) {
+		t.Fatalf("walk() error = %v, want errScanIncomplete", err)
+	}
+	if _, ok := hits["deep"]; ok {
+		t.Error("full-text walk should report incomplete before matching data beyond maxDepth")
+	}
+}
+
 func TestWalk_ContextCancel(t *testing.T) {
 	s := &scanner{rules: []rule{testRule("found", `target`)}}
 	ctx, cancel := context.WithCancel(context.Background())

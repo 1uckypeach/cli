@@ -6,6 +6,7 @@ package output
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 
 	"github.com/larksuite/cli/errs"
@@ -68,6 +69,7 @@ type Emitter struct {
 	identity       string
 	colorEnabled   bool
 	noticeProvider NoticeProvider
+	scanCtx        scanContextFactory
 
 	streamFormat    Format
 	streamFormatter *PaginatedFormatter
@@ -86,6 +88,7 @@ func NewEmitter(config EmitterConfig) *Emitter {
 		identity:       config.Identity,
 		colorEnabled:   config.ColorEnabled,
 		noticeProvider: config.NoticeProvider,
+		scanCtx:        defaultContentSafetyContext,
 	}
 }
 
@@ -93,6 +96,10 @@ func NewEmitter(config EmitterConfig) *Emitter {
 // primitives. JSON and jq use the standard envelope; pretty, table, csv, and
 // ndjson render the business value directly.
 func (e *Emitter) Success(data interface{}, opts EmitOptions) error {
+	if !opts.Format.Valid() {
+		return errs.NewInternalError(errs.SubtypeUnknown,
+			"internal: unknown output format %d", int(opts.Format))
+	}
 	if err := e.requireOutput(); err != nil {
 		return err
 	}
@@ -132,19 +139,25 @@ func (e *Emitter) PartialFailure(data interface{}, opts EmitOptions) error {
 // jq from the type makes "jq requires aggregated output" a compile-time fact
 // instead of a runtime rejection.
 func (e *Emitter) StreamPage(data interface{}, opts StreamOptions) error {
+	if !opts.Format.Valid() {
+		return errs.NewInternalError(errs.SubtypeUnknown,
+			"internal: unknown output format %d", int(opts.Format))
+	}
 	if err := e.requireOutput(); err != nil {
 		return err
 	}
 
 	if opts.Format == FormatPretty {
-		if opts.Pretty == nil {
-			return errs.NewInternalError(errs.SubtypeUnknown,
-				"pretty output requires a renderer")
+		if opts.Pretty != nil {
+			return e.emitPrettyRenderer(opts.Pretty)
 		}
-		return e.emitPrettyRenderer(opts.Pretty)
+		if e.streamFormatter == nil {
+			fmt.Fprintln(e.errOut, "warning: --format pretty is not supported by this command; showing JSON instead")
+		}
+		opts.Format = FormatNDJSON
 	}
 
-	scanResult := ScanForSafety(e.commandPath, data, e.errOut)
+	scanResult := e.scanForSafety(data, false)
 	if scanResult.Blocked {
 		return scanResult.BlockErr
 	}
@@ -169,7 +182,7 @@ func (e *Emitter) StreamPage(data interface{}, opts StreamOptions) error {
 }
 
 func (e *Emitter) emitEnvelope(data interface{}, ok bool, opts EmitOptions) error {
-	scanResult := ScanForSafety(e.commandPath, data, e.errOut)
+	scanResult := e.scanForSafety(data, false)
 	if scanResult.Blocked {
 		return scanResult.BlockErr
 	}
@@ -228,9 +241,11 @@ func (e *Emitter) emitPretty(data interface{}, opts EmitOptions) error {
 		return e.emitPrettyRenderer(opts.Pretty)
 	}
 
-	return errs.NewValidationError(errs.SubtypeInvalidArgument,
-		"--format pretty is not supported by this command").
-		WithParam("--format")
+	// No pretty renderer: the command cannot render --format pretty. Rather than
+	// failing after a write may already have mutated remote state (which would
+	// make automation retry and duplicate resources), warn and fall back to JSON.
+	fmt.Fprintln(e.errOut, "warning: --format pretty is not supported by this command; showing JSON instead")
+	return e.emitEnvelope(data, true, opts)
 }
 
 func (e *Emitter) emitPrettyRenderer(renderer PrettyRenderer) error {
@@ -242,7 +257,7 @@ func (e *Emitter) emitPrettyRenderer(renderer PrettyRenderer) error {
 	}
 
 	rendered := buf.String()
-	scanResult := ScanRenderedText(e.commandPath, rendered, e.errOut)
+	scanResult := e.scanForSafety(rendered, true)
 	if scanResult.Blocked {
 		return scanResult.BlockErr
 	}
@@ -262,7 +277,7 @@ func (e *Emitter) emitPrettyRenderer(renderer PrettyRenderer) error {
 // FormatPretty to the pretty renderer, and boundaries reject unknown formats,
 // so emitFormatted only ever receives a canonical non-envelope Format.
 func (e *Emitter) emitFormatted(data interface{}, format Format) error {
-	scanResult := ScanForSafety(e.commandPath, data, e.errOut)
+	scanResult := e.scanForSafety(data, false)
 	if scanResult.Blocked {
 		return scanResult.BlockErr
 	}
@@ -285,6 +300,10 @@ func (e *Emitter) emit(render func(io.Writer) error) error {
 		return wrapOutputError("write", err)
 	}
 	return nil
+}
+
+func (e *Emitter) scanForSafety(data interface{}, fullText bool) ScanResult {
+	return scanForSafety(e.commandPath, data, e.errOut, fullText, e.scanCtx)
 }
 
 func wrapOutputError(op string, err error) error {

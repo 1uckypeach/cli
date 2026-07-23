@@ -5,6 +5,8 @@ package contentsafety
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"regexp"
 )
 
@@ -12,6 +14,8 @@ const (
 	maxStringBytes = 1 << 17 // 128 KiB per string
 	maxDepth       = 64
 )
+
+var errScanIncomplete = errors.New("content safety scan incomplete")
 
 type rule struct {
 	ID      string
@@ -28,6 +32,9 @@ func (s *scanner) walk(ctx context.Context, v any, hits map[string]struct{}, dep
 		return err
 	}
 	if depth > maxDepth {
+		if s.fullText {
+			return fmt.Errorf("%w: maximum depth %d exceeded", errScanIncomplete, maxDepth)
+		}
 		return nil
 	}
 	switch t := v.(type) {

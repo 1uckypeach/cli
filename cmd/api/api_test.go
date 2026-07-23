@@ -712,6 +712,10 @@ func (p *apiContentSafetyProvider) Scan(_ context.Context, req extcs.ScanRequest
 	return &extcs.Alert{Provider: "api-test", MatchedRules: []string{"pagination"}}, nil
 }
 
+func (p *apiContentSafetyProvider) ScanFullText(ctx context.Context, req extcs.ScanRequest) (*extcs.Alert, error) {
+	return p.Scan(ctx, req)
+}
+
 func TestApiCmd_PageAll_DefaultJSONRunsContentSafety(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "warn")
 	provider := &apiContentSafetyProvider{}
