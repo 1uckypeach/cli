@@ -12,17 +12,18 @@
 |---------|---------|------|
 | 查看已有图表 | `+chart-list` | 获取图表的类型、数据源和样式配置 |
 | 按类型和范围创建基础图 | `+chart-create-basic` | 支持 column/bar/line/area/pie/scatter/combo/radar、行/列方向与整图配色；无需构造 snapshot |
-| 批量创建基础图或更新常用配置 | `+batch-update` | 把多个 `+chart-create-basic` / `+chart-config-update` 合并为一次严格批处理 |
+| 修正已有图表的数据范围或方向 | `+chart-data-update` | 服务端重建数据映射，保留标题、样式、位置和尺寸 |
+| 批量创建或更新多个独立图表 | `+batch-update --continue-on-error` | 保留成功图表，并逐项返回失败原因；只重试失败项 |
 | 更新标题、轴、图例、标签、堆叠、平滑或整图配色 | `+chart-config-update` | 无需回写 snapshot，未传字段保持不变 |
 | 高级创建/更新、删除图表 | `+chart-{create|update|delete}` | 按系列/数据点精细设置等高级需求才使用原始 properties |
 
-典型工作流：先确认表头和精确数据范围，用 `+chart-create-basic` 一次创建并尽量在同次调用中带上已知标题/轴/标签要求；创建后用 `+chart-list` 验证。已有图表的常用配置修正用 `+chart-config-update`。只有用户要求单个系列、数据点或高级引擎字段时，才读取现有 snapshot 并调 `+chart-update --properties`。不要为了常用配置先输出整份 schema，也不要删除重建已经创建成功的图表。
+典型工作流：先确认表头和精确数据范围，用 `+chart-create-basic` 一次创建并尽量在同次调用中带上已知标题/轴/标签要求；创建后用 `+chart-list` 验证。已有图表的数据范围或方向错误时用 `+chart-data-update`，常用配置修正用 `+chart-config-update`。只有用户要求单个系列、数据点或高级引擎字段时，才读取现有 snapshot 并调 `+chart-update --properties`。不要为了常用配置先输出整份 schema，也不要删除重建已经创建成功的图表。
 
-**多图表工作流**：先完成所有辅助数据和表头，列出每张目标图的类型、精确数据范围、标题和落点；确认清单后，用一次 `+batch-update` 批量执行 `+chart-create-basic`。批次成功后，每个受影响的 sheet 各调用一次 `+chart-list`，验证数量、类型、系列和范围。数据尚未稳定时不要提前创建图表；已经成功创建的图表有配置差异时批量使用 `+chart-config-update`，不要删除重建。
+**多图表工作流**：先完成所有辅助数据和表头，列出每张目标图的类型、精确数据范围、标题和落点；确认清单后，用一次 `+batch-update --continue-on-error` 批量执行 `+chart-create-basic`。图表之间独立时允许部分成功：按返回的逐项结果定位失败图表，只重试失败项，不要重复创建成功图表。批次后每个受影响的 sheet 各调用一次 `+chart-list`，验证数量、类型、系列和范围。数据尚未稳定时不要提前创建图表；已经成功创建的图表有数据源差异时批量使用 `+chart-data-update`，有配置差异时批量使用 `+chart-config-update`，不要删除重建。
 
 **数量词必须展开**：用户说“每个 / 每天 / 分别 / 逐一 / 各一张图”时，先从数据中数出实体数 `N`，把这 `N` 张图逐项写进清单，再加上其它汇总图得到目标总数 `M`；一个包含全部实体的多系列图不能替代这 `N` 张独立图。批次前断言 operations 中恰有 `M` 个图表创建，批次后断言图表总数、逐图标题与实体集合一致。
 
-**范围与系列前置校验**：清单中同时记录每张图的表头范围、纳入列、明确排除列、数据方向和预期系列数。表头在首列时用默认 `--data-direction column`；表头在首行、每行代表一个系列时用 `--data-direction row`。创建前根据实际表头确认边界，不凭字母猜范围；创建后系列数不符时，使用 `+chart-update --properties` 局部更新 `snapshot.data.refs` / `dim1` / `dim2.series`（数组整段替换），不要删除后重建。批次跨多个 sheet 时，每个受影响的 sheet 各调用一次 `+chart-list`。
+**范围与系列前置校验**：清单中同时记录每张图的表头范围、纳入列、明确排除列、数据方向和预期系列数。表头在首列时用默认 `--data-direction column`；表头在首行、每行代表一个系列时用 `--data-direction row`。创建前根据实际表头确认边界，不凭字母猜范围；创建后范围、方向或系列数不符时，使用 `+chart-data-update` 修正，服务端会重建 `refs` / `dim1` / `dim2.series` 并保留其它配置，不要删除后重建。批次跨多个 sheet 时，每个受影响的 sheet 各调用一次 `+chart-list`。
 
 **整图配色优先走语义参数**：只要求统一主题或一组系列颜色时，在创建时传 `--color-palette` 或 `--colors`，已有图表用 `+chart-config-update` 更新；二者互斥。只有指定某个系列或某个数据点的颜色时才使用原始 snapshot。
 
@@ -119,6 +120,7 @@
 | `+chart-list` | read | 对象 |
 | `+chart-create-basic` | write | 对象 |
 | `+chart-config-update` | write | 对象 |
+| `+chart-data-update` | write | 对象 |
 | `+chart-create` | write | 对象 |
 | `+chart-update` | write | 对象 |
 | `+chart-delete` | high-risk-write | 对象 |
@@ -183,6 +185,18 @@ _公共四件套 · 系统：`--dry-run`_
 | `--smooth` | bool | optional | 是否使用平滑曲线；支持 --smooth=false 和 --smooth false |
 | `--color-palette` | string | optional | 预设整图配色主题；与 --colors 互斥（可选值：`brandColorSeries@v2` / `rainbowColorSeries@v2` / `complementaryColorSeries@v2` / `converseColorSeries@v2` / `primaryColorSeries@v2` / `singleColorSeries-B-@v2` / `singleColorSeries-W-@v2` / `singleColorSeries-G-@v2` / `singleColorSeries-Y-@v2` / `singleColorSeries-O-@v2` / `singleColorSeries-R-@v2` / `singleColorSeries-D-@v2`） |
 | `--colors` | string_slice | optional | 自定义整图系列颜色，逗号分隔且至少 2 个十六进制色值；与 --color-palette 互斥 |
+
+### `+chart-data-update`
+
+_公共四件套 · 系统：`--dry-run`_
+
+| Flag | Type | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `--chart-id` | string | required | 目标图表 reference_id |
+| `--data-range` | string | required | 新的含表头数据范围；支持逗号分隔的同表多范围，错位或重叠时自动合并 |
+| `--data-direction` | string | optional | 数据系列方向；省略时沿用现有图表方向（可选值：`column` / `row`） |
+| `--dim1-index` | int | optional | 类别/X 轴维度在数据范围中的 1-based 索引；省略时使用第 1 个维度 |
+| `--dim2-indexes` | string | optional | 值/Y 轴系列在数据范围中的 1-based 索引，逗号分隔；省略时使用除 dim1 外的全部维度 |
 
 ### `+chart-create`
 
@@ -278,8 +292,26 @@ lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
 ```
 
 ```bash
-lark-cli sheets +batch-update --url "..." --operations @ops.json --yes
+lark-cli sheets +batch-update --url "..." --operations @ops.json --continue-on-error --yes
 lark-cli sheets +chart-list --url "..." --sheet-name "Sheet1"
+```
+
+### `+chart-data-update`
+
+当创建后发现漏列、范围过宽、辅助分类列发生变化、系列选择错误或数据方向错误时，只更新数据源。`--data-direction` 省略时沿用现有图表方向；新范围必须包含表头。默认使用第 1 个维度作为 dim1、其余维度作为 dim2；需要精确选择时，用 1-based 的 `--dim1-index` 和逗号分隔的 `--dim2-indexes`。工具返回实际采用的 `normalized_data_ranges`，随后用 `+chart-list` 验证范围和系列数。
+
+```bash
+# 把遗漏的最后一列纳入原折线图，保留标题、配色、图例和落点
+lark-cli sheets +chart-data-update --url "..." --sheet-id "$SID" --chart-id "chrXXX" \
+  --data-range "'Sheet1'!A1:M6"
+
+# 改用按行组织的数据源
+lark-cli sheets +chart-data-update --url "..." --sheet-id "$SID" --chart-id "chrXXX" \
+  --data-range "'Sheet1'!A1:M6" --data-direction row
+
+# 第 1 列作为类别，只使用第 4、8 列作为数值系列
+lark-cli sheets +chart-data-update --url "..." --sheet-id "$SID" --chart-id "chrXXX" \
+  --data-range "'Sheet1'!A1:M6" --dim1-index 1 --dim2-indexes "4,8"
 ```
 
 ### `+chart-config-update`
@@ -455,8 +487,8 @@ lark-cli sheets +chart-delete --url "https://example.feishu.cn/sheets/shtXXX" --
 
 ### Validate / DryRun / Execute 约束
 
-- `Validate`：XOR 公共四件套；`+chart-create` / `+chart-update` 的 `--properties` 必须能解析为合法 JSON；`+chart-delete`（high-risk-write）校验 `--yes` 或 `--dry-run` 至少一个。
-- `DryRun`：`+chart-create` / `+chart-update` 输出"将要 POST 的 body 模板"；`+chart-delete` 输出"将要删除的 chart_id 及隶属 sheet"，零网络副作用。
+- `Validate`：XOR 公共四件套；`+chart-data-update` 要求 `--chart-id` 和 `--data-range`，并校验 `--dim1-index` / `--dim2-indexes` 是正整数索引；`+chart-create` / `+chart-update` 的 `--properties` 必须能解析为合法 JSON；`+chart-delete`（high-risk-write）校验 `--yes` 或 `--dry-run` 至少一个。
+- `DryRun`：`+chart-data-update` / `+chart-create` / `+chart-update` 输出"将要 POST 的 body 模板"；`+chart-delete` 输出"将要删除的 chart_id 及隶属 sheet"，零网络副作用。
 - `Execute`：写操作执行后不自动回读；如需确认，自行调用 `+chart-list` 比对结果。
 
 > `+chart-create` / `+chart-update` 是 write 级别，按需可用 `--dry-run` 预览，不要求 `--yes`。只有 `+chart-delete`（high-risk-write）必须 `--yes`。

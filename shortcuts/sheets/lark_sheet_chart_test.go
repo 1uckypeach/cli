@@ -235,6 +235,67 @@ func TestChartSemanticShortcuts_CompatibleAliasesInBatch(t *testing.T) {
 	}
 }
 
+func TestChartDataUpdate_PreservesSnapshotServerSide(t *testing.T) {
+	t.Parallel()
+	body := parseDryRunBody(t, ChartDataUpdate, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-id", "chart-1",
+		"--data-range", "'Sheet1'!A1:M6",
+	})
+	input := decodeToolInput(t, body, "manage_chart_object")
+	if input["operation"] != "update" || input["chart_id"] != "chart-1" {
+		t.Fatalf("input = %#v", input)
+	}
+	if _, ok := input["properties"]; ok {
+		t.Fatal("semantic data update must not send properties")
+	}
+	updates, _ := input["data_updates"].(map[string]interface{})
+	if updates["data_range"] != "'Sheet1'!A1:M6" {
+		t.Errorf("data_updates = %#v", updates)
+	}
+	if _, ok := updates["data_direction"]; ok {
+		t.Errorf("omitted --data-direction must preserve the server-side direction: %#v", updates)
+	}
+}
+
+func TestChartDataUpdate_ExplicitDirectionAndMultipleRanges(t *testing.T) {
+	t.Parallel()
+	body := parseDryRunBody(t, ChartDataUpdate, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-id", "chart-1",
+		"--data-range", "'Sheet1'!A1:A10,'Sheet1'!K1:L10",
+		"--data-direction", "column",
+	})
+	input := decodeToolInput(t, body, "manage_chart_object")
+	updates := input["data_updates"].(map[string]interface{})
+	if updates["data_range"] != "'Sheet1'!A1:A10,'Sheet1'!K1:L10" || updates["data_direction"] != "column" {
+		t.Errorf("data_updates = %#v", updates)
+	}
+}
+
+func TestChartDataUpdate_ExplicitSeriesIndexes(t *testing.T) {
+	t.Parallel()
+	body := parseDryRunBody(t, ChartDataUpdate, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-id", "chart-1",
+		"--data-range", "'Sheet1'!A1:M6",
+		"--dim1-index", "1",
+		"--dim2-indexes", "4, 8",
+	})
+	input := decodeToolInput(t, body, "manage_chart_object")
+	updates := input["data_updates"].(map[string]interface{})
+	if updates["dim1_index"] != float64(1) {
+		t.Errorf("data_updates.dim1_index = %#v", updates["dim1_index"])
+	}
+	indexes, _ := updates["dim2_indexes"].([]interface{})
+	if len(indexes) != 2 || indexes[0] != float64(4) || indexes[1] != float64(8) {
+		t.Errorf("data_updates.dim2_indexes = %#v", updates["dim2_indexes"])
+	}
+}
+
 func TestChartSemanticShortcuts_Validation(t *testing.T) {
 	t.Parallel()
 
@@ -267,5 +328,19 @@ func TestChartSemanticShortcuts_Validation(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected config update with no changed field to fail")
+	}
+
+	for _, args := range [][]string{
+		{"--url", testURL, "--sheet-id", testSheetID, "--data-range", "A1:C4"},
+		{"--url", testURL, "--sheet-id", testSheetID, "--chart-id", "chart-1"},
+		{"--url", testURL, "--sheet-id", testSheetID, "--chart-id", "chart-1", "--data-range", "A1:C4", "--data-direction", "horizontal"},
+		{"--url", testURL, "--sheet-id", testSheetID, "--chart-id", "chart-1", "--data-range", "A1:C4", "--dim1-index", "0"},
+		{"--url", testURL, "--sheet-id", testSheetID, "--chart-id", "chart-1", "--data-range", "A1:C4", "--dim2-indexes", "2,2"},
+		{"--url", testURL, "--sheet-id", testSheetID, "--chart-id", "chart-1", "--data-range", "A1:C4", "--dim2-indexes", "1,2"},
+	} {
+		_, _, err = runShortcutCapturingErr(t, ChartDataUpdate, args)
+		if err == nil {
+			t.Fatalf("expected chart data update validation error for args %#v", args)
+		}
 	}
 }
