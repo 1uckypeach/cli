@@ -4,6 +4,7 @@
 package sheets
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -301,6 +302,13 @@ func sheetMoveBatchInput(fv flagView, token, sheetID, sheetName string) (map[str
 // +batch-update 顶层 --url/--token 统一提供（excel_id / spreadsheet_token / url）。
 var reservedSubOpKeys = []string{"excel_id", "spreadsheet_token", "url"}
 
+// wrappedSubOpInputKeys are nested MCP-body container keys that must never
+// appear at a sub-op input's top level — their presence means the caller
+// pasted a shortcut's structured *output* (e.g. a {"cell_styles":{…}} block)
+// where the flattened flag keys belong. None of the batch sub-op translators
+// read input under these names, so rejecting them is safe.
+var wrappedSubOpInputKeys = []string{"cell_styles", "cell_merges", "styles"}
+
 // translateBatchOp 把一个 CLI 视角的 {shortcut, input} 翻成底层 MCP
 // batch_update 的 {tool_name, input}。`index` 用于错误信息定位。input 用
 // shortcut 的 CLI flag 名（连字符/下划线均可），经该 shortcut 的 standalone
@@ -312,6 +320,7 @@ var reservedSubOpKeys = []string{"excel_id", "spreadsheet_token", "url"}
 //   - input 不是 object
 //   - input 里手填了 operation（由 shortcut 名隐含，禁手填以防 mismatch）
 //   - input 里手填了 excel_id / spreadsheet_token / url
+//   - input 顶层出现 cell_styles / cell_merges / styles（误贴 MCP body 包裹结构）
 //   - 子操作的 translator 报错（如缺必填字段）
 func translateBatchOp(raw interface{}, token string, index int) (map[string]interface{}, error) {
 	op, ok := raw.(map[string]interface{})
@@ -367,6 +376,21 @@ func translateBatchOp(raw interface{}, token string, index int) (map[string]inte
 			)
 		}
 	}
+	// Reject a "wrapped structure" sub-op input: agents copy a shortcut's nested
+	// output container (e.g. +workbook-create --styles' {"cell_styles":{…}}) into
+	// the op input, but the op input is the shortcut's own flags flattened into
+	// JSON keys, not that wrapper. Left unflagged this surfaces far downstream as
+	// an unrelated "at least one style flag is required" (helpers.go), which never
+	// points at the real mistake.
+	for _, k := range wrappedSubOpInputKeys {
+		if _, has := input[k]; has {
+			return nil, sheetsValidationForFlag(
+				"operations",
+				`operations[%d] (%s): op input is the shortcut's flags flattened as JSON keys (e.g. "background_color": "#EBF1F8"); do not wrap in %s`,
+				index, sc, k,
+			)
+		}
+	}
 	// 拒绝任何额外的 sub-op 顶层 key（防御未来 schema drift / 用户笔误）。
 	for k := range op {
 		if k != "shortcut" && k != "input" {
@@ -410,7 +434,14 @@ func translateBatchOp(raw interface{}, token string, index int) (map[string]inte
 // matrix, on the operations axis.
 const maxBatchOperations = 100
 
-// translateBatchOperations 翻译整个 ops 数组；fail-fast，遇错立即返回。
+// batchOpErrorDisplayLimit bounds how many per-op validation failures ride
+// on one aggregated --operations error, mirroring the schema validator's
+// display cap.
+const batchOpErrorDisplayLimit = 5
+
+// translateBatchOperations 翻译整个 ops 数组。逐 op 校验并**收集全部失败**
+// 一次性返回（不再 fail-fast）——agent 一轮就能修完所有坏 op，而不是
+// 修一个、重试、再撞下一个。cell 安全上限仍是全局判定，命中即返回。
 func translateBatchOperations(rawOps []interface{}, token string) ([]interface{}, error) {
 	if len(rawOps) == 0 {
 		return nil, sheetsValidationForFlag("operations", "--operations must be a non-empty JSON array")
@@ -422,10 +453,15 @@ func translateBatchOperations(rawOps []interface{}, token string) ([]interface{}
 	}
 	out := make([]interface{}, 0, len(rawOps))
 	var totalCells int64
+	var opErrs []error
 	for i, raw := range rawOps {
 		translated, err := translateBatchOp(raw, token, i)
 		if err != nil {
-			return nil, err
+			opErrs = append(opErrs, err)
+			continue
+		}
+		if len(opErrs) > 0 {
+			continue // already failing — keep scanning for more bad ops, skip cell math.
 		}
 		totalCells += translatedCellCount(translated)
 		if totalCells > maxStampMatrixCells {
@@ -435,7 +471,27 @@ func translateBatchOperations(rawOps []interface{}, token string) ([]interface{}
 		}
 		out = append(out, translated)
 	}
-	return out, nil
+	switch len(opErrs) {
+	case 0:
+		return out, nil
+	case 1:
+		return nil, opErrs[0] // single failure keeps the historical error byte-for-byte.
+	}
+	shown := opErrs
+	truncated := false
+	if len(shown) > batchOpErrorDisplayLimit {
+		shown = shown[:batchOpErrorDisplayLimit]
+		truncated = true
+	}
+	parts := make([]string, 0, len(shown))
+	for i, e := range shown {
+		parts = append(parts, fmt.Sprintf("%d) %s", i+1, e.Error()))
+	}
+	msg := fmt.Sprintf("%d of %d operations failed validation: %s", len(opErrs), len(rawOps), strings.Join(parts, "; "))
+	if truncated {
+		msg += fmt.Sprintf("; (%d more not shown — fix these first)", len(opErrs)-batchOpErrorDisplayLimit)
+	}
+	return nil, sheetsValidationForFlag("operations", "%s", msg).WithCause(opErrs[0])
 }
 
 func translatedCellCount(op map[string]interface{}) int64 {
