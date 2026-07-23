@@ -444,8 +444,18 @@ func serviceMethodRun(opts *ServiceMethodOptions) error {
 	checkErr := ac.CheckResponse
 
 	if opts.PageAll {
-		return client.PaginateToOutput(opts.Ctx, ac, request, format, opts.JqExpr, out, f.IOStreams.ErrOut, opts.Cmd.CommandPath(),
-			client.PaginationOptions{PageLimit: opts.PageLimit, PageDelay: opts.PageDelay}, checkErr, nil)
+		return client.PaginateToOutput(opts.Ctx, client.PaginateOutputOptions{
+			Client:      ac,
+			Request:     request,
+			Format:      format,
+			JqExpr:      opts.JqExpr,
+			Out:         out,
+			ErrOut:      f.IOStreams.ErrOut,
+			CommandPath: opts.Cmd.CommandPath(),
+			Pagination:  client.PaginationOptions{PageLimit: opts.PageLimit, PageDelay: opts.PageDelay},
+			CheckErr:    checkErr,
+			MarkErr:     nil,
+		})
 	}
 
 	resp, err := ac.DoAPI(opts.Ctx, request)

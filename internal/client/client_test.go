@@ -714,19 +714,13 @@ func TestCallAPI_ParseJSONFailureWrapsAsAPI(t *testing.T) {
 
 func TestPaginateToOutputRejectsUnsupportedInternalFormat(t *testing.T) {
 	for _, format := range []output.Format{output.FormatPretty, output.Format(99)} {
-		err := PaginateToOutput(
-			context.Background(),
-			nil,
-			RawApiRequest{},
-			format,
-			"",
-			io.Discard,
-			io.Discard,
-			"lark-cli fixture",
-			PaginationOptions{},
-			nil,
-			nil,
-		)
+		err := PaginateToOutput(context.Background(), PaginateOutputOptions{
+			Request:     RawApiRequest{},
+			Format:      format,
+			Out:         io.Discard,
+			ErrOut:      io.Discard,
+			CommandPath: "lark-cli fixture",
+		})
 		var internalErr *errs.InternalError
 		if !errors.As(err, &internalErr) {
 			t.Fatalf("format %q error = %T, want *errs.InternalError", format, err)

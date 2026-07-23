@@ -12,8 +12,34 @@ import (
 	"github.com/larksuite/cli/internal/output"
 )
 
+// PaginateOutputOptions bundles the inputs for PaginateToOutput. Grouping the
+// writers, callbacks, and pagination knobs into one struct keeps the call sites
+// readable and avoids positional-argument mistakes across the many parameters.
+type PaginateOutputOptions struct {
+	Client      *APIClient
+	Request     RawApiRequest
+	Format      output.Format
+	JqExpr      string
+	Out         io.Writer
+	ErrOut      io.Writer
+	CommandPath string
+	Pagination  PaginationOptions
+	CheckErr    func(interface{}, core.Identity) error
+	MarkErr     func(error) error
+}
+
 // PaginateToOutput fetches all requested pages and emits them in the selected format.
-func PaginateToOutput(ctx context.Context, ac *APIClient, request RawApiRequest, format output.Format, jqExpr string, out, errOut io.Writer, commandPath string, pagOpts PaginationOptions, checkErr func(interface{}, core.Identity) error, markErr func(error) error) error {
+func PaginateToOutput(ctx context.Context, opts PaginateOutputOptions) error {
+	ac := opts.Client
+	request := opts.Request
+	format := opts.Format
+	jqExpr := opts.JqExpr
+	out := opts.Out
+	errOut := opts.ErrOut
+	commandPath := opts.CommandPath
+	pagOpts := opts.Pagination
+	checkErr := opts.CheckErr
+	markErr := opts.MarkErr
 	if !format.Valid() || format == output.FormatPretty {
 		return errs.NewInternalError(errs.SubtypeUnknown,
 			"internal: unsupported pagination output format %q", format)

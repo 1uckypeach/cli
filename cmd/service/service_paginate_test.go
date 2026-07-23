@@ -66,6 +66,23 @@ func servicePaginateRequest() client.RawApiRequest {
 	}
 }
 
+// servicePaginate adapts the positional test calls to PaginateToOutput's options
+// struct so each test case stays a single readable statement.
+func servicePaginate(ctx context.Context, ac *client.APIClient, request client.RawApiRequest, format output.Format, jqExpr string, out, errOut io.Writer, commandPath string, pag client.PaginationOptions, checkErr func(interface{}, core.Identity) error, markErr func(error) error) error {
+	return client.PaginateToOutput(ctx, client.PaginateOutputOptions{
+		Client:      ac,
+		Request:     request,
+		Format:      format,
+		JqExpr:      jqExpr,
+		Out:         out,
+		ErrOut:      errOut,
+		CommandPath: commandPath,
+		Pagination:  pag,
+		CheckErr:    checkErr,
+		MarkErr:     markErr,
+	})
+}
+
 func assertServicePaginateJSONBytes(t *testing.T, got []byte, want interface{}) {
 	t.Helper()
 	wantBytes, err := json.MarshalIndent(want, "", "  ")
@@ -108,7 +125,7 @@ func TestServicePaginate_DefaultAggregatesAllPages(t *testing.T) {
 		})
 	}
 
-	err := client.PaginateToOutput(context.Background(), ac, servicePaginateRequest(),
+	err := servicePaginate(context.Background(), ac, servicePaginateRequest(),
 		output.FormatJSON, "", out, errOut, "lark-cli test items list", client.PaginationOptions{
 			PageLimit: 10,
 			PageDelay: -1,
@@ -191,7 +208,7 @@ func TestServicePaginate_StreamingFormatsEmitExactMultiPageBytes(t *testing.T) {
 				},
 			})
 
-			err := client.PaginateToOutput(context.Background(), ac, servicePaginateRequest(),
+			err := servicePaginate(context.Background(), ac, servicePaginateRequest(),
 				tt.format, "", out, errOut, "lark-cli test items list", client.PaginationOptions{
 					PageLimit: 10,
 					PageDelay: -1,
@@ -237,7 +254,7 @@ func TestServicePaginate_StreamingWriteFailureStopsFurtherPages(t *testing.T) {
 		})
 	}
 
-	err := client.PaginateToOutput(context.Background(), ac, servicePaginateRequest(),
+	err := servicePaginate(context.Background(), ac, servicePaginateRequest(),
 		output.FormatNDJSON, "", out, errOut, "lark-cli test items list",
 		client.PaginationOptions{PageLimit: 10, PageDelay: -1}, ac.CheckResponse, nil)
 
@@ -270,7 +287,7 @@ func TestServicePaginate_StreamingFormatHonorsNDJSONWithoutList(t *testing.T) {
 		},
 	})
 
-	err := client.PaginateToOutput(context.Background(), ac, servicePaginateRequest(),
+	err := servicePaginate(context.Background(), ac, servicePaginateRequest(),
 		output.FormatNDJSON, "", out, errOut, "lark-cli test items get",
 		client.PaginationOptions{PageDelay: -1}, ac.CheckResponse, nil)
 
@@ -309,7 +326,7 @@ func TestServicePaginate_BusinessErrorsWriteRawAndRemainUnmarked(t *testing.T) {
 				Body: businessResponse,
 			})
 
-			err := client.PaginateToOutput(context.Background(), ac, servicePaginateRequest(),
+			err := servicePaginate(context.Background(), ac, servicePaginateRequest(),
 				tt.format, tt.jqExpr, out, errOut, "lark-cli test items list",
 				client.PaginationOptions{PageDelay: -1}, ac.CheckResponse, nil)
 
@@ -345,7 +362,7 @@ func TestServicePaginate_TransportErrorsRemainUnmarked(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ac, out, errOut, _ := newServicePaginateTestHarness(t)
 
-			err := client.PaginateToOutput(context.Background(), ac, servicePaginateRequest(),
+			err := servicePaginate(context.Background(), ac, servicePaginateRequest(),
 				tt.format, tt.jqExpr, out, errOut, "lark-cli test items list",
 				client.PaginationOptions{PageDelay: -1}, ac.CheckResponse, nil)
 
@@ -376,7 +393,7 @@ func TestServicePaginate_StreamBusinessErrorRemainsUnmarked(t *testing.T) {
 		},
 	})
 
-	err := client.PaginateToOutput(context.Background(), ac, servicePaginateRequest(),
+	err := servicePaginate(context.Background(), ac, servicePaginateRequest(),
 		output.FormatNDJSON, "", out, errOut, "lark-cli test items list",
 		client.PaginationOptions{PageDelay: -1}, ac.CheckResponse, nil)
 
