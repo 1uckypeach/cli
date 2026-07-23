@@ -10,6 +10,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -36,8 +37,9 @@ type contractSafetyProvider struct {
 }
 
 type truncatingContractSafetyProvider struct {
-	alert *extcs.Alert
-	match string
+	alert   *extcs.Alert
+	match   string
+	pattern *regexp.Regexp
 }
 
 func (p *truncatingContractSafetyProvider) Name() string {
@@ -51,8 +53,11 @@ func (p *truncatingContractSafetyProvider) Scan(_ context.Context, req extcs.Sca
 	containsMatch = func(data any) bool {
 		switch value := data.(type) {
 		case string:
-			if len(value) > perStringCap {
+			if !req.FullText && len(value) > perStringCap {
 				value = value[:perStringCap]
+			}
+			if p.pattern != nil {
+				return p.pattern.MatchString(value)
 			}
 			return strings.Contains(value, p.match)
 		case []any:
@@ -68,6 +73,20 @@ func (p *truncatingContractSafetyProvider) Scan(_ context.Context, req extcs.Sca
 		return nil, nil
 	}
 	return p.alert, nil
+}
+
+type failingContractSafetyProvider struct {
+	err   error
+	calls int
+}
+
+func (p *failingContractSafetyProvider) Name() string {
+	return "failing-emitter-contract"
+}
+
+func (p *failingContractSafetyProvider) Scan(context.Context, extcs.ScanRequest) (*extcs.Alert, error) {
+	p.calls++
+	return nil, p.err
 }
 
 func (p *contractSafetyProvider) Name() string {
@@ -230,11 +249,9 @@ func TestEmitterPrettyBlockScansRenderedTextBeforeWriting(t *testing.T) {
 	}
 }
 
-func TestEmitterPrettyBlockDetectsLongMatchPastFirstScanWindow(t *testing.T) {
+func TestEmitterPrettyBlockDetectsLongMatchBeyondStructuredStringCap(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
 	const nativePerStringCap = 128 << 10
-	// The match starts after the first native-capacity window and is longer than
-	// the old 64 KiB window. A native-capacity later window must retain it whole.
 	match := strings.Repeat("blocked", 10<<10)
 	rendered := strings.Repeat("a", nativePerStringCap+1) + match + "\n"
 	provider := &truncatingContractSafetyProvider{
@@ -266,6 +283,135 @@ func TestEmitterPrettyBlockDetectsLongMatchPastFirstScanWindow(t *testing.T) {
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("Emitter.Success() wrote %d stdout bytes, want empty", stdout.Len())
+	}
+}
+
+func TestEmitterPrettyBlockDetectsInstructionOverrideAcrossFormerWindowBoundary(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	rendered := strings.Repeat("a", 124*1024-len("ignore")) +
+		"ignore" +
+		strings.Repeat(" ", 4*1024) +
+		"previous instructions"
+	provider := &truncatingContractSafetyProvider{
+		alert: &extcs.Alert{
+			Provider:     "truncating-emitter-contract",
+			MatchedRules: []string{"instruction_override"},
+		},
+		pattern: regexp.MustCompile(`(?i)ignore\s+(all\s+|any\s+|the\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?|directives?)`),
+	}
+	extcs.Register(provider)
+	t.Cleanup(func() { extcs.Register(nil) })
+	stdout := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      io.Discard,
+		CommandPath: "lark-cli fixture +emit",
+	})
+
+	err := emitter.Success(nil, output.EmitOptions{
+		Format: output.FormatPretty,
+		Pretty: func(w io.Writer, _ bool) error {
+			_, writeErr := io.WriteString(w, rendered)
+			return writeErr
+		},
+	})
+	var safetyErr *errs.ContentSafetyError
+	if !errors.As(err, &safetyErr) {
+		t.Fatalf("Emitter.Success() error = %T, want *errs.ContentSafetyError", err)
+	}
+	if !reflect.DeepEqual(safetyErr.Rules, []string{"instruction_override"}) {
+		t.Fatalf("Emitter.Success() matched rules = %v, want [instruction_override]", safetyErr.Rules)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("Emitter.Success() wrote %d stdout bytes, want empty", stdout.Len())
+	}
+}
+
+func TestEmitterPrettyFullTextPreservesRegexBoundarySemantics(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	const formerWindowBytes = 128 << 10
+	rendered := strings.Repeat("a", formerWindowBytes-len("blocked")) + "blocked" + "suffix"
+	provider := &truncatingContractSafetyProvider{
+		alert: &extcs.Alert{
+			Provider:     "truncating-emitter-contract",
+			MatchedRules: []string{"anchored_suffix"},
+		},
+		pattern: regexp.MustCompile(`blocked$`),
+	}
+	extcs.Register(provider)
+	t.Cleanup(func() { extcs.Register(nil) })
+	stdout := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      io.Discard,
+		CommandPath: "lark-cli fixture +emit",
+	})
+
+	err := emitter.Success(nil, output.EmitOptions{
+		Format: output.FormatPretty,
+		Pretty: func(w io.Writer, _ bool) error {
+			_, writeErr := io.WriteString(w, rendered)
+			return writeErr
+		},
+	})
+	if err != nil {
+		t.Fatalf("Emitter.Success() error = %v, want nil", err)
+	}
+	if stdout.String() != rendered {
+		t.Fatalf("Emitter.Success() wrote %d bytes, want %d", stdout.Len(), len(rendered))
+	}
+}
+
+func TestEmitterScanErrorModeBehavior(t *testing.T) {
+	tests := []struct {
+		name        string
+		mode        string
+		wantBlocked bool
+		wantCalls   int
+	}{
+		{name: "block fails closed", mode: "block", wantBlocked: true, wantCalls: 1},
+		{name: "warn fails open", mode: "warn", wantCalls: 1},
+		{name: "off skips scan", mode: "off"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", tt.mode)
+			provider := &failingContractSafetyProvider{err: errors.New("scanner unavailable")}
+			extcs.Register(provider)
+			t.Cleanup(func() { extcs.Register(nil) })
+			stdout := &bytes.Buffer{}
+			emitter := output.NewEmitter(output.EmitterConfig{
+				Out:         stdout,
+				ErrOut:      io.Discard,
+				CommandPath: "lark-cli fixture +emit",
+				Identity:    "bot",
+			})
+
+			err := emitter.Success(map[string]any{"id": "1"}, output.EmitOptions{Format: output.FormatJSON})
+			if tt.wantBlocked {
+				var safetyErr *errs.ContentSafetyError
+				if !errors.As(err, &safetyErr) {
+					t.Fatalf("Emitter.Success() error = %T, want *errs.ContentSafetyError", err)
+				}
+				if !strings.Contains(err.Error(), "scan did not complete") {
+					t.Fatalf("Emitter.Success() error = %v, want scan-incomplete message", err)
+				}
+				if stdout.Len() != 0 {
+					t.Fatalf("Emitter.Success() stdout = %q, want empty", stdout.String())
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("Emitter.Success() error = %v, want nil", err)
+				}
+				if stdout.Len() == 0 {
+					t.Fatal("Emitter.Success() stdout is empty, want emitted output")
+				}
+			}
+			if provider.calls != tt.wantCalls {
+				t.Fatalf("content safety provider calls = %d, want %d", provider.calls, tt.wantCalls)
+			}
+		})
 	}
 }
 

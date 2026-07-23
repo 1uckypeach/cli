@@ -19,7 +19,8 @@ type rule struct {
 }
 
 type scanner struct {
-	rules []rule
+	rules    []rule
+	fullText bool
 }
 
 func (s *scanner) walk(ctx context.Context, v any, hits map[string]struct{}, depth int) {
@@ -44,7 +45,7 @@ func (s *scanner) walk(ctx context.Context, v any, hits map[string]struct{}, dep
 }
 
 func (s *scanner) scanString(text string, hits map[string]struct{}) {
-	if len(text) > maxStringBytes {
+	if !s.fullText && len(text) > maxStringBytes {
 		text = text[:maxStringBytes]
 	}
 	for _, r := range s.rules {

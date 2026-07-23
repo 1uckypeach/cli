@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	extcs "github.com/larksuite/cli/extension/contentsafety"
@@ -138,6 +139,40 @@ func TestProvider_ScanNestedData(t *testing.T) {
 	}
 	if alert == nil || len(alert.MatchedRules) == 0 {
 		t.Error("expected to detect <system> in nested data")
+	}
+}
+
+func TestProvider_FullTextBypassesPerStringCap(t *testing.T) {
+	dir := writeTestConfig(t, `{
+		"allowlist": ["all"],
+		"rules": [{"id": "tail", "pattern": "TAIL_MARKER"}]
+	}`)
+	p := &regexProvider{configDir: dir}
+	text := strings.Repeat("x", maxStringBytes+1) + "TAIL_MARKER"
+
+	alert, err := p.Scan(context.Background(), extcs.ScanRequest{
+		Path:   "test",
+		Data:   text,
+		ErrOut: io.Discard,
+	})
+	if err != nil {
+		t.Fatalf("Scan() structured-data error = %v", err)
+	}
+	if alert != nil {
+		t.Fatalf("structured-data scan should retain the per-string cap, got %v", alert)
+	}
+
+	alert, err = p.Scan(context.Background(), extcs.ScanRequest{
+		Path:     "test",
+		Data:     text,
+		ErrOut:   io.Discard,
+		FullText: true,
+	})
+	if err != nil {
+		t.Fatalf("Scan() full-text error = %v", err)
+	}
+	if alert == nil || len(alert.MatchedRules) != 1 || alert.MatchedRules[0] != "tail" {
+		t.Fatalf("full-text scan alert = %v, want tail match", alert)
 	}
 }
 

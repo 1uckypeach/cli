@@ -232,9 +232,6 @@ func apiRun(opts *APIOptions) error {
 				errs.InvalidParam{Name: "--page-all", Reason: "conflicts with --output"},
 			)
 	}
-	if err := output.ValidateJqFlags(opts.JqExpr, opts.Output, opts.Format); err != nil {
-		return err
-	}
 	// Parse before the dry-run branch so both dry-run and emit reject unknown
 	// values. Raw API responses accept four formats; pretty remains available
 	// only for the dry-run request preview handled below.
@@ -243,6 +240,9 @@ func apiRun(opts *APIOptions) error {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument,
 			"unknown output format %q (want json, ndjson, table, or csv)", opts.Format).
 			WithParam("--format")
+	}
+	if err := output.ValidateJqFlags(opts.JqExpr, opts.Output, opts.Format); err != nil {
+		return err
 	}
 
 	request, fileMeta, err := buildAPIRequest(opts)

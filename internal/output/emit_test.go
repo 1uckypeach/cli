@@ -102,36 +102,79 @@ func TestScanForSafety_NoProvider(t *testing.T) {
 	}
 }
 
-func TestScanForSafety_ScanError_FailOpen(t *testing.T) {
-	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
-	mp := &mockProvider{name: "mock", err: errors.New("scan broke")}
-	extcs.Register(mp)
-	defer extcs.Register(nil)
+func TestScanForSafety_ScanError_ModeBehavior(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		mode        string
+		wantBlocked bool
+		wantWarning bool
+	}{
+		{name: "block fails closed", mode: "block", wantBlocked: true, wantWarning: true},
+		{name: "warn fails open", mode: "warn", wantWarning: true},
+		{name: "off skips scan", mode: "off"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", tt.mode)
+			mp := &mockProvider{name: "mock", err: errors.New("scan broke")}
+			extcs.Register(mp)
+			t.Cleanup(func() { extcs.Register(nil) })
 
-	var buf bytes.Buffer
-	result := ScanForSafety("lark-cli im +test", map[string]any{}, &buf)
-	if result.Blocked {
-		t.Error("scan error should fail-open, not block")
-	}
-	if !strings.Contains(buf.String(), "scan error") {
-		t.Errorf("expected warning on stderr, got: %s", buf.String())
+			var buf bytes.Buffer
+			result := ScanForSafety("lark-cli im +test", map[string]any{}, &buf)
+			if result.Blocked != tt.wantBlocked {
+				t.Fatalf("Blocked = %v, want %v", result.Blocked, tt.wantBlocked)
+			}
+			if tt.wantBlocked {
+				var safetyErr *errs.ContentSafetyError
+				if !errors.As(result.BlockErr, &safetyErr) {
+					t.Fatalf("BlockErr = %T, want *errs.ContentSafetyError", result.BlockErr)
+				}
+				if !strings.Contains(safetyErr.Message, "scan did not complete") {
+					t.Fatalf("BlockErr message = %q, want scan-incomplete message", safetyErr.Message)
+				}
+				if !errors.Is(result.BlockErr, errScanIncomplete) {
+					t.Fatal("BlockErr should preserve errScanIncomplete cause")
+				}
+			}
+			if got := strings.Contains(buf.String(), "scan error"); got != tt.wantWarning {
+				t.Fatalf("scan warning present = %v, want %v; stderr=%q", got, tt.wantWarning, buf.String())
+			}
+		})
 	}
 }
 
-func TestScanForSafety_SlowProvider_Timeout_FailOpen(t *testing.T) {
-	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+func TestScanForSafety_SlowProvider_TimeoutModeBehavior(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		mode        string
+		wantBlocked bool
+	}{
+		{name: "block fails closed", mode: "block", wantBlocked: true},
+		{name: "warn fails open", mode: "warn"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", tt.mode)
+			extcs.Register(&slowProvider{})
+			t.Cleanup(func() { extcs.Register(nil) })
 
-	slow := &slowProvider{}
-	extcs.Register(slow)
-	defer extcs.Register(nil)
-
-	var buf bytes.Buffer
-	result := ScanForSafety("lark-cli im +test", map[string]any{}, &buf)
-	if result.Blocked {
-		t.Error("slow provider should fail-open on timeout, not block")
-	}
-	if result.Alert != nil {
-		t.Error("slow provider should return nil alert on timeout")
+			var buf bytes.Buffer
+			result := ScanForSafety("lark-cli im +test", map[string]any{}, &buf)
+			if result.Blocked != tt.wantBlocked {
+				t.Fatalf("Blocked = %v, want %v", result.Blocked, tt.wantBlocked)
+			}
+			if result.Alert != nil {
+				t.Error("slow provider should return nil alert on timeout")
+			}
+			if tt.wantBlocked {
+				var safetyErr *errs.ContentSafetyError
+				if !errors.As(result.BlockErr, &safetyErr) {
+					t.Fatalf("BlockErr = %T, want *errs.ContentSafetyError", result.BlockErr)
+				}
+				if !strings.Contains(safetyErr.Message, "did not complete in time") {
+					t.Fatalf("BlockErr message = %q, want timeout message", safetyErr.Message)
+				}
+			}
+		})
 	}
 }
 

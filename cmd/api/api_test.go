@@ -137,7 +137,7 @@ func TestApiCmd_UnknownFormat_Rejected(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected a validation error for unknown --format")
 			}
-			requireProblem(t, err, errs.CategoryValidation, errs.SubtypeInvalidArgument, 0)
+			requireValidationParam(t, err, "--format")
 			if !strings.Contains(err.Error(), "unknown output format") {
 				t.Errorf("error = %v, want unknown-format message", err)
 			}
@@ -148,6 +148,29 @@ func TestApiCmd_UnknownFormat_Rejected(t *testing.T) {
 				t.Errorf("unknown --format must not write stdout, got:\n%s", stdout.String())
 			}
 		})
+	}
+}
+
+func TestApiCmd_UnknownFormatPrecedesJqConflict(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+	})
+	cmd := newTestApiCmd(f, nil)
+	cmd.SetArgs([]string{
+		"GET", "/open-apis/test", "--as", "bot",
+		"--format", "tabel", "--jq", ".",
+	})
+
+	err := cmd.Execute()
+	requireValidationParam(t, err, "--format")
+	if !strings.Contains(err.Error(), "unknown output format") {
+		t.Fatalf("error = %v, want unknown-format message", err)
+	}
+	if strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("error = %v, unknown format should be reported before jq conflict", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("unknown --format wrote stdout:\n%s", stdout.String())
 	}
 }
 
@@ -163,7 +186,7 @@ func TestApiCmd_Pretty_RejectedOnEmit(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a validation error for --format pretty on the emit path")
 	}
-	requireProblem(t, err, errs.CategoryValidation, errs.SubtypeInvalidArgument, 0)
+	requireValidationParam(t, err, "--format")
 	if !strings.Contains(err.Error(), "pretty") {
 		t.Errorf("error = %v, want pretty-not-supported message", err)
 	}
@@ -851,6 +874,18 @@ func requireProblem(t *testing.T, err error, category errs.Category, subtype err
 	}
 	if p.Category != category || p.Subtype != subtype || p.Code != code {
 		t.Fatalf("problem = %s/%s/%d, want %s/%s/%d", p.Category, p.Subtype, p.Code, category, subtype, code)
+	}
+}
+
+func requireValidationParam(t *testing.T, err error, param string) {
+	t.Helper()
+	requireProblem(t, err, errs.CategoryValidation, errs.SubtypeInvalidArgument, 0)
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected *errs.ValidationError, got %T: %v", err, err)
+	}
+	if validationErr.Param != param {
+		t.Fatalf("Param = %q, want %q", validationErr.Param, param)
 	}
 }
 

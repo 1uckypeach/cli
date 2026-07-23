@@ -882,18 +882,16 @@ func (s Shortcut) mountDeclarative(ctx context.Context, parent *cobra.Command, f
 // runShortcut is the execution pipeline for a declarative shortcut.
 // Each step is a clear phase: identity → config → scopes → context → validate → execute.
 func runShortcut(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, botOnly bool) error {
-	// --print-schema short-circuits everything below: it's pure local
-	// introspection, no identity / scope / network needed. The flag is
-	// only registered when the shortcut opts in via PrintFlagSchema.
 	if s.PrintFlagSchema != nil {
 		if want, _ := cmd.Flags().GetBool("print-schema"); want {
+			if !shortcutDeclaresFormatFlag(s) {
+				if _, err := canonicalizeFrameworkFormatFlag(cmd); err != nil {
+					return err
+				}
+			}
 			flagName, _ := cmd.Flags().GetString("flag-name")
 			out, err := s.PrintFlagSchema(strings.TrimSpace(flagName))
 			if err != nil {
-				// PrintFlagSchema implementations return bare errors; wrap as a
-				// typed validation error so --print-schema (an agent-facing
-				// introspection path) yields a parseable envelope, not a plain
-				// string.
 				if !errs.IsTyped(err) {
 					err = errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", err.Error()).WithCause(err)
 				}
@@ -934,28 +932,15 @@ func runShortcut(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, botOnly bo
 	if err := resolveInputFlags(rctx, s.Flags); err != nil {
 		return err
 	}
-	if err := output.ValidateJqFlags(rctx.JqExpr, "", rctx.Format); err != nil {
-		return err
-	}
-	// Reject an unknown --format as a typed error before the shortcut runs, so
-	// neither the emit path nor dry-run degrades to JSON. This enforces the
-	// framework format contract (json | ndjson | table | csv | pretty) and so
-	// applies only to the framework-injected flag. A shortcut that declares its
-	// own format flag (e.g. base +record-list's markdown|json, mail +watch's
-	// json|data) owns a different enum, already validated by validateEnumFlags.
 	if !shortcutDeclaresFormatFlag(s) {
-		format, err := output.ParseFormatStrict(rctx.Format)
+		canonicalFormat, err := canonicalizeFrameworkFormatFlag(rctx.Cmd)
 		if err != nil {
 			return err
 		}
-		canonicalFormat := format.String()
-		if rctx.Str("format") != canonicalFormat {
-			if err := rctx.Cmd.Flags().Set("format", canonicalFormat); err != nil {
-				return errs.NewInternalError(errs.SubtypeUnknown,
-					"failed to canonicalize the framework --format value").WithCause(err)
-			}
-		}
 		rctx.Format = canonicalFormat
+	}
+	if err := output.ValidateJqFlags(rctx.JqExpr, "", rctx.Format); err != nil {
+		return err
 	}
 	if s.Validate != nil {
 		if err := s.Validate(rctx.ctx, rctx); err != nil {
@@ -1203,12 +1188,6 @@ func shortcutDeclaresJSONFlag(s *Shortcut) bool {
 	return false
 }
 
-// shortcutDeclaresFormatFlag reports whether the shortcut itself declares a flag
-// named "format" in its Flags list (e.g. base +record-list's markdown|json or
-// mail +watch's json|data), as opposed to the framework-injected --format.
-// Self-declared format flags own their enum (enforced by validateEnumFlags) and
-// must not be run through the framework's strict json|ndjson|table|csv|pretty
-// contract.
 func shortcutDeclaresFormatFlag(s *Shortcut) bool {
 	for _, fl := range s.Flags {
 		if fl.Name == "format" {
@@ -1216,6 +1195,26 @@ func shortcutDeclaresFormatFlag(s *Shortcut) bool {
 		}
 	}
 	return false
+}
+
+func canonicalizeFrameworkFormatFlag(cmd *cobra.Command) (string, error) {
+	raw, err := cmd.Flags().GetString("format")
+	if err != nil {
+		return "", errs.NewInternalError(errs.SubtypeUnknown,
+			"failed to read the framework --format value").WithCause(err)
+	}
+	format, err := output.ParseFormatStrict(raw)
+	if err != nil {
+		return "", err
+	}
+	canonical := format.String()
+	if raw != canonical {
+		if err := cmd.Flags().Set("format", canonical); err != nil {
+			return "", errs.NewInternalError(errs.SubtypeUnknown,
+				"failed to canonicalize the framework --format value").WithCause(err)
+		}
+	}
+	return canonical, nil
 }
 
 // shortcutFormatSupportsJSON reports whether the command's format flag accepts

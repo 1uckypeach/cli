@@ -246,12 +246,15 @@ func TestRunShortcut_JqAndFormatConflict(t *testing.T) {
 			return nil
 		},
 	}
-	cmd := newTestShortcutCmd(s, newTestFactory())
+	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test", AppSecret: "test", Brand: core.BrandFeishu,
+	})
+	cmd := newTestShortcutCmd(s, f)
 	cmd.Flags().Set("jq", ".data")
 	cmd.Flags().Set("format", "table")
 	cmd.Flags().Set("as", "bot")
 
-	err := runShortcut(cmd, newTestFactory(), s, true)
+	err := runShortcut(cmd, f, s, true)
 	if err == nil {
 		t.Fatal("expected error for --jq + --format table conflict")
 	}
@@ -411,7 +414,9 @@ func TestRunShortcut_UnknownFormatErrorIncludesPretty(t *testing.T) {
 			return nil
 		},
 	}
-	f := newTestFactory()
+	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test", AppSecret: "test", Brand: core.BrandFeishu,
+	})
 	cmd := newTestShortcutCmd(s, f)
 	cmd.Flags().Set("format", "tabel")
 	cmd.Flags().Set("as", "bot")
@@ -420,11 +425,80 @@ func TestRunShortcut_UnknownFormatErrorIncludesPretty(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a validation error for unknown --format")
 	}
-	assertValidationParam(t, err, "--format")
+	validationErr := requireValidation(t, err, "unknown output format")
+	if validationErr.Param != "--format" {
+		t.Fatalf("Param = %q, want --format", validationErr.Param)
+	}
 	if !strings.Contains(strings.ToLower(err.Error()), "pretty") {
 		t.Fatalf("shortcut unknown-format error = %v, want pretty in allowed choices", err)
 	}
-	if stdout := f.IOStreams.Out.(*bytes.Buffer); stdout.Len() != 0 {
+	if stdout.Len() != 0 {
+		t.Fatalf("unknown --format wrote stdout:\n%s", stdout.String())
+	}
+}
+
+func TestRunShortcut_PrintSchemaRejectsUnknownFrameworkFormat(t *testing.T) {
+	schemaCalled := false
+	s := &Shortcut{
+		Service:   "test",
+		Command:   "test-shortcut",
+		AuthTypes: []string{"bot"},
+		PrintFlagSchema: func(string) ([]byte, error) {
+			schemaCalled = true
+			return []byte(`{"type":"object"}`), nil
+		},
+		Execute: func(context.Context, *RuntimeContext) error {
+			t.Fatal("Execute should not run for --print-schema")
+			return nil
+		},
+	}
+	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test", AppSecret: "test", Brand: core.BrandFeishu,
+	})
+	cmd := newTestShortcutCmd(s, f)
+	cmd.Flags().Set("print-schema", "true")
+	cmd.Flags().Set("format", "tabel")
+
+	err := runShortcut(cmd, f, s, false)
+	validationErr := requireValidation(t, err, "unknown output format")
+	if validationErr.Param != "--format" {
+		t.Fatalf("Param = %q, want --format", validationErr.Param)
+	}
+	if schemaCalled {
+		t.Fatal("PrintFlagSchema should not run after an invalid framework --format")
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("invalid --format wrote schema to stdout:\n%s", stdout.String())
+	}
+}
+
+func TestRunShortcut_UnknownFormatPrecedesJqConflict(t *testing.T) {
+	s := &Shortcut{
+		Service:   "test",
+		Command:   "test-shortcut",
+		AuthTypes: []string{"bot"},
+		Execute: func(context.Context, *RuntimeContext) error {
+			t.Fatal("Execute should not run for an unknown format")
+			return nil
+		},
+	}
+	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test", AppSecret: "test", Brand: core.BrandFeishu,
+	})
+	cmd := newTestShortcutCmd(s, f)
+	cmd.Flags().Set("format", "tabel")
+	cmd.Flags().Set("jq", ".")
+	cmd.Flags().Set("as", "bot")
+
+	err := runShortcut(cmd, f, s, false)
+	validationErr := requireValidation(t, err, "unknown output format")
+	if validationErr.Param != "--format" {
+		t.Fatalf("Param = %q, want --format", validationErr.Param)
+	}
+	if strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("error = %v, unknown format should be reported before jq conflict", err)
+	}
+	if stdout.Len() != 0 {
 		t.Fatalf("unknown --format wrote stdout:\n%s", stdout.String())
 	}
 }

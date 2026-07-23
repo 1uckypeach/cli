@@ -4,6 +4,7 @@
 package output
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -20,12 +21,18 @@ type ScanResult struct {
 	BlockErr error
 }
 
-// ScanForSafety runs content-safety scanning on the given data.
-// cmdPath is the raw cobra CommandPath().
-// When MODE=off, no provider registered, or the command is not allowlisted,
-// returns a zero ScanResult.
+// ScanForSafety scans structured response data.
 func ScanForSafety(cmdPath string, data any, errOut io.Writer) ScanResult {
-	alert, csErr := runContentSafety(cmdPath, data, errOut)
+	return scanForSafety(cmdPath, data, errOut, false)
+}
+
+// ScanRenderedText scans a complete rendered-output string.
+func ScanRenderedText(cmdPath, text string, errOut io.Writer) ScanResult {
+	return scanForSafety(cmdPath, text, errOut, true)
+}
+
+func scanForSafety(cmdPath string, data any, errOut io.Writer, fullText bool) ScanResult {
+	alert, csErr := runContentSafety(cmdPath, data, errOut, fullText)
 	if errors.Is(csErr, errBlocked) {
 		return ScanResult{
 			Alert:    alert,
@@ -33,10 +40,15 @@ func ScanForSafety(cmdPath string, data any, errOut io.Writer) ScanResult {
 			BlockErr: wrapBlockError(alert),
 		}
 	}
+	if errors.Is(csErr, errScanIncomplete) {
+		return ScanResult{
+			Blocked:  true,
+			BlockErr: wrapScanIncompleteError(csErr),
+		}
+	}
 	return ScanResult{Alert: alert}
 }
 
-// wrapBlockError creates a typed error for content-safety block.
 func wrapBlockError(alert *extcs.Alert) error {
 	var matchedRules []string
 	if alert != nil {
@@ -48,8 +60,16 @@ func wrapBlockError(alert *extcs.Alert) error {
 		WithCause(errBlocked)
 }
 
-// WriteAlertWarning writes a human-readable content-safety warning to w.
-// Used by non-JSON output paths (pretty, table, csv) in warn mode.
+func wrapScanIncompleteError(cause error) error {
+	message := "content-safety scan did not complete; blocked (block mode)"
+	if errors.Is(cause, context.DeadlineExceeded) {
+		message = "content-safety scan did not complete in time; blocked (block mode)"
+	}
+	return errs.NewContentSafetyError(errs.SubtypeContentSafety, "%s", message).
+		WithCause(cause)
+}
+
+// WriteAlertWarning writes a content-safety warning.
 func WriteAlertWarning(w io.Writer, alert *extcs.Alert) error {
 	if alert == nil {
 		return nil

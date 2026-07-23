@@ -45,6 +45,23 @@ func TestScanString_Truncate(t *testing.T) {
 	}
 }
 
+func TestScanString_FullTextDoesNotTruncate(t *testing.T) {
+	s := &scanner{
+		rules:    []rule{testRule("tail", `TAIL_MARKER`)},
+		fullText: true,
+	}
+	big := make([]byte, maxStringBytes+100)
+	for i := range big {
+		big[i] = 'x'
+	}
+	copy(big[maxStringBytes+10:], "TAIL_MARKER")
+	hits := make(map[string]struct{})
+	s.scanString(string(big), hits)
+	if _, ok := hits["tail"]; !ok {
+		t.Error("full-text scan should match marker beyond maxStringBytes")
+	}
+}
+
 func TestScanString_SkipsDuplicate(t *testing.T) {
 	s := &scanner{rules: []rule{testRule("r1", `match`)}}
 	hits := map[string]struct{}{"r1": {}}

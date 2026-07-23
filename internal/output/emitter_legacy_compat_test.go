@@ -249,12 +249,22 @@ func TestEmitterMatchesRuntimeContextLegacyOracle(t *testing.T) {
 			},
 		},
 		{
-			name: "scanner_error_fails_open",
+			name: "scanner_error_warn_mode_fails_open",
 			data: func() interface{} {
 				return map[string]interface{}{"id": "1"}
 			},
 			ok:         true,
 			safetyMode: "warn",
+			safetyErr:  errors.New("scanner unavailable"),
+		},
+		// Block mode intentionally fails closed when scanning errors.
+		{
+			name: "scanner_error_block_mode_fails_closed",
+			data: func() interface{} {
+				return map[string]interface{}{"id": "1"}
+			},
+			ok:         false,
+			safetyMode: "block",
 			safetyErr:  errors.New("scanner unavailable"),
 		},
 		{

@@ -91,7 +91,21 @@
         "exit_code": 6
       }
     },
-    "scanner_error_fails_open": {
+    "scanner_error_block_mode_fails_closed": {
+      "stdout": "",
+      "stderr": "warning: content safety scan error: scanner unavailable\n",
+      "error": {
+        "go_type": "*errs.ContentSafetyError",
+        "json": {
+          "type": "policy",
+          "subtype": "content_safety",
+          "message": "content-safety scan did not complete; blocked (block mode)"
+        },
+        "message": "content-safety scan did not complete; blocked (block mode)",
+        "exit_code": 6
+      }
+    },
+    "scanner_error_warn_mode_fails_open": {
       "stdout": "{\n  \"ok\": true,\n  \"identity\": \"bot\",\n  \"data\": {\n    \"id\": \"1\"\n  }\n}\n",
       "stderr": "warning: content safety scan error: scanner unavailable\n"
     },

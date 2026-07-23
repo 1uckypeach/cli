@@ -11,14 +11,6 @@ import (
 	"github.com/larksuite/cli/errs"
 )
 
-const (
-	// Match the native content-safety scanner's 128 KiB per-string capacity so
-	// rendered-output scanning does not impose a smaller regex match window.
-	// The overlap keeps realistic rule matches visible across window boundaries.
-	prettySafetyScanWindowBytes  = 128 << 10
-	prettySafetyScanOverlapBytes = 4 << 10
-)
-
 // NoticeProvider supplies the notice attached to a structured envelope.
 // The provider is captured by an Emitter so emission never reads the global
 // PendingNotice hook implicitly.
@@ -250,7 +242,7 @@ func (e *Emitter) emitPrettyRenderer(renderer PrettyRenderer) error {
 	}
 
 	rendered := buf.String()
-	scanResult := ScanForSafety(e.commandPath, prettySafetyScanData(rendered), e.errOut)
+	scanResult := ScanRenderedText(e.commandPath, rendered, e.errOut)
 	if scanResult.Blocked {
 		return scanResult.BlockErr
 	}
@@ -263,23 +255,6 @@ func (e *Emitter) emitPrettyRenderer(renderer PrettyRenderer) error {
 		return wrapOutputError("write", err)
 	}
 	return nil
-}
-
-func prettySafetyScanData(rendered string) any {
-	if len(rendered) <= prettySafetyScanWindowBytes {
-		return rendered
-	}
-
-	step := prettySafetyScanWindowBytes - prettySafetyScanOverlapBytes
-	windows := make([]any, 0, (len(rendered)+step-1)/step)
-	for start := 0; start < len(rendered); start += step {
-		end := min(start+prettySafetyScanWindowBytes, len(rendered))
-		windows = append(windows, rendered[start:end])
-		if end == len(rendered) {
-			break
-		}
-	}
-	return windows
 }
 
 // emitFormatted renders naked business data for the non-envelope formats
