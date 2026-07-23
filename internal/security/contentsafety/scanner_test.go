@@ -88,6 +88,20 @@ func TestWalk_NestedMap(t *testing.T) {
 	}
 }
 
+func TestWalk_ScansMapKeys(t *testing.T) {
+	// JSON/NDJSON/table/CSV all emit map keys, so a rule match hiding in a key
+	// must be scanned too — not only the value.
+	s := &scanner{rules: []rule{testRule("found", `(?i)inject`)}}
+	data := map[string]any{"please inject this": "harmless value"}
+	hits := make(map[string]struct{})
+	if err := s.walk(context.Background(), data, hits, 0); err != nil {
+		t.Fatalf("walk() error = %v", err)
+	}
+	if _, ok := hits["found"]; !ok {
+		t.Error("expected to match a rule hiding in a map key")
+	}
+}
+
 func TestWalk_Array(t *testing.T) {
 	s := &scanner{rules: []rule{testRule("found", `(?i)inject`)}}
 	hits := make(map[string]struct{})

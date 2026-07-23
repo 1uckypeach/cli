@@ -198,6 +198,12 @@ func TestEmitterInvalidFormatReturnsInternalErrorWithoutOutput(t *testing.T) {
 				return emitter.StreamPage(map[string]interface{}{"id": "1"}, output.StreamOptions{Format: output.Format(99)})
 			},
 		},
+		{
+			name: "partial failure",
+			emit: func(emitter *output.Emitter) error {
+				return emitter.PartialFailure(map[string]interface{}{"id": "1"}, output.EmitOptions{Format: output.Format(99)})
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -343,7 +349,7 @@ func TestEmitterStreamPagePrettyWithoutRendererFallsBackToNDJSONWithSingleWarnin
 	if stdout.String() != wantStdout {
 		t.Fatalf("Emitter.StreamPage() stdout = %q, want %q", stdout.String(), wantStdout)
 	}
-	const wantStderr = "warning: --format pretty is not supported by this command; showing JSON instead\n"
+	const wantStderr = "warning: --format pretty is not supported by this command; showing NDJSON instead\n"
 	if stderr.String() != wantStderr {
 		t.Fatalf("Emitter.StreamPage() stderr = %q, want %q", stderr.String(), wantStderr)
 	}

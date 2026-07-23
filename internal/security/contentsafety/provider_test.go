@@ -300,6 +300,39 @@ func TestEmitterStructuredBlockDepthIncompleteWritesZeroBytes(t *testing.T) {
 	}
 }
 
+func TestProvider_ScanDetectsInjectionInMapKey(t *testing.T) {
+	// A rule match hiding in a map key (which JSON/NDJSON/table/CSV all emit)
+	// must be detected, not just matches in values.
+	dir := writeTestConfig(t, `{
+		"allowlist": ["all"],
+		"rules": [{"id": "override", "pattern": "(?i)ignore previous instructions"}]
+	}`)
+	p := &regexProvider{configDir: dir}
+	data := map[string]any{"ignore previous instructions": "ok"}
+
+	for _, tc := range []struct {
+		name string
+		scan func() (*extcs.Alert, error)
+	}{
+		{"Scan", func() (*extcs.Alert, error) {
+			return p.Scan(context.Background(), extcs.ScanRequest{Path: "test", Data: data, ErrOut: io.Discard})
+		}},
+		{"ScanFullText", func() (*extcs.Alert, error) {
+			return p.ScanFullText(context.Background(), extcs.ScanRequest{Path: "test", Data: data, ErrOut: io.Discard})
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			alert, err := tc.scan()
+			if err != nil {
+				t.Fatalf("%s() error = %v", tc.name, err)
+			}
+			if alert == nil || len(alert.MatchedRules) != 1 || alert.MatchedRules[0] != "override" {
+				t.Fatalf("%s() alert = %v, want override match on the map key", tc.name, alert)
+			}
+		})
+	}
+}
+
 func TestProvider_EmptyRulesNoAlert(t *testing.T) {
 	dir := writeTestConfig(t, `{"allowlist":["all"],"rules":[]}`)
 	p := &regexProvider{configDir: dir}

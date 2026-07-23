@@ -125,6 +125,10 @@ func (e *Emitter) Success(data interface{}, opts EmitOptions) error {
 // caller owns the non-zero exit signal, keeping the Emitter free of exit
 // semantics.
 func (e *Emitter) PartialFailure(data interface{}, opts EmitOptions) error {
+	if !opts.Format.Valid() {
+		return errs.NewInternalError(errs.SubtypeUnknown,
+			"internal: unknown output format %d", int(opts.Format))
+	}
 	if err := e.requireOutput(); err != nil {
 		return err
 	}
@@ -152,7 +156,7 @@ func (e *Emitter) StreamPage(data interface{}, opts StreamOptions) error {
 			return e.emitPrettyRenderer(opts.Pretty)
 		}
 		if e.streamFormatter == nil {
-			fmt.Fprintln(e.errOut, "warning: --format pretty is not supported by this command; showing JSON instead")
+			fmt.Fprintln(e.errOut, "warning: --format pretty is not supported by this command; showing NDJSON instead")
 		}
 		opts.Format = FormatNDJSON
 	}

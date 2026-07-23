@@ -41,7 +41,10 @@ func (s *scanner) walk(ctx context.Context, v any, hits map[string]struct{}, dep
 	case string:
 		s.scanString(t, hits)
 	case map[string]any:
-		for _, child := range t {
+		for k, child := range t {
+			// Scan the key too: JSON/NDJSON/table/CSV all emit map keys, so a
+			// rule match hiding in a key must not slip past block mode.
+			s.scanString(k, hits)
 			if err := s.walk(ctx, child, hits, depth+1); err != nil {
 				return err
 			}

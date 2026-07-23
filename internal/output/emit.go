@@ -26,11 +26,6 @@ func ScanForSafety(cmdPath string, data any, errOut io.Writer) ScanResult {
 	return scanForSafety(cmdPath, data, errOut, false, defaultContentSafetyContext)
 }
 
-// ScanRenderedText scans a complete rendered-output string.
-func ScanRenderedText(cmdPath, text string, errOut io.Writer) ScanResult {
-	return scanForSafety(cmdPath, text, errOut, true, defaultContentSafetyContext)
-}
-
 func scanForSafety(cmdPath string, data any, errOut io.Writer, fullText bool, newScanContext scanContextFactory) ScanResult {
 	alert, csErr := runContentSafety(cmdPath, data, errOut, fullText, newScanContext)
 	if errors.Is(csErr, errBlocked) {
