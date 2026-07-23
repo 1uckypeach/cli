@@ -68,6 +68,7 @@ python3 "<lark-slides-skill-dir>/scripts/xml_text_overlap_lint.py" --input <pres
 | `blank_slide` | 页面没有画布内可见内容 | 补充主体内容；仅有空背景或空形状不能准出 |
 | `sparse_container_content` | 大卡片内容覆盖率低于阈值 | 按元素 ID 定位卡片，结合截图判断是否补充或放大内容 |
 | `sparse_slide_content` | 全页有效内容覆盖率偏低 | 复核截图，确认是否为有意留白 |
+| `text_container_overlap_risk` | 垂直堆叠的文本容器边界相交，实际文字可能进入相邻文本容器 | 优先拉开文本容器边界；若要保留重叠，必须用服务端截图确认真实渲染结果 |
 
 ## Screenshot QA
 

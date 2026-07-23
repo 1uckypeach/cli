@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import sys
 import unicodedata
@@ -1137,6 +1138,39 @@ def should_flag_overlap(left: dict[str, Any], right: dict[str, Any]) -> bool:
     return False
 
 
+def horizontal_contains(
+    outer: dict[str, Any], inner: dict[str, Any], tolerance: int | float = 2
+) -> bool:
+    return (
+        inner["x"] >= outer["x"] - tolerance
+        and inner["x"] + inner["width"] <= outer["x"] + outer["width"] + tolerance
+    )
+
+
+def text_container_overlap_risk(
+    left: dict[str, Any], right: dict[str, Any]
+) -> dict[str, int | float] | None:
+    if not (is_text_element(left) and is_text_element(right)):
+        return None
+    if not (has_text_content(left) and has_text_content(right)):
+        return None
+    if is_template_text_stack(left, right) or is_similar_text_overlay(left, right):
+        return None
+    if not intersects(left, right):
+        return None
+
+    top, bottom = sorted([left, right], key=lambda element: element["y"])
+    if top["y"] == bottom["y"]:
+        return None
+    if not (horizontal_contains(top, bottom) or horizontal_contains(bottom, top)):
+        return None
+
+    return {
+        "overlap_width": intersection_width(top, bottom),
+        "overlap_height": intersection_height(top, bottom),
+    }
+
+
 def build_whiteboard_external_overlap_issue(
     whiteboard: dict[str, Any], overlap_details: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -1476,9 +1510,14 @@ def lint_slide(
     slide_xml: str, slide_number: int, slide_width: int | float = 960, slide_height: int | float = 540
 ) -> dict[str, Any]:
     elements = extract_elements(slide_xml)
+    chart_overlay_issues = (
+        []
+        if os.environ.get("LARKSUITE_CLI_SLIDES_DISABLE_CHART_OVERLAY_LINT") == "1"
+        else detect_chart_external_overlays(elements)
+    )
     issues: list[dict[str, Any]] = [
         *detect_whiteboard_external_overlaps(elements, slide_width, slide_height),
-        *detect_chart_external_overlays(elements),
+        *chart_overlay_issues,
         *detect_elements_out_of_canvas(elements, slide_width, slide_height),
         *detect_table_layout_size_mismatches(elements),
         *detect_text_may_overflow_shapes(elements),
@@ -1488,19 +1527,35 @@ def lint_slide(
     for index, left in enumerate(elements):
         for right in elements[index + 1 :]:
             horizontal_overflow = should_flag_horizontal_text_overflow(left, right)
-            if not horizontal_overflow and (not intersects(left, right) or not should_flag_overlap(left, right)):
+            visual_overlap = intersects(left, right) and should_flag_overlap(left, right)
+            if horizontal_overflow or visual_overlap:
+                issues.append(
+                    {
+                        "level": "error",
+                        "code": "bbox_overlap",
+                        "elements": [left["id"], right["id"]],
+                        "message": f'{left["id"]} overlaps {right["id"]}',
+                    }
+                )
+                continue
+
+            container_risk = text_container_overlap_risk(left, right)
+            if container_risk is None:
                 continue
             issues.append(
                 {
-                    "level": "error",
-                    "code": "bbox_overlap",
+                    "level": "warning",
+                    "code": "text_container_overlap_risk",
                     "elements": [left["id"], right["id"]],
-                    "message": f'{left["id"]} overlaps {right["id"]}',
-                    "hint": "Move or resize the elements so their visual bounds no longer intersect.",
-                    **(
-                        {"measurement": horizontal_text_overflow_measurement(left, right)}
-                        if horizontal_overflow
-                        else {}
+                    **container_risk,
+                    "message": (
+                        f'text containers {left["id"]} and {right["id"]} overlap; '
+                        "rendered text may enter the adjacent text container"
+                    ),
+                    "hint": (
+                        "Separate the text container bounds, or inspect a rendered screenshot before accepting "
+                        "the overlap. This warning uses container geometry because static text metrics may "
+                        "underestimate the rendered text area."
                     ),
                 }
             )

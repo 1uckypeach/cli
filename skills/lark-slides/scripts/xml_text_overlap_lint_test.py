@@ -561,6 +561,45 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
         self.assertEqual(result["summary"]["warning_count"], 0)
         self.assertEqual(result["slides"][0]["issues"][0]["code"], "bbox_overlap")
 
+    def test_lint_xml_warns_for_overlapping_stacked_text_containers(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <presentation xmlns="http://www.larkoffice.com/sml/2.0" width="960" height="540">
+              <slide xmlns="http://www.larkoffice.com/sml/2.0">
+                <data>
+                  <shape id="bAX" type="text" topLeftX="120" topLeftY="260" width="720" height="210">
+                    <content fontSize="12.4" lineSpacing="multiple:1.9" letterSpacing="2"
+                      textAlign="center" autoFit="normal-auto-fit">
+                      <p lineSpacing="multiple:1.4">李白的诗歌，以其豪放飘逸的风格、丰富奇特的想象、</p>
+                      <p lineSpacing="multiple:1.4">清新自然的语言，达到了中国古代浪漫主义诗歌的巅峰。</p>
+                      <p lineSpacing="multiple:1.4"/>
+                      <p lineSpacing="multiple:1.4">他的诗中，有黄河之水天上来的气势，</p>
+                      <p lineSpacing="multiple:1.4">有举杯邀明月的孤寂，有天生我材必有用的自信，</p>
+                      <p lineSpacing="multiple:1.4">也有轻舟已过万重山的畅快。</p>
+                      <p lineSpacing="multiple:1.4"/>
+                      <p lineSpacing="multiple:1.4">千百年后，读其诗，仍能感受到那股</p>
+                      <p lineSpacing="multiple:1.4">穿越时空的豪情与浪漫。</p>
+                    </content>
+                  </shape>
+                  <shape id="bAj" type="text" topLeftX="120" topLeftY="450" width="720" height="30">
+                    <content fontSize="14" letterSpacing="1" textAlign="center">
+                      <p>【思考】你最喜欢李白的哪首诗？为什么？</p>
+                    </content>
+                  </shape>
+                </data>
+              </slide>
+            </presentation>
+            """
+        )
+
+        self.assertEqual(result["summary"]["error_count"], 0)
+        self.assertEqual(result["summary"]["warning_count"], 1)
+        issue = result["slides"][0]["issues"][0]
+        self.assertEqual(issue["code"], "text_container_overlap_risk")
+        self.assertEqual(issue["elements"], ["bAX", "bAj"])
+        self.assertEqual(issue["overlap_width"], 720)
+        self.assertEqual(issue["overlap_height"], 20)
+
     def test_lint_xml_detects_current_itinerary_cjk_caption_occlusion(self) -> None:
         result = xml_text_overlap_lint.lint_xml(
             """
