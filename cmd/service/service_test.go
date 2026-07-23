@@ -634,9 +634,11 @@ func TestServiceMethod_PageAll_StreamFormatRunsContentSafety(t *testing.T) {
 	if provider.path != "list" {
 		t.Fatalf("scan path = %q, want list", provider.path)
 	}
-	items, ok := provider.data.([]interface{})
-	if !ok || len(items) != 1 {
-		t.Fatalf("scanned data = %#v, want one streamed item", provider.data)
+	// Streaming now scans the exact rendered page bytes (not the structured
+	// item) so a rule match formed only in the rendered output cannot slip past.
+	scanned, ok := provider.data.(string)
+	if !ok || !strings.Contains(scanned, `"id":"1"`) {
+		t.Fatalf("scanned data = %#v, want rendered ndjson page text", provider.data)
 	}
 	if !strings.Contains(stderr.String(), "warning: content safety alert from service-test") {
 		t.Fatalf("expected content safety warning on stderr, got: %s", stderr.String())

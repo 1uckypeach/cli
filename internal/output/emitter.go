@@ -161,16 +161,6 @@ func (e *Emitter) StreamPage(data interface{}, opts StreamOptions) error {
 		opts.Format = FormatNDJSON
 	}
 
-	scanResult := e.scanForSafety(data, false)
-	if scanResult.Blocked {
-		return scanResult.BlockErr
-	}
-	if scanResult.Alert != nil {
-		if err := WriteAlertWarning(e.errOut, scanResult.Alert); err != nil {
-			return wrapOutputError("write", err)
-		}
-	}
-
 	if e.streamFormatter == nil {
 		e.streamFormat = opts.Format
 		e.streamFormatter = NewPaginatedFormatter(nil, opts.Format)
@@ -179,10 +169,15 @@ func (e *Emitter) StreamPage(data interface{}, opts StreamOptions) error {
 			"stream output format changed from %q to %q", e.streamFormat, opts.Format)
 	}
 
-	return e.emit(func(w io.Writer) error {
-		e.streamFormatter.W = w
-		return e.streamFormatter.WritePage(data)
-	})
+	// Render this page, then scan the exact bytes before writing: a rule match
+	// can form in the rendered page (joined table cells, adjacent objects) even
+	// when no single value matches.
+	var buf bytes.Buffer
+	e.streamFormatter.W = &buf
+	if err := e.streamFormatter.WritePage(data); err != nil {
+		return wrapOutputError("render", err)
+	}
+	return e.emitScannedBuffer(&buf)
 }
 
 func (e *Emitter) emitEnvelope(data interface{}, ok bool, opts EmitOptions) error {
@@ -223,21 +218,37 @@ func (e *Emitter) emitEnvelope(data interface{}, ok bool, opts EmitOptions) erro
 		if jqErr != nil {
 			return jqErr
 		}
+		// A jq expression can concatenate fields into a rule match that no
+		// single value contains; scan the rendered bytes before writing.
+		if err := e.blockIfRenderedUnsafe(&buf); err != nil {
+			return err
+		}
 		if _, err := io.Copy(e.out, &buf); err != nil {
 			return wrapOutputError("write", err)
 		}
 		return nil
 	}
 
-	return e.emit(func(w io.Writer) error {
-		if opts.Raw {
-			enc := json.NewEncoder(w)
-			enc.SetEscapeHTML(false)
-			enc.SetIndent("", "  ")
-			return enc.Encode(env)
-		}
-		return WriteJSON(w, env)
-	})
+	// The JSON envelope is scanned via its data above: JSON serialization keeps
+	// per-field punctuation between values, so a whitespace-joined cross-field
+	// match cannot form the way it does for table/CSV or a jq concatenation.
+	var buf bytes.Buffer
+	var renderErr error
+	if opts.Raw {
+		enc := json.NewEncoder(&buf)
+		enc.SetEscapeHTML(false)
+		enc.SetIndent("", "  ")
+		renderErr = enc.Encode(env)
+	} else {
+		renderErr = WriteJSON(&buf, env)
+	}
+	if renderErr != nil {
+		return wrapOutputError("render", renderErr)
+	}
+	if _, err := io.Copy(e.out, &buf); err != nil {
+		return wrapOutputError("write", err)
+	}
+	return nil
 }
 
 func (e *Emitter) emitPretty(data interface{}, opts EmitOptions) error {
@@ -259,21 +270,7 @@ func (e *Emitter) emitPrettyRenderer(renderer PrettyRenderer) error {
 	if err := renderer(&buf, e.colorEnabled); err != nil {
 		return wrapOutputError("render", err)
 	}
-
-	rendered := buf.String()
-	scanResult := e.scanForSafety(rendered, true)
-	if scanResult.Blocked {
-		return scanResult.BlockErr
-	}
-	if scanResult.Alert != nil {
-		if err := WriteAlertWarning(e.errOut, scanResult.Alert); err != nil {
-			return wrapOutputError("write", err)
-		}
-	}
-	if _, err := io.Copy(e.out, &buf); err != nil {
-		return wrapOutputError("write", err)
-	}
-	return nil
+	return e.emitScannedBuffer(&buf)
 }
 
 // emitFormatted renders naked business data for the non-envelope formats
@@ -281,7 +278,21 @@ func (e *Emitter) emitPrettyRenderer(renderer PrettyRenderer) error {
 // FormatPretty to the pretty renderer, and boundaries reject unknown formats,
 // so emitFormatted only ever receives a canonical non-envelope Format.
 func (e *Emitter) emitFormatted(data interface{}, format Format) error {
-	scanResult := e.scanForSafety(data, false)
+	var buf bytes.Buffer
+	if err := WriteFormatted(&buf, data, format); err != nil {
+		return wrapOutputError("render", err)
+	}
+	return e.emitScannedBuffer(&buf)
+}
+
+// emitScannedBuffer scans the exact bytes that will be written to stdout and
+// writes them only if the scan does not block. Scanning the rendered buffer —
+// not the structured data — is what stops a rule match that only forms in the
+// output (table cells joined by spaces, a jq string concatenation, adjacent
+// NDJSON objects) from slipping past block mode. A warn-mode alert goes to
+// stderr.
+func (e *Emitter) emitScannedBuffer(buf *bytes.Buffer) error {
+	scanResult := e.scanForSafety(buf.String(), true)
 	if scanResult.Blocked {
 		return scanResult.BlockErr
 	}
@@ -290,18 +301,20 @@ func (e *Emitter) emitFormatted(data interface{}, format Format) error {
 			return wrapOutputError("write", err)
 		}
 	}
-	return e.emit(func(w io.Writer) error {
-		return WriteFormatted(w, data, format)
-	})
+	if _, err := io.Copy(e.out, buf); err != nil {
+		return wrapOutputError("write", err)
+	}
+	return nil
 }
 
-func (e *Emitter) emit(render func(io.Writer) error) error {
-	var buf bytes.Buffer
-	if err := render(&buf); err != nil {
-		return wrapOutputError("render", err)
-	}
-	if _, err := io.Copy(e.out, &buf); err != nil {
-		return wrapOutputError("write", err)
+// blockIfRenderedUnsafe scans the exact rendered bytes and, in block mode,
+// returns the block error when a rule matches text that only forms in the
+// rendered output. The envelope's data scan owns warn-mode reporting (the
+// embedded alert / stderr warning), so this adds no second alert.
+func (e *Emitter) blockIfRenderedUnsafe(buf *bytes.Buffer) error {
+	scanResult := e.scanForSafety(buf.String(), true)
+	if scanResult.Blocked {
+		return scanResult.BlockErr
 	}
 	return nil
 }
