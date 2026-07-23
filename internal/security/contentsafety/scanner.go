@@ -23,25 +23,30 @@ type scanner struct {
 	fullText bool
 }
 
-func (s *scanner) walk(ctx context.Context, v any, hits map[string]struct{}, depth int) {
-	if depth > maxDepth {
-		return
+func (s *scanner) walk(ctx context.Context, v any, hits map[string]struct{}, depth int) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	if ctx.Err() != nil {
-		return
+	if depth > maxDepth {
+		return nil
 	}
 	switch t := v.(type) {
 	case string:
 		s.scanString(t, hits)
 	case map[string]any:
 		for _, child := range t {
-			s.walk(ctx, child, hits, depth+1)
+			if err := s.walk(ctx, child, hits, depth+1); err != nil {
+				return err
+			}
 		}
 	case []any:
 		for _, child := range t {
-			s.walk(ctx, child, hits, depth+1)
+			if err := s.walk(ctx, child, hits, depth+1); err != nil {
+				return err
+			}
 		}
 	}
+	return ctx.Err()
 }
 
 func (s *scanner) scanString(text string, hits map[string]struct{}) {

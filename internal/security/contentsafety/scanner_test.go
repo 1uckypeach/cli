@@ -5,6 +5,7 @@ package contentsafety
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"testing"
 )
@@ -79,7 +80,9 @@ func TestWalk_NestedMap(t *testing.T) {
 		},
 	}
 	hits := make(map[string]struct{})
-	s.walk(context.Background(), data, hits, 0)
+	if err := s.walk(context.Background(), data, hits, 0); err != nil {
+		t.Fatalf("walk() error = %v", err)
+	}
 	if _, ok := hits["found"]; !ok {
 		t.Error("expected to find 'inject' in nested map")
 	}
@@ -88,7 +91,9 @@ func TestWalk_NestedMap(t *testing.T) {
 func TestWalk_Array(t *testing.T) {
 	s := &scanner{rules: []rule{testRule("found", `(?i)inject`)}}
 	hits := make(map[string]struct{})
-	s.walk(context.Background(), []any{"normal", "try to inject"}, hits, 0)
+	if err := s.walk(context.Background(), []any{"normal", "try to inject"}, hits, 0); err != nil {
+		t.Fatalf("walk() error = %v", err)
+	}
 	if _, ok := hits["found"]; !ok {
 		t.Error("expected to find 'inject' in array")
 	}
@@ -101,7 +106,9 @@ func TestWalk_MaxDepth(t *testing.T) {
 		data = map[string]any{"n": data}
 	}
 	hits := make(map[string]struct{})
-	s.walk(context.Background(), data, hits, 0)
+	if err := s.walk(context.Background(), data, hits, 0); err != nil {
+		t.Fatalf("walk() error = %v", err)
+	}
 	if _, ok := hits["deep"]; ok {
 		t.Error("should not reach string beyond maxDepth")
 	}
@@ -112,7 +119,10 @@ func TestWalk_ContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	hits := make(map[string]struct{})
-	s.walk(ctx, map[string]any{"key": "target"}, hits, 0)
+	err := s.walk(ctx, map[string]any{"key": "target"}, hits, 0)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("walk() error = %v, want context.Canceled", err)
+	}
 	if _, ok := hits["found"]; ok {
 		t.Error("should not match after context cancel")
 	}

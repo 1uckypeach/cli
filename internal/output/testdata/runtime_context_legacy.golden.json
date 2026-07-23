@@ -63,8 +63,19 @@
       "stderr": ""
     },
     "pretty_without_renderer": {
-      "stdout": "{\n  \"ok\": true,\n  \"identity\": \"bot\",\n  \"data\": {\n    \"name\": \"Alice\"\n  }\n}\n",
-      "stderr": ""
+      "stdout": "",
+      "stderr": "",
+      "error": {
+        "go_type": "*errs.ValidationError",
+        "json": {
+          "type": "validation",
+          "subtype": "invalid_argument",
+          "message": "--format pretty is not supported by this command",
+          "param": "--format"
+        },
+        "message": "--format pretty is not supported by this command",
+        "exit_code": 2
+      }
     },
     "raw_jq_complex": {
       "stdout": "{\n  \"html\": \"<p>a&b</p>\"\n}\n",

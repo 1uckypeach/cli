@@ -60,6 +60,7 @@ type runtimeContextOracleCase struct {
 	format      string
 	useFormat   bool
 	pretty      bool
+	keepError   bool
 	notice      map[string]interface{}
 	safetyMode  string
 	safetyAlert *extcs.Alert
@@ -196,6 +197,7 @@ func TestEmitterMatchesRuntimeContextLegacyOracle(t *testing.T) {
 			ok:        true,
 			format:    "pretty",
 			useFormat: true,
+			keepError: true,
 		},
 		{
 			name: "ndjson",
@@ -309,6 +311,7 @@ func TestEmitterMatchesRuntimeContextLegacyOracle(t *testing.T) {
 				format:    tc.format,
 				useFormat: tc.useFormat,
 				pretty:    tc.pretty,
+				keepError: tc.keepError,
 			}
 			// tc.format is the string a shortcut's --format flag would carry; the
 			// boundary parses it to a canonical Format before the Emitter sees it.
@@ -323,7 +326,7 @@ func TestEmitterMatchesRuntimeContextLegacyOracle(t *testing.T) {
 				Format: format,
 				JQ:     tc.jq,
 				Pretty: emitterPrettyRenderer(tc.pretty),
-			})
+			}, tc.keepError)
 
 			assertEmitterGolden(t, want, current)
 
@@ -391,10 +394,15 @@ type runtimeOracleOptions struct {
 	format    string
 	useFormat bool
 	pretty    bool
+	keepError bool
 }
 
 func runRuntimeContextOracle(t *testing.T, data interface{}, opts runtimeOracleOptions) emitterCapture {
 	t.Helper()
+	if opts.keepError {
+		return runRuntimeContextShortcutOracle(t, data, opts)
+	}
+
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 	parent := &cobra.Command{Use: "lark-cli"}
@@ -434,6 +442,42 @@ func runRuntimeContextOracle(t *testing.T, data interface{}, opts runtimeOracleO
 	return emitterCapture{stdout: stdout.String(), stderr: stderr.String(), err: err}
 }
 
+func runRuntimeContextShortcutOracle(t *testing.T, data interface{}, opts runtimeOracleOptions) emitterCapture {
+	t.Helper()
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	factory, stdout, stderr, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test", AppSecret: "test", Brand: core.BrandFeishu,
+	})
+	root := &cobra.Command{Use: "lark-cli", SilenceErrors: true, SilenceUsage: true}
+	fixture := &cobra.Command{Use: "fixture"}
+	root.AddCommand(fixture)
+
+	shortcut := common.Shortcut{
+		Service:   "fixture",
+		Command:   "+emit",
+		AuthTypes: []string{"bot"},
+		Execute: func(_ context.Context, runtime *common.RuntimeContext) error {
+			pretty := func(w io.Writer) {
+				fmt.Fprintln(w, "pretty:fixture")
+			}
+			if !opts.pretty {
+				pretty = nil
+			}
+			if opts.raw {
+				runtime.OutFormatRaw(data, opts.meta, pretty)
+			} else {
+				runtime.OutFormat(data, opts.meta, pretty)
+			}
+			return nil
+		},
+	}
+	shortcut.Mount(fixture, factory)
+	root.SetArgs([]string{"fixture", "+emit", "--as", "bot", "--format", opts.format})
+
+	err := root.Execute()
+	return emitterCapture{stdout: stdout.String(), stderr: stderr.String(), err: err}
+}
+
 func runEmitterSuccess(data interface{}, config output.EmitterConfig, ok bool, opts output.EmitOptions) emitterCapture {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
@@ -449,7 +493,13 @@ func runEmitterSuccess(data interface{}, config output.EmitterConfig, ok bool, o
 	return emitterCapture{stdout: stdout.String(), stderr: stderr.String(), err: err}
 }
 
-func runEmitterWithRuntimeContextContract(data interface{}, config output.EmitterConfig, ok bool, opts output.EmitOptions) emitterCapture {
+func runEmitterWithRuntimeContextContract(
+	data interface{},
+	config output.EmitterConfig,
+	ok bool,
+	opts output.EmitOptions,
+	keepError bool,
+) emitterCapture {
 	capture := runEmitterSuccess(data, config, ok, opts)
 	if capture.err != nil {
 		var safetyErr *errs.ContentSafetyError
@@ -458,6 +508,9 @@ func runEmitterWithRuntimeContextContract(data interface{}, config output.Emitte
 		}
 		if opts.JQ != "" {
 			capture.stderr += fmt.Sprintf("error: %v\n", capture.err)
+			return capture
+		}
+		if keepError {
 			return capture
 		}
 		capture.err = nil

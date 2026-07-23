@@ -343,6 +343,7 @@ func TestRunShortcut_DryRunJSONUsesEnvelope(t *testing.T) {
 }
 
 func TestRunShortcut_DryRunMixedCasePrettyUsesPlainTextPreview(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	s := &Shortcut{
 		Service:   "test",
 		Command:   "test-shortcut",
@@ -355,7 +356,9 @@ func TestRunShortcut_DryRunMixedCasePrettyUsesPlainTextPreview(t *testing.T) {
 			return nil
 		},
 	}
-	f := newTestFactory()
+	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test", AppSecret: "test", Brand: core.BrandFeishu,
+	})
 	cmd := newTestShortcutCmd(s, f)
 	cmd.Flags().Set("dry-run", "true")
 	cmd.Flags().Set("format", "Pretty")
@@ -364,13 +367,13 @@ func TestRunShortcut_DryRunMixedCasePrettyUsesPlainTextPreview(t *testing.T) {
 	if err := runShortcut(cmd, f, s, false); err != nil {
 		t.Fatalf("runShortcut() error = %v", err)
 	}
-	stdout := f.IOStreams.Out.(*bytes.Buffer)
 	if !strings.Contains(stdout.String(), "# dry-run: request not sent") {
 		t.Fatalf("dry-run --format Pretty lost its plain-text preview, stdout:\n%s", stdout.String())
 	}
 }
 
 func TestRunShortcut_MixedCaseFrameworkFormatIsCanonicalized(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	var runtimeFormat string
 	var flagFormat string
 	prettyBranchFired := false
@@ -385,7 +388,9 @@ func TestRunShortcut_MixedCaseFrameworkFormatIsCanonicalized(t *testing.T) {
 			return nil
 		},
 	}
-	f := newTestFactory()
+	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test", AppSecret: "test", Brand: core.BrandFeishu,
+	})
 	cmd := newTestShortcutCmd(s, f)
 	cmd.Flags().Set("format", "PRETTY")
 	cmd.Flags().Set("as", "bot")

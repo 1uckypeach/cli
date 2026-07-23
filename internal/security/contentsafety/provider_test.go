@@ -5,6 +5,7 @@ package contentsafety
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -68,6 +69,28 @@ func TestProvider_ScanCleanData(t *testing.T) {
 	}
 	if alert != nil {
 		t.Errorf("expected nil alert for clean data, got %v", alert)
+	}
+}
+
+func TestProvider_ScanCanceledContextReturnsError(t *testing.T) {
+	dir := writeTestConfig(t, `{
+		"allowlist": ["all"],
+		"rules": [{"id": "r1", "pattern": "(?i)inject"}]
+	}`)
+	p := &regexProvider{configDir: dir}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	alert, err := p.Scan(ctx, extcs.ScanRequest{
+		Path:   "im.messages_search",
+		Data:   map[string]any{"text": "Hello, clean data"},
+		ErrOut: io.Discard,
+	})
+	if alert != nil {
+		t.Fatalf("Scan() alert = %v, want nil", alert)
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Scan() error = %v, want context.Canceled", err)
 	}
 }
 

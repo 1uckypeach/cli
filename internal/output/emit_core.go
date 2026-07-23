@@ -28,6 +28,10 @@ const (
 // scanTimeout also bounds untruncated rendered-text scans.
 const scanTimeout = 100 * time.Millisecond
 
+var newContentSafetyContext = func() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), scanTimeout)
+}
+
 // modeFromEnv reads LARKSUITE_CLI_CONTENT_SAFETY_MODE.
 func modeFromEnv(errOut io.Writer) mode {
 	raw := strings.TrimSpace(os.Getenv(envvars.CliContentSafetyMode))
@@ -91,7 +95,7 @@ func runContentSafety(cobraPath string, data any, errOut io.Writer, fullText boo
 		err   error
 	}
 	ch := make(chan result, 1)
-	ctx, cancel := context.WithTimeout(context.Background(), scanTimeout)
+	ctx, cancel := newContentSafetyContext()
 	defer cancel()
 
 	// A timed-out provider may outlive this call, so it cannot share errOut.
@@ -116,6 +120,9 @@ func runContentSafety(cobraPath string, data any, errOut io.Writer, fullText boo
 	case res = <-ch:
 		if scanErrBuf.Len() > 0 {
 			_, _ = io.Copy(errOut, scanErrBuf)
+		}
+		if ctx.Err() != nil && m == modeBlock {
+			return nil, fmt.Errorf("%w: %w", errScanIncomplete, ctx.Err())
 		}
 	case <-ctx.Done():
 		if m == modeBlock {

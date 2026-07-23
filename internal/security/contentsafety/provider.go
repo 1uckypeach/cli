@@ -39,7 +39,9 @@ func (p *regexProvider) Scan(ctx context.Context, req extcs.ScanRequest) (*extcs
 	data := normalize(req.Data)
 	s := &scanner{rules: cfg.Rules, fullText: req.FullText}
 	hits := make(map[string]struct{})
-	s.walk(ctx, data, hits, 0)
+	if err := s.walk(ctx, data, hits, 0); err != nil {
+		return nil, err
+	}
 
 	if len(hits) == 0 {
 		return nil, nil

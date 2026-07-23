@@ -211,6 +211,37 @@ func TestEmitterPrettyRendererFailurePreservesCause(t *testing.T) {
 	}
 }
 
+func TestEmitterPrettyWithoutRendererReturnsTypedValidationError(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "off")
+	stdout := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      io.Discard,
+		CommandPath: "lark-cli fixture +emit",
+	})
+
+	err := emitter.Success(map[string]interface{}{"id": "1"}, output.EmitOptions{
+		Format: output.FormatPretty,
+	})
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("Emitter.Success() error = %T, want *errs.ValidationError", err)
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeInvalidArgument {
+		t.Fatalf("Emitter.Success() problem = %#v, %v; want validation/invalid_argument", problem, ok)
+	}
+	if validationErr.Param != "--format" {
+		t.Fatalf("Emitter.Success() Param = %q, want --format", validationErr.Param)
+	}
+	if validationErr.Message != "--format pretty is not supported by this command" {
+		t.Fatalf("Emitter.Success() message = %q", validationErr.Message)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("Emitter.Success() stdout = %q, want empty", stdout.String())
+	}
+}
+
 func TestEmitterPrettyBlockScansRenderedTextBeforeWriting(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
 	const rendered = "captured blocked phrase\n"

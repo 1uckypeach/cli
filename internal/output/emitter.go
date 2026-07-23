@@ -228,9 +228,9 @@ func (e *Emitter) emitPretty(data interface{}, opts EmitOptions) error {
 		return e.emitPrettyRenderer(opts.Pretty)
 	}
 
-	// RuntimeContext.outFormat falls back through Out/OutRaw when no pretty
-	// renderer is supplied.
-	return e.emitEnvelope(data, true, opts)
+	return errs.NewValidationError(errs.SubtypeInvalidArgument,
+		"--format pretty is not supported by this command").
+		WithParam("--format")
 }
 
 func (e *Emitter) emitPrettyRenderer(renderer PrettyRenderer) error {
