@@ -14,6 +14,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/client"
+	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/shortcuts/common"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 )
@@ -288,9 +289,7 @@ var MailTriage = common.Shortcut{
 			if notice != "" {
 				outData["notice"] = notice
 			}
-			if err := runtime.EmitValue(outData, "json"); err != nil {
-				return err
-			}
+			output.PrintJson(runtime.IO().Out, outData)
 		default: // "table"
 			if notice != "" {
 				fmt.Fprintf(runtime.IO().ErrOut, "notice: %s\n", notice)
@@ -315,9 +314,7 @@ var MailTriage = common.Shortcut{
 				}
 				rows = append(rows, row)
 			}
-			if err := runtime.EmitValue(rows, "table"); err != nil {
-				return err
-			}
+			output.PrintTable(runtime.IO().Out, rows)
 			fmt.Fprintf(runtime.IO().ErrOut, "\n%d message(s)\n", len(messages))
 			if hasMore && nextPageToken != "" {
 				var hint strings.Builder
