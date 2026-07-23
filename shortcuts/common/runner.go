@@ -748,9 +748,17 @@ func (ctx *RuntimeContext) OutPartialFailure(data interface{}, meta *output.Meta
 // When JqExpr is set, envelope filtering takes precedence over format.
 // The Emitter handles content safety scanning for every format.
 func (ctx *RuntimeContext) OutFormat(data interface{}, meta *output.Meta, prettyFn func(w io.Writer)) {
-	// ctx.Format was validated by ParseFormatStrict at the shortcut boundary, so
-	// the lenient parse here can never yield an unknown value.
-	format, _ := output.ParseFormat(ctx.Format)
+	// Framework-injected formats are canonicalized before dispatch, so ParseFormat
+	// yields a known value. A self-declared format flag whose custom enum value
+	// (e.g. markdown/data) is not a framework format would fail here rather than
+	// silently degrade to JSON — such shortcuts render themselves and must not
+	// route through OutFormat.
+	format, ok := output.ParseFormat(ctx.Format)
+	if !ok {
+		ctx.handleEmitterError(errs.NewInternalError(errs.SubtypeUnknown,
+			"OutFormat received unsupported format %q", ctx.Format))
+		return
+	}
 	ctx.handleEmitterError(ctx.newEmitter().Success(data, output.EmitOptions{
 		Format: format,
 		Raw:    false,
@@ -763,9 +771,14 @@ func (ctx *RuntimeContext) OutFormat(data interface{}, meta *output.Meta, pretty
 // OutFormatRaw is like OutFormat but with HTML escaping disabled in JSON output.
 // Use this when the data contains XML/HTML content that should be preserved as-is.
 func (ctx *RuntimeContext) OutFormatRaw(data interface{}, meta *output.Meta, prettyFn func(w io.Writer)) {
-	// ctx.Format was validated by ParseFormatStrict at the shortcut boundary, so
-	// the lenient parse here can never yield an unknown value.
-	format, _ := output.ParseFormat(ctx.Format)
+	// See OutFormat: framework formats are canonicalized; an unknown value errors
+	// rather than silently degrading to JSON.
+	format, ok := output.ParseFormat(ctx.Format)
+	if !ok {
+		ctx.handleEmitterError(errs.NewInternalError(errs.SubtypeUnknown,
+			"OutFormatRaw received unsupported format %q", ctx.Format))
+		return
+	}
 	ctx.handleEmitterError(ctx.newEmitter().Success(data, output.EmitOptions{
 		Format: format,
 		Raw:    true,
