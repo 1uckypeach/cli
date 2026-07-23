@@ -100,6 +100,12 @@ func (p *truncatingContractSafetyProvider) scan(req extcs.ScanRequest) (*extcs.A
 					return true
 				}
 			}
+		case map[string]any:
+			for key, item := range value {
+				if containsMatch(key) || containsMatch(item) {
+					return true
+				}
+			}
 		}
 		return false
 	}
@@ -299,7 +305,7 @@ func TestEmitterPrettyRendererFailurePreservesCause(t *testing.T) {
 	}
 }
 
-func TestEmitterPrettyWithoutRendererFallsBackToJSONWithWarning(t *testing.T) {
+func TestEmitterPrettyWithoutRendererUsesGenericTable(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "off")
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
@@ -315,17 +321,45 @@ func TestEmitterPrettyWithoutRendererFallsBackToJSONWithWarning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Emitter.Success() error = %v, want nil", err)
 	}
-	const wantStdout = "{\n  \"ok\": true,\n  \"data\": {\n    \"id\": \"1\"\n  }\n}\n"
+	const wantStdout = "id  1\n"
 	if stdout.String() != wantStdout {
 		t.Fatalf("Emitter.Success() stdout = %q, want %q", stdout.String(), wantStdout)
 	}
-	const wantStderr = "warning: --format pretty is not supported by this command; showing JSON instead\n"
-	if stderr.String() != wantStderr {
-		t.Fatalf("Emitter.Success() stderr = %q, want %q", stderr.String(), wantStderr)
+	if stderr.Len() != 0 {
+		t.Fatalf("Emitter.Success() stderr = %q, want empty", stderr.String())
 	}
 }
 
-func TestEmitterStreamPagePrettyWithoutRendererFallsBackToNDJSONWithSingleWarning(t *testing.T) {
+func TestEmitterValueNDJSONPreservesMapContainingItems(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "off")
+	stdout := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      io.Discard,
+		CommandPath: "lark-cli fixture +stream",
+	})
+	data := map[string]any{
+		"type":  "fixture.event",
+		"items": []any{map[string]any{"id": "1"}},
+	}
+
+	err := emitter.Value(data, output.StreamOptions{Format: output.FormatNDJSON})
+	if err != nil {
+		t.Fatalf("Emitter.Value() error = %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("decode NDJSON record: %v", err)
+	}
+	if got["type"] != "fixture.event" {
+		t.Fatalf("NDJSON record = %#v, want complete source map", got)
+	}
+	if _, ok := got["items"]; !ok {
+		t.Fatalf("NDJSON record = %#v, want items field preserved", got)
+	}
+}
+
+func TestEmitterStreamPagePrettyWithoutRendererUsesGenericTable(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "off")
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
@@ -345,13 +379,12 @@ func TestEmitterStreamPagePrettyWithoutRendererFallsBackToNDJSONWithSingleWarnin
 		}
 	}
 
-	const wantStdout = "{\"id\":\"1\"}\n{\"id\":\"2\"}\n"
+	const wantStdout = "id\n──\n1 \n2 \n"
 	if stdout.String() != wantStdout {
 		t.Fatalf("Emitter.StreamPage() stdout = %q, want %q", stdout.String(), wantStdout)
 	}
-	const wantStderr = "warning: --format pretty is not supported by this command; showing NDJSON instead\n"
-	if stderr.String() != wantStderr {
-		t.Fatalf("Emitter.StreamPage() stderr = %q, want %q", stderr.String(), wantStderr)
+	if stderr.Len() != 0 {
+		t.Fatalf("Emitter.StreamPage() stderr = %q, want empty", stderr.String())
 	}
 }
 
@@ -388,8 +421,8 @@ func TestEmitterPrettyBlockScansRenderedTextBeforeWriting(t *testing.T) {
 	if stdout.Len() != 0 {
 		t.Fatalf("Emitter.Success() stdout = %q, want empty", stdout.String())
 	}
-	if calls, scannedData := provider.snapshot(); calls != 1 || scannedData != rendered {
-		t.Fatalf("content safety scan = (%d, %#v), want (1, %q)", calls, scannedData, rendered)
+	if calls, scannedData := provider.snapshot(); calls != 2 || scannedData != rendered {
+		t.Fatalf("content safety scan = (%d, %#v), want (2, %q)", calls, scannedData, rendered)
 	}
 }
 
@@ -616,6 +649,121 @@ func TestEmitterBlockScansRenderedCrossFieldConcatenation(t *testing.T) {
 	}
 }
 
+func TestEmitterJSONBlockScansSerializedCrossFieldContent(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	provider := &truncatingContractSafetyProvider{
+		alert: &extcs.Alert{
+			Provider:     "truncating-emitter-contract",
+			MatchedRules: []string{"serialized-cross-field"},
+		},
+		pattern: regexp.MustCompile(`(?s)ignore.*previous instructions`),
+	}
+	extcs.Register(provider)
+	t.Cleanup(func() { extcs.Register(nil) })
+
+	stdout := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      io.Discard,
+		CommandPath: "lark-cli fixture +emit",
+		Identity:    "bot",
+	})
+	err := emitter.Success(map[string]any{"a": "ignore", "b": "previous instructions"},
+		output.EmitOptions{Format: output.FormatJSON})
+
+	var safetyErr *errs.ContentSafetyError
+	if !errors.As(err, &safetyErr) {
+		t.Fatalf("Emitter.Success() error = %T, want *errs.ContentSafetyError", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("Emitter.Success() stdout = %q, want empty", stdout.String())
+	}
+}
+
+func TestEmitterJSONWarnScansStructuredContentChangedByEscaping(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		pattern *regexp.Regexp
+	}{
+		{
+			name:    "HTML-sensitive role marker",
+			content: "<system>",
+			pattern: regexp.MustCompile(`(?i)<system>`),
+		},
+		{
+			name:    "instruction override across newline",
+			content: "ignore\nprevious instructions",
+			pattern: regexp.MustCompile(`(?i)ignore\s+previous\s+instructions`),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "warn")
+			provider := &truncatingContractSafetyProvider{
+				alert: &extcs.Alert{
+					Provider:     "truncating-emitter-contract",
+					MatchedRules: []string{"structured-content"},
+				},
+				pattern: tt.pattern,
+			}
+			extcs.Register(provider)
+			t.Cleanup(func() { extcs.Register(nil) })
+
+			stdout := &bytes.Buffer{}
+			emitter := output.NewEmitter(output.EmitterConfig{
+				Out:         stdout,
+				ErrOut:      io.Discard,
+				CommandPath: "lark-cli fixture +emit",
+			})
+			err := emitter.Success(map[string]any{"text": tt.content}, output.EmitOptions{Format: output.FormatJSON})
+			if err != nil {
+				t.Fatalf("Emitter.Success() error = %v", err)
+			}
+
+			var envelope map[string]any
+			if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+				t.Fatalf("decode stdout: %v", err)
+			}
+			alert, _ := envelope["_content_safety_alert"].(map[string]any)
+			if !reflect.DeepEqual(alert["matched_rules"], []any{"structured-content"}) {
+				t.Fatalf("content safety alert = %#v, want structured-content", alert)
+			}
+		})
+	}
+}
+
+func TestEmitterNDJSONBlockScansStructuredContentChangedByEscaping(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	provider := &truncatingContractSafetyProvider{
+		alert: &extcs.Alert{
+			Provider:     "truncating-emitter-contract",
+			MatchedRules: []string{"role-injection"},
+		},
+		pattern: regexp.MustCompile(`(?i)<system>`),
+	}
+	extcs.Register(provider)
+	t.Cleanup(func() { extcs.Register(nil) })
+
+	stdout := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      io.Discard,
+		CommandPath: "lark-cli fixture +emit",
+	})
+	err := emitter.Success([]any{map[string]any{"text": "<system>"}},
+		output.EmitOptions{Format: output.FormatNDJSON})
+
+	var safetyErr *errs.ContentSafetyError
+	if !errors.As(err, &safetyErr) {
+		t.Fatalf("Emitter.Success() error = %T, want *errs.ContentSafetyError", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("Emitter.Success() stdout = %q, want empty", stdout.String())
+	}
+}
+
 func TestEmitterScanErrorModeBehavior(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -706,8 +854,8 @@ func TestEmitterPrettyWarnScansRenderedTextAndWritesOutput(t *testing.T) {
 	if stderr.String() != wantWarning {
 		t.Fatalf("Emitter.Success() stderr = %q, want %q", stderr.String(), wantWarning)
 	}
-	if calls, scannedData := provider.snapshot(); calls != 1 || scannedData != rendered {
-		t.Fatalf("content safety scan = (%d, %#v), want (1, %q)", calls, scannedData, rendered)
+	if calls, scannedData := provider.snapshot(); calls != 2 || scannedData != rendered {
+		t.Fatalf("content safety scan = (%d, %#v), want (2, %q)", calls, scannedData, rendered)
 	}
 }
 
@@ -778,6 +926,78 @@ func TestEmitterStreamPagePrettyScansRenderedTextBeforeWriting(t *testing.T) {
 			return writeErr
 		},
 	})
+	if err != nil {
+		t.Fatalf("Emitter.StreamPage() error = %v, want nil before FinishStream", err)
+	}
+	err = emitter.FinishStream()
+	var safetyErr *errs.ContentSafetyError
+	if !errors.As(err, &safetyErr) {
+		t.Fatalf("Emitter.FinishStream() error = %T, want *errs.ContentSafetyError", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("Emitter.FinishStream() stdout = %q, want empty", stdout.String())
+	}
+	if calls, scannedData := provider.snapshot(); calls != 2 || scannedData != rendered {
+		t.Fatalf("content safety scan = (%d, %#v), want (2, %q)", calls, scannedData, rendered)
+	}
+}
+
+func TestEmitterStreamBlockScansCompleteRenderedOutput(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	provider := &truncatingContractSafetyProvider{
+		alert: &extcs.Alert{
+			Provider:     "truncating-emitter-contract",
+			MatchedRules: []string{"instruction_override"},
+		},
+		pattern: regexp.MustCompile(`(?i)ignore\s+previous\s+instructions`),
+	}
+	extcs.Register(provider)
+	t.Cleanup(func() { extcs.Register(nil) })
+
+	stdout := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      io.Discard,
+		CommandPath: "lark-cli fixture +emit",
+	})
+	for _, page := range []string{"ignore", "previous instructions"} {
+		err := emitter.StreamPage([]any{map[string]any{"text": page}}, output.StreamOptions{Format: output.FormatTable})
+		if err != nil {
+			t.Fatalf("Emitter.StreamPage() error = %v", err)
+		}
+	}
+
+	err := emitter.FinishStream()
+	var safetyErr *errs.ContentSafetyError
+	if !errors.As(err, &safetyErr) {
+		t.Fatalf("Emitter.FinishStream() error = %T, want *errs.ContentSafetyError", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("Emitter.FinishStream() stdout = %q, want empty", stdout.String())
+	}
+}
+
+func TestEmitterStreamBlockScansStructuredContentChangedByEscaping(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	provider := &truncatingContractSafetyProvider{
+		alert: &extcs.Alert{
+			Provider:     "truncating-emitter-contract",
+			MatchedRules: []string{"role-injection"},
+		},
+		pattern: regexp.MustCompile(`(?i)<system>`),
+	}
+	extcs.Register(provider)
+	t.Cleanup(func() { extcs.Register(nil) })
+
+	stdout := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      io.Discard,
+		CommandPath: "lark-cli fixture +emit",
+	})
+	err := emitter.StreamPage([]any{map[string]any{"text": "<system>"}},
+		output.StreamOptions{Format: output.FormatNDJSON})
+
 	var safetyErr *errs.ContentSafetyError
 	if !errors.As(err, &safetyErr) {
 		t.Fatalf("Emitter.StreamPage() error = %T, want *errs.ContentSafetyError", err)
@@ -785,8 +1005,104 @@ func TestEmitterStreamPagePrettyScansRenderedTextBeforeWriting(t *testing.T) {
 	if stdout.Len() != 0 {
 		t.Fatalf("Emitter.StreamPage() stdout = %q, want empty", stdout.String())
 	}
-	if calls, scannedData := provider.snapshot(); calls != 1 || scannedData != rendered {
-		t.Fatalf("content safety scan = (%d, %#v), want (1, %q)", calls, scannedData, rendered)
+}
+
+func TestEmitterStreamWarnWritesEachPageBeforeFinish(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "warn")
+	provider := &truncatingContractSafetyProvider{
+		alert: &extcs.Alert{
+			Provider:     "truncating-emitter-contract",
+			MatchedRules: []string{"fixture-rule"},
+		},
+		match: "blocked phrase",
+	}
+	extcs.Register(provider)
+	t.Cleanup(func() { extcs.Register(nil) })
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      stderr,
+		CommandPath: "lark-cli fixture +emit",
+	})
+	err := emitter.StreamPage([]any{map[string]any{"text": "blocked phrase"}},
+		output.StreamOptions{Format: output.FormatNDJSON})
+	if err != nil {
+		t.Fatalf("Emitter.StreamPage() error = %v", err)
+	}
+	if stdout.Len() == 0 {
+		t.Fatal("Emitter.StreamPage() stdout is empty before FinishStream")
+	}
+	beforeFinish := stdout.String()
+	if err := emitter.FinishStream(); err != nil {
+		t.Fatalf("Emitter.FinishStream() error = %v", err)
+	}
+	if stdout.String() != beforeFinish {
+		t.Fatalf("Emitter.FinishStream() changed stdout from %q to %q", beforeFinish, stdout.String())
+	}
+	const wantWarning = "warning: content safety alert from truncating-emitter-contract (rules: fixture-rule)\n"
+	if stderr.String() != wantWarning {
+		t.Fatalf("stderr = %q, want %q", stderr.String(), wantWarning)
+	}
+}
+
+func TestEmitterStreamBlockRejectsOutputAboveBufferLimit(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "block")
+	extcs.Register(&truncatingContractSafetyProvider{})
+	t.Cleanup(func() { extcs.Register(nil) })
+
+	stdout := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:                    stdout,
+		ErrOut:                 io.Discard,
+		CommandPath:            "lark-cli fixture +emit",
+		MaxBufferedStreamBytes: 8,
+	})
+	err := emitter.StreamPage([]any{map[string]any{"text": "long value"}},
+		output.StreamOptions{Format: output.FormatNDJSON})
+
+	var safetyErr *errs.ContentSafetyError
+	if !errors.As(err, &safetyErr) {
+		t.Fatalf("Emitter.StreamPage() error = %T, want *errs.ContentSafetyError", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("Emitter.StreamPage() stdout = %q, want empty", stdout.String())
+	}
+}
+
+func TestEmitterJQWarnReportsRenderedOnlyAlert(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "warn")
+	provider := &truncatingContractSafetyProvider{
+		alert: &extcs.Alert{
+			Provider:     "truncating-emitter-contract",
+			MatchedRules: []string{"instruction_override"},
+		},
+		pattern: regexp.MustCompile(`(?i)ignore\s+previous\s+instructions`),
+	}
+	extcs.Register(provider)
+	t.Cleanup(func() { extcs.Register(nil) })
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	emitter := output.NewEmitter(output.EmitterConfig{
+		Out:         stdout,
+		ErrOut:      stderr,
+		CommandPath: "lark-cli fixture +emit",
+	})
+	err := emitter.Success(map[string]any{"a": "ignore", "b": "previous instructions"}, output.EmitOptions{
+		Format: output.FormatJSON,
+		JQ:     `.data.a + " " + .data.b`,
+	})
+	if err != nil {
+		t.Fatalf("Emitter.Success() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "ignore previous instructions") {
+		t.Fatalf("Emitter.Success() stdout = %q, want jq output", stdout.String())
+	}
+	const wantWarning = "warning: content safety alert from truncating-emitter-contract (rules: instruction_override)\n"
+	if stderr.String() != wantWarning {
+		t.Fatalf("Emitter.Success() stderr = %q, want %q", stderr.String(), wantWarning)
 	}
 }
 

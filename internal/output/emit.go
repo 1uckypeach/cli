@@ -16,18 +16,19 @@ import (
 
 // ScanResult holds the output of ScanForSafety.
 type ScanResult struct {
-	Alert    *extcs.Alert
-	Blocked  bool
-	BlockErr error
+	Alert      *extcs.Alert
+	Blocked    bool
+	BlockErr   error
+	scanFailed bool
 }
 
 // ScanForSafety scans structured response data.
 func ScanForSafety(cmdPath string, data any, errOut io.Writer) ScanResult {
-	return scanForSafety(cmdPath, data, errOut, false, defaultContentSafetyContext)
+	return scanForSafetyMode(cmdPath, data, errOut, false, modeFromEnv(errOut), defaultContentSafetyContext)
 }
 
-func scanForSafety(cmdPath string, data any, errOut io.Writer, fullText bool, newScanContext scanContextFactory) ScanResult {
-	alert, csErr := runContentSafety(cmdPath, data, errOut, fullText, newScanContext)
+func scanForSafetyMode(cmdPath string, data any, errOut io.Writer, fullText bool, m mode, newScanContext scanContextFactory) ScanResult {
+	alert, csErr := runContentSafety(cmdPath, data, errOut, fullText, m, newScanContext)
 	if errors.Is(csErr, errBlocked) {
 		return ScanResult{
 			Alert:    alert,
@@ -40,6 +41,9 @@ func scanForSafety(cmdPath string, data any, errOut io.Writer, fullText bool, ne
 			Blocked:  true,
 			BlockErr: wrapScanIncompleteError(csErr),
 		}
+	}
+	if errors.Is(csErr, errScanFailed) {
+		return ScanResult{scanFailed: true}
 	}
 	return ScanResult{Alert: alert}
 }

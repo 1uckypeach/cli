@@ -194,16 +194,6 @@ func TestEmitterMatchesRuntimeContextLegacyOracle(t *testing.T) {
 			pretty:    true,
 		},
 		{
-			name: "pretty_without_renderer",
-			data: func() interface{} {
-				return map[string]interface{}{"name": "Alice"}
-			},
-			ok:        true,
-			format:    "pretty",
-			useFormat: true,
-			keepError: true,
-		},
-		{
 			name: "ndjson",
 			data: func() interface{} {
 				return map[string]interface{}{"items": []interface{}{
@@ -664,18 +654,9 @@ func TestEmitterStreamPageMatchesPaginationLegacyOracle(t *testing.T) {
 		{name: "table", format: output.FormatTable},
 		{name: "csv", format: output.FormatCSV},
 		{
-			name:       "warn",
-			format:     output.FormatNDJSON,
-			safetyMode: "warn",
-			safetyAlert: &extcs.Alert{
-				Provider:     "emitter-oracle",
-				MatchedRules: []string{"fixture-rule"},
-			},
-		},
-		{
-			name:       "block",
+			name:       "table warn",
 			format:     output.FormatTable,
-			safetyMode: "block",
+			safetyMode: "warn",
 			safetyAlert: &extcs.Alert{
 				Provider:     "emitter-oracle",
 				MatchedRules: []string{"fixture-rule"},
@@ -740,6 +721,9 @@ func runEmitterStreamPages(pages []interface{}, format output.Format) emitterCap
 		if emitErr = emitter.StreamPage(page, output.StreamOptions{Format: format}); emitErr != nil {
 			break
 		}
+	}
+	if emitErr == nil {
+		emitErr = emitter.FinishStream()
 	}
 	return emitterCapture{stdout: stdout.String(), stderr: stderr.String(), err: emitErr}
 }

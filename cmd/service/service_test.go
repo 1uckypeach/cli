@@ -580,12 +580,12 @@ func TestServiceMethod_PageAll_DefaultJSONRunsContentSafety(t *testing.T) {
 	if provider.path != "list" {
 		t.Fatalf("scan path = %q, want list", provider.path)
 	}
-	data, ok := provider.data.(map[string]interface{})
+	data, ok := provider.data.(string)
 	if !ok {
-		t.Fatalf("scanned data type = %T, want map", provider.data)
+		t.Fatalf("scanned data type = %T, want rendered JSON string", provider.data)
 	}
-	if _, hasCode := data["code"]; hasCode {
-		t.Fatalf("scanned data should be business data only, got %#v", data)
+	if strings.Contains(data, `"code"`) || !strings.Contains(data, `"data"`) {
+		t.Fatalf("scanned JSON should be the success envelope without an API code, got %q", data)
 	}
 
 	var got map[string]interface{}
@@ -701,11 +701,8 @@ func TestServiceMethod_PageAll_StreamFormatBlockSkipsBlockedPage(t *testing.T) {
 		t.Fatalf("rules = %v, want [pagination]", safetyErr.Rules)
 	}
 	out := stdout.String()
-	if !strings.Contains(out, "safe-page") {
-		t.Fatalf("expected earlier safe page to remain streamed, got: %s", out)
-	}
-	if strings.Contains(out, "blocked-page") {
-		t.Fatalf("blocked page was written before safety block: %s", out)
+	if out != "" {
+		t.Fatalf("blocked complete stream was written before safety block: %s", out)
 	}
 }
 

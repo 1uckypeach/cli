@@ -5,20 +5,33 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"io"
 
+	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/output"
 )
 
 // PaginateToOutput fetches all requested pages and emits them in the selected format.
 func PaginateToOutput(ctx context.Context, ac *APIClient, request RawApiRequest, format output.Format, jqExpr string, out, errOut io.Writer, commandPath string, pagOpts PaginationOptions, checkErr func(interface{}, core.Identity) error, markErr func(error) error) error {
+	if !format.Valid() || format == output.FormatPretty {
+		return errs.NewInternalError(errs.SubtypeUnknown,
+			"internal: unsupported pagination output format %q", format)
+	}
 	if markErr == nil {
 		markErr = func(err error) error { return err }
 	}
 	if pagOpts.Identity == "" {
 		pagOpts.Identity = request.As
+	}
+	emitValue := func(data interface{}, valueFormat output.Format) error {
+		emitter := output.NewEmitter(output.EmitterConfig{
+			Out:         out,
+			ErrOut:      errOut,
+			CommandPath: commandPath,
+			Identity:    string(pagOpts.Identity),
+		})
+		return emitter.Value(data, output.StreamOptions{Format: valueFormat})
 	}
 	// When jq is set, always aggregate all pages then filter.
 	if jqExpr != "" {
@@ -27,7 +40,9 @@ func PaginateToOutput(ctx context.Context, ac *APIClient, request RawApiRequest,
 			return markErr(err)
 		}
 		if apiErr := checkErr(result, pagOpts.Identity); apiErr != nil {
-			output.FormatValue(out, result, output.FormatJSON)
+			if emitErr := emitValue(result, output.FormatJSON); emitErr != nil {
+				return markErr(emitErr)
+			}
 			return markErr(apiErr)
 		}
 		return output.WriteSuccessEnvelope(output.SuccessEnvelopeData(result), output.SuccessEnvelopeOptions{
@@ -49,11 +64,14 @@ func PaginateToOutput(ctx context.Context, ac *APIClient, request RawApiRequest,
 			NoticeProvider: output.GetNotice,
 		})
 		result, hasItems, err := ac.StreamPages(ctx, request, func(items []interface{}) error {
-			// Streaming formats intentionally emit each page after that page has
-			// passed safety scanning. A later page may still fail, so callers
-			// must use the exit code to distinguish complete vs partial output.
 			return emitter.StreamPage(items, output.StreamOptions{Format: format})
 		}, pagOpts)
+		if err != nil && errs.IsContentSafety(err) {
+			return markErr(err)
+		}
+		if finishErr := emitter.FinishStream(); finishErr != nil {
+			return markErr(finishErr)
+		}
 		if err != nil {
 			return markErr(err)
 		}
@@ -61,13 +79,7 @@ func PaginateToOutput(ctx context.Context, ac *APIClient, request RawApiRequest,
 			return markErr(apiErr)
 		}
 		if !hasItems {
-			fmt.Fprintf(errOut, "warning: this API does not return a list, format %q is not supported, falling back to json\n", format)
-			return output.WriteSuccessEnvelope(output.SuccessEnvelopeData(result), output.SuccessEnvelopeOptions{
-				CommandPath: commandPath,
-				Identity:    string(pagOpts.Identity),
-				Out:         out,
-				ErrOut:      errOut,
-			})
+			return emitter.Value(output.SuccessEnvelopeData(result), output.StreamOptions{Format: format})
 		}
 		return nil
 	default:
@@ -76,7 +88,9 @@ func PaginateToOutput(ctx context.Context, ac *APIClient, request RawApiRequest,
 			return markErr(err)
 		}
 		if apiErr := checkErr(result, pagOpts.Identity); apiErr != nil {
-			output.FormatValue(out, result, output.FormatJSON)
+			if emitErr := emitValue(result, output.FormatJSON); emitErr != nil {
+				return markErr(emitErr)
+			}
 			return markErr(apiErr)
 		}
 		return output.WriteSuccessEnvelope(output.SuccessEnvelopeData(result), output.SuccessEnvelopeOptions{

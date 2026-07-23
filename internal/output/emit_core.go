@@ -73,11 +73,11 @@ func normalizeCommandPath(cobraPath string) string {
 
 var (
 	errBlocked        = errors.New("content safety blocked")
+	errScanFailed     = errors.New("content safety scan failed")
 	errScanIncomplete = errors.New("content safety scan incomplete")
 )
 
-func runContentSafety(cobraPath string, data any, errOut io.Writer, fullText bool, newScanContext scanContextFactory) (*extcs.Alert, error) {
-	m := modeFromEnv(errOut)
+func runContentSafety(cobraPath string, data any, errOut io.Writer, fullText bool, m mode, newScanContext scanContextFactory) (*extcs.Alert, error) {
 	if m == modeOff {
 		return nil, nil
 	}
@@ -143,7 +143,7 @@ func runContentSafety(cobraPath string, data any, errOut io.Writer, fullText boo
 		if m == modeBlock {
 			return nil, fmt.Errorf("%w: %w", errScanIncomplete, ctx.Err())
 		}
-		return nil, nil
+		return nil, fmt.Errorf("%w: %w", errScanFailed, ctx.Err())
 	}
 
 	if res.err != nil {
@@ -151,7 +151,7 @@ func runContentSafety(cobraPath string, data any, errOut io.Writer, fullText boo
 		if m == modeBlock {
 			return nil, fmt.Errorf("%w: %w", errScanIncomplete, res.err)
 		}
-		return nil, nil
+		return nil, fmt.Errorf("%w: %w", errScanFailed, res.err)
 	}
 	if res.alert == nil {
 		return nil, nil

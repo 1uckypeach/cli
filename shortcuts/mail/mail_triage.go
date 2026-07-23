@@ -14,7 +14,6 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/client"
-	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/shortcuts/common"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 )
@@ -289,7 +288,9 @@ var MailTriage = common.Shortcut{
 			if notice != "" {
 				outData["notice"] = notice
 			}
-			output.PrintJson(runtime.IO().Out, outData)
+			if err := runtime.EmitValue(outData, "json"); err != nil {
+				return err
+			}
 		default: // "table"
 			if notice != "" {
 				fmt.Fprintf(runtime.IO().ErrOut, "notice: %s\n", notice)
@@ -314,7 +315,9 @@ var MailTriage = common.Shortcut{
 				}
 				rows = append(rows, row)
 			}
-			output.PrintTable(runtime.IO().Out, rows)
+			if err := runtime.EmitValue(rows, "table"); err != nil {
+				return err
+			}
 			fmt.Fprintf(runtime.IO().ErrOut, "\n%d message(s)\n", len(messages))
 			if hasMore && nextPageToken != "" {
 				var hint strings.Builder
@@ -421,7 +424,7 @@ func printTriageFilterSchema(runtime *common.RuntimeContext) {
 			`{"folder":"SENT","time_range":{"start_time":"2026-03-01T00:00:00+08:00"}}`,
 		},
 	}
-	runtime.Out(schema, nil)
+	runtime.OutJSON(schema, nil)
 }
 
 func parseTriageFilter(filterStr string) (triageFilter, error) {

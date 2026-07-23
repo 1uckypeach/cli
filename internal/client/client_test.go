@@ -711,3 +711,25 @@ func TestCallAPI_ParseJSONFailureWrapsAsAPI(t *testing.T) {
 		t.Errorf("ExitCodeOf = %d, want %d (internal)", output.ExitCodeOf(err), output.ExitInternal)
 	}
 }
+
+func TestPaginateToOutputRejectsUnsupportedInternalFormat(t *testing.T) {
+	for _, format := range []output.Format{output.FormatPretty, output.Format(99)} {
+		err := PaginateToOutput(
+			context.Background(),
+			nil,
+			RawApiRequest{},
+			format,
+			"",
+			io.Discard,
+			io.Discard,
+			"lark-cli fixture",
+			PaginationOptions{},
+			nil,
+			nil,
+		)
+		var internalErr *errs.InternalError
+		if !errors.As(err, &internalErr) {
+			t.Fatalf("format %q error = %T, want *errs.InternalError", format, err)
+		}
+	}
+}

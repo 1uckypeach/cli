@@ -45,6 +45,7 @@ func newRecordMarkdownTestRuntime(stdout, stderr *bytes.Buffer) *common.RuntimeC
 	return &common.RuntimeContext{
 		Config:  &core.CliConfig{Brand: core.BrandFeishu},
 		Cmd:     cmd,
+		Format:  "markdown",
 		Factory: &cmdutil.Factory{IOStreams: &cmdutil.IOStreams{Out: stdout, ErrOut: stderr}},
 	}
 }

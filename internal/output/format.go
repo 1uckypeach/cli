@@ -124,6 +124,14 @@ func WriteFormatted(w io.Writer, data interface{}, format Format) error {
 	switch format {
 	case FormatJSON:
 		return WriteJSON(w, data)
+	case FormatPretty:
+		switch data.(type) {
+		case map[string]interface{}, []interface{}:
+			return WriteTable(w, data)
+		default:
+			_, err := fmt.Fprintln(w, cellStr(data))
+			return err
+		}
 	case FormatNDJSON:
 		items := ExtractItems(data)
 		if items != nil {

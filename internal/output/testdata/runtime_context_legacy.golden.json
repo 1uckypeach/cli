@@ -62,10 +62,6 @@
       "stdout": "pretty:fixture\n",
       "stderr": ""
     },
-    "pretty_without_renderer": {
-      "stdout": "{\n  \"ok\": true,\n  \"identity\": \"bot\",\n  \"data\": {\n    \"name\": \"Alice\"\n  }\n}\n",
-      "stderr": "warning: --format pretty is not supported by this command; showing JSON instead\n"
-    },
     "raw_jq_complex": {
       "stdout": "{\n  \"html\": \"<p>a&b</p>\"\n}\n",
       "stderr": ""

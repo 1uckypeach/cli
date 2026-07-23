@@ -128,6 +128,7 @@ func TestApiCmd_UnknownFormat_Rejected(t *testing.T) {
 			name = "dry-run"
 		}
 		t.Run(name, func(t *testing.T) {
+			t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 			f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
 				AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
 			})
@@ -152,6 +153,7 @@ func TestApiCmd_UnknownFormat_Rejected(t *testing.T) {
 }
 
 func TestApiCmd_UnknownFormatPrecedesJqConflict(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
 	})
@@ -177,6 +179,7 @@ func TestApiCmd_UnknownFormatPrecedesJqConflict(t *testing.T) {
 // pretty is shortcut-only: the raw api command rejects it on the emit path
 // (before client init) but keeps the dry-run plain-text preview.
 func TestApiCmd_Pretty_RejectedOnEmit(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
 	})
@@ -196,6 +199,7 @@ func TestApiCmd_Pretty_RejectedOnEmit(t *testing.T) {
 }
 
 func TestApiCmd_MixedCasePretty_PreservedOnDryRun(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
 	})
@@ -495,7 +499,7 @@ func TestApiCmd_BinaryResponse_AutoSave(t *testing.T) {
 	}
 }
 
-func TestApiCmd_PageAll_NonBatchAPI_FallbackToJSON(t *testing.T) {
+func TestApiCmd_PageAll_NonBatchAPI_HonorsNDJSON(t *testing.T) {
 	f, stdout, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app-pageall1", AppSecret: "test-secret-pageall1", Brand: core.BrandFeishu,
 	})
@@ -518,24 +522,15 @@ func TestApiCmd_PageAll_NonBatchAPI_FallbackToJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// Should print fallback warning to stderr
-	if !strings.Contains(stderr.String(), "warning: this API does not return a list") {
-		t.Error("expected fallback warning in stderr")
+	if strings.Contains(stderr.String(), "falling back") {
+		t.Fatalf("stderr contains format fallback warning: %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "falling back to json") {
-		t.Error("expected 'falling back to json' in stderr")
-	}
-	// Should output JSON result to stdout
 	var got map[string]interface{}
 	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
-		t.Fatalf("invalid JSON output: %v\n%s", err, stdout.String())
+		t.Fatalf("invalid NDJSON object: %v\n%s", err, stdout.String())
 	}
-	data, ok := got["data"].(map[string]interface{})
-	if got["ok"] != true || got["identity"] != "bot" || !ok || data["user_id"] != "u123" {
-		t.Fatalf("unexpected fallback envelope: %#v", got)
-	}
-	if _, hasCode := got["code"]; hasCode {
-		t.Fatalf("fallback success envelope leaked outer code: %s", stdout.String())
+	if got["user_id"] != "u123" || got["name"] != "Test User" {
+		t.Fatalf("unexpected NDJSON object: %#v", got)
 	}
 }
 
@@ -749,12 +744,12 @@ func TestApiCmd_PageAll_DefaultJSONRunsContentSafety(t *testing.T) {
 	if provider.path != "api" {
 		t.Fatalf("scan path = %q, want api", provider.path)
 	}
-	data, ok := provider.data.(map[string]interface{})
+	data, ok := provider.data.(string)
 	if !ok {
-		t.Fatalf("scanned data type = %T, want map", provider.data)
+		t.Fatalf("scanned data type = %T, want rendered JSON string", provider.data)
 	}
-	if _, hasCode := data["code"]; hasCode {
-		t.Fatalf("scanned data should be business data only, got %#v", data)
+	if strings.Contains(data, `"code"`) || !strings.Contains(data, `"data"`) {
+		t.Fatalf("scanned JSON should be the success envelope without an API code, got %q", data)
 	}
 
 	var got map[string]interface{}
@@ -864,11 +859,8 @@ func TestApiCmd_PageAll_StreamFormatBlockSkipsBlockedPage(t *testing.T) {
 		t.Fatalf("rules = %v, want [pagination]", safetyErr.Rules)
 	}
 	out := stdout.String()
-	if !strings.Contains(out, "safe-page") {
-		t.Fatalf("expected earlier safe page to remain streamed, got: %s", out)
-	}
-	if strings.Contains(out, "blocked-page") {
-		t.Fatalf("blocked page was written before safety block: %s", out)
+	if out != "" {
+		t.Fatalf("blocked complete stream was written before safety block: %s", out)
 	}
 }
 

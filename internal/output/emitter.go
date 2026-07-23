@@ -6,10 +6,11 @@ package output
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
+	"sort"
 
 	"github.com/larksuite/cli/errs"
+	extcs "github.com/larksuite/cli/extension/contentsafety"
 )
 
 // NoticeProvider supplies the notice attached to a structured envelope.
@@ -24,12 +25,13 @@ type PrettyRenderer func(w io.Writer, colorEnabled bool) error
 // EmitterConfig contains command-scoped dependencies. A command constructs one
 // Emitter and reuses it for its success result or streamed pages.
 type EmitterConfig struct {
-	Out            io.Writer
-	ErrOut         io.Writer
-	CommandPath    string
-	Identity       string
-	ColorEnabled   bool
-	NoticeProvider NoticeProvider
+	Out                    io.Writer
+	ErrOut                 io.Writer
+	CommandPath            string
+	Identity               string
+	ColorEnabled           bool
+	NoticeProvider         NoticeProvider
+	MaxBufferedStreamBytes int
 }
 
 // EmitOptions describes one result's wire representation.
@@ -72,14 +74,29 @@ type Emitter struct {
 	scanCtx        scanContextFactory
 
 	streamFormat    Format
+	streamFormatSet bool
+	streamPrettySet bool
+	streamHasPretty bool
 	streamFormatter *PaginatedFormatter
+	streamMode      mode
+	streamModeSet   bool
+	streamBuffer    bytes.Buffer
+	maxStreamBytes  int
+	streamFinished  bool
+	streamFinishErr error
 }
+
+const defaultMaxBufferedStreamBytes = 64 << 20
 
 // NewEmitter constructs a command-scoped output emitter.
 func NewEmitter(config EmitterConfig) *Emitter {
 	errOut := config.ErrOut
 	if errOut == nil {
 		errOut = io.Discard
+	}
+	maxStreamBytes := config.MaxBufferedStreamBytes
+	if maxStreamBytes <= 0 {
+		maxStreamBytes = defaultMaxBufferedStreamBytes
 	}
 	return &Emitter{
 		out:            config.Out,
@@ -89,6 +106,7 @@ func NewEmitter(config EmitterConfig) *Emitter {
 		colorEnabled:   config.ColorEnabled,
 		noticeProvider: config.NoticeProvider,
 		scanCtx:        defaultContentSafetyContext,
+		maxStreamBytes: maxStreamBytes,
 	}
 }
 
@@ -118,12 +136,28 @@ func (e *Emitter) Success(data interface{}, opts EmitOptions) error {
 	}
 }
 
+// Value scans and emits one naked business value. It is intended for
+// long-running streams and custom-format shortcuts whose public contract does
+// not use the standard success envelope.
+func (e *Emitter) Value(data interface{}, opts StreamOptions) error {
+	if !opts.Format.Valid() {
+		return errs.NewInternalError(errs.SubtypeUnknown,
+			"internal: unknown output format %d", int(opts.Format))
+	}
+	if err := e.requireOutput(); err != nil {
+		return err
+	}
+	if opts.Format == FormatPretty && opts.Pretty != nil {
+		return e.emitPrettyRenderer(data, opts.Pretty)
+	}
+	return e.emitValue(data, opts.Format)
+}
+
 // PartialFailure emits a multi-status result whose envelope honestly reports
 // ok:false. It is the typed counterpart to Success for batch operations where
 // some items failed but the per-item outcomes are the primary stdout output.
-// Like the legacy OutPartialFailure it produces only the JSON/jq envelope; the
-// caller owns the non-zero exit signal, keeping the Emitter free of exit
-// semantics.
+// JSON and jq retain the failure envelope. Other formats emit the selected
+// naked representation while the caller supplies the non-zero exit signal.
 func (e *Emitter) PartialFailure(data interface{}, opts EmitOptions) error {
 	if !opts.Format.Valid() {
 		return errs.NewInternalError(errs.SubtypeUnknown,
@@ -132,7 +166,10 @@ func (e *Emitter) PartialFailure(data interface{}, opts EmitOptions) error {
 	if err := e.requireOutput(); err != nil {
 		return err
 	}
-	return e.emitEnvelope(data, false, opts)
+	if opts.JQ != "" || opts.Format == FormatJSON {
+		return e.emitEnvelope(data, false, opts)
+	}
+	return e.Value(data, StreamOptions{Format: opts.Format, Pretty: opts.Pretty})
 }
 
 // StreamPage scans and emits one page while retaining table/csv columns from
@@ -150,23 +187,42 @@ func (e *Emitter) StreamPage(data interface{}, opts StreamOptions) error {
 	if err := e.requireOutput(); err != nil {
 		return err
 	}
-
-	if opts.Format == FormatPretty {
-		if opts.Pretty != nil {
-			return e.emitPrettyRenderer(opts.Pretty)
-		}
-		if e.streamFormatter == nil {
-			fmt.Fprintln(e.errOut, "warning: --format pretty is not supported by this command; showing NDJSON instead")
-		}
-		opts.Format = FormatNDJSON
+	if e.streamFinished {
+		return errs.NewInternalError(errs.SubtypeUnknown,
+			"stream output is already finished")
 	}
-
-	if e.streamFormatter == nil {
+	if !e.streamFormatSet {
 		e.streamFormat = opts.Format
-		e.streamFormatter = NewPaginatedFormatter(nil, opts.Format)
+		e.streamFormatSet = true
 	} else if opts.Format != e.streamFormat {
 		return errs.NewInternalError(errs.SubtypeUnknown,
 			"stream output format changed from %q to %q", e.streamFormat, opts.Format)
+	}
+
+	if opts.Format == FormatPretty {
+		hasPretty := opts.Pretty != nil
+		if !e.streamPrettySet {
+			e.streamHasPretty = hasPretty
+			e.streamPrettySet = true
+		} else if hasPretty != e.streamHasPretty {
+			return errs.NewInternalError(errs.SubtypeUnknown,
+				"stream pretty renderer availability changed between pages")
+		}
+		if opts.Pretty != nil {
+			var buf bytes.Buffer
+			if err := opts.Pretty(&buf, e.colorEnabled); err != nil {
+				return wrapOutputError("render", err)
+			}
+			return e.emitStreamBuffer(data, &buf)
+		}
+		// Commands without a curated pretty renderer use the generic table
+		// representation. This keeps --format pretty truthful without requiring
+		// every shortcut to duplicate a renderer.
+		opts.Format = FormatTable
+	}
+
+	if e.streamFormatter == nil {
+		e.streamFormatter = NewPaginatedFormatter(nil, opts.Format)
 	}
 
 	// Render this page, then scan the exact bytes before writing: a rule match
@@ -177,15 +233,27 @@ func (e *Emitter) StreamPage(data interface{}, opts StreamOptions) error {
 	if err := e.streamFormatter.WritePage(data); err != nil {
 		return wrapOutputError("render", err)
 	}
-	return e.emitScannedBuffer(&buf)
+	return e.emitStreamBuffer(data, &buf)
+}
+
+// FinishStream commits output buffered by StreamPage in block mode. Warn mode
+// remains incremental: each page is scanned and written by StreamPage. Callers
+// must invoke FinishStream after the final page, including when pagination ends
+// with an API error and partial block-mode output should remain visible.
+func (e *Emitter) FinishStream() error {
+	if e.streamFinished {
+		return e.streamFinishErr
+	}
+	e.streamFinished = true
+	if !e.streamModeSet || e.streamMode != modeBlock || e.streamBuffer.Len() == 0 {
+		return nil
+	}
+	e.streamFinishErr = e.emitScannedBufferMode(&e.streamBuffer, e.streamMode)
+	return e.streamFinishErr
 }
 
 func (e *Emitter) emitEnvelope(data interface{}, ok bool, opts EmitOptions) error {
-	scanResult := e.scanForSafety(data, false)
-	if scanResult.Blocked {
-		return scanResult.BlockErr
-	}
-
+	m := modeFromEnv(e.errOut)
 	env := Envelope{
 		OK:       ok,
 		Identity: e.identity,
@@ -194,15 +262,14 @@ func (e *Emitter) emitEnvelope(data interface{}, ok bool, opts EmitOptions) erro
 		Meta:     opts.Meta,
 		Notice:   e.notice(),
 	}
-	if scanResult.Alert != nil {
-		env.ContentSafetyAlert = scanResult.Alert
-	}
 
 	if opts.JQ != "" {
-		if scanResult.Alert != nil {
-			if err := WriteAlertWarning(e.errOut, scanResult.Alert); err != nil {
-				return wrapOutputError("write", err)
-			}
+		sourceScan := e.scanForSafetyMode(data, false, m)
+		if sourceScan.Blocked {
+			return sourceScan.BlockErr
+		}
+		if sourceScan.Alert != nil {
+			env.ContentSafetyAlert = sourceScan.Alert
 		}
 		// Buffer the jq output manually so jq's own typed error (a validation
 		// error for a bad expression, an api error for a runtime failure) is
@@ -218,10 +285,18 @@ func (e *Emitter) emitEnvelope(data interface{}, ok bool, opts EmitOptions) erro
 		if jqErr != nil {
 			return jqErr
 		}
-		// A jq expression can concatenate fields into a rule match that no
-		// single value contains; scan the rendered bytes before writing.
-		if err := e.blockIfRenderedUnsafe(&buf); err != nil {
-			return err
+		var renderedScan ScanResult
+		if !sourceScan.scanFailed {
+			renderedScan = e.scanRenderedBufferMode(&buf, m)
+		}
+		if renderedScan.Blocked {
+			return renderedScan.BlockErr
+		}
+		alert := mergeSafetyAlerts(sourceScan.Alert, renderedScan.Alert)
+		if alert != nil {
+			if err := WriteAlertWarning(e.errOut, alert); err != nil {
+				return wrapOutputError("write", err)
+			}
 		}
 		if _, err := io.Copy(e.out, &buf); err != nil {
 			return wrapOutputError("write", err)
@@ -229,21 +304,31 @@ func (e *Emitter) emitEnvelope(data interface{}, ok bool, opts EmitOptions) erro
 		return nil
 	}
 
-	// The JSON envelope is scanned via its data above: JSON serialization keeps
-	// per-field punctuation between values, so a whitespace-joined cross-field
-	// match cannot form the way it does for table/CSV or a jq concatenation.
-	var buf bytes.Buffer
-	var renderErr error
-	if opts.Raw {
-		enc := json.NewEncoder(&buf)
-		enc.SetEscapeHTML(false)
-		enc.SetIndent("", "  ")
-		renderErr = enc.Encode(env)
-	} else {
-		renderErr = WriteJSON(&buf, env)
+	// Scan both representations. The structured scan detects content changed by
+	// JSON escaping, while the rendered scan detects matches formed across
+	// serialized fields.
+	sourceScan := e.scanForSafetyMode(data, false, m)
+	if sourceScan.Blocked {
+		return sourceScan.BlockErr
 	}
-	if renderErr != nil {
-		return wrapOutputError("render", renderErr)
+
+	var buf bytes.Buffer
+	if err := renderEnvelope(&buf, env, opts.Raw); err != nil {
+		return wrapOutputError("render", err)
+	}
+	var renderedScan ScanResult
+	if !sourceScan.scanFailed {
+		renderedScan = e.scanRenderedBufferMode(&buf, m)
+	}
+	if renderedScan.Blocked {
+		return renderedScan.BlockErr
+	}
+	if alert := mergeSafetyAlerts(sourceScan.Alert, renderedScan.Alert); alert != nil {
+		env.ContentSafetyAlert = alert
+		buf.Reset()
+		if err := renderEnvelope(&buf, env, opts.Raw); err != nil {
+			return wrapOutputError("render", err)
+		}
 	}
 	if _, err := io.Copy(e.out, &buf); err != nil {
 		return wrapOutputError("write", err)
@@ -253,46 +338,68 @@ func (e *Emitter) emitEnvelope(data interface{}, ok bool, opts EmitOptions) erro
 
 func (e *Emitter) emitPretty(data interface{}, opts EmitOptions) error {
 	if opts.Pretty != nil {
-		return e.emitPrettyRenderer(opts.Pretty)
+		return e.emitPrettyRenderer(data, opts.Pretty)
 	}
 
-	// No pretty renderer: the command cannot render --format pretty. Rather than
-	// failing after a write may already have mutated remote state (which would
-	// make automation retry and duplicate resources), warn and fall back to JSON.
-	fmt.Fprintln(e.errOut, "warning: --format pretty is not supported by this command; showing JSON instead")
-	return e.emitEnvelope(data, true, opts)
+	return e.emitFormatted(data, FormatPretty)
 }
 
-func (e *Emitter) emitPrettyRenderer(renderer PrettyRenderer) error {
+func (e *Emitter) emitPrettyRenderer(data interface{}, renderer PrettyRenderer) error {
 	// Buffer pretty output so the safety scan sees the exact text that will be
 	// written to stdout, including anything captured by the opaque renderer.
 	var buf bytes.Buffer
 	if err := renderer(&buf, e.colorEnabled); err != nil {
 		return wrapOutputError("render", err)
 	}
-	return e.emitScannedBuffer(&buf)
+	return e.emitSourceAndRenderedBufferMode(data, &buf, modeFromEnv(e.errOut))
 }
 
-// emitFormatted renders naked business data for the non-envelope formats
-// (ndjson, table, csv). Success routes FormatJSON to the envelope and
-// FormatPretty to the pretty renderer, and boundaries reject unknown formats,
-// so emitFormatted only ever receives a canonical non-envelope Format.
+// emitFormatted renders naked business data for ndjson, table, csv, and the
+// generic pretty representation. Success routes FormatJSON to the envelope and
+// curated pretty output to its renderer.
 func (e *Emitter) emitFormatted(data interface{}, format Format) error {
 	var buf bytes.Buffer
 	if err := WriteFormatted(&buf, data, format); err != nil {
 		return wrapOutputError("render", err)
 	}
-	return e.emitScannedBuffer(&buf)
+	return e.emitSourceAndRenderedBufferMode(data, &buf, modeFromEnv(e.errOut))
 }
 
-// emitScannedBuffer scans the exact bytes that will be written to stdout and
-// writes them only if the scan does not block. Scanning the rendered buffer —
-// not the structured data — is what stops a rule match that only forms in the
-// output (table cells joined by spaces, a jq string concatenation, adjacent
-// NDJSON objects) from slipping past block mode. A warn-mode alert goes to
-// stderr.
-func (e *Emitter) emitScannedBuffer(buf *bytes.Buffer) error {
-	scanResult := e.scanForSafety(buf.String(), true)
+func (e *Emitter) emitValue(data interface{}, format Format) error {
+	var buf bytes.Buffer
+	var err error
+	switch format {
+	case FormatJSON:
+		err = WriteJSON(&buf, data)
+	case FormatNDJSON:
+		err = WriteNDJSON(&buf, data)
+	case FormatTable:
+		err = WriteTable(&buf, data)
+	case FormatCSV:
+		err = WriteCSV(&buf, data)
+	case FormatPretty:
+		err = WriteFormatted(&buf, data, format)
+	default:
+		return errs.NewInternalError(errs.SubtypeUnknown,
+			"internal: unknown output format %d", int(format))
+	}
+	if err != nil {
+		return wrapOutputError("render", err)
+	}
+	return e.emitSourceAndRenderedBufferMode(data, &buf, modeFromEnv(e.errOut))
+}
+
+func (e *Emitter) emitScannedBufferMode(buf *bytes.Buffer, m mode) error {
+	scanResult := e.scanRenderedBufferMode(buf, m)
+	return e.emitBufferAfterScan(buf, scanResult)
+}
+
+func (e *Emitter) emitSourceAndRenderedBufferMode(data interface{}, buf *bytes.Buffer, m mode) error {
+	scanResult := e.scanSourceAndRenderedBufferMode(data, buf, m)
+	return e.emitBufferAfterScan(buf, scanResult)
+}
+
+func (e *Emitter) emitBufferAfterScan(buf *bytes.Buffer, scanResult ScanResult) error {
 	if scanResult.Blocked {
 		return scanResult.BlockErr
 	}
@@ -307,20 +414,89 @@ func (e *Emitter) emitScannedBuffer(buf *bytes.Buffer) error {
 	return nil
 }
 
-// blockIfRenderedUnsafe scans the exact rendered bytes and, in block mode,
-// returns the block error when a rule matches text that only forms in the
-// rendered output. The envelope's data scan owns warn-mode reporting (the
-// embedded alert / stderr warning), so this adds no second alert.
-func (e *Emitter) blockIfRenderedUnsafe(buf *bytes.Buffer) error {
-	scanResult := e.scanForSafety(buf.String(), true)
-	if scanResult.Blocked {
-		return scanResult.BlockErr
+func (e *Emitter) emitStreamBuffer(data interface{}, buf *bytes.Buffer) error {
+	if !e.streamModeSet {
+		e.streamMode = modeFromEnv(e.errOut)
+		e.streamModeSet = true
+	}
+	switch e.streamMode {
+	case modeWarn:
+		return e.emitSourceAndRenderedBufferMode(data, buf, e.streamMode)
+	case modeBlock:
+		sourceScan := e.scanForSafetyMode(data, false, e.streamMode)
+		if sourceScan.Blocked {
+			return sourceScan.BlockErr
+		}
+		if buf.Len() > e.maxStreamBytes-e.streamBuffer.Len() {
+			return errs.NewContentSafetyError(errs.SubtypeContentSafety,
+				"content-safety scan input exceeds the %d-byte stream limit; blocked",
+				e.maxStreamBytes).
+				WithHint("reduce --page-limit or request fewer records")
+		}
+		_, _ = e.streamBuffer.Write(buf.Bytes())
+		return nil
+	}
+	if _, err := io.Copy(e.out, buf); err != nil {
+		return wrapOutputError("write", err)
 	}
 	return nil
 }
 
-func (e *Emitter) scanForSafety(data interface{}, fullText bool) ScanResult {
-	return scanForSafety(e.commandPath, data, e.errOut, fullText, e.scanCtx)
+func (e *Emitter) scanSourceAndRenderedBufferMode(data interface{}, buf *bytes.Buffer, m mode) ScanResult {
+	sourceScan := e.scanForSafetyMode(data, false, m)
+	if sourceScan.Blocked || sourceScan.scanFailed {
+		return sourceScan
+	}
+	renderedScan := e.scanRenderedBufferMode(buf, m)
+	if renderedScan.Blocked {
+		return renderedScan
+	}
+	renderedScan.Alert = mergeSafetyAlerts(sourceScan.Alert, renderedScan.Alert)
+	return renderedScan
+}
+
+func (e *Emitter) scanRenderedBufferMode(buf *bytes.Buffer, m mode) ScanResult {
+	return e.scanForSafetyMode(buf.String(), true, m)
+}
+
+func renderEnvelope(w io.Writer, env Envelope, raw bool) error {
+	if raw {
+		enc := json.NewEncoder(w)
+		enc.SetEscapeHTML(false)
+		enc.SetIndent("", "  ")
+		return enc.Encode(env)
+	}
+	return WriteJSON(w, env)
+}
+
+func mergeSafetyAlerts(first, second *extcs.Alert) *extcs.Alert {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	rules := make(map[string]struct{}, len(first.MatchedRules)+len(second.MatchedRules))
+	for _, rule := range first.MatchedRules {
+		rules[rule] = struct{}{}
+	}
+	for _, rule := range second.MatchedRules {
+		rules[rule] = struct{}{}
+	}
+	mergedRules := make([]string, 0, len(rules))
+	for rule := range rules {
+		mergedRules = append(mergedRules, rule)
+	}
+	sort.Strings(mergedRules)
+	provider := first.Provider
+	if provider == "" {
+		provider = second.Provider
+	}
+	return &extcs.Alert{Provider: provider, MatchedRules: mergedRules}
+}
+
+func (e *Emitter) scanForSafetyMode(data interface{}, fullText bool, m mode) ScanResult {
+	return scanForSafetyMode(e.commandPath, data, e.errOut, fullText, m, e.scanCtx)
 }
 
 func wrapOutputError(op string, err error) error {

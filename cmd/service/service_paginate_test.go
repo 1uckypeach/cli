@@ -256,7 +256,7 @@ func TestServicePaginate_StreamingWriteFailureStopsFurtherPages(t *testing.T) {
 	}
 }
 
-func TestServicePaginate_StreamingFormatFallsBackToJSONWithoutList(t *testing.T) {
+func TestServicePaginate_StreamingFormatHonorsNDJSONWithoutList(t *testing.T) {
 	ac, out, errOut, reg := newServicePaginateTestHarness(t)
 	reg.Register(&httpmock.Stub{
 		URL: "/open-apis/test/v1/items",
@@ -277,17 +277,12 @@ func TestServicePaginate_StreamingFormatFallsBackToJSONWithoutList(t *testing.T)
 	if err != nil {
 		t.Fatalf("PaginateToOutput() error = %v, want nil", err)
 	}
-	assertServicePaginateJSONBytes(t, out.Bytes(), output.Envelope{
-		OK:       true,
-		Identity: "bot",
-		Data: map[string]interface{}{
-			"name":    "Test User",
-			"user_id": "u123",
-		},
-	})
-	wantWarning := "warning: this API does not return a list, format \"ndjson\" is not supported, falling back to json\n"
-	if got := errOut.String(); got != wantWarning {
-		t.Fatalf("stderr bytes = %q, want %q", got, wantWarning)
+	const want = "{\"name\":\"Test User\",\"user_id\":\"u123\"}\n"
+	if got := out.String(); got != want {
+		t.Fatalf("stdout bytes = %q, want %q", got, want)
+	}
+	if errOut.Len() != 0 {
+		t.Fatalf("stderr bytes = %q, want empty", errOut.String())
 	}
 }
 

@@ -143,6 +143,15 @@ func TestRuntimeContext_OutRaw_PropagatesWriteError(t *testing.T) {
 	}
 }
 
+func TestRuntimeContext_OutRaw_HonorsSelectedFormat(t *testing.T) {
+	rctx, stdout, _ := newJqTestContext("", "ndjson")
+	rctx.OutRaw([]interface{}{map[string]interface{}{"html": "<p>hello</p>"}}, nil)
+
+	if got := stdout.String(); got != "{\"html\":\"\\u003cp\\u003ehello\\u003c/p\\u003e\"}\n" {
+		t.Fatalf("OutRaw() stdout = %q, want NDJSON without an envelope", got)
+	}
+}
+
 func TestRunShortcut_OutRawWriteErrorPropagates(t *testing.T) {
 	sentinel := errors.New("write failed")
 	f := newTestFactory()
@@ -474,6 +483,41 @@ func TestRunShortcut_PrintSchemaRejectsUnknownFrameworkFormat(t *testing.T) {
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("invalid --format wrote schema to stdout:\n%s", stdout.String())
+	}
+}
+
+func TestRunShortcut_PrintSchemaRejectsKnownNonJSONFormat(t *testing.T) {
+	schemaCalled := false
+	s := &Shortcut{
+		Service:   "test",
+		Command:   "test-shortcut",
+		AuthTypes: []string{"bot"},
+		PrintFlagSchema: func(string) ([]byte, error) {
+			schemaCalled = true
+			return []byte(`{"type":"object"}`), nil
+		},
+		Execute: func(context.Context, *RuntimeContext) error {
+			t.Fatal("Execute should not run for --print-schema")
+			return nil
+		},
+	}
+	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test", AppSecret: "test", Brand: core.BrandFeishu,
+	})
+	cmd := newTestShortcutCmd(s, f)
+	cmd.Flags().Set("print-schema", "true")
+	cmd.Flags().Set("format", "csv")
+
+	err := runShortcut(cmd, f, s, false)
+	validationErr := requireValidation(t, err, "requires --format json")
+	if validationErr.Param != "--format" {
+		t.Fatalf("Param = %q, want --format", validationErr.Param)
+	}
+	if schemaCalled {
+		t.Fatal("PrintFlagSchema should not run for a non-JSON format")
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("non-JSON format wrote schema to stdout:\n%s", stdout.String())
 	}
 }
 

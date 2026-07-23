@@ -5,6 +5,8 @@ package common
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -40,7 +42,7 @@ func TestShortcutMount_FormatFlagAlwaysRegistered(t *testing.T) {
 	}
 }
 
-func TestRunShortcutWritePrettyWithoutRendererExecutesAndFallsBackToJSON(t *testing.T) {
+func TestRunShortcutWritePrettyWithoutRendererExecutesAndUsesGenericTable(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "off")
 	executeCalls := 0
@@ -67,7 +69,7 @@ func TestRunShortcutWritePrettyWithoutRendererExecutesAndFallsBackToJSON(t *test
 			if err != nil {
 				return err
 			}
-			rctx.OutFormat(data, nil, nil)
+			rctx.Out(data, nil)
 			return nil
 		},
 	}
@@ -88,12 +90,64 @@ func TestRunShortcutWritePrettyWithoutRendererExecutesAndFallsBackToJSON(t *test
 	if len(writeStub.CapturedBodies) != 1 {
 		t.Fatalf("API call count = %d, want 1", len(writeStub.CapturedBodies))
 	}
-	const wantStdout = "{\n  \"ok\": true,\n  \"identity\": \"bot\",\n  \"data\": {\n    \"id\": \"created\"\n  }\n}\n"
+	const wantStdout = "id  created\n"
 	if stdout.String() != wantStdout {
 		t.Fatalf("stdout = %q, want %q", stdout.String(), wantStdout)
 	}
-	const wantStderr = "warning: --format pretty is not supported by this command; showing JSON instead\n"
-	if stderr.String() != wantStderr {
-		t.Fatalf("stderr = %q, want %q", stderr.String(), wantStderr)
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunShortcutOutHonorsSelectedFormat(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	t.Setenv("LARKSUITE_CLI_CONTENT_SAFETY_MODE", "off")
+
+	for _, format := range []string{"json", "pretty", "ndjson", "table", "csv"} {
+		t.Run(format, func(t *testing.T) {
+			f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+				AppID: "test", AppSecret: "test", Brand: core.BrandFeishu,
+			})
+			shortcut := &Shortcut{
+				Service:   "fixture",
+				Command:   "+read",
+				Risk:      "read",
+				AuthTypes: []string{"bot"},
+				Execute: func(_ context.Context, rctx *RuntimeContext) error {
+					rctx.Out([]interface{}{
+						map[string]interface{}{"id": "1", "name": "Alice"},
+					}, nil)
+					return nil
+				},
+			}
+			cmd := newTestShortcutCmd(shortcut, f)
+			if err := cmd.Flags().Set("as", "bot"); err != nil {
+				t.Fatalf("set --as: %v", err)
+			}
+			if err := cmd.Flags().Set("format", format); err != nil {
+				t.Fatalf("set --format: %v", err)
+			}
+
+			if err := runShortcut(cmd, f, shortcut, true); err != nil {
+				t.Fatalf("runShortcut() error = %v", err)
+			}
+			got := stdout.String()
+			if format == "json" {
+				var envelope map[string]interface{}
+				if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+					t.Fatalf("stdout is not a JSON envelope: %v\n%s", err, got)
+				}
+				if envelope["ok"] != true {
+					t.Fatalf("JSON envelope ok = %#v, want true", envelope["ok"])
+				}
+				return
+			}
+			if strings.Contains(got, `"ok"`) {
+				t.Fatalf("%s output contains a JSON envelope: %s", format, got)
+			}
+			if !strings.Contains(got, "Alice") {
+				t.Fatalf("%s output = %q, want rendered data", format, got)
+			}
+		})
 	}
 }
