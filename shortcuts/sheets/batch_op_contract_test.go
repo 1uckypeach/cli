@@ -245,6 +245,12 @@ func TestBatchOp_BodyMatchesStandalone(t *testing.T) {
 			subInput: `{"sheet-id":"sh1","chart-id":"c1","title":"Updated","data-labels":"category","data-label-position":"top"}`,
 		},
 		{
+			shortcut: "+chart-data-update",
+			sc:       ChartDataUpdate,
+			args:     []string{"--sheet-id", "sh1", "--chart-id", "c1", "--data-range", "'Sheet1'!A1:M6", "--data-direction", "column", "--dim1-index", "1", "--dim2-indexes", "4,8"},
+			subInput: `{"sheet-id":"sh1","chart-id":"c1","data-range":"'Sheet1'!A1:M6","data-direction":"column","dim1-index":1,"dim2-indexes":"4,8"}`,
+		},
+		{
 			shortcut: "+pivot-create",
 			sc:       PivotCreate,
 			// +pivot-create renamed --sheet-id / --sheet-name → --target-sheet-id /
@@ -444,6 +450,22 @@ func TestBatchOp_ErrorEquivalence(t *testing.T) {
 			subShortcut:  "+sheet-delete",
 			subInput:     `{}`,
 			wantContains: "specify at least one of --sheet-id or --sheet-name",
+		},
+		{
+			name:         "+chart-data-update invalid dim1 index",
+			shortcut:     ChartDataUpdate,
+			args:         []string{"--sheet-id", "sh1", "--chart-id", "c1", "--data-range", "A1:C4", "--dim1-index", "0"},
+			subShortcut:  "+chart-data-update",
+			subInput:     `{"sheet-id":"sh1","chart-id":"c1","data-range":"A1:C4","dim1-index":0}`,
+			wantContains: "--dim1-index must be a positive 1-based index",
+		},
+		{
+			name:         "+chart-data-update dim1 and dim2 conflict",
+			shortcut:     ChartDataUpdate,
+			args:         []string{"--sheet-id", "sh1", "--chart-id", "c1", "--data-range", "A1:C4", "--dim1-index", "2", "--dim2-indexes", "2,3"},
+			subShortcut:  "+chart-data-update",
+			subInput:     `{"sheet-id":"sh1","chart-id":"c1","data-range":"A1:C4","dim1-index":2,"dim2-indexes":"2,3"}`,
+			wantContains: "--dim2-indexes must not contain the dim1 index 2",
 		},
 		{
 			name:         "+float-image-create both image-token and image-uri",
@@ -682,6 +704,18 @@ func TestBatchOp_RejectsBadSubOpInput(t *testing.T) {
 			"+chart-update",
 			`{"sheet-id":"sh1","properties":{"title":"T"}}`,
 			"--chart-id is required",
+		},
+		{
+			"+chart-data-update missing --chart-id",
+			"+chart-data-update",
+			`{"sheet-id":"sh1","data-range":"A1:C4"}`,
+			"--chart-id is required",
+		},
+		{
+			"+chart-data-update missing --data-range",
+			"+chart-data-update",
+			`{"sheet-id":"sh1","chart-id":"c1"}`,
+			"--data-range is required",
 		},
 		{
 			"+filter-create missing --range",

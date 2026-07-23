@@ -51,6 +51,7 @@
                 "+chart-delete",
                 "+chart-create-basic",
                 "+chart-config-update",
+                "+chart-data-update",
                 "+pivot-create",
                 "+pivot-update",
                 "+pivot-delete",

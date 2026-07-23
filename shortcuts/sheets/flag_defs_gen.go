@@ -270,6 +270,21 @@ var flagDefs = map[string]commandDef{
 			{Name: "dry-run", Kind: "system", Type: "bool", Required: "optional", Desc: "Print the request template; no side effects"},
 		},
 	},
+	"+chart-data-update": {
+		Risk: "write",
+		Flags: []flagDef{
+			{Name: "url", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet URL (XOR with `--spreadsheet-token`)"},
+			{Name: "spreadsheet-token", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet token (XOR with `--url`)"},
+			{Name: "sheet-id", Kind: "public", Type: "string", Required: "xor", Desc: "Sheet reference_id (XOR with `--sheet-name`)"},
+			{Name: "sheet-name", Kind: "public", Type: "string", Required: "xor", Desc: "Sheet name (XOR with `--sheet-id`)"},
+			{Name: "chart-id", Kind: "own", Type: "string", Required: "required", Desc: "Target chart reference_id"},
+			{Name: "data-range", Kind: "own", Type: "string", Required: "required", Desc: "New data range including headers; accepts comma-separated same-sheet ranges and normalizes misaligned or overlapping ranges"},
+			{Name: "data-direction", Kind: "own", Type: "string", Required: "optional", Desc: "Data series direction; defaults to the existing chart direction when omitted", Enum: []string{"column", "row"}},
+			{Name: "dim1-index", Kind: "own", Type: "int", Required: "optional", Desc: "1-based category/X-axis dimension index within the data range; defaults to the first dimension"},
+			{Name: "dim2-indexes", Kind: "own", Type: "string", Required: "optional", Desc: "Comma-separated 1-based value/Y-axis series indexes within the data range; defaults to all dimensions except dim1"},
+			{Name: "dry-run", Kind: "system", Type: "bool", Required: "optional", Desc: "Print the request template; no side effects"},
+		},
+	},
 	"+chart-delete": {
 		Risk: "high-risk-write",
 		Flags: []flagDef{

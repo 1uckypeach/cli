@@ -22,11 +22,13 @@
 - 需要对**多个**不同区域执行 `+cells-{merge|unmerge}` 时（如按分组合并多列相同内容）
 - 需要先插入行列再写入数据时（`+dim-{insert|delete|hide|unhide|freeze|group|ungroup}` + `+cells-set`）
 - 需要对多个区域执行不同写入操作时（多次 `+cells-set` + `+cells-clear` 等组合）
-- 需要创建多张基础图，或统一更新多张图的标题、坐标轴、图例、标签、堆叠和平滑配置时（多个 `+chart-create-basic` / `+chart-config-update`）
+- 需要创建多张基础图，或统一更新多张图的数据源、标题、坐标轴、图例、标签、堆叠和平滑配置时（多个 `+chart-create-basic` / `+chart-data-update` / `+chart-config-update`）
 
 **行高列宽批量不走这里**：多行 / 多列不同尺寸用 `+styles-put` 的 `row_sizes` / `col_sizes`（可与样式同批），或 `+rows-resize --heights` / `+cols-resize --widths` 的 map 形态（见 `lark-sheets-range-operations`）；map 形态不可作为 `--operations` 子操作嵌入（子操作里仍可用单区间形态 `range` + `height`/`width`）。
 
 **执行语义（fail-fast，不回滚）**：默认首个失败的子操作即中断剩余操作，但**已执行成功的子操作不回滚**——服务端报 "N succeeded, M failed" 时前 N 个已实际生效。修复失败项后**只重发失败起的剩余子集**，整批重发会把已成功的操作（如插行）重复应用。传 `--continue-on-error` 则遇失败仍继续执行剩余操作。正因如此，含结构变更（插删行列 / 移动）的批次失败后要先回读确认现状再续发。
+
+互不依赖的多图表创建或更新使用 `--continue-on-error`，保留成功图表并根据逐项错误只重试失败项。
 
 **公式相关批处理的默认闭环**：
 - 写前：先读 `lark-sheets-formula-translation`，把公式改写成飞书可执行语义。
@@ -94,7 +96,7 @@ _公共：URL/token（无 sheet 定位） · 系统：`--yes`、`--dry-run`_
 _要批量执行的 CLI shortcut 操作列表，按声明顺序串行执行；任一失败立即中断_
 
 **数组项**（类型 object）：
-- `shortcut` (enum) — CLI shortcut 名（不是底层 MCP tool 名） [+cells-set / +cells-set-style / +cells-clear / +cells-merge / +cells-unmerge / +cells-replace / +csv-put / +dropdown-set / +dim-insert / +dim-delete / +dim-hide / +dim-unhide / +dim-freeze / +dim-group / +dim-ungroup / +rows-resize / +cols-resize / +range-move / +range-copy / +range-fill / +range-sort / +sheet-create / +sheet-delete / +sheet-rename / +sheet-move / +sheet-copy / +sheet-hide / +sheet-unhide / +sheet-set-tab-color / +sheet-show-gridline / +sheet-hide-gridline / +chart-create / +chart-update / +chart-delete / +chart-create-basic / +chart-config-update / +pivot-create / +pivot-update / +pivot-delete / +cond-format-create / +cond-format-update / +cond-format-delete / +filter-create / +filter-update / +filter-delete / +filter-view-create / +filter-view-update / +filter-view-delete / +sparkline-create / +sparkline-update / +sparkline-delete / +float-image-create / +float-image-update / +float-image-delete]
+- `shortcut` (enum) — CLI shortcut 名（不是底层 MCP tool 名） [+cells-set / +cells-set-style / +cells-clear / +cells-merge / +cells-unmerge / +cells-replace / +csv-put / +dropdown-set / +dim-insert / +dim-delete / +dim-hide / +dim-unhide / +dim-freeze / +dim-group / +dim-ungroup / +rows-resize / +cols-resize / +range-move / +range-copy / +range-fill / +range-sort / +sheet-create / +sheet-delete / +sheet-rename / +sheet-move / +sheet-copy / +sheet-hide / +sheet-unhide / +sheet-set-tab-color / +sheet-show-gridline / +sheet-hide-gridline / +chart-create / +chart-update / +chart-delete / +chart-create-basic / +chart-config-update / +chart-data-update / +pivot-create / +pivot-update / +pivot-delete / +cond-format-create / +cond-format-update / +cond-format-delete / +filter-create / +filter-update / +filter-delete / +filter-view-create / +filter-view-update / +filter-view-delete / +sparkline-create / +sparkline-update / +sparkline-delete / +float-image-create / +float-image-update / +float-image-delete]
 - `input` (object) — 该 shortcut 的入参集——含子表定位 sheet_id（或 sheet_name），但不含 spreadsheet token/url（后者只在顶层 …
 
 ### `+dropdown-update` `--options`
@@ -141,13 +143,17 @@ lark-cli sheets +batch-update --url "https://example.feishu.cn/sheets/shtXXX" --
 > ]
 > ```
 
-> **多图表组合**：先完成全部辅助数据，再把每张图的完整语义输入放进同一个批次；每项同时记录精确表头范围、数据方向和预期系列数。批次完成后，每个受影响的 sheet 各调用一次 `+chart-list`，不要每创建一张图就读取、调整数据后再删除重建。若数据范围或系列数不符，用 `+chart-update` 局部 patch 已有图表的数据配置，不要删除后重建。
+> **多图表组合**：先完成全部辅助数据，再把每张图的完整语义输入放进同一个批次，并在顶层传 `--continue-on-error`；每项同时记录精确表头范围、数据方向和预期系列数。批次完成后，每个受影响的 sheet 各调用一次 `+chart-list`，不要每创建一张图就读取、调整数据后再删除重建。若数据范围或系列数不符，用 `+chart-data-update` 修正已有图表，不要删除后重建。
 >
 > ```json
 > [
 >   {"shortcut":"+chart-create-basic","input":{"sheet_name":"Sheet1","chart_type":"column","data_range":"'Sheet1'!A1:C10","title":"分类对比","anchor_cell":"F2"}},
 >   {"shortcut":"+chart-create-basic","input":{"sheet_name":"Sheet1","chart_type":"line","data_range":"'Sheet1'!E1:G10","title":"趋势变化","anchor_cell":"F18"}}
 > ]
+> ```
+>
+> ```bash
+> lark-cli sheets +batch-update --url "..." --operations @ops.json --continue-on-error --yes
 > ```
 
 ### `+cells-batch-set-style`

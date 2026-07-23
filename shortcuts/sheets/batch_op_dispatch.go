@@ -188,6 +188,7 @@ var batchOpDispatch = map[string]batchOpMapping{
 	"+chart-delete":        {"manage_chart_object", objDeleteTranslate(chartSpec)},
 	"+chart-create-basic":  {"manage_chart_object", chartCreateBasicInput},
 	"+chart-config-update": {"manage_chart_object", chartConfigUpdateInput},
+	"+chart-data-update":   {"manage_chart_object", chartDataUpdateInput},
 
 	"+pivot-create": {"manage_pivot_table_object", objCreateTranslate(pivotSpec)},
 	"+pivot-update": {"manage_pivot_table_object", objUpdateTranslate(pivotSpec)},
