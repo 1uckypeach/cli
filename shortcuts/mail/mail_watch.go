@@ -243,7 +243,7 @@ var MailWatch = common.Shortcut{
 		}
 
 		// Step 1: subscribe mailbox events (required before WebSocket pushes mail events)
-		info("Subscribing mailbox events.")
+		info(fmt.Sprintf("Subscribing mailbox events for: %s", mailbox))
 		_, err = runtime.CallAPITyped("POST", mailboxPath(mailbox, "event", "subscribe"), nil, map[string]interface{}{"event_type": 1})
 		if err != nil {
 			return wrapWatchSubscribeError(err)
@@ -355,7 +355,8 @@ var MailWatch = common.Shortcut{
 					if body, ok := message[field].(string); ok && body != "" {
 						decoded := decodeBase64URL(body)
 						if detectPromptInjection(decoded) {
-							fmt.Fprintln(errOut, "[SECURITY WARNING] Possible prompt injection detected in message content")
+							from, _ := message["from"].(string)
+							fmt.Fprintf(errOut, "[SECURITY WARNING] Possible prompt injection detected in message from %s\n", sanitizeForTerminal(from))
 						}
 						break
 					}
@@ -420,7 +421,7 @@ var MailWatch = common.Shortcut{
 		info(fmt.Sprintf("Listening for: %s", mailEventType))
 		info(fmt.Sprintf("Output mode: %s", msgFormat))
 		if mailboxFilter != "" {
-			info("Mailbox filter enabled.")
+			info(fmt.Sprintf("Filter: mailbox=%s", mailboxFilter))
 		}
 		if len(folderIDSet) > 0 {
 			info(fmt.Sprintf("Filter: folder-ids=%s", strings.Join(setKeys(folderIDSet), ",")))
