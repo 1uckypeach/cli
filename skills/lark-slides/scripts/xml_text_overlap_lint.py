@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import re
 import sys
 import unicodedata
@@ -105,6 +104,19 @@ def extract_numeric_attribute(tag_source: str, name: str) -> int | float | None:
     except ValueError:
         return None
     return int(value) if value.is_integer() else value
+
+
+def is_transparent_color(color: str) -> bool:
+    normalized = re.sub(r"\s+", "", color).lower()
+    if normalized == "transparent":
+        return True
+    rgba_match = re.fullmatch(r"rgba\([^,]+,[^,]+,[^,]+,([+-]?(?:\d+(?:\.\d*)?|\.\d+))\)", normalized)
+    if not rgba_match:
+        return False
+    try:
+        return float(rgba_match.group(1)) <= 0
+    except ValueError:
+        return False
 
 
 def sum_sizes(sizes: list[int | float]) -> int | float:
@@ -447,18 +459,6 @@ def validate_iconpark_icon_types(root: ET.Element) -> list[dict[str, Any]]:
     def direct_child(element: ET.Element, local_name: str) -> ET.Element | None:
         return next((child for child in element if xml_local_name(child.tag) == local_name), None)
 
-    def is_transparent_color(color: str) -> bool:
-        normalized = re.sub(r"\s+", "", color).lower()
-        if normalized == "transparent":
-            return True
-        rgba_match = re.fullmatch(r"rgba\([^,]+,[^,]+,[^,]+,([0-9.]+)\)", normalized)
-        if not rgba_match:
-            return False
-        try:
-            return float(rgba_match.group(1)) <= 0
-        except ValueError:
-            return False
-
     def append_missing_fill_color_issue(current_path: str) -> None:
         issues.append(
             {
@@ -650,10 +650,11 @@ def extract_elements(slide_xml: str) -> list[dict[str, Any]]:
         kind, attrs = match.group(1), match.group(2)
         is_self_closing = attrs.rstrip().endswith("/")
         content = ""
-        if kind in {"shape", "table"} and not is_self_closing:
+        if kind in {"shape", "table", "chart"} and not is_self_closing:
             close_index = slide_xml.find(f"</{kind}>", match.end())
             if close_index != -1:
                 content = slide_xml[match.end() : close_index]
+        own_content = re.split(r"<(?:shape|img|table|chart|whiteboard)\b", content, maxsplit=1)[0]
 
         element_id = extract_attribute(attrs, "id") or f"{kind}-{len(elements) + 1}"
         x = extract_numeric_attribute(attrs, "topLeftX")
@@ -692,10 +693,17 @@ def extract_elements(slide_xml: str) -> list[dict[str, Any]]:
                     }
                 )
             if kind == "shape":
-                content_attrs = extract_tag_attributes(content, "content")
+                content_attrs = extract_tag_attributes(own_content, "content")
                 font_size = extract_numeric_attribute(content_attrs, "fontSize")
                 if font_size is None:
                     font_size = extract_numeric_attribute(attrs, "fontSize")
+                fill_attrs = extract_tag_attributes(own_content, "fillColor")
+                fill_color = extract_attribute(fill_attrs, "color")
+                fill_style_attrs = extract_tag_attributes(own_content, "fill")
+                border_attrs = extract_tag_attributes(own_content, "border")
+                border_color = extract_attribute(border_attrs, "color")
+                border_width = extract_numeric_attribute(border_attrs, "width")
+                own_tags = set(re.findall(r"<([A-Za-z_][\w.-]*)\b", own_content))
                 element.update(
                     {
                         "textType": extract_attribute(content_attrs, "textType"),
@@ -713,8 +721,27 @@ def extract_elements(slide_xml: str) -> list[dict[str, Any]]:
                         "paddingBottom": extract_numeric_attribute(content_attrs, "paddingBottom") or 0,
                         "paddingLeft": extract_numeric_attribute(content_attrs, "paddingLeft") or 0,
                         "fontSize": font_size if font_size is not None else 16,
-                        "text": strip_xml_paragraphs(content),
-                        "paragraphs": extract_text_paragraphs(content, font_size if font_size is not None else 16),
+                        "text": strip_xml_paragraphs(own_content),
+                        "paragraphs": extract_text_paragraphs(
+                            own_content, font_size if font_size is not None else 16
+                        ),
+                        "hasFill": bool(re.search(r"<fill\b", own_content)),
+                        "fillColor": fill_color,
+                        "hasUnknownFillStyle": bool(fill_style_attrs.strip()),
+                        "borderColor": border_color,
+                        "borderWidth": border_width,
+                        "hasOtherDrawingContent": bool(
+                            own_tags - {"fill", "fillColor", "border", "content", "p", "span", "br"}
+                        ),
+                    }
+                )
+            if kind == "chart":
+                chart_plot_attrs = extract_tag_attributes(content, "chartPlot")
+                chart_sectors_attrs = extract_tag_attributes(content, "chartSectors")
+                element.update(
+                    {
+                        "chartPlotType": extract_attribute(chart_plot_attrs, "type"),
+                        "innerRadius": extract_numeric_attribute(chart_sectors_attrs, "innerRadius"),
                     }
                 )
             elements.append(element)
@@ -1274,9 +1301,11 @@ def detect_whiteboard_external_overlaps(
 def chart_external_overlay_detail(
     chart: dict[str, Any], overlay: dict[str, Any]
 ) -> dict[str, Any] | None:
-    if overlay["kind"] == "chart" or overlay["order"] <= chart["order"] or overlay["alpha"] <= 0:
+    if overlay["kind"] == "chart" or overlay["order"] <= chart["order"] or not is_effectively_visible(overlay):
         return None
     if not intersects(chart, overlay):
+        return None
+    if is_inside_donut_hole(chart, overlay):
         return None
 
     overlap_width = intersection_width(chart, overlay)
@@ -1306,6 +1335,50 @@ def chart_external_overlay_detail(
     }
 
 
+def is_effectively_visible(element: dict[str, Any]) -> bool:
+    if element["alpha"] <= 0:
+        return False
+    if element["kind"] != "shape":
+        return True
+    if has_text_content(element):
+        return True
+    if element.get("hasFill"):
+        fill_color = element.get("fillColor")
+        if (fill_color is not None and not is_transparent_color(fill_color)) or element.get(
+            "hasUnknownFillStyle"
+        ):
+            return True
+    border_width = element.get("borderWidth")
+    if isinstance(border_width, (int, float)) and border_width > 0:
+        border_color = element.get("borderColor")
+        if border_color is None or not is_transparent_color(border_color):
+            return True
+    return bool(element.get("hasOtherDrawingContent"))
+
+
+def is_inside_donut_hole(chart: dict[str, Any], overlay: dict[str, Any]) -> bool:
+    inner_radius = chart.get("innerRadius")
+    if (
+        chart.get("chartPlotType") != "pie"
+        or not isinstance(inner_radius, (int, float))
+        or not 0 < inner_radius <= 1
+        or overlay.get("rotation", 0) % 360 != 0
+    ):
+        return False
+
+    chart_radius = min(chart["width"], chart["height"]) / 2
+    conservative_hole_radius = chart_radius * inner_radius * 0.8
+    center_x = chart["x"] + chart["width"] / 2
+    center_y = chart["y"] + chart["height"] / 2
+    corners = (
+        (overlay["x"], overlay["y"]),
+        (overlay["x"] + overlay["width"], overlay["y"]),
+        (overlay["x"], overlay["y"] + overlay["height"]),
+        (overlay["x"] + overlay["width"], overlay["y"] + overlay["height"]),
+    )
+    return max(math.hypot(x - center_x, y - center_y) for x, y in corners) <= conservative_hole_radius
+
+
 def prune_chart_overlay_text_details(
     chart: dict[str, Any],
     overlap_details: list[dict[str, Any]],
@@ -1326,6 +1399,7 @@ def prune_chart_overlay_text_details(
                 chart["order"] < element["order"] < overlay["order"]
                 and not is_text_element(element)
                 and element["kind"] != "chart"
+                and is_effectively_visible(element)
                 and intersects(chart, element)
                 and contains(element, overlay)
             )
@@ -1510,14 +1584,9 @@ def lint_slide(
     slide_xml: str, slide_number: int, slide_width: int | float = 960, slide_height: int | float = 540
 ) -> dict[str, Any]:
     elements = extract_elements(slide_xml)
-    chart_overlay_issues = (
-        []
-        if os.environ.get("LARKSUITE_CLI_SLIDES_DISABLE_CHART_OVERLAY_LINT") == "1"
-        else detect_chart_external_overlays(elements)
-    )
     issues: list[dict[str, Any]] = [
         *detect_whiteboard_external_overlaps(elements, slide_width, slide_height),
-        *chart_overlay_issues,
+        *detect_chart_external_overlays(elements),
         *detect_elements_out_of_canvas(elements, slide_width, slide_height),
         *detect_table_layout_size_mismatches(elements),
         *detect_text_may_overflow_shapes(elements),

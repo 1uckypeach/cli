@@ -1467,7 +1467,9 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
             """
             <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
               <chart id="chart" topLeftX="100" topLeftY="100" width="400" height="300"/>
-              <shape id="card" type="rect" topLeftX="210" topLeftY="190" width="180" height="70"/>
+              <shape id="card" type="rect" topLeftX="210" topLeftY="190" width="180" height="70">
+                <fill><fillColor color="rgba(255, 255, 255, 1)"/></fill>
+              </shape>
               <shape id="label" type="text" topLeftX="220" topLeftY="200" width="160" height="20">
                 <content textAlign="center"><p>KPI</p></content>
               </shape>
@@ -1492,7 +1494,9 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
                   <chartSectors innerRadius="0.55"/>
                 </chartSeries></chartSeriesList></chartPlot></chartPlotArea>
               </chart>
-              <shape id="bCo" type="rect" topLeftX="530" topLeftY="250" width="180" height="60"/>
+              <shape id="bCo" type="rect" topLeftX="530" topLeftY="250" width="180" height="60">
+                <fill><fillColor color="rgba(255, 255, 255, 1)"/></fill>
+              </shape>
               <shape id="bCn" type="text" topLeftX="540" topLeftY="258" width="160" height="20">
                 <content textAlign="center"><p>2025年出口额</p></content>
               </shape>
@@ -1542,7 +1546,9 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
             """
             <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
               <chart id="chart" topLeftX="100" topLeftY="100" width="400" height="300"/>
-              <shape id="edge" type="rect" topLeftX="80" topLeftY="370" width="440" height="60"/>
+              <shape id="edge" type="rect" topLeftX="80" topLeftY="370" width="440" height="60">
+                <fill><fillColor color="rgba(255, 255, 255, 1)"/></fill>
+              </shape>
               <shape id="edge-label" type="text" topLeftX="100" topLeftY="375" width="400" height="20">
                 <content><p>Chart note</p></content>
               </shape>
@@ -1577,7 +1583,9 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
             """
             <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
               <chart id="chart" topLeftX="100" topLeftY="100" width="400" height="300"/>
-              <shape id="card" type="rect" topLeftX="210" topLeftY="190" width="180" height="70"/>
+              <shape id="card" type="rect" topLeftX="210" topLeftY="190" width="180" height="70">
+                <fill><fillColor color="rgba(255, 255, 255, 1)"/></fill>
+              </shape>
               <shape id="caption" type="text" topLeftX="220" topLeftY="198" width="160" height="22">
                 <content textAlign="center"><p>Caption</p></content>
               </shape>
@@ -1596,7 +1604,184 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
         self.assertEqual(issues[0]["level"], "error")
         self.assertEqual(issues[0]["elements"], ["chart", "card", "caption", "value"])
 
-    def test_lint_xml_reports_vertical_text_image_overlap_as_warning(self) -> None:
+    def test_lint_xml_allows_small_donut_center_overlays(self) -> None:
+        overlays = {
+            "text": """
+              <shape id="kpi" type="text" topLeftX="310" topLeftY="230" width="80" height="40">
+                <content textAlign="center"><p>+28%</p></content>
+              </shape>
+            """,
+            "card": """
+              <shape id="card" type="rect" topLeftX="300" topLeftY="220" width="100" height="60">
+                <fill><fillColor color="rgba(255, 255, 255, 1)"/></fill>
+              </shape>
+            """,
+        }
+        for name, overlay_xml in overlays.items():
+            with self.subTest(name=name):
+                result = xml_text_overlap_lint.lint_xml(
+                    f"""
+                    <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+                      <chart id="chart" topLeftX="100" topLeftY="90" width="500" height="320">
+                        <chartPlotArea><chartPlot type="pie"><chartSeriesList><chartSeries>
+                          <chartSectors innerRadius="0.6"/>
+                        </chartSeries></chartSeriesList></chartPlot></chartPlotArea>
+                      </chart>
+                      {overlay_xml}
+                    </data></slide>
+                    """
+                )
+                issues = [
+                    issue
+                    for issue in result["slides"][0]["issues"]
+                    if issue["code"] == "chart_external_overlay"
+                ]
+                self.assertEqual(issues, [])
+
+    def test_lint_xml_reports_donut_overlays_that_reach_the_ring(self) -> None:
+        overlays = {
+            "too-large": (
+                '<shape id="kpi" type="text" topLeftX="275" topLeftY="200" width="150" height="100">'
+                "<content><p>+28%</p></content></shape>"
+            ),
+            "off-center": (
+                '<shape id="kpi" type="text" topLeftX="365" topLeftY="225" width="80" height="40">'
+                "<content><p>+28%</p></content></shape>"
+            ),
+        }
+        for name, overlay_xml in overlays.items():
+            with self.subTest(name=name):
+                result = xml_text_overlap_lint.lint_xml(
+                    f"""
+                    <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+                      <chart id="chart" topLeftX="100" topLeftY="90" width="500" height="320">
+                        <chartPlotArea><chartPlot type="pie"><chartSeriesList><chartSeries>
+                          <chartSectors innerRadius="0.6"/>
+                        </chartSeries></chartSeriesList></chartPlot></chartPlotArea>
+                      </chart>
+                      {overlay_xml}
+                    </data></slide>
+                    """
+                )
+                issues = [
+                    issue
+                    for issue in result["slides"][0]["issues"]
+                    if issue["code"] == "chart_external_overlay"
+                ]
+                self.assertEqual(len(issues), 1)
+                self.assertEqual(issues[0]["code"], "chart_external_overlay")
+                self.assertEqual(issues[0]["level"], "error")
+                self.assertEqual(issues[0]["elements"], ["chart", "kpi"])
+
+    def test_lint_xml_reports_text_in_center_of_regular_pie(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <chart id="chart" topLeftX="100" topLeftY="90" width="500" height="320">
+                <chartPlotArea><chartPlot type="pie"/></chartPlotArea>
+              </chart>
+              <shape id="kpi" type="text" topLeftX="310" topLeftY="230" width="80" height="40">
+                <content><p>+28%</p></content>
+              </shape>
+            </data></slide>
+            """
+        )
+        issues = [
+            issue
+            for issue in result["slides"][0]["issues"]
+            if issue["code"] == "chart_external_overlay"
+        ]
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0]["code"], "chart_external_overlay")
+        self.assertEqual(issues[0]["level"], "error")
+        self.assertEqual(issues[0]["elements"], ["chart", "kpi"])
+
+    def test_lint_xml_skips_only_definitely_invisible_shapes_over_chart(self) -> None:
+        shapes = {
+            "empty": '<shape id="overlay" type="rect" topLeftX="210" topLeftY="190" width="180" height="70"/>',
+            "transparent": (
+                '<shape id="overlay" type="rect" topLeftX="210" topLeftY="190" width="180" height="70">'
+                '<fill><fillColor color="transparent"/></fill></shape>'
+            ),
+            "rgba-zero": (
+                '<shape id="overlay" type="rect" topLeftX="210" topLeftY="190" width="180" height="70">'
+                '<fill><fillColor color="rgba(255, 255, 255, 0)"/></fill></shape>'
+            ),
+        }
+        for name, shape_xml in shapes.items():
+            with self.subTest(name=name):
+                result = xml_text_overlap_lint.lint_xml(
+                    f"""
+                    <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+                      <chart id="chart" topLeftX="100" topLeftY="100" width="400" height="300"/>
+                      {shape_xml}
+                    </data></slide>
+                    """
+                )
+                issues = [
+                    issue
+                    for issue in result["slides"][0]["issues"]
+                    if issue["code"] == "chart_external_overlay"
+                ]
+                self.assertEqual(issues, [])
+
+    def test_lint_xml_reports_visible_fill_or_border_over_chart(self) -> None:
+        shapes = {
+            "fill": (
+                '<shape id="overlay" type="rect" topLeftX="210" topLeftY="190" width="180" height="70">'
+                '<fill><fillColor color="rgba(255, 255, 255, 1)"/></fill></shape>'
+            ),
+            "border": (
+                '<shape id="overlay" type="rect" topLeftX="210" topLeftY="190" width="180" height="70">'
+                '<border color="rgba(31, 35, 41, 1)" width="1"/></shape>'
+            ),
+        }
+        for name, shape_xml in shapes.items():
+            with self.subTest(name=name):
+                result = xml_text_overlap_lint.lint_xml(
+                    f"""
+                    <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+                      <chart id="chart" topLeftX="100" topLeftY="100" width="400" height="300"/>
+                      {shape_xml}
+                    </data></slide>
+                    """
+                )
+                issues = [
+                    issue
+                    for issue in result["slides"][0]["issues"]
+                    if issue["code"] == "chart_external_overlay"
+                ]
+                self.assertEqual(len(issues), 1)
+                self.assertEqual(issues[0]["code"], "chart_external_overlay")
+                self.assertEqual(issues[0]["level"], "error")
+                self.assertEqual(issues[0]["elements"], ["chart", "overlay"])
+
+    def test_lint_xml_reports_visible_text_inside_transparent_wrapper_over_chart(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <chart id="chart" topLeftX="100" topLeftY="100" width="400" height="300">
+                <chartPlotArea><chartPlot type="column"/></chartPlotArea>
+              </chart>
+              <shape id="wrapper" type="rect" alpha="0" topLeftX="190" topLeftY="175" width="220" height="100">
+                <shape id="label" type="text" topLeftX="210" topLeftY="200" width="180" height="40">
+                  <content><p>Visible KPI</p></content>
+                </shape>
+              </shape>
+            </data></slide>
+            """
+        )
+        issues = [
+            issue
+            for issue in result["slides"][0]["issues"]
+            if issue["code"] == "chart_external_overlay"
+        ]
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0]["code"], "chart_external_overlay")
+        self.assertEqual(issues[0]["level"], "error")
+        self.assertEqual(issues[0]["elements"], ["chart", "label"])
+
+    def test_lint_xml_reports_vertical_text_image_overlap_as_info(self) -> None:
         result = xml_text_overlap_lint.lint_xml(
             """
             <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
