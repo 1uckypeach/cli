@@ -654,9 +654,11 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
             """
         )
         overlap_pairs = {tuple(issue["elements"]) for issue in result["slides"][0]["issues"]}
-        self.assertEqual(result["summary"]["error_count"], 2)
+        self.assertEqual(result["summary"]["error_count"], 4)
         self.assertIn(("blY", "blV"), overlap_pairs)
         self.assertIn(("blQ", "blS"), overlap_pairs)
+        self.assertIn(("blH", "blY"), overlap_pairs)
+        self.assertIn(("blw", "blQ"), overlap_pairs)
 
     def test_lint_xml_detects_horizontal_text_overflow_across_declared_box_gap(self) -> None:
         result = xml_text_overlap_lint.lint_xml(
@@ -1793,6 +1795,123 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
             """
         )
         issue = next(issue for issue in result["slides"][0]["issues"] if issue["code"] == "image_may_cover_vertical_text")
+        self.assertEqual(issue["level"], "warning")
+        self.assertEqual(result["summary"]["error_count"], 0)
+
+    def test_lint_xml_reports_opaque_shape_covering_earlier_text(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <shape id="caption" type="text" topLeftX="60" topLeftY="100" width="400" height="30">
+                <content fontSize="14"><p>静谧沉稳的灰蓝色调</p></content>
+              </shape>
+              <shape id="swatch" type="rect" topLeftX="60" topLeftY="90" width="180" height="180">
+                <fill><fillColor color="rgba(74, 92, 106, 1)"/></fill>
+              </shape>
+            </data></slide>
+            """
+        )
+        issue = next(issue for issue in result["slides"][0]["issues"] if issue["code"] == "shape_covers_text")
+        self.assertEqual(issue["level"], "error")
+        self.assertEqual(issue["elements"], ["swatch", "caption"])
+        self.assertEqual(result["summary"]["error_count"], 1)
+
+    def test_lint_xml_ignores_shape_behind_text_in_xml_order(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <shape id="swatch" type="rect" topLeftX="60" topLeftY="90" width="180" height="180">
+                <fill><fillColor color="rgba(74, 92, 106, 1)"/></fill>
+              </shape>
+              <shape id="caption" type="text" topLeftX="60" topLeftY="100" width="160" height="30">
+                <content fontSize="14"><p>主色</p></content>
+              </shape>
+            </data></slide>
+            """
+        )
+        codes = [issue["code"] for issue in result["slides"][0]["issues"]]
+        self.assertNotIn("shape_covers_text", codes)
+
+    def test_lint_xml_ignores_translucent_shape_over_text(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <shape id="caption" type="text" topLeftX="60" topLeftY="100" width="400" height="30">
+                <content fontSize="14"><p>静谧沉稳的灰蓝色调</p></content>
+              </shape>
+              <shape id="tint" type="rect" topLeftX="60" topLeftY="90" width="180" height="180">
+                <fill><fillColor color="rgba(74, 92, 106, 0.2)"/></fill>
+              </shape>
+            </data></slide>
+            """
+        )
+        codes = [issue["code"] for issue in result["slides"][0]["issues"]]
+        self.assertNotIn("shape_covers_text", codes)
+
+    def test_lint_xml_ignores_border_only_shape_over_text(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <shape id="caption" type="text" topLeftX="60" topLeftY="100" width="400" height="30">
+                <content fontSize="14"><p>静谧沉稳的灰蓝色调</p></content>
+              </shape>
+              <shape id="outline" type="rect" topLeftX="60" topLeftY="90" width="180" height="180">
+                <border color="rgba(74, 92, 106, 1)" width="1"/>
+              </shape>
+            </data></slide>
+            """
+        )
+        codes = [issue["code"] for issue in result["slides"][0]["issues"]]
+        self.assertNotIn("shape_covers_text", codes)
+
+    def test_lint_xml_reports_default_colored_fill_shape_covering_text(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <shape id="caption" type="text" topLeftX="256" topLeftY="130" width="224" height="24">
+                <content fontSize="16" wrap="false"><p>这是正文，应该不要被遮挡才对</p></content>
+              </shape>
+              <shape id="rect" type="rect" topLeftX="176" topLeftY="142" width="238" height="140">
+                <fill><fillColor/></fill>
+              </shape>
+            </data></slide>
+            """
+        )
+        issue = next(issue for issue in result["slides"][0]["issues"] if issue["code"] == "shape_covers_text")
+        self.assertEqual(issue["level"], "error")
+        self.assertEqual(issue["elements"], ["rect", "caption"])
+        self.assertEqual(result["summary"]["error_count"], 1)
+
+    def test_lint_xml_ignores_explicitly_transparent_fill_shape_over_text(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <shape id="caption" type="text" topLeftX="256" topLeftY="130" width="224" height="24">
+                <content fontSize="16" wrap="false"><p>这是正文，应该不要被遮挡才对</p></content>
+              </shape>
+              <shape id="rect" type="rect" topLeftX="176" topLeftY="142" width="238" height="140">
+                <fill><fillColor color="rgba(74, 92, 106, 0)"/></fill>
+              </shape>
+            </data></slide>
+            """
+        )
+        codes = [issue["code"] for issue in result["slides"][0]["issues"]]
+        self.assertNotIn("shape_covers_text", codes)
+
+    def test_lint_xml_reports_opaque_shape_over_vertical_text_as_info(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0"><data>
+              <shape id="text" type="text" vert="vert" topLeftX="100" topLeftY="100" width="100" height="100">
+                <content><p>Vertical</p></content>
+              </shape>
+              <shape id="cover" type="rect" topLeftX="120" topLeftY="120" width="60" height="60">
+                <fill><fillColor color="rgba(74, 92, 106, 1)"/></fill>
+              </shape>
+            </data></slide>
+            """
+        )
+        issue = next(issue for issue in result["slides"][0]["issues"] if issue["code"] == "shape_may_cover_vertical_text")
         self.assertEqual(issue["level"], "warning")
         self.assertEqual(result["summary"]["error_count"], 0)
 

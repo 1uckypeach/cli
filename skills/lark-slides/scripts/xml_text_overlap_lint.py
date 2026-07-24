@@ -119,6 +119,21 @@ def is_transparent_color(color: str) -> bool:
         return False
 
 
+def color_alpha(color: str | None) -> int | float:
+    if not color:
+        return 1
+    normalized = re.sub(r"\s+", "", color).lower()
+    if normalized == "transparent":
+        return 0
+    rgba_match = re.fullmatch(r"rgba\([^,]+,[^,]+,[^,]+,([+-]?(?:\d+(?:\.\d*)?|\.\d+))\)", normalized)
+    if not rgba_match:
+        return 1
+    try:
+        return float(rgba_match.group(1))
+    except ValueError:
+        return 1
+
+
 def sum_sizes(sizes: list[int | float]) -> int | float:
     return sum(sizes)
 
@@ -799,6 +814,47 @@ def detect_image_text_occlusions(elements: list[dict[str, Any]]) -> list[dict[st
                     "elements": [image_element["id"], text_element["id"]],
                     "message": f'image {image_element["id"]} covers text shape {text_element["id"]}',
                     "hint": "Move the image before the text shape in XML order, or adjust the image and text shape coordinates or dimensions.",
+                })
+    return issues
+
+
+def is_opaque_shape_occluder(element: dict[str, Any]) -> bool:
+    if element["kind"] != "shape" or element["type"] == "text":
+        return False
+    if not element.get("hasFill"):
+        return False
+    # A declared <fill> with no explicit color still paints a default opaque fill,
+    # so an absent fillColor (color_alpha -> 1) counts as opaque.
+    effective_alpha = element["alpha"] * color_alpha(element.get("fillColor"))
+    return effective_alpha >= 0.5
+
+
+def detect_shape_text_occlusions(elements: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    text_elements = [element for element in elements if is_text_element(element) and has_text_content(element)]
+    shape_elements = [element for element in elements if is_opaque_shape_occluder(element)]
+    for text_element in text_elements:
+        for shape_element in shape_elements:
+            if shape_element["order"] <= text_element["order"]:
+                continue
+            if is_vertical_text(text_element):
+                if intersects(shape_element, text_element):
+                    issues.append({
+                        "level": "info",
+                        "code": "shape_may_cover_vertical_text",
+                        "elements": [shape_element["id"], text_element["id"]],
+                        "message": f'shape {shape_element["id"]} may cover vertical text shape {text_element["id"]}',
+                        "hint": "Inspect the rendered slide because vertical text layout is not statically modeled.",
+                    })
+                continue
+            text_visual_bbox = estimate_text_visual_bbox(text_element)
+            if text_visual_bbox is not None and intersects(shape_element, text_visual_bbox):
+                issues.append({
+                    "level": "error",
+                    "code": "shape_covers_text",
+                    "elements": [shape_element["id"], text_element["id"]],
+                    "message": f'shape {shape_element["id"]} covers text shape {text_element["id"]}',
+                    "hint": "Move the shape before the text shape in XML order, or adjust the shape and text shape coordinates or dimensions.",
                 })
     return issues
 
@@ -1591,6 +1647,7 @@ def lint_slide(
         *detect_table_layout_size_mismatches(elements),
         *detect_text_may_overflow_shapes(elements),
         *detect_image_text_occlusions(elements),
+        *detect_shape_text_occlusions(elements),
     ]
 
     for index, left in enumerate(elements):
