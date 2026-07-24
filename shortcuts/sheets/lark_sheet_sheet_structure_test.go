@@ -48,6 +48,8 @@ func TestSheetStructureShortcuts_DryRun(t *testing.T) {
 			},
 		},
 		{
+			// --inherit-style before copies the preceding row: anchor row 5 and
+			// insert after it (side=after), so the blank still lands before row 6.
 			name:     "+dim-insert row position=6 count=3 inherit-before",
 			sc:       DimInsert,
 			args:     []string{"--url", testURL, "--sheet-id", testSheetID, "--position", "6", "--count", "3", "--inherit-style", "before"},
@@ -56,9 +58,9 @@ func TestSheetStructureShortcuts_DryRun(t *testing.T) {
 				"excel_id":  testToken,
 				"operation": "insert",
 				"sheet_id":  testSheetID,
-				"position":  "6",
+				"position":  "5",
 				"count":     float64(3),
-				"side":      "before",
+				"side":      "after",
 			},
 		},
 		{
@@ -165,6 +167,93 @@ func TestSheetStructureShortcuts_DryRun(t *testing.T) {
 			body := parseDryRunBody(t, tt.sc, tt.args)
 			got := decodeToolInput(t, body, tt.toolName)
 			assertInputEquals(t, got, tt.wantInput)
+		})
+	}
+}
+
+func TestDimInsertInheritStyleSideMapping(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name         string
+		position     string
+		inherit      string
+		wantPosition string
+		wantSide     string
+		wantSideSet  bool
+	}{
+		{
+			name:         "after copies the following style with a plain before-insert, position unchanged",
+			position:     "D",
+			inherit:      "after",
+			wantPosition: "D",
+			wantSide:     "before",
+			wantSideSet:  true,
+		},
+		{
+			name:         "before anchors one column earlier (side=after) to copy the preceding style",
+			position:     "D",
+			inherit:      "before",
+			wantPosition: "C",
+			wantSide:     "after",
+			wantSideSet:  true,
+		},
+		{
+			name:         "before on a row anchors one row earlier",
+			position:     "6",
+			inherit:      "before",
+			wantPosition: "5",
+			wantSide:     "after",
+			wantSideSet:  true,
+		},
+		{
+			name:         "before at the first column falls back to a plain before-insert",
+			position:     "A",
+			inherit:      "before",
+			wantPosition: "A",
+			wantSideSet:  false,
+		},
+		{
+			name:         "after at the first column still works (before-insert anchors the following)",
+			position:     "A",
+			inherit:      "after",
+			wantPosition: "A",
+			wantSide:     "before",
+			wantSideSet:  true,
+		},
+		{
+			name:         "default (flag omitted) omits side, backend inherits the following row/column",
+			position:     "D",
+			wantPosition: "D",
+			wantSideSet:  false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			args := []string{"--url", testURL, "--sheet-id", testSheetID, "--position", tc.position, "--count", "1"}
+			if tc.inherit != "" {
+				args = append(args, "--inherit-style", tc.inherit)
+			}
+			body := parseDryRunBody(t, DimInsert, args)
+			got := decodeToolInput(t, body, "modify_sheet_structure")
+			assertInputEquals(t, got, map[string]interface{}{
+				"excel_id":  testToken,
+				"operation": "insert",
+				"sheet_id":  testSheetID,
+				"position":  tc.wantPosition,
+				"count":     float64(1),
+			})
+
+			gv, ok := got["side"]
+			if ok != tc.wantSideSet {
+				t.Fatalf("side presence = %v, want %v (input=%#v)", ok, tc.wantSideSet, got)
+			}
+			if ok && gv != tc.wantSide {
+				t.Fatalf("side = %v, want %q", gv, tc.wantSide)
+			}
 		})
 	}
 }

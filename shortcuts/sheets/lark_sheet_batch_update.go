@@ -69,7 +69,11 @@ var BatchUpdate = common.Shortcut{
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
 		token, _ := resolveSpreadsheetToken(runtime)
 		input, _ := batchUpdateInput(runtime, token)
-		return invokeToolDryRun(token, ToolKindWrite, "batch_update", input)
+		dr := invokeToolDryRun(token, ToolKindWrite, "batch_update", input)
+		if batchNeedsDimInsertBeforeStyleWarning(runtime) {
+			dr.Set("warning_message", dimInsertBeforeStyleWarning)
+		}
+		return dr
 	},
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		token, err := resolveSpreadsheetTokenExec(runtime)
@@ -79,6 +83,9 @@ var BatchUpdate = common.Shortcut{
 		input, err := batchUpdateInput(runtime, token)
 		if err != nil {
 			return err
+		}
+		if batchNeedsDimInsertBeforeStyleWarning(runtime) {
+			fmt.Fprintln(runtime.IO().ErrOut, dimInsertBeforeStyleWarning)
 		}
 		out, err := callTool(ctx, runtime, token, ToolKindWrite, "batch_update", input)
 		if err != nil {
@@ -128,6 +135,46 @@ func batchUpdateInput(runtime *common.RuntimeContext, token string) (map[string]
 		}
 	}
 	return input, nil
+}
+
+// batchNeedsDimInsertBeforeStyleWarning reports whether any +dim-insert sub-op
+// requests --inherit-style before at the first row/column, where the
+// preceding-side style cannot be copied (no preceding row/column exists).
+func batchNeedsDimInsertBeforeStyleWarning(runtime *common.RuntimeContext) bool {
+	rawOps, err := parseBatchOperationsFlag(runtime)
+	if err != nil {
+		return false
+	}
+	for _, raw := range rawOps {
+		op, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		sc, _ := op["shortcut"].(string)
+		if sc != "+dim-insert" {
+			continue
+		}
+		input, _ := op["input"].(map[string]interface{})
+		isBefore := false
+		for _, key := range []string{"inherit-style", "inherit_style", "inheritStyle"} {
+			if v, _ := input[key].(string); strings.EqualFold(v, "before") {
+				isBefore = true
+				break
+			}
+		}
+		if !isBefore {
+			continue
+		}
+		posRaw, hasPos := input["position"]
+		if !hasPos {
+			continue
+		}
+		// Warn only at the first row/column (idx 0).
+		if _, idx, err := parseA1Position(strings.TrimSpace(fmt.Sprintf("%v", posRaw))); err == nil && idx == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // parseBatchOperationsFlag accepts --operations as either a JSON array (the

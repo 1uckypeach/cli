@@ -138,7 +138,11 @@ var DimInsert = common.Shortcut{
 		token, _ := resolveSpreadsheetToken(runtime)
 		sheetID, sheetName, _ := resolveSheetSelector(runtime)
 		input, _ := dimInsertInput(runtime, token, sheetID, sheetName)
-		return invokeToolDryRun(token, ToolKindWrite, "modify_sheet_structure", input)
+		dr := invokeToolDryRun(token, ToolKindWrite, "modify_sheet_structure", input)
+		if dimInsertNeedsBeforeStyleWarning(runtime) {
+			dr.Set("warning_message", dimInsertBeforeStyleWarning)
+		}
+		return dr
 	},
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		token, err := resolveSpreadsheetTokenExec(runtime)
@@ -153,6 +157,9 @@ var DimInsert = common.Shortcut{
 		if err != nil {
 			return err
 		}
+		if dimInsertNeedsBeforeStyleWarning(runtime) {
+			fmt.Fprintln(runtime.IO().ErrOut, dimInsertBeforeStyleWarning)
+		}
 		out, err := callTool(ctx, runtime, token, ToolKindWrite, "modify_sheet_structure", input)
 		if err != nil {
 			return err
@@ -162,8 +169,31 @@ var DimInsert = common.Shortcut{
 	},
 }
 
+// dimInsertBeforeStyleWarning fires only when the preceding-side style cannot
+// be copied: --inherit-style before at the first row/column, where no
+// preceding row/column exists. The row/column is still inserted before
+// --position, just without style inheritance. (--inherit-style after has no
+// such edge — a plain before-insert always has a following row/column.)
+const dimInsertBeforeStyleWarning = "warning: --inherit-style before cannot copy the preceding row/column's style at the first row/column (no preceding row/column exists); inserting before --position without style inheritance. Copy styles separately if needed."
+
+func dimInsertNeedsBeforeStyleWarning(runtime flagView) bool {
+	if !runtime.Changed("inherit-style") || runtime.Str("inherit-style") != "before" {
+		return false
+	}
+	// Only the first row/column (idx 0) has no preceding row/column.
+	_, idx, err := parseA1Position(strings.TrimSpace(runtime.Str("position")))
+	return err == nil && idx == 0
+}
+
 // dimInsertInput passes --position (1-based row number "3" or column letter
-// "C") straight to the tool's `position` field; --count maps to `count`.
+// "C") to the tool's `position` field; --count maps to `count`.
+//
+// +dim-insert's public contract is always "insert before --position";
+// --inherit-style only selects which side's style the new row/column copies,
+// never the insertion side. The sheet-ai tool always copies the *anchor*
+// column's style (the target passed as position), regardless of side — so
+// --inherit-style before is emulated by anchoring one unit earlier. See the
+// switch below.
 func dimInsertInput(runtime flagView, token, sheetID, sheetName string) (map[string]interface{}, error) {
 	if err := requireSheetSelector(sheetID, sheetName); err != nil {
 		return nil, err
@@ -189,11 +219,27 @@ func dimInsertInput(runtime flagView, token, sheetID, sheetName string) (map[str
 		"count":     count,
 	}
 	sheetSelectorForToolInput(input, sheetID, sheetName)
+	// --inherit-style selects which side's style the blank row/column copies;
+	// the insertion always lands *before* --position. Empirically the addCol
+	// backend copies the *anchor* column's style (the target passed as
+	// position), regardless of side — side only decides whether the blank lands
+	// before or after that anchor (verified live, see
+	// TestDimInsertInheritStyleSideMapping):
+	//   after  → side=before at P: the blank lands at P and anchor P becomes the
+	//            *following* neighbour, so the blank copies it. Position unchanged.
+	//   before → side=after at P-1: the blank still lands at P (insert-after-(P-1)
+	//            == insert-before-P) and anchor P-1 becomes the *preceding*
+	//            neighbour, so the blank copies it.
 	switch runtime.Str("inherit-style") {
-	case "before":
-		input["side"] = "before"
 	case "after":
-		input["side"] = "after"
+		input["side"] = "before"
+	case "before":
+		if prev, ok := a1PositionBefore(position); ok {
+			input["side"] = "after"
+			input["position"] = prev
+		}
+		// First row/column: no preceding row/column exists, so fall back to a
+		// plain before-insert (dimInsertNeedsBeforeStyleWarning surfaces this).
 	}
 	return input, nil
 }
@@ -669,6 +715,23 @@ func columnIndexToLetter(idx int) string {
 		idx /= 26
 	}
 	return string(out)
+}
+
+// a1PositionBefore returns the A1 position one unit before s ("6" → "5",
+// "C" → "B"), preserving row/column form. ok is false when s is the first
+// row/column (row 1 / column A) — no earlier position — or is not a valid A1
+// position. Callers validate via parseA1Position first, so in practice ok is
+// false only at the first row/column.
+func a1PositionBefore(s string) (pos string, ok bool) {
+	dimension, idx, err := parseA1Position(s)
+	if err != nil || idx == 0 {
+		return "", false
+	}
+	if dimension == "row" {
+		// idx is 0-based; the 1-based number one row earlier is idx itself.
+		return strconv.Itoa(idx), true
+	}
+	return columnIndexToLetter(idx - 1), true
 }
 
 // ─── +dim-move (native v3 move_dimension, cli_status: cli-only) ──────
