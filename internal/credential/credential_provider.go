@@ -156,6 +156,8 @@ type CredentialProvider struct {
 	// doResolveAccount under accountOnce. It never carries a secret.
 	selection IdentitySelection
 
+	enrichOnce sync.Once
+
 	hintOnce sync.Once
 	hint     *IdentityHint
 	hintErr  error
@@ -198,6 +200,22 @@ func (p *CredentialProvider) WithProfileFromEnv(profile string) *CredentialProvi
 // Subsequent calls return the cached result regardless of their context.
 // This is acceptable for CLI (single invocation per process) but not for long-running servers.
 func (p *CredentialProvider) ResolveAccount(ctx context.Context) (*Account, error) {
+	acct, err := p.resolveAccountSelection(ctx)
+	if err != nil || acct == nil {
+		return acct, err
+	}
+	if _, ok := p.selectedSource.(extensionTokenSource); ok {
+		p.enrichOnce.Do(func() {
+			p.enrichOrClearIdentity(ctx, acct, p.selectedSource)
+		})
+	}
+	return acct, nil
+}
+
+// resolveAccountSelection performs and caches only credential selection. It
+// deliberately does not resolve tokens or user_info, so callers can validate
+// the selected app before any token work begins.
+func (p *CredentialProvider) resolveAccountSelection(ctx context.Context) (*Account, error) {
 	p.accountOnce.Do(func() {
 		p.account, p.accountErr = p.doResolveAccount(ctx)
 	})
@@ -464,10 +482,8 @@ func findProfile(in identityInputs) (*core.AppConfig, error) {
 func (p *CredentialProvider) execute(ctx context.Context, d decision, in identityInputs) (*Account, credentialSource, error) {
 	switch d.route {
 	case routeManaged:
-		p.enrichOrClearIdentity(ctx, in.managed.acct, in.managed.source)
 		return in.managed.acct, in.managed.source, nil
 	case routeDirectEnv:
-		p.enrichOrClearIdentity(ctx, in.direct.acct, in.direct.source)
 		return in.direct.acct, in.direct.source, nil
 	case routeProfile:
 		// Resolve the profile's own (keychain-backed) credential locally.
@@ -698,17 +714,13 @@ func (p *CredentialProvider) enrichUserInfo(ctx context.Context, acct *Account, 
 }
 
 func (p *CredentialProvider) selectedCredentialSource(ctx context.Context) (credentialSource, error) {
-	if p.selectedSource != nil {
-		return p.selectedSource, nil
-	}
-	if p.defaultAcct == nil {
-		return nil, nil
-	}
-	if _, err := p.ResolveAccount(ctx); err != nil {
+	if _, err := p.resolveAccountSelection(ctx); err != nil {
 		return nil, err
 	}
 	if p.selectedSource == nil {
-		return nil, fmt.Errorf("credential provider resolved an account without selecting a token source")
+		return nil, errs.NewInternalError(errs.SubtypeUnknown,
+			"credential provider resolved an account without selecting a token source").
+			WithHint("retry the command.")
 	}
 	return p.selectedSource, nil
 }
@@ -761,33 +773,32 @@ func (p *CredentialProvider) doResolveIdentityHint(ctx context.Context) (*Identi
 
 // ResolveToken resolves an access token.
 func (p *CredentialProvider) ResolveToken(ctx context.Context, req TokenSpec) (*TokenResult, error) {
-	source, err := p.selectedCredentialSource(ctx)
+	acct, err := p.resolveAccountSelection(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if source != nil {
-		return resolveTokenFromSource(ctx, source, req)
+	if acct == nil {
+		return nil, errs.NewInternalError(errs.SubtypeUnknown,
+			"credential provider resolved no account before %s token resolution", req.Type).
+			WithHint("retry the command.")
 	}
-
-	for _, prov := range p.providers {
-		source := extensionTokenSource{provider: prov}
-		result, found, err := source.TryResolveToken(ctx, req)
-		if err != nil {
-			return nil, err
-		}
-		if found {
-			return result, nil
-		}
+	source := p.selectedSource
+	if source == nil {
+		return nil, errs.NewInternalError(errs.SubtypeUnknown,
+			"credential provider resolved app %q without selecting a token source", acct.AppID).
+			WithHint("retry the command.")
 	}
-	source = defaultTokenSource{resolver: p.defaultToken}
-	result, found, err := source.TryResolveToken(ctx, req)
-	if err != nil {
-		return nil, err
+	if req.AppID == "" {
+		return nil, errs.NewInternalError(errs.SubtypeUnknown,
+			"TokenSpec.AppID is required for %s token resolution", req.Type).
+			WithHint("retry the command.")
 	}
-	if found {
-		return result, nil
+	if req.AppID != acct.AppID {
+		return nil, errs.NewInternalError(errs.SubtypeUnknown,
+			"token requested for app %q but the selected account belongs to app %q", req.AppID, acct.AppID).
+			WithHint("retry the command.")
 	}
-	return nil, &TokenUnavailableError{Type: req.Type}
+	return resolveTokenFromSource(ctx, source, req)
 }
 
 // ActiveExtensionProviderName reports whether an extension provider is managing
