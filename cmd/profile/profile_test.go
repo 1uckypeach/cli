@@ -642,8 +642,8 @@ func TestProfileRemoveRun_ValidationErrors(t *testing.T) {
 // users and AI agents can find LARKSUITE_CLI_PROFILE without reading source.
 func TestProfileHelpHasSelectionSection(t *testing.T) {
 	cmd := NewCmdProfile(nil)
-	if !strings.Contains(cmd.Long, "Profile selection:") {
-		t.Errorf("profile --help missing Profile selection section")
+	if !strings.Contains(cmd.Long, "Identity diagnostics and profile selection:") {
+		t.Errorf("profile --help missing identity diagnostics and profile selection section")
 	}
 	if !strings.Contains(cmd.Long, "LARKSUITE_CLI_PROFILE") {
 		t.Errorf("profile --help missing LARKSUITE_CLI_PROFILE")
