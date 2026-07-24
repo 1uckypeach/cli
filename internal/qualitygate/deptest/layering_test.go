@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/larksuite/cli/internal/vfs"
+	"gopkg.in/yaml.v3"
 )
 
 const modulePath = "github.com/larksuite/cli"
@@ -112,11 +113,19 @@ type listedPackage struct {
 }
 
 type goListTarget struct {
-	GOOS   string
-	GOARCH string
+	GOOS   string `yaml:"goos"`
+	GOARCH string `yaml:"goarch"`
 }
 
 type commandFactory func(name string, args ...string) *exec.Cmd
+
+type goReleaserConfig struct {
+	Builds []struct {
+		GOOS   []string       `yaml:"goos"`
+		GOARCH []string       `yaml:"goarch"`
+		Ignore []goListTarget `yaml:"ignore"`
+	} `yaml:"builds"`
+}
 
 var layeringBuildTargets = []goListTarget{
 	{GOOS: "linux", GOARCH: "amd64"},
@@ -578,6 +587,63 @@ func TestLayeringBuildTargets(t *testing.T) {
 	}
 }
 
+func TestLayeringBuildTargetsMatchGoReleaser(t *testing.T) {
+	root := repoRoot(t)
+	content, err := vfs.ReadFile(filepath.Join(root, ".goreleaser.yml"))
+	if err != nil {
+		t.Fatalf("read .goreleaser.yml: %v", err)
+	}
+
+	var config goReleaserConfig
+	if err := yaml.Unmarshal(content, &config); err != nil {
+		t.Fatalf("parse .goreleaser.yml: %v", err)
+	}
+	if len(config.Builds) == 0 {
+		t.Fatal(".goreleaser.yml has no builds")
+	}
+
+	output, err := exec.Command("go", "tool", "dist", "list").Output()
+	if err != nil {
+		t.Fatalf("go tool dist list: %v", err)
+	}
+	supported := make(map[string]struct{})
+	for _, target := range strings.Fields(string(output)) {
+		supported[target] = struct{}{}
+	}
+
+	want := make(map[string]struct{})
+	for _, build := range config.Builds {
+		ignored := make(map[string]struct{}, len(build.Ignore))
+		for _, target := range build.Ignore {
+			ignored[target.GOOS+"/"+target.GOARCH] = struct{}{}
+		}
+		for _, goos := range build.GOOS {
+			for _, goarch := range build.GOARCH {
+				target := goos + "/" + goarch
+				if _, ok := supported[target]; !ok {
+					continue
+				}
+				if _, ok := ignored[target]; ok {
+					continue
+				}
+				want[target] = struct{}{}
+			}
+		}
+	}
+
+	got := make(map[string]struct{}, len(layeringBuildTargets))
+	for _, target := range layeringBuildTargets {
+		key := target.GOOS + "/" + target.GOARCH
+		if _, duplicate := got[key]; duplicate {
+			t.Fatalf("layering build target %q is duplicated", key)
+		}
+		got[key] = struct{}{}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("layering build targets = %v, want GoReleaser targets %v", sortedKeys(got), sortedKeys(want))
+	}
+}
+
 func TestDecodeAndMergeListedPackages(t *testing.T) {
 	input := strings.NewReader(
 		`{"ImportPath":"example.com/a","Imports":["example.com/b"],"Deps":["example.com/c"]}` + "\n" +
@@ -727,6 +793,15 @@ func mergeStrings(left, right []string) []string {
 	}
 	sort.Strings(merged)
 	return merged
+}
+
+func sortedKeys(values map[string]struct{}) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	return keys
 }
 
 func evaluateLayeringRule(packages []listedPackage, rule Rule) []layeringViolation {
