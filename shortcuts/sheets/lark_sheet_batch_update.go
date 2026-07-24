@@ -5,6 +5,7 @@ package sheets
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/larksuite/cli/shortcuts/common"
@@ -29,10 +30,14 @@ import (
 // The tool's contract (post-translation):
 //   { excel_id, operations: [{tool_name, input}, ...], continue_on_error? }
 //
-// continue_on_error defaults to false (strict transaction): any failure
-// rolls back the whole batch. CLI leaves the default in place for the
-// three "fan-out" shortcuts since they're meant to be all-or-nothing;
-// only +batch-update lets callers flip it via --continue-on-error.
+// continue_on_error defaults to false (fail-fast): execution stops at the
+// first failing sub-op, but sub-ops already applied are NOT rolled back —
+// the server reports "N succeeded, M failed" and the N stay in the sheet
+// (verified against live batches; earlier docs wrongly promised a rollback,
+// which made agents resend whole batches and double-apply the successes).
+// CLI leaves the default in place for the fan-out shortcuts since they're
+// idempotent stamps; only +batch-update lets callers flip it via
+// --continue-on-error.
 
 // BatchUpdate accepts a CLI-shape operations array (each item
 // {shortcut, input}); on Validate / DryRun / Execute we translate each
@@ -42,7 +47,7 @@ import (
 var BatchUpdate = common.Shortcut{
 	Service:     "sheets",
 	Command:     "+batch-update",
-	Description: "Execute a batch of write shortcuts as a single atomic request (rolls back on failure by default).",
+	Description: "Execute a batch of write shortcuts in one request; fail-fast on the first failing sub-op (already-applied sub-ops are NOT rolled back).",
 	Risk:        "high-risk-write",
 	Scopes:      []string{"sheets:spreadsheet:write_only"},
 	AuthTypes:   []string{"user", "bot"},
@@ -84,7 +89,7 @@ var BatchUpdate = common.Shortcut{
 	},
 	Tips: []string{
 		"high-risk-write: always pass --yes (or --dry-run to preview) — without it the call exits 10 asking for confirmation.",
-		"Default is strict transaction — any sub-tool failure rolls the whole batch back. Pass --continue-on-error to keep partial successes.",
+		"Execution is fail-fast, NOT transactional: on \"N succeeded, M failed\" the succeeded sub-ops stay applied (no rollback) — fix the failure and resend ONLY the operations from the first failed index onward; resending the whole batch re-applies the succeeded ones. Pass --continue-on-error to keep going past failures instead.",
 		"Each sub-op is {shortcut, input}. Do NOT pass input.operation (implied by shortcut name) or input.excel_id / input.url (set at the +batch-update top level).",
 	},
 }
@@ -162,6 +167,7 @@ var CellsBatchSetStyle = common.Shortcut{
 	HasFormat:   true,
 	Flags:       flagsFor("+cells-batch-set-style"),
 	Tips: []string{
+		"DEPRECATED: superseded by +styles-put, whose one spec also covers merges, row/col sizes and freeze — prefer it for new work.",
 		`Example: lark-cli sheets +cells-batch-set-style --url <URL> --ranges '["Sheet1!A1:B2","汇总!C1:C9"]' --font-weight bold`,
 		"Every range carries its sheet-NAME prefix (Sheet1!A1:B2, not a sheet_id) — there is no --sheet-id / --sheet-name flag here.",
 	},
@@ -194,6 +200,10 @@ var CellsBatchSetStyle = common.Shortcut{
 		if err != nil {
 			return err
 		}
+		// Phase-1 deprecation (docs already point at +styles-put): keep the
+		// command working, steer new usage to the superset in-band.
+		fmt.Fprintln(runtime.IO().ErrOut,
+			"note: +cells-batch-set-style is superseded by +styles-put (one spec covers styles + merges + row/col sizes + freeze); prefer +styles-put for new work")
 		out, err := callTool(ctx, runtime, token, ToolKindWrite, "batch_update", input)
 		if err != nil {
 			return err

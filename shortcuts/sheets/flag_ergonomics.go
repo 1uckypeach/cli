@@ -61,11 +61,15 @@ func withFlagErgonomics(prev func(cmd *cobra.Command)) func(cmd *cobra.Command) 
 var commandFlagAliases = map[string]map[string]string{
 	"+csv-put":      {"file": "csv"},
 	"+sheet-create": {"name": "title"},
-	"+cols-resize":  {"cols": "range"},
-	"+rows-resize":  {"rows": "range"},
-	"+range-fill":   {"source": "source-range", "target": "target-range"},
-	"+range-copy":   {"source": "source-range", "target": "target-range"},
-	"+range-move":   {"source": "source-range", "target": "target-range"},
+	// size → width/height: the styles protocol (--styles row_sizes/col_sizes)
+	// spells the pixel dimension "size", and pre-2026-07 batches accepted it
+	// here too — the rename is the single largest sub-op error cluster in
+	// eval traces (15+ hits). Same pixel-count semantics, safe to rewrite.
+	"+cols-resize": {"cols": "range", "size": "width"},
+	"+rows-resize": {"rows": "range", "size": "height"},
+	"+range-fill":  {"source": "source-range", "target": "target-range"},
+	"+range-copy":  {"source": "source-range", "target": "target-range"},
+	"+range-move":  {"source": "source-range", "target": "target-range"},
 }
 
 // intuitiveFlagHints carries the prescription for habitual names whose fix
@@ -90,6 +94,11 @@ var intuitiveFlagHints = map[string]map[string]string{
 		"bold":      "use --font-weight bold",
 		"italic":    "use --font-style italic",
 		"underline": "use --font-line underline",
+	},
+	"+cells-set": {
+		// Predictable prior from +table-put --styles: models will try to
+		// attach range-level styling to a --writes call the same way.
+		"styles": `range-level styling goes through +styles-put (same {"styles":[...]} vocabulary); per-cell styles ride inside the cells objects as cell_styles`,
 	},
 	"+table-put": {
 		"start-cell": `anchor each sub-sheet via the "start_cell" field inside --sheets (e.g. {"sheets":[{"name":"Sheet1","start_cell":"B2",…}]}); to paste CSV at a cell use +csv-put --start-cell`,

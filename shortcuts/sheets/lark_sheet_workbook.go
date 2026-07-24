@@ -13,6 +13,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
+	"github.com/larksuite/cli/internal/suggest"
 	"github.com/larksuite/cli/internal/util"
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/larksuite/cli/shortcuts/drive"
@@ -918,6 +919,14 @@ type workbookCreateStylePayload struct {
 	RowSizes   []workbookCreateResizeOp
 	ColSizes   []workbookCreateResizeOp
 	CellMerges []workbookCreateMergeOp
+	Freeze     *workbookCreateFreezeOp
+}
+
+// workbookCreateFreezeOp freezes the first Rows rows / Cols columns.
+// Zero means "leave that dimension alone".
+type workbookCreateFreezeOp struct {
+	Rows int
+	Cols int
 }
 
 type workbookCreateCellStyleOp struct {
@@ -1073,13 +1082,50 @@ func parseWorkbookCreateStyleItem(item map[string]interface{}, path string) (*wo
 		payload.CellMerges, errsHere = parseWorkbookCreateMergeOps(raw, path+".cell_merges")
 		probs = append(probs, errsHere...)
 	}
+	if raw, ok := item["freeze"]; ok {
+		freeze, err := parseWorkbookCreateFreezeOp(raw, path+".freeze")
+		if err != nil {
+			probs = append(probs, err)
+		} else {
+			payload.Freeze = freeze
+		}
+	}
 	if len(probs) > 0 {
 		return nil, probs
 	}
-	if len(payload.CellStyles) == 0 && len(payload.RowSizes) == 0 && len(payload.ColSizes) == 0 && len(payload.CellMerges) == 0 {
-		return nil, []error{common.ValidationErrorf("%s must include at least one of cell_styles/row_sizes/col_sizes/cell_merges", path)}
+	if len(payload.CellStyles) == 0 && len(payload.RowSizes) == 0 && len(payload.ColSizes) == 0 && len(payload.CellMerges) == 0 && payload.Freeze == nil {
+		return nil, []error{common.ValidationErrorf("%s must include at least one of cell_styles/row_sizes/col_sizes/cell_merges/freeze", path)}
 	}
 	return payload, nil
+}
+
+// parseWorkbookCreateFreezeOp parses a {rows, cols} freeze section. At least
+// one dimension must be positive — an all-zero freeze is a no-op the caller
+// almost certainly didn't mean.
+func parseWorkbookCreateFreezeOp(raw interface{}, path string) (*workbookCreateFreezeOp, error) {
+	obj, ok := raw.(map[string]interface{})
+	if !ok {
+		return nil, common.ValidationErrorf("%s must be an object like {\"rows\":1} or {\"rows\":1,\"cols\":2}", path)
+	}
+	out := &workbookCreateFreezeOp{}
+	for k, v := range obj {
+		n, isNum := v.(float64)
+		if !isNum || n != float64(int(n)) || n < 0 {
+			return nil, common.ValidationErrorf("%s.%s must be a non-negative integer", path, k)
+		}
+		switch k {
+		case "rows":
+			out.Rows = int(n)
+		case "cols", "columns":
+			out.Cols = int(n)
+		default:
+			return nil, common.ValidationErrorf("%s.%s is not a supported field (want rows/cols)", path, k)
+		}
+	}
+	if out.Rows == 0 && out.Cols == 0 {
+		return nil, common.ValidationErrorf("%s must freeze at least one dimension (rows or cols > 0)", path)
+	}
+	return out, nil
 }
 
 // joinStyleValidationErrors folds the issues collected across one --styles
@@ -1175,6 +1221,11 @@ func parseWorkbookCreateMergeOps(v interface{}, path string) ([]workbookCreateMe
 }
 
 func parseWorkbookCreateMergeOp(raw interface{}, path string) (workbookCreateMergeOp, error) {
+	// A bare range string means {range: s, merge_type: all} — the only
+	// possible reading (07-20 eval hit).
+	if s, ok := raw.(string); ok && strings.TrimSpace(s) != "" {
+		raw = map[string]interface{}{"range": strings.TrimSpace(s)}
+	}
 	op, ok := raw.(map[string]interface{})
 	if !ok {
 		return workbookCreateMergeOp{}, common.ValidationErrorf("%s must be an object", path)
@@ -1278,24 +1329,51 @@ func parseWorkbookCreateResizeOp(raw interface{}, path, dimension string) (workb
 	}
 	resizeType, _ := op["type"].(string)
 	resizeType = strings.TrimSpace(resizeType)
-	if resizeType == "" {
-		return workbookCreateResizeOp{}, common.ValidationErrorf("%s.type is required (%s), e.g. %s", path, typeHint, resizeOpExample(dimension))
+	if resizeType != "" {
+		if dimension == "column" && resizeType == "auto" {
+			return workbookCreateResizeOp{}, common.ValidationErrorf("%s.type auto is rows-only", path)
+		}
+		switch resizeType {
+		case "pixel", "standard", "auto":
+		default:
+			return workbookCreateResizeOp{}, common.ValidationErrorf("%s.type %q is invalid (want %s), e.g. %s", path, resizeType, typeHint, resizeOpExample(dimension))
+		}
 	}
-	if dimension == "column" && resizeType == "auto" {
-		return workbookCreateResizeOp{}, common.ValidationErrorf("%s.type auto is rows-only", path)
+	// size is the canonical dimension key (uniform across row_sizes and
+	// col_sizes — the array name already carries the dimension). The Excel-
+	// vocabulary alias (height on rows, width on columns) is accepted
+	// silently; the WRONG dimension's word is a targeted error, never a
+	// silent rewrite.
+	alias, wrongDim := "height", "width"
+	if dimension == "column" {
+		alias, wrongDim = "width", "height"
 	}
-	switch resizeType {
-	case "pixel", "standard", "auto":
-	default:
-		return workbookCreateResizeOp{}, common.ValidationErrorf("%s.type %q is invalid (want %s), e.g. %s", path, resizeType, typeHint, resizeOpExample(dimension))
+	if _, has := op[wrongDim]; has {
+		return workbookCreateResizeOp{}, common.ValidationErrorf("%s.%s does not apply to this array (the array name carries the dimension); use size, e.g. %s", path, wrongDim, resizeOpExample(dimension))
+	}
+	sizeRaw, hasSize := op["size"]
+	if aliasRaw, hasAlias := op[alias]; hasAlias {
+		if hasSize {
+			return workbookCreateResizeOp{}, common.ValidationErrorf("%s: give either size or %s, not both", path, alias)
+		}
+		sizeRaw, hasSize = aliasRaw, true
 	}
 	size := 0
-	if raw, ok := op["size"]; ok {
-		n, ok := util.ToFloat64(raw)
+	if hasSize {
+		n, ok := util.ToFloat64(sizeRaw)
 		if !ok || n <= 0 {
 			return workbookCreateResizeOp{}, common.ValidationErrorf("%s.size must be a positive number", path)
 		}
 		size = int(n)
+	}
+	// type is optional ceremony when a pixel size is given: {range, size}
+	// means a pixel resize, exactly as --width/--height without --type does
+	// on the flag path. Explicit standard/auto still needs type.
+	if resizeType == "" {
+		if size <= 0 {
+			return workbookCreateResizeOp{}, common.ValidationErrorf("%s needs size (px) or type (%s), e.g. %s", path, typeHint, resizeOpExample(dimension))
+		}
+		resizeType = "pixel"
 	}
 	if resizeType == "pixel" && size <= 0 {
 		return workbookCreateResizeOp{}, common.ValidationErrorf("%s.type pixel requires size, e.g. %s", path, resizeOpExample(dimension))
@@ -1303,7 +1381,7 @@ func parseWorkbookCreateResizeOp(raw interface{}, path, dimension string) (workb
 	if resizeType != "pixel" && size > 0 {
 		return workbookCreateResizeOp{}, common.ValidationErrorf("%s.size is only valid with type pixel", path)
 	}
-	if err := rejectUnexpectedWorkbookStyleFields(op, path, "range", "type", "size"); err != nil {
+	if err := rejectUnexpectedWorkbookStyleFields(op, path, "range", "type", "size", alias); err != nil {
 		return workbookCreateResizeOp{}, err
 	}
 	return workbookCreateResizeOp{Range: normalizeWorkbookResizeRange(rangeStr), ResizeType: resizeType, Size: size}, nil
@@ -1346,6 +1424,9 @@ func normalizeWorkbookCreateStyleObject(in map[string]interface{}, path string) 
 	if len(in) == 0 {
 		return nil, nil
 	}
+	if err := foldBorderFamilyAliases(in, path); err != nil {
+		return nil, err
+	}
 	if err := normalizeCellStyleAliases(in, path); err != nil {
 		return nil, err
 	}
@@ -1366,10 +1447,20 @@ func normalizeWorkbookCreateStyleObject(in map[string]interface{}, path string) 
 			}
 			out["border_styles"] = m
 		case "value", "formula", "rich_text", "multiple_values", "note", "data_validation":
-			return nil, common.ValidationErrorf("%s is for styles only; put content in --values or use --sheets for typed cell objects", path)
+			return nil, common.ValidationErrorf("%s.%s is a content field — a styles spec carries no cell content; write values/formulas via +cells-set or +table-put", path, k)
 		default:
 			if !workbookCreateCellStyleField(k) {
-				return nil, common.ValidationErrorf("%s.%s is not a supported style field", path, k)
+				// Universal rejection with did-you-mean + the full field list:
+				// this is the mechanism that absorbs the infinite tail of
+				// spelling permutations at a fixed one-retry cost — silent
+				// aliases are reserved for high-frequency words from real
+				// external vocabularies (see the style_vocab.go contract).
+				msg := fmt.Sprintf("%s.%s is not a supported style field", path, k)
+				if match := suggest.Closest(strings.ToLower(k), workbookCreateCellStyleFieldList, 1); len(match) > 0 {
+					msg += fmt.Sprintf(" — did you mean %q?", match[0])
+				}
+				msg += "; supported: " + strings.Join(workbookCreateCellStyleFieldList, ", ")
+				return nil, common.ValidationErrorf("%s", msg)
 			}
 			cellStyle[k] = v
 		}
@@ -1378,6 +1469,14 @@ func normalizeWorkbookCreateStyleObject(in map[string]interface{}, path string) 
 		out["cell_styles"] = cellStyle
 	}
 	return out, nil
+}
+
+// workbookCreateCellStyleFieldList is the canonical style vocabulary plus the
+// two border carriers, in display order for the unknown-field hint.
+var workbookCreateCellStyleFieldList = []string{
+	"font_color", "font_family", "font_size", "font_weight", "font_style", "font_line",
+	"background_color", "horizontal_alignment", "vertical_alignment",
+	"number_format", "word_wrap", "border", "border_styles",
 }
 
 func workbookCreateCellStyleField(name string) bool {
@@ -1618,7 +1717,7 @@ func workbookCreateVisualOps(styles *workbookCreateStylePayload) []workbookCreat
 	if styles == nil {
 		return nil
 	}
-	ops := make([]workbookCreateStyleOp, 0, len(styles.CellMerges)+len(styles.RowSizes)+len(styles.ColSizes))
+	ops := make([]workbookCreateStyleOp, 0, len(styles.CellMerges)+len(styles.RowSizes)+len(styles.ColSizes)+2)
 	for _, op := range styles.CellMerges {
 		ops = append(ops, workbookCreateStyleOp{Kind: "cell_merge", Range: op.Range, MergeType: op.MergeType})
 	}
@@ -1627,6 +1726,14 @@ func workbookCreateVisualOps(styles *workbookCreateStylePayload) []workbookCreat
 	}
 	for _, op := range styles.ColSizes {
 		ops = append(ops, workbookCreateStyleOp{Kind: "col_size", Range: op.Range, ResizeType: op.ResizeType, Size: op.Size})
+	}
+	if styles.Freeze != nil {
+		if styles.Freeze.Rows > 0 {
+			ops = append(ops, workbookCreateStyleOp{Kind: "freeze_rows", Size: styles.Freeze.Rows})
+		}
+		if styles.Freeze.Cols > 0 {
+			ops = append(ops, workbookCreateStyleOp{Kind: "freeze_cols", Size: styles.Freeze.Cols})
+		}
 	}
 	return ops
 }
@@ -1666,6 +1773,18 @@ func workbookCreateVisualOpInput(token, sheetID, sheetName string, op workbookCr
 			input["resize_width"] = block
 		}
 		return input, "resize_range"
+	case "freeze_rows", "freeze_cols":
+		input := map[string]interface{}{
+			"excel_id":  token,
+			"operation": "freeze",
+		}
+		sheetSelectorForToolInput(input, sheetID, sheetName)
+		if op.Kind == "freeze_rows" {
+			input["freeze_rows"] = op.Size
+		} else {
+			input["freeze_columns"] = op.Size
+		}
+		return input, "modify_sheet_structure"
 	default:
 		return nil, ""
 	}

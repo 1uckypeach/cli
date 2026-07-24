@@ -1,6 +1,6 @@
 ---
 name: lark-sheets
-version: 3.0.2
+version: 3.1.0
 description: "飞书电子表格：创建和操作电子表格。支持创建表格、管理工作表与行列结构（增删/合并/调整尺寸/隐藏/冻结）、读写单元格（值/公式/样式/批注/单元格图片）、查找替换、多操作原子批量更新，以及图表、透视表、条件格式、筛选器、迷你图、浮动图片等对象的创建与维护。当用户需要创建电子表格、管理工作表、批量读写或编辑数据、统计汇总与可视化、表格美化、公式计算（含 Excel 公式迁移）、金融/财务建模（DCF、三张表、预算、Sensitivity 等）等任务时使用。若用户是想按名称或关键词搜索云空间（云盘/云存储）里的表格文件，请改用 lark-drive 的 drive +search 先定位资源。当用户给出 doubao.com 的 /sheets/ URL/token 时，也应直接使用本 skill，不要因为域名不是飞书而回退到 WebFetch；路由依据是 URL 路径模式和 token，而不是域名。"
 metadata:
   requires:
@@ -35,10 +35,11 @@ metadata:
 3. **读全再写**：批量填充 / 补齐 / 修正类任务先确认真实数据末行再写，只探前 N 行会漏写表尾（确定末行流程见 `lark-sheets-read-data`）。
 4. **公式优先于硬编码**：能用公式表达的计算（总计 / 占比 / 提取 / 查找）一律写公式而非静态值——**凡可由表内其它单元格推导的派生值默认用公式，即使用户没说"联动"**；写公式前先读 `lark-sheets-formula-translation`，**公式落表后收尾必跑 `+formula-verify` 直到 `status='success'`**。
 5. **续写 / 扩展继承样式**：续写、补齐、复制区块、新增行列时禁止只读值只写值，必须连带 `cell_styles` + `border_styles` + 合并 + 行高一起继承（清单见 `lark-sheets-write-cells`，四边框最易漏）。
-6. **多步写入合并 `+batch-update`**：多个连续写入、或同一工具对多区域重复调用，合并为单次原子 `+batch-update`（high-risk-write，**调用必带 `--yes`**；语义见 `lark-sheets-batch-update`）。
+6. **多步写入分流**：美化收尾（样式 / 合并 / 行高列宽 / 冻结的任意组合）→ 一次 `+styles-put` 声明式规格交付（见 `lark-sheets-styles-put`）；**同一个写操作**打多个区域 → 用该命令自身的复数形态（`--ranges` / map 入参）；只有**跨类型的原子操作链**（如插列 → 写表头 → 回填数据）才用 `+batch-update`（high-risk-write，**调用必带 `--yes`**，fail-fast 不回滚；语义见 `lark-sheets-batch-update`）。
 7. **分组汇总用透视表**："按 X 统计 Y / 分组汇总 / 各类数量金额"用 `+pivot-{create|update|delete}`，禁止用 SUMIF / 本地脚本拼一张假透视表。
 8. **拆成可验证 checklist**：落地前把指令拆成所有"独立可验证子要点"，逐点 `assert` 全过才交付（多维排序每维一点、多目标每目标一点、范围类核起 / 末 / 边界）；只做第一个要点属违规。
 9. **全量处理前置断言条数**：翻译 / 打标 / 批量公式落地等逐条任务，先把预期条数硬编码再 `assert actual == expected`，禁止输出"已完成前 N 条，剩余继续"的半成品。
+10. **缺失值不编造**：补齐 / 扩展 / 按原表格式续填时，查不到或无法确定的值一律留空 + 备注注明（"暂未发布 / 未知 / 待核实"），禁止用推算值 / 估算值 / 凭空数据充数；原表若已示范缺失值写法（空值 + 备注），照抄该约定。宁可留空标注，不填不可靠的数。
 
 > 端到端工作流：了解结构（`+workbook-info`）→ 读数据 → 理解语义 → 原生工具优先 → 写入 → 回读验证；实操展开见下方「执行要点」。
 
@@ -48,12 +49,12 @@ metadata:
 
 | 你要做的事 | ✅ 正确写法 | 动手前读 | ❌ 不存在（会被 cobra 拒） |
 | --- | --- | --- | --- |
-| 读数据（纯值 / CSV） | `+csv-get`（范围用 `--range`） | `lark-sheets-read-data` | `+get-range`、`+range-get`、`+cells-read` |
+| 读数据（纯值 / CSV） | `+csv-get`（`--range` 可省略 = 读整个子表，无需先探行列；限定范围才传） | `lark-sheets-read-data` | `+get-range`、`+range-get`、`+cells-read` |
 | 读值 + 公式 / 样式 / 批注 | `+cells-get --include value,formula,style,comment,data_validation` | `lark-sheets-read-data` | `+get-cell`、`+cell-get`、`--with-styles`、`--with-merges`、`--include-merged-cells` |
 | 写纯文本值（整块 CSV 平铺；列里没有需字面保真的编号 / 点分日期） | `+csv-put`（定位用 `--start-cell` 左上角锚点格，也接受 `--range` 别名） | `lark-sheets-write-cells` | 把含点分日期(`12.10`)/编号(`001`)的列裸灌 `+csv-put`——会被数值化（`12.10`→`12.1`、`001`→`1`），改用 `+table-put` 声明 `dtypes:object` |
 | 写带类型的数据到**已有**表（列里有数字 / 金额 / 百分比 / 日期等**量值**——不看当下要不要排序求和，量值一律走这里） | `+table-put --sheets '{"sheets":[{"name":…,"columns":[…],"dtypes":{…},"formats":{…},"data":[[…]]}]}'`（不存在的 sheet 名自动建子表；同时美化加 `--styles` 一步带样式，详见 write-cells） | `lark-sheets-write-cells` | 在本地把数字拼成 `"$1,234"` / `"30.5%"` 字符串再 `+csv-put`（落成文本、丢计算能力，见下方 ⚠️） |
 | **新建**电子表格并写带类型的数据（类型保真需求同上，但目标表还不存在） | `+workbook-create --sheets`（协议与 `+table-put` 同构、一步建表 + typed 写入，无需先建空表再 `+table-put`；date / number 不丢；`--styles` 同样可在建表同一步带全套样式，详见 workbook） | `lark-sheets-workbook` | 用 `--values` 灌日期 / 数字（会落成文本、丢类型） |
-| 写公式 / 富写入（样式 · 批注 · 图片 · 富文本），或需精确矩形定位的值 | `+cells-set`（定位用 `--range`；批注 / 图片 / 富文本只能用它，公式也可；**公式落表后继续 `+formula-verify` 收尾**） | `lark-sheets-write-cells` | — |
+| 写公式 / 富写入（样式 · 批注 · 图片 · 富文本），或需精确矩形定位的值 | `+cells-set`（单区域 `--range`+`--cells`；**散布多处 / 跨表用 `--writes` 一次原子交付**，每项自带 sheet_name；公式落表后继续 `+formula-verify` 收尾） | `lark-sheets-write-cells` | — |
 | 插图：图片**绑定到某条记录**、随行走（凭证 / 证件照 / 商品图 / 头像 / 二维码 / 每行配图） | `+cells-set-image`（单格 `--range`，嵌入单元格内） | `lark-sheets-write-cells` | — |
 | 插图：**自由摆放、不绑数据**的装饰 / 标识（logo / 水印 / 封面大图 / banner） | `+float-image-create`（浮动图片，自由定位 + 尺寸 + 层级） | `lark-sheets-float-image` | — |
 | 查找 / 替换文本 | `+cells-search`（找，关键字用 `--find`）、`+cells-replace`（替换） | `lark-sheets-search-replace` | `+cells-find`、`+find`、`--query` |
@@ -64,9 +65,10 @@ metadata:
 | 导出 xlsx / 单表 csv | `+workbook-export` | `lark-sheets-workbook` | — |
 | 导入本地 xlsx/xls/csv 文件为飞书电子表格 | `+workbook-import --file ./x.xlsx`（仅要导成多维表格 bitable 时才用 `drive +import --type bitable`） | `lark-sheets-workbook` | `drive +import`（绕路）、本地读 .xlsx 再 `+workbook-create` 重灌（多此一举）、想并入**已有工作簿**却用它（import 只会另起新表，加子表走 `+sheet-copy` / `+sheet-create`） |
 | 参考某个**已有在线表**、把多份数据各作为一张子表**追加**进去 | 先 `+workbook-info` → `+sheet-copy` 复制模板子表（公式 / 合并 / 底色 / 列宽全继承）再 `+cells-*` 只改数据；无模板可继承时 `+sheet-create` + `+table-put --sheets/--styles` | `lark-sheets-workbook` | `+workbook-import` / `+workbook-create` 另起独立新表（这两条只产新表、不接受已有表定位） |
+| **已有**表美化收尾（样式 / 边框 / 合并 / 行高列宽 / 冻结的任意组合，单表或多表） | `+styles-put --styles '{"styles":[{"name":…,"cell_styles":[…],"cell_merges":[…],"row_sizes":[…],"col_sizes":[…],"freeze":{…}}]}'`（一份规格一次原子交付，词汇同 `+table-put --styles`） | `lark-sheets-styles-put` | 拼 `+batch-update` 的 `--operations` 子操作数组做美化、逐区域多次 `+cells-set-style` |
 | 清除内容 / 格式 | `+cells-clear --yes`（需确认；范围维度用 `--scope`，取值 content / formats / all） | `lark-sheets-range-operations` | `--type` |
 | 批量清除多区域 | `+cells-batch-clear --yes`（需确认；`--scope`） | `lark-sheets-batch-update` | `--target` |
-| 调整列宽 / 行高 | `+cols-resize` / `+rows-resize`（行、列是两个独立命令） | `lark-sheets-range-operations` | `--dimension`（无此 flag） |
+| 调整列宽 / 行高 | `+cols-resize` / `+rows-resize`（行、列是两个独立命令；连同样式一起调时并入 `+styles-put` 的 `row_sizes` / `col_sizes`） | `lark-sheets-range-operations` | `--dimension`（无此 flag） |
 | 分组汇总 / 透视 | `+pivot-create`（默认不传落点 flag → 自动新建子表，零覆盖） | `lark-sheets-pivot-table` | 用 SUMIF / 本地脚本拼一张假透视表 |
 | 画图表 / 可视化（柱 / 折线 / 饼 / 条 / 散点 / 组合…） | `+chart-create`（先 `+chart-create --print-example <column\|bar\|line\|pie\|combo…>` 本地拿最小可用 `--properties` 模板，改 refs / index 即可用） | `lark-sheets-chart` | matplotlib / 本地画图再贴图（原生图表可交互、随数据更新） |
 | 条件高亮 / 数据条 / 色阶 / 重复值标记 | `+cond-format-create` | `lark-sheets-conditional-format` | `+highlight`、`+conditional-format`、逐格 `+cells-set-style` 硬凑 |
@@ -75,7 +77,7 @@ metadata:
 > ⚠️ **动手前的触发式必读（按动作判定，不看主场景）**：动作里**含样式 / 美化**（底色 / 边框 / 字号 / 对齐 / 数字格式 / 配色 / 列宽行高）→ 先读 `lark-sheets-visual-standards`；**要写飞书公式** → 先读 `lark-sheets-formula-translation`，写完跑 `+formula-verify` 收尾（见 `lark-sheets-formula-verify`）。主任务是建表 / 录入也一样适用。
 > ⚠️ **两种图片别选错**：图**绑定某条记录、随行走**（凭证 / 证件照 / 每行配图）→ `+cells-set-image`；自由摆放的装饰（logo / 水印 / 封面）→ `+float-image-create`。别因「浮动图更熟」默认选浮动图。
 > ⚠️ **纯文本还是数值语义（看数据本质，不看当下用途）**：金额 / 百分比 / 日期 / 计数等**量值**一律数值写入——常规二维表用 `+table-put`（`dtypes` + `formats`），宽表 / 合并表头版式用 `+cells-set` 传数字（百分比传小数 `0.4`）+ `number_format`。只有编号 / 身份证等**标识符**才 `+csv-put` 平铺。"只是展示不用算 / 样式以后再刷"不构成把量值写成字符串的理由——类型不能后补。判据见 `lark-sheets-write-cells`「数字还是文本」。
-> ⚠️ **要新建子表 / 整表美化 → 别「`+csv-put` 写值再事后刷样式」**：`+table-put` / `+workbook-create` 的 `--styles` 在写数据**同一步**带全套样式（底色 / 边框 / 列宽行高 / 合并），payload 里不存在的 sheet 名自动建子表，纯文本表同样适用；比事后多次刷样式少好几次调用（冻结行列仍需 `+dim-freeze` 单独一步）。
+> ⚠️ **要新建子表 / 整表美化 → 别「`+csv-put` 写值再事后刷样式」**：`+table-put` / `+workbook-create` 的 `--styles` 在写数据**同一步**带全套样式（底色 / 边框 / 列宽行高 / 合并 / 冻结），payload 里不存在的 sheet 名自动建子表，纯文本表同样适用；比事后多次刷样式少好几次调用。存量表事后美化则一次 `+styles-put` 交付（同一份 `--styles` 词汇）。
 > ⚠️ **定位 flag**：`+cells-get` / `+cells-set` / `+csv-get` 用 `--range`；`+csv-put` 用 `--start-cell`（也接受 `--range` 别名，区间取左上角）。
 > ⚠️ **读取附加信息**一律走 `+cells-get --include …`（无 `--with-styles` 这类 flag）；**看合并单元格**用 `+sheet-info` 的 `merged_cells`。
 
@@ -84,7 +86,9 @@ metadata:
 ```bash
 lark-cli sheets +cells-set --url <U> --sheet-name S1 --range A1:B1 --cells '[[{"value":"名称"},{"formula":"=SUM(B2:B9)"}]]'  # --cells 恒为二维数组 [[…]]，单格也是 [[{…}]]
 lark-cli sheets +cells-set-style --url <U> --sheet-name S1 --range A1:D1 --font-weight bold --background-color "#F0F0F0" --horizontal-alignment center
-lark-cli sheets +cells-batch-set-style --url <U> --ranges '["S1!A1:B2","汇总!C1:C9"]' --font-weight bold  # range 带表名前缀，无 sheet 定位 flag
+lark-cli sheets +styles-put --url <U> --styles - <<'JSON'
+{"styles":[{"name":"S1","cell_styles":[{"range":"A1:D1","font_weight":"bold","background_color":"#F0F0F0"}],"col_sizes":[{"range":"A:D","type":"pixel","size":120}],"freeze":{"rows":1}}]}
+JSON
 lark-cli sheets +batch-update --url <U> --yes --operations - <<'JSON'
 [{"shortcut":"+cells-set","input":{"sheet_name":"S1","range":"A1","cells":[[{"value":"x"}]]}}]
 JSON
@@ -158,6 +162,7 @@ reference 分两组：先读**通用方法与规范**（横切所有任务的样
 | [Lark Sheet Search & Replace](references/lark-sheets-search-replace.md) | 在飞书表格中搜索和替换文本，支持限定范围、大小写匹配、精确匹配、正则表达式。当用户需要"查找"、"搜索"、"定位"某个值，或"替换"、"批量修改文本"、"把 A 改成 B"时使用。不要用于理解表格结构（应读取数据）、不要用于数据分析（应读取数据后计算）、不要把用户操作动作中的关键词（如"汇总金额""统计数量"）当作搜索词。 |
 | [Lark Sheet Write Cells](references/lark-sheets-write-cells.md) | 向飞书表格的指定区域批量写入值、公式、样式、批注或单元格图片。适用场景：填写数据、设置公式、修改格式、添加批注、嵌入单元格图片（如需操作浮动图片，请使用 lark-sheets-float-image）；若只需把一块 CSV 批量铺到表格上（值或公式，不带样式/批注），直接使用 `+csv-put` 更短更快。追加数据需先通过 lark-sheets-sheet-structure 插入行列。只要这次写入真实落了公式，收尾默认继续执行 `lark-sheets-formula-verify`。 |
 | [Lark Sheet Range Operations](references/lark-sheets-range-operations.md) | 对飞书表格中指定区域执行结构性操作（不涉及写入单元格数据值）。适用场景：清除内容或格式（"清空"、"删除内容"、"去掉格式"）、合并/取消合并单元格、调整行高列宽（"加宽列"、"自适应列宽"）、移动/复制/填充/排序数据（"移动数据"、"复制到"、"自动填充"、"按某列排序"）。写入单元格数据请使用 lark-sheets-write-cells。 |
+| [Lark Sheet Styles Put](references/lark-sheets-styles-put.md) | 把一份声明式视觉规格（样式/边框/合并/行高列宽/冻结）一次性应用到已有飞书表格的多个子表，整份规格原子提交。当任务是对存量表做美化收尾、批量刷样式、统一版式时使用。样式取值标准见 lark-sheets-visual-standards；建新表带样式走 lark-sheets-workbook（+workbook-create --styles）、写数据同步带样式走 lark-sheets-write-cells（+table-put --styles），三者共用同一份 --styles 词汇。仅针对飞书表格。 |
 | [Lark Sheet Batch Update](references/lark-sheets-batch-update.md) | 将多个飞书表格写入操作合并为一次批量执行，按顺序依次完成。适合需要连续执行多个写入操作的场景（如先修改结构再写入数据）。 |
 | [Lark Sheet Chart](references/lark-sheets-chart.md) | 管理飞书表格中的图表（柱形图、折线图、饼图、条形图、面积图、散点图、组合图、雷达图等）。当用户需要创建图表、修改图表样式或数据源、查看已有图表配置、删除图表时使用。也适用于用户提到"数据可视化"、"画个图"、"趋势分析"、"对比图"、"占比分析"、"做个图表"等数据可视化相关场景。 |
 | [Lark Sheet Pivot Table](references/lark-sheets-pivot-table.md) | 管理飞书表格中的数据透视表。当用户需要创建透视表、修改透视表的行列字段/聚合方式/筛选条件、查看已有透视表配置、删除透视表时使用。也适用于用户提到"分组汇总"、"交叉分析"、"按XXX统计"、"按字段分组"、"再分下组"、"多维分析"、"数据透视"等场景。 |
@@ -182,7 +187,7 @@ reference 分两组：先读**通用方法与规范**（横切所有任务的样
    - ⚠️ **不确定 sheet 名时禁止猜 `Sheet1`**：除非对话或上下文已出现具体值，第一步先 `+workbook-info` 拿 `sheets[].sheet_id/title` 再选——中文表的子表常叫"数据"/"工作表 1"/业务名，猜名大概率撞 `sheet not found`。
    - ⚠️ **`--range` 里的 `Sheet1!` 前缀不能替代 sheet 定位**：仍必须传 `--sheet-id` / `--sheet-name`。
    - ⚠️ **A1 引用含 `!` 时整段用单引号包裹**（`--range 'Sheet1!A1:B2'`，挡 bash history expansion；别用 `set +H`，sh/dash 下非法）。sheet 名含 `-`/空格需内层再包单引号时用 `'\''` 转义：`--source ''\''Sales-2025'\''!A1:D100'`。
-   - **例外**：徽章标 `_公共：URL/token（无 sheet 定位）…_` 的 shortcut（`+workbook-info` / `+workbook-export` / `+batch-update` / `+dropdown-update|delete` / `+cells-batch-set-style` / `+cells-batch-clear` / `+sheet-create`）不接受 sheet 定位。`+pivot-create` 用 `--target-sheet-id/name`（XOR，可都不传）。
+   - **例外**：徽章标 `_公共：URL/token（无 sheet 定位）…_` 的 shortcut（`+workbook-info` / `+workbook-export` / `+batch-update` / `+styles-put` / `+dropdown-update|delete` / `+cells-batch-clear` / `+sheet-create`）不接受 sheet 定位。`+pivot-create` 用 `--target-sheet-id/name`（XOR，可都不传）。
 
 ```bash
 # 统一调用范式：两组定位缺一不可（占位符别原样填；表名先 +workbook-info 查）
