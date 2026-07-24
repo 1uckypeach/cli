@@ -144,10 +144,11 @@ func TestCredentialProvider_TokenFromExtension(t *testing.T) {
 }
 
 func TestCredentialProvider_TokenFallsToDefault(t *testing.T) {
+	defaultToken := &mockDefaultToken{result: &TokenResult{Token: "default_tok"}}
 	cp := NewCredentialProvider(
 		[]extcred.Provider{&mockExtProvider{name: "skip"}},
 		&mockDefaultAcct{account: &Account{AppID: "default_app"}},
-		&mockDefaultToken{result: &TokenResult{Token: "default_tok"}}, nil,
+		defaultToken, nil,
 	)
 	result, err := cp.ResolveToken(context.Background(), TokenSpec{Type: TokenTypeUAT, AppID: "default_app"})
 	if err != nil {
@@ -155,6 +156,9 @@ func TestCredentialProvider_TokenFallsToDefault(t *testing.T) {
 	}
 	if result.Token != "default_tok" {
 		t.Errorf("expected default_tok, got %s", result.Token)
+	}
+	if defaultToken.tokenCalls != 1 {
+		t.Fatalf("default ResolveToken() calls = %d, want 1", defaultToken.tokenCalls)
 	}
 }
 
@@ -421,16 +425,20 @@ func TestCredentialProvider_ResolveAccountWarnsWhenExtensionIdentityVerification
 }
 
 func TestCredentialProvider_ResolveTokenDoesNotBypassFailedDefaultAccountResolution(t *testing.T) {
+	defaultToken := &mockDefaultToken{result: &TokenResult{Token: "default_tok"}}
 	cp := NewCredentialProvider(
 		nil,
 		&mockDefaultAcct{err: errors.New("config unavailable")},
-		&mockDefaultToken{result: &TokenResult{Token: "default_tok"}},
+		defaultToken,
 		nil,
 	)
 
 	_, err := cp.ResolveToken(context.Background(), TokenSpec{Type: TokenTypeUAT, AppID: "default_app"})
 	if err == nil || err.Error() != "config unavailable" {
 		t.Fatalf("ResolveToken() error = %v, want config unavailable", err)
+	}
+	if defaultToken.tokenCalls != 0 {
+		t.Fatalf("default ResolveToken() calls = %d, want 0", defaultToken.tokenCalls)
 	}
 }
 
