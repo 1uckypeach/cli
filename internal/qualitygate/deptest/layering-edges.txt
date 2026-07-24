@@ -18,8 +18,6 @@ github.com/larksuite/cli/extension/credential/sidecar	github.com/larksuite/cli/i
 github.com/larksuite/cli/extension/transport/sidecar	github.com/larksuite/cli/internal/envvars	arch-migration	extension pre-module-split (via core/envvars)	2026-07-24
 github.com/larksuite/cli/events/im	github.com/larksuite/cli/shortcuts/im/convert_lib	arch-migration	events->shortcuts inversion via convert_lib	2026-07-24
 github.com/larksuite/cli/events/im	github.com/larksuite/cli/shortcuts/common	arch-migration	events->shortcuts inversion via convert_lib	2026-07-24
-github.com/larksuite/cli/events	github.com/larksuite/cli/shortcuts/common	arch-migration	events register aggregates events/im (transitive)	2026-07-24
-github.com/larksuite/cli/events	github.com/larksuite/cli/shortcuts/im/convert_lib	arch-migration	events register aggregates events/im (transitive)	2026-07-24
 github.com/larksuite/cli/shortcuts/im	github.com/larksuite/cli/internal/auth	arch-migration	shortcut bypasses RuntimeContext gate	2026-07-24
 github.com/larksuite/cli/shortcuts/mail	github.com/larksuite/cli/internal/auth	arch-migration	shortcut bypasses RuntimeContext gate	2026-07-24
 github.com/larksuite/cli/shortcuts/minutes	github.com/larksuite/cli/internal/auth	arch-migration	shortcut bypasses RuntimeContext gate	2026-07-24

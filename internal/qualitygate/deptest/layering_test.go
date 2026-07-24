@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -46,20 +48,20 @@ var rules = []Rule{
 	{
 		Name:       "extension-zero-internal",
 		Mode:       Transitive,
-		FromPrefix: modulePath + "/extension",
+		FromPrefix: modulePath + "/extension/",
 		Denied:     []string{modulePath + "/internal/"},
 		SkipFrom:   []string{"/examples/"},
 	},
 	{
 		Name:       "events-no-shortcuts",
 		Mode:       Transitive,
-		FromPrefix: modulePath + "/events",
+		FromPrefix: modulePath + "/events/",
 		Denied:     []string{modulePath + "/shortcuts/"},
 	},
 	{
 		Name:       "shortcuts-runtime-gate",
 		Mode:       Direct,
-		FromPrefix: modulePath + "/shortcuts",
+		FromPrefix: modulePath + "/shortcuts/",
 		Denied: []string{
 			modulePath + "/internal/auth",
 			modulePath + "/internal/keychain",
@@ -91,7 +93,7 @@ var rules = []Rule{
 	{
 		Name:       "internal-no-upper",
 		Mode:       Direct,
-		FromPrefix: modulePath + "/internal",
+		FromPrefix: modulePath + "/internal/",
 		Denied: []string{
 			modulePath + "/cmd",
 			modulePath + "/shortcuts",
@@ -107,6 +109,17 @@ type listedPackage struct {
 	ImportPath string
 	Imports    []string
 	Deps       []string
+}
+
+type goListTarget struct {
+	GOOS   string
+	GOARCH string
+}
+
+var layeringBuildTargets = []goListTarget{
+	{GOOS: "linux", GOARCH: "amd64"},
+	{GOOS: "darwin", GOARCH: "amd64"},
+	{GOOS: "windows", GOARCH: "amd64"},
 }
 
 type layeringEdge struct {
@@ -145,10 +158,7 @@ func TestPackageLayering(t *testing.T) {
 
 	for _, rule := range rules {
 		t.Run(rule.Name, func(t *testing.T) {
-			for _, violation := range actualByRule[rule.Name] {
-				if _, ok := seededByEdge[violation.layeringEdge]; ok {
-					continue
-				}
+			for _, violation := range findUnseededLayeringViolations(actualByRule[rule.Name], seededByEdge) {
 				t.Errorf(
 					"new layering violation: from=%s denied=%s rule=%s; use the approved dependency gate or fix the dependency; do not add rows to layering-edges.txt",
 					violation.From,
@@ -160,10 +170,7 @@ func TestPackageLayering(t *testing.T) {
 	}
 
 	t.Run("stale-layering-edges", func(t *testing.T) {
-		for _, edge := range seeded {
-			if _, ok := actualEdges[edge.layeringEdge]; ok {
-				continue
-			}
+		for _, edge := range findStaleLayeringEdges(seeded, actualEdges) {
 			t.Errorf(
 				"stale layering edge: from=%s denied=%s line=%d; this violation has been removed; delete this row from layering-edges.txt",
 				edge.From,
@@ -172,6 +179,37 @@ func TestPackageLayering(t *testing.T) {
 			)
 		}
 	})
+}
+
+func TestLayeringEdgeClassification(t *testing.T) {
+	known := layeringEdge{From: "example.com/from", Denied: "example.com/denied"}
+	added := layeringEdge{From: "example.com/new", Denied: "example.com/upper"}
+	removed := layeringEdge{From: "example.com/old", Denied: "example.com/legacy"}
+	seeded := []seededLayeringEdge{
+		{layeringEdge: known, Line: 1},
+		{layeringEdge: removed, Line: 2},
+	}
+	seededByEdge := map[layeringEdge]seededLayeringEdge{
+		known:   seeded[0],
+		removed: seeded[1],
+	}
+	actual := []layeringViolation{
+		{layeringEdge: known, Rule: "rule"},
+		{layeringEdge: added, Rule: "rule"},
+	}
+	actualEdges := map[layeringEdge]struct{}{
+		known: {},
+		added: {},
+	}
+
+	unseeded := findUnseededLayeringViolations(actual, seededByEdge)
+	if len(unseeded) != 1 || unseeded[0].layeringEdge != added {
+		t.Fatalf("findUnseededLayeringViolations returned %+v, want only %+v", unseeded, added)
+	}
+	stale := findStaleLayeringEdges(seeded, actualEdges)
+	if len(stale) != 1 || stale[0].layeringEdge != removed {
+		t.Fatalf("findStaleLayeringEdges returned %+v, want only %+v", stale, removed)
+	}
 }
 
 func TestParseLayeringEdges(t *testing.T) {
@@ -314,30 +352,325 @@ func TestEvaluateLayeringRuleUsesExactExceptions(t *testing.T) {
 	}
 }
 
+func TestLayeringRuleContracts(t *testing.T) {
+	wantRules := []Rule{
+		{
+			Name:       "extension-zero-internal",
+			Mode:       Transitive,
+			FromPrefix: modulePath + "/extension/",
+			Denied:     []string{modulePath + "/internal/"},
+			SkipFrom:   []string{"/examples/"},
+		},
+		{
+			Name:       "events-no-shortcuts",
+			Mode:       Transitive,
+			FromPrefix: modulePath + "/events/",
+			Denied:     []string{modulePath + "/shortcuts/"},
+		},
+		{
+			Name:       "shortcuts-runtime-gate",
+			Mode:       Direct,
+			FromPrefix: modulePath + "/shortcuts/",
+			Denied: []string{
+				modulePath + "/internal/auth",
+				modulePath + "/internal/keychain",
+				modulePath + "/internal/credential",
+				modulePath + "/internal/client",
+				modulePath + "/internal/vfs",
+			},
+			ExceptFrom: []string{
+				modulePath + "/shortcuts/common",
+				modulePath + "/shortcuts/apps/gitcred",
+			},
+		},
+		{
+			Name:       "cmd-assembly-only",
+			Mode:       Direct,
+			FromPrefix: modulePath + "/cmd",
+			Denied:     []string{modulePath + "/shortcuts"},
+			ExceptFrom: []string{
+				modulePath + "/cmd",
+				modulePath + "/cmd/auth",
+			},
+		},
+		{
+			Name:       "errs-leaf",
+			Mode:       Direct,
+			FromPrefix: modulePath + "/errs",
+			Denied:     []string{modulePath + "/"},
+		},
+		{
+			Name:       "internal-no-upper",
+			Mode:       Direct,
+			FromPrefix: modulePath + "/internal/",
+			Denied: []string{
+				modulePath + "/cmd",
+				modulePath + "/shortcuts",
+				modulePath + "/events",
+			},
+			ExceptFrom: []string{
+				modulePath + "/internal/qualitygate/cmd/manifest-export",
+			},
+		},
+	}
+	if !reflect.DeepEqual(rules, wantRules) {
+		t.Fatalf("layering rules differ from the enforced contract:\ngot:  %#v\nwant: %#v", rules, wantRules)
+	}
+
+	tests := []struct {
+		name       string
+		ruleName   string
+		packages   []listedPackage
+		wantFrom   string
+		wantDenied string
+	}{
+		{
+			name:     "extension-transitive-denial-and-example-scope-out",
+			ruleName: "extension-zero-internal",
+			packages: []listedPackage{
+				{
+					ImportPath: modulePath + "/extension/sdk",
+					Deps:       []string{modulePath + "/internal/core"},
+				},
+				{
+					ImportPath: modulePath + "/extension/platform/examples/demo",
+					Deps:       []string{modulePath + "/internal/core"},
+				},
+			},
+			wantFrom:   modulePath + "/extension/sdk",
+			wantDenied: modulePath + "/internal/core",
+		},
+		{
+			name:     "events-transitive-denial",
+			ruleName: "events-no-shortcuts",
+			packages: []listedPackage{
+				{
+					ImportPath: modulePath + "/events/im",
+					Deps:       []string{modulePath + "/shortcuts/common"},
+				},
+				{
+					ImportPath: modulePath + "/events/calendar",
+					Deps:       []string{modulePath + "/internal/core"},
+				},
+			},
+			wantFrom:   modulePath + "/events/im",
+			wantDenied: modulePath + "/shortcuts/common",
+		},
+		{
+			name:     "shortcuts-direct-denial-and-exceptions",
+			ruleName: "shortcuts-runtime-gate",
+			packages: []listedPackage{
+				{
+					ImportPath: modulePath + "/shortcuts/im",
+					Imports:    []string{modulePath + "/internal/auth"},
+				},
+				{
+					ImportPath: modulePath + "/shortcuts/common",
+					Imports:    []string{modulePath + "/internal/auth"},
+				},
+				{
+					ImportPath: modulePath + "/shortcuts/apps/gitcred",
+					Imports:    []string{modulePath + "/internal/keychain"},
+				},
+			},
+			wantFrom:   modulePath + "/shortcuts/im",
+			wantDenied: modulePath + "/internal/auth",
+		},
+		{
+			name:     "cmd-direct-denial-and-assembly-exceptions",
+			ruleName: "cmd-assembly-only",
+			packages: []listedPackage{
+				{
+					ImportPath: modulePath + "/cmd/service",
+					Imports:    []string{modulePath + "/shortcuts/im"},
+				},
+				{
+					ImportPath: modulePath + "/cmd",
+					Imports:    []string{modulePath + "/shortcuts"},
+				},
+				{
+					ImportPath: modulePath + "/cmd/auth",
+					Imports:    []string{modulePath + "/shortcuts/auth"},
+				},
+			},
+			wantFrom:   modulePath + "/cmd/service",
+			wantDenied: modulePath + "/shortcuts/im",
+		},
+		{
+			name:     "errs-direct-denial",
+			ruleName: "errs-leaf",
+			packages: []listedPackage{
+				{
+					ImportPath: modulePath + "/errs",
+					Imports:    []string{modulePath + "/internal/core"},
+				},
+				{
+					ImportPath: modulePath + "/errclass",
+					Imports:    []string{modulePath + "/internal/core"},
+				},
+			},
+			wantFrom:   modulePath + "/errs",
+			wantDenied: modulePath + "/internal/core",
+		},
+		{
+			name:     "internal-direct-denial-and-collector-exception",
+			ruleName: "internal-no-upper",
+			packages: []listedPackage{
+				{
+					ImportPath: modulePath + "/internal/core",
+					Imports:    []string{modulePath + "/events/im"},
+				},
+				{
+					ImportPath: modulePath + "/internal/qualitygate/cmd/manifest-export",
+					Imports:    []string{modulePath + "/cmd"},
+				},
+			},
+			wantFrom:   modulePath + "/internal/core",
+			wantDenied: modulePath + "/events/im",
+		},
+	}
+
+	rulesByName := make(map[string]Rule, len(rules))
+	for _, rule := range rules {
+		rulesByName[rule.Name] = rule
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rule, ok := rulesByName[tt.ruleName]
+			if !ok {
+				t.Fatalf("missing rule %q", tt.ruleName)
+			}
+			violations := evaluateLayeringRule(tt.packages, rule)
+			if len(violations) != 1 {
+				t.Fatalf("evaluateLayeringRule returned %d violations, want 1: %+v", len(violations), violations)
+			}
+			if violations[0].From != tt.wantFrom || violations[0].Denied != tt.wantDenied {
+				t.Fatalf(
+					"evaluateLayeringRule returned edge (%q, %q), want (%q, %q)",
+					violations[0].From,
+					violations[0].Denied,
+					tt.wantFrom,
+					tt.wantDenied,
+				)
+			}
+		})
+	}
+}
+
+func TestLayeringBuildTargets(t *testing.T) {
+	want := []goListTarget{
+		{GOOS: "linux", GOARCH: "amd64"},
+		{GOOS: "darwin", GOARCH: "amd64"},
+		{GOOS: "windows", GOARCH: "amd64"},
+	}
+	if !reflect.DeepEqual(layeringBuildTargets, want) {
+		t.Fatalf("layering build targets = %#v, want %#v", layeringBuildTargets, want)
+	}
+}
+
+func TestDecodeAndMergeListedPackages(t *testing.T) {
+	input := strings.NewReader(
+		`{"ImportPath":"example.com/a","Imports":["example.com/b"],"Deps":["example.com/c"]}` + "\n" +
+			`{"ImportPath":"example.com/d","Imports":[],"Deps":[]}` + "\n",
+	)
+	packages, err := decodeListedPackages(input)
+	if err != nil {
+		t.Fatalf("decodeListedPackages returned an error: %v", err)
+	}
+	if len(packages) != 2 || packages[0].ImportPath != "example.com/a" || packages[1].ImportPath != "example.com/d" {
+		t.Fatalf("decodeListedPackages returned unexpected packages: %+v", packages)
+	}
+
+	got := mergeStrings([]string{"example.com/b", "example.com/c"}, []string{"example.com/a", "example.com/b"})
+	want := []string{"example.com/a", "example.com/b", "example.com/c"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("mergeStrings returned %q, want %q", got, want)
+	}
+}
+
 func goListPackageGraph(t *testing.T, root string) []listedPackage {
+	t.Helper()
+	packagesByPath := make(map[string]listedPackage)
+	for _, target := range layeringBuildTargets {
+		for _, pkg := range goListPackages(t, root, target) {
+			merged := packagesByPath[pkg.ImportPath]
+			merged.ImportPath = pkg.ImportPath
+			merged.Imports = mergeStrings(merged.Imports, pkg.Imports)
+			merged.Deps = mergeStrings(merged.Deps, pkg.Deps)
+			packagesByPath[pkg.ImportPath] = merged
+		}
+	}
+
+	packages := make([]listedPackage, 0, len(packagesByPath))
+	for _, pkg := range packagesByPath {
+		packages = append(packages, pkg)
+	}
+	sort.Slice(packages, func(i, j int) bool {
+		return packages[i].ImportPath < packages[j].ImportPath
+	})
+	return packages
+}
+
+func goListPackages(t *testing.T, root string, target goListTarget) []listedPackage {
 	t.Helper()
 	args := []string{"list", "-json", "-tags", "authsidecar", "./..."}
 	cmd := exec.Command("go", args...)
 	cmd.Dir = root
+	cmd.Env = append(
+		os.Environ(),
+		"GOOS="+target.GOOS,
+		"GOARCH="+target.GOARCH,
+		"CGO_ENABLED=0",
+	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("go %s failed: %v\n%s", strings.Join(args, " "), err, out)
+		t.Fatalf(
+			"GOOS=%s GOARCH=%s go %s failed: %v\n%s",
+			target.GOOS,
+			target.GOARCH,
+			strings.Join(args, " "),
+			err,
+			out,
+		)
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(out))
+	packages, err := decodeListedPackages(bytes.NewReader(out))
+	if err != nil {
+		t.Fatalf("decode GOOS=%s GOARCH=%s go list output: %v", target.GOOS, target.GOARCH, err)
+	}
+	return packages
+}
+
+func decodeListedPackages(r io.Reader) ([]listedPackage, error) {
+	decoder := json.NewDecoder(r)
 	var packages []listedPackage
 	for {
 		var pkg listedPackage
 		err := decoder.Decode(&pkg)
 		if err == io.EOF {
-			break
+			return packages, nil
 		}
 		if err != nil {
-			t.Fatalf("decode go list output: %v", err)
+			return nil, err
 		}
 		packages = append(packages, pkg)
 	}
-	return packages
+}
+
+func mergeStrings(left, right []string) []string {
+	values := make(map[string]struct{}, len(left)+len(right))
+	for _, value := range left {
+		values[value] = struct{}{}
+	}
+	for _, value := range right {
+		values[value] = struct{}{}
+	}
+	merged := make([]string, 0, len(values))
+	for value := range values {
+		merged = append(merged, value)
+	}
+	sort.Strings(merged)
+	return merged
 }
 
 func evaluateLayeringRule(packages []listedPackage, rule Rule) []layeringViolation {
@@ -405,6 +738,32 @@ func containsAny(value string, substrings []string) bool {
 		}
 	}
 	return false
+}
+
+func findUnseededLayeringViolations(
+	actual []layeringViolation,
+	seeded map[layeringEdge]seededLayeringEdge,
+) []layeringViolation {
+	var unseeded []layeringViolation
+	for _, violation := range actual {
+		if _, ok := seeded[violation.layeringEdge]; !ok {
+			unseeded = append(unseeded, violation)
+		}
+	}
+	return unseeded
+}
+
+func findStaleLayeringEdges(
+	seeded []seededLayeringEdge,
+	actual map[layeringEdge]struct{},
+) []seededLayeringEdge {
+	var stale []seededLayeringEdge
+	for _, edge := range seeded {
+		if _, ok := actual[edge.layeringEdge]; !ok {
+			stale = append(stale, edge)
+		}
+	}
+	return stale
 }
 
 func readLayeringEdges(t *testing.T, path string) []seededLayeringEdge {
