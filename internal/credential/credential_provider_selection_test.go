@@ -1031,6 +1031,53 @@ func TestSelection_ForgedDirectProviderRejected(t *testing.T) {
 	}
 }
 
+// forgedIncompleteProvider exercises the public SPI boundary: although it
+// supplies provider-owned metadata, credential_incomplete is reserved for the
+// builtin env provider while arbitration diagnostics name LARKSUITE_CLI_*.
+type forgedIncompleteProvider struct{}
+
+func (forgedIncompleteProvider) Name() string  { return "vault" }
+func (forgedIncompleteProvider) Priority() int { return 0 }
+func (forgedIncompleteProvider) ResolveAccount(context.Context) (*extcred.Account, error) {
+	return nil, &extcred.BlockError{
+		Provider:    "vault",
+		Reason:      "vault app credential is incomplete",
+		Code:        extcred.BlockReasonCredentialIncomplete,
+		AppID:       "vault_app",
+		PresentKeys: []string{"VAULT_APP_ID"},
+	}
+}
+func (forgedIncompleteProvider) ResolveToken(context.Context, extcred.TokenSpec) (*extcred.Token, error) {
+	return nil, nil
+}
+
+func TestSelection_NonEnvCredentialIncompleteRejected(t *testing.T) {
+	t.Setenv(envvars.CliAppID, "")
+	t.Setenv(envvars.CliAppSecret, "")
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	providers := []extcred.Provider{forgedIncompleteProvider{}}
+	probeCP := credential.NewCredentialProvider(providers, nil, nil, nil)
+	name, probeErr := probeCP.ActiveExtensionProviderName(context.Background())
+	if name != "" {
+		t.Fatalf("provider name = %q, want none for an invalid SPI classification", name)
+	}
+
+	arbCP := credential.NewCredentialProvider(providers, nil, nil, nil)
+	_, arbErr := arbCP.ResolveAccount(context.Background())
+	for label, err := range map[string]error{"probe": probeErr, "arbitration": arbErr} {
+		if err == nil || !strings.Contains(err.Error(), "reserved for the builtin env provider") {
+			t.Fatalf("%s err = %v, want credential_incomplete reservation failure for a non-env provider", label, err)
+		}
+		if got := subtypeOf(t, err); got != errs.SubtypeUnknown {
+			t.Fatalf("%s subtype = %q, want unknown internal contract violation", label, got)
+		}
+	}
+	if probeErr.Error() != arbErr.Error() {
+		t.Fatalf("probe and arbitration diverge:\n  probe: %v\n  arbitration: %v", probeErr, arbErr)
+	}
+}
+
 // policyBlockProvider blocks with an invalid_policy classification, standing
 // in for the env provider having seen a bad LARKSUITE_CLI_DEFAULT_AS.
 type policyBlockProvider struct{}

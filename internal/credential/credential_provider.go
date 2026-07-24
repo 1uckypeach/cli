@@ -306,6 +306,15 @@ func (p *CredentialProvider) gatherIdentityInputs(ctx context.Context) (identity
 			if errors.As(err, &blockErr) {
 				switch blockErr.Code {
 				case extcred.BlockReasonCredentialIncomplete:
+					// app_credential_incomplete, profile matching, and
+					// DirectCredentialEnv diagnostics are defined in terms of
+					// the builtin LARKSUITE_CLI_* env surface. Until the SPI
+					// carries provider-owned input descriptors, accepting this
+					// classification from another provider would produce
+					// contradictory arbitration and repair hints.
+					if _, builtin := prov.(*envprovider.Provider); !builtin {
+						return in, newCredentialIncompleteProviderContractError(prov)
+					}
 					in.directBlock = blockErr
 				case extcred.BlockReasonInvalidPolicy:
 					// A user-supplied policy value failed validation; that is
@@ -600,6 +609,11 @@ func newInvalidPolicyError(blockErr *extcred.BlockError) error {
 		WithHint("set %s to a supported value or unset it.", blockErr.Param)
 }
 
+func newCredentialIncompleteProviderContractError(prov extcred.Provider) error {
+	return errs.NewInternalError(errs.SubtypeUnknown,
+		"credential provider %q returned credential_incomplete, which is reserved for the builtin env provider", prov.Name())
+}
+
 // newProfileSecretInvalidError is deliberately generic (SECURITY): the
 // underlying cause may carry secret material, so neither it nor its message
 // may reach the envelope. app_id is plaintext and safe to echo.
@@ -849,6 +863,11 @@ func (p *CredentialProvider) ActiveExtensionProviderName(ctx context.Context) (s
 				// provider instead.
 				if blockErr.Code == extcred.BlockReasonInvalidPolicy {
 					return "", newInvalidPolicyError(blockErr)
+				}
+				if blockErr.Code == extcred.BlockReasonCredentialIncomplete {
+					if _, builtin := prov.(*envprovider.Provider); !builtin {
+						return "", newCredentialIncompleteProviderContractError(prov)
+					}
 				}
 				name := blockErr.Provider
 				if name == "" {

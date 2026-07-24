@@ -103,12 +103,12 @@ type TokenSpec struct {
 type BlockReason string
 
 const (
-	// BlockReasonCredentialIncomplete marks direct credential inputs that cannot
-	// form an account until one or more named input variables are fixed. Setting
-	// it opts the block into direct-credential arbitration regardless of the
-	// provider's name: the caller maps it to app_credential_incomplete and may
-	// let a matching selected profile win instead (when AppID and PresentKeys
-	// identify a usable app_id). Blocks without a Code propagate unchanged.
+	// BlockReasonCredentialIncomplete marks incomplete inputs from the builtin
+	// process-env credential provider. It is reserved for that provider because
+	// direct-credential arbitration and diagnostics currently name the fixed
+	// LARKSUITE_CLI_* env surface. Third-party providers must return an
+	// unclassified BlockError until the SPI carries provider-owned input
+	// descriptors. Blocks without a Code propagate unchanged.
 	BlockReasonCredentialIncomplete BlockReason = "credential_incomplete"
 
 	// BlockReasonInvalidPolicy marks a user-supplied policy input (e.g.

@@ -13,6 +13,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	extcred "github.com/larksuite/cli/extension/credential"
+	envprovider "github.com/larksuite/cli/extension/credential/env"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/envvars"
@@ -458,6 +459,10 @@ func TestRequireBuiltinCredentialProvider_AllowsBuiltinProvider(t *testing.T) {
 
 func TestRequireBuiltinCredentialProvider_AllowsMatchingAppIDOnlyProfile(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	t.Setenv(envvars.CliAppID, "cli_a")
+	t.Setenv(envvars.CliAppSecret, "")
+	t.Setenv(envvars.CliUserAccessToken, "")
+	t.Setenv(envvars.CliTenantAccessToken, "")
 	if err := core.SaveMultiAppConfig(&core.MultiAppConfig{
 		CurrentApp: "tenant_a",
 		Apps: []core.AppConfig{{
@@ -470,16 +475,8 @@ func TestRequireBuiltinCredentialProvider_AllowsMatchingAppIDOnlyProfile(t *test
 		t.Fatalf("SaveMultiAppConfig: %v", err)
 	}
 
-	stub := &stubExtProvider{name: "env", err: &extcred.BlockError{
-		Provider:      "env",
-		Reason:        "APP_ID is set but no credential is available",
-		Code:          extcred.BlockReasonCredentialIncomplete,
-		RequiredAnyOf: []string{envvars.CliAppSecret, envvars.CliUserAccessToken, envvars.CliTenantAccessToken},
-		PresentKeys:   []string{envvars.CliAppID},
-		AppID:         "cli_a",
-	}}
 	cred := credential.NewCredentialProvider(
-		[]extcred.Provider{stub},
+		[]extcred.Provider{&envprovider.Provider{}},
 		&stubDefaultAccountResolver{acct: &credential.Account{AppID: "cli_a", AppSecret: "test-secret"}},
 		nil,
 		nil,
