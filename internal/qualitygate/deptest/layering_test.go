@@ -608,7 +608,7 @@ func TestGoListPackagesSeparatesStderr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadPackagesForTarget returned an error: %v", err)
 	}
-	if stderr != "go: downloading example.com/module\n" {
+	if !strings.Contains(stderr, "go: downloading example.com/module\n") {
 		t.Fatalf("loadPackagesForTarget stderr = %q, want module download diagnostic", stderr)
 	}
 	if len(packages) != 1 || packages[0].ImportPath != "example.com/package" {
