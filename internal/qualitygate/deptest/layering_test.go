@@ -125,12 +125,22 @@ type goReleaserConfig struct {
 }
 
 type goReleaserBuild struct {
-	Builder string           `yaml:"builder"`
-	GOOS    []string         `yaml:"goos"`
-	GOARCH  []string         `yaml:"goarch"`
-	Targets []string         `yaml:"targets"`
-	Ignore  []map[string]any `yaml:"ignore"`
-	Skip    bool             `yaml:"skip"`
+	Builder   string           `yaml:"builder"`
+	GOOS      []string         `yaml:"goos"`
+	GOARCH    []string         `yaml:"goarch"`
+	GOARM     []any            `yaml:"goarm"`
+	GOAMD64   []any            `yaml:"goamd64"`
+	GOARM64   []any            `yaml:"goarm64"`
+	GOMIPS    []any            `yaml:"gomips"`
+	GOMIPS64  []any            `yaml:"gomips64"`
+	GO386     []any            `yaml:"go386"`
+	GOPPC64   []any            `yaml:"goppc64"`
+	GORISCV64 []any            `yaml:"goriscv64"`
+	Tool      string           `yaml:"tool"`
+	GoBinary  string           `yaml:"gobinary"`
+	Targets   []string         `yaml:"targets"`
+	Ignore    []map[string]any `yaml:"ignore"`
+	Skip      bool             `yaml:"skip"`
 }
 
 type distTarget struct {
@@ -698,11 +708,11 @@ func TestGoReleaserBuildTargets(t *testing.T) {
 			want: []string{"freebsd/amd64"},
 		},
 		{
-			name: "target suffixes preserve the base platform",
+			name: "target suffixes fail closed",
 			build: goReleaserBuild{
 				Targets: []string{"linux_amd64_v1"},
 			},
-			want: []string{"linux/amd64"},
+			wantErr: true,
 		},
 		{
 			name: "first class selector expands from the toolchain",
@@ -728,6 +738,15 @@ func TestGoReleaserBuildTargets(t *testing.T) {
 			want: []string{},
 		},
 		{
+			name: "microarchitecture matrix fails closed",
+			build: goReleaserBuild{
+				GOOS:    []string{"linux"},
+				GOARCH:  []string{"amd64"},
+				GOAMD64: []any{"v3"},
+			},
+			wantErr: true,
+		},
+		{
 			name: "microarchitecture ignore fails closed",
 			build: goReleaserBuild{
 				GOOS:   []string{"linux"},
@@ -747,6 +766,20 @@ func TestGoReleaserBuildTargets(t *testing.T) {
 			name: "non-Go builder fails closed",
 			build: goReleaserBuild{
 				Builder: "rust",
+			},
+			wantErr: true,
+		},
+		{
+			name: "custom Go tool fails closed",
+			build: goReleaserBuild{
+				Tool: "go1.24.0",
+			},
+			wantErr: true,
+		},
+		{
+			name: "legacy custom Go binary fails closed",
+			build: goReleaserBuild{
+				GoBinary: "go1.24.0",
 			},
 			wantErr: true,
 		},
@@ -780,6 +813,12 @@ func goReleaserBuildTargets(
 	}
 	if build.Builder != "" && build.Builder != "go" {
 		return nil, fmt.Errorf("unsupported builder %q", build.Builder)
+	}
+	if build.Tool != "" || build.GoBinary != "" {
+		return nil, fmt.Errorf("custom Go tools are unsupported")
+	}
+	if buildHasMicroarchitectureMatrix(build) {
+		return nil, fmt.Errorf("microarchitecture matrices are unsupported")
 	}
 	if len(build.Targets) > 0 {
 		return explicitGoReleaserTargets(build.Targets, supported)
@@ -835,7 +874,7 @@ func explicitGoReleaserTargets(
 		}
 
 		parts := strings.Split(configuredTarget, "_")
-		if len(parts) < 2 {
+		if len(parts) != 2 {
 			return nil, fmt.Errorf("malformed target %q", configuredTarget)
 		}
 		target := parts[0] + "/" + parts[1]
@@ -845,6 +884,17 @@ func explicitGoReleaserTargets(
 		targets[target] = struct{}{}
 	}
 	return targets, nil
+}
+
+func buildHasMicroarchitectureMatrix(build goReleaserBuild) bool {
+	return len(build.GOARM) > 0 ||
+		len(build.GOAMD64) > 0 ||
+		len(build.GOARM64) > 0 ||
+		len(build.GOMIPS) > 0 ||
+		len(build.GOMIPS64) > 0 ||
+		len(build.GO386) > 0 ||
+		len(build.GOPPC64) > 0 ||
+		len(build.GORISCV64) > 0
 }
 
 func goReleaserTargetIgnored(goos, goarch string, ignored []map[string]any) (bool, error) {
