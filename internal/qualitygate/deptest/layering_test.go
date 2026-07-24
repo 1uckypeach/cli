@@ -138,15 +138,17 @@ type goReleaserBuild struct {
 	GORISCV64 []any            `yaml:"goriscv64"`
 	Tool      string           `yaml:"tool"`
 	GoBinary  string           `yaml:"gobinary"`
+	Tags      []string         `yaml:"tags"`
+	Flags     []string         `yaml:"flags"`
+	Env       []string         `yaml:"env"`
 	Targets   []string         `yaml:"targets"`
 	Ignore    []map[string]any `yaml:"ignore"`
 	Skip      bool             `yaml:"skip"`
 }
 
 type distTarget struct {
-	GOOS       string
-	GOARCH     string
-	FirstClass bool
+	GOOS   string
+	GOARCH string
 }
 
 var layeringBuildTargets = []goListTarget{
@@ -158,6 +160,8 @@ var layeringBuildTargets = []goListTarget{
 	{GOOS: "windows", GOARCH: "amd64"},
 	{GOOS: "windows", GOARCH: "arm64"},
 }
+
+var layeringBuildTags = []string{"", "authsidecar"}
 
 type layeringEdge struct {
 	From   string
@@ -609,6 +613,13 @@ func TestLayeringBuildTargets(t *testing.T) {
 	}
 }
 
+func TestLayeringBuildTags(t *testing.T) {
+	want := []string{"", "authsidecar"}
+	if !slices.Equal(layeringBuildTags, want) {
+		t.Fatalf("layering build tags = %q, want %q", layeringBuildTags, want)
+	}
+}
+
 func TestLayeringBuildTargetsMatchGoReleaser(t *testing.T) {
 	root := repoRoot(t)
 	content, err := vfs.ReadFile(filepath.Join(root, ".goreleaser.yml"))
@@ -686,10 +697,10 @@ func TestReleaseGoVersionMatchesModule(t *testing.T) {
 
 func TestGoReleaserBuildTargets(t *testing.T) {
 	supported := map[string]distTarget{
-		"darwin/arm64":  {GOOS: "darwin", GOARCH: "arm64", FirstClass: true},
+		"darwin/arm64":  {GOOS: "darwin", GOARCH: "arm64"},
 		"freebsd/amd64": {GOOS: "freebsd", GOARCH: "amd64"},
-		"linux/amd64":   {GOOS: "linux", GOARCH: "amd64", FirstClass: true},
-		"windows/amd64": {GOOS: "windows", GOARCH: "amd64", FirstClass: true},
+		"linux/amd64":   {GOOS: "linux", GOARCH: "amd64"},
+		"windows/amd64": {GOOS: "windows", GOARCH: "amd64"},
 		"windows/arm64": {GOOS: "windows", GOARCH: "arm64"},
 	}
 	tests := []struct {
@@ -715,11 +726,11 @@ func TestGoReleaserBuildTargets(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "first class selector expands from the toolchain",
+			name: "first class selector fails closed",
 			build: goReleaserBuild{
 				Targets: []string{"go_first_class"},
 			},
-			want: []string{"darwin/arm64", "linux/amd64", "windows/amd64"},
+			wantErr: true,
 		},
 		{
 			name: "partial ignore matches every architecture",
@@ -736,6 +747,14 @@ func TestGoReleaserBuildTargets(t *testing.T) {
 				Skip: true,
 			},
 			want: []string{},
+		},
+		{
+			name: "arm target fails closed",
+			build: goReleaserBuild{
+				GOOS:   []string{"linux"},
+				GOARCH: []string{"arm"},
+			},
+			wantErr: true,
 		},
 		{
 			name: "microarchitecture matrix fails closed",
@@ -783,6 +802,34 @@ func TestGoReleaserBuildTargets(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "release build tags fail closed",
+			build: goReleaserBuild{
+				Tags: []string{"feature"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "build flag tags fail closed",
+			build: goReleaserBuild{
+				Flags: []string{"-tags=feature"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "environment build tags fail closed",
+			build: goReleaserBuild{
+				Env: []string{"GOFLAGS=-tags=feature"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "enabled cgo fails closed",
+			build: goReleaserBuild{
+				Env: []string{"CGO_ENABLED=1"},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -817,6 +864,12 @@ func goReleaserBuildTargets(
 	if build.Tool != "" || build.GoBinary != "" {
 		return nil, fmt.Errorf("custom Go tools are unsupported")
 	}
+	if len(build.Tags) > 0 || buildFlagsSetTags(build.Flags) {
+		return nil, fmt.Errorf("release build tags are unsupported")
+	}
+	if err := validateGoReleaserBuildEnv(build.Env); err != nil {
+		return nil, err
+	}
 	if buildHasMicroarchitectureMatrix(build) {
 		return nil, fmt.Errorf("microarchitecture matrices are unsupported")
 	}
@@ -836,6 +889,9 @@ func goReleaserBuildTargets(
 	targets := make(map[string]struct{})
 	for _, goos := range gooses {
 		for _, goarch := range goarches {
+			if goarch == "arm" {
+				return nil, fmt.Errorf("GOARCH=arm requires explicit GOARM support")
+			}
 			target := goos + "/" + goarch
 			if _, ok := supported[target]; !ok {
 				continue
@@ -858,15 +914,7 @@ func explicitGoReleaserTargets(
 ) (map[string]struct{}, error) {
 	targets := make(map[string]struct{})
 	for _, configuredTarget := range configured {
-		if configuredTarget == "go_first_class" {
-			for key, target := range supported {
-				if target.FirstClass {
-					targets[key] = struct{}{}
-				}
-			}
-			continue
-		}
-		if configuredTarget == "go_118_first_class" {
+		if configuredTarget == "go_first_class" || configuredTarget == "go_118_first_class" {
 			return nil, fmt.Errorf("unsupported target selector %q", configuredTarget)
 		}
 		if strings.Contains(configuredTarget, "{{") {
@@ -877,6 +925,9 @@ func explicitGoReleaserTargets(
 		if len(parts) != 2 {
 			return nil, fmt.Errorf("malformed target %q", configuredTarget)
 		}
+		if parts[1] == "arm" {
+			return nil, fmt.Errorf("target %q requires explicit GOARM support", configuredTarget)
+		}
 		target := parts[0] + "/" + parts[1]
 		if _, ok := supported[target]; !ok {
 			return nil, fmt.Errorf("unsupported Go target %q", configuredTarget)
@@ -884,6 +935,38 @@ func explicitGoReleaserTargets(
 		targets[target] = struct{}{}
 	}
 	return targets, nil
+}
+
+func buildFlagsSetTags(flags []string) bool {
+	for _, flag := range flags {
+		if flag == "-tags" || strings.HasPrefix(flag, "-tags=") {
+			return true
+		}
+	}
+	return false
+}
+
+func validateGoReleaserBuildEnv(env []string) error {
+	for _, entry := range env {
+		name, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		switch name {
+		case "CGO_ENABLED":
+			if value != "0" {
+				return fmt.Errorf("CGO_ENABLED=%s is unsupported", value)
+			}
+		case "GOFLAGS":
+			if strings.Contains(value, "-tags") {
+				return fmt.Errorf("GOFLAGS build tags are unsupported")
+			}
+		case "GOEXPERIMENT", "GOOS", "GOARCH", "GOARM", "GOAMD64", "GOARM64",
+			"GOMIPS", "GOMIPS64", "GO386", "GOPPC64", "GORISCV64":
+			return fmt.Errorf("build environment variable %q is unsupported", name)
+		}
+	}
+	return nil
 }
 
 func buildHasMicroarchitectureMatrix(build goReleaserBuild) bool {
@@ -963,7 +1046,7 @@ func TestDecodeAndMergeListedPackages(t *testing.T) {
 
 func TestGoListPackagesSeparatesStderr(t *testing.T) {
 	target := goListTarget{GOOS: "linux", GOARCH: "amd64"}
-	packages, stderr, err := loadPackagesForTarget("", target, func(_ string, _ ...string) *exec.Cmd {
+	packages, stderr, err := loadPackagesForTarget("", target, "authsidecar", func(_ string, _ ...string) *exec.Cmd {
 		cmd := exec.Command(os.Args[0], "-test.run=^TestGoListCommandHelperProcess$")
 		cmd.Env = append(os.Environ(), "GO_LIST_COMMAND_HELPER=1")
 		return cmd
@@ -992,12 +1075,14 @@ func goListPackageGraph(t *testing.T, root string) []listedPackage {
 	t.Helper()
 	packagesByPath := make(map[string]listedPackage)
 	for _, target := range layeringBuildTargets {
-		for _, pkg := range goListPackages(t, root, target) {
-			merged := packagesByPath[pkg.ImportPath]
-			merged.ImportPath = pkg.ImportPath
-			merged.Imports = mergeStrings(merged.Imports, pkg.Imports)
-			merged.Deps = mergeStrings(merged.Deps, pkg.Deps)
-			packagesByPath[pkg.ImportPath] = merged
+		for _, tags := range layeringBuildTags {
+			for _, pkg := range goListPackages(t, root, target, tags) {
+				merged := packagesByPath[pkg.ImportPath]
+				merged.ImportPath = pkg.ImportPath
+				merged.Imports = mergeStrings(merged.Imports, pkg.Imports)
+				merged.Deps = mergeStrings(merged.Deps, pkg.Deps)
+				packagesByPath[pkg.ImportPath] = merged
+			}
 		}
 	}
 
@@ -1011,14 +1096,15 @@ func goListPackageGraph(t *testing.T, root string) []listedPackage {
 	return packages
 }
 
-func goListPackages(t *testing.T, root string, target goListTarget) []listedPackage {
+func goListPackages(t *testing.T, root string, target goListTarget, tags string) []listedPackage {
 	t.Helper()
-	packages, stderr, err := loadPackagesForTarget(root, target, exec.Command)
+	packages, stderr, err := loadPackagesForTarget(root, target, tags, exec.Command)
 	if err != nil {
 		t.Fatalf(
-			"GOOS=%s GOARCH=%s go list -json -tags authsidecar ./... failed: %v\n%s",
+			"GOOS=%s GOARCH=%s tags=%q go list -json ./... failed: %v\n%s",
 			target.GOOS,
 			target.GOARCH,
+			tags,
 			err,
 			stderr,
 		)
@@ -1029,9 +1115,14 @@ func goListPackages(t *testing.T, root string, target goListTarget) []listedPack
 func loadPackagesForTarget(
 	root string,
 	target goListTarget,
+	tags string,
 	newCommand commandFactory,
 ) ([]listedPackage, string, error) {
-	args := []string{"list", "-json", "-tags", "authsidecar", "./..."}
+	args := []string{"list", "-json"}
+	if tags != "" {
+		args = append(args, "-tags", tags)
+	}
+	args = append(args, "./...")
 	cmd := newCommand("go", args...)
 	cmd.Dir = root
 	env := cmd.Env
