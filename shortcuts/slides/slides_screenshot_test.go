@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -17,22 +18,18 @@ import (
 )
 
 func TestSlidesScreenshotDeclaredScopes(t *testing.T) {
-	if got := SlidesScreenshot.ScopesForIdentity("user"); len(got) != 0 {
-		t.Fatalf("user preflight scopes = %#v, want empty", got)
+	base := []string{"slides:presentation:screenshot"}
+	if got := SlidesScreenshot.ScopesForIdentity("user"); !reflect.DeepEqual(got, base) {
+		t.Fatalf("user preflight scopes = %#v, want %#v", got, base)
 	}
-	if got := SlidesScreenshot.ScopesForIdentity("bot"); len(got) != 0 {
-		t.Fatalf("bot preflight scopes = %#v, want empty", got)
+	if got := SlidesScreenshot.ScopesForIdentity("bot"); !reflect.DeepEqual(got, base) {
+		t.Fatalf("bot preflight scopes = %#v, want %#v", got, base)
 	}
 
 	got := SlidesScreenshot.DeclaredScopesForIdentity("user")
-	want := []string{"wiki:node:read"}
-	if len(got) != len(want) || got[0] != want[0] {
+	want := []string{"slides:presentation:screenshot", "wiki:node:read"}
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("declared scopes = %#v, want %#v", got, want)
-	}
-	for _, scope := range got {
-		if scope == "slides:presentation:screenshot" {
-			t.Fatalf("declared scopes must not advertise screenshot scope: %#v", got)
-		}
 	}
 }
 
