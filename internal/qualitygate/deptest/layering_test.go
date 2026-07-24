@@ -42,8 +42,12 @@ type Rule struct {
 	Mode       Mode
 	FromPrefix string
 	Denied     []string
+	// ExceptFrom exempts import paths matched exactly.
 	ExceptFrom []string
-	SkipFrom   []string
+	// SkipFrom exempts any package whose import path contains one of these
+	// substrings (e.g. "/examples/" to skip demo code anywhere in the tree),
+	// deliberately looser than the prefix matching used for the other fields.
+	SkipFrom []string
 }
 
 var rules = []Rule{
@@ -121,6 +125,7 @@ type goListTarget struct {
 type commandFactory func(name string, args ...string) *exec.Cmd
 
 type goReleaserConfig struct {
+	Env    []string          `yaml:"env"`
 	Builds []goReleaserBuild `yaml:"builds"`
 }
 
@@ -141,6 +146,8 @@ type goReleaserBuild struct {
 	Tags      []string         `yaml:"tags"`
 	Flags     []string         `yaml:"flags"`
 	Env       []string         `yaml:"env"`
+	Command   string           `yaml:"command"`
+	Overrides yaml.Node        `yaml:"overrides"`
 	Targets   []string         `yaml:"targets"`
 	Ignore    []map[string]any `yaml:"ignore"`
 	Skip      bool             `yaml:"skip"`
@@ -161,6 +168,10 @@ var layeringBuildTargets = []goListTarget{
 	{GOOS: "windows", GOARCH: "arm64"},
 }
 
+// layeringBuildTags is the set of build tags whose import graphs are unioned
+// before evaluating the rules. Demo-only tags (authsidecar_demo,
+// authsidecar_multi_tenant_demo) are intentionally excluded: that code lives
+// under sidecar/server-demo*/ and never sits in a layer any rule governs.
 var layeringBuildTags = []string{"", "authsidecar"}
 
 type layeringEdge struct {
@@ -297,6 +308,10 @@ func TestParseLayeringEdges(t *testing.T) {
 		{
 			name:  "invalid-date",
 			input: "from\tdenied\towner\treason\t2026-02-30\n",
+		},
+		{
+			name:  "whitespace-padded-field",
+			input: "from\t denied \towner\treason\t2026-07-24\n",
 		},
 	}
 	for _, tt := range tests {
@@ -634,7 +649,14 @@ func TestLayeringBuildTargetsMatchGoReleaser(t *testing.T) {
 	if len(config.Builds) == 0 {
 		t.Fatal(".goreleaser.yml has no builds")
 	}
+	if err := validateGoReleaserBuildEnv(config.Env); err != nil {
+		t.Fatalf(".goreleaser.yml global environment: %v", err)
+	}
 
+	// The supported set is derived from the toolchain running this test.
+	// TestReleaseGoVersionMatchesModule pins the release Go to the go.mod floor,
+	// so a runner older than the release toolchain (which could omit a
+	// release-buildable target and under-compute want) is caught there first.
 	output, err := exec.Command("go", "tool", "dist", "list", "-json").Output()
 	if err != nil {
 		t.Fatalf("go tool dist list: %v", err)
@@ -812,7 +834,7 @@ func TestGoReleaserBuildTargets(t *testing.T) {
 		{
 			name: "build flag tags fail closed",
 			build: goReleaserBuild{
-				Flags: []string{"-tags=feature"},
+				Flags: []string{"--tags=feature"},
 			},
 			wantErr: true,
 		},
@@ -820,6 +842,20 @@ func TestGoReleaserBuildTargets(t *testing.T) {
 			name: "environment build tags fail closed",
 			build: goReleaserBuild{
 				Env: []string{"GOFLAGS=-tags=feature"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "custom build command fails closed",
+			build: goReleaserBuild{
+				Command: "test",
+			},
+			wantErr: true,
+		},
+		{
+			name: "target overrides fail closed",
+			build: goReleaserBuild{
+				Overrides: yaml.Node{Kind: yaml.MappingNode},
 			},
 			wantErr: true,
 		},
@@ -863,6 +899,12 @@ func goReleaserBuildTargets(
 	}
 	if build.Tool != "" || build.GoBinary != "" {
 		return nil, fmt.Errorf("custom Go tools are unsupported")
+	}
+	if build.Command != "" && build.Command != "build" {
+		return nil, fmt.Errorf("unsupported Go command %q", build.Command)
+	}
+	if build.Overrides.Kind != 0 {
+		return nil, fmt.Errorf("target overrides are unsupported")
 	}
 	if len(build.Tags) > 0 || buildFlagsSetTags(build.Flags) {
 		return nil, fmt.Errorf("release build tags are unsupported")
@@ -939,7 +981,8 @@ func explicitGoReleaserTargets(
 
 func buildFlagsSetTags(flags []string) bool {
 	for _, flag := range flags {
-		if flag == "-tags" || strings.HasPrefix(flag, "-tags=") {
+		if flag == "-tags" || strings.HasPrefix(flag, "-tags=") ||
+			flag == "--tags" || strings.HasPrefix(flag, "--tags=") {
 			return true
 		}
 	}
@@ -957,12 +1000,10 @@ func validateGoReleaserBuildEnv(env []string) error {
 			if value != "0" {
 				return fmt.Errorf("CGO_ENABLED=%s is unsupported", value)
 			}
-		case "GOFLAGS":
-			if strings.Contains(value, "-tags") {
-				return fmt.Errorf("GOFLAGS build tags are unsupported")
+		default:
+			if !strings.HasPrefix(name, "GO") {
+				continue
 			}
-		case "GOEXPERIMENT", "GOOS", "GOARCH", "GOARM", "GOAMD64", "GOARM64",
-			"GOMIPS", "GOMIPS64", "GO386", "GOPPC64", "GORISCV64":
 			return fmt.Errorf("build environment variable %q is unsupported", name)
 		}
 	}
@@ -1046,19 +1087,45 @@ func TestDecodeAndMergeListedPackages(t *testing.T) {
 
 func TestGoListPackagesSeparatesStderr(t *testing.T) {
 	target := goListTarget{GOOS: "linux", GOARCH: "amd64"}
-	packages, stderr, err := loadPackagesForTarget("", target, "authsidecar", func(_ string, _ ...string) *exec.Cmd {
-		cmd := exec.Command(os.Args[0], "-test.run=^TestGoListCommandHelperProcess$")
-		cmd.Env = append(os.Environ(), "GO_LIST_COMMAND_HELPER=1")
-		return cmd
-	})
-	if err != nil {
-		t.Fatalf("loadPackagesForTarget returned an error: %v", err)
+	tests := []struct {
+		name     string
+		tags     string
+		wantArgs []string
+	}{
+		{
+			name:     "default graph",
+			wantArgs: []string{"list", "-json", "./..."},
+		},
+		{
+			name:     "authsidecar graph",
+			tags:     "authsidecar",
+			wantArgs: []string{"list", "-json", "-tags", "authsidecar", "./..."},
+		},
 	}
-	if !strings.Contains(stderr, "go: downloading example.com/module\n") {
-		t.Fatalf("loadPackagesForTarget stderr = %q, want module download diagnostic", stderr)
-	}
-	if len(packages) != 1 || packages[0].ImportPath != "example.com/package" {
-		t.Fatalf("loadPackagesForTarget returned unexpected packages: %+v", packages)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotName string
+			var gotArgs []string
+			packages, stderr, err := loadPackagesForTarget("", target, tt.tags, func(name string, args ...string) *exec.Cmd {
+				gotName = name
+				gotArgs = slices.Clone(args)
+				cmd := exec.Command(os.Args[0], "-test.run=^TestGoListCommandHelperProcess$")
+				cmd.Env = append(os.Environ(), "GO_LIST_COMMAND_HELPER=1")
+				return cmd
+			})
+			if err != nil {
+				t.Fatalf("loadPackagesForTarget returned an error: %v", err)
+			}
+			if gotName != "go" || !slices.Equal(gotArgs, tt.wantArgs) {
+				t.Fatalf("command = %q %q, want go %q", gotName, gotArgs, tt.wantArgs)
+			}
+			if !strings.Contains(stderr, "go: downloading example.com/module\n") {
+				t.Fatalf("loadPackagesForTarget stderr = %q, want module download diagnostic", stderr)
+			}
+			if len(packages) != 1 || packages[0].ImportPath != "example.com/package" {
+				t.Fatalf("loadPackagesForTarget returned unexpected packages: %+v", packages)
+			}
+		})
 	}
 }
 
@@ -1076,7 +1143,16 @@ func goListPackageGraph(t *testing.T, root string) []listedPackage {
 	packagesByPath := make(map[string]listedPackage)
 	for _, target := range layeringBuildTargets {
 		for _, tags := range layeringBuildTags {
-			for _, pkg := range goListPackages(t, root, target, tags) {
+			listed := goListPackages(t, root, target, tags)
+			if len(listed) == 0 {
+				t.Fatalf(
+					"GOOS=%s GOARCH=%s tags=%q go list -json ./... returned no packages; the layering graph would silently under-cover",
+					target.GOOS,
+					target.GOARCH,
+					tags,
+				)
+			}
+			for _, pkg := range listed {
 				merged := packagesByPath[pkg.ImportPath]
 				merged.ImportPath = pkg.ImportPath
 				merged.Imports = mergeStrings(merged.Imports, pkg.Imports)
@@ -1318,11 +1394,15 @@ func parseLayeringEdges(r io.Reader) ([]seededLayeringEdge, error) {
 			problems = append(problems, malformedLayeringEdge(line))
 			continue
 		}
-		for i := range parts {
-			parts[i] = strings.TrimSpace(parts[i])
+		// Reject rather than trim: an import path never carries surrounding
+		// whitespace, so a padded field is a malformed row, not one to
+		// silently normalize into a different identity.
+		if hasBlank(parts...) || hasSurroundingWhitespace(parts...) {
+			problems = append(problems, malformedLayeringEdge(line))
+			continue
 		}
 		addedAt, dateErr := time.Parse(time.DateOnly, parts[4])
-		if hasBlank(parts...) || dateErr != nil {
+		if dateErr != nil {
 			problems = append(problems, malformedLayeringEdge(line))
 			continue
 		}
@@ -1354,6 +1434,15 @@ func skipLayeringEdgeLine(text string) bool {
 func hasBlank(values ...string) bool {
 	for _, value := range values {
 		if strings.TrimSpace(value) == "" {
+			return true
+		}
+	}
+	return false
+}
+
+func hasSurroundingWhitespace(values ...string) bool {
+	for _, value := range values {
+		if value != strings.TrimSpace(value) {
 			return true
 		}
 	}
