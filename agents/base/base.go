@@ -80,10 +80,17 @@ func listContextsParamList() []iagents.CardParam {
 var assistantSpec = iagents.AgentSpec{
 	ID:          "assistant",
 	Name:        "Base Assistant",
-	Description: "Automatically routes Base creation, dashboard, workflow, and data questions to the appropriate capability.",
+	Description: "Handles multi-component Base construction and restructuring, plus user-facing data retrieval and analysis. Use Base CLI shortcuts for a single atomic edit or record create, update, or delete.",
 	Skills: []iagents.CardSkill{
-		{ID: "base_build", Name: "Build a Base", Examples: []string{"Create a project tracker with owners and due dates"}},
-		{ID: "base_analyze", Name: "Analyze Base data", Examples: []string{"Summarize this table and highlight anomalies"}},
+		{
+			ID:   "base_assistant",
+			Name: "Build and analyze a Base",
+			Examples: []string{
+				"Create an order table from the provided field list",
+				"Build a sales management workflow and dashboard",
+				"Analyze recent sales trends and explain the main changes",
+			},
+		},
 	},
 	Send:          iagents.SendOp{Params: sendParamList(), Handler: send},
 	GetTask:       iagents.TaskGetOp{Params: getTaskParamList(), Handler: getTask},
