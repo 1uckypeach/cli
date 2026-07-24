@@ -600,6 +600,46 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
         self.assertEqual(issue["overlap_width"], 720)
         self.assertEqual(issue["overlap_height"], 20)
 
+    def test_lint_xml_ignores_sliver_overlap_between_title_and_subtitle(self) -> None:
+        # Title (h100) and subtitle (h60) in the same column touch by only 10px, i.e. 17% of the
+        # shorter container. A generous-padding title/subtitle stack is not a real bleed risk and
+        # must not warn.
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <presentation xmlns="http://www.larkoffice.com/sml/2.0" width="960" height="540">
+              <slide xmlns="http://www.larkoffice.com/sml/2.0">
+                <data>
+                  <shape id="title" type="text" topLeftX="80" topLeftY="180" width="700" height="100">
+                    <content fontSize="52"><p>Ozon跨境电商</p></content>
+                  </shape>
+                  <shape id="subtitle" type="text" topLeftX="80" topLeftY="270" width="700" height="60">
+                    <content fontSize="32"><p>普通人的财富新机遇</p></content>
+                  </shape>
+                </data>
+              </slide>
+            </presentation>
+            """
+        )
+        codes = [issue["code"] for issue in result["slides"][0]["issues"]]
+        self.assertNotIn("text_container_overlap_risk", codes)
+
+    def test_lint_xml_does_not_flag_single_line_marginally_over_box_width(self) -> None:
+        # "4.16万亿" at 36pt estimates to ~151px in a 150px box (0.8% over). That boundary noise
+        # must not round up to a spurious 2nd wrapped line and gate-blocking overflow error.
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0">
+              <data>
+                <shape id="metric" type="text" topLeftX="100" topLeftY="225" width="150" height="50">
+                  <content textType="title" fontSize="36" bold="true"><p>4.16万亿</p></content>
+                </shape>
+              </data>
+            </slide>
+            """
+        )
+        codes = [issue["code"] for issue in result["slides"][0]["issues"]]
+        self.assertNotIn("text_may_overflow_shape", codes)
+
     def test_lint_xml_detects_current_itinerary_cjk_caption_occlusion(self) -> None:
         result = xml_text_overlap_lint.lint_xml(
             """

@@ -52,6 +52,16 @@ DEFAULT_TABLE_ROW_HEIGHT = 37
 # Sub-pixel canvas overflow is floating-point rounding noise (e.g. rotated-bbox math), not a
 # visible defect; keep this well under 1px so real overflow is still always caught.
 CANVAS_OVERFLOW_TOLERANCE = 0.5
+# The CJK glyph-width estimator approximates each wide character as exactly 1.0*fontSize, so a
+# single line that is only marginally wider than its box (e.g. "4.16万亿" at 151.2px in a 150px
+# box) rounds up to a spurious extra wrapped line. Absorb that boundary noise: a line only counts
+# as wrapping when it exceeds the box by more than this fraction of one box width.
+WRAP_LINE_COUNT_TOLERANCE = 0.05
+# Two text containers whose bboxes touch by only a sliver (common for title/subtitle stacks with
+# generous vertical padding) are not a real bleed risk. Require the vertical overlap to be a
+# meaningful fraction of the shorter container before warning, matching the 0.40 vertical-overlap
+# factor used by should_flag_horizontal_text_overflow.
+MIN_CONTAINER_OVERLAP_RATIO = 0.40
 _SXSD_TAG_ATTRIBUTES_CACHE: dict[str, set[str]] | None = None
 _ICONPARK_ICON_TYPES_CACHE: set[str] | None = None
 
@@ -923,7 +933,8 @@ def estimate_text_line_count_for_text(
             line_count += 1
             continue
         logical_width = max(estimate_text_width(hard_line, font_size, letter_spacing), 1)
-        line_count += max(1, math.ceil(logical_width / max(element["width"], 1)))
+        box_width = max(element["width"], 1)
+        line_count += max(1, math.ceil(logical_width / box_width - WRAP_LINE_COUNT_TOLERANCE))
     return line_count
 
 
@@ -1248,9 +1259,14 @@ def text_container_overlap_risk(
     if not (horizontal_contains(top, bottom) or horizontal_contains(bottom, top)):
         return None
 
+    overlap_height = intersection_height(top, bottom)
+    shorter_height = min(top["height"], bottom["height"])
+    if shorter_height <= 0 or overlap_height < shorter_height * MIN_CONTAINER_OVERLAP_RATIO:
+        return None
+
     return {
         "overlap_width": intersection_width(top, bottom),
-        "overlap_height": intersection_height(top, bottom),
+        "overlap_height": overlap_height,
     }
 
 
