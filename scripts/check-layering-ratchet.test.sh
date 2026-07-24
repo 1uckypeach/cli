@@ -8,6 +8,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="$repo_root/scripts/check-layering-ratchet.sh"
 ratchet_file="internal/qualitygate/deptest/layering-edges.txt"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/check-layering-ratchet-test.XXXXXX")"
+source "$script"
 
 cleanup_tmp() {
   rm -rf "$tmp"
@@ -56,8 +57,14 @@ expect_pass() {
 expect_fail() {
   local dir="$1"
   local base="$2"
-  if (cd "$dir" && bash "$script" "$base" >/dev/null 2>&1); then
+  local expected="$3"
+  local output
+  if output="$(cd "$dir" && bash "$script" "$base" 2>&1)"; then
     echo "Expected layering ratchet check to fail in $dir." >&2
+    return 1
+  fi
+  if ! grep -Fq "$expected" <<<"$output"; then
+    printf 'Layering ratchet failure did not include %q:\n%s\n' "$expected" "$output" >&2
     return 1
   fi
 }
@@ -81,12 +88,7 @@ expect_bootstrap_pass() {
   local base="$2"
   local count="$3"
   local hash="$4"
-  if ! (
-    cd "$dir"
-    LAYERING_RATCHET_INITIAL_COUNT="$count" \
-      LAYERING_RATCHET_INITIAL_HASH="$hash" \
-      bash "$script" "$base"
-  ); then
+  if ! (cd "$dir" && layering_ratchet_main "$base" "$count" "$hash"); then
     echo "Expected layering ratchet bootstrap check to pass in $dir." >&2
     return 1
   fi
@@ -97,13 +99,28 @@ expect_bootstrap_fail() {
   local base="$2"
   local count="$3"
   local hash="$4"
-  if (
-    cd "$dir"
-    LAYERING_RATCHET_INITIAL_COUNT="$count" \
-      LAYERING_RATCHET_INITIAL_HASH="$hash" \
-      bash "$script" "$base" >/dev/null 2>&1
-  ); then
+  local output
+  if output="$(cd "$dir" && layering_ratchet_main "$base" "$count" "$hash" 2>&1)"; then
     echo "Expected layering ratchet bootstrap check to fail in $dir." >&2
+    return 1
+  fi
+  if ! grep -Fq "bootstrap differs from the approved" <<<"$output"; then
+    printf 'Unexpected layering ratchet bootstrap failure:\n%s\n' "$output" >&2
+    return 1
+  fi
+}
+
+expect_sourced_main_fail() {
+  local dir="$1"
+  local base="$2"
+  local expected="$3"
+  local output
+  if output="$(cd "$dir" && layering_ratchet_main "$base" 2>&1)"; then
+    echo "Expected sourced layering ratchet main to fail in $dir." >&2
+    return 1
+  fi
+  if ! grep -Fq "$expected" <<<"$output"; then
+    printf 'Sourced layering ratchet failure did not include %q:\n%s\n' "$expected" "$output" >&2
     return 1
   fi
 }
@@ -143,7 +160,7 @@ test_addition_fails() {
   base="$(git -C "$dir" rev-parse HEAD)"
 
   write_rows "$dir" from/a denied/a from/b denied/b
-  expect_fail "$dir" "$base"
+  expect_fail "$dir" "$base" "from=from/b denied=denied/b"
 }
 
 test_equal_count_replacement_fails() {
@@ -155,7 +172,7 @@ test_equal_count_replacement_fails() {
   base="$(git -C "$dir" rev-parse HEAD)"
 
   write_rows "$dir" from/a denied/a from/c denied/c
-  expect_fail "$dir" "$base"
+  expect_fail "$dir" "$base" "from=from/c denied=denied/c"
 }
 
 test_malformed_and_missing_current_file_fail() {
@@ -167,9 +184,22 @@ test_malformed_and_missing_current_file_fail() {
   base="$(git -C "$dir" rev-parse HEAD)"
 
   printf 'from/a\tdenied/a\towner\treason\n' >"$dir/$ratchet_file"
-  expect_fail "$dir" "$base"
+  expect_fail "$dir" "$base" "expected five tab-separated fields"
+  expect_sourced_main_fail "$dir" "$base" "expected five tab-separated fields"
   rm -f "$dir/$ratchet_file"
-  expect_fail "$dir" "$base"
+  expect_fail "$dir" "$base" "Layering ratchet file is missing"
+}
+
+test_duplicate_key_fails() {
+  local dir="$tmp/duplicate"
+  git_init "$dir"
+  write_rows "$dir" from/a denied/a
+  commit_ratchet "$dir"
+  local base
+  base="$(git -C "$dir" rev-parse HEAD)"
+
+  write_rows "$dir" from/a denied/a from/a denied/a
+  expect_fail "$dir" "$base" "duplicate (from, denied) keys"
 }
 
 test_bootstrap_requires_the_approved_snapshot() {
@@ -189,18 +219,18 @@ test_bootstrap_requires_the_approved_snapshot() {
   write_rows "$dir" "${args[@]}"
   local keys_file="$dir/initial.keys"
   bootstrap_keys "$dir/$ratchet_file" >"$keys_file"
-  local initial_hash
-  initial_hash="$(hash_file "$keys_file")"
-  expect_bootstrap_pass "$dir" "$base" 37 "$initial_hash"
+  local expected_hash
+  expected_hash="$(hash_file "$keys_file")"
+  expect_bootstrap_pass "$dir" "$base" 37 "$expected_hash"
 
   args[72]="from/replacement"
   write_rows "$dir" "${args[@]}"
-  expect_bootstrap_fail "$dir" "$base" 37 "$initial_hash"
+  expect_bootstrap_fail "$dir" "$base" 37 "$expected_hash"
 
   args[72]="from/37"
   args+=("from/38" "denied/38")
   write_rows "$dir" "${args[@]}"
-  expect_bootstrap_fail "$dir" "$base" 37 "$initial_hash"
+  expect_bootstrap_fail "$dir" "$base" 37 "$expected_hash"
 }
 
 test_invalid_base_fails() {
@@ -208,7 +238,7 @@ test_invalid_base_fails() {
   git_init "$dir"
   write_rows "$dir" from/a denied/a
   commit_ratchet "$dir"
-  expect_fail "$dir" missing-revision
+  expect_fail "$dir" missing-revision "base revision does not exist"
 }
 
 test_unchanged_and_metadata_changes_pass
@@ -216,5 +246,6 @@ test_deletion_passes
 test_addition_fails
 test_equal_count_replacement_fails
 test_malformed_and_missing_current_file_fail
+test_duplicate_key_fails
 test_bootstrap_requires_the_approved_snapshot
 test_invalid_base_fails

@@ -116,10 +116,16 @@ type goListTarget struct {
 	GOARCH string
 }
 
+type commandFactory func(name string, args ...string) *exec.Cmd
+
 var layeringBuildTargets = []goListTarget{
 	{GOOS: "linux", GOARCH: "amd64"},
+	{GOOS: "linux", GOARCH: "arm64"},
+	{GOOS: "linux", GOARCH: "riscv64"},
 	{GOOS: "darwin", GOARCH: "amd64"},
+	{GOOS: "darwin", GOARCH: "arm64"},
 	{GOOS: "windows", GOARCH: "amd64"},
+	{GOOS: "windows", GOARCH: "arm64"},
 }
 
 type layeringEdge struct {
@@ -560,8 +566,12 @@ func TestLayeringRuleContracts(t *testing.T) {
 func TestLayeringBuildTargets(t *testing.T) {
 	want := []goListTarget{
 		{GOOS: "linux", GOARCH: "amd64"},
+		{GOOS: "linux", GOARCH: "arm64"},
+		{GOOS: "linux", GOARCH: "riscv64"},
 		{GOOS: "darwin", GOARCH: "amd64"},
+		{GOOS: "darwin", GOARCH: "arm64"},
 		{GOOS: "windows", GOARCH: "amd64"},
+		{GOOS: "windows", GOARCH: "arm64"},
 	}
 	if !reflect.DeepEqual(layeringBuildTargets, want) {
 		t.Fatalf("layering build targets = %#v, want %#v", layeringBuildTargets, want)
@@ -586,6 +596,33 @@ func TestDecodeAndMergeListedPackages(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("mergeStrings returned %q, want %q", got, want)
 	}
+}
+
+func TestGoListPackagesSeparatesStderr(t *testing.T) {
+	target := goListTarget{GOOS: "linux", GOARCH: "amd64"}
+	packages, stderr, err := loadPackagesForTarget("", target, func(_ string, _ ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestGoListCommandHelperProcess$")
+		cmd.Env = append(os.Environ(), "GO_LIST_COMMAND_HELPER=1")
+		return cmd
+	})
+	if err != nil {
+		t.Fatalf("loadPackagesForTarget returned an error: %v", err)
+	}
+	if stderr != "go: downloading example.com/module\n" {
+		t.Fatalf("loadPackagesForTarget stderr = %q, want module download diagnostic", stderr)
+	}
+	if len(packages) != 1 || packages[0].ImportPath != "example.com/package" {
+		t.Fatalf("loadPackagesForTarget returned unexpected packages: %+v", packages)
+	}
+}
+
+func TestGoListCommandHelperProcess(t *testing.T) {
+	if os.Getenv("GO_LIST_COMMAND_HELPER") != "1" {
+		return
+	}
+	fmt.Fprintln(os.Stdout, `{"ImportPath":"example.com/package","Imports":[],"Deps":[]}`)
+	fmt.Fprintln(os.Stderr, "go: downloading example.com/module")
+	os.Exit(0)
 }
 
 func goListPackageGraph(t *testing.T, root string) []listedPackage {
@@ -613,32 +650,51 @@ func goListPackageGraph(t *testing.T, root string) []listedPackage {
 
 func goListPackages(t *testing.T, root string, target goListTarget) []listedPackage {
 	t.Helper()
+	packages, stderr, err := loadPackagesForTarget(root, target, exec.Command)
+	if err != nil {
+		t.Fatalf(
+			"GOOS=%s GOARCH=%s go list -json -tags authsidecar ./... failed: %v\n%s",
+			target.GOOS,
+			target.GOARCH,
+			err,
+			stderr,
+		)
+	}
+	return packages
+}
+
+func loadPackagesForTarget(
+	root string,
+	target goListTarget,
+	newCommand commandFactory,
+) ([]listedPackage, string, error) {
 	args := []string{"list", "-json", "-tags", "authsidecar", "./..."}
-	cmd := exec.Command("go", args...)
+	cmd := newCommand("go", args...)
 	cmd.Dir = root
+	env := cmd.Env
+	if env == nil {
+		env = os.Environ()
+	}
 	cmd.Env = append(
-		os.Environ(),
+		env,
 		"GOOS="+target.GOOS,
 		"GOARCH="+target.GOARCH,
 		"CGO_ENABLED=0",
 	)
-	out, err := cmd.CombinedOutput()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
 	if err != nil {
-		t.Fatalf(
-			"GOOS=%s GOARCH=%s go %s failed: %v\n%s",
-			target.GOOS,
-			target.GOARCH,
-			strings.Join(args, " "),
-			err,
-			out,
-		)
+		return nil, stderr.String(), err
 	}
 
-	packages, err := decodeListedPackages(bytes.NewReader(out))
+	packages, err := decodeListedPackages(&stdout)
 	if err != nil {
-		t.Fatalf("decode GOOS=%s GOARCH=%s go list output: %v", target.GOOS, target.GOARCH, err)
+		return nil, stderr.String(), fmt.Errorf("decode go list output: %w", err)
 	}
-	return packages
+	return packages, stderr.String(), nil
 }
 
 func decodeListedPackages(r io.Reader) ([]listedPackage, error) {

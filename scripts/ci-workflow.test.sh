@@ -180,8 +180,8 @@ if grep -Fq "grep -vcE" <<<"$lint_section"; then
   exit 1
 fi
 
-if grep -Fq "LAYERING_RATCHET_INITIAL_" <<<"$lint_section"; then
-  echo "lint must use the checked-in layering bootstrap snapshot"
+if grep -Fq "LAYERING_RATCHET_INITIAL_" "$workflow"; then
+  echo "CI must use the immutable checked-in layering bootstrap snapshot"
   exit 1
 fi
 
