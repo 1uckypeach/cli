@@ -54,20 +54,20 @@ var rules = []Rule{
 	{
 		Name:       "extension-zero-internal",
 		Mode:       Transitive,
-		FromPrefix: modulePath + "/extension/",
-		Denied:     []string{modulePath + "/internal/"},
+		FromPrefix: modulePath + "/extension",
+		Denied:     []string{modulePath + "/internal"},
 		SkipFrom:   []string{"/examples/"},
 	},
 	{
 		Name:       "events-no-shortcuts",
 		Mode:       Transitive,
-		FromPrefix: modulePath + "/events/",
-		Denied:     []string{modulePath + "/shortcuts/"},
+		FromPrefix: modulePath + "/events",
+		Denied:     []string{modulePath + "/shortcuts"},
 	},
 	{
 		Name:       "shortcuts-runtime-gate",
 		Mode:       Direct,
-		FromPrefix: modulePath + "/shortcuts/",
+		FromPrefix: modulePath + "/shortcuts",
 		Denied: []string{
 			modulePath + "/internal/auth",
 			modulePath + "/internal/keychain",
@@ -99,7 +99,7 @@ var rules = []Rule{
 	{
 		Name:       "internal-no-upper",
 		Mode:       Direct,
-		FromPrefix: modulePath + "/internal/",
+		FromPrefix: modulePath + "/internal",
 		Denied: []string{
 			modulePath + "/cmd",
 			modulePath + "/shortcuts",
@@ -413,20 +413,20 @@ func TestLayeringRuleContracts(t *testing.T) {
 		{
 			Name:       "extension-zero-internal",
 			Mode:       Transitive,
-			FromPrefix: modulePath + "/extension/",
-			Denied:     []string{modulePath + "/internal/"},
+			FromPrefix: modulePath + "/extension",
+			Denied:     []string{modulePath + "/internal"},
 			SkipFrom:   []string{"/examples/"},
 		},
 		{
 			Name:       "events-no-shortcuts",
 			Mode:       Transitive,
-			FromPrefix: modulePath + "/events/",
-			Denied:     []string{modulePath + "/shortcuts/"},
+			FromPrefix: modulePath + "/events",
+			Denied:     []string{modulePath + "/shortcuts"},
 		},
 		{
 			Name:       "shortcuts-runtime-gate",
 			Mode:       Direct,
-			FromPrefix: modulePath + "/shortcuts/",
+			FromPrefix: modulePath + "/shortcuts",
 			Denied: []string{
 				modulePath + "/internal/auth",
 				modulePath + "/internal/keychain",
@@ -458,7 +458,7 @@ func TestLayeringRuleContracts(t *testing.T) {
 		{
 			Name:       "internal-no-upper",
 			Mode:       Direct,
-			FromPrefix: modulePath + "/internal/",
+			FromPrefix: modulePath + "/internal",
 			Denied: []string{
 				modulePath + "/cmd",
 				modulePath + "/shortcuts",
@@ -606,6 +606,78 @@ func TestLayeringRuleContracts(t *testing.T) {
 					violations[0].From,
 					violations[0].Denied,
 					tt.wantFrom,
+					tt.wantDenied,
+				)
+			}
+		})
+	}
+}
+
+func TestLayeringRulesCoverRootPackages(t *testing.T) {
+	tests := []struct {
+		name       string
+		ruleName   string
+		pkg        listedPackage
+		wantDenied string
+	}{
+		{
+			name:     "extension-root",
+			ruleName: "extension-zero-internal",
+			pkg: listedPackage{
+				ImportPath: modulePath + "/extension",
+				Deps:       []string{modulePath + "/internal"},
+			},
+			wantDenied: modulePath + "/internal",
+		},
+		{
+			name:     "events-root",
+			ruleName: "events-no-shortcuts",
+			pkg: listedPackage{
+				ImportPath: modulePath + "/events",
+				Deps:       []string{modulePath + "/shortcuts"},
+			},
+			wantDenied: modulePath + "/shortcuts",
+		},
+		{
+			name:     "shortcuts-root",
+			ruleName: "shortcuts-runtime-gate",
+			pkg: listedPackage{
+				ImportPath: modulePath + "/shortcuts",
+				Imports:    []string{modulePath + "/internal/client"},
+			},
+			wantDenied: modulePath + "/internal/client",
+		},
+		{
+			name:     "internal-root",
+			ruleName: "internal-no-upper",
+			pkg: listedPackage{
+				ImportPath: modulePath + "/internal",
+				Imports:    []string{modulePath + "/events"},
+			},
+			wantDenied: modulePath + "/events",
+		},
+	}
+
+	rulesByName := make(map[string]Rule, len(rules))
+	for _, rule := range rules {
+		rulesByName[rule.Name] = rule
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rule, ok := rulesByName[tt.ruleName]
+			if !ok {
+				t.Fatalf("missing rule %q", tt.ruleName)
+			}
+			violations := evaluateLayeringRule([]listedPackage{tt.pkg}, rule)
+			if len(violations) != 1 {
+				t.Fatalf("evaluateLayeringRule returned %d violations, want 1: %+v", len(violations), violations)
+			}
+			if violations[0].From != tt.pkg.ImportPath || violations[0].Denied != tt.wantDenied {
+				t.Fatalf(
+					"evaluateLayeringRule returned edge (%q, %q), want (%q, %q)",
+					violations[0].From,
+					violations[0].Denied,
+					tt.pkg.ImportPath,
 					tt.wantDenied,
 				)
 			}
@@ -846,6 +918,37 @@ func TestGoReleaserBuildTargets(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "templated build environment fails closed",
+			build: goReleaserBuild{
+				Env: []string{`{{- if eq .Os "linux" }}GOFLAGS=-tags=feature{{- end }}`},
+			},
+			wantErr: true,
+		},
+		{
+			name: "templated build flags fail closed",
+			build: goReleaserBuild{
+				Flags: []string{`{{- if eq .Os "linux" }}-tags=feature{{- end }}`},
+			},
+			wantErr: true,
+		},
+		{
+			name: "templated target matrix fails closed",
+			build: goReleaserBuild{
+				GOOS:   []string{`{{ .Env.GOOS }}`},
+				GOARCH: []string{"amd64"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "templated ignore fails closed",
+			build: goReleaserBuild{
+				GOOS:   []string{"linux"},
+				GOARCH: []string{"amd64"},
+				Ignore: []map[string]any{{"goos": `{{ .Env.GOOS }}`}},
+			},
+			wantErr: true,
+		},
+		{
 			name: "custom build command fails closed",
 			build: goReleaserBuild{
 				Command: "test",
@@ -906,6 +1009,12 @@ func goReleaserBuildTargets(
 	if build.Overrides.Kind != 0 {
 		return nil, fmt.Errorf("target overrides are unsupported")
 	}
+	if containsGoReleaserTemplate(build.GOOS) || containsGoReleaserTemplate(build.GOARCH) {
+		return nil, fmt.Errorf("templated release target matrices are unsupported")
+	}
+	if containsGoReleaserTemplate(build.Flags) {
+		return nil, fmt.Errorf("templated release build flags are unsupported")
+	}
 	if len(build.Tags) > 0 || buildFlagsSetTags(build.Flags) {
 		return nil, fmt.Errorf("release build tags are unsupported")
 	}
@@ -959,7 +1068,7 @@ func explicitGoReleaserTargets(
 		if configuredTarget == "go_first_class" || configuredTarget == "go_118_first_class" {
 			return nil, fmt.Errorf("unsupported target selector %q", configuredTarget)
 		}
-		if strings.Contains(configuredTarget, "{{") {
+		if hasGoReleaserTemplate(configuredTarget) {
 			return nil, fmt.Errorf("templated target %q is unsupported", configuredTarget)
 		}
 
@@ -989,8 +1098,24 @@ func buildFlagsSetTags(flags []string) bool {
 	return false
 }
 
+func containsGoReleaserTemplate(values []string) bool {
+	for _, value := range values {
+		if hasGoReleaserTemplate(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasGoReleaserTemplate(value string) bool {
+	return strings.Contains(value, "{{") || strings.Contains(value, "}}")
+}
+
 func validateGoReleaserBuildEnv(env []string) error {
 	for _, entry := range env {
+		if hasGoReleaserTemplate(entry) {
+			return fmt.Errorf("templated build environment entries are unsupported")
+		}
 		name, value, ok := strings.Cut(entry, "=")
 		if !ok {
 			continue
@@ -1052,6 +1177,9 @@ func optionalString(values map[string]any, key string) (string, error) {
 	text, ok := value.(string)
 	if !ok {
 		return "", fmt.Errorf("ignore selector %q must be a string", key)
+	}
+	if hasGoReleaserTemplate(text) {
+		return "", fmt.Errorf("templated ignore selector %q is unsupported", key)
 	}
 	return text, nil
 }

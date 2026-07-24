@@ -190,6 +190,31 @@ test_malformed_and_missing_current_file_fail() {
   expect_fail "$dir" "$base" "Layering ratchet file is missing"
 }
 
+test_surrounding_whitespace_fails() {
+  local dir="$tmp/surrounding-whitespace"
+  git_init "$dir"
+  write_rows "$dir" from/a denied/a
+  commit_ratchet "$dir"
+  local base
+  base="$(git -C "$dir" rev-parse HEAD)"
+
+  printf '# from\tdenied\towner\treason\tadded_at\nfrom/a\t denied/a \towner\treason\t2026-07-24\n' >"$dir/$ratchet_file"
+  expect_fail "$dir" "$base" "fields must not have surrounding whitespace"
+  expect_sourced_main_fail "$dir" "$base" "fields must not have surrounding whitespace"
+}
+
+test_crlf_rows_pass() {
+  local dir="$tmp/crlf"
+  git_init "$dir"
+  write_rows "$dir" from/a denied/a
+  commit_ratchet "$dir"
+  local base
+  base="$(git -C "$dir" rev-parse HEAD)"
+
+  printf '# from\tdenied\towner\treason\tadded_at\r\nfrom/a\tdenied/a\towner\treason\t2026-07-24\r\n' >"$dir/$ratchet_file"
+  expect_pass "$dir" "$base"
+}
+
 test_duplicate_key_fails() {
   local dir="$tmp/duplicate"
   git_init "$dir"
@@ -213,7 +238,7 @@ test_bootstrap_requires_the_approved_snapshot() {
 
   local args=()
   local index
-  for index in $(seq 1 37); do
+  for index in $(seq 1 39); do
     args+=("from/$index" "denied/$index")
   done
   write_rows "$dir" "${args[@]}"
@@ -221,16 +246,16 @@ test_bootstrap_requires_the_approved_snapshot() {
   bootstrap_keys "$dir/$ratchet_file" >"$keys_file"
   local expected_hash
   expected_hash="$(hash_file "$keys_file")"
-  expect_bootstrap_pass "$dir" "$base" 37 "$expected_hash"
+  expect_bootstrap_pass "$dir" "$base" 39 "$expected_hash"
 
-  args[72]="from/replacement"
+  args[76]="from/replacement"
   write_rows "$dir" "${args[@]}"
-  expect_bootstrap_fail "$dir" "$base" 37 "$expected_hash"
+  expect_bootstrap_fail "$dir" "$base" 39 "$expected_hash"
 
-  args[72]="from/37"
-  args+=("from/38" "denied/38")
+  args[76]="from/39"
+  args+=("from/40" "denied/40")
   write_rows "$dir" "${args[@]}"
-  expect_bootstrap_fail "$dir" "$base" 37 "$expected_hash"
+  expect_bootstrap_fail "$dir" "$base" 39 "$expected_hash"
 }
 
 test_invalid_base_fails() {
@@ -246,6 +271,8 @@ test_deletion_passes
 test_addition_fails
 test_equal_count_replacement_fails
 test_malformed_and_missing_current_file_fail
+test_surrounding_whitespace_fails
+test_crlf_rows_pass
 test_duplicate_key_fails
 test_bootstrap_requires_the_approved_snapshot
 test_invalid_base_fails
