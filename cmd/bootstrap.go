@@ -29,7 +29,7 @@ func BootstrapInvocationContext(args []string) (cmdutil.InvocationContext, error
 		return cmdutil.InvocationContext{}, err
 	}
 
-	profileFromFlag := globals.Profile != ""
+	profileFromFlag := fs.Changed("profile")
 	if !profileFromFlag {
 		globals.Profile = os.Getenv(envvars.CliProfile)
 	}

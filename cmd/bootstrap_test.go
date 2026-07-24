@@ -89,6 +89,19 @@ func TestBootstrapProfileEnvFallback(t *testing.T) {
 			t.Errorf("ProfileFromFlag = false, want true")
 		}
 	})
+	t.Run("explicit empty flag clears env selection", func(t *testing.T) {
+		t.Setenv(envvars.CliProfile, "tenant_env")
+		inv, err := BootstrapInvocationContext([]string{"--profile=", "whoami"})
+		if err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+		if inv.Profile != "" {
+			t.Errorf("got %q, want empty", inv.Profile)
+		}
+		if !inv.ProfileFromFlag {
+			t.Errorf("ProfileFromFlag = false, want true")
+		}
+	})
 	t.Run("env used when flag absent", func(t *testing.T) {
 		t.Setenv(envvars.CliProfile, "tenant_env")
 		inv, err := BootstrapInvocationContext([]string{"whoami"})
