@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -120,11 +121,22 @@ type goListTarget struct {
 type commandFactory func(name string, args ...string) *exec.Cmd
 
 type goReleaserConfig struct {
-	Builds []struct {
-		GOOS   []string       `yaml:"goos"`
-		GOARCH []string       `yaml:"goarch"`
-		Ignore []goListTarget `yaml:"ignore"`
-	} `yaml:"builds"`
+	Builds []goReleaserBuild `yaml:"builds"`
+}
+
+type goReleaserBuild struct {
+	Builder string           `yaml:"builder"`
+	GOOS    []string         `yaml:"goos"`
+	GOARCH  []string         `yaml:"goarch"`
+	Targets []string         `yaml:"targets"`
+	Ignore  []map[string]any `yaml:"ignore"`
+	Skip    bool             `yaml:"skip"`
+}
+
+type distTarget struct {
+	GOOS       string
+	GOARCH     string
+	FirstClass bool
 }
 
 var layeringBuildTargets = []goListTarget{
@@ -602,32 +614,27 @@ func TestLayeringBuildTargetsMatchGoReleaser(t *testing.T) {
 		t.Fatal(".goreleaser.yml has no builds")
 	}
 
-	output, err := exec.Command("go", "tool", "dist", "list").Output()
+	output, err := exec.Command("go", "tool", "dist", "list", "-json").Output()
 	if err != nil {
 		t.Fatalf("go tool dist list: %v", err)
 	}
-	supported := make(map[string]struct{})
-	for _, target := range strings.Fields(string(output)) {
-		supported[target] = struct{}{}
+	var distTargets []distTarget
+	if err := json.Unmarshal(output, &distTargets); err != nil {
+		t.Fatalf("parse go tool dist list: %v", err)
+	}
+	supported := make(map[string]distTarget, len(distTargets))
+	for _, target := range distTargets {
+		supported[target.GOOS+"/"+target.GOARCH] = target
 	}
 
 	want := make(map[string]struct{})
-	for _, build := range config.Builds {
-		ignored := make(map[string]struct{}, len(build.Ignore))
-		for _, target := range build.Ignore {
-			ignored[target.GOOS+"/"+target.GOARCH] = struct{}{}
+	for index, build := range config.Builds {
+		targets, err := goReleaserBuildTargets(build, supported)
+		if err != nil {
+			t.Fatalf(".goreleaser.yml build %d: %v", index, err)
 		}
-		for _, goos := range build.GOOS {
-			for _, goarch := range build.GOARCH {
-				target := goos + "/" + goarch
-				if _, ok := supported[target]; !ok {
-					continue
-				}
-				if _, ok := ignored[target]; ok {
-					continue
-				}
-				want[target] = struct{}{}
-			}
+		for target := range targets {
+			want[target] = struct{}{}
 		}
 	}
 
@@ -642,6 +649,246 @@ func TestLayeringBuildTargetsMatchGoReleaser(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("layering build targets = %v, want GoReleaser targets %v", sortedKeys(got), sortedKeys(want))
 	}
+}
+
+func TestReleaseGoVersionMatchesModule(t *testing.T) {
+	root := repoRoot(t)
+	moduleContent, err := vfs.ReadFile(filepath.Join(root, "go.mod"))
+	if err != nil {
+		t.Fatalf("read go.mod: %v", err)
+	}
+	releaseContent, err := vfs.ReadFile(filepath.Join(root, ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatalf("read release workflow: %v", err)
+	}
+
+	moduleVersion := findVersion(t, string(moduleContent), `(?m)^go\s+([0-9]+\.[0-9]+)(?:\.[0-9]+)?\s*$`, "go.mod")
+	releaseVersion := findVersion(
+		t,
+		string(releaseContent),
+		`(?m)^\s+go-version:\s*['"]?([0-9]+\.[0-9]+)(?:\.[0-9]+)?['"]?\s*$`,
+		"release workflow",
+	)
+	if releaseVersion != moduleVersion {
+		t.Fatalf("release Go version = %q, want module Go version %q", releaseVersion, moduleVersion)
+	}
+}
+
+func TestGoReleaserBuildTargets(t *testing.T) {
+	supported := map[string]distTarget{
+		"darwin/arm64":  {GOOS: "darwin", GOARCH: "arm64", FirstClass: true},
+		"freebsd/amd64": {GOOS: "freebsd", GOARCH: "amd64"},
+		"linux/amd64":   {GOOS: "linux", GOARCH: "amd64", FirstClass: true},
+		"windows/amd64": {GOOS: "windows", GOARCH: "amd64", FirstClass: true},
+		"windows/arm64": {GOOS: "windows", GOARCH: "arm64"},
+	}
+	tests := []struct {
+		name    string
+		build   goReleaserBuild
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "explicit targets override the matrix",
+			build: goReleaserBuild{
+				GOOS:    []string{"linux"},
+				GOARCH:  []string{"amd64"},
+				Targets: []string{"freebsd_amd64"},
+			},
+			want: []string{"freebsd/amd64"},
+		},
+		{
+			name: "target suffixes preserve the base platform",
+			build: goReleaserBuild{
+				Targets: []string{"linux_amd64_v1"},
+			},
+			want: []string{"linux/amd64"},
+		},
+		{
+			name: "first class selector expands from the toolchain",
+			build: goReleaserBuild{
+				Targets: []string{"go_first_class"},
+			},
+			want: []string{"darwin/arm64", "linux/amd64", "windows/amd64"},
+		},
+		{
+			name: "partial ignore matches every architecture",
+			build: goReleaserBuild{
+				GOOS:   []string{"windows"},
+				GOARCH: []string{"amd64", "arm64"},
+				Ignore: []map[string]any{{"goos": "windows"}},
+			},
+			want: []string{},
+		},
+		{
+			name: "skipped build has no targets",
+			build: goReleaserBuild{
+				Skip: true,
+			},
+			want: []string{},
+		},
+		{
+			name: "microarchitecture ignore fails closed",
+			build: goReleaserBuild{
+				GOOS:   []string{"linux"},
+				GOARCH: []string{"amd64"},
+				Ignore: []map[string]any{{"goamd64": "v1"}},
+			},
+			wantErr: true,
+		},
+		{
+			name: "fixed first class selector fails closed",
+			build: goReleaserBuild{
+				Targets: []string{"go_118_first_class"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "non-Go builder fails closed",
+			build: goReleaserBuild{
+				Builder: "rust",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := goReleaserBuildTargets(tt.build, supported)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("goReleaserBuildTargets returned no error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("goReleaserBuildTargets returned an error: %v", err)
+			}
+			if keys := sortedKeys(got); !slices.Equal(keys, tt.want) {
+				t.Fatalf("goReleaserBuildTargets = %v, want %v", keys, tt.want)
+			}
+		})
+	}
+}
+
+func goReleaserBuildTargets(
+	build goReleaserBuild,
+	supported map[string]distTarget,
+) (map[string]struct{}, error) {
+	if build.Skip {
+		return map[string]struct{}{}, nil
+	}
+	if build.Builder != "" && build.Builder != "go" {
+		return nil, fmt.Errorf("unsupported builder %q", build.Builder)
+	}
+	if len(build.Targets) > 0 {
+		return explicitGoReleaserTargets(build.Targets, supported)
+	}
+
+	gooses := build.GOOS
+	if len(gooses) == 0 {
+		gooses = []string{"darwin", "linux", "windows"}
+	}
+	goarches := build.GOARCH
+	if len(goarches) == 0 {
+		goarches = []string{"386", "amd64", "arm64"}
+	}
+
+	targets := make(map[string]struct{})
+	for _, goos := range gooses {
+		for _, goarch := range goarches {
+			target := goos + "/" + goarch
+			if _, ok := supported[target]; !ok {
+				continue
+			}
+			ignored, err := goReleaserTargetIgnored(goos, goarch, build.Ignore)
+			if err != nil {
+				return nil, err
+			}
+			if !ignored {
+				targets[target] = struct{}{}
+			}
+		}
+	}
+	return targets, nil
+}
+
+func explicitGoReleaserTargets(
+	configured []string,
+	supported map[string]distTarget,
+) (map[string]struct{}, error) {
+	targets := make(map[string]struct{})
+	for _, configuredTarget := range configured {
+		if configuredTarget == "go_first_class" {
+			for key, target := range supported {
+				if target.FirstClass {
+					targets[key] = struct{}{}
+				}
+			}
+			continue
+		}
+		if configuredTarget == "go_118_first_class" {
+			return nil, fmt.Errorf("unsupported target selector %q", configuredTarget)
+		}
+		if strings.Contains(configuredTarget, "{{") {
+			return nil, fmt.Errorf("templated target %q is unsupported", configuredTarget)
+		}
+
+		parts := strings.Split(configuredTarget, "_")
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("malformed target %q", configuredTarget)
+		}
+		target := parts[0] + "/" + parts[1]
+		if _, ok := supported[target]; !ok {
+			return nil, fmt.Errorf("unsupported Go target %q", configuredTarget)
+		}
+		targets[target] = struct{}{}
+	}
+	return targets, nil
+}
+
+func goReleaserTargetIgnored(goos, goarch string, ignored []map[string]any) (bool, error) {
+	for _, entry := range ignored {
+		for key := range entry {
+			if key != "goos" && key != "goarch" {
+				return false, fmt.Errorf("unsupported ignore selector %q", key)
+			}
+		}
+		ignoredGOOS, err := optionalString(entry, "goos")
+		if err != nil {
+			return false, err
+		}
+		ignoredGOARCH, err := optionalString(entry, "goarch")
+		if err != nil {
+			return false, err
+		}
+		if (ignoredGOOS == "" || ignoredGOOS == goos) &&
+			(ignoredGOARCH == "" || ignoredGOARCH == goarch) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func optionalString(values map[string]any, key string) (string, error) {
+	value, ok := values[key]
+	if !ok {
+		return "", nil
+	}
+	text, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("ignore selector %q must be a string", key)
+	}
+	return text, nil
+}
+
+func findVersion(t *testing.T, content, pattern, source string) string {
+	t.Helper()
+	match := regexp.MustCompile(pattern).FindStringSubmatch(content)
+	if len(match) != 2 {
+		t.Fatalf("find Go version in %s", source)
+	}
+	return match[1]
 }
 
 func TestDecodeAndMergeListedPackages(t *testing.T) {
