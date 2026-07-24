@@ -38,7 +38,11 @@ import (
 
 // CellsSet wraps set_cell_range: caller provides the cells matrix via --cells
 // (JSON), with an optional --copy-to-range to replicate the written block
-// across a larger area (formula refs auto-shift).
+// across a larger area (formula refs auto-shift). The plural form --writes
+// ([{sheet_name, range, cells}, …]) fans scattered regions — cross-sheet
+// allowed — into ONE atomic batch_update: eval traces show "fix all broken
+// formulas across ranges/sheets" as the dominant homogeneous scenario still
+// hand-assembled as +batch-update operations arrays.
 var CellsSet = common.Shortcut{
 	Service:     "sheets",
 	Command:     "+cells-set",
@@ -51,10 +55,28 @@ var CellsSet = common.Shortcut{
 	Tips: []string{
 		`Example: lark-cli sheets +cells-set --url <URL> --sheet-name Sheet1 --range A1:B1 --cells '[[{"value":"名称"},{"formula":"=SUM(B2:B9)"}]]'`,
 		`--cells is always a 2D array (rows × cells), even for one cell: [[{"value":…}]].`,
+		`Scattered regions (e.g. fixing formulas across ranges/sheets): --writes '[{"sheet_name":…,"range":…,"cells":[[…]]}, …]' — one atomic call, sheet selector inside each item.`,
 	},
-	Validate: validateViaInput(cellsSetInput),
+	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
+		if runtime.Changed("writes") {
+			token, err := resolveSpreadsheetToken(runtime)
+			if err != nil {
+				return err
+			}
+			_, err = cellsSetWritesOps(runtime, token)
+			return err
+		}
+		return validateViaInput(cellsSetInput)(ctx, runtime)
+	},
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
 		token, _ := resolveSpreadsheetToken(runtime)
+		if runtime.Changed("writes") {
+			ops, _ := cellsSetWritesOps(runtime, token)
+			return invokeToolDryRun(token, ToolKindWrite, "batch_update", map[string]interface{}{
+				"excel_id":   token,
+				"operations": ops,
+			})
+		}
 		sheetID, sheetName, _ := resolveSheetSelector(runtime)
 		input, _ := cellsSetInput(runtime, token, sheetID, sheetName)
 		return invokeToolDryRun(token, ToolKindWrite, "set_cell_range", input)
@@ -63,6 +85,21 @@ var CellsSet = common.Shortcut{
 		token, err := resolveSpreadsheetTokenExec(runtime)
 		if err != nil {
 			return err
+		}
+		if runtime.Changed("writes") {
+			ops, err := cellsSetWritesOps(runtime, token)
+			if err != nil {
+				return err
+			}
+			out, err := callTool(ctx, runtime, token, ToolKindWrite, "batch_update", map[string]interface{}{
+				"excel_id":   token,
+				"operations": ops,
+			})
+			if err != nil {
+				return err
+			}
+			runtime.Out(out, nil)
+			return nil
 		}
 		sheetID, sheetName, err := resolveSheetSelector(runtime)
 		if err != nil {
@@ -81,6 +118,108 @@ var CellsSet = common.Shortcut{
 	},
 }
 
+// cellsSetWritesOps parses --writes ([{sheet_name|sheet_id, range, cells}, …])
+// and expands it into set_cell_range operations for ONE atomic batch_update.
+// Single source of truth per item: the sheet selector LIVES IN THE ITEM (same
+// convention as +batch-update sub-ops and +styles-put items — no top-level
+// fallback, no precedence table to remember). Every item runs through the
+// exact standalone pipeline (key vocabulary, style acceptance layer, matrix
+// precheck, schema validation) via a per-item flag view, and item errors are
+// aggregated so one retry fixes them all.
+func cellsSetWritesOps(runtime *common.RuntimeContext, token string) ([]interface{}, error) {
+	for _, conflicting := range []string{"range", "cells", "copy-to-range"} {
+		if runtime.Changed(conflicting) {
+			return nil, sheetsValidationForFlag("writes", "--writes and --%s are mutually exclusive: single region → --range + --cells; multiple regions → --writes alone", conflicting)
+		}
+	}
+	if strings.TrimSpace(runtime.Str("sheet-name")) != "" || strings.TrimSpace(runtime.Str("sheet-id")) != "" {
+		return nil, sheetsValidationForFlag("writes", "--writes does not accept a top-level sheet selector — put sheet_name (or sheet_id) inside each writes item, same as +batch-update sub-ops")
+	}
+	raw, err := requireJSONArray(runtime, "writes")
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) == 0 {
+		return nil, sheetsValidationForFlag("writes", "--writes must be a non-empty JSON array of {sheet_name, range, cells} items")
+	}
+	if len(raw) > maxBatchOperations {
+		return nil, sheetsValidationForFlag("writes", "--writes accepts at most %d items; got %d — merge adjacent regions or split into several calls", maxBatchOperations, len(raw))
+	}
+	topLevelOverwrite := runtime.Bool("allow-overwrite")
+	ops := make([]interface{}, 0, len(raw))
+	var probs []error
+	var totalCells int64
+	for i, v := range raw {
+		item, ok := v.(map[string]interface{})
+		if !ok {
+			probs = append(probs, common.ValidationErrorf("--writes[%d] must be an object like {\"sheet_name\":…,\"range\":…,\"cells\":[[…]]}", i))
+			continue
+		}
+		if err := normalizeSubOpInputKeys("+cells-set", item); err != nil {
+			probs = append(probs, common.ValidationErrorf("--writes[%d]: %v", i, err))
+			continue
+		}
+		if topLevelOverwrite {
+			if _, has := item["allow_overwrite"]; !has {
+				item["allow_overwrite"] = true
+			}
+		}
+		fv := newMapFlagViewForCommand("+cells-set", item)
+		sheetID := strings.TrimSpace(fv.Str("sheet-id"))
+		sheetName := strings.TrimSpace(fv.Str("sheet-name"))
+		input, err := cellsSetInput(fv, token, sheetID, sheetName)
+		if err != nil {
+			probs = append(probs, common.ValidationErrorf("--writes[%d]: %v", i, err))
+			continue
+		}
+		if cells, ok := input["cells"].([]interface{}); ok {
+			for _, row := range cells {
+				if r, ok := row.([]interface{}); ok {
+					totalCells += int64(len(r))
+				}
+			}
+		}
+		if err := checkBatchStampBudget(totalCells); err != nil {
+			return nil, err
+		}
+		ops = append(ops, map[string]interface{}{
+			"tool_name": "set_cell_range",
+			"input":     input,
+		})
+	}
+	if err := joinWritesValidationErrors(probs); err != nil {
+		return nil, err
+	}
+	return ops, nil
+}
+
+// joinWritesValidationErrors mirrors joinStyleValidationErrors for --writes:
+// every item's first error in one message, so the whole payload is fixed in
+// a single retry.
+func joinWritesValidationErrors(probs []error) error {
+	switch len(probs) {
+	case 0:
+		return nil
+	case 1:
+		return probs[0]
+	}
+	const maxShown = 8
+	msgs := make([]string, 0, len(probs))
+	for _, e := range probs {
+		if p, ok := errs.ProblemOf(e); ok {
+			msgs = append(msgs, p.Message)
+			continue
+		}
+		msgs = append(msgs, e.Error())
+	}
+	suffix := ""
+	if len(msgs) > maxShown {
+		suffix = fmt.Sprintf(" (+%d more)", len(msgs)-maxShown)
+		msgs = msgs[:maxShown]
+	}
+	return common.ValidationErrorf("--writes has %d issues: %s%s", len(probs), strings.Join(msgs, " | "), suffix)
+}
+
 func cellsSetInput(runtime flagView, token, sheetID, sheetName string) (map[string]interface{}, error) {
 	if err := requireSheetSelector(sheetID, sheetName); err != nil {
 		return nil, err
@@ -95,9 +234,13 @@ func cellsSetInput(runtime flagView, token, sheetID, sheetName string) (map[stri
 	if err := normalizeTypedCellsStyleAliases(cells, "--cells"); err != nil {
 		return nil, err
 	}
+	rangeStr := strings.TrimSpace(runtime.Str("range"))
+	if err := checkCellsMatchRange(cells, rangeStr); err != nil {
+		return nil, err
+	}
 	input := map[string]interface{}{
 		"excel_id": token,
-		"range":    strings.TrimSpace(runtime.Str("range")),
+		"range":    rangeStr,
 		"cells":    cells,
 	}
 	sheetSelectorForToolInput(input, sheetID, sheetName)
@@ -633,6 +776,43 @@ func warnDropdownSourceRangeHighlight(runtime *common.RuntimeContext) {
 // and returns its row / column counts. Errors on non-rectangular forms like
 // "A:C" (whole-column) or "3:6" (whole-row) — those need a row/col total
 // from get_sheet_structure, outside the scope of pure local parsing.
+// checkCellsMatchRange rejects, before any network call, the cells-vs-range
+// mismatches the server would otherwise fail mid-batch ("cells row count (N)
+// does not match range row count (M)" — a recurring server-side error cluster
+// in eval traces, and the failure leaves earlier batch sub-ops applied).
+// Single-cell ranges are checked too: the server enforces the same strict
+// match on a bare "A1" (07-21 rerun, 12 rows against range row count 1) —
+// there is no anchor semantics on +cells-set. An unparsable range is the
+// range validator's job, not ours.
+func checkCellsMatchRange(cells []interface{}, rangeStr string) error {
+	if len(cells) == 0 {
+		return sheetsValidationForFlag("cells",
+			"--cells is empty; to clear values use +cells-clear --scope content (needs --yes), or pass a non-empty 2D array")
+	}
+	rows, cols, err := rangeDimensions(rangeStr)
+	if err != nil {
+		return nil //nolint:nilerr // an unparsable range is reported by the range validation path with proper context
+	}
+	if len(cells) != rows {
+		return sheetsValidationForFlag("cells",
+			"--cells has %d rows but --range %q spans %d rows; make them equal (e.g. write N rows to an N-row range)",
+			len(cells), rangeStr, rows)
+	}
+	for r, rowRaw := range cells {
+		row, ok := rowRaw.([]interface{})
+		if !ok {
+			return sheetsValidationForFlag("cells",
+				"--cells[%d] must be an array (one row of cells) — --cells is always a 2D array, a single cell is [[{…}]]", r)
+		}
+		if len(row) != cols {
+			return sheetsValidationForFlag("cells",
+				"--cells[%d] has %d columns but --range %q spans %d columns; every row must match the range width",
+				r, len(row), rangeStr, cols)
+		}
+	}
+	return nil
+}
+
 func rangeDimensions(rangeStr string) (rows, cols int, err error) {
 	if idx := strings.Index(rangeStr, "!"); idx >= 0 {
 		rangeStr = rangeStr[idx+1:]

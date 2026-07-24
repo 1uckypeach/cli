@@ -24,6 +24,12 @@ func LocalInputPath(path string) (string, error) {
 	return localfileio.LocalInputPath(path)
 }
 
+// SafeTempAbsInputPath accepts an absolute read path only when it resolves
+// under the system temp dir. Delegates to localfileio.SafeTempAbsInputPath.
+func SafeTempAbsInputPath(path string) (string, error) {
+	return localfileio.SafeTempAbsInputPath(path)
+}
+
 // SafeEnvDirPath validates an environment-provided application directory path.
 // Delegates to localfileio.SafeEnvDirPath.
 func SafeEnvDirPath(path, envName string) (string, error) {
