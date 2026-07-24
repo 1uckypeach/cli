@@ -1,7 +1,7 @@
 ---
 name: lark-agents
-version: 1.3.0
-description: "驱动飞书第一方远程智能体（A2A）：发现 provider、读能力卡片、发消息起任务、轮询进度、取结果/产物、多轮续聊、回应 input_required。当用户要调用远程智能体（agent_ref 形如 <provider>:<agent_id>，如 example:echo）跑分析/生成类任务并等结果，或要首次接入 / 配置调用授权（scope、agent_id 获取、bot 渠道白名单）时使用。不负责本地 Skill 调用、IM 机器人收发消息（走 lark-im）、待办管理与任务智能体注册/主页数据（走 lark-task）。"
+version: 1.3.1
+description: "驱动飞书第一方远程智能体（A2A）：发现 provider、读能力卡片、发消息起任务、轮询进度、取结果/产物、多轮续聊、回应 input_required。当用户明确要求调用远程智能体，或 lark-base 已把复杂 Base 建设、结构调整、数据检索分析交给统一 Base Assistant 时使用。agent_ref 形如 <provider>:<agent_id>；Base 固定使用 base:assistant。不负责本地 Skill 调用、IM 机器人收发消息（走 lark-im）、待办管理与任务智能体注册/主页数据（走 lark-task）。"
 metadata:
   requires:
     bins: ["lark-cli"]
@@ -26,8 +26,14 @@ metadata:
 
 | scheme | kind | 一句话 | 详见 |
 |---|---|---|---|
-| `base` | catalog | 固定 Base 助手，自动路由建表、仪表盘、工作流与问数能力 | [provider-base](references/providers/lark-agents-base.md) |
+| `base` | catalog | 统一 Base Assistant，承接复杂建设、结构调整与数据检索分析 | [provider-base](references/providers/lark-agents-base.md) |
 | `example` | catalog | 内置离线演示 agent（内存 mock，零网络），`agents list example` 可枚举 | [provider-example](references/providers/lark-agents-example.md) |
+
+### Base 的两种入口
+
+- 用户明确指定 Agent / `base:assistant`：本 skill 主导；需要 Base URL/title 解析或创建最小容器时，只借用 `lark-base` 的资源定位能力，不重新判断是否改走 CLI。
+- 普通 Base 意图：由 `lark-base` 先按产品规则分流；只有命中复杂建设、结构调整或面向用户的数据检索分析时才交给本 skill。
+- 两种入口进入本 skill 后使用同一链路：首次读 Card → 校验身份/scope/参数 → `send` → `task get --watch` → 必要时 `--answer`。Card 不负责再次判断业务路由。
 
 ## 前置准备（首次调用某 agent 前过一遍）
 

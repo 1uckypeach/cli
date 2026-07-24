@@ -104,8 +104,25 @@ func TestProviderConformance(t *testing.T) {
 	if len(p.Catalog) != 1 || p.Catalog[0].ID != "assistant" {
 		t.Fatalf("catalog=%+v", p.Catalog)
 	}
+	spec := p.Catalog[0]
+	wantDescription := "Handles multi-component Base construction and restructuring, plus user-facing data retrieval and analysis. Use Base CLI shortcuts for a single atomic edit or record create, update, or delete."
+	if spec.Name != "Base Assistant" || spec.Description != wantDescription {
+		t.Fatalf("public card metadata name=%q description=%q", spec.Name, spec.Description)
+	}
+	if len(spec.Skills) != 1 || spec.Skills[0].ID != "base_assistant" ||
+		spec.Skills[0].Name != "Build and analyze a Base" || len(spec.Skills[0].Examples) != 3 {
+		t.Fatalf("public card skills=%+v", spec.Skills)
+	}
+	for _, forbidden := range []string{"base_build", "base_analyze", "Building Agent", "Analysis Agent"} {
+		if strings.Contains(spec.Description, forbidden) ||
+			strings.Contains(spec.Skills[0].ID, forbidden) ||
+			strings.Contains(spec.Skills[0].Name, forbidden) ||
+			strings.Contains(strings.Join(spec.Skills[0].Examples, "\n"), forbidden) {
+			t.Fatalf("public card exposes internal capability name %q: %+v", forbidden, spec)
+		}
+	}
 	for _, brand := range []core.LarkBrand{core.BrandFeishu, core.BrandLark} {
-		caps := iagents.DeriveCapabilities(&p.Catalog[0], brand)
+		caps := iagents.DeriveCapabilities(&spec, brand)
 		if !caps.TaskGet || !caps.TaskList || !caps.TaskCancel || !caps.ContextList || !caps.ContextGet || !caps.ContextDelete {
 			t.Fatalf("brand=%s missing required capability: %+v", brand, caps)
 		}
@@ -116,10 +133,10 @@ func TestProviderConformance(t *testing.T) {
 			t.Fatalf("brand=%s unsupported capability advertised: %+v", brand, caps)
 		}
 	}
-	agenttest.CheckParamsBinding[sendParams](t, &p.Catalog[0], iagents.VerbSend)
-	agenttest.CheckParamsBinding[getTaskParams](t, &p.Catalog[0], iagents.VerbTaskGet)
-	agenttest.CheckParamsBinding[listTasksParams](t, &p.Catalog[0], iagents.VerbTaskList)
-	agenttest.CheckParamsBinding[listContextsParams](t, &p.Catalog[0], iagents.VerbContextList)
+	agenttest.CheckParamsBinding[sendParams](t, &spec, iagents.VerbSend)
+	agenttest.CheckParamsBinding[getTaskParams](t, &spec, iagents.VerbTaskGet)
+	agenttest.CheckParamsBinding[listTasksParams](t, &spec, iagents.VerbTaskList)
+	agenttest.CheckParamsBinding[listContextsParams](t, &spec, iagents.VerbContextList)
 }
 
 func TestAgentRootUsesPublicBaseV3Prefix(t *testing.T) {

@@ -1,5 +1,7 @@
 # Base data-query guide
 
+> **默认路由：** 自然语言问数、统计和分析统一走 `base:assistant`。仅当用户明确指定 `lark-cli base +data-query`、正在排障，或执行确定性写入所需的内部查询时使用本文；详见 [`../SKILL.md`](../SKILL.md)。
+
 This guide is the entry point for `+data-query`. Use it for common aggregation fewshots and command selection. For the complete DSL fields, operators, limits, and response details, use [lark-base-data-query.md](lark-base-data-query.md) as the DSL SSOT.
 
 Before using `+data-query`, also follow [lark-base-data-analysis-sop.md](lark-base-data-analysis-sop.md) to confirm that the task really needs aggregation instead of record listing or a temporary view.
