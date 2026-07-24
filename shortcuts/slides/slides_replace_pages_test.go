@@ -42,7 +42,7 @@ func TestReplacePagesCreatesBeforeThenDeletesOld(t *testing.T) {
 		URL:    "/open-apis/slides_ai/v1/xml_presentations/pres_abc/slide",
 		Body: map[string]interface{}{
 			"code": 0,
-			"data": map[string]interface{}{"slide_id": "new2", "revision_id": 11},
+			"data": map[string]interface{}{"slide_id": "new2", "revision_id": 11, "issues": "slide schema issue"},
 		},
 		OnMatch: func(req *http.Request) {
 			requestOrder = append(requestOrder, req.Method)
@@ -122,6 +122,9 @@ func TestReplacePagesCreatesBeforeThenDeletesOld(t *testing.T) {
 	first, _ := results[0].(map[string]interface{})
 	if first["old_slide_id"] != "old2" || first["new_slide_id"] != "new2" || first["status"] != "replaced" {
 		t.Fatalf("result = %#v", first)
+	}
+	if first["issues"] != "slide schema issue" {
+		t.Fatalf("result.issues = %v, want slide schema issue", first["issues"])
 	}
 }
 
@@ -270,10 +273,11 @@ func TestReplacePagesDryRunPlansOnly(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
 		t.Fatalf("decode dry-run: %v\nraw=%s", err, stdout.String())
 	}
-	if out["xml_presentation_id"] != "pres_abc" {
-		t.Fatalf("xml_presentation_id = %v", out["xml_presentation_id"])
+	data, _ := out["data"].(map[string]interface{})
+	if data["xml_presentation_id"] != "pres_abc" {
+		t.Fatalf("xml_presentation_id = %v", data["xml_presentation_id"])
 	}
-	plan, _ := out["plan"].([]interface{})
+	plan, _ := data["plan"].([]interface{})
 	if len(plan) != 1 {
 		t.Fatalf("plan len = %d, want 1", len(plan))
 	}
@@ -281,7 +285,7 @@ func TestReplacePagesDryRunPlansOnly(t *testing.T) {
 	if item["old_slide_id"] != "old2" || item["action"] != "create_before_then_delete_old" {
 		t.Fatalf("plan item = %#v", item)
 	}
-	api, _ := out["api"].([]interface{})
+	api, _ := data["api"].([]interface{})
 	if len(api) != 2 {
 		t.Fatalf("api len = %d, want create/delete plan", len(api))
 	}

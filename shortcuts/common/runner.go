@@ -665,16 +665,59 @@ func (ctx *RuntimeContext) ValidatePath(path string) error {
 
 // ── Output helpers ──
 
+func (ctx *RuntimeContext) newEmitter() *output.Emitter {
+	streams := ctx.IO()
+	return output.NewEmitter(output.EmitterConfig{
+		Out:            streams.Out,
+		ErrOut:         streams.ErrOut,
+		CommandPath:    ctx.Cmd.CommandPath(),
+		Identity:       string(ctx.As()),
+		ColorEnabled:   streams.OutIsTerminal,
+		NoticeProvider: output.GetNotice,
+	})
+}
+
+func (ctx *RuntimeContext) handleEmitterError(err error) {
+	if err == nil {
+		return
+	}
+	var cs *errs.ContentSafetyError
+	if ctx.JqExpr != "" && !errors.As(err, &cs) {
+		fmt.Fprintf(ctx.IO().ErrOut, "error: %v\n", err)
+	}
+	ctx.outputErrOnce.Do(func() { ctx.outputErr = err })
+}
+
+func wrapLegacyPrettyRenderer(prettyFn func(w io.Writer)) output.PrettyRenderer {
+	if prettyFn == nil {
+		return nil
+	}
+	return func(w io.Writer, _ bool) error {
+		prettyFn(w)
+		return nil
+	}
+}
+
 // Out prints a success JSON envelope to stdout.
 func (ctx *RuntimeContext) Out(data interface{}, meta *output.Meta) {
-	ctx.emit(data, meta, false, true)
+	ctx.handleEmitterError(ctx.newEmitter().Success(data, output.EmitOptions{
+		Format: "",
+		Raw:    false,
+		JQ:     ctx.JqExpr,
+		Meta:   meta,
+	}))
 }
 
 // OutRaw prints a success JSON envelope to stdout with HTML escaping disabled.
 // Use this instead of Out when the data contains XML/HTML content (e.g. document bodies)
 // that should be preserved as-is in JSON output.
 func (ctx *RuntimeContext) OutRaw(data interface{}, meta *output.Meta) {
-	ctx.emit(data, meta, true, true)
+	ctx.handleEmitterError(ctx.newEmitter().Success(data, output.EmitOptions{
+		Format: "",
+		Raw:    true,
+		JQ:     ctx.JqExpr,
+		Meta:   meta,
+	}))
 }
 
 // OutPartialFailure writes an ok:false multi-status result envelope to stdout
@@ -688,112 +731,42 @@ func (ctx *RuntimeContext) OutRaw(data interface{}, meta *output.Meta) {
 // ok:true, and the exit signal is distinct from ErrBare (the
 // stdout-carries-the-answer silent-exit signal).
 func (ctx *RuntimeContext) OutPartialFailure(data interface{}, meta *output.Meta) error {
-	ctx.emit(data, meta, false, false)
+	ctx.handleEmitterError(ctx.newEmitter().PartialFailure(data, output.EmitOptions{
+		Format: "",
+		Raw:    false,
+		JQ:     ctx.JqExpr,
+		Meta:   meta,
+	}))
 	if ctx.outputErr != nil {
 		return ctx.outputErr
 	}
 	return output.PartialFailure(output.ExitAPI)
 }
 
-// emit is the shared stdout envelope emitter; ok sets the envelope's ok field
-// (true for success, false for a partial-failure result). raw=true disables JSON
-// HTML escaping so XML/HTML payloads (e.g. DocxXML bodies) are preserved
-// verbatim; otherwise behavior
-// is identical — content-safety scanning and race-safe first-error capture via
-// outputErrOnce apply in both modes.
-func (ctx *RuntimeContext) emit(data interface{}, meta *output.Meta, raw, ok bool) {
-	scanResult := output.ScanForSafety(ctx.Cmd.CommandPath(), data, ctx.IO().ErrOut)
-	if scanResult.Blocked {
-		ctx.outputErrOnce.Do(func() { ctx.outputErr = scanResult.BlockErr })
-		return
-	}
-
-	env := output.Envelope{OK: ok, Identity: string(ctx.As()), Data: data, Meta: meta, Notice: output.GetNotice()}
-	if scanResult.Alert != nil {
-		env.ContentSafetyAlert = scanResult.Alert
-	}
-
-	if ctx.JqExpr != "" {
-		filter := output.JqFilter
-		if raw {
-			filter = output.JqFilterRaw
-		}
-		if err := filter(ctx.IO().Out, env, ctx.JqExpr); err != nil {
-			fmt.Fprintf(ctx.IO().ErrOut, "error: %v\n", err)
-			ctx.outputErrOnce.Do(func() { ctx.outputErr = err })
-		}
-		return
-	}
-
-	if raw {
-		enc := json.NewEncoder(ctx.IO().Out)
-		enc.SetEscapeHTML(false)
-		enc.SetIndent("", "  ")
-		_ = enc.Encode(env)
-		return
-	}
-	b, _ := json.MarshalIndent(env, "", "  ")
-	fmt.Fprintln(ctx.IO().Out, string(b))
-}
-
 // OutFormat prints output based on --format flag.
 // "json" (default) outputs JSON envelope; "pretty" calls prettyFn; others delegate to FormatValue.
-// When JqExpr is set, routes through Out() regardless of format.
-// For json/"" and jq paths, Out() handles content safety scanning.
-// For pretty/table/csv/ndjson, scanning is done here and the alert is written to stderr.
+// When JqExpr is set, envelope filtering takes precedence over format.
+// The Emitter handles content safety scanning for every format.
 func (ctx *RuntimeContext) OutFormat(data interface{}, meta *output.Meta, prettyFn func(w io.Writer)) {
-	ctx.outFormat(data, meta, prettyFn, false)
+	ctx.handleEmitterError(ctx.newEmitter().Success(data, output.EmitOptions{
+		Format: ctx.Format,
+		Raw:    false,
+		JQ:     ctx.JqExpr,
+		Meta:   meta,
+		Pretty: wrapLegacyPrettyRenderer(prettyFn),
+	}))
 }
 
 // OutFormatRaw is like OutFormat but with HTML escaping disabled in JSON output.
 // Use this when the data contains XML/HTML content that should be preserved as-is.
 func (ctx *RuntimeContext) OutFormatRaw(data interface{}, meta *output.Meta, prettyFn func(w io.Writer)) {
-	ctx.outFormat(data, meta, prettyFn, true)
-}
-
-func (ctx *RuntimeContext) outFormat(data interface{}, meta *output.Meta, prettyFn func(w io.Writer), raw bool) {
-	outFn := ctx.Out
-	if raw {
-		outFn = ctx.OutRaw
-	}
-	if ctx.JqExpr != "" {
-		outFn(data, meta)
-		return
-	}
-	switch ctx.Format {
-	case "pretty":
-		scanResult := output.ScanForSafety(ctx.Cmd.CommandPath(), data, ctx.IO().ErrOut)
-		if scanResult.Blocked {
-			ctx.outputErrOnce.Do(func() { ctx.outputErr = scanResult.BlockErr })
-			return
-		}
-		if scanResult.Alert != nil {
-			output.WriteAlertWarning(ctx.IO().ErrOut, scanResult.Alert)
-		}
-		if prettyFn != nil {
-			prettyFn(ctx.IO().Out)
-		} else {
-			outFn(data, meta)
-		}
-	case "json", "":
-		outFn(data, meta)
-	default:
-		// table, csv, ndjson — pass data directly; FormatValue handles both
-		// plain arrays and maps with array fields (e.g. {"members":[…]})
-		scanResult := output.ScanForSafety(ctx.Cmd.CommandPath(), data, ctx.IO().ErrOut)
-		if scanResult.Blocked {
-			ctx.outputErrOnce.Do(func() { ctx.outputErr = scanResult.BlockErr })
-			return
-		}
-		if scanResult.Alert != nil {
-			output.WriteAlertWarning(ctx.IO().ErrOut, scanResult.Alert)
-		}
-		format, formatOK := output.ParseFormat(ctx.Format)
-		if !formatOK {
-			fmt.Fprintf(ctx.IO().ErrOut, "warning: unknown format %q, falling back to json\n", ctx.Format)
-		}
-		output.FormatValue(ctx.IO().Out, data, format)
-	}
+	ctx.handleEmitterError(ctx.newEmitter().Success(data, output.EmitOptions{
+		Format: ctx.Format,
+		Raw:    true,
+		JQ:     ctx.JqExpr,
+		Meta:   meta,
+		Pretty: wrapLegacyPrettyRenderer(prettyFn),
+	}))
 }
 
 // ── Scope pre-check ──
@@ -1070,7 +1043,7 @@ func resolveInputFlags(rctx *RuntimeContext, flags []Flag) error {
 			if rctx.stdinConsumed {
 				return ValidationErrorf("--%s: stdin (-) can only be used by one flag", fl.Name).
 					WithParam("--"+fl.Name).
-					WithHint("a process has a single stdin, so only one flag per call may use '-'; pass the others as @file (e.g. --%s @/path/to/file)", fl.Name)
+					WithHint("a process has a single stdin, so only one flag per call may use '-'; pass the others inline or as @file with a relative path under the current directory (e.g. --%s @./payload.json)", fl.Name)
 			}
 			rctx.stdinConsumed = true
 			data, err := io.ReadAll(rctx.IO().In)
@@ -1104,9 +1077,16 @@ func resolveInputFlags(rctx *RuntimeContext, flags []Flag) error {
 			}
 			data, err := cmdutil.ReadInputFile(rctx.FileIO(), path)
 			if err != nil {
-				return ValidationErrorf("--%s: %v", fl.Name, err).
+				verr := ValidationErrorf("--%s: %v", fl.Name, err).
 					WithParam("--" + fl.Name).
 					WithCause(err)
+				if slices.Contains(fl.Input, Stdin) {
+					// Rejected @file paths are usually absolute (temp files under
+					// /tmp). Steer toward stdin rather than cd / copying the file
+					// into the project tree.
+					verr = verr.WithHint("this flag also reads stdin: pipe the file contents into this command and pass --%s -", fl.Name)
+				}
+				return verr
 			}
 			// strip a leading UTF-8 BOM so it
 			// can't corrupt the first CSV cell or break JSON parsing downstream.
@@ -1146,14 +1126,19 @@ func handleShortcutDryRun(f *cmdutil.Factory, rctx *RuntimeContext, s *Shortcut)
 		return ValidationErrorf("--dry-run is not supported for %s %s", s.Service, s.Command).
 			WithParam("--dry-run")
 	}
-	fmt.Fprintln(f.IOStreams.ErrOut, "=== Dry Run ===")
 	dryResult := s.DryRun(rctx.ctx, rctx)
-	if rctx.Format == "pretty" {
-		fmt.Fprint(f.IOStreams.Out, dryResult.Format())
-	} else {
-		output.PrintJson(f.IOStreams.Out, dryResult)
+	if dryResult != nil {
+		// Same data.context contract as the service/api dry-run paths.
+		dryResult.Context(rctx.Config.AppID, rctx.UserOpenId())
 	}
-	return nil
+	return cmdutil.WriteDryRun(dryResult, cmdutil.DryRunOutputOptions{
+		Format:      rctx.Format,
+		JqExpr:      rctx.JqExpr,
+		CommandPath: rctx.Cmd.CommandPath(),
+		Identity:    rctx.As(),
+		Out:         f.IOStreams.Out,
+		ErrOut:      f.IOStreams.ErrOut,
+	})
 }
 
 // rejectPositionalArgs returns a cobra.PositionalArgs that rejects any

@@ -20,7 +20,9 @@ var BaseRecordList = common.Shortcut{
 	Flags: []common.Flag{
 		baseTokenFlag(true),
 		tableRefFlag(true),
-		recordListFieldRefFlag(),
+		recordProjectionFieldFlag("field ID or name to include; repeat to project only needed fields"),
+		recordProjectionAliasFlag("fields"),
+		recordProjectionAliasFlag("field-names"),
 		recordListViewRefFlag(),
 		recordFilterFlag(),
 		recordSortFlag(),
@@ -57,6 +59,9 @@ var BaseRecordList = common.Shortcut{
 				return err
 			}
 		}
+		if _, err := recordProjectionFields(runtime); err != nil {
+			return err
+		}
 		return validateRecordQueryOptions(runtime)
 	},
 	DryRun: dryRunRecordList,
@@ -66,13 +71,6 @@ var BaseRecordList = common.Shortcut{
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		return executeRecordList(runtime)
 	},
-}
-
-func recordListFieldRefFlag() common.Flag {
-	flag := fieldRefFlag(false)
-	flag.Type = "string_array"
-	flag.Desc = "field ID or name to include; repeat to project only needed fields"
-	return flag
 }
 
 func recordListViewRefFlag() common.Flag {
