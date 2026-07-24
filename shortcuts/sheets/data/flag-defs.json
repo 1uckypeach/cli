@@ -821,12 +821,10 @@
         "kind": "own",
         "type": "string",
         "required": "optional",
-        "desc": "Style inheritance for the new row/column: `before` (from preceding) / `after` (from following) / `none` (default)",
-        "default": "none",
+        "desc": "Style inheritance for the new row/column: `before` (from the preceding row/column) / `after` (from the following row/column). Omit the flag to inherit the following row/column (same as `after`) — the backend cannot leave a new row/column unstyled; for a truly blank row/column, clear formats afterwards with +cells-clear --scope formats. Insertion always lands before `--position`; this only selects which side's style is copied.",
         "enum": [
           "before",
-          "after",
-          "none"
+          "after"
         ]
       },
       {

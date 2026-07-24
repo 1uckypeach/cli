@@ -23,7 +23,7 @@
 
 - 当表格存在合并单元格时，应结合返回的 `merged_cells` 判断表头、分组标题和区域语义
 - 不要把合并区域中非左上角的空白单元格理解为"无内容"；通常应将左上角单元格的内容视为整个合并区域的语义内容
-- 插入用 `+dim-insert`：`--position`（插入位置；行用 1-based 行号如 `3`，列用字母如 `C`，新行/列插在此位置**之前**）+ `--count`（插入数量，>0）。新行/列样式继承用 `--inherit-style`（`before`/`after`/`none`）
+- 插入用 `+dim-insert`：`--position`（插入位置；行用 1-based 行号如 `3`，列用字母如 `C`，新行/列插在此位置**之前**）+ `--count`（插入数量，>0）。新行/列样式继承用 `--inherit-style`（`before` 继承前一行/列 / `after` 继承后一行/列）；它只决定继承哪一侧的样式，**插入位置始终在 `--position` 之前，不改变插入方向**。⚠️ 不传时默认继承**后一行/列**（同 `after`）；底层无法插入"无格式"行/列，要真正的纯空白行/列，插入后再用 `+cells-clear --scope formats` 清除新行/列的格式。
 - 例如"在第 20 行后新增 116 行"：`--position 21 --count 116`（"第 20 行后"即 1-based 行号 21）
 
 **区间表达统一为 A1 风格**：所有涉及"一段连续行/列"的 shortcut 都用同一套 A1 闭区间字符串语法，**不存在 inclusive / exclusive / 0-based / 1-based 跨命令差异**：
@@ -40,7 +40,7 @@
 - **插入列直接用字母**：`+dim-insert` 的 `--position` 在列场景直接传字母（如 `C`），不要把列字母换算成 0-based 索引
 - **插入后引用偏移**：插入行/列后，原有数据的行号 / 列字母会发生偏移。如果插入后还需要对原有区域执行写入操作，必须重新计算偏移后的位置
 - **删除行列前先确认范围**：删除操作不可逆，执行前应确认 `--range` 精确无误。可先用 `+csv-get` 读取目标区域验证内容（`+csv-get` / `+cells-get` 见 `lark-sheets-read-data`）
-- **"在 D 列左侧新增一列"的正确写法**：`--position D --count 1`（新列插在 D 列之前）；要继承左侧列样式加 `--inherit-style before`
+- **"在 D 列左侧新增一列"的正确写法**：`--position D --count 1`（新列插在 D 列之前）；要继承左侧列样式加 `--inherit-style before`。不要把 `--inherit-style after` 当成“插到 D 列右侧”，它不是插入方向参数。
 - **`+dim-move` 同维度约束**：`--source-range` 是行区间时 `--target` 必须是行号（数字），是列区间时 `--target` 必须是列字母——不可一行一列混用
 - **插入列后必须检查多行表头合并区域**：很多表格有 2-3 行的合并表头。插入列后，原有的合并区域不会自动扩展到新列。必须先用 `+sheet-info --include merges` 读取合并区域，插入后将跨越插入位置的合并区域重新设置（用 `+cells-{merge|unmerge}`），否则新列的表头会是空的、格式不连续
 - **公式写入范围跳过表头行**：写入公式时从数据行开始（不是第 1 行）。先确认表头占几行（可能 1-3 行），公式的起始行 = 表头行数 + 1
@@ -76,7 +76,7 @@ _公共四件套 · 系统：`--dry-run`_
 
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `--inherit-style` | string | optional | 新行/列样式继承策略 enum：`before`（继承前一行/列）/ `after`（继承后一行/列）/ `none`（默认）（可选值：`before` / `after` / `none`） |
+| `--inherit-style` | string | optional | 新行/列样式继承 enum：`before`（继承前一行/列）/ `after`（继承后一行/列）；不传时默认继承后一行/列（同 `after`），底层无法插入无格式行/列。只决定继承哪侧样式、不改变插入方向（始终插在 `--position` 之前）；要纯空白行/列请插入后用 `+cells-clear --scope formats`（可选值：`before` / `after`） |
 | `--position` | string | required | 插入位置（在此行/列**之前**插入）：行用 1-based 行号如 `3`；列用字母如 `C` |
 | `--count` | int | required | 插入数量（>0） |
 

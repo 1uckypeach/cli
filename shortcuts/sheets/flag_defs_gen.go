@@ -396,7 +396,7 @@ var flagDefs = map[string]commandDef{
 			{Name: "spreadsheet-token", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet token (XOR with `--url`)"},
 			{Name: "sheet-id", Kind: "public", Type: "string", Required: "xor", Desc: "Sheet reference_id (XOR with `--sheet-name`)"},
 			{Name: "sheet-name", Kind: "public", Type: "string", Required: "xor", Desc: "Sheet name (XOR with `--sheet-id`)"},
-			{Name: "inherit-style", Kind: "own", Type: "string", Required: "optional", Desc: "Style inheritance for the new row/column: `before` (from preceding) / `after` (from following) / `none` (default)", Default: "none", Enum: []string{"before", "after", "none"}},
+			{Name: "inherit-style", Kind: "own", Type: "string", Required: "optional", Desc: "Style inheritance for the new row/column: `before` (from the preceding row/column) / `after` (from the following row/column). Omit the flag to inherit the following row/column (same as `after`) — the backend cannot leave a new row/column unstyled; for a truly blank row/column, clear formats afterwards with +cells-clear --scope formats. Insertion always lands before `--position`; this only selects which side's style is copied.", Enum: []string{"before", "after"}},
 			{Name: "position", Kind: "own", Type: "string", Required: "required", Desc: "Insert position (1-based row number like `3` or column letter like `C`); new rows/columns are inserted *before* this position"},
 			{Name: "count", Kind: "own", Type: "int", Required: "required", Desc: "Number of rows/columns to insert (must be > 0)"},
 			{Name: "dry-run", Kind: "system", Type: "bool", Required: "optional"},

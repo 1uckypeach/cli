@@ -58,6 +58,39 @@ func TestBatchUpdate_TranslatesShortcutToToolName(t *testing.T) {
 	}
 }
 
+func TestBatchUpdate_DimInsertInheritAfterCopiesFollowingStyle(t *testing.T) {
+	t.Parallel()
+
+	body := parseDryRunBody(t, BatchUpdate, []string{
+		"--url", testURL,
+		"--operations", `[
+		  {"shortcut":"+dim-insert","input":{"sheet_id":"sh1","position":"D","count":1,"inherit_style":"after"}}
+		]`,
+		"--yes",
+	})
+	input := decodeToolInput(t, body, "batch_update")
+	ops, _ := input["operations"].([]interface{})
+	if len(ops) != 1 {
+		t.Fatalf("operations length = %d, want 1", len(ops))
+	}
+	op := ops[0].(map[string]interface{})
+	if op["tool_name"] != "modify_sheet_structure" {
+		t.Fatalf("tool_name = %v, want modify_sheet_structure", op["tool_name"])
+	}
+	in, _ := op["input"].(map[string]interface{})
+	// inherit_style=after copies the following column's style via a plain
+	// before-insert at the same position (the backend anchors on the following
+	// column), so position stays D with side=before.
+	assertInputEquals(t, in, map[string]interface{}{
+		"excel_id":  testToken,
+		"sheet_id":  "sh1",
+		"operation": "insert",
+		"position":  "D",
+		"count":     float64(1),
+		"side":      "before",
+	})
+}
+
 func TestBatchUpdate_HighRiskWriteRequiresYes(t *testing.T) {
 	t.Parallel()
 	stdout, stderr, err := runShortcutCapturingErr(t, BatchUpdate, []string{
