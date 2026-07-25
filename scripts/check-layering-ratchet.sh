@@ -87,8 +87,12 @@ layering_ratchet_main() (
   fi
 
   local base_revision="${1:-${QUALITY_GATE_CHANGED_FROM:-}}"
-  local approved_initial_count="${2:-39}"
-  local approved_initial_hash="${3:-5636d50d10b9de1e08dc9f06cd66671b3f438650fa5b7f28b95aa7d5a69a1c21}"
+  # The approved size of the registry at the moment it first reaches the target
+  # branch. Only consulted while the target branch has no registry file, so it
+  # is read exactly once: on the change that introduces the file. Hardcoded on
+  # purpose — a configurable baseline could be raised in CI without review.
+  local approved_initial_count="${2:-18}"
+  local approved_initial_hash="${3:-3e7c5e9cb420248b817a3fdbe936069dbb295398751eee4f66b36cfa571d111b}"
   if [[ -z "$base_revision" ]]; then
     echo "Layering ratchet requires a base revision." >&2
     return 1
