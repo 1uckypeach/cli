@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/larksuite/cli/internal/authlog"
 	"github.com/larksuite/cli/internal/core"
 )
 
@@ -116,7 +117,7 @@ func RequestAppRegistration(ctx context.Context, httpClient *http.Client, brand 
 		return nil, err
 	}
 	defer resp.Body.Close()
-	logHTTPResponse(resp)
+	logHTTPResponse(newAuthLogger(), resp)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -180,7 +181,7 @@ func BuildVerificationURL(baseURL, cliVersion string) string {
 }
 
 // pollOnce performs one ctx-bound poll request and decodes the payload.
-func pollOnce(ctx context.Context, httpClient *http.Client, brand core.LarkBrand, deviceCode string) (map[string]interface{}, error) {
+func pollOnce(ctx context.Context, httpClient *http.Client, brand core.LarkBrand, deviceCode string, logger *authlog.Logger) (map[string]interface{}, error) {
 	form := url.Values{}
 	form.Set("action", "poll")
 	form.Set("device_code", deviceCode)
@@ -196,7 +197,7 @@ func pollOnce(ctx context.Context, httpClient *http.Client, brand core.LarkBrand
 		return nil, fmt.Errorf("poll network error: %w", err)
 	}
 	defer resp.Body.Close()
-	logHTTPResponse(resp)
+	logHTTPResponse(logger, resp)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -230,6 +231,7 @@ func RegisterAppWithDiscovery(ctx context.Context, httpClient *http.Client, resp
 	effectiveBrand := currentBrand
 	switched := false
 	waitBeforePoll := false
+	authLogger := newAuthLogger()
 
 	for {
 		if waitBeforePoll {
@@ -244,7 +246,7 @@ func RegisterAppWithDiscovery(ctx context.Context, httpClient *http.Client, resp
 			return nil, effectiveBrand, registrationContextError(ctx)
 		}
 
-		data, err := pollOnce(ctx, httpClient, currentBrand, resp.DeviceCode)
+		data, err := pollOnce(ctx, httpClient, currentBrand, resp.DeviceCode, authLogger)
 		if err != nil {
 			fmt.Fprintf(errOut, "[lark-cli] [WARN] app-registration: %v\n", err)
 			interval = minInt(interval+1, maxPollIntervalSeconds)

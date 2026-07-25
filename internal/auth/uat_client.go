@@ -187,6 +187,7 @@ func doRefreshToken(httpClient *http.Client, opts UATCallOptions, stored *Stored
 	}
 
 	endpoints := ResolveOAuthEndpoints(opts.Domain)
+	authLogger := newAuthLogger()
 
 	callEndpoint := func() (map[string]interface{}, error) {
 		form := url.Values{}
@@ -206,7 +207,7 @@ func doRefreshToken(httpClient *http.Client, opts UATCallOptions, stored *Stored
 			return nil, err
 		}
 		defer resp.Body.Close()
-		logHTTPResponse(resp)
+		logHTTPResponse(authLogger, resp)
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {

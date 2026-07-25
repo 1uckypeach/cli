@@ -63,6 +63,10 @@ func ResolveOAuthEndpoints(brand core.LarkBrand) OAuthEndpoints {
 
 // RequestDeviceAuthorization requests a device authorization code.
 func RequestDeviceAuthorization(httpClient *http.Client, appId, appSecret string, brand core.LarkBrand, scope string, errOut io.Writer) (*DeviceAuthResponse, error) {
+	return requestDeviceAuthorization(httpClient, appId, appSecret, brand, scope, errOut, newAuthLogger())
+}
+
+func requestDeviceAuthorization(httpClient *http.Client, appId, appSecret string, brand core.LarkBrand, scope string, errOut io.Writer, logger authLogger) (*DeviceAuthResponse, error) {
 	if errOut == nil {
 		errOut = io.Discard
 	}
@@ -95,7 +99,7 @@ func RequestDeviceAuthorization(httpClient *http.Client, appId, appSecret string
 		return nil, err
 	}
 	defer resp.Body.Close()
-	logHTTPResponse(resp)
+	logHTTPResponse(logger, resp)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -155,6 +159,7 @@ func PollDeviceToken(ctx context.Context, httpClient *http.Client, appId, appSec
 	deadline := time.Now().Add(time.Duration(expiresIn) * time.Second)
 	currentInterval := interval
 	attempts := 0
+	authLogger := newAuthLogger()
 
 	for time.Now().Before(deadline) && attempts < maxPollAttempts {
 		attempts++
@@ -186,7 +191,7 @@ func PollDeviceToken(ctx context.Context, httpClient *http.Client, appId, appSec
 			currentInterval = minInt(currentInterval+1, maxPollInterval)
 			continue
 		}
-		logHTTPResponse(resp)
+		logHTTPResponse(authLogger, resp)
 
 		body, err := io.ReadAll(resp.Body)
 		resp.Body.Close()

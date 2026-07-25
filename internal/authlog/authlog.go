@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package keychain
+// Package authlog records authentication response and error diagnostics.
+package authlog
 
 import (
 	"fmt"
@@ -16,11 +17,41 @@ import (
 	"github.com/larksuite/cli/internal/vfs"
 )
 
-// RuntimeDirFunc returns the workspace-aware config directory.
-// Default: falls back to LARKSUITE_CLI_CONFIG_DIR or ~/.lark-cli (pre-workspace behavior).
-// Injected by cmdutil.NewDefault → core.GetRuntimeDir after workspace detection.
-// This avoids an import cycle (core → keychain → core).
-var RuntimeDirFunc = defaultRuntimeDir
+// Options configures one authentication logger instance.
+type Options struct {
+	RuntimeDir func() string
+	Logger     *log.Logger
+	Now        func() time.Time
+	Args       func() []string
+}
+
+// Logger records authentication diagnostics in a workspace-specific log.
+type Logger struct {
+	runtimeDir func() string
+	logger     *log.Logger
+	loggerOnce sync.Once
+	now        func() time.Time
+	args       func() []string
+}
+
+// New creates an authentication logger with explicit dependencies.
+func New(options Options) *Logger {
+	if options.RuntimeDir == nil {
+		options.RuntimeDir = defaultRuntimeDir
+	}
+	if options.Now == nil {
+		options.Now = time.Now
+	}
+	if options.Args == nil {
+		options.Args = func() []string { return os.Args }
+	}
+	return &Logger{
+		runtimeDir: options.RuntimeDir,
+		logger:     options.Logger,
+		now:        options.Now,
+		args:       options.Args,
+	}
+}
 
 func defaultRuntimeDir() string {
 	if dir := os.Getenv("LARKSUITE_CLI_CONFIG_DIR"); dir != "" {
@@ -39,15 +70,7 @@ func defaultRuntimeDir() string {
 	return filepath.Join(home, ".lark-cli")
 }
 
-var (
-	authResponseLogger     *log.Logger
-	authResponseLoggerOnce = &sync.Once{}
-
-	authResponseLogNow  = time.Now
-	authResponseLogArgs = func() []string { return os.Args }
-)
-
-func authLogDir() string {
+func (l *Logger) logDir() string {
 	// LARKSUITE_CLI_LOG_DIR is the highest-priority override.
 	// When set, it bypasses workspace subtree routing entirely.
 	if dir := os.Getenv("LARKSUITE_CLI_LOG_DIR"); dir != "" {
@@ -57,20 +80,17 @@ func authLogDir() string {
 		}
 	}
 
-	// Fall back to the workspace-aware runtime dir. RuntimeDirFunc is injected
-	// by factory after workspace detection; before injection it defaults to
-	// the pre-workspace behavior so older call paths remain correct.
-	return filepath.Join(RuntimeDirFunc(), "logs")
+	return filepath.Join(l.runtimeDir(), "logs")
 }
 
-func initAuthLogger() {
-	authResponseLoggerOnce.Do(func() {
-		if authResponseLogger != nil {
+func (l *Logger) init() {
+	l.loggerOnce.Do(func() {
+		if l.logger != nil {
 			return
 		}
 
-		dir := authLogDir()
-		now := authResponseLogNow()
+		dir := l.logDir()
+		now := l.now()
 		if err := vfs.MkdirAll(dir, 0700); err != nil {
 			return
 		}
@@ -78,7 +98,7 @@ func initAuthLogger() {
 		logName := fmt.Sprintf("auth-%s.log", now.Format("2006-01-02"))
 		logPath := filepath.Join(dir, logName)
 		if f, err := vfs.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600); err == nil {
-			authResponseLogger = log.New(f, "", 0)
+			l.logger = log.New(f, "", 0)
 			cleanupOldLogs(dir, now)
 		}
 	})
@@ -96,64 +116,45 @@ func FormatAuthCmdline(args []string) string {
 	return strings.Join(args[:3], " ") + " ..."
 }
 
-func LogAuthResponse(path string, status int, logID string) {
-	initAuthLogger()
-	if authResponseLogger == nil {
+// LogResponse records one authentication HTTP response.
+func (l *Logger) LogResponse(path string, status int, logID string) {
+	if l == nil {
+		return
+	}
+	l.init()
+	if l.logger == nil {
 		return
 	}
 
-	authResponseLogger.Printf(
+	l.logger.Printf(
 		"[lark-cli] auth-response: time=%s path=%s status=%d x-tt-logid=%s cmdline=%s",
-		authResponseLogNow().Format(time.RFC3339Nano),
+		l.now().Format(time.RFC3339Nano),
 		path,
 		status,
 		logID,
-		FormatAuthCmdline(authResponseLogArgs()),
+		FormatAuthCmdline(l.args()),
 	)
 }
 
-func LogAuthError(component, op string, err error) {
-	if err == nil {
+// LogError records one authentication-related local error.
+func (l *Logger) LogError(component, op string, err error) {
+	if l == nil || err == nil {
 		return
 	}
 
-	initAuthLogger()
-	if authResponseLogger == nil {
+	l.init()
+	if l.logger == nil {
 		return
 	}
 
-	authResponseLogger.Printf(
+	l.logger.Printf(
 		"[lark-cli] auth-error: time=%s component=%s op=%s error=%q cmdline=%s",
-		authResponseLogNow().Format(time.RFC3339Nano),
+		l.now().Format(time.RFC3339Nano),
 		component,
 		op,
 		err.Error(),
-		FormatAuthCmdline(authResponseLogArgs()),
+		FormatAuthCmdline(l.args()),
 	)
-}
-
-func SetAuthLogHooksForTest(logger *log.Logger, now func() time.Time, args func() []string) func() {
-	prevLogger := authResponseLogger
-	prevNow := authResponseLogNow
-	prevArgs := authResponseLogArgs
-	prevOnce := authResponseLoggerOnce
-
-	authResponseLogger = logger
-	authResponseLoggerOnce = &sync.Once{}
-
-	if now != nil {
-		authResponseLogNow = now
-	}
-	if args != nil {
-		authResponseLogArgs = args
-	}
-
-	return func() {
-		authResponseLogger = prevLogger
-		authResponseLogNow = prevNow
-		authResponseLogArgs = prevArgs
-		authResponseLoggerOnce = prevOnce
-	}
 }
 
 func cleanupOldLogs(dir string, now time.Time) {

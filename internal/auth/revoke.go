@@ -38,7 +38,7 @@ func RevokeToken(httpClient *http.Client, appId, appSecret string, brand core.La
 		return errs.NewNetworkError(errs.SubtypeNetworkTransport, "token revoke transport error: %v", err).WithCause(err)
 	}
 	defer resp.Body.Close()
-	logHTTPResponse(resp)
+	logHTTPResponse(newAuthLogger(), resp)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

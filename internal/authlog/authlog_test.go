@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package keychain
+package authlog
 
 import (
 	"path/filepath"
@@ -16,7 +16,8 @@ func TestAuthLogDir_UsesValidatedLogDirEnv(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_LOG_DIR", filepath.Join(base, "logs", "..", "auth"))
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", "")
 
-	got := authLogDir()
+	logger := New(Options{RuntimeDir: func() string { return t.TempDir() }})
+	got := logger.logDir()
 	want := filepath.Join(base, "auth")
 	if got != want {
 		t.Fatalf("authLogDir() = %q, want %q", got, want)
@@ -30,7 +31,8 @@ func TestAuthLogDir_InvalidLogDirFallsBackToConfigDir(t *testing.T) {
 	configDir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", configDir)
 
-	got := authLogDir()
+	logger := New(Options{RuntimeDir: func() string { return configDir }})
+	got := logger.logDir()
 	want := filepath.Join(configDir, "logs")
 	if got != want {
 		t.Fatalf("authLogDir() = %q, want %q", got, want)
