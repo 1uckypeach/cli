@@ -98,8 +98,11 @@ func TestProviderConformance(t *testing.T) {
 	agenttest.RunConformance(t, "base", "assistant")
 	p := Provider()
 	wantScopes := []string{"base:agent:execute"}
-	if !reflect.DeepEqual(p.RequiredScopes, wantScopes) {
-		t.Fatalf("RequiredScopes=%v", p.RequiredScopes)
+	if !reflect.DeepEqual(p.ScopesForIdentity(iagents.IdentityUser), wantScopes) {
+		t.Fatalf("user scopes=%v", p.ScopesForIdentity(iagents.IdentityUser))
+	}
+	if got := p.ScopesForIdentity(iagents.IdentityBot); got != nil {
+		t.Fatalf("bot scopes should be nil (user-only provider), got %v", got)
 	}
 	if len(p.Catalog) != 1 || p.Catalog[0].ID != "assistant" {
 		t.Fatalf("catalog=%+v", p.Catalog)

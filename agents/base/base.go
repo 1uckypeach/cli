@@ -108,12 +108,11 @@ var assistantSpec = iagents.AgentSpec{
 // Provider returns the single offline-discoverable Base assistant.
 func Provider() iagents.Provider {
 	return iagents.Provider{
-		Scheme:         "base",
-		Label:          "Base Assistant",
-		AgentIDSource:  "Use the fixed agent reference base:assistant",
-		RequiredScopes: []string{baseAgentExecuteScope},
-		Identities:     []iagents.IdentitySpec{{Type: iagents.IdentityUser}},
-		Catalog:        []iagents.AgentSpec{assistantSpec},
+		Scheme:        "base",
+		Label:         "Base Assistant",
+		AgentIDSource: "Use the fixed agent reference base:assistant",
+		Identities:    []iagents.IdentitySpec{{Type: iagents.IdentityUser, Scopes: []string{baseAgentExecuteScope}}},
+		Catalog:       []iagents.AgentSpec{assistantSpec},
 	}
 }
 
