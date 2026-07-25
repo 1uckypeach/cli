@@ -18,6 +18,7 @@ import (
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/auth"
+	"github.com/larksuite/cli/internal/authlog"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/keychain"
@@ -47,6 +48,12 @@ func NewDefault(streams *IOStreams, inv InvocationContext) *Factory {
 	// workspace-scoped. Default is WorkspaceLocal — existing behavior unchanged.
 	ws := core.DetectWorkspaceFromEnv(os.Getenv)
 	core.SetCurrentWorkspace(ws)
+
+	// Auth diagnostics: install the one logger the whole process shares, now
+	// that the workspace is known. authlog cannot resolve the workspace-aware
+	// directory itself (core imports keychain, which imports authlog), so this
+	// is the only place that can supply it.
+	authlog.SetShared(authlog.New(authlog.Options{RuntimeDir: core.GetRuntimeDir}))
 
 	// Phase 0: FileIO provider (no dependency)
 	f.FileIOProvider = fileio.GetProvider()

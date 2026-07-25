@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/larksuite/cli/internal/authlog"
-	"github.com/larksuite/cli/internal/core"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 )
 
@@ -15,8 +14,11 @@ type authLogger interface {
 	LogResponse(path string, status int, logID string)
 }
 
+// newAuthLogger returns the process-wide authentication logger. It is shared on
+// purpose: one file handle and one log-prune per process, and keychain errors
+// land in the same file as the responses they explain.
 func newAuthLogger() *authlog.Logger {
-	return authlog.New(authlog.Options{RuntimeDir: core.GetRuntimeDir})
+	return authlog.Shared()
 }
 
 // logHTTPResponse logs the HTTP response details for an authentication request.

@@ -53,6 +53,45 @@ func New(options Options) *Logger {
 	}
 }
 
+// shared holds the process-wide logger. A Logger caches its file handle and
+// prunes week-old logs on first use, so constructing one per call would leak a
+// descriptor and re-run the prune for every line written.
+//
+// SetShared is the single writer and runs once while the command factory is
+// built, which is also the only place that knows the workspace-aware runtime
+// directory. This package cannot resolve that directory itself: internal/core
+// imports internal/keychain, which imports this package, so importing core here
+// would close an import cycle. Untangling that belongs to the internal/core
+// split, after which this indirection can go away.
+var (
+	sharedMu  sync.Mutex
+	sharedLog *Logger
+)
+
+// SetShared installs the process-wide authentication logger.
+func SetShared(logger *Logger) {
+	if logger == nil {
+		return
+	}
+
+	sharedMu.Lock()
+	defer sharedMu.Unlock()
+	sharedLog = logger
+}
+
+// Shared returns the process-wide authentication logger. When the command
+// factory has not installed one — library callers, tests — it falls back to a
+// logger rooted at the pre-workspace runtime directory, matching the behaviour
+// of call paths that ran before workspace detection.
+func Shared() *Logger {
+	sharedMu.Lock()
+	defer sharedMu.Unlock()
+	if sharedLog == nil {
+		sharedLog = New(Options{})
+	}
+	return sharedLog
+}
+
 func defaultRuntimeDir() string {
 	if dir := os.Getenv("LARKSUITE_CLI_CONFIG_DIR"); dir != "" {
 		return dir

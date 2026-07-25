@@ -47,7 +47,7 @@ func wrapError(op string, err error) error {
 
 	func() {
 		defer func() { recover() }()
-		authlog.New(authlog.Options{}).LogError("keychain", op, fmt.Errorf("keychain %s error: %w", op, err))
+		authlog.Shared().LogError("keychain", op, fmt.Errorf("keychain %s error: %w", op, err))
 	}()
 
 	return errs.NewAPIError(errs.SubtypeUnknown, "%s", msg).
