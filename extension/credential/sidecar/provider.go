@@ -14,7 +14,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/larksuite/cli/envnames"
 	"github.com/larksuite/cli/extension/credential"
@@ -59,7 +58,7 @@ func (p *Provider) ResolveAccount(ctx context.Context) (*credential.Account, err
 		}
 	}
 
-	brand := parseBrand(os.Getenv(envnames.CliBrand))
+	brand := credential.ParseBrand(os.Getenv(envnames.CliBrand))
 
 	acct := &credential.Account{
 		AppID:     appID,
@@ -122,13 +121,6 @@ func (p *Provider) ResolveToken(ctx context.Context, req credential.TokenSpec) (
 		Scopes: "", // empty → scope pre-check is skipped
 		Source: "sidecar",
 	}, nil
-}
-
-func parseBrand(value string) credential.Brand {
-	if strings.ToLower(strings.TrimSpace(value)) == "lark" {
-		return credential.BrandLark
-	}
-	return credential.BrandFeishu
 }
 
 func init() {

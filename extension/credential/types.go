@@ -3,7 +3,10 @@
 
 package credential
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // Brand represents the Lark platform brand.
 type Brand string
@@ -12,6 +15,17 @@ const (
 	BrandLark   Brand = "lark"
 	BrandFeishu Brand = "feishu"
 )
+
+// ParseBrand maps a brand string to a Brand, defaulting to BrandFeishu.
+// It lives next to the Brand constants so every credential source resolves the
+// brand the same way; duplicating the rule per provider would let one copy
+// drift when the brand set changes.
+func ParseBrand(value string) Brand {
+	if strings.ToLower(strings.TrimSpace(value)) == string(BrandLark) {
+		return BrandLark
+	}
+	return BrandFeishu
+}
 
 // NoAppSecret marks that a credential source does not provide a real app secret.
 // Token-only sources should return this value instead of inventing placeholder text.
