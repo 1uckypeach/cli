@@ -44,6 +44,13 @@ type Rule struct {
 	Denied     []string
 	// ExceptFrom exempts import paths matched exactly.
 	ExceptFrom []string
+	// AllowedRepoDeps inverts the check. When set, every dependency inside this
+	// module that is not listed here (matched exactly) is a violation and Denied
+	// is unused. Dependencies outside the module - standard library and
+	// third-party packages - are never considered. Prefer this over Denied
+	// whenever the rule name promises a surface rather than a blocklist, so the
+	// guarantee cannot drift as the repository grows new top-level trees.
+	AllowedRepoDeps []string
 }
 
 // examplesPrefix is the plugin-SDK example tree. Each subdirectory is a
@@ -74,15 +81,19 @@ var rules = []Rule{
 		},
 	},
 	{
-		// Demos may consume the assembled CLI (cmd) and the public SDK
-		// (extension/platform); reaching past those into internals or
-		// business commands would teach plugin authors the wrong entry point.
+		// Demos exist to show the wrapper-main pattern, so the assembled CLI and
+		// the public plugin SDK are the only repository packages they may reach
+		// for. This is an allowlist rather than a few denied prefixes because
+		// extension-zero-internal exempts these packages from the transitive
+		// check: pinning the direct surface is the only thing that keeps the
+		// inherited chain bounded, and a blocklist would silently permit every
+		// tree nobody thought to deny (events, errs, cmd subpackages).
 		Name:       "examples-surface-only",
 		Mode:       Direct,
 		FromPrefix: examplesPrefix,
-		Denied: []string{
-			modulePath + "/internal",
-			modulePath + "/shortcuts",
+		AllowedRepoDeps: []string{
+			modulePath + "/cmd",
+			modulePath + "/extension/platform",
 		},
 	},
 	{
@@ -451,9 +462,9 @@ func TestLayeringRuleContracts(t *testing.T) {
 			Name:       "examples-surface-only",
 			Mode:       Direct,
 			FromPrefix: examplesPrefix,
-			Denied: []string{
-				modulePath + "/internal",
-				modulePath + "/shortcuts",
+			AllowedRepoDeps: []string{
+				modulePath + "/cmd",
+				modulePath + "/extension/platform",
 			},
 		},
 		{
@@ -550,14 +561,17 @@ func TestLayeringRuleContracts(t *testing.T) {
 			wantDenied: modulePath + "/internal/core",
 		},
 		{
-			// cmd is the demo's whole point and stays legal; reaching past it
-			// into internals does not.
+			// cmd and the plugin SDK are the demo's whole point and stay legal.
+			// Standard library and third-party imports are outside the rule,
+			// including a same-organisation module that is not this one.
 			name:     "examples-may-wrap-cmd-but-not-reach-internals",
 			ruleName: "examples-surface-only",
 			packages: []listedPackage{
 				{
 					ImportPath: examplesPrefix + "/audit-observer",
 					Imports: []string{
+						"context",
+						"github.com/larksuite/oapi-sdk-go/v3",
 						modulePath + "/cmd",
 						modulePath + "/extension/platform",
 						modulePath + "/internal/keychain",
@@ -566,6 +580,57 @@ func TestLayeringRuleContracts(t *testing.T) {
 			},
 			wantFrom:   examplesPrefix + "/audit-observer",
 			wantDenied: modulePath + "/internal/keychain",
+		},
+		{
+			// The allowlist covers trees nobody thought to deny; a blocklist of
+			// internal and shortcuts would have let this through.
+			name:     "examples-reject-other-repository-trees",
+			ruleName: "examples-surface-only",
+			packages: []listedPackage{
+				{
+					ImportPath: examplesPrefix + "/audit-observer",
+					Imports:    []string{modulePath + "/cmd", modulePath + "/events"},
+				},
+			},
+			wantFrom:   examplesPrefix + "/audit-observer",
+			wantDenied: modulePath + "/events",
+		},
+		{
+			// Only the assembly root is public surface, not its subpackages.
+			name:     "examples-reject-cmd-subpackages",
+			ruleName: "examples-surface-only",
+			packages: []listedPackage{
+				{
+					ImportPath: examplesPrefix + "/audit-observer",
+					Imports:    []string{modulePath + "/cmd", modulePath + "/cmd/api"},
+				},
+			},
+			wantFrom:   examplesPrefix + "/audit-observer",
+			wantDenied: modulePath + "/cmd/api",
+		},
+		{
+			name:     "examples-reject-other-extension-subtrees",
+			ruleName: "examples-surface-only",
+			packages: []listedPackage{
+				{
+					ImportPath: examplesPrefix + "/audit-observer",
+					Imports:    []string{modulePath + "/extension/fileio"},
+				},
+			},
+			wantFrom:   examplesPrefix + "/audit-observer",
+			wantDenied: modulePath + "/extension/fileio",
+		},
+		{
+			name:     "examples-reject-the-module-root",
+			ruleName: "examples-surface-only",
+			packages: []listedPackage{
+				{
+					ImportPath: examplesPrefix + "/audit-observer",
+					Imports:    []string{modulePath},
+				},
+			},
+			wantFrom:   examplesPrefix + "/audit-observer",
+			wantDenied: modulePath,
 		},
 		{
 			name:     "events-transitive-denial",
@@ -1482,7 +1547,7 @@ func evaluateLayeringRule(packages []listedPackage, rule Rule) []layeringViolati
 			dependencies = pkg.Deps
 		}
 		for _, dependency := range dependencies {
-			if !matchesAnyPackagePrefix(rule.Denied, dependency) {
+			if !ruleRejectsDependency(rule, dependency) {
 				continue
 			}
 			violations = append(violations, layeringViolation{
@@ -1501,6 +1566,24 @@ func evaluateLayeringRule(packages []listedPackage, rule Rule) []layeringViolati
 		return violations[i].Denied < violations[j].Denied
 	})
 	return violations
+}
+
+// ruleRejectsDependency reports whether dependency breaks rule, reading the
+// allowlist when the rule declares one and the denied prefixes otherwise.
+func ruleRejectsDependency(rule Rule, dependency string) bool {
+	if len(rule.AllowedRepoDeps) == 0 {
+		return matchesAnyPackagePrefix(rule.Denied, dependency)
+	}
+	if !isRepoPackage(dependency) {
+		return false
+	}
+	return !slices.Contains(rule.AllowedRepoDeps, dependency)
+}
+
+// isRepoPackage reports whether importPath belongs to this module rather than
+// the standard library or a third-party dependency.
+func isRepoPackage(importPath string) bool {
+	return importPath == modulePath || matchesPackagePrefix(modulePath+"/", importPath)
 }
 
 func matchesPackagePrefix(prefix, importPath string) bool {
