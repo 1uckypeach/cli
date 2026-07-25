@@ -5,7 +5,6 @@ package convertlib
 
 import (
 	"encoding/json"
-	"fmt"
 	"math"
 	"net/url"
 	"reflect"
@@ -13,13 +12,9 @@ import (
 	"strings"
 
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/imcontent"
 	"github.com/larksuite/cli/shortcuts/common"
 )
-
-// ContentConverter defines the interface for converting a message type's raw content to human-readable text.
-type ContentConverter interface {
-	Convert(ctx *ConvertContext) string
-}
 
 // ConvertContext holds all context needed for content conversion.
 type ConvertContext struct {
@@ -45,45 +40,12 @@ type ConvertContext struct {
 	MergeForwardSubItems map[string][]map[string]interface{}
 }
 
-// converters maps message types to their ContentConverter implementations.
-var converters map[string]ContentConverter
-
-func init() {
-	converters = map[string]ContentConverter{
-		"text":                 textConverter{},
-		"post":                 postConverter{},
-		"image":                imageConverter{},
-		"file":                 fileConverter{},
-		"audio":                audioMsgConverter{},
-		"video":                videoMsgConverter{},
-		"media":                videoMsgConverter{},
-		"sticker":              stickerConverter{},
-		"interactive":          interactiveConverter{},
-		"share_chat":           shareChatConverter{},
-		"share_user":           shareUserConverter{},
-		"location":             locationConverter{},
-		"merge_forward":        mergeForwardConverter{},
-		"folder":               folderConverter{},
-		"share_calendar_event": calendarEventConverter{},
-		"calendar":             calendarInviteConverter{},
-		"general_calendar":     generalCalendarConverter{},
-		"video_chat":           videoChatConverter{},
-		"system":               systemConverter{},
-		"todo":                 todoConverter{},
-		"vote":                 voteConverter{},
-		"hongbao":              hongbaoConverter{},
-	}
-}
-
 // ConvertBodyContent converts body.content (a raw JSON string) to human-readable text.
 func ConvertBodyContent(msgType string, ctx *ConvertContext) string {
-	if ctx.RawContent == "" {
-		return ""
+	if msgType == "merge_forward" {
+		return (mergeForwardConverter{}).Convert(ctx)
 	}
-	if c, ok := converters[msgType]; ok {
-		return c.Convert(ctx)
-	}
-	return fmt.Sprintf("[%s]", msgType)
+	return imcontent.ConvertBodyContent(msgType, pureConvertContext(ctx))
 }
 
 // FormatEventMessage converts an event-pushed message to a human-readable map.

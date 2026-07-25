@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package convertlib
+package imcontent
 
 import (
 	"encoding/json"
@@ -39,7 +39,7 @@ func buildMentionAtMap(mentions []interface{}) map[string]string {
 		item, _ := raw.(map[string]interface{})
 		key, _ := item["key"].(string)
 		name, _ := item["name"].(string)
-		openID := extractMentionOpenId(item["id"])
+		openID := extractMentionOpenID(item["id"])
 		if key == "" {
 			continue
 		}

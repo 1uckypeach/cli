@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package convertlib
+package imcontent
 
 import (
 	"encoding/json"
@@ -1639,7 +1639,7 @@ func (c *cardConverter) convertAt(prop cardObj) string {
 						if name, _ := mention["name"].(string); name != "" {
 							userName = name
 						}
-						if id := extractMentionOpenId(mention["id"]); id != "" {
+						if id := extractMentionOpenID(mention["id"]); id != "" {
 							actualUserID = id
 							fromMentions = true
 						}

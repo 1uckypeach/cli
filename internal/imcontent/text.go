@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package convertlib
+package imcontent
 
 import (
 	"fmt"
@@ -95,6 +95,11 @@ func unwrapPostLocale(parsed map[string]interface{}) map[string]interface{} {
 		}
 	}
 	return nil
+}
+
+// UnwrapPostLocale returns the post body for the first supported locale shape.
+func UnwrapPostLocale(parsed map[string]interface{}) map[string]interface{} {
+	return unwrapPostLocale(parsed)
 }
 
 // renderPostElem renders a single post (rich-text) element to its inline text

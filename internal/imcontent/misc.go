@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package convertlib
+package imcontent
 
 import (
 	"fmt"
@@ -133,8 +133,8 @@ func formatCalendarContent(parsed map[string]interface{}, tag, extraAttrs string
 		inner = append(inner, summary)
 	}
 
-	start := formatTimestamp(startTime)
-	end := formatTimestamp(endTime)
+	start := FormatTimestamp(startTime)
+	end := FormatTimestamp(endTime)
 	if start != "" && end != "" {
 		inner = append(inner, start+" ~ "+end)
 	} else if start != "" {
@@ -213,13 +213,13 @@ func (todoConverter) Convert(ctx *ConvertContext) string {
 			inner = append(inner, title)
 		}
 		if blocks, ok := summary["content"].([]interface{}); ok {
-			if text := extractPostBlocksText(blocks); text != "" {
+			if text := ExtractPostBlocksText(blocks); text != "" {
 				inner = append(inner, text)
 			}
 		}
 	}
 	if dueTime, _ := parsed["due_time"].(string); dueTime != "" {
-		if formatted := formatTimestamp(dueTime); formatted != "" {
+		if formatted := FormatTimestamp(dueTime); formatted != "" {
 			inner = append(inner, "Due: "+formatted)
 		}
 	}

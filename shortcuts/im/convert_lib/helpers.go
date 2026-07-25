@@ -4,51 +4,23 @@
 package convertlib
 
 import (
-	"encoding/json"
-	"fmt"
-	"strconv"
-	"strings"
-	"time"
-
+	"github.com/larksuite/cli/internal/imcontent"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
 // ParseJSONObject parses a raw JSON string into a map.
 func ParseJSONObject(raw string) (map[string]interface{}, error) {
-	var v map[string]interface{}
-	if err := json.Unmarshal([]byte(raw), &v); err != nil {
-		return nil, err
-	}
-	return v, nil
-}
-
-func invalidJSONPlaceholder(kind string) string {
-	if kind == "" {
-		return "[Invalid JSON content]"
-	}
-	return fmt.Sprintf("[Invalid %s JSON]", kind)
+	return imcontent.ParseJSONObject(raw)
 }
 
 // BuildMentionKeyMap builds a key→name lookup from the message "mentions" array.
 func BuildMentionKeyMap(mentions []interface{}) map[string]string {
-	m := map[string]string{}
-	for _, raw := range mentions {
-		item, _ := raw.(map[string]interface{})
-		key, _ := item["key"].(string)
-		name, _ := item["name"].(string)
-		if key != "" && name != "" {
-			m[key] = name
-		}
-	}
-	return m
+	return imcontent.BuildMentionKeyMap(mentions)
 }
 
 // ResolveMentionKeys replaces mention keys in text with @name format.
 func ResolveMentionKeys(text string, mentionMap map[string]string) string {
-	for key, name := range mentionMap {
-		text = strings.ReplaceAll(text, key, "@"+name)
-	}
-	return text
+	return imcontent.ResolveMentionKeys(text, mentionMap)
 }
 
 // formatTimestamp converts a Unix timestamp string (seconds or milliseconds) to
@@ -56,17 +28,7 @@ func ResolveMentionKeys(text string, mentionMap map[string]string) string {
 // seconds; larger values are treated as milliseconds.
 // Returns empty string if the input is empty or unparseable.
 func formatTimestamp(ts string) string {
-	if ts == "" {
-		return ""
-	}
-	n, err := strconv.ParseInt(ts, 10, 64)
-	if err != nil || n == 0 {
-		return ""
-	}
-	if len(strings.TrimLeft(ts, "+-")) >= 13 { // milliseconds timestamps are typically 13+ digits
-		n /= 1000
-	}
-	return time.Unix(n, 0).Local().Format("2006-01-02 15:04:05")
+	return imcontent.FormatTimestamp(ts)
 }
 
 // pickSenderName returns the server-provided display name from a message sender:
@@ -132,37 +94,7 @@ func AttachSenderNames(messages []map[string]interface{}, nameMap map[string]str
 	}
 }
 
-// xmlEscapeBody escapes XML special characters for use in element body content.
-var xmlBodyEscaper = strings.NewReplacer(
-	"&", "&amp;",
-	"<", "&lt;",
-	">", "&gt;",
-)
-
-func xmlEscapeBody(s string) string {
-	return xmlBodyEscaper.Replace(s)
-}
-
-// escapeMDLinkText escapes square brackets in Markdown link text to prevent link injection.
-func escapeMDLinkText(s string) string {
-	s = strings.ReplaceAll(s, `[`, `\[`)
-	s = strings.ReplaceAll(s, `]`, `\]`)
-	return s
-}
-
 // extractPostBlocksText extracts plain text from post-style content blocks ([][]element).
 func extractPostBlocksText(blocks []interface{}) string {
-	var lines []string
-	for _, para := range blocks {
-		elems, _ := para.([]interface{})
-		var sb strings.Builder
-		for _, el := range elems {
-			elem, _ := el.(map[string]interface{})
-			sb.WriteString(renderPostElem(elem))
-		}
-		if s := sb.String(); s != "" {
-			lines = append(lines, s)
-		}
-	}
-	return strings.Join(lines, "\n")
+	return imcontent.ExtractPostBlocksText(blocks)
 }

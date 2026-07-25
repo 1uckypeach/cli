@@ -464,26 +464,26 @@ func TestExtractMentionOpenIdAndTruncateContent(t *testing.T) {
 }
 
 func TestMediaConverters(t *testing.T) {
-	if got := (imageConverter{}).Convert(&ConvertContext{RawContent: `{"image_key":"img_1"}`}); got != "[Image: img_1]" {
-		t.Fatalf("imageConverter.Convert() = %q", got)
+	if got := convertPureForTest("image", `{"image_key":"img_1"}`); got != "[Image: img_1]" {
+		t.Fatalf("ConvertBodyContent(image) = %q", got)
 	}
-	if got := (imageConverter{}).Convert(&ConvertContext{RawContent: `{invalid`}); got != "[Invalid image JSON]" {
-		t.Fatalf("imageConverter.Convert(invalid) = %q", got)
+	if got := convertPureForTest("image", `{invalid`); got != "[Invalid image JSON]" {
+		t.Fatalf("ConvertBodyContent(image invalid) = %q", got)
 	}
-	if got := (fileConverter{}).Convert(&ConvertContext{RawContent: `{"file_key":"file_1","file_name":"demo.pdf"}`}); got != `<file key="file_1" name="demo.pdf"/>` {
-		t.Fatalf("fileConverter.Convert() = %q", got)
+	if got := convertPureForTest("file", `{"file_key":"file_1","file_name":"demo.pdf"}`); got != `<file key="file_1" name="demo.pdf"/>` {
+		t.Fatalf("ConvertBodyContent(file) = %q", got)
 	}
-	if got := (fileConverter{}).Convert(&ConvertContext{RawContent: `{"file_key":"file_\"1","file_name":"demo\\\".pdf"}`}); got != `<file key="file_\"1" name="demo\\\".pdf"/>` {
-		t.Fatalf("fileConverter.Convert(escaped) = %q", got)
+	if got := convertPureForTest("file", `{"file_key":"file_\"1","file_name":"demo\\\".pdf"}`); got != `<file key="file_\"1" name="demo\\\".pdf"/>` {
+		t.Fatalf("ConvertBodyContent(file escaped) = %q", got)
 	}
-	if got := (audioMsgConverter{}).Convert(&ConvertContext{RawContent: `{"duration":3500}`}); got != "[Voice: 4s]" {
-		t.Fatalf("audioMsgConverter.Convert() = %q", got)
+	if got := convertPureForTest("audio", `{"duration":3500}`); got != "[Voice: 4s]" {
+		t.Fatalf("ConvertBodyContent(audio) = %q", got)
 	}
-	if got := (videoMsgConverter{}).Convert(&ConvertContext{RawContent: `{"file_key":"file_2","file_name":"clip.mp4","duration":5000,"image_key":"img_cover"}`}); got != `<video key="file_2" name="clip.mp4" duration="5s" cover_image_key="img_cover"/>` {
-		t.Fatalf("videoMsgConverter.Convert() = %q", got)
+	if got := convertPureForTest("video", `{"file_key":"file_2","file_name":"clip.mp4","duration":5000,"image_key":"img_cover"}`); got != `<video key="file_2" name="clip.mp4" duration="5s" cover_image_key="img_cover"/>` {
+		t.Fatalf("ConvertBodyContent(video) = %q", got)
 	}
-	if got := (videoMsgConverter{}).Convert(&ConvertContext{RawContent: `{"file_key":"file_\"2","file_name":"clip\\\".mp4","duration":5000,"image_key":"img_\"cover"}`}); got != `<video key="file_\"2" name="clip\\\".mp4" duration="5s" cover_image_key="img_\"cover"/>` {
-		t.Fatalf("videoMsgConverter.Convert(escaped) = %q", got)
+	if got := convertPureForTest("video", `{"file_key":"file_\"2","file_name":"clip\\\".mp4","duration":5000,"image_key":"img_\"cover"}`); got != `<video key="file_\"2" name="clip\\\".mp4" duration="5s" cover_image_key="img_\"cover"/>` {
+		t.Fatalf("ConvertBodyContent(video escaped) = %q", got)
 	}
 }
 
@@ -493,19 +493,19 @@ func TestMiscConverters(t *testing.T) {
 		got  string
 		want string
 	}{
-		{name: "sticker", got: (stickerConverter{}).Convert(nil), want: "[Sticker]"},
-		{name: "video chat", got: (videoChatConverter{}).Convert(nil), want: "[Video call]"},
-		{name: "share chat", got: (shareChatConverter{}).Convert(&ConvertContext{RawContent: `{"chat_id":"oc_1"}`}), want: "[Chat card: oc_1]"},
-		{name: "share user", got: (shareUserConverter{}).Convert(&ConvertContext{RawContent: `{"user_id":"ou_1"}`}), want: "[User card: ou_1]"},
-		{name: "location", got: (locationConverter{}).Convert(&ConvertContext{RawContent: `{"name":"Shanghai"}`}), want: "[Location: Shanghai]"},
-		{name: "folder", got: (folderConverter{}).Convert(&ConvertContext{RawContent: `{"file_key":"fld_1","file_name":"Docs"}`}), want: `<folder key="fld_1" name="Docs"/>`},
-		{name: "calendar share", got: (calendarEventConverter{}).Convert(&ConvertContext{RawContent: `{"summary":"Review","start_time":"1710500000","end_time":"1710503600","open_calendar_id":"cal_1","open_event_id":"evt_1"}`}), want: "<calendar_share open_calendar_id=\"cal_1\" open_event_id=\"evt_1\">\nReview\n" + formatTimestamp("1710500000") + " ~ " + formatTimestamp("1710503600") + "\n</calendar_share>"},
-		{name: "calendar invite", got: (calendarInviteConverter{}).Convert(&ConvertContext{RawContent: `{"summary":"Invite","start_time":"1710500000"}`}), want: "<calendar_invite>\nInvite\n" + formatTimestamp("1710500000") + "\n</calendar_invite>"},
-		{name: "general calendar", got: (generalCalendarConverter{}).Convert(&ConvertContext{RawContent: `{"summary":"All Hands"}`}), want: "<calendar>\nAll Hands\n</calendar>"},
-		{name: "vote", got: (voteConverter{}).Convert(&ConvertContext{RawContent: `{"topic":"Lunch","options":["A","B"],"status":1}`}), want: "<vote>\nLunch\n• A\n• B\n(Closed)\n</vote>"},
-		{name: "hongbao", got: (hongbaoConverter{}).Convert(&ConvertContext{RawContent: `{"text":"恭喜发财"}`}), want: `<hongbao text="恭喜发财"/>`},
-		{name: "system", got: (systemConverter{}).Convert(&ConvertContext{RawContent: `{"template":"{from_user} invited {to_chatters} to {name}","from_user":["Alice"],"to_chatters":["Bob","Carol"],"name":"Room A"}`}), want: "Alice invited Bob, Carol to Room A"},
-		{name: "invalid user card", got: (shareUserConverter{}).Convert(&ConvertContext{RawContent: `{invalid`}), want: "[Invalid user card JSON]"},
+		{name: "sticker", got: convertPureForTest("sticker", `{}`), want: "[Sticker]"},
+		{name: "video chat", got: convertPureForTest("video_chat", `{}`), want: "[Video call]"},
+		{name: "share chat", got: convertPureForTest("share_chat", `{"chat_id":"oc_1"}`), want: "[Chat card: oc_1]"},
+		{name: "share user", got: convertPureForTest("share_user", `{"user_id":"ou_1"}`), want: "[User card: ou_1]"},
+		{name: "location", got: convertPureForTest("location", `{"name":"Shanghai"}`), want: "[Location: Shanghai]"},
+		{name: "folder", got: convertPureForTest("folder", `{"file_key":"fld_1","file_name":"Docs"}`), want: `<folder key="fld_1" name="Docs"/>`},
+		{name: "calendar share", got: convertPureForTest("share_calendar_event", `{"summary":"Review","start_time":"1710500000","end_time":"1710503600","open_calendar_id":"cal_1","open_event_id":"evt_1"}`), want: "<calendar_share open_calendar_id=\"cal_1\" open_event_id=\"evt_1\">\nReview\n" + formatTimestamp("1710500000") + " ~ " + formatTimestamp("1710503600") + "\n</calendar_share>"},
+		{name: "calendar invite", got: convertPureForTest("calendar", `{"summary":"Invite","start_time":"1710500000"}`), want: "<calendar_invite>\nInvite\n" + formatTimestamp("1710500000") + "\n</calendar_invite>"},
+		{name: "general calendar", got: convertPureForTest("general_calendar", `{"summary":"All Hands"}`), want: "<calendar>\nAll Hands\n</calendar>"},
+		{name: "vote", got: convertPureForTest("vote", `{"topic":"Lunch","options":["A","B"],"status":1}`), want: "<vote>\nLunch\n• A\n• B\n(Closed)\n</vote>"},
+		{name: "hongbao", got: convertPureForTest("hongbao", `{"text":"恭喜发财"}`), want: `<hongbao text="恭喜发财"/>`},
+		{name: "system", got: convertPureForTest("system", `{"template":"{from_user} invited {to_chatters} to {name}","from_user":["Alice"],"to_chatters":["Bob","Carol"],"name":"Room A"}`), want: "Alice invited Bob, Carol to Room A"},
+		{name: "invalid user card", got: convertPureForTest("share_user", `{invalid`), want: "[Invalid user card JSON]"},
 	}
 
 	for _, tt := range tests {
@@ -515,6 +515,10 @@ func TestMiscConverters(t *testing.T) {
 			}
 		})
 	}
+}
+
+func convertPureForTest(messageType, rawContent string) string {
+	return ConvertBodyContent(messageType, &ConvertContext{RawContent: rawContent})
 }
 
 // TestFormatMessageItemResourcesGate verifies the resources block is only
@@ -572,8 +576,8 @@ func TestAudioConverterFileKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := (audioMsgConverter{}).Convert(&ConvertContext{RawContent: tt.raw}); got != tt.want {
-				t.Fatalf("audioMsgConverter.Convert(%s) = %q, want %q", tt.name, got, tt.want)
+			if got := convertPureForTest("audio", tt.raw); got != tt.want {
+				t.Fatalf("ConvertBodyContent(audio %s) = %q, want %q", tt.name, got, tt.want)
 			}
 		})
 	}
@@ -582,18 +586,15 @@ func TestAudioConverterFileKey(t *testing.T) {
 // TestStickerUnchanged: DEC-001 default A keeps sticker rendering as [Sticker]
 // regardless of payload; sticker must never be enriched or downloaded.
 func TestStickerUnchanged(t *testing.T) {
-	if got := (stickerConverter{}).Convert(nil); got != "[Sticker]" {
-		t.Fatalf("stickerConverter.Convert(nil) = %q, want %q", got, "[Sticker]")
-	}
-	if got := (stickerConverter{}).Convert(&ConvertContext{RawContent: `{"file_key":"sticker_1"}`}); got != "[Sticker]" {
-		t.Fatalf("stickerConverter.Convert(with key) = %q, want %q", got, "[Sticker]")
+	if got := convertPureForTest("sticker", `{"file_key":"sticker_1"}`); got != "[Sticker]" {
+		t.Fatalf("ConvertBodyContent(sticker) = %q, want %q", got, "[Sticker]")
 	}
 }
 
 func TestTodoConverter(t *testing.T) {
-	got := (todoConverter{}).Convert(&ConvertContext{RawContent: `{"task_id":"task_1","summary":{"title":"Finish report","content":[[{"tag":"text","text":"prepare slides"}]]},"due_time":"1710500000"}`})
+	got := convertPureForTest("todo", `{"task_id":"task_1","summary":{"title":"Finish report","content":[[{"tag":"text","text":"prepare slides"}]]},"due_time":"1710500000"}`)
 	want := "<todo task_id=\"task_1\">\nFinish report\nprepare slides\nDue: " + formatTimestamp("1710500000") + "\n</todo>"
 	if got != want {
-		t.Fatalf("todoConverter.Convert() = %q, want %q", got, want)
+		t.Fatalf("ConvertBodyContent(todo) = %q, want %q", got, want)
 	}
 }

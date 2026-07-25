@@ -1,8 +1,4 @@
 # from	denied	owner	reason	added_at
-github.com/larksuite/cli/events	github.com/larksuite/cli/shortcuts/im/convert_lib	arch-migration	events root aggregates the existing im conversion dependency	2026-07-24
-github.com/larksuite/cli/events	github.com/larksuite/cli/shortcuts/common	arch-migration	events root aggregates the existing im conversion dependency	2026-07-24
-github.com/larksuite/cli/events/im	github.com/larksuite/cli/shortcuts/im/convert_lib	arch-migration	events->shortcuts inversion via convert_lib	2026-07-24
-github.com/larksuite/cli/events/im	github.com/larksuite/cli/shortcuts/common	arch-migration	events->shortcuts inversion via convert_lib	2026-07-24
 github.com/larksuite/cli/shortcuts/im	github.com/larksuite/cli/internal/auth	arch-migration	shortcut bypasses RuntimeContext gate	2026-07-24
 github.com/larksuite/cli/shortcuts/mail	github.com/larksuite/cli/internal/auth	arch-migration	shortcut bypasses RuntimeContext gate	2026-07-24
 github.com/larksuite/cli/shortcuts/minutes	github.com/larksuite/cli/internal/auth	arch-migration	shortcut bypasses RuntimeContext gate	2026-07-24
