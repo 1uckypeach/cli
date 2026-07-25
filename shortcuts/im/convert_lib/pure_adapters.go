@@ -16,12 +16,6 @@ func pureConvertContext(ctx *ConvertContext) *imcontent.ConvertContext {
 	}
 }
 
-// ConvertInteractiveEventContent preserves the former conversion library API
-// while the implementation lives in the lower-level content package.
-func ConvertInteractiveEventContent(rawContent string, mentions []interface{}) string {
-	return imcontent.ConvertInteractiveEventContent(rawContent, mentions)
-}
-
 func unwrapPostLocale(parsed map[string]interface{}) map[string]interface{} {
 	return imcontent.UnwrapPostLocale(parsed)
 }
