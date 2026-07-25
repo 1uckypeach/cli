@@ -29,9 +29,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/larksuite/cli/envnames"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
-	"github.com/larksuite/cli/internal/envvars"
 	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/internal/vfs"
 	"github.com/larksuite/cli/sidecar"
@@ -62,8 +62,8 @@ func defaultKeyFile() string {
 }
 
 func run(ctx context.Context, listen, keyFile, keysDir, logFile, profile string) error {
-	if v := os.Getenv(envvars.CliAuthProxy); v != "" {
-		return fmt.Errorf("%s is set in this environment (%s); unset it before starting the sidecar server", envvars.CliAuthProxy, v)
+	if v := os.Getenv(envnames.CliAuthProxy); v != "" {
+		return fmt.Errorf("%s is set in this environment (%s); unset it before starting the sidecar server", envnames.CliAuthProxy, v)
 	}
 	if listen == "" {
 		return fmt.Errorf("invalid --listen address: empty")
@@ -183,10 +183,10 @@ func run(ctx context.Context, listen, keyFile, keysDir, logFile, profile string)
 	fmt.Fprintf(os.Stderr, "Full key written to %s (mode 0600)\n", keyFile)
 	fmt.Fprintf(os.Stderr, "Client keys dir: %s\n", keysDir)
 	fmt.Fprintf(os.Stderr, "\nSet in sandbox:\n")
-	fmt.Fprintf(os.Stderr, "  export %s=%q\n", envvars.CliAuthProxy, proxyURL)
-	fmt.Fprintf(os.Stderr, "  export %s=\"<read from %s>\"\n", envvars.CliProxyKey, keyFile)
-	fmt.Fprintf(os.Stderr, "  export %s=%q\n", envvars.CliAppID, cfg.AppID)
-	fmt.Fprintf(os.Stderr, "  export %s=%q\n", envvars.CliBrand, string(cfg.Brand))
+	fmt.Fprintf(os.Stderr, "  export %s=%q\n", envnames.CliAuthProxy, proxyURL)
+	fmt.Fprintf(os.Stderr, "  export %s=\"<read from %s>\"\n", envnames.CliProxyKey, keyFile)
+	fmt.Fprintf(os.Stderr, "  export %s=%q\n", envnames.CliAppID, cfg.AppID)
+	fmt.Fprintf(os.Stderr, "  export %s=%q\n", envnames.CliBrand, string(cfg.Brand))
 
 	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("sidecar server exited unexpectedly: %v", err)

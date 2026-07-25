@@ -14,11 +14,11 @@ import (
 	"github.com/larksuite/cli/cmd/api"
 	"github.com/larksuite/cli/cmd/auth"
 	"github.com/larksuite/cli/cmd/service"
+	"github.com/larksuite/cli/envnames"
 	"github.com/larksuite/cli/internal/apicatalog"
 	"github.com/larksuite/cli/internal/build"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
-	"github.com/larksuite/cli/internal/envvars"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/meta"
 	"github.com/larksuite/cli/internal/output"
@@ -157,11 +157,11 @@ func strictModeFixtureCatalog() apicatalog.Catalog {
 
 func newStrictModeDefaultFactory(t *testing.T, profile string, mode core.StrictMode) (*cmdutil.Factory, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
-	t.Setenv(envvars.CliAppID, "")
-	t.Setenv(envvars.CliAppSecret, "")
-	t.Setenv(envvars.CliUserAccessToken, "")
-	t.Setenv(envvars.CliTenantAccessToken, "")
-	t.Setenv(envvars.CliDefaultAs, "")
+	t.Setenv(envnames.CliAppID, "")
+	t.Setenv(envnames.CliAppSecret, "")
+	t.Setenv(envnames.CliUserAccessToken, "")
+	t.Setenv(envnames.CliTenantAccessToken, "")
+	t.Setenv(envnames.CliDefaultAs, "")
 
 	dir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)

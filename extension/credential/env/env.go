@@ -7,10 +7,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/larksuite/cli/envnames"
 	"github.com/larksuite/cli/extension/credential"
-	"github.com/larksuite/cli/internal/core"
-	"github.com/larksuite/cli/internal/envvars"
 )
 
 // Provider resolves credentials from environment variables.
@@ -19,33 +19,33 @@ type Provider struct{}
 func (p *Provider) Name() string { return "env" }
 
 func (p *Provider) ResolveAccount(ctx context.Context) (*credential.Account, error) {
-	appID := os.Getenv(envvars.CliAppID)
-	appSecret := os.Getenv(envvars.CliAppSecret)
-	hasUAT := os.Getenv(envvars.CliUserAccessToken) != ""
-	hasTAT := os.Getenv(envvars.CliTenantAccessToken) != ""
+	appID := os.Getenv(envnames.CliAppID)
+	appSecret := os.Getenv(envnames.CliAppSecret)
+	hasUAT := os.Getenv(envnames.CliUserAccessToken) != ""
+	hasTAT := os.Getenv(envnames.CliTenantAccessToken) != ""
 	if appID == "" && appSecret == "" {
 		switch {
 		case hasUAT:
-			return nil, &credential.BlockError{Provider: "env", Reason: envvars.CliUserAccessToken + " is set but " + envvars.CliAppID + " is missing"}
+			return nil, &credential.BlockError{Provider: "env", Reason: envnames.CliUserAccessToken + " is set but " + envnames.CliAppID + " is missing"}
 		case hasTAT:
-			return nil, &credential.BlockError{Provider: "env", Reason: envvars.CliTenantAccessToken + " is set but " + envvars.CliAppID + " is missing"}
+			return nil, &credential.BlockError{Provider: "env", Reason: envnames.CliTenantAccessToken + " is set but " + envnames.CliAppID + " is missing"}
 		default:
 			return nil, nil
 		}
 	}
 	if appID == "" {
-		return nil, &credential.BlockError{Provider: "env", Reason: envvars.CliAppSecret + " is set but " + envvars.CliAppID + " is missing"}
+		return nil, &credential.BlockError{Provider: "env", Reason: envnames.CliAppSecret + " is set but " + envnames.CliAppID + " is missing"}
 	}
 	if appSecret == "" && !hasUAT && !hasTAT {
 		return nil, &credential.BlockError{
 			Provider: "env",
-			Reason:   envvars.CliAppID + " is set but no app secret or access token is available",
+			Reason:   envnames.CliAppID + " is set but no app secret or access token is available",
 		}
 	}
-	brand := credential.Brand(core.ParseBrand(os.Getenv(envvars.CliBrand)))
+	brand := parseBrand(os.Getenv(envnames.CliBrand))
 	acct := &credential.Account{AppID: appID, AppSecret: appSecret, Brand: brand}
 
-	switch id := credential.Identity(os.Getenv(envvars.CliDefaultAs)); id {
+	switch id := credential.Identity(os.Getenv(envnames.CliDefaultAs)); id {
 	case "", credential.IdentityAuto:
 		acct.DefaultAs = id
 	case credential.IdentityUser, credential.IdentityBot:
@@ -53,12 +53,12 @@ func (p *Provider) ResolveAccount(ctx context.Context) (*credential.Account, err
 	default:
 		return nil, &credential.BlockError{
 			Provider: "env",
-			Reason:   fmt.Sprintf("invalid %s %q (want user, bot, or auto)", envvars.CliDefaultAs, id),
+			Reason:   fmt.Sprintf("invalid %s %q (want user, bot, or auto)", envnames.CliDefaultAs, id),
 		}
 	}
 
 	// Explicit strict mode policy takes priority
-	switch strictMode := os.Getenv(envvars.CliStrictMode); strictMode {
+	switch strictMode := os.Getenv(envnames.CliStrictMode); strictMode {
 	case "bot":
 		acct.SupportedIdentities = credential.SupportsBot
 	case "user":
@@ -76,7 +76,7 @@ func (p *Provider) ResolveAccount(ctx context.Context) (*credential.Account, err
 	default:
 		return nil, &credential.BlockError{
 			Provider: "env",
-			Reason:   fmt.Sprintf("invalid %s %q (want bot, user, or off)", envvars.CliStrictMode, strictMode),
+			Reason:   fmt.Sprintf("invalid %s %q (want bot, user, or off)", envnames.CliStrictMode, strictMode),
 		}
 	}
 
@@ -96,9 +96,9 @@ func (p *Provider) ResolveToken(ctx context.Context, req credential.TokenSpec) (
 	var envKey string
 	switch req.Type {
 	case credential.TokenTypeUAT:
-		envKey = envvars.CliUserAccessToken
+		envKey = envnames.CliUserAccessToken
 	case credential.TokenTypeTAT:
-		envKey = envvars.CliTenantAccessToken
+		envKey = envnames.CliTenantAccessToken
 	default:
 		return nil, nil
 	}
@@ -107,6 +107,13 @@ func (p *Provider) ResolveToken(ctx context.Context, req credential.TokenSpec) (
 		return nil, nil
 	}
 	return &credential.Token{Value: token, Source: "env:" + envKey}, nil
+}
+
+func parseBrand(value string) credential.Brand {
+	if strings.ToLower(strings.TrimSpace(value)) == "lark" {
+		return credential.BrandLark
+	}
+	return credential.BrandFeishu
 }
 
 func init() {

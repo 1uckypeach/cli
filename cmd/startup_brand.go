@@ -6,8 +6,8 @@ package cmd
 import (
 	"os"
 
+	"github.com/larksuite/cli/envnames"
 	"github.com/larksuite/cli/internal/core"
-	"github.com/larksuite/cli/internal/envvars"
 )
 
 // ResolveStartupBrand resolves the brand before the command tree is built, so
@@ -16,7 +16,7 @@ import (
 // environment, then the active profile's raw config entry — without touching
 // the keychain (no secrets are needed to know the brand).
 func ResolveStartupBrand(profile string) core.LarkBrand {
-	if raw := os.Getenv(envvars.CliBrand); raw != "" {
+	if raw := os.Getenv(envnames.CliBrand); raw != "" {
 		return core.ParseBrand(raw)
 	}
 	if cfg, err := core.LoadMultiAppConfig(); err == nil {

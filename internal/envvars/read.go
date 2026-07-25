@@ -10,12 +10,13 @@ import (
 )
 
 const (
+	agentNameEnv     = "LARKSUITE_CLI_AGENT_NAME"
 	agentNameMaxLen  = 128
 	agentTraceMaxLen = 1024
 )
 
 func AgentName() string {
-	return sanitizeSingleLine(os.Getenv(CliAgentName), agentNameMaxLen)
+	return sanitizeSingleLine(os.Getenv(agentNameEnv), agentNameMaxLen)
 }
 
 func AgentTrace() string {

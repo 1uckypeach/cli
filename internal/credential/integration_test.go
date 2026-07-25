@@ -7,11 +7,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/larksuite/cli/envnames"
 	extcred "github.com/larksuite/cli/extension/credential"
 	envprovider "github.com/larksuite/cli/extension/credential/env"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
-	"github.com/larksuite/cli/internal/envvars"
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/keychain"
 )
@@ -23,9 +23,9 @@ func (n *noopKC) Set(service, account, value string) error    { return nil }
 func (n *noopKC) Remove(service, account string) error        { return nil }
 
 func TestFullChain_EnvWins(t *testing.T) {
-	t.Setenv(envvars.CliAppID, "env_app")
-	t.Setenv(envvars.CliAppSecret, "env_secret")
-	t.Setenv(envvars.CliUserAccessToken, "env_uat")
+	t.Setenv(envnames.CliAppID, "env_app")
+	t.Setenv(envnames.CliAppSecret, "env_secret")
+	t.Setenv(envnames.CliUserAccessToken, "env_uat")
 
 	ep := &envprovider.Provider{}
 	cp := credential.NewCredentialProvider(
@@ -82,8 +82,8 @@ func (m *mockDefaultTokenProvider) ResolveToken(ctx context.Context, req credent
 }
 
 func TestFullChain_ConfigStrictMode(t *testing.T) {
-	t.Setenv(envvars.CliAppID, "")
-	t.Setenv(envvars.CliAppSecret, "")
+	t.Setenv(envnames.CliAppID, "")
+	t.Setenv(envnames.CliAppSecret, "")
 	dir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)
 
@@ -125,8 +125,8 @@ func TestFullChain_ConfigStrictMode(t *testing.T) {
 // consumers (mail signature, etc.) silently fall back to defaults — defeating
 // the whole point of persisting --lang.
 func TestFullChain_LangSurvivesProductionPath(t *testing.T) {
-	t.Setenv(envvars.CliAppID, "")
-	t.Setenv(envvars.CliAppSecret, "")
+	t.Setenv(envnames.CliAppID, "")
+	t.Setenv(envnames.CliAppSecret, "")
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
 	multi := &core.MultiAppConfig{

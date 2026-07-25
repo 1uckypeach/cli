@@ -17,10 +17,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/envnames"
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
-	"github.com/larksuite/cli/internal/envvars"
 	"github.com/larksuite/cli/sidecar"
 )
 
@@ -410,13 +410,13 @@ func TestProxyHandler_AcceptsAllowedAuthHeaders(t *testing.T) {
 }
 
 func TestRun_RejectsSelfProxy(t *testing.T) {
-	old, had := os.LookupEnv(envvars.CliAuthProxy)
-	os.Setenv(envvars.CliAuthProxy, "http://127.0.0.1:16384")
+	old, had := os.LookupEnv(envnames.CliAuthProxy)
+	os.Setenv(envnames.CliAuthProxy, "http://127.0.0.1:16384")
 	defer func() {
 		if had {
-			os.Setenv(envvars.CliAuthProxy, old)
+			os.Setenv(envnames.CliAuthProxy, old)
 		} else {
-			os.Unsetenv(envvars.CliAuthProxy)
+			os.Unsetenv(envnames.CliAuthProxy)
 		}
 	}()
 
@@ -424,8 +424,8 @@ func TestRun_RejectsSelfProxy(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when AUTH_PROXY is set")
 	}
-	if !strings.Contains(err.Error(), envvars.CliAuthProxy) {
-		t.Errorf("error should mention %s, got: %v", envvars.CliAuthProxy, err)
+	if !strings.Contains(err.Error(), envnames.CliAuthProxy) {
+		t.Errorf("error should mention %s, got: %v", envnames.CliAuthProxy, err)
 	}
 }
 

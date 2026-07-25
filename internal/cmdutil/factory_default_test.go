@@ -8,12 +8,12 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/larksuite/cli/envnames"
 	"github.com/larksuite/cli/errs"
 	_ "github.com/larksuite/cli/extension/credential/env"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
-	"github.com/larksuite/cli/internal/envvars"
 	"github.com/larksuite/cli/internal/vfs/localfileio"
 )
 
@@ -29,10 +29,10 @@ func (p *countingFileIOProvider) ResolveFileIO(context.Context) fileio.FileIO {
 }
 
 func TestNewDefault_InvocationProfileUsedByStrictModeAndConfig(t *testing.T) {
-	t.Setenv(envvars.CliAppID, "")
-	t.Setenv(envvars.CliAppSecret, "")
-	t.Setenv(envvars.CliUserAccessToken, "")
-	t.Setenv(envvars.CliTenantAccessToken, "")
+	t.Setenv(envnames.CliAppID, "")
+	t.Setenv(envnames.CliAppSecret, "")
+	t.Setenv(envnames.CliUserAccessToken, "")
+	t.Setenv(envnames.CliTenantAccessToken, "")
 
 	dir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)
@@ -77,10 +77,10 @@ func TestNewDefault_InvocationProfileUsedByStrictModeAndConfig(t *testing.T) {
 }
 
 func TestNewDefault_InvocationProfileMissingSticksAcrossEarlyStrictMode(t *testing.T) {
-	t.Setenv(envvars.CliAppID, "")
-	t.Setenv(envvars.CliAppSecret, "")
-	t.Setenv(envvars.CliUserAccessToken, "")
-	t.Setenv(envvars.CliTenantAccessToken, "")
+	t.Setenv(envnames.CliAppID, "")
+	t.Setenv(envnames.CliAppSecret, "")
+	t.Setenv(envnames.CliUserAccessToken, "")
+	t.Setenv(envnames.CliTenantAccessToken, "")
 
 	dir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)
@@ -118,11 +118,11 @@ func TestNewDefault_InvocationProfileMissingSticksAcrossEarlyStrictMode(t *testi
 }
 
 func TestNewDefault_ResolveAs_UsesDefaultAsFromEnvAccount(t *testing.T) {
-	t.Setenv(envvars.CliAppID, "env-app")
-	t.Setenv(envvars.CliAppSecret, "env-secret")
-	t.Setenv(envvars.CliDefaultAs, "user")
-	t.Setenv(envvars.CliUserAccessToken, "")
-	t.Setenv(envvars.CliTenantAccessToken, "")
+	t.Setenv(envnames.CliAppID, "env-app")
+	t.Setenv(envnames.CliAppSecret, "env-secret")
+	t.Setenv(envnames.CliDefaultAs, "user")
+	t.Setenv(envnames.CliUserAccessToken, "")
+	t.Setenv(envnames.CliTenantAccessToken, "")
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
 	f := NewDefault(nil, InvocationContext{})
@@ -138,11 +138,11 @@ func TestNewDefault_ResolveAs_UsesDefaultAsFromEnvAccount(t *testing.T) {
 }
 
 func TestNewDefault_ConfigReturnsCliConfigCopyOfCredentialAccount(t *testing.T) {
-	t.Setenv(envvars.CliAppID, "env-app")
-	t.Setenv(envvars.CliAppSecret, "env-secret")
-	t.Setenv(envvars.CliDefaultAs, "")
-	t.Setenv(envvars.CliUserAccessToken, "uat-token")
-	t.Setenv(envvars.CliTenantAccessToken, "")
+	t.Setenv(envnames.CliAppID, "env-app")
+	t.Setenv(envnames.CliAppSecret, "env-secret")
+	t.Setenv(envnames.CliDefaultAs, "")
+	t.Setenv(envnames.CliUserAccessToken, "uat-token")
+	t.Setenv(envnames.CliTenantAccessToken, "")
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
 	f := NewDefault(nil, InvocationContext{})
@@ -163,11 +163,11 @@ func TestNewDefault_ConfigReturnsCliConfigCopyOfCredentialAccount(t *testing.T) 
 }
 
 func TestNewDefault_ConfigUsesRuntimePlaceholderForTokenOnlyEnvAccount(t *testing.T) {
-	t.Setenv(envvars.CliAppID, "env-app")
-	t.Setenv(envvars.CliAppSecret, "")
-	t.Setenv(envvars.CliDefaultAs, "")
-	t.Setenv(envvars.CliUserAccessToken, "uat-token")
-	t.Setenv(envvars.CliTenantAccessToken, "")
+	t.Setenv(envnames.CliAppID, "env-app")
+	t.Setenv(envnames.CliAppSecret, "")
+	t.Setenv(envnames.CliDefaultAs, "")
+	t.Setenv(envnames.CliUserAccessToken, "uat-token")
+	t.Setenv(envnames.CliTenantAccessToken, "")
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
 	f := NewDefault(nil, InvocationContext{})

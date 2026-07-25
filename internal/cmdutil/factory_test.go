@@ -11,11 +11,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/envnames"
 	"github.com/larksuite/cli/errs"
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
-	"github.com/larksuite/cli/internal/envvars"
 	"github.com/larksuite/cli/internal/output"
 )
 
@@ -92,7 +92,7 @@ func TestResolveAs_DefaultAs_FromConfig(t *testing.T) {
 }
 
 func TestResolveAs_DefaultAs_EnvDoesNotBypassConfigSource(t *testing.T) {
-	t.Setenv(envvars.CliDefaultAs, "user")
+	t.Setenv(envnames.CliDefaultAs, "user")
 
 	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
 	cmd := newCmdWithAsFlag("auto", false)
