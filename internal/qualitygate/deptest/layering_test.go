@@ -44,11 +44,13 @@ type Rule struct {
 	Denied     []string
 	// ExceptFrom exempts import paths matched exactly.
 	ExceptFrom []string
-	// SkipFrom exempts any package whose import path contains one of these
-	// substrings (e.g. "/examples/" to skip demo code anywhere in the tree),
-	// deliberately looser than the prefix matching used for the other fields.
-	SkipFrom []string
 }
+
+// examplesPrefix is the plugin-SDK example tree. Each subdirectory is a
+// standalone main package demonstrating the sanctioned wrapper-main pattern:
+// register a plugin from init, then hand the process to cmd.Execute. The
+// customer forks built by tests/plugin_e2e/harness.go have the same shape.
+const examplesPrefix = modulePath + "/extension/platform/examples"
 
 var rules = []Rule{
 	{
@@ -56,7 +58,32 @@ var rules = []Rule{
 		Mode:       Transitive,
 		FromPrefix: modulePath + "/extension",
 		Denied:     []string{modulePath + "/internal"},
-		SkipFrom:   []string{"/examples/"},
+		// The wrapper-main demos import cmd deliberately — that fork is the
+		// thing they exist to show — so every internal package they reach is
+		// inherited through cmd rather than chosen by the demo. Exempting
+		// them by exact path (never by directory name) keeps two properties:
+		// a future examples/ subdirectory inherits no exemption, and
+		// examples-surface-only still stops a demo from reaching down on its
+		// own. Listing these edges in layering-edges.txt instead would also
+		// wedge the ratchet: they track cmd's transitive set, so any new
+		// internal package under cmd would demand a new row, which
+		// check-layering-ratchet.sh refuses by design.
+		ExceptFrom: []string{
+			examplesPrefix + "/audit-observer",
+			examplesPrefix + "/readonly-policy",
+		},
+	},
+	{
+		// Demos may consume the assembled CLI (cmd) and the public SDK
+		// (extension/platform); reaching past those into internals or
+		// business commands would teach plugin authors the wrong entry point.
+		Name:       "examples-surface-only",
+		Mode:       Direct,
+		FromPrefix: examplesPrefix,
+		Denied: []string{
+			modulePath + "/internal",
+			modulePath + "/shortcuts",
+		},
 	},
 	{
 		Name:       "events-no-shortcuts",
@@ -415,7 +442,19 @@ func TestLayeringRuleContracts(t *testing.T) {
 			Mode:       Transitive,
 			FromPrefix: modulePath + "/extension",
 			Denied:     []string{modulePath + "/internal"},
-			SkipFrom:   []string{"/examples/"},
+			ExceptFrom: []string{
+				examplesPrefix + "/audit-observer",
+				examplesPrefix + "/readonly-policy",
+			},
+		},
+		{
+			Name:       "examples-surface-only",
+			Mode:       Direct,
+			FromPrefix: examplesPrefix,
+			Denied: []string{
+				modulePath + "/internal",
+				modulePath + "/shortcuts",
+			},
 		},
 		{
 			Name:       "events-no-shortcuts",
@@ -481,7 +520,7 @@ func TestLayeringRuleContracts(t *testing.T) {
 		wantDenied string
 	}{
 		{
-			name:     "extension-transitive-denial-and-example-scope-out",
+			name:     "extension-transitive-denial-and-wrapper-main-exemption",
 			ruleName: "extension-zero-internal",
 			packages: []listedPackage{
 				{
@@ -489,12 +528,44 @@ func TestLayeringRuleContracts(t *testing.T) {
 					Deps:       []string{modulePath + "/internal/core"},
 				},
 				{
-					ImportPath: modulePath + "/extension/platform/examples/demo",
+					ImportPath: examplesPrefix + "/audit-observer",
 					Deps:       []string{modulePath + "/internal/core"},
 				},
 			},
 			wantFrom:   modulePath + "/extension/sdk",
 			wantDenied: modulePath + "/internal/core",
+		},
+		{
+			// The exemption is per exact path, so parking code in a new
+			// directory under examples/ buys no cover.
+			name:     "extension-still-covers-unlisted-example-directories",
+			ruleName: "extension-zero-internal",
+			packages: []listedPackage{
+				{
+					ImportPath: examplesPrefix + "/demo",
+					Deps:       []string{modulePath + "/internal/core"},
+				},
+			},
+			wantFrom:   examplesPrefix + "/demo",
+			wantDenied: modulePath + "/internal/core",
+		},
+		{
+			// cmd is the demo's whole point and stays legal; reaching past it
+			// into internals does not.
+			name:     "examples-may-wrap-cmd-but-not-reach-internals",
+			ruleName: "examples-surface-only",
+			packages: []listedPackage{
+				{
+					ImportPath: examplesPrefix + "/audit-observer",
+					Imports: []string{
+						modulePath + "/cmd",
+						modulePath + "/extension/platform",
+						modulePath + "/internal/keychain",
+					},
+				},
+			},
+			wantFrom:   examplesPrefix + "/audit-observer",
+			wantDenied: modulePath + "/internal/keychain",
 		},
 		{
 			name:     "events-transitive-denial",
@@ -1405,9 +1476,6 @@ func evaluateLayeringRule(packages []listedPackage, rule Rule) []layeringViolati
 		if slices.Contains(rule.ExceptFrom, pkg.ImportPath) {
 			continue
 		}
-		if containsAny(pkg.ImportPath, rule.SkipFrom) {
-			continue
-		}
 
 		dependencies := pkg.Imports
 		if rule.Mode == Transitive {
@@ -1448,15 +1516,6 @@ func matchesPackagePrefix(prefix, importPath string) bool {
 func matchesAnyPackagePrefix(prefixes []string, importPath string) bool {
 	for _, prefix := range prefixes {
 		if matchesPackagePrefix(prefix, importPath) {
-			return true
-		}
-	}
-	return false
-}
-
-func containsAny(value string, substrings []string) bool {
-	for _, substring := range substrings {
-		if strings.Contains(value, substring) {
 			return true
 		}
 	}
