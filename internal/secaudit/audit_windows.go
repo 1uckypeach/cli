@@ -3,7 +3,7 @@
 
 //go:build windows
 
-package binding
+package secaudit
 
 import (
 	"fmt"

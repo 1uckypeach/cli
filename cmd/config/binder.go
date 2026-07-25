@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/larksuite/cli/errs"
-	"github.com/larksuite/cli/internal/binding"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/openclawbind"
 	"github.com/larksuite/cli/internal/vfs"
 )
 
@@ -138,15 +138,15 @@ type openclawBinder struct {
 	path string
 
 	// Cached between ListCandidates and Build so we don't re-read / re-parse.
-	cfg     *binding.OpenClawRoot
-	rawApps []binding.CandidateApp
+	cfg     *openclawbind.OpenClawRoot
+	rawApps []openclawbind.CandidateApp
 }
 
 func (b *openclawBinder) Name() string       { return "openclaw" }
 func (b *openclawBinder) ConfigPath() string { return b.path }
 
 func (b *openclawBinder) ListCandidates() ([]Candidate, error) {
-	cfg, err := binding.ReadOpenClawConfig(b.path)
+	cfg, err := openclawbind.ReadOpenClawConfig(b.path)
 	if err != nil {
 		return nil, errs.NewConfigError(errs.SubtypeInvalidConfig, "cannot read %s: %v", b.path, err).
 			WithHint("verify OpenClaw is installed and configured").
@@ -157,7 +157,7 @@ func (b *openclawBinder) ListCandidates() ([]Candidate, error) {
 			WithHint("configure Feishu in OpenClaw first")
 	}
 
-	raw := binding.ListCandidateApps(cfg.Channels.Feishu)
+	raw := openclawbind.ListCandidateApps(cfg.Channels.Feishu)
 	b.cfg = cfg
 	b.rawApps = raw
 
@@ -173,7 +173,7 @@ func (b *openclawBinder) Build(appID string) (*core.AppConfig, error) {
 		return nil, errs.NewInternalError(errs.SubtypeSDKError, "internal: Build called before ListCandidates")
 	}
 
-	var selected *binding.CandidateApp
+	var selected *openclawbind.CandidateApp
 	for i := range b.rawApps {
 		if b.rawApps[i].AppID == appID {
 			selected = &b.rawApps[i]
@@ -188,7 +188,7 @@ func (b *openclawBinder) Build(appID string) (*core.AppConfig, error) {
 		return nil, errs.NewConfigError(errs.SubtypeInvalidClient, "appSecret is empty for app %s in %s", selected.AppID, b.path).
 			WithHint("configure channels.feishu.appSecret in openclaw.json")
 	}
-	secret, err := binding.ResolveSecretInput(selected.AppSecret, b.cfg.Secrets, os.Getenv)
+	secret, err := openclawbind.ResolveSecretInput(selected.AppSecret, b.cfg.Secrets, os.Getenv)
 	if err != nil {
 		return nil, errs.NewConfigError(errs.SubtypeInvalidClient, "failed to resolve appSecret for %s: %v", selected.AppID, err).
 			WithHint("check appSecret configuration in %s", b.path).
@@ -274,14 +274,14 @@ type larkChannelBinder struct {
 	path string
 
 	// Cached between ListCandidates and Build so we don't re-read the file.
-	cfg *binding.LarkChannelRoot
+	cfg *openclawbind.LarkChannelRoot
 }
 
 func (b *larkChannelBinder) Name() string       { return "lark-channel" }
 func (b *larkChannelBinder) ConfigPath() string { return b.path }
 
 func (b *larkChannelBinder) ListCandidates() ([]Candidate, error) {
-	cfg, err := binding.ReadLarkChannelConfig(b.path)
+	cfg, err := openclawbind.ReadLarkChannelConfig(b.path)
 	if err != nil {
 		return nil, errs.NewConfigError(errs.SubtypeInvalidConfig, "cannot read %s: %v", b.path, err).
 			WithHint("verify lark-channel-bridge is installed and configured").
@@ -309,7 +309,7 @@ func (b *larkChannelBinder) Build(appID string) (*core.AppConfig, error) {
 
 	// Resolve through the same SecretInput pipeline openclaw uses, so
 	// bridge configs can use ${VAR} / env / file / exec just like openclaw.
-	secret, err := binding.ResolveSecretInput(b.cfg.Accounts.App.Secret, b.cfg.Secrets, os.Getenv)
+	secret, err := openclawbind.ResolveSecretInput(b.cfg.Accounts.App.Secret, b.cfg.Secrets, os.Getenv)
 	if err != nil {
 		return nil, errs.NewConfigError(errs.SubtypeInvalidClient, "failed to resolve appSecret for %s: %v", appID, err).
 			WithHint("check appSecret configuration in %s", b.path).

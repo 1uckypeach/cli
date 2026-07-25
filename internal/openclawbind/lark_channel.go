@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package binding
+package openclawbind
 
 import (
 	"encoding/json"
@@ -18,7 +18,7 @@ type LarkChannelRoot struct {
 	// Secrets is an optional registry of secret providers — same shape as
 	// openclaw's `secrets` block. Lets bridge declare `exec` provider scripts
 	// (for AES-encrypted secret backends), `env` allowlists, or `file`
-	// indirection rules. Resolved by binding.ResolveSecretInput.
+	// indirection rules. Resolved by ResolveSecretInput.
 	Secrets *SecretsConfig `json:"secrets,omitempty"`
 }
 

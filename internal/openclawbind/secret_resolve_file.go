@@ -1,13 +1,14 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package binding
+package openclawbind
 
 import (
 	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/larksuite/cli/internal/secaudit"
 	"github.com/larksuite/cli/internal/vfs"
 )
 
@@ -34,7 +35,7 @@ func resolveFileRef(ref *SecretRef, pc *ProviderConfig) (string, error) {
 	targetPath := expandTildePath(pc.Path)
 
 	// Security audit on file path
-	securePath, err := AssertSecurePath(AuditParams{
+	securePath, err := secaudit.AssertSecurePath(secaudit.AuditParams{
 		TargetPath:            targetPath,
 		Label:                 "secrets.providers file path",
 		TrustedDirs:           pc.TrustedDirs,

@@ -23,9 +23,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/larksuite/cli/internal/binding"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/envvars"
+	"github.com/larksuite/cli/internal/secaudit"
 	"github.com/larksuite/cli/internal/vfs"
 )
 
@@ -94,7 +94,7 @@ func Load() (*Config, error) {
 		// egresses and which extra CA is trusted, so a file another local user or
 		// process can tamper with (symlink, foreign owner, group/world-writable)
 		// could redirect credential traffic. Audit it the same way the CA file is.
-		safePath, err := binding.AssertSecurePath(binding.AuditParams{
+		safePath, err := secaudit.AssertSecurePath(secaudit.AuditParams{
 			TargetPath:            p,
 			Label:                 ConfigFileName,
 			AllowReadableByOthers: true, // config is not a secret; only writability/owner/symlink matter

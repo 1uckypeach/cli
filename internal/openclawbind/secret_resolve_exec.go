@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package binding
+package openclawbind
 
 import (
 	"bytes"
@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"github.com/larksuite/cli/internal/secaudit"
 )
 
 // execRequest is the JSON payload sent to exec provider's stdin.
@@ -69,7 +71,7 @@ func prepareExecRun(ref *SecretRef, providerName string, pc *ProviderConfig, get
 		return nil, fmt.Errorf("exec provider command is empty")
 	}
 
-	securePath, err := AssertSecurePath(AuditParams{
+	securePath, err := secaudit.AssertSecurePath(secaudit.AuditParams{
 		TargetPath:            pc.Command,
 		Label:                 "exec provider command",
 		TrustedDirs:           pc.TrustedDirs,
