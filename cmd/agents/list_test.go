@@ -397,18 +397,18 @@ func TestAgentListScheme_PaginationMeta(t *testing.T) {
 
 // TestAgentListScheme_OnlineRunsScopePreflight pins #8: the online enumeration
 // path now runs the same all-or-nothing scope preflight every other online verb
-// runs. An instance provider with RequiredScopes, driven by a user whose token
-// lacks them, fails fast with missing_scope (exit 3) BEFORE ListAgents is called.
+// runs. An instance provider whose user identity declares scopes, driven by a
+// user whose token lacks them, fails fast with missing_scope (exit 3) BEFORE
+// ListAgents is called.
 func TestAgentListScheme_OnlineRunsScopePreflight(t *testing.T) {
 	called := false
 	spec := catSpec("", "", "")
 	iagents.Register(iagents.Provider{
-		Scheme:         "fakescopelive",
-		Label:          "test fake (scoped live-enum)",
-		AgentIDSource:  "test only",
-		RequiredScopes: []string{"live:read"},
-		Identities:     []iagents.IdentitySpec{{Type: iagents.IdentityUser}},
-		Instance:       &spec,
+		Scheme:        "fakescopelive",
+		Label:         "test fake (scoped live-enum)",
+		AgentIDSource: "test only",
+		Identities:    []iagents.IdentitySpec{{Type: iagents.IdentityUser, Scopes: []string{"live:read"}}},
+		Instance:      &spec,
 		ListAgents: func(context.Context, iagents.Runtime, iagents.PageParams) ([]iagents.AgentSummary, iagents.PageInfo, error) {
 			called = true
 			return nil, iagents.PageInfo{}, nil

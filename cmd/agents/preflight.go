@@ -22,14 +22,17 @@ import (
 
 // This file implements the scope preflight: after the provider is resolved and
 // before the real API call, the session's available scopes are checked against
-// the provider's RequiredScopes. The check is all-or-nothing — any real API verb
-// requires the provider's entire scope set. For USER identity the scope list is
-// read locally from the credential cache (no network); for BOT identity it is
-// the app's published TenantScopes, fetched best-effort (a fetch failure
-// downgrades the check to a no-op, like event's console precheck). A missing
-// scope surfaces as a missing_scope permission error (exit 3) with an
-// identity-appropriate remediation hint instead of a round-trip API 99991679.
-// `--dry-run` never reaches it (dry-run returns before the provider is resolved).
+// the scope set the provider declares FOR THE RESOLVED IDENTITY
+// (IdentitySpec.Scopes — user and bot each declare their own set). The check is
+// all-or-nothing — any real API verb requires that identity's entire scope set.
+// For USER identity the granted list is read locally from the credential cache
+// (no network); for BOT identity it is the app's published TenantScopes,
+// fetched best-effort (a fetch failure downgrades the check to a no-op, like
+// event's console precheck); an identity that declares no scopes skips the
+// check — and the fetch — entirely. A missing scope surfaces as a missing_scope
+// permission error (exit 3) with an identity-appropriate remediation hint
+// instead of a round-trip API 99991679. `--dry-run` never reaches it (dry-run
+// returns before the provider is resolved).
 
 // storedUserScopes is the token-scope read seam: it returns the granted scope
 // list of the stored user token from the LOCAL credential cache (keychain via
@@ -52,20 +55,21 @@ var storedUserScopes = func(f *cmdutil.Factory) []string {
 }
 
 // preflightInput is the pure input of preflightScopes, so the check itself is
-// unit-testable without a Factory, keychain, or provider client.
+// unit-testable without a Factory, keychain, or provider client. Required is
+// the scope set already resolved for Identity (IdentitySpec.Scopes).
 type preflightInput struct {
 	Identity    core.Identity
 	TokenScopes []string
-	Provider    iagents.Provider
+	Required    []string
 }
 
 // preflightScopes runs the local scope check. It returns nil when the check
-// does not apply — bot identity (handled elsewhere) or an unreadable/empty local
-// scope list (the downstream not_configured / need-authorization logic owns
-// that). The check is all-or-nothing: when any scope in the provider's
-// RequiredScopes set is not granted it returns the missing_scope permission
-// error (exit 3, mirroring the event-consume scope preflight) carrying every
-// missing scope, with a re-auth hint listing ONLY the missing scopes.
+// does not apply — an unreadable/empty local scope list (the downstream
+// not_configured / need-authorization logic owns that). The check is
+// all-or-nothing: when any scope in the identity's Required set is not granted
+// it returns the missing_scope permission error (exit 3, mirroring the
+// event-consume scope preflight) carrying every missing scope, with a re-auth
+// hint listing ONLY the missing scopes.
 //
 // The hint lists just the missing scopes (not a merge with existing grants):
 // the open platform authorizes INCREMENTALLY — re-login with only the missing
@@ -89,7 +93,7 @@ func preflightScopes(in preflightInput) error {
 	}
 
 	var missing []string
-	for _, scope := range in.Provider.RequiredScopes {
+	for _, scope := range in.Required {
 		if !granted[scope] {
 			missing = append(missing, scope)
 		}
@@ -145,29 +149,39 @@ func preflightScopesForRef(f *cmdutil.Factory, id core.Identity, ref string) err
 // preflightScopesForScheme is the scheme-keyed core of the preflight, shared by
 // the ref-addressed verbs (via preflightScopesForRef) and the online
 // `agents list <scheme>` enumeration, which has no agent_id. It resolves the
-// provider registration for the scheme, reads the stored scopes through the
-// identity-appropriate seam, and runs the same all-or-nothing check against the
-// provider's full RequiredScopes. Any gap in its own inputs (nil Factory,
-// unregistered scheme, empty RequiredScopes) yields nil.
+// provider registration for the scheme, resolves the required set declared for
+// the resolved identity (IdentitySpec.Scopes), reads the granted scopes through
+// the identity-appropriate seam, and runs the all-or-nothing check. Any gap in
+// its own inputs (nil Factory, unregistered scheme, no scopes declared for the
+// identity) yields nil — for BOT that early exit also skips the app-version
+// fetch, so an identity with no declared scopes costs no network.
 func preflightScopesForScheme(f *cmdutil.Factory, id core.Identity, scheme string) error {
 	if f == nil {
 		return nil
 	}
 	prov, ok := iagents.Info(scheme)
-	if !ok || len(prov.RequiredScopes) == 0 {
-		return nil // no scopes to check (e.g. the example mock declares none)
+	if !ok {
+		return nil
 	}
 
-	var tokenScopes []string
+	var required, tokenScopes []string
 	switch {
 	case id == core.AsUser:
+		required = prov.ScopesForIdentity(iagents.IdentityUser)
+		if len(required) == 0 {
+			return nil // no scopes to check (e.g. the example mock declares none)
+		}
 		tokenScopes = storedUserScopes(f) // local keychain read, no network
 	case id.IsBot():
+		required = prov.ScopesForIdentity(iagents.IdentityBot)
+		if len(required) == 0 {
+			return nil
+		}
 		tokenScopes = botTenantScopes(f) // best-effort app-version fetch
 	default:
 		return nil
 	}
-	return preflightScopes(preflightInput{Identity: id, TokenScopes: tokenScopes, Provider: prov})
+	return preflightScopes(preflightInput{Identity: id, TokenScopes: tokenScopes, Required: required})
 }
 
 // botTenantScopes is the bot-scope read seam: it fetches the app's

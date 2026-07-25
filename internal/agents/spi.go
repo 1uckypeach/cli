@@ -16,6 +16,14 @@ const (
 type IdentitySpec struct {
 	Type         IdentityType `json:"type"` // IdentityUser | IdentityBot
 	Precondition string       `json:"precondition,omitempty"`
+
+	// Scopes is the full scope set this identity needs for ANY real API verb of
+	// the provider (the preflight is all-or-nothing, per identity). It is
+	// registration data for the scope preflight only and never serializes into
+	// the card — a missing scope teaches through the missing_scope error at call
+	// time. Empty means this identity runs no scope preflight (e.g. a mock
+	// provider, or an identity whose scopes are enforced server-side only).
+	Scopes []string `json:"-"`
 }
 
 // AgentSummary is one discoverable agent in `agents list <scheme>` output.

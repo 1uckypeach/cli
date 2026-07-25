@@ -35,9 +35,10 @@ func Provider() agents.Provider {
 		Scheme:        "example",
 		Label:         "Example 演示 agent（内存 mock，零网络）",
 		AgentIDSource: "运行 lark-cli agents list example 查看内置演示 agent 及其 agent_ref（无需任何平台配置）",
-		Identities:    []agents.IdentitySpec{{Type: agents.IdentityUser}, {Type: agents.IdentityBot}},
-		// RequiredScopes nil: the mock calls no OAPI, so scope preflight always passes.
-		Catalog: []agents.AgentSpec{echoSpec, reporterSpec, plannerSpec},
+		// Neither identity declares Scopes: the mock calls no OAPI, so the scope
+		// preflight always passes.
+		Identities: []agents.IdentitySpec{{Type: agents.IdentityUser}, {Type: agents.IdentityBot}},
+		Catalog:    []agents.AgentSpec{echoSpec, reporterSpec, plannerSpec},
 	}
 }
 

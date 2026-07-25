@@ -20,17 +20,23 @@ import (
 	"github.com/larksuite/cli/internal/output"
 )
 
-// scopedInfo fetches the registered fakescoped ProviderInfo (4 RequiredScopes,
-// see scripted_provider_test.go) — the all-or-nothing preflight requires every
-// one of fakescopedAllScopes for any real API verb.
-func scopedInfo(t *testing.T) iagents.Provider {
+// scopedRequired resolves the fakescoped provider's declared scope set for the
+// given identity via ScopesForIdentity (the same resolution the command path
+// runs) — fakescoped declares the same 4-scope fakescopedAllScopes set on both
+// identities, and the all-or-nothing preflight requires every one for any real
+// API verb.
+func scopedRequired(t *testing.T, id iagents.IdentityType) []string {
 	t.Helper()
 	registerScripted()
 	prov, ok := iagents.Info("fakescoped")
 	if !ok {
 		t.Fatal("fakescoped provider should be registered")
 	}
-	return prov
+	required := prov.ScopesForIdentity(id)
+	if len(required) == 0 {
+		t.Fatalf("fakescoped should declare scopes for identity %q", id)
+	}
+	return required
 }
 
 // requirePreflightError asserts err is the missing_scope permission error
@@ -64,7 +70,7 @@ func TestPreflightReportsMissingWithIncrementalHint(t *testing.T) {
 	err := preflightScopes(preflightInput{
 		Identity:    core.AsUser,
 		TokenScopes: []string{"im:message", "fakescoped:agent_chat:write"},
-		Provider:    scopedInfo(t),
+		Required:    scopedRequired(t, iagents.IdentityUser),
 	})
 	ve := requirePreflightError(t, err)
 
@@ -93,7 +99,7 @@ func TestPreflightBotNoTenantScopesSkipped(t *testing.T) {
 	err := preflightScopes(preflightInput{
 		Identity:    core.AsBot,
 		TokenScopes: nil,
-		Provider:    scopedInfo(t),
+		Required:    scopedRequired(t, iagents.IdentityBot),
 	})
 	if err != nil {
 		t.Fatalf("bot with no tenant scope list should skip preflight, got %v", err)
@@ -108,7 +114,7 @@ func TestPreflightBotMissingScopes(t *testing.T) {
 	err := preflightScopes(preflightInput{
 		Identity:    core.AsBot,
 		TokenScopes: []string{"fakescoped:agent_chat:read", "fakescoped:agent_chat:write"},
-		Provider:    scopedInfo(t),
+		Required:    scopedRequired(t, iagents.IdentityBot),
 	})
 	ve := requirePreflightError(t, err)
 	wantMissing := []string{"fakescoped:agent_artifact:read", "fakescoped:agent_attachment:write"}
@@ -130,7 +136,7 @@ func TestPreflightBotMissingScopes(t *testing.T) {
 // TestPreflightBotAllScopesPresent pins the bot happy path.
 func TestPreflightBotAllScopesPresent(t *testing.T) {
 	if err := preflightScopes(preflightInput{
-		Identity: core.AsBot, TokenScopes: fakescopedAllScopes, Provider: scopedInfo(t),
+		Identity: core.AsBot, TokenScopes: fakescopedAllScopes, Required: scopedRequired(t, iagents.IdentityBot),
 	}); err != nil {
 		t.Errorf("bot with all tenant scopes should pass, got %v", err)
 	}
@@ -143,7 +149,7 @@ func TestPreflightNoTokenScopesReturnsNil(t *testing.T) {
 	err := preflightScopes(preflightInput{
 		Identity:    core.AsUser,
 		TokenScopes: nil,
-		Provider:    scopedInfo(t),
+		Required:    scopedRequired(t, iagents.IdentityUser),
 	})
 	if err != nil {
 		t.Fatalf("no token scope list should return nil, got %v", err)
@@ -154,7 +160,7 @@ func TestPreflightNoTokenScopesReturnsNil(t *testing.T) {
 // fakescoped scopes passes the all-or-nothing check.
 func TestPreflightAllScopesPresent(t *testing.T) {
 	if err := preflightScopes(preflightInput{
-		Identity: core.AsUser, TokenScopes: fakescopedAllScopes, Provider: scopedInfo(t),
+		Identity: core.AsUser, TokenScopes: fakescopedAllScopes, Required: scopedRequired(t, iagents.IdentityUser),
 	}); err != nil {
 		t.Errorf("should pass when all scopes present, got %v", err)
 	}
@@ -171,7 +177,7 @@ func TestPreflightMissingAnyScopeFails(t *testing.T) {
 		TokenScopes: []string{
 			"fakescoped:agent_chat:write", "fakescoped:agent_chat:read", "fakescoped:agent_artifact:read",
 		},
-		Provider: scopedInfo(t),
+		Required: scopedRequired(t, iagents.IdentityUser),
 	}))
 	if !reflect.DeepEqual(ve.MissingScopes, []string{"fakescoped:agent_attachment:write"}) {
 		t.Errorf("when only attachment is missing, missing_scopes should be [fakescoped:agent_attachment:write], got %v", ve.MissingScopes)
@@ -179,7 +185,7 @@ func TestPreflightMissingAnyScopeFails(t *testing.T) {
 
 	// Only the write scope → the other three are all reported.
 	ve = requirePreflightError(t, preflightScopes(preflightInput{
-		Identity: core.AsUser, TokenScopes: []string{"fakescoped:agent_chat:write"}, Provider: scopedInfo(t),
+		Identity: core.AsUser, TokenScopes: []string{"fakescoped:agent_chat:write"}, Required: scopedRequired(t, iagents.IdentityUser),
 	}))
 	wantMissing := []string{"fakescoped:agent_artifact:read", "fakescoped:agent_attachment:write", "fakescoped:agent_chat:read"}
 	if !reflect.DeepEqual(ve.MissingScopes, wantMissing) {
@@ -420,6 +426,56 @@ func TestTaskGetBotPreflightBlocksMissingScope(t *testing.T) {
 	}
 	if !contains(ve.MissingScopes, "fakescoped:agent_artifact:read") {
 		t.Errorf("bot task get missing scopes should include fakescoped:agent_artifact:read, got %v", ve.MissingScopes)
+	}
+}
+
+// TestPreflightPerIdentitySplitUserBlocked pins the per-identity resolution on
+// the split provider: fakesplit declares scopes ONLY for user, so a user token
+// lacking that one scope is blocked with exactly it — not a provider-level
+// union, not the bot declaration.
+func TestPreflightPerIdentitySplitUserBlocked(t *testing.T) {
+	registerScripted()
+	swapStoredScopes(t, []string{"unrelated:scope"})
+	f, _ := userFactory(t)
+	err := agentSendRun(&sendOptions{
+		Factory: f, Cmd: userLeafCmd(t, "agents", "send"),
+		Ref: "fakesplit:agt_x", Text: "hi", As: "user",
+	})
+	ve := requirePreflightError(t, err)
+	if !reflect.DeepEqual(ve.MissingScopes, []string{"fakesplit:user:read"}) {
+		t.Errorf("user missing_scopes should be exactly the user-declared set, got %v", ve.MissingScopes)
+	}
+}
+
+// TestPreflightPerIdentitySplitBotSkipsFetch pins the other half of the split:
+// the bot identity declares NO scopes, so the preflight is skipped entirely —
+// including the tenant-scope app-version fetch — and the send reaches the
+// provider.
+func TestPreflightPerIdentitySplitBotSkipsFetch(t *testing.T) {
+	registerScripted()
+	fetchCalled := false
+	oldFetch := botTenantScopes
+	botTenantScopes = func(*cmdutil.Factory) []string { fetchCalled = true; return nil }
+	t.Cleanup(func() { botTenantScopes = oldFetch })
+
+	f, _ := userFactory(t)
+	sent := false
+	setScripted(t, scriptedHooks{send: func(iagents.SendInput) (*iagents.AgentTask, error) {
+		sent = true
+		return &iagents.AgentTask{TaskID: "t_1", ContextID: "c_1", State: iagents.StateWorking}, nil
+	}})
+	err := agentSendRun(&sendOptions{
+		Factory: f, Cmd: sendCmdCtx(t), // --as bot
+		Ref: "fakesplit:agt_x", Text: "hi", As: "bot",
+	})
+	if err != nil {
+		t.Fatalf("bot with no declared scopes should skip preflight and send, got %v", err)
+	}
+	if !sent {
+		t.Fatal("provider.Send should be reached when the bot identity declares no scopes")
+	}
+	if fetchCalled {
+		t.Fatal("bot with no declared scopes must not fetch the app's tenant scopes")
 	}
 }
 

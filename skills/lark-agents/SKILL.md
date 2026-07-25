@@ -38,9 +38,9 @@ metadata:
 ## 前置准备（首次调用某 agent 前过一遍）
 
 1. **拿 agent_id**：`kind=catalog` 的 provider 用 `agents list <scheme>` 枚举（含 name/description）；`kind=instance` 的照 `agents list` 输出里该 provider 的 `agent_id_source` 获取。agent_ref = `<provider>:<agent_id>`。
-2. **user 身份补 scope**——agent scope **不走 `--domain`**，只能 `auth login --scope` 显式授权。缺 scope 时命令会**本地**报 `missing_scope`（exit 3，不发请求，all-or-nothing：缺该 provider scope 全集中任一即报，`missing_scopes` 列出全部缺失）：scope 列表照抄错误里的 hint 即可——hint 只列**缺失**的 scope；开放平台按增量授权，重登不覆盖已授 scope，照抄不丢权限。发起授权按 lark-shared「Agent 代理发起认证」的 split-flow（命令加 `--no-wait --json`，把 `verification_url` 交给用户），避免阻塞式 auth login 在 harness 里吞掉授权 URL。各 provider 的 scope 全集见其 provider 文件。（本段是 missing_scope 语义的唯一权威，动词 references 只引用。）
+2. **user 身份补 scope**——agent scope **不走 `--domain`**，只能 `auth login --scope` 显式授权。缺 scope 时命令会**本地**报 `missing_scope`（exit 3，不发请求，all-or-nothing：scope 按**当前身份**声明——user 与 bot 各有独立的 scope 集，缺当前身份 scope 全集中任一即报，`missing_scopes` 列出全部缺失；当前身份未声明任何 scope 时无此检查）：scope 列表照抄错误里的 hint 即可——hint 只列**缺失**的 scope；开放平台按增量授权，重登不覆盖已授 scope，照抄不丢权限。发起授权按 lark-shared「Agent 代理发起认证」的 split-flow（命令加 `--no-wait --json`，把 `verification_url` 交给用户），避免阻塞式 auth login 在 harness 里吞掉授权 URL。各 provider 各身份的 scope 全集见其 provider 文件。（本段是 missing_scope 语义的唯一权威，动词 references 只引用。）
    - **CAUTION**：其它业务域 scope（如 `spark:*`）**都不是** agent scope——`auth status` 里有别的域的 scope **不代表**能调 agent，别据此判定"已具备权限"，以 preflight 实际结果为准。
-3. **bot 身份前置**：见 card `identity` 里 bot 条目的 `precondition` 与对应 provider 文件（典型是渠道白名单）。bot 身份**也有本地 scope preflight**（best-effort：读应用已发布版本的 TenantScopes，拉取失败时自动降级为跳过），缺 scope 同样本地报 `missing_scope`（exit 3）——但修复路径与 user 不同：**去开发者后台给应用加 scope 并重新发布**（不是 `auth login`，见 lark-shared「bot 缺少权限」条）。
+3. **bot 身份前置**：见 card `identity` 里 bot 条目的 `precondition` 与对应 provider 文件（典型是渠道白名单）。bot 身份**也有本地 scope preflight**（best-effort：读应用已发布版本的 TenantScopes，拉取失败时自动降级为跳过；provider 未给 bot 身份声明 scope 时整体跳过、不发起拉取），缺 scope 同样本地报 `missing_scope`（exit 3）——但修复路径与 user 不同：**去开发者后台给应用加 scope 并重新发布**（不是 `auth login`，见 lark-shared「bot 缺少权限」条）。
 4. **身份选择**：`--as user|bot`。card `identity` 声明支持的身份及前置条件（`precondition`）。默认按 lark-shared 的身份选择原则；用 bot 身份时任务归属 bot 主体。
 
 ## 命令速查

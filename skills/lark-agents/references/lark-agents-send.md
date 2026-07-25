@@ -85,7 +85,7 @@ send 立即返回当前任务。示例（example，真实输出，`agents send e
 | 未知 scheme | invalid_argument | 2 | message 形如 `未知的 agent provider '<scheme>'，当前支持: <已注册 scheme 全集>`（列表随注册变化，勿硬编码断言）；hint 指向 `agents list` |
 | `--file` 路径非法/不存在/是目录 | invalid_argument | 2 | `非法的 --file 路径: <path>（仅接受 CWD 内的相对路径）`（或 `文件不存在或不可读`/`是目录`，多个违规一次报全）；hint `--file 只接受当前目录内的相对路径且文件必须存在，逐条修正后重发`。先于能力门与确认门 |
 | `--file` 真实 send 缺 `--yes` | confirmation_required | 10 | `--file 会把本地文件外发上传到远端 agent（内容离开本机，不可撤回）`；hint `确认要外发这些文件后，加 --yes 重发`。仅在 provider 支持 file_input 时触发；`--dry-run` 免此门 |
-| 缺 scope（user/bot） | missing_scope | 3 | 本地 preflight，附 `missing_scopes` + 可照抄 hint；语义与修复路径（user≠bot）的唯一权威见 [SKILL.md 前置准备](../SKILL.md) 第 2/3 条。`--dry-run` 跳过此检查（bot 不跳过，仅 best-effort 降级） |
+| 缺 scope（user/bot） | missing_scope | 3 | 本地 preflight，附 `missing_scopes` + 可照抄 hint；语义与修复路径（user≠bot）的唯一权威见 [SKILL.md 前置准备](../SKILL.md) 第 2/3 条。`--dry-run` 跳过此检查（真实调用按当前身份的声明检查：bot 侧 best-effort 降级、未声明 scope 的身份整体跳过） |
 
 服务端错误：通用规则见 [SKILL.md「服务端错误」](../SKILL.md)，业务错误码目录见对应 provider 文件。
 

@@ -90,6 +90,15 @@ func TestRegisterPanicBranches(t *testing.T) {
 		{"missing AgentIDSource", func(p *Provider) { p.AgentIDSource = "" }, "missing AgentIDSource"},
 		{"missing Identities", func(p *Provider) { p.Identities = nil }, "missing Identities"},
 		{"invalid Identity Type", func(p *Provider) { p.Identities = []IdentitySpec{{Type: "robot"}} }, "got: robot"},
+		{"duplicate Identity Type", func(p *Provider) {
+			p.Identities = []IdentitySpec{{Type: IdentityUser}, {Type: IdentityUser}}
+		}, "duplicate Identity Type"},
+		{"empty scope in Identity Scopes", func(p *Provider) {
+			p.Identities = []IdentitySpec{{Type: IdentityUser, Scopes: []string{""}}}
+		}, "empty scope in Identity user"},
+		{"duplicate scope in Identity Scopes", func(p *Provider) {
+			p.Identities = []IdentitySpec{{Type: IdentityUser, Scopes: []string{"a:b:c", "a:b:c"}}}
+		}, "duplicate scope in Identity user"},
 		{"neither Catalog nor Instance", func(p *Provider) { p.Instance = nil }, "exactly one of Catalog / Instance"},
 		{"both Catalog and Instance", func(p *Provider) { p.Catalog = catalogProvider("x", "a").Catalog }, "exactly one of Catalog / Instance"},
 		{"instance template with ID", func(p *Provider) { p.Instance.ID = "oops" }, "instance template must have empty ID"},
@@ -132,7 +141,7 @@ func TestRegisterDuplicateScheme(t *testing.T) {
 func TestInfoReturnsRegisteredProvider(t *testing.T) {
 	swapRegistry(t, map[string]Provider{})
 	p := instanceProvider("t1")
-	p.RequiredScopes = []string{"t1:chat:write"}
+	p.Identities = []IdentitySpec{{Type: IdentityUser, Scopes: []string{"t1:chat:write"}}}
 	Register(p)
 	got, ok := Info("t1")
 	if !ok || got.Label != "test provider" || got.Kind() != KindInstance {
@@ -140,6 +149,31 @@ func TestInfoReturnsRegisteredProvider(t *testing.T) {
 	}
 	if _, ok := Info("nonexistent"); ok {
 		t.Fatal("Info(nonexistent) should return ok=false")
+	}
+}
+
+// TestScopesForIdentity pins the per-identity scope lookup: each declared
+// identity resolves its own set, an undeclared identity resolves nil, and a
+// declared identity without scopes resolves nil (both mean "no preflight").
+func TestScopesForIdentity(t *testing.T) {
+	p := instanceProvider("split")
+	p.Identities = []IdentitySpec{
+		{Type: IdentityUser, Scopes: []string{"u:doc:read"}},
+		{Type: IdentityBot, Scopes: []string{"b:doc:read", "b:doc:write"}},
+	}
+	if got := p.ScopesForIdentity(IdentityUser); !reflect.DeepEqual(got, []string{"u:doc:read"}) {
+		t.Errorf("user scopes = %v, want [u:doc:read]", got)
+	}
+	if got := p.ScopesForIdentity(IdentityBot); !reflect.DeepEqual(got, []string{"b:doc:read", "b:doc:write"}) {
+		t.Errorf("bot scopes = %v, want [b:doc:read b:doc:write]", got)
+	}
+
+	userOnly := instanceProvider("useronly") // declares user with no scopes
+	if got := userOnly.ScopesForIdentity(IdentityUser); got != nil {
+		t.Errorf("declared identity without scopes should resolve nil, got %v", got)
+	}
+	if got := userOnly.ScopesForIdentity(IdentityBot); got != nil {
+		t.Errorf("undeclared identity should resolve nil, got %v", got)
 	}
 }
 

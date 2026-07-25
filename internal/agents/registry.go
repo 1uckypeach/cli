@@ -49,9 +49,27 @@ func Register(p Provider) {
 	if _, dup := providerRegistry[p.Scheme]; dup {
 		panic("agent: Register called twice for scheme: " + p.Scheme)
 	}
+	seenIdentity := make(map[IdentityType]bool, len(p.Identities))
 	for _, id := range p.Identities {
 		if id.Type != IdentityUser && id.Type != IdentityBot {
 			panic("agent: provider invalid Identity Type (want user|bot): " + p.Scheme + ", got: " + string(id.Type))
+		}
+		// A duplicate identity entry would make the per-identity scope
+		// declaration ambiguous (which entry's Scopes wins?), so it is rejected
+		// at the source.
+		if seenIdentity[id.Type] {
+			panic("agent: provider duplicate Identity Type: " + p.Scheme + ", got: " + string(id.Type))
+		}
+		seenIdentity[id.Type] = true
+		seenScope := make(map[string]bool, len(id.Scopes))
+		for _, s := range id.Scopes {
+			if s == "" {
+				panic("agent: provider empty scope in Identity " + string(id.Type) + " Scopes: " + p.Scheme)
+			}
+			if seenScope[s] {
+				panic("agent: provider duplicate scope in Identity " + string(id.Type) + " Scopes: " + p.Scheme + ", got: " + s)
+			}
+			seenScope[s] = true
 		}
 	}
 	hasCatalog, hasInstance := len(p.Catalog) > 0, p.Instance != nil

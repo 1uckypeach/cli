@@ -114,21 +114,29 @@ func RunConformance(t *testing.T, scheme, sampleAgentID string) {
 		if len(prov.Identities) == 0 {
 			t.Error("conformance: Identities must not be empty")
 		}
+		seenType := make(map[agents.IdentityType]bool, len(prov.Identities))
 		for i, id := range prov.Identities {
 			if id.Type != agents.IdentityUser && id.Type != agents.IdentityBot {
 				t.Errorf("conformance: Identities[%d].Type should be user|bot, got %q", i, id.Type)
+			}
+			if seenType[id.Type] {
+				t.Errorf("conformance: Identities contains duplicate type %q", id.Type)
+			}
+			seenType[id.Type] = true
+			seenScope := make(map[string]bool, len(id.Scopes))
+			for _, s := range id.Scopes {
+				if s == "" {
+					t.Errorf("conformance: Identities[%d].Scopes contains an empty scope", i)
+				}
+				if seenScope[s] {
+					t.Errorf("conformance: Identities[%d].Scopes contains duplicate %q", i, s)
+				}
+				seenScope[s] = true
 			}
 		}
 		// Exactly one of Catalog / Instance is set (Register enforces; re-assert).
 		if (len(prov.Catalog) > 0) == (prov.Instance != nil) {
 			t.Error("conformance: exactly one of Catalog / Instance must be set")
-		}
-		seen := make(map[string]bool, len(prov.RequiredScopes))
-		for _, s := range prov.RequiredScopes {
-			if seen[s] {
-				t.Errorf("conformance: RequiredScopes contains duplicate %q", s)
-			}
-			seen[s] = true
 		}
 	})
 

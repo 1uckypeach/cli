@@ -118,9 +118,9 @@ func scriptedUserOnlySpec() *iagents.AgentSpec {
 	return spec
 }
 
-// fakescopedAllScopes is the full RequiredScopes set of the fakescoped test
-// provider, sorted — the all-or-nothing preflight requires every one for any
-// real API verb.
+// fakescopedAllScopes is the scope set declared on BOTH identities of the
+// fakescoped test provider, sorted — the all-or-nothing preflight requires
+// every one for any real API verb.
 var fakescopedAllScopes = []string{
 	"fakescoped:agent_artifact:read",
 	"fakescoped:agent_attachment:write",
@@ -152,11 +152,16 @@ func minimalSpec() *iagents.AgentSpec {
 // enumerable (no ListAgents hook). They leak into the package-level registry for
 // the rest of this package run — so no test may assert an exact provider set.
 //
-//   - fakeflow: no RequiredScopes (preflight always passes) — the workhorse.
-//   - fakescoped: a 4-scope RequiredScopes set, for the scope-preflight tests.
+//   - fakeflow: no scopes on either identity (preflight always passes) — the
+//     workhorse.
+//   - fakescoped: the same 4-scope set on both identities, for the
+//     scope-preflight tests.
 //   - fakemin: the same 4-scope set on the minimal spec — the vehicle for
 //     unwired-verb gating (its capability gate must answer before preflight).
-//   - fakeuseronly: no RequiredScopes, user identity only.
+//   - fakeuseronly: no scopes, user identity only.
+//   - fakesplit: asymmetric per-identity scopes — user declares one scope, bot
+//     declares none — pinning that the preflight resolves the required set from
+//     the RESOLVED identity's declaration.
 var registerScriptedOnce sync.Once
 
 func registerScripted() {
@@ -169,20 +174,24 @@ func registerScripted() {
 			Instance:      scriptedSpec(),
 		})
 		iagents.Register(iagents.Provider{
-			Scheme:         "fakescoped",
-			Label:          "test fake (scoped)",
-			AgentIDSource:  "test only",
-			RequiredScopes: fakescopedAllScopes,
-			Identities:     []iagents.IdentitySpec{{Type: iagents.IdentityUser}, {Type: iagents.IdentityBot}},
-			Instance:       scriptedSpec(),
+			Scheme:        "fakescoped",
+			Label:         "test fake (scoped)",
+			AgentIDSource: "test only",
+			Identities: []iagents.IdentitySpec{
+				{Type: iagents.IdentityUser, Scopes: fakescopedAllScopes},
+				{Type: iagents.IdentityBot, Scopes: fakescopedAllScopes},
+			},
+			Instance: scriptedSpec(),
 		})
 		iagents.Register(iagents.Provider{
-			Scheme:         "fakemin",
-			Label:          "test fake (minimal caps)",
-			AgentIDSource:  "test only",
-			RequiredScopes: fakescopedAllScopes,
-			Identities:     []iagents.IdentitySpec{{Type: iagents.IdentityUser}, {Type: iagents.IdentityBot}},
-			Instance:       minimalSpec(),
+			Scheme:        "fakemin",
+			Label:         "test fake (minimal caps)",
+			AgentIDSource: "test only",
+			Identities: []iagents.IdentitySpec{
+				{Type: iagents.IdentityUser, Scopes: fakescopedAllScopes},
+				{Type: iagents.IdentityBot, Scopes: fakescopedAllScopes},
+			},
+			Instance: minimalSpec(),
 		})
 		iagents.Register(iagents.Provider{
 			Scheme:        "fakeuseronly",
@@ -190,6 +199,16 @@ func registerScripted() {
 			AgentIDSource: "test only",
 			Identities:    []iagents.IdentitySpec{{Type: iagents.IdentityUser}},
 			Instance:      scriptedUserOnlySpec(),
+		})
+		iagents.Register(iagents.Provider{
+			Scheme:        "fakesplit",
+			Label:         "test fake (split scopes)",
+			AgentIDSource: "test only",
+			Identities: []iagents.IdentitySpec{
+				{Type: iagents.IdentityUser, Scopes: []string{"fakesplit:user:read"}},
+				{Type: iagents.IdentityBot}, // no scopes: the bot preflight (and its tenant-scope fetch) must be skipped
+			},
+			Instance: scriptedSpec(),
 		})
 	})
 }

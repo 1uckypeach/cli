@@ -287,7 +287,8 @@ func agentSendRun(opts *sendOptions) error {
 	}
 
 	// Local scope preflight: after runtimeFor, before the API call. The check is
-	// all-or-nothing — any real API verb requires the provider's full scope set.
+	// all-or-nothing — any real API verb requires the full scope set the
+	// provider declares for the resolved identity.
 	if err := preflightScopesForRef(f, id, opts.Ref); err != nil {
 		return err
 	}

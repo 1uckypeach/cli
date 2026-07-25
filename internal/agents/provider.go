@@ -59,11 +59,10 @@ type CardInfo struct {
 // enforces), which encodes the kind, so there is no separate Kind field to keep
 // in sync.
 type Provider struct {
-	Scheme         string         // ref prefix, e.g. "example"
-	Label          string         // `agents list` LABEL column
-	AgentIDSource  string         // where to get an agent_id (AI onboarding cue)
-	RequiredScopes []string       // flat set; preflight is all-or-nothing
-	Identities     []IdentitySpec // non-empty; Type ∈ {user,bot}
+	Scheme        string         // ref prefix, e.g. "example"
+	Label         string         // `agents list` LABEL column
+	AgentIDSource string         // where to get an agent_id (AI onboarding cue)
+	Identities    []IdentitySpec // non-empty; Type ∈ {user,bot}; scopes are declared per identity (IdentitySpec.Scopes)
 
 	// Exactly one of these is set:
 	Catalog  []AgentSpec // finite, offline-enumerable set (kind = catalog)
@@ -87,6 +86,20 @@ type Provider struct {
 	// output's providers[].list_parameters. Register panics when ListParams is
 	// declared without a ListAgents hook.
 	ListParams []CardParam
+}
+
+// ScopesForIdentity returns the declared identity's Scopes verbatim (nil when
+// the identity itself is not declared). The identity gate (not this lookup)
+// owns rejecting an unsupported identity; callers treat an empty result
+// (len == 0, whether nil or an explicit empty slice) as "no scope preflight
+// for this identity".
+func (p Provider) ScopesForIdentity(t IdentityType) []string {
+	for _, id := range p.Identities {
+		if id.Type == t {
+			return id.Scopes
+		}
+	}
+	return nil
 }
 
 // AgentSpec is the declarative unit for one agent: card metadata plus the
