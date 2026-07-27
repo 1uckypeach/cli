@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -221,10 +222,20 @@ var layeringBuildTargets = []goListTarget{
 }
 
 // layeringBuildTags is the set of build tags whose import graphs are unioned
-// before evaluating the rules. Demo-only tags (authsidecar_demo,
-// authsidecar_multi_tenant_demo) are intentionally excluded: that code lives
-// under sidecar/server-demo*/ and never sits in a layer any rule governs.
+// before evaluating the rules. A tag that appears in neither this list nor
+// layeringExcludedBuildTags leaves its files unscanned, so
+// TestLayeringBuildTagsCoverTheRepository requires every custom tag in the tree
+// to appear in one of them.
 var layeringBuildTags = []string{"", "authsidecar"}
+
+// layeringExcludedBuildTags names custom build tags deliberately left out of the
+// union. The reason is checked, not just recorded: every file carrying one of
+// these must sit outside every rule's FromPrefix, so enabling the tag cannot
+// change what the rules see.
+var layeringExcludedBuildTags = map[string]string{
+	"authsidecar_demo":              "demo binary under sidecar/, which no rule governs",
+	"authsidecar_multi_tenant_demo": "demo binary under sidecar/, which no rule governs",
+}
 
 type layeringEdge struct {
 	From   string
@@ -892,6 +903,138 @@ func TestLayeringBuildTags(t *testing.T) {
 	if !slices.Equal(layeringBuildTags, want) {
 		t.Fatalf("layering build tags = %q, want %q", layeringBuildTags, want)
 	}
+}
+
+// TestLayeringBuildTagsCoverTheRepository closes the gap the list above cannot
+// close on its own: comparing it against a literal only catches edits to the
+// list, never a build tag introduced somewhere else. A tag nobody added here
+// leaves its files out of every graph, and the rules go quiet on them.
+func TestLayeringBuildTagsCoverTheRepository(t *testing.T) {
+	root := repoRoot(t)
+	tagFiles := collectCustomBuildTags(t, root)
+
+	for tag, files := range tagFiles {
+		if slices.Contains(layeringBuildTags, tag) {
+			continue
+		}
+		reason, excluded := layeringExcludedBuildTags[tag]
+		if !excluded {
+			t.Errorf(
+				"build tag %q is used by %v but is neither unioned into layeringBuildTags nor listed in layeringExcludedBuildTags; its files are never scanned",
+				tag, files,
+			)
+			continue
+		}
+
+		// The exclusion claims the tagged code sits outside every rule. Check it,
+		// so the reason cannot quietly stop being true.
+		for _, file := range files {
+			pkg := packageImportPath(root, file)
+			for _, rule := range rules {
+				if matchesPackagePrefix(rule.FromPrefix, pkg) {
+					t.Errorf(
+						"build tag %q is excluded because %s, but %s is governed by %s; union the tag instead",
+						tag, reason, pkg, rule.Name,
+					)
+				}
+			}
+		}
+	}
+
+	for tag := range layeringExcludedBuildTags {
+		if _, used := tagFiles[tag]; !used {
+			t.Errorf("build tag %q is listed as excluded but no file uses it; drop the entry", tag)
+		}
+	}
+}
+
+// collectCustomBuildTags maps every non-platform build tag in the tree to the
+// files that carry it. GOOS, GOARCH and toolchain terms come from the toolchain
+// itself rather than a hand-kept list, so a new port cannot look like a custom
+// tag.
+func collectCustomBuildTags(t *testing.T, root string) map[string][]string {
+	t.Helper()
+	builtin := toolchainBuildTerms(t)
+	constraint := regexp.MustCompile(`(?m)^//go:build (.+)$`)
+	splitter := regexp.MustCompile(`[\s()&|!,]+`)
+
+	tags := make(map[string][]string)
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if entry.Name() == ".git" || entry.Name() == "node_modules" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+
+		content, err := vfs.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		for _, match := range constraint.FindAllStringSubmatch(string(content), -1) {
+			for _, term := range splitter.Split(match[1], -1) {
+				if term == "" || builtin[term] || strings.HasPrefix(term, "go1.") {
+					continue
+				}
+				relative = filepath.ToSlash(relative)
+				if !slices.Contains(tags[term], relative) {
+					tags[term] = append(tags[term], relative)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", root, err)
+	}
+	return tags
+}
+
+// toolchainBuildTerms returns the build constraint terms Go defines itself.
+func toolchainBuildTerms(t *testing.T) map[string]bool {
+	t.Helper()
+	cmd := exec.Command("go", "tool", "dist", "list")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("go tool dist list: %v", err)
+	}
+
+	terms := map[string]bool{
+		// Not ports: toolchain and meta terms Go recognises on its own.
+		"cgo": true, "gc": true, "gccgo": true, "race": true, "msan": true,
+		"asan": true, "unix": true, "boringcrypto": true,
+		// Conventional marker for files excluded from every build.
+		"ignore": true,
+	}
+	for _, pair := range strings.Fields(string(out)) {
+		goos, goarch, found := strings.Cut(pair, "/")
+		if !found {
+			continue
+		}
+		terms[goos] = true
+		terms[goarch] = true
+	}
+	return terms
+}
+
+// packageImportPath maps a file inside the module to the import path of the
+// package that holds it.
+func packageImportPath(root, relativeFile string) string {
+	dir := filepath.ToSlash(filepath.Dir(relativeFile))
+	if dir == "." {
+		return modulePath
+	}
+	return modulePath + "/" + dir
 }
 
 func TestLayeringBuildTargetsMatchGoReleaser(t *testing.T) {
