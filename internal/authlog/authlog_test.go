@@ -243,6 +243,15 @@ func TestFormatAuthCmdline_DropsEverythingFromTheFirstFlag(t *testing.T) {
 			want: "lark-cli drive upload ...",
 		},
 		{
+			// Generated service commands are one level deeper than the cap, so
+			// their last word is lost. Recorded here so the trade-off is visible:
+			// widening the cap to keep it would also admit the first positional
+			// argument.
+			name: "generated service command loses its verb to the cap",
+			args: []string{"lark-cli", "drive", "file.comments", "create_v2"},
+			want: "lark-cli drive file.comments ...",
+		},
+		{
 			name: "empty",
 			args: nil,
 			want: "",

@@ -211,9 +211,12 @@ func (l *Logger) close() error {
 	return file.Close()
 }
 
-// maxCmdlineWords caps the command line at the binary plus two words, which is
-// the deepest command path this CLI has (`lark-cli docs +fetch`). Anything
-// beyond that is an argument, not a command.
+// maxCmdlineWords keeps the privacy bound the log has always had: the binary
+// plus two words. It is a bound, not a measurement of how deep commands go —
+// generated service commands reach one level further (`lark-cli drive
+// file.comments create_v2`) and lose their last word here. Raising the cap to
+// fit them would also let the first positional argument back in, and that is
+// where resource identifiers live.
 const maxCmdlineWords = 3
 
 // FormatAuthCmdline renders the command path for the log under two limits, both
