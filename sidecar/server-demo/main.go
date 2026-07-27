@@ -67,7 +67,7 @@ func run(ctx context.Context, listen, keyFile, logFile, profile string) error {
 		return errs.NewConfigError(errs.SubtypeInvalidConfig, "%s is set in this environment (%s); unset it before starting the sidecar server", envnames.CliAuthProxy, v)
 	}
 	if listen == "" {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --listen address: empty")
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --listen address: empty").WithParam("--listen")
 	}
 
 	// Generate HMAC key (32 bytes = 256 bits) and write it to disk (0600).
@@ -103,7 +103,14 @@ func run(ctx context.Context, listen, keyFile, logFile, profile string) error {
 	factory := cmdutil.NewDefault(nil, cmdutil.InvocationContext{Profile: profile})
 	cfg, err := factory.Config()
 	if err != nil {
-		return errs.NewConfigError(errs.SubtypeInvalidConfig, "failed to load config: %v", err).WithCause(err)
+		// The resolver already classifies this: an unconfigured CLI comes back as
+		// not_configured with its own recovery hint. Re-wrapping would put
+		// invalid_config in front of it, and ProblemOf reads the outermost — a
+		// caller would be told the config is broken when it was never written.
+		if typed, ok := errs.UnwrapTypedError(err); ok {
+			return typed
+		}
+		return errs.NewInternalError(errs.SubtypeUnknown, "failed to load config: %v", err).WithCause(err)
 	}
 
 	listener, err := net.Listen("tcp", listen)

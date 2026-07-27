@@ -67,20 +67,20 @@ func run(ctx context.Context, listen, keyFile, keysDir, logFile, profile string)
 		return errs.NewConfigError(errs.SubtypeInvalidConfig, "%s is set in this environment (%s); unset it before starting the sidecar server", envnames.CliAuthProxy, v)
 	}
 	if listen == "" {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --listen address: empty")
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --listen address: empty").WithParam("--listen")
 	}
 
 	if _, err := validate.SafeInputPath(keyFile); err != nil {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --key-file path: %v", err).WithCause(err)
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --key-file path: %v", err).WithParam("--key-file").WithCause(err)
 	}
 	if logFile != "" {
 		if _, err := validate.SafeInputPath(logFile); err != nil {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --log-file path: %v", err).WithCause(err)
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --log-file path: %v", err).WithParam("--log-file").WithCause(err)
 		}
 	}
 	if keysDir != "" {
 		if _, err := validate.SafeInputPath(keysDir); err != nil {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --keys-dir path: %v", err).WithCause(err)
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --keys-dir path: %v", err).WithParam("--keys-dir").WithCause(err)
 		}
 	}
 
@@ -125,7 +125,14 @@ func run(ctx context.Context, listen, keyFile, keysDir, logFile, profile string)
 	factory := cmdutil.NewDefault(nil, cmdutil.InvocationContext{Profile: profile})
 	cfg, err := factory.Config()
 	if err != nil {
-		return errs.NewConfigError(errs.SubtypeInvalidConfig, "failed to load config: %v", err).WithCause(err)
+		// The resolver already classifies this: an unconfigured CLI comes back as
+		// not_configured with its own recovery hint. Re-wrapping would put
+		// invalid_config in front of it, and ProblemOf reads the outermost — a
+		// caller would be told the config is broken when it was never written.
+		if typed, ok := errs.UnwrapTypedError(err); ok {
+			return typed
+		}
+		return errs.NewInternalError(errs.SubtypeUnknown, "failed to load config: %v", err).WithCause(err)
 	}
 
 	listener, err := net.Listen("tcp", listen)

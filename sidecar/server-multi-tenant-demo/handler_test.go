@@ -426,8 +426,39 @@ func TestRun_RejectsSelfProxy(t *testing.T) {
 	if !errors.As(err, &configErr) {
 		t.Fatalf("self-proxy rejection = %T, want *errs.ConfigError so callers can branch on the type", err)
 	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatal("self-proxy rejection carries no Problem, so machine callers cannot classify it")
+	}
+	if problem.Subtype != errs.SubtypeInvalidConfig {
+		t.Errorf("subtype = %q, want %q", problem.Subtype, errs.SubtypeInvalidConfig)
+	}
 	if !strings.Contains(configErr.Error(), envnames.CliAuthProxy) {
 		t.Errorf("error should mention %s, got: %v", envnames.CliAuthProxy, configErr)
+	}
+}
+
+// TestRun_EmptyListenReportsTheFlag pins that a rejected flag names itself, so a
+// caller reading the problem knows which one to fix without parsing prose.
+func TestRun_EmptyListenReportsTheFlag(t *testing.T) {
+	err := run(context.Background(), "", "/tmp/should-not-be-created.key", "", "", "")
+	if err == nil {
+		t.Fatal("expected an error for an empty --listen")
+	}
+
+	problem, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("error %T carries no Problem", err)
+	}
+	if problem.Subtype != errs.SubtypeInvalidArgument {
+		t.Errorf("subtype = %q, want %q", problem.Subtype, errs.SubtypeInvalidArgument)
+	}
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("error = %T, want *errs.ValidationError", err)
+	}
+	if validationErr.Param != "--listen" {
+		t.Errorf("Param = %q, want the offending flag named", validationErr.Param)
 	}
 }
 
