@@ -516,6 +516,24 @@ func TestShortcuts_IntuitiveFlagHints(t *testing.T) {
 			wrong:    "--start-cell",
 			wantHint: []string{`"start_cell"`, "+csv-put"},
 		},
+		{
+			command:  "+chart-create-basic",
+			args:     []string{"--url", testURL, "--sheet-name", "s", "--position", "F2"},
+			wrong:    "--position",
+			wantHint: []string{"--anchor-cell F2", "--width", "--height"},
+		},
+		{
+			command:  "+chart-create-basic",
+			args:     []string{"--url", testURL, "--sheet-name", "s", "--show-labels", "true"},
+			wrong:    "--show-labels",
+			wantHint: []string{"--data-labels value", "value_percentage"},
+		},
+		{
+			command:  "+chart-config-update",
+			args:     []string{"--url", testURL, "--sheet-name", "s", "--show-labels", "true"},
+			wrong:    "--show-labels",
+			wantHint: []string{"--data-labels value", "none"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.command+" "+tc.wrong, func(t *testing.T) {
