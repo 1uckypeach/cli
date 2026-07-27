@@ -31,6 +31,9 @@ func TestDocs_LocalResourcesWorkflowAsUser(t *testing.T) {
 
 func testDocsLocalResourcesWorkflow(t *testing.T, defaultAs string) {
 	t.Helper()
+	if os.Getenv("LARK_DOC_LOCAL_RESOURCES_E2E") != "1" {
+		t.Skip("set LARK_DOC_LOCAL_RESOURCES_E2E=1 and use a server lane with local-resource placeholder support")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	t.Cleanup(cancel)
 
