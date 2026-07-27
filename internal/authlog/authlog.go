@@ -199,6 +199,9 @@ func (l *Logger) LogError(component, op string, err error) {
 func cleanupOldLogs(dir string, now time.Time) {
 	defer func() {
 		if r := recover(); r != nil {
+			//nolint:forbidigo // same leaf-package constraint as defaultRuntimeDir: no
+			// IOStreams in scope, and a panic in background cleanup must still be
+			// visible. Carried over unchanged from internal/keychain.
 			fmt.Fprintf(os.Stderr, "[lark-cli] [WARN] background log cleanup panicked: %v\n", r)
 		}
 	}()
