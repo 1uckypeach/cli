@@ -117,8 +117,10 @@ func defaultRuntimeDir() string {
 		// Deliberately unvalidated, mirroring core.GetBaseConfigDir. Routing this
 		// through validate.SafeEnvDirPath would also resolve symlinks, changing
 		// the directory the CLI reports and uses on any host where the path
-		// crosses one. Tightening it is a decision about config path semantics,
-		// not a local fix — see the follow-up note in the PR.
+		// crosses one — applying it moved four packages' expectations from /var
+		// to /private/var on macOS. Whether config paths should be
+		// symlink-resolved is a decision about the on-disk contract, and it has
+		// to be made in one place for every reader of this variable.
 		return dir
 	}
 	home, err := vfs.UserHomeDir()
