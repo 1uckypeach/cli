@@ -20,6 +20,11 @@ const (
 // It lives next to the Brand constants so every credential source resolves the
 // brand the same way; duplicating the rule per provider would let one copy
 // drift when the brand set changes.
+//
+// internal/core.ParseBrand applies the same rule to core.LarkBrand, which the
+// rest of the CLI uses. The two cannot share an implementation: this package is
+// published as a standalone SDK and may not import internal. Adding a brand
+// means changing both.
 func ParseBrand(value string) Brand {
 	if strings.ToLower(strings.TrimSpace(value)) == string(BrandLark) {
 		return BrandLark

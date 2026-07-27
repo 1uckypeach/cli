@@ -17,6 +17,10 @@ const (
 
 // ParseBrand normalizes a brand string (case-insensitive, whitespace-tolerant);
 // anything other than "lark" normalizes to BrandFeishu.
+//
+// extension/credential.ParseBrand applies the same rule to its own Brand type.
+// The two cannot share an implementation: extension is published as a standalone
+// SDK and may not import internal. Adding a brand means changing both.
 func ParseBrand(value string) LarkBrand {
 	if strings.ToLower(strings.TrimSpace(value)) == "lark" {
 		return BrandLark

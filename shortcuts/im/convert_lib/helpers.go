@@ -24,7 +24,7 @@ func ResolveMentionKeys(text string, mentionMap map[string]string) string {
 }
 
 // formatTimestamp converts a Unix timestamp string (seconds or milliseconds) to
-// "YYYY-MM-DD HH:mm" local time. Values with fewer than 10 digits are treated as
+// "YYYY-MM-DD HH:mm:ss" local time. Values with fewer than 10 digits are treated as
 // seconds; larger values are treated as milliseconds.
 // Returns empty string if the input is empty or unparseable.
 func formatTimestamp(ts string) string {
