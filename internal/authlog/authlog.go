@@ -137,6 +137,18 @@ func (l *Logger) logDir() string {
 		if err == nil {
 			return safeDir
 		}
+		// The caller asked for a specific directory and it was rejected. Staying
+		// quiet would send the logs elsewhere while they keep watching the path
+		// they configured. This fires only on a rejected override, and logDir
+		// resolves once per process.
+		//
+		//nolint:forbidigo // leaf package with no IOStreams in scope; keychain
+		// surfaces its own directory warning the same way.
+		fmt.Fprintf(
+			os.Stderr,
+			"[lark-cli] [WARN] LARKSUITE_CLI_LOG_DIR is unusable (%v); writing auth logs under the default directory instead\n",
+			err,
+		)
 	}
 
 	return filepath.Join(l.runtimeDir(), "logs")
@@ -194,16 +206,38 @@ func (l *Logger) close() error {
 	return file.Close()
 }
 
+// FormatAuthCmdline renders the command path for the log and stops at the first
+// flag.
+//
+// Everything from the first flag onward is dropped rather than filtered by name.
+// A denylist of sensitive flags has to be extended whenever one is added, and
+// the rule it replaced — keep the first three arguments — only held while no
+// sensitive flag happened to appear early. Neither survives contact with a flag
+// nobody remembered to classify. What the log needs is which command ran, and
+// that is entirely in the leading non-flag arguments.
+//
+// args[0] is reduced to its base name so an absolute install path does not end
+// up in the file either.
 func FormatAuthCmdline(args []string) string {
 	if len(args) == 0 {
 		return ""
 	}
 
-	if len(args) <= 3 {
-		return strings.Join(args, " ")
+	path := []string{filepath.Base(args[0])}
+	dropped := false
+	for _, arg := range args[1:] {
+		if strings.HasPrefix(arg, "-") {
+			dropped = true
+			break
+		}
+		path = append(path, arg)
 	}
 
-	return strings.Join(args[:3], " ") + " ..."
+	line := strings.Join(path, " ")
+	if dropped {
+		line += " ..."
+	}
+	return line
 }
 
 // LogResponse records one authentication HTTP response.

@@ -5,6 +5,8 @@ package authlog
 
 import (
 	"errors"
+	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -195,6 +197,112 @@ func TestSetShared_ReleasesTheSupersededFallback(t *testing.T) {
 	if fallback.logger != nil {
 		t.Error("superseded fallback can still write")
 	}
+}
+
+// TestFormatAuthCmdline_DropsEverythingFromTheFirstFlag is the regression guard
+// for the rule this replaced. Keeping the first three arguments was safe only
+// while no sensitive flag appeared early; a global flag in front of the
+// subcommand put its value straight into the file.
+func TestFormatAuthCmdline_DropsEverythingFromTheFirstFlag(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "flag before the subcommand",
+			args: []string{"lark-cli", "--token=super-secret", "auth", "login"},
+			want: "lark-cli ...",
+		},
+		{
+			name: "separated flag value",
+			args: []string{"lark-cli", "auth", "login", "--device-code", "device-secret"},
+			want: "lark-cli auth login ...",
+		},
+		{
+			name: "absolute install path is reduced to the binary name",
+			args: []string{"/opt/internal-tools/build-42/lark-cli", "auth", "status"},
+			want: "lark-cli auth status",
+		},
+		{
+			name: "no flags at all",
+			args: []string{"lark-cli", "auth", "status"},
+			want: "lark-cli auth status",
+		},
+		{
+			name: "empty",
+			args: nil,
+			want: "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := FormatAuthCmdline(tc.args)
+			if got != tc.want {
+				t.Fatalf("FormatAuthCmdline(%q) = %q, want %q", tc.args, got, tc.want)
+			}
+			for _, arg := range tc.args {
+				if strings.Contains(arg, "secret") && strings.Contains(got, "secret") {
+					t.Fatalf("FormatAuthCmdline leaked %q into %q", arg, got)
+				}
+			}
+		})
+	}
+}
+
+// TestAuthLogDir_RejectedOverrideWarns covers the one case where staying silent
+// misleads: the caller set the directory explicitly and it was refused.
+func TestAuthLogDir_RejectedOverrideWarns(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_LOG_DIR", "relative-logs")
+	configDir := t.TempDir()
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", configDir)
+
+	logger := New(Options{RuntimeDir: func() string { return configDir }})
+	warning := captureStderr(t, func() { _ = logger.logDir() })
+
+	for _, want := range []string{"LARKSUITE_CLI_LOG_DIR", "default directory"} {
+		if !strings.Contains(warning, want) {
+			t.Errorf("warning %q does not mention %q", warning, want)
+		}
+	}
+}
+
+// TestAuthLogDir_AcceptedOverrideStaysQuiet keeps the warning scoped to the
+// failure: a usable override must not print anything.
+func TestAuthLogDir_AcceptedOverrideStaysQuiet(t *testing.T) {
+	base := t.TempDir()
+	base, _ = filepath.EvalSymlinks(base)
+	t.Setenv("LARKSUITE_CLI_LOG_DIR", filepath.Join(base, "auth"))
+
+	logger := New(Options{RuntimeDir: func() string { return base }})
+	if warning := captureStderr(t, func() { _ = logger.logDir() }); warning != "" {
+		t.Fatalf("a usable override printed %q", warning)
+	}
+}
+
+// captureStderr redirects os.Stderr for the duration of fn and returns what was
+// written to it.
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	previous := os.Stderr
+	os.Stderr = writer
+	defer func() { os.Stderr = previous }()
+
+	fn()
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+	out, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read captured stderr: %v", err)
+	}
+	return string(out)
 }
 
 // restoreShared isolates each test from the process-wide logger.
