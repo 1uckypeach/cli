@@ -211,15 +211,21 @@ func (l *Logger) close() error {
 	return file.Close()
 }
 
-// FormatAuthCmdline renders the command path for the log and stops at the first
-// flag.
+// maxCmdlineWords caps the command line at the binary plus two words, which is
+// the deepest command path this CLI has (`lark-cli docs +fetch`). Anything
+// beyond that is an argument, not a command.
+const maxCmdlineWords = 3
+
+// FormatAuthCmdline renders the command path for the log under two limits, both
+// of which are load-bearing.
 //
-// Everything from the first flag onward is dropped rather than filtered by name.
-// A denylist of sensitive flags has to be extended whenever one is added, and
-// the rule it replaced — keep the first three arguments — only held while no
-// sensitive flag happened to appear early. Neither survives contact with a flag
-// nobody remembered to classify. What the log needs is which command ran, and
-// that is entirely in the leading non-flag arguments.
+// It stops at the first flag, because a denylist of sensitive flag names has to
+// be extended whenever one is added. It also keeps at most maxCmdlineWords
+// words, because positional arguments carry resource identifiers: `api GET
+// <path>` puts a document token in the fourth word. Dropping either limit
+// widens what reaches a file that lives for a week — the flag limit alone let
+// that token through, and the word limit alone let `--token=... auth login`
+// through.
 //
 // args[0] is reduced to its base name so an absolute install path does not end
 // up in the file either.
@@ -228,17 +234,17 @@ func FormatAuthCmdline(args []string) string {
 		return ""
 	}
 
-	path := []string{filepath.Base(args[0])}
+	words := []string{filepath.Base(args[0])}
 	dropped := false
 	for _, arg := range args[1:] {
-		if strings.HasPrefix(arg, "-") {
+		if strings.HasPrefix(arg, "-") || len(words) == maxCmdlineWords {
 			dropped = true
 			break
 		}
-		path = append(path, arg)
+		words = append(words, arg)
 	}
 
-	line := strings.Join(path, " ")
+	line := strings.Join(words, " ")
 	if dropped {
 		line += " ..."
 	}

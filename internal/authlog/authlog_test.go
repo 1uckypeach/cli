@@ -230,6 +230,19 @@ func TestFormatAuthCmdline_DropsEverythingFromTheFirstFlag(t *testing.T) {
 			want: "lark-cli auth status",
 		},
 		{
+			// `api <method> <path>` puts a document token in the fourth word.
+			// Stopping at the first flag is not enough on its own; the word cap
+			// is what keeps a positional identifier out of the file.
+			name: "positional resource identifier past the cap",
+			args: []string{"lark-cli", "api", "GET", "/open-apis/docx/v1/documents/doccnDOCTOKEN"},
+			want: "lark-cli api GET ...",
+		},
+		{
+			name: "cap applies before any flag appears",
+			args: []string{"lark-cli", "drive", "upload", "/home/me/private/quarterly.xlsx", "--to", "folder"},
+			want: "lark-cli drive upload ...",
+		},
+		{
 			name: "empty",
 			args: nil,
 			want: "",
@@ -243,8 +256,10 @@ func TestFormatAuthCmdline_DropsEverythingFromTheFirstFlag(t *testing.T) {
 				t.Fatalf("FormatAuthCmdline(%q) = %q, want %q", tc.args, got, tc.want)
 			}
 			for _, arg := range tc.args {
-				if strings.Contains(arg, "secret") && strings.Contains(got, "secret") {
-					t.Fatalf("FormatAuthCmdline leaked %q into %q", arg, got)
+				for _, marker := range []string{"secret", "TOKEN", "private"} {
+					if strings.Contains(arg, marker) && strings.Contains(got, marker) {
+						t.Fatalf("FormatAuthCmdline leaked %q into %q", arg, got)
+					}
 				}
 			}
 		})
