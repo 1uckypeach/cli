@@ -11,7 +11,6 @@ import (
 
 	clie2e "github.com/larksuite/cli/tests/cli_e2e"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 func TestDocs_LocalResourcesDryRun(t *testing.T) {
@@ -65,7 +64,7 @@ func TestDocs_LocalResourcesDryRun(t *testing.T) {
 			require.NoError(t, err)
 			result.AssertExitCode(t, 0)
 
-			apis := gjson.Get(result.Stdout, "api").Array()
+			apis := clie2e.DryRunGet(result.Stdout, "api").Array()
 			require.Len(t, apis, 6, "stdout:\n%s", result.Stdout)
 			require.Equal(t, tt.wantDocumentURL, apis[0].Get("url").String(), "stdout:\n%s", result.Stdout)
 
