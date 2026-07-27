@@ -90,6 +90,7 @@ metadata:
 | 获取幻灯片页面截图 | 用 `slide_id` 或页号指定页面，一次不超过 10 页 | `slides +screenshot`、`lark-slides-screenshot.md` |
 | 上传或使用图片 | 先上传为 `file_token`，禁止直接写 http(s) 外链 | `slides +media-upload`、`lark-slides-media-upload.md`，或 `+create --slides` 的 XML 里写 `<img src="@./path">` 占位符 |
 | 绘制图表 | 原生图表（柱状、条形、折线、面积、饼（环）、雷达、组合图）用 `<chart>`，其他（漏斗图、金字塔图、象限图、矩阵图等）用 `<shape>` + `<line>` 模拟 | `xml-schema-quick-ref.md`、`slides_chart_demo.xml` |
+| 绘制流程图、时序图、架构图、类图、ER 图、散点图等拓扑或自定义图形 | 用 `<whiteboard>` 内嵌 SVG 或 Mermaid，`<chart>`/`<shape>` 覆盖不到的场景才用 | `lark-slides-whiteboard.md` |
 | 绘制表格 | 优先用 `rect` 和 `text` 模拟，其他用 `<table>` | `xml-schema-quick-ref.md` |
 | 使用图标 | 禁止盲猜 iconType，必须先检索 IconPark，再写 `<icon iconType="...">`，图标必须填充颜色并和背景有足够对比，禁止使用 emoji 图标 | `iconpark_tool.py search → resolve`、`iconpark.md` |
 | 创建失败、空白页、3350001、布局异常 | 先回读状态，再按排障清单修复，不假设原操作原子成功 | `troubleshooting.md`、`validation-checklist.md` |
@@ -156,6 +157,7 @@ lark-cli auth login --domain slides
 - 截图：[`lark-slides-screenshot.md`](references/lark-slides-screenshot.md)
 - 图片：[`lark-slides-media-upload.md`](references/lark-slides-media-upload.md)
 - 图表：[`slides_chart_demo.xml`](references/slides_chart_demo.xml)
+- 画板：[`lark-slides-whiteboard.md`](references/lark-slides-whiteboard.md)
 - 图标：[`iconpark.md`](references/iconpark.md)、[`scripts/iconpark_tool.py`](scripts/iconpark_tool.py)
 - 排障：[`troubleshooting.md`](references/troubleshooting.md)
 - 完整协议：[`slides_xml_schema_definition.xml`](references/slides_xml_schema_definition.xml)
