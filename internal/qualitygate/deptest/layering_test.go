@@ -42,8 +42,15 @@ type Rule struct {
 	Mode       Mode
 	FromPrefix string
 	Denied     []string
-	// ExceptFrom exempts import paths matched exactly.
+	// ExceptFrom exempts import paths matched exactly, for packages whose whole
+	// job is to sit on the boundary the rule draws: a runtime gate, an assembly
+	// root, a demo of the fork pattern. Reach for ExceptEdges instead whenever
+	// the package merely happens to need one or two of the denied imports, since
+	// exempting it wholesale also clears every denied import added later.
 	ExceptFrom []string
+	// ExceptEdges exempts single (from, denied) pairs, both matched exactly. The
+	// package stays under the rule for everything else.
+	ExceptEdges []layeringEdge
 	// AllowedRepoDeps inverts the check. When set, every dependency inside this
 	// module that is not listed here (matched exactly) is a violation and Denied
 	// is unused. Dependencies outside the module - standard library and
@@ -113,9 +120,13 @@ var rules = []Rule{
 			modulePath + "/internal/client",
 			modulePath + "/internal/vfs",
 		},
-		ExceptFrom: []string{
-			modulePath + "/shortcuts/common",
-			modulePath + "/shortcuts/apps/gitcred",
+		// shortcuts/common is the runtime gate itself, so it holds all five.
+		ExceptFrom: []string{modulePath + "/shortcuts/common"},
+		// gitcred only needs these two to read the git credential helper's
+		// store; it stays under the rule for auth, credential and client.
+		ExceptEdges: []layeringEdge{
+			{From: modulePath + "/shortcuts/apps/gitcred", Denied: modulePath + "/internal/keychain"},
+			{From: modulePath + "/shortcuts/apps/gitcred", Denied: modulePath + "/internal/vfs"},
 		},
 	},
 	{
@@ -143,8 +154,11 @@ var rules = []Rule{
 			modulePath + "/shortcuts",
 			modulePath + "/events",
 		},
-		ExceptFrom: []string{
-			modulePath + "/internal/qualitygate/cmd/manifest-export",
+		// The command-tree collector has to walk the assembled tree to export it;
+		// deptest_test.go asserts that dependency exists. It stays under the rule
+		// for shortcuts and events.
+		ExceptEdges: []layeringEdge{
+			{From: modulePath + "/internal/qualitygate/cmd/manifest-export", Denied: modulePath + "/cmd"},
 		},
 	},
 }
@@ -484,9 +498,10 @@ func TestLayeringRuleContracts(t *testing.T) {
 				modulePath + "/internal/client",
 				modulePath + "/internal/vfs",
 			},
-			ExceptFrom: []string{
-				modulePath + "/shortcuts/common",
-				modulePath + "/shortcuts/apps/gitcred",
+			ExceptFrom: []string{modulePath + "/shortcuts/common"},
+			ExceptEdges: []layeringEdge{
+				{From: modulePath + "/shortcuts/apps/gitcred", Denied: modulePath + "/internal/keychain"},
+				{From: modulePath + "/shortcuts/apps/gitcred", Denied: modulePath + "/internal/vfs"},
 			},
 		},
 		{
@@ -514,8 +529,8 @@ func TestLayeringRuleContracts(t *testing.T) {
 				modulePath + "/shortcuts",
 				modulePath + "/events",
 			},
-			ExceptFrom: []string{
-				modulePath + "/internal/qualitygate/cmd/manifest-export",
+			ExceptEdges: []layeringEdge{
+				{From: modulePath + "/internal/qualitygate/cmd/manifest-export", Denied: modulePath + "/cmd"},
 			},
 		},
 	}
@@ -667,6 +682,42 @@ func TestLayeringRuleContracts(t *testing.T) {
 			},
 			wantFrom:   modulePath + "/shortcuts/im",
 			wantDenied: modulePath + "/internal/auth",
+		},
+		{
+			// The edge exemption is per (from, denied) pair: gitcred keeps the two
+			// it needs and stays covered for the other three. Asserting a single
+			// violation is what makes the two allowed edges load-bearing here.
+			name:     "shortcuts-gitcred-keeps-only-its-two-edges",
+			ruleName: "shortcuts-runtime-gate",
+			packages: []listedPackage{
+				{
+					ImportPath: modulePath + "/shortcuts/apps/gitcred",
+					Imports: []string{
+						modulePath + "/internal/keychain",
+						modulePath + "/internal/vfs",
+						modulePath + "/internal/client",
+					},
+				},
+			},
+			wantFrom:   modulePath + "/shortcuts/apps/gitcred",
+			wantDenied: modulePath + "/internal/client",
+		},
+		{
+			// Same shape for the command-tree collector: cmd is exempt, the rest of
+			// the rule still applies to it.
+			name:     "internal-collector-keeps-only-the-cmd-edge",
+			ruleName: "internal-no-upper",
+			packages: []listedPackage{
+				{
+					ImportPath: modulePath + "/internal/qualitygate/cmd/manifest-export",
+					Imports: []string{
+						modulePath + "/cmd",
+						modulePath + "/events",
+					},
+				},
+			},
+			wantFrom:   modulePath + "/internal/qualitygate/cmd/manifest-export",
+			wantDenied: modulePath + "/events",
 		},
 		{
 			name:     "cmd-direct-denial-and-assembly-exceptions",
@@ -1548,6 +1599,9 @@ func evaluateLayeringRule(packages []listedPackage, rule Rule) []layeringViolati
 		}
 		for _, dependency := range dependencies {
 			if !ruleRejectsDependency(rule, dependency) {
+				continue
+			}
+			if slices.Contains(rule.ExceptEdges, layeringEdge{From: pkg.ImportPath, Denied: dependency}) {
 				continue
 			}
 			violations = append(violations, layeringViolation{
