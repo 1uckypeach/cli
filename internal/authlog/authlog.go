@@ -28,10 +28,15 @@ type Options struct {
 // Logger records authentication diagnostics in a workspace-specific log.
 type Logger struct {
 	runtimeDir func() string
-	logger     *log.Logger
-	loggerOnce sync.Once
 	now        func() time.Time
 	args       func() []string
+
+	// mu guards everything below. The file handle is retained so a logger that
+	// gets superseded can release it instead of waiting for process exit.
+	mu       sync.Mutex
+	resolved bool
+	logger   *log.Logger
+	file     *os.File
 }
 
 // New creates an authentication logger with explicit dependencies.
@@ -64,11 +69,17 @@ func New(options Options) *Logger {
 // would close an import cycle. Untangling that belongs to the internal/core
 // split, after which this indirection can go away.
 var (
-	sharedMu  sync.Mutex
-	sharedLog *Logger
+	sharedMu        sync.Mutex
+	sharedLog       *Logger
+	sharedInstalled bool
 )
 
-// SetShared installs the process-wide authentication logger.
+// SetShared installs the process-wide authentication logger. Only the first
+// explicit install takes effect: the factory can be constructed more than once
+// in one process, and letting a later construction swap the logger would open a
+// second file and silently move subsequent lines to another workspace
+// directory. A lazily created fallback is not an explicit install, so the first
+// real one replaces it and closes the file it had opened.
 func SetShared(logger *Logger) {
 	if logger == nil {
 		return
@@ -76,7 +87,16 @@ func SetShared(logger *Logger) {
 
 	sharedMu.Lock()
 	defer sharedMu.Unlock()
+	if sharedInstalled {
+		return
+	}
+
+	superseded := sharedLog
 	sharedLog = logger
+	sharedInstalled = true
+	if superseded != nil {
+		_ = superseded.close()
+	}
 }
 
 // Shared returns the process-wide authentication logger. When the command
@@ -122,25 +142,56 @@ func (l *Logger) logDir() string {
 	return filepath.Join(l.runtimeDir(), "logs")
 }
 
-func (l *Logger) init() {
-	l.loggerOnce.Do(func() {
-		if l.logger != nil {
-			return
-		}
+// writer resolves the destination on first use and returns nil when the log
+// file could not be opened, or when this logger has been superseded.
+func (l *Logger) writer() *log.Logger {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.resolved {
+		return l.logger
+	}
+	l.resolved = true
+	if l.logger != nil {
+		return l.logger
+	}
 
-		dir := l.logDir()
-		now := l.now()
-		if err := vfs.MkdirAll(dir, 0700); err != nil {
-			return
-		}
+	dir := l.logDir()
+	now := l.now()
+	if err := vfs.MkdirAll(dir, 0700); err != nil {
+		return nil
+	}
 
-		logName := fmt.Sprintf("auth-%s.log", now.Format("2006-01-02"))
-		logPath := filepath.Join(dir, logName)
-		if f, err := vfs.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600); err == nil {
-			l.logger = log.New(f, "", 0)
-			cleanupOldLogs(dir, now)
-		}
-	})
+	logName := fmt.Sprintf("auth-%s.log", now.Format("2006-01-02"))
+	logPath := filepath.Join(dir, logName)
+	f, err := vfs.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return nil
+	}
+
+	l.logger = log.New(f, "", 0)
+	l.file = f
+	cleanupOldLogs(dir, now)
+	return l.logger
+}
+
+// close releases the log file, if one was opened, and stops the logger from
+// opening another. Writes after this point are dropped rather than landing in a
+// file nobody reads.
+func (l *Logger) close() error {
+	if l == nil {
+		return nil
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.resolved = true
+	l.logger = nil
+	file := l.file
+	l.file = nil
+	if file == nil {
+		return nil
+	}
+	return file.Close()
 }
 
 func FormatAuthCmdline(args []string) string {
@@ -160,12 +211,12 @@ func (l *Logger) LogResponse(path string, status int, logID string) {
 	if l == nil {
 		return
 	}
-	l.init()
-	if l.logger == nil {
+	writer := l.writer()
+	if writer == nil {
 		return
 	}
 
-	l.logger.Printf(
+	writer.Printf(
 		"[lark-cli] auth-response: time=%s path=%s status=%d x-tt-logid=%s cmdline=%s",
 		l.now().Format(time.RFC3339Nano),
 		path,
@@ -181,12 +232,12 @@ func (l *Logger) LogError(component, op string, err error) {
 		return
 	}
 
-	l.init()
-	if l.logger == nil {
+	writer := l.writer()
+	if writer == nil {
 		return
 	}
 
-	l.logger.Printf(
+	writer.Printf(
 		"[lark-cli] auth-error: time=%s component=%s op=%s error=%q cmdline=%s",
 		l.now().Format(time.RFC3339Nano),
 		component,

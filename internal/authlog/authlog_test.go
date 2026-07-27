@@ -5,11 +5,12 @@ package authlog
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/larksuite/cli/internal/vfs"
 )
 
 // TestAuthLogDir_UsesValidatedLogDirEnv verifies that a valid absolute
@@ -95,7 +96,7 @@ func TestLogger_WritesUnderTheConfiguredRuntimeDir(t *testing.T) {
 	logger.LogError("keychain", "Get", errors.New("keychain locked"))
 
 	path := filepath.Join(runtimeDir, "logs", "auth-2026-07-25.log")
-	body, err := os.ReadFile(path)
+	body, err := vfs.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)
 	}
@@ -132,7 +133,7 @@ func TestCleanupOldLogs_PrunesOnlyExpiredAuthLogs(t *testing.T) {
 		"other-2020-01-01.log": true,  // not an auth log
 	}
 	for name := range survives {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o600); err != nil {
+		if err := vfs.WriteFile(filepath.Join(dir, name), []byte("x"), 0o600); err != nil {
 			t.Fatalf("seed %s: %v", name, err)
 		}
 	}
@@ -140,10 +141,59 @@ func TestCleanupOldLogs_PrunesOnlyExpiredAuthLogs(t *testing.T) {
 	cleanupOldLogs(dir, now)
 
 	for name, want := range survives {
-		_, err := os.Stat(filepath.Join(dir, name))
+		_, err := vfs.Stat(filepath.Join(dir, name))
 		if got := err == nil; got != want {
 			t.Errorf("%s present = %v, want %v", name, got, want)
 		}
+	}
+}
+
+// TestSetShared_FirstExplicitInstallWins covers a factory being constructed more
+// than once in one process. A later install must not swap the logger: that would
+// open a second file and move subsequent lines to another workspace directory.
+func TestSetShared_FirstExplicitInstallWins(t *testing.T) {
+	restoreShared(t)
+
+	first := New(Options{RuntimeDir: func() string { return "first" }})
+	second := New(Options{RuntimeDir: func() string { return "second" }})
+	SetShared(first)
+	SetShared(second)
+
+	if got := Shared(); got != first {
+		t.Fatalf("Shared() = %p, want the first installed logger %p", got, first)
+	}
+}
+
+// TestSetShared_ReleasesTheSupersededFallback pins the one replacement that is
+// allowed: a lazily created fallback gives way to the first explicit install,
+// and its file handle is released rather than held until the process exits.
+func TestSetShared_ReleasesTheSupersededFallback(t *testing.T) {
+	restoreShared(t)
+	t.Setenv("LARKSUITE_CLI_LOG_DIR", "")
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	fallback := Shared()
+	fallback.LogError("keychain", "Get", errors.New("before the factory exists"))
+	fallback.mu.Lock()
+	opened := fallback.file != nil
+	fallback.mu.Unlock()
+	if !opened {
+		t.Fatal("fallback did not open a log file, so the release path is untested")
+	}
+
+	installed := New(Options{RuntimeDir: func() string { return t.TempDir() }})
+	SetShared(installed)
+
+	if got := Shared(); got != installed {
+		t.Fatalf("Shared() = %p, want the installed logger %p", got, installed)
+	}
+	fallback.mu.Lock()
+	defer fallback.mu.Unlock()
+	if fallback.file != nil {
+		t.Error("superseded fallback still holds its file handle")
+	}
+	if fallback.logger != nil {
+		t.Error("superseded fallback can still write")
 	}
 }
 
@@ -152,13 +202,13 @@ func restoreShared(t *testing.T) {
 	t.Helper()
 
 	sharedMu.Lock()
-	previous := sharedLog
-	sharedLog = nil
+	previousLog, previousInstalled := sharedLog, sharedInstalled
+	sharedLog, sharedInstalled = nil, false
 	sharedMu.Unlock()
 
 	t.Cleanup(func() {
 		sharedMu.Lock()
-		sharedLog = previous
+		sharedLog, sharedInstalled = previousLog, previousInstalled
 		sharedMu.Unlock()
 	})
 }
