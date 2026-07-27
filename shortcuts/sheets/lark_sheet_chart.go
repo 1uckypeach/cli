@@ -15,6 +15,11 @@ import (
 
 var chartHexColorPattern = regexp.MustCompile(`^#?[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$`)
 
+// Sheet currently accepts at most 50 value series in one chart. Keep the
+// client-side guard aligned with the tool-layer contract so an obviously wide
+// source fails before a write call and tells the agent how to recover.
+const chartSeriesMaxCount = 50
+
 var chartSemanticConfigFlags = []string{
 	"title",
 	"subtitle",
@@ -214,10 +219,30 @@ func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[s
 	if chartType == "combo" && dimensionCount < 3 {
 		return nil, sheetsValidationForFlag("data-range", "combo chart requires at least 3 rows or columns along --data-direction")
 	}
+	seriesCount := dimensionCount - 1
+	if chartType == "pie" {
+		seriesCount = 1
+	}
+	if seriesCount > chartSeriesMaxCount {
+		return nil, sheetsValidationForFlag(
+			"data-range",
+			"--data-range creates %d series along --data-direction %s, over the current limit of %d; select fewer rows/columns or build a compact summary table",
+			seriesCount,
+			direction,
+			chartSeriesMaxCount,
+		)
+	}
 
 	basic := map[string]interface{}{
 		"chart_type": chartType,
 		"data_range": normalizedDataRange,
+	}
+	if rt.Changed("header-range") {
+		headerRange := strings.TrimSpace(rt.Str("header-range"))
+		if err := validateChartRangeListFlag("header-range", headerRange); err != nil {
+			return nil, err
+		}
+		basic["header_range"] = headerRange
 	}
 	if rt.Changed("data-direction") {
 		basic["data_direction"] = rt.Str("data-direction")
@@ -328,6 +353,13 @@ func chartDataUpdateInput(rt flagView, token, sheetID, sheetName string) (map[st
 	}
 
 	updates := map[string]interface{}{"data_range": dataRange}
+	if rt.Changed("header-range") {
+		headerRange := strings.TrimSpace(rt.Str("header-range"))
+		if err := validateChartRangeListFlag("header-range", headerRange); err != nil {
+			return nil, err
+		}
+		updates["header_range"] = headerRange
+	}
 	if rt.Changed("data-direction") {
 		updates["data_direction"] = rt.Str("data-direction")
 	}
@@ -353,6 +385,14 @@ func chartDataUpdateInput(rt flagView, token, sheetID, sheetName string) (map[st
 				)
 			}
 		}
+		if len(dim2Indexes) > chartSeriesMaxCount {
+			return nil, sheetsValidationForFlag(
+				"dim2-indexes",
+				"--dim2-indexes selects %d series, over the current limit of %d; select fewer series",
+				len(dim2Indexes),
+				chartSeriesMaxCount,
+			)
+		}
 		updates["dim2_indexes"] = dim2Indexes
 	}
 	input := map[string]interface{}{
@@ -366,6 +406,49 @@ func chartDataUpdateInput(rt flagView, token, sheetID, sheetName string) (map[st
 		return nil, err
 	}
 	return input, nil
+}
+
+func validateChartRangeListFlag(flagName, value string) error {
+	if value == "" {
+		return sheetsValidationForFlag(flagName, "--%s must not be empty", flagName)
+	}
+	ranges, err := splitChartDataRanges(value)
+	if err != nil {
+		return sheetsValidationForFlag(flagName, "invalid --%s %q: %v", flagName, value, err)
+	}
+	explicitSheet := ""
+	for _, rangeValue := range ranges {
+		item, parseErr := parseChartHeaderRange(rangeValue)
+		if parseErr != nil {
+			return sheetsValidationForFlag(flagName, "invalid --%s item %q: %v", flagName, rangeValue, parseErr)
+		}
+		if item.sheet != "" {
+			if explicitSheet != "" && item.sheet != explicitSheet {
+				return sheetsValidationForFlag(flagName, "all --%s items must belong to the same sheet", flagName)
+			}
+			explicitSheet = item.sheet
+		}
+	}
+	return nil
+}
+
+func parseChartHeaderRange(value string) (chartDataRange, error) {
+	item := chartDataRange{}
+	ref := strings.TrimSpace(value)
+	if bang := strings.LastIndex(ref, "!"); bang >= 0 {
+		item.sheet = strings.TrimSpace(ref[:bang])
+		ref = strings.TrimSpace(ref[bang+1:])
+	}
+	if strings.Contains(ref, ":") {
+		return parseChartDataRange(value)
+	}
+	col, row, ok := splitCellRef(ref)
+	if !ok {
+		return item, common.ValidationErrorf("expected an A1 cell or rectangular range such as A1 or A1:C1")
+	}
+	item.row, item.col = row, col
+	item.rowCount, item.colCount = 1, 1
+	return item, nil
 }
 
 func parseChartDim2Indexes(raw string) ([]int, error) {
@@ -583,8 +666,8 @@ func validateChartColorFlags(rt flagView) error {
 	}
 	if rt.Changed("colors") {
 		colors := normalizedChartColors(rt)
-		if len(colors) < 2 {
-			return sheetsValidationForFlag("colors", "--colors must contain at least two hex colors")
+		if len(colors) == 0 {
+			return sheetsValidationForFlag("colors", "--colors must contain at least one hex color")
 		}
 		for _, color := range colors {
 			if !chartHexColorPattern.MatchString(color) {
@@ -600,6 +683,9 @@ func normalizedChartColors(rt flagView) []string {
 	colors := make([]string, len(raw))
 	for i := range raw {
 		colors[i] = strings.TrimSpace(raw[i])
+	}
+	if len(colors) == 1 {
+		colors = append(colors, colors[0])
 	}
 	return colors
 }

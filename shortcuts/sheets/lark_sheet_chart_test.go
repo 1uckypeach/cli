@@ -3,7 +3,10 @@
 
 package sheets
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestChartCreateBasic_AllTypes(t *testing.T) {
 	t.Parallel()
@@ -83,6 +86,24 @@ func TestChartCreateBasic_MultipleAlignedRanges(t *testing.T) {
 	basic := input["basic_chart"].(map[string]interface{})
 	if basic["data_range"] != rangeValue {
 		t.Fatalf("basic_chart.data_range = %v, want %q", basic["data_range"], rangeValue)
+	}
+}
+
+func TestChartCreateBasic_DetachedHeaderRange(t *testing.T) {
+	t.Parallel()
+	dataRange := "'Sheet1'!A2:A10,'Sheet1'!K2:L10"
+	headerRange := "'Sheet1'!A1,'Sheet1'!K1:L1"
+	body := parseDryRunBody(t, ChartCreateBasic, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-type", "line",
+		"--data-range", dataRange,
+		"--header-range", headerRange,
+	})
+	input := decodeToolInput(t, body, "manage_chart_object")
+	basic := input["basic_chart"].(map[string]interface{})
+	if basic["data_range"] != dataRange || basic["header_range"] != headerRange {
+		t.Fatalf("basic_chart = %#v", basic)
 	}
 }
 
@@ -203,19 +224,47 @@ func TestChartConfigUpdate_SpacedSmoothBool(t *testing.T) {
 
 func TestChartSemanticShortcuts_CompatibleAliases(t *testing.T) {
 	t.Parallel()
-	body := parseDryRunBody(t, ChartConfigUpdate, []string{
+	chartCreateBasic := shortcutFromRegistry(t, "+chart-create-basic")
+	chartConfigUpdate := shortcutFromRegistry(t, "+chart-config-update")
+	body := parseDryRunBody(t, chartCreateBasic, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--type", "line",
+		"--range", "A1:C10",
+		"--x-axis", "Month",
+		"--y-axis", "Revenue",
+	})
+	basic := decodeToolInput(t, body, "manage_chart_object")["basic_chart"].(map[string]interface{})
+	if basic["chart_type"] != "line" || basic["data_range"] != "A1:C10" ||
+		basic["x_axis_title"] != "Month" || basic["y_axis_title"] != "Revenue" {
+		t.Fatalf("chart create aliases = %#v", basic)
+	}
+	body = parseDryRunBody(t, chartConfigUpdate, []string{
 		"--url", testURL, "--sheet-id", testSheetID, "--chart-id", "chart-1", "--stacked",
 	})
 	updates := decodeToolInput(t, body, "manage_chart_object")["config_updates"].(map[string]interface{})
 	if updates["stack"] != "normal" {
 		t.Fatalf("--stacked normalized stack = %v, want normal", updates["stack"])
 	}
-	body = parseDryRunBody(t, ChartConfigUpdate, []string{
+	body = parseDryRunBody(t, chartConfigUpdate, []string{
 		"--url", testURL, "--sheet-id", testSheetID, "--chart-id", "chart-1", "--data-labels", "category_percentage",
 	})
 	updates = decodeToolInput(t, body, "manage_chart_object")["config_updates"].(map[string]interface{})
 	if updates["data_labels"] != "value_percentage" {
 		t.Fatalf("data-labels normalized value = %v, want value_percentage", updates["data_labels"])
+	}
+	body = parseDryRunBody(t, chartConfigUpdate, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-id", "chart-1",
+		"--x-axis", "Month",
+		"--y-axis", "Revenue",
+		"--data-labels", "percentage,value",
+	})
+	updates = decodeToolInput(t, body, "manage_chart_object")["config_updates"].(map[string]interface{})
+	if updates["x_axis_title"] != "Month" || updates["y_axis_title"] != "Revenue" ||
+		updates["data_labels"] != "value_percentage" {
+		t.Fatalf("chart config aliases = %#v", updates)
 	}
 }
 
@@ -223,15 +272,65 @@ func TestChartSemanticShortcuts_CompatibleAliasesInBatch(t *testing.T) {
 	t.Parallel()
 	body := parseDryRunBody(t, BatchUpdate, []string{
 		"--url", testURL,
-		"--operations", `[{"shortcut":"+chart-config-update","input":{"sheet_id":"sh1","chart_id":"chart-1","stacked":true,"data_labels":"category_percentage","smooth":false}}]`,
+		"--operations", `[{"shortcut":"+chart-config-update","input":{"sheet_id":"sh1","chart_id":"chart-1","stacked":true,"x_axis":"Month","y_axis":"Revenue","data_labels":"value,percentage","smooth":false}}]`,
 		"--yes",
 	})
 	input := decodeToolInput(t, body, "batch_update")
 	ops := input["operations"].([]interface{})
 	chartInput := ops[0].(map[string]interface{})["input"].(map[string]interface{})
 	updates := chartInput["config_updates"].(map[string]interface{})
-	if updates["stack"] != "normal" || updates["data_labels"] != "value_percentage" || updates["smooth"] != false {
+	if updates["stack"] != "normal" || updates["x_axis_title"] != "Month" || updates["y_axis_title"] != "Revenue" ||
+		updates["data_labels"] != "value_percentage" || updates["smooth"] != false {
 		t.Fatalf("batch config_updates = %#v", updates)
+	}
+}
+
+func TestChartSemanticShortcuts_SingleCustomColorIsExpanded(t *testing.T) {
+	t.Parallel()
+
+	body := parseDryRunBody(t, ChartCreateBasic, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-type", "line",
+		"--data-range", "A1:C10",
+		"--colors", "#112233",
+	})
+	basic := decodeToolInput(t, body, "manage_chart_object")["basic_chart"].(map[string]interface{})
+	colors := basic["colors"].([]interface{})
+	if len(colors) != 2 || colors[0] != "#112233" || colors[1] != "#112233" {
+		t.Fatalf("standalone colors = %#v", colors)
+	}
+
+	body = parseDryRunBody(t, BatchUpdate, []string{
+		"--url", testURL,
+		"--operations", `[{
+			"shortcut":"+chart-create-basic",
+			"input":{"sheet_id":"sh1","type":"line","range":"A1:C10","colors":["#445566"]}
+		}]`,
+		"--yes",
+	})
+	input := decodeToolInput(t, body, "batch_update")
+	ops := input["operations"].([]interface{})
+	basic = ops[0].(map[string]interface{})["input"].(map[string]interface{})["basic_chart"].(map[string]interface{})
+	colors = basic["colors"].([]interface{})
+	if len(colors) != 2 || colors[0] != "#445566" || colors[1] != "#445566" {
+		t.Fatalf("batch array colors = %#v", colors)
+	}
+}
+
+func TestChartCreateBasic_RejectsMoreThanFiftySeries(t *testing.T) {
+	t.Parallel()
+	_, _, err := runShortcutCapturingErr(t, ChartCreateBasic, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-type", "line",
+		"--data-range", "A2:DV7",
+		"--data-direction", "column",
+	})
+	requireValidation(t, err, "creates 125 series")
+	if !strings.Contains(err.Error(), "current limit of 50") ||
+		!strings.Contains(err.Error(), "compact summary table") {
+		t.Fatalf("series limit error is not actionable: %v", err)
 	}
 }
 
@@ -275,6 +374,24 @@ func TestChartDataUpdate_ExplicitDirectionAndMultipleRanges(t *testing.T) {
 	}
 }
 
+func TestChartDataUpdate_DetachedHeaderRange(t *testing.T) {
+	t.Parallel()
+	dataRange := "'Sheet1'!A2:A10,'Sheet1'!K2:L10"
+	headerRange := "'Sheet1'!A1,'Sheet1'!K1:L1"
+	body := parseDryRunBody(t, ChartDataUpdate, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-id", "chart-1",
+		"--data-range", dataRange,
+		"--header-range", headerRange,
+	})
+	input := decodeToolInput(t, body, "manage_chart_object")
+	updates := input["data_updates"].(map[string]interface{})
+	if updates["data_range"] != dataRange || updates["header_range"] != headerRange {
+		t.Fatalf("data_updates = %#v", updates)
+	}
+}
+
 func TestChartDataUpdate_ExplicitSeriesIndexes(t *testing.T) {
 	t.Parallel()
 	body := parseDryRunBody(t, ChartDataUpdate, []string{
@@ -308,9 +425,10 @@ func TestChartSemanticShortcuts_Validation(t *testing.T) {
 		{name: "range too small", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:A4"}},
 		{name: "combo needs two series", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "combo", "--data-range", "A1:B4"}},
 		{name: "invalid direction", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--data-direction", "horizontal"}},
-		{name: "colors need two values", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--colors", "#112233"}},
+		{name: "colors cannot be empty", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--colors", ""}},
 		{name: "palette and colors are exclusive", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--color-palette", "brandColorSeries@v2", "--colors", "#112233,#445566"}},
 		{name: "size must be paired", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--width", "640"}},
+		{name: "header range cannot cross sheets", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A2:C4", "--header-range", "'A'!A1,'B'!B1:C1"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -65,11 +65,14 @@ var commandFlagAliases = map[string]map[string]string{
 	// spells the pixel dimension "size", and pre-2026-07 batches accepted it
 	// here too — the rename is the single largest sub-op error cluster in
 	// eval traces (15+ hits). Same pixel-count semantics, safe to rewrite.
-	"+cols-resize": {"cols": "range", "size": "width"},
-	"+rows-resize": {"rows": "range", "size": "height"},
-	"+range-fill":  {"source": "source-range", "target": "target-range"},
-	"+range-copy":  {"source": "source-range", "target": "target-range"},
-	"+range-move":  {"source": "source-range", "target": "target-range"},
+	"+cols-resize":         {"cols": "range", "size": "width"},
+	"+rows-resize":         {"rows": "range", "size": "height"},
+	"+range-fill":          {"source": "source-range", "target": "target-range"},
+	"+range-copy":          {"source": "source-range", "target": "target-range"},
+	"+range-move":          {"source": "source-range", "target": "target-range"},
+	"+chart-create-basic":  {"type": "chart-type", "range": "data-range", "x-axis": "x-axis-title", "y-axis": "y-axis-title"},
+	"+chart-config-update": {"x-axis": "x-axis-title", "y-axis": "y-axis-title"},
+	"+chart-data-update":   {"range": "data-range"},
 }
 
 // intuitiveFlagHints carries the prescription for habitual names whose fix
@@ -265,6 +268,10 @@ var enumAliases = map[string]string{
 	// a distinct truncation mode nobody spells "false").
 	"true":  "auto-wrap",
 	"false": "overflow",
+	// Combined chart data-label vocabulary emitted by models. The tool enum
+	// spells the same intent as one value.
+	"percentage,value": "value_percentage",
+	"value,percentage": "value_percentage",
 }
 
 // canonicalEnumValue returns the enum entry an off-vocabulary value
@@ -279,7 +286,8 @@ func canonicalEnumValue(val string, enum []string) string {
 			return allowed
 		}
 	}
-	if target, ok := enumAliases[lower]; ok {
+	aliasKey := strings.ReplaceAll(lower, " ", "")
+	if target, ok := enumAliases[aliasKey]; ok {
 		if slices.Contains(enum, target) {
 			return target
 		}
