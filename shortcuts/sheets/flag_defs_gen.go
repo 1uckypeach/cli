@@ -250,6 +250,8 @@ var flagDefs = map[string]commandDef{
 			{Name: "data-range", Kind: "own", Type: "string", Required: "required", Desc: "Data range; include headers unless --header-range is set, in which case pass data only; accepts comma-separated same-sheet ranges"},
 			{Name: "header-range", Kind: "own", Type: "string", Required: "optional", Desc: "Optional detached header range; use one row for column direction or one column for row direction, with one header per data dimension"},
 			{Name: "data-direction", Kind: "own", Type: "string", Required: "optional", Desc: "Data series direction; column uses the first column as categories, row uses the first row", Default: "column", Enum: []string{"column", "row"}},
+			{Name: "dim1-index", Kind: "own", Type: "int", Required: "optional", Desc: "1-based category/X-axis dimension index within the data range; defaults to 1"},
+			{Name: "dim2-indexes", Kind: "own", Type: "string", Required: "optional", Desc: "Comma-separated 1-based value/Y-axis dimension indexes; must exclude dim1, at most 50"},
 			{Name: "title", Kind: "own", Type: "string", Required: "optional", Desc: "Chart title"},
 			{Name: "subtitle", Kind: "own", Type: "string", Required: "optional", Desc: "Chart subtitle"},
 			{Name: "legend-position", Kind: "own", Type: "string", Required: "optional", Desc: "Legend position; hidden removes the legend", Enum: []string{"top", "bottom", "left", "right", "hidden"}},

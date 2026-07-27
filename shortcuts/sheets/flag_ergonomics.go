@@ -141,6 +141,13 @@ var intuitiveFlagHints = map[string]map[string]string{
 		"sheet-name": `+table-put has no sheet selector — each --sheets item carries its own "name" field ({"sheets":[{"name":"Sheet1",…}]})`,
 		"sheet-id":   `+table-put has no sheet selector — each --sheets item carries its own "name" field ({"sheets":[{"name":"Sheet1",…}]})`,
 	},
+	"+chart-create-basic": {
+		"position":    "use --anchor-cell F2 for the chart anchor; optionally pair --width and --height for its pixel size",
+		"show-labels": "use --data-labels value (or percentage/value_percentage/category/series; use none to hide labels)",
+	},
+	"+chart-config-update": {
+		"show-labels": "use --data-labels value (or percentage/value_percentage/category/series; use none to hide labels)",
+	},
 }
 
 // chainFlagAliases installs an invisible flag-name rewrite (via
