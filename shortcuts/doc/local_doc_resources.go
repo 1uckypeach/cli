@@ -1104,7 +1104,7 @@ func emitLocalDocResourcePartialFailure(runtime *common.RuntimeContext, data map
 			item["file_token"] = outcome.FileToken
 		}
 		if outcome.Err != nil {
-			item["error"] = sanitizedLocalDocResourceError(outcome.Err, outcome.Resource)
+			item["error"] = sanitizedLocalDocResourceError(runtime, outcome.Err, outcome.Resource)
 		}
 		items = append(items, item)
 		if outcome.Status == "bound" {
@@ -1127,19 +1127,18 @@ func emitLocalDocResourcePartialFailure(runtime *common.RuntimeContext, data map
 	return runtime.OutPartialFailure(data, nil)
 }
 
-func sanitizedLocalDocResourceError(err error, resource localDocResource) map[string]interface{} {
+func sanitizedLocalDocResourceError(runtime *common.RuntimeContext, err error, resource localDocResource) map[string]interface{} {
 	message := err.Error()
 	placeholder := fmt.Sprintf("<local-%s-%d>", resource.Kind, resource.Occurrence)
 	secrets := make([]string, 0, 12)
-	if resource.Path != "" {
-		if absolutePath, absErr := filepath.Abs(resource.Path); absErr == nil {
-			secrets = append(secrets, absolutePath, filepath.ToSlash(absolutePath))
+	if fileIO := runtime.FileIO(); fileIO != nil {
+		if resource.Path != "" {
+			if absolutePath, resolveErr := fileIO.ResolvePath(resource.Path); resolveErr == nil {
+				secrets = append(secrets, absolutePath, filepath.ToSlash(absolutePath))
+			}
 		}
-	}
-	if cwd, cwdErr := filepath.Abs("."); cwdErr == nil {
-		secrets = append(secrets, cwd, filepath.ToSlash(cwd))
-		if realCWD, evalErr := filepath.EvalSymlinks(cwd); evalErr == nil {
-			secrets = append(secrets, realCWD, filepath.ToSlash(realCWD))
+		if cwd, resolveErr := fileIO.ResolvePath("."); resolveErr == nil {
+			secrets = append(secrets, cwd, filepath.ToSlash(cwd))
 		}
 	}
 	secrets = append(secrets, "@"+resource.Path, resource.Path, filepath.ToSlash(resource.Path), resource.FileName, resource.Marker)

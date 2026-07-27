@@ -69,11 +69,6 @@ type whiteboardStartTag struct {
 	SelfClosing bool
 }
 
-func buildCreateBodyWithHTML5ReferenceMap(runtime *common.RuntimeContext) (map[string]interface{}, error) {
-	body, _, err := buildCreateBodyWithPreparedInput(runtime)
-	return body, err
-}
-
 func buildCreateBodyWithPreparedInput(runtime *common.RuntimeContext) (map[string]interface{}, []localDocResource, error) {
 	body := buildCreateBody(runtime)
 	if runtime.Str("content") == "" && !runtime.Changed("reference-map") {
