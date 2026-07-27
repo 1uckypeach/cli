@@ -283,6 +283,12 @@ func TestAuthLogDir_AcceptedOverrideStaysQuiet(t *testing.T) {
 
 // captureStderr redirects os.Stderr for the duration of fn and returns what was
 // written to it.
+//
+// This one uses os rather than vfs on purpose. os.Pipe and os.Stderr are process
+// contracts, not filesystem access, so vfs neither wraps them nor should: the
+// code under test writes to the real stderr and there is nothing for a
+// substituted vfs.DefaultFS to intercept. Assertions that touch files stay on
+// vfs so they follow whatever the implementation uses.
 func captureStderr(t *testing.T, fn func()) string {
 	t.Helper()
 

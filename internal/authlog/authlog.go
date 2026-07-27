@@ -114,6 +114,11 @@ func Shared() *Logger {
 
 func defaultRuntimeDir() string {
 	if dir := os.Getenv("LARKSUITE_CLI_CONFIG_DIR"); dir != "" {
+		// Deliberately unvalidated, mirroring core.GetBaseConfigDir. Routing this
+		// through validate.SafeEnvDirPath would also resolve symlinks, changing
+		// the directory the CLI reports and uses on any host where the path
+		// crosses one. Tightening it is a decision about config path semantics,
+		// not a local fix — see the follow-up note in the PR.
 		return dir
 	}
 	home, err := vfs.UserHomeDir()
