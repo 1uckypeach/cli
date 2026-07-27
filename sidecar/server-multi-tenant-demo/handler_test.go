@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -20,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/larksuite/cli/envnames"
+	"github.com/larksuite/cli/errs"
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
@@ -420,8 +422,12 @@ func TestRun_RejectsSelfProxy(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when AUTH_PROXY is set")
 	}
-	if !strings.Contains(err.Error(), envnames.CliAuthProxy) {
-		t.Errorf("error should mention %s, got: %v", envnames.CliAuthProxy, err)
+	var configErr *errs.ConfigError
+	if !errors.As(err, &configErr) {
+		t.Fatalf("self-proxy rejection = %T, want *errs.ConfigError so callers can branch on the type", err)
+	}
+	if !strings.Contains(configErr.Error(), envnames.CliAuthProxy) {
+		t.Errorf("error should mention %s, got: %v", envnames.CliAuthProxy, configErr)
 	}
 }
 

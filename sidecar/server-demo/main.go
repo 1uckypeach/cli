@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/larksuite/cli/envnames"
+	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/vfs"
@@ -63,25 +64,25 @@ func run(ctx context.Context, listen, keyFile, logFile, profile string) error {
 	// credential provider would activate and return sentinel tokens instead
 	// of real ones, breaking the "trusted side holds real credentials" premise.
 	if v := os.Getenv(envnames.CliAuthProxy); v != "" {
-		return fmt.Errorf("%s is set in this environment (%s); unset it before starting the sidecar server", envnames.CliAuthProxy, v)
+		return errs.NewConfigError(errs.SubtypeInvalidConfig, "%s is set in this environment (%s); unset it before starting the sidecar server", envnames.CliAuthProxy, v)
 	}
 	if listen == "" {
-		return fmt.Errorf("invalid --listen address: empty")
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --listen address: empty")
 	}
 
 	// Generate HMAC key (32 bytes = 256 bits) and write it to disk (0600).
 	keyBytes := make([]byte, 32)
 	if _, err := rand.Read(keyBytes); err != nil {
-		return fmt.Errorf("failed to generate HMAC key: %v", err)
+		return errs.NewInternalError(errs.SubtypeStorage, "failed to generate HMAC key: %v", err).WithCause(err)
 	}
 	keyHex := hex.EncodeToString(keyBytes)
 
 	keyDir := filepath.Dir(keyFile)
 	if err := vfs.MkdirAll(keyDir, 0700); err != nil {
-		return fmt.Errorf("failed to create key directory: %v", err)
+		return errs.NewInternalError(errs.SubtypeStorage, "failed to create key directory: %v", err).WithCause(err)
 	}
 	if err := vfs.WriteFile(keyFile, []byte(keyHex), 0600); err != nil {
-		return fmt.Errorf("failed to write key file: %v", err)
+		return errs.NewInternalError(errs.SubtypeStorage, "failed to write key file: %v", err).WithCause(err)
 	}
 
 	// Audit logger: file or stderr.
@@ -89,7 +90,7 @@ func run(ctx context.Context, listen, keyFile, logFile, profile string) error {
 	if logFile != "" {
 		f, err := vfs.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
-			return fmt.Errorf("failed to open log file: %v", err)
+			return errs.NewInternalError(errs.SubtypeStorage, "failed to open log file: %v", err).WithCause(err)
 		}
 		defer f.Close()
 		auditLogger = log.New(f, "", log.LstdFlags)
@@ -102,12 +103,12 @@ func run(ctx context.Context, listen, keyFile, logFile, profile string) error {
 	factory := cmdutil.NewDefault(nil, cmdutil.InvocationContext{Profile: profile})
 	cfg, err := factory.Config()
 	if err != nil {
-		return fmt.Errorf("failed to load config: %v", err)
+		return errs.NewConfigError(errs.SubtypeInvalidConfig, "failed to load config: %v", err).WithCause(err)
 	}
 
 	listener, err := net.Listen("tcp", listen)
 	if err != nil {
-		return fmt.Errorf("failed to listen on %s: %v", listen, err)
+		return errs.NewNetworkError(errs.SubtypeNetworkTransport, "failed to listen on %s: %v", listen, err).WithCause(err)
 	}
 	defer listener.Close()
 
@@ -161,7 +162,7 @@ func run(ctx context.Context, listen, keyFile, logFile, profile string) error {
 	fmt.Fprintf(os.Stderr, "  export %s=%q\n", envnames.CliBrand, string(cfg.Brand))
 
 	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("sidecar server exited unexpectedly: %v", err)
+		return errs.NewNetworkError(errs.SubtypeNetworkTransport, "sidecar server exited unexpectedly: %v", err).WithCause(err)
 	}
 	return nil
 }

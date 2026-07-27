@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/larksuite/cli/envnames"
+	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/validate"
@@ -63,30 +64,30 @@ func defaultKeyFile() string {
 
 func run(ctx context.Context, listen, keyFile, keysDir, logFile, profile string) error {
 	if v := os.Getenv(envnames.CliAuthProxy); v != "" {
-		return fmt.Errorf("%s is set in this environment (%s); unset it before starting the sidecar server", envnames.CliAuthProxy, v)
+		return errs.NewConfigError(errs.SubtypeInvalidConfig, "%s is set in this environment (%s); unset it before starting the sidecar server", envnames.CliAuthProxy, v)
 	}
 	if listen == "" {
-		return fmt.Errorf("invalid --listen address: empty")
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --listen address: empty")
 	}
 
 	if _, err := validate.SafeInputPath(keyFile); err != nil {
-		return fmt.Errorf("invalid --key-file path: %w", err)
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --key-file path: %v", err).WithCause(err)
 	}
 	if logFile != "" {
 		if _, err := validate.SafeInputPath(logFile); err != nil {
-			return fmt.Errorf("invalid --log-file path: %w", err)
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --log-file path: %v", err).WithCause(err)
 		}
 	}
 	if keysDir != "" {
 		if _, err := validate.SafeInputPath(keysDir); err != nil {
-			return fmt.Errorf("invalid --keys-dir path: %w", err)
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --keys-dir path: %v", err).WithCause(err)
 		}
 	}
 
 	// Reuse existing key if present; generate a new one only on first run.
 	keyDir := filepath.Dir(keyFile)
 	if err := vfs.MkdirAll(keyDir, 0700); err != nil {
-		return fmt.Errorf("failed to create key directory: %v", err)
+		return errs.NewInternalError(errs.SubtypeStorage, "failed to create key directory: %v", err).WithCause(err)
 	}
 
 	var keyHex string
@@ -95,11 +96,11 @@ func run(ctx context.Context, listen, keyFile, keysDir, logFile, profile string)
 	} else {
 		keyBytes := make([]byte, 32)
 		if _, err := rand.Read(keyBytes); err != nil {
-			return fmt.Errorf("failed to generate HMAC key: %v", err)
+			return errs.NewInternalError(errs.SubtypeStorage, "failed to generate HMAC key: %v", err).WithCause(err)
 		}
 		keyHex = hex.EncodeToString(keyBytes)
 		if err := vfs.WriteFile(keyFile, []byte(keyHex), 0600); err != nil {
-			return fmt.Errorf("failed to write key file: %v", err)
+			return errs.NewInternalError(errs.SubtypeStorage, "failed to write key file: %v", err).WithCause(err)
 		}
 	}
 
@@ -113,7 +114,7 @@ func run(ctx context.Context, listen, keyFile, keysDir, logFile, profile string)
 	if logFile != "" {
 		f, err := vfs.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
-			return fmt.Errorf("failed to open log file: %v", err)
+			return errs.NewInternalError(errs.SubtypeStorage, "failed to open log file: %v", err).WithCause(err)
 		}
 		defer f.Close()
 		auditLogger = log.New(f, "", log.LstdFlags)
@@ -124,12 +125,12 @@ func run(ctx context.Context, listen, keyFile, keysDir, logFile, profile string)
 	factory := cmdutil.NewDefault(nil, cmdutil.InvocationContext{Profile: profile})
 	cfg, err := factory.Config()
 	if err != nil {
-		return fmt.Errorf("failed to load config: %v", err)
+		return errs.NewConfigError(errs.SubtypeInvalidConfig, "failed to load config: %v", err).WithCause(err)
 	}
 
 	listener, err := net.Listen("tcp", listen)
 	if err != nil {
-		return fmt.Errorf("failed to listen on %s: %v", listen, err)
+		return errs.NewNetworkError(errs.SubtypeNetworkTransport, "failed to listen on %s: %v", listen, err).WithCause(err)
 	}
 	defer listener.Close()
 
@@ -189,7 +190,7 @@ func run(ctx context.Context, listen, keyFile, keysDir, logFile, profile string)
 	fmt.Fprintf(os.Stderr, "  export %s=%q\n", envnames.CliBrand, string(cfg.Brand))
 
 	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("sidecar server exited unexpectedly: %v", err)
+		return errs.NewNetworkError(errs.SubtypeNetworkTransport, "sidecar server exited unexpectedly: %v", err).WithCause(err)
 	}
 	return nil
 }
