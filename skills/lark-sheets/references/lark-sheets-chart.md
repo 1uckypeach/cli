@@ -23,9 +23,9 @@
 
 **数量词必须展开**：用户说“每个 / 每天 / 分别 / 逐一 / 各一张图”时，先从数据中数出实体数 `N`，把这 `N` 张图逐项写进清单，再加上其它汇总图得到目标总数 `M`；一个包含全部实体的多系列图不能替代这 `N` 张独立图。批次前断言 operations 中恰有 `M` 个图表创建，批次后断言图表总数、逐图标题与实体集合一致。
 
-**范围与系列前置校验**：清单中同时记录每张图的表头范围、纳入列、明确排除列、数据方向和预期系列数。表头在首列时用默认 `--data-direction column`；表头在首行、每行代表一个系列时用 `--data-direction row`。创建前根据实际表头确认边界，不凭字母猜范围；创建后范围、方向或系列数不符时，使用 `+chart-data-update` 修正，服务端会重建 `refs` / `dim1` / `dim2.series` 并保留其它配置，不要删除后重建。批次跨多个 sheet 时，每个受影响的 sheet 各调用一次 `+chart-list`。
+**范围与系列前置校验**：清单中同时记录每张图的表头范围、纳入列、明确排除列、数据方向和预期系列数。表头在首列时用默认 `--data-direction column`；表头在首行、每行代表一个系列时用 `--data-direction row`。当前每张图最多支持 50 个数值系列；按列组织时通常为“范围列数 - 1”，按行组织时通常为“范围行数 - 1”。宽透视表或超宽明细表会超过上限时，不要反复删除重建：先整理只含目标类别和指标的紧凑汇总表，或用 `+chart-data-update --dim1-index ... --dim2-indexes ...` 显式选择不超过 50 个系列。创建前根据实际表头确认边界，不凭字母猜范围；创建后范围、方向或系列数不符时，使用 `+chart-data-update` 修正，服务端会重建 `refs` / `dim1` / `dim2.series` 并保留其它配置，不要删除后重建。批次跨多个 sheet 时，每个受影响的 sheet 各调用一次 `+chart-list`。
 
-**整图配色优先走语义参数**：只要求统一主题或一组系列颜色时，在创建时传 `--color-palette` 或 `--colors`，已有图表用 `+chart-config-update` 更新；二者互斥。只有指定某个系列或某个数据点的颜色时才使用原始 snapshot。
+**整图配色优先走语义参数**：只要求统一主题或一组系列颜色时，在创建时传 `--color-palette` 或 `--colors`，已有图表用 `+chart-config-update` 更新；二者互斥。`--colors` 接受逗号分隔字符串；批量 operation 的 `colors` 同时接受字符串或字符串数组。只传一个自定义颜色时会自动用于全部系列。只有指定某个系列或某个数据点的颜色时才使用原始 snapshot。
 
 ## 需求→图表类型映射（创建前必查）
 
@@ -142,7 +142,8 @@ _公共四件套 · 系统：`--dry-run`_
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `--chart-type` | string | required | 图表类型（可选值：`column` / `bar` / `line` / `area` / `pie` / `scatter` / `combo` / `radar`） |
-| `--data-range` | string | required | 含表头的一个连续 A1 范围，或逗号分隔的同表多范围；对齐且不重叠时保留独立引用，否则合并为最小包围矩形 |
+| `--data-range` | string | required | 数据范围；未传 --header-range 时须包含表头，传入时只传纯数据；支持逗号分隔的同表多范围 |
+| `--header-range` | string | optional | 可选的分离表头范围；column 方向须为一行、row 方向须为一列，表头数须等于数据维度数 |
 | `--data-direction` | string | optional | 数据系列方向；column 表示首列为类别，row 表示首行为类别（可选值：`column` / `row`）（默认 `column`） |
 | `--title` | string | optional | 图表标题 |
 | `--subtitle` | string | optional | 图表副标题 |
@@ -193,7 +194,8 @@ _公共四件套 · 系统：`--dry-run`_
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `--chart-id` | string | required | 目标图表 reference_id |
-| `--data-range` | string | required | 新的含表头数据范围；支持逗号分隔的同表多范围，错位或重叠时自动合并 |
+| `--data-range` | string | required | 新数据范围；未传 --header-range 时须包含表头，传入或原图已使用分离表头时只传纯数据；支持逗号分隔的同表多范围 |
+| `--header-range` | string | optional | 可选的分离表头范围；提供后自动使用 detached 表头映射，省略时保留原图已有的 detached 映射 |
 | `--data-direction` | string | optional | 数据系列方向；省略时沿用现有图表方向（可选值：`column` / `row`） |
 | `--dim1-index` | int | optional | 类别/X 轴维度在数据范围中的 1-based 索引；省略时使用第 1 个维度 |
 | `--dim2-indexes` | string | optional | 值/Y 轴系列在数据范围中的 1-based 索引，逗号分隔；省略时使用除 dim1 外的全部维度 |
@@ -248,7 +250,7 @@ _创建/更新的图表属性_
 
 ### `+chart-create-basic`
 
-首列自动作为维度，后续列作为数值系列。饼图只使用第二列数值；散点图以首列为 X、后续列为 Y；组合图以第二列为左轴柱，后续列为右轴折线。数据范围必须包含真实表头；如果类别列与数值列不连续，可以给 `--data-range` 传逗号分隔的多个范围，例如 `"'Sheet1'!A1:A10,'Sheet1'!K1:L10"`。对齐且不重叠的范围会保留为独立引用，不会把 B:J 的间隔列纳入图表；错行、错列或重叠的范围会自动合并为同一工作表内的最小包围矩形。跨工作表范围仍会拒绝。如果数据子集的表头在范围外，改用高级 `+chart-create` 的 detached 模式。
+首列自动作为维度，后续列作为数值系列。饼图只使用第二列数值；散点图以首列为 X、后续列为 Y；组合图以第二列为左轴柱、后续列为右轴折线。默认让 `--data-range` 包含真实表头；表头在数据范围外时，`--data-range` 只传纯数据，并用 `--header-range` 传对应表头，工具会自动建立 detached 映射。类别列与数值列不连续时，两个参数都可传逗号分隔的同表多范围。数据范围对齐且不重叠时保留独立引用，不会纳入中间间隔列；错行、错列或重叠时合并为最小包围矩形。成功后返回完整 `snapshot`，可直接检查创建结果并继续修改。兼容调用中，`--type` / `--range` 会分别按 `--chart-type` / `--data-range` 处理，`--x-axis` / `--y-axis` 会按轴标题处理；新调用仍优先使用规范参数名。
 
 ```bash
 # 柱形图：默认放在数据范围右侧
@@ -262,6 +264,12 @@ lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
   --chart-type combo --data-range "'Sheet1'!A1:D13" \
   --title "价格与效率" --y-axis-title "价格" --secondary-y-axis-title "效率" \
   --anchor-cell F2 --width 700 --height 400
+
+# 表头与数据分离：data-range 只传纯数据，header-range 按相同维度顺序传表头
+lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
+  --chart-type line \
+  --data-range "'Sheet1'!A2:A10,'Sheet1'!K2:L10" \
+  --header-range "'Sheet1'!A1,'Sheet1'!K1:L1"
 ```
 
 多张基础图一次创建。先把所有数据准备完成，再生成 `ops.json`：
@@ -298,7 +306,7 @@ lark-cli sheets +chart-list --url "..." --sheet-name "Sheet1"
 
 ### `+chart-data-update`
 
-当创建后发现漏列、范围过宽、辅助分类列发生变化、系列选择错误或数据方向错误时，只更新数据源。`--data-direction` 省略时沿用现有图表方向；新范围必须包含表头。默认使用第 1 个维度作为 dim1、其余维度作为 dim2；需要精确选择时，用 1-based 的 `--dim1-index` 和逗号分隔的 `--dim2-indexes`。工具返回实际采用的 `normalized_data_ranges`，随后用 `+chart-list` 验证范围和系列数。
+当创建后发现漏列、范围过宽、辅助分类列发生变化、系列选择错误或数据方向错误时，只更新数据源。`--data-direction` 省略时沿用现有图表方向。默认让新范围包含表头；表头在范围外时用 `--header-range` 单独传入。原图已经使用 detached 表头且表头不变时可省略 `--header-range`，工具会保留现有映射。默认使用第 1 个维度作为 dim1、其余维度作为 dim2；需要精确选择时，用 1-based 的 `--dim1-index` 和逗号分隔的 `--dim2-indexes`。工具返回更新后的 `data` 和实际采用的 `normalized_data_ranges`。
 
 ```bash
 # 把遗漏的最后一列纳入原折线图，保留标题、配色、图例和落点
@@ -312,11 +320,16 @@ lark-cli sheets +chart-data-update --url "..." --sheet-id "$SID" --chart-id "chr
 # 第 1 列作为类别，只使用第 4、8 列作为数值系列
 lark-cli sheets +chart-data-update --url "..." --sheet-id "$SID" --chart-id "chrXXX" \
   --data-range "'Sheet1'!A1:M6" --dim1-index 1 --dim2-indexes "4,8"
+
+# 改为分离表头的数据源
+lark-cli sheets +chart-data-update --url "..." --sheet-id "$SID" --chart-id "chrXXX" \
+  --data-range "'Sheet1'!A2:A10,'Sheet1'!K2:L10" \
+  --header-range "'Sheet1'!A1,'Sheet1'!K1:L1"
 ```
 
 ### `+chart-config-update`
 
-只传需要改的字段。`--data-labels none` 会删除数据标签；`--legend-position hidden` 会隐藏图例；`--smooth=false` 和 `--smooth false` 都可显式关闭平滑曲线。为减少参数重试，`--stacked` 自动按 `--stack normal` 处理，`--data-labels category_percentage` 自动按 `value_percentage` 处理；新调用仍优先使用规范参数。
+只传需要改的字段，成功后返回更新后的 `viewModel`。`--data-labels none` 会删除数据标签；`--legend-position hidden` 会隐藏图例；`--smooth=false` 和 `--smooth false` 都可显式关闭平滑曲线。为减少参数重试，`--stacked` 自动按 `--stack normal` 处理，`--data-labels category_percentage`、`percentage,value` 或 `value,percentage` 都自动按 `value_percentage` 处理，`--x-axis` / `--y-axis` 自动按 `--x-axis-title` / `--y-axis-title` 处理；新调用仍优先使用规范参数。
 
 ```bash
 lark-cli sheets +chart-config-update --url "..." --sheet-id "$SID" --chart-id "chrXXX" \

@@ -134,6 +134,16 @@ func (m mapFlagView) lookupRawWithKey(name string) (string, interface{}, bool) {
 			return key, v, true
 		}
 	}
+	for alias, target := range commandFlagAliases[m.command] {
+		if target != name {
+			continue
+		}
+		for _, key := range []string{alias, strings.ReplaceAll(alias, "-", "_")} {
+			if v, ok := m.raw[key]; ok {
+				return key, v, true
+			}
+		}
+	}
 	return "", nil, false
 }
 
