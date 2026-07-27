@@ -5,6 +5,7 @@ package sheets
 
 import (
 	"context"
+	"encoding/json"
 	"regexp"
 	"strconv"
 	"strings"
@@ -214,21 +215,73 @@ func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[s
 		return nil, err
 	}
 	if dimensionCount < 2 || dataPointCount < 2 {
+		if direction == "column" && dataPointCount < 2 && dimensionCount >= 2 {
+			return nil, sheetsValidationForFlag(
+				"data-range",
+				"--data-range has one row and multiple columns; if categories run horizontally, include the category and value rows in --data-range and use --data-direction row",
+			)
+		}
 		return nil, sheetsValidationForFlag("data-range", "--data-range must provide at least 2 data points and 2 dimensions")
 	}
-	if chartType == "combo" && dimensionCount < 3 {
-		return nil, sheetsValidationForFlag("data-range", "combo chart requires at least 3 rows or columns along --data-direction")
+
+	dim1Index := 1
+	if rt.Changed("dim1-index") {
+		dim1Index = rt.Int("dim1-index")
 	}
-	seriesCount := dimensionCount - 1
-	if chartType == "pie" {
-		seriesCount = 1
-	}
-	if seriesCount > chartSeriesMaxCount {
+	if dim1Index < 1 || dim1Index > dimensionCount {
 		return nil, sheetsValidationForFlag(
-			"data-range",
-			"--data-range creates %d series along --data-direction %s, over the current limit of %d; select fewer rows/columns or build a compact summary table",
-			seriesCount,
-			direction,
+			"dim1-index",
+			"--dim1-index must be between 1 and %d for the selected --data-range",
+			dimensionCount,
+		)
+	}
+	dim2Indexes := make([]int, 0, dimensionCount-1)
+	for index := 1; index <= dimensionCount; index++ {
+		if index != dim1Index {
+			dim2Indexes = append(dim2Indexes, index)
+		}
+	}
+	if chartType == "pie" {
+		dim2Indexes = dim2Indexes[:1]
+	}
+	if rt.Changed("dim2-indexes") {
+		dim2Indexes, err = parseChartDim2Indexes(rt.Str("dim2-indexes"))
+		if err != nil {
+			return nil, sheetsValidationForFlag("dim2-indexes", "%v", err)
+		}
+	}
+	for _, index := range dim2Indexes {
+		if index > dimensionCount {
+			return nil, sheetsValidationForFlag(
+				"dim2-indexes",
+				"--dim2-indexes must contain only indexes between 1 and %d for the selected --data-range",
+				dimensionCount,
+			)
+		}
+		if index == dim1Index {
+			return nil, sheetsValidationForFlag(
+				"dim2-indexes",
+				"--dim2-indexes must not contain the dim1 index %d",
+				dim1Index,
+			)
+		}
+	}
+	if chartType == "pie" && len(dim2Indexes) != 1 {
+		return nil, sheetsValidationForFlag("dim2-indexes", "pie charts require exactly one --dim2-indexes value")
+	}
+	if chartType == "combo" && len(dim2Indexes) < 2 {
+		return nil, sheetsValidationForFlag("dim2-indexes", "combo charts require at least two --dim2-indexes values")
+	}
+	if len(dim2Indexes) > chartSeriesMaxCount {
+		flagName := "data-range"
+		if rt.Changed("dim2-indexes") {
+			flagName = "dim2-indexes"
+		}
+		return nil, sheetsValidationForFlag(
+			flagName,
+			"the selected dimensions create %d series, over the current limit of %d; provide at most %d --dim2-indexes values or build a compact summary table",
+			len(dim2Indexes),
+			chartSeriesMaxCount,
 			chartSeriesMaxCount,
 		)
 	}
@@ -242,10 +295,19 @@ func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[s
 		if err := validateChartRangeListFlag("header-range", headerRange); err != nil {
 			return nil, err
 		}
+		if err := validateChartHeaderRangeDirection(headerRange, direction); err != nil {
+			return nil, err
+		}
 		basic["header_range"] = headerRange
 	}
 	if rt.Changed("data-direction") {
 		basic["data_direction"] = rt.Str("data-direction")
+	}
+	if rt.Changed("dim1-index") {
+		basic["dim1_index"] = dim1Index
+	}
+	if rt.Changed("dim2-indexes") {
+		basic["dim2_indexes"] = dim2Indexes
 	}
 	if err := validateChartColorFlags(rt); err != nil {
 		return nil, err
@@ -432,6 +494,32 @@ func validateChartRangeListFlag(flagName, value string) error {
 	return nil
 }
 
+func validateChartHeaderRangeDirection(value, direction string) error {
+	ranges, err := splitChartDataRanges(value)
+	if err != nil {
+		return sheetsValidationForFlag("header-range", "invalid --header-range %q: %v", value, err)
+	}
+	for _, rangeValue := range ranges {
+		item, parseErr := parseChartHeaderRange(rangeValue)
+		if parseErr != nil {
+			return sheetsValidationForFlag("header-range", "invalid --header-range item %q: %v", rangeValue, parseErr)
+		}
+		if direction == "row" && item.colCount != 1 {
+			return sheetsValidationForFlag(
+				"header-range",
+				"row-oriented --header-range must be one column of dimension/series names; this horizontal range looks like a category row, so include it in --data-range and omit --header-range",
+			)
+		}
+		if direction == "column" && item.rowCount != 1 {
+			return sheetsValidationForFlag(
+				"header-range",
+				"column-oriented --header-range must be one row of dimension/series names",
+			)
+		}
+	}
+	return nil
+}
+
 func parseChartHeaderRange(value string) (chartDataRange, error) {
 	item := chartDataRange{}
 	ref := strings.TrimSpace(value)
@@ -452,9 +540,16 @@ func parseChartHeaderRange(value string) (chartDataRange, error) {
 }
 
 func parseChartDim2Indexes(raw string) ([]int, error) {
+	raw = strings.TrimSpace(raw)
+	if strings.HasPrefix(raw, "[") {
+		var indexes []int
+		if err := json.Unmarshal([]byte(raw), &indexes); err != nil {
+			return nil, common.ValidationErrorf("--dim2-indexes must be a comma-separated list or an array of positive 1-based indexes")
+		}
+		return validateChartDim2Indexes(indexes)
+	}
 	parts := strings.Split(raw, ",")
 	indexes := make([]int, 0, len(parts))
-	seen := make(map[int]struct{}, len(parts))
 	for _, part := range parts {
 		value := strings.TrimSpace(part)
 		if value == "" {
@@ -464,11 +559,24 @@ func parseChartDim2Indexes(raw string) ([]int, error) {
 		if err != nil || index < 1 {
 			return nil, common.ValidationErrorf("--dim2-indexes must contain only positive 1-based indexes")
 		}
+		indexes = append(indexes, index)
+	}
+	return validateChartDim2Indexes(indexes)
+}
+
+func validateChartDim2Indexes(indexes []int) ([]int, error) {
+	if len(indexes) == 0 {
+		return nil, common.ValidationErrorf("--dim2-indexes must contain at least one positive 1-based index")
+	}
+	seen := make(map[int]struct{}, len(indexes))
+	for _, index := range indexes {
+		if index < 1 {
+			return nil, common.ValidationErrorf("--dim2-indexes must contain only positive 1-based indexes")
+		}
 		if _, exists := seen[index]; exists {
 			return nil, common.ValidationErrorf("--dim2-indexes must not contain duplicate index %d", index)
 		}
 		seen[index] = struct{}{}
-		indexes = append(indexes, index)
 	}
 	return indexes, nil
 }

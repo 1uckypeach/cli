@@ -3430,6 +3430,20 @@
         ]
       },
       {
+        "name": "dim1-index",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "1-based category/X-axis dimension index within the data range; defaults to 1"
+      },
+      {
+        "name": "dim2-indexes",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Comma-separated 1-based value/Y-axis dimension indexes; must exclude dim1, at most 50"
+      },
+      {
         "name": "title",
         "kind": "own",
         "type": "string",

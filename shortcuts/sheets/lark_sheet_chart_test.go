@@ -327,11 +327,80 @@ func TestChartCreateBasic_RejectsMoreThanFiftySeries(t *testing.T) {
 		"--data-range", "A2:DV7",
 		"--data-direction", "column",
 	})
-	requireValidation(t, err, "creates 125 series")
+	requireValidation(t, err, "create 125 series")
 	if !strings.Contains(err.Error(), "current limit of 50") ||
 		!strings.Contains(err.Error(), "compact summary table") {
 		t.Fatalf("series limit error is not actionable: %v", err)
 	}
+}
+
+func TestChartCreateBasic_SelectsDimensionsAtCreation(t *testing.T) {
+	t.Parallel()
+	body := parseDryRunBody(t, ChartCreateBasic, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-type", "line",
+		"--data-range", "A1:DV7",
+		"--dim1-index", "3",
+		"--dim2-indexes", "2,6,8",
+	})
+	basic := decodeToolInput(t, body, "manage_chart_object")["basic_chart"].(map[string]interface{})
+	if basic["dim1_index"] != float64(3) {
+		t.Fatalf("basic_chart.dim1_index = %#v", basic["dim1_index"])
+	}
+	indexes := basic["dim2_indexes"].([]interface{})
+	if len(indexes) != 3 || indexes[0] != float64(2) || indexes[1] != float64(6) || indexes[2] != float64(8) {
+		t.Fatalf("basic_chart.dim2_indexes = %#v", indexes)
+	}
+}
+
+func TestChartCreateBasic_SelectsDimensionsInBatch(t *testing.T) {
+	t.Parallel()
+	body := parseDryRunBody(t, BatchUpdate, []string{
+		"--url", testURL,
+		"--operations", `[{
+			"shortcut":"+chart-create-basic",
+			"input":{"sheet_id":"sh1","chart_type":"line","data_range":"A1:DV7","dim1_index":3,"dim2_indexes":[2,6,8]}
+		}]`,
+		"--yes",
+	})
+	input := decodeToolInput(t, body, "batch_update")
+	ops := input["operations"].([]interface{})
+	basic := ops[0].(map[string]interface{})["input"].(map[string]interface{})["basic_chart"].(map[string]interface{})
+	if basic["dim1_index"] != float64(3) {
+		t.Fatalf("batch basic_chart.dim1_index = %#v", basic["dim1_index"])
+	}
+	indexes := basic["dim2_indexes"].([]interface{})
+	if len(indexes) != 3 || indexes[0] != float64(2) || indexes[1] != float64(6) || indexes[2] != float64(8) {
+		t.Fatalf("batch basic_chart.dim2_indexes = %#v", indexes)
+	}
+}
+
+func TestChartCreateBasic_RejectsHorizontalHeaderForRowDirection(t *testing.T) {
+	t.Parallel()
+	_, _, err := runShortcutCapturingErr(t, ChartCreateBasic, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-type", "line",
+		"--data-range", "'Sheet1'!A3:M3,'Sheet1'!A5:M5",
+		"--header-range", "'Sheet1'!A1:M1",
+		"--data-direction", "row",
+	})
+	requireValidation(t, err, "looks like a category row")
+	if !strings.Contains(err.Error(), "include it in --data-range") {
+		t.Fatalf("header-range error is not actionable: %v", err)
+	}
+}
+
+func TestChartCreateBasic_SuggestsRowDirectionForHorizontalCategories(t *testing.T) {
+	t.Parallel()
+	_, _, err := runShortcutCapturingErr(t, ChartCreateBasic, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-type", "line",
+		"--data-range", "'Sheet1'!A1:M1",
+	})
+	requireValidation(t, err, "--data-direction row")
 }
 
 func TestChartDataUpdate_PreservesSnapshotServerSide(t *testing.T) {

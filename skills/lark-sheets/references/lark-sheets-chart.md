@@ -17,13 +17,15 @@
 | 更新标题、轴、图例、标签、堆叠、平滑或整图配色 | `+chart-config-update` | 无需回写 snapshot，未传字段保持不变 |
 | 高级创建/更新、删除图表 | `+chart-{create|update|delete}` | 按系列/数据点精细设置等高级需求才使用原始 properties |
 
-典型工作流：先确认表头和精确数据范围，用 `+chart-create-basic` 一次创建并尽量在同次调用中带上已知标题/轴/标签要求；创建后用 `+chart-list` 验证。已有图表的数据范围或方向错误时用 `+chart-data-update`，常用配置修正用 `+chart-config-update`。只有用户要求单个系列、数据点或高级引擎字段时，才读取现有 snapshot 并调 `+chart-update --properties`。不要为了常用配置先输出整份 schema，也不要删除重建已经创建成功的图表。
+典型工作流：先确认表头和精确数据范围，用 `+chart-create-basic` 一次创建并尽量在同次调用中带上已知标题/轴/标签要求；创建后用返回的完整 `snapshot` 检查范围、方向与系列，再按需用 `+chart-list` 验证。已有图表的数据范围或方向错误时用 `+chart-data-update`，常用配置修正用 `+chart-config-update`。只有用户要求单个系列、数据点或高级引擎字段时，才读取现有 snapshot 并调 `+chart-update --properties`。不要为了常用配置先输出整份 schema，也不要删除重建已经创建成功的图表。
 
-**多图表工作流**：先完成所有辅助数据和表头，列出每张目标图的类型、精确数据范围、标题和落点；确认清单后，用一次 `+batch-update --continue-on-error` 批量执行 `+chart-create-basic`。图表之间独立时允许部分成功：按返回的逐项结果定位失败图表，只重试失败项，不要重复创建成功图表。批次后每个受影响的 sheet 各调用一次 `+chart-list`，验证数量、类型、系列和范围。数据尚未稳定时不要提前创建图表；已经成功创建的图表有数据源差异时批量使用 `+chart-data-update`，有配置差异时批量使用 `+chart-config-update`，不要删除重建。
+**多图表工作流**：先完成所有辅助数据和表头，列出每张目标图的类型、精确数据范围、标题和落点；确认清单后，用一次 `+batch-update --continue-on-error` 批量执行 `+chart-create-basic`。图表之间独立时允许部分成功：按返回的逐项结果定位失败图表，只重试失败项，不要重复创建成功图表。为控制批量结果体积，批量 create 的逐项结果只返回 `chart_id`、规范化范围和提示，不返回完整 snapshot；批次后每个受影响的 sheet 各调用一次 `+chart-list`，验证数量、类型、系列和范围。数据尚未稳定时不要提前创建图表；已经成功创建的图表有数据源差异时批量使用 `+chart-data-update`，有配置差异时批量使用 `+chart-config-update`，不要删除重建。
 
 **数量词必须展开**：用户说“每个 / 每天 / 分别 / 逐一 / 各一张图”时，先从数据中数出实体数 `N`，把这 `N` 张图逐项写进清单，再加上其它汇总图得到目标总数 `M`；一个包含全部实体的多系列图不能替代这 `N` 张独立图。批次前断言 operations 中恰有 `M` 个图表创建，批次后断言图表总数、逐图标题与实体集合一致。
 
-**范围与系列前置校验**：清单中同时记录每张图的表头范围、纳入列、明确排除列、数据方向和预期系列数。表头在首列时用默认 `--data-direction column`；表头在首行、每行代表一个系列时用 `--data-direction row`。当前每张图最多支持 50 个数值系列；按列组织时通常为“范围列数 - 1”，按行组织时通常为“范围行数 - 1”。宽透视表或超宽明细表会超过上限时，不要反复删除重建：先整理只含目标类别和指标的紧凑汇总表，或用 `+chart-data-update --dim1-index ... --dim2-indexes ...` 显式选择不超过 50 个系列。创建前根据实际表头确认边界，不凭字母猜范围；创建后范围、方向或系列数不符时，使用 `+chart-data-update` 修正，服务端会重建 `refs` / `dim1` / `dim2.series` 并保留其它配置，不要删除后重建。批次跨多个 sheet 时，每个受影响的 sheet 各调用一次 `+chart-list`。
+**范围与系列前置校验（创建前必做）**：清单中同时记录每张图的表头范围、纳入维度、明确排除维度、数据方向和预期系列数。当前每张图**最多 50 个数值系列**；按列组织时通常为“所选数值列数”，按行组织时通常为“所选数值行数”。创建时就用 `+chart-create-basic --dim1-index ... --dim2-indexes ...` 显式选择类别与不超过 50 个数值系列；如果业务要求展示超过 50 个系列，应先建立紧凑汇总表或 Top-N，而不是反复删除重建。创建前根据实际表头确认索引和边界，不凭字母猜范围；创建后范围、方向或系列数不符时，使用 `+chart-data-update` 修正，服务端会重建 `refs` / `dim1` / `dim2.series` 并保留其它配置，不要删除后重建。
+
+**横向类别行配方**：当日期/月份等类别横向排列在一行、目标数值在另一行时，把“类别行 + 数值行”一起放进 `--data-range` 并传 `--data-direction row`，例如 `--data-range "'Sheet1'!A1:M1,'Sheet1'!A3:M3" --data-direction row`。此时类别行属于数据映射，**不要**传给 `--header-range`。`--header-range` 仅表示与纯数据分离的“维度/系列名称”：column 方向必须是一行，row 方向必须是一列。row 方向却传入多列表头，通常说明把类别行误当成了分离表头。
 
 **整图配色优先走语义参数**：只要求统一主题或一组系列颜色时，在创建时传 `--color-palette` 或 `--colors`，已有图表用 `+chart-config-update` 更新；二者互斥。`--colors` 接受逗号分隔字符串；批量 operation 的 `colors` 同时接受字符串或字符串数组。只传一个自定义颜色时会自动用于全部系列。只有指定某个系列或某个数据点的颜色时才使用原始 snapshot。
 
@@ -145,6 +147,8 @@ _公共四件套 · 系统：`--dry-run`_
 | `--data-range` | string | required | 数据范围；未传 --header-range 时须包含表头，传入时只传纯数据；支持逗号分隔的同表多范围 |
 | `--header-range` | string | optional | 可选的分离表头范围；column 方向须为一行、row 方向须为一列，表头数须等于数据维度数 |
 | `--data-direction` | string | optional | 数据系列方向；column 表示首列为类别，row 表示首行为类别（可选值：`column` / `row`）（默认 `column`） |
+| `--dim1-index` | int | optional | 类别/X 轴维度在数据范围中的 1-based 索引；默认 1 |
+| `--dim2-indexes` | string | optional | 值/Y 轴系列的 1-based 索引列表，逗号分隔；不能包含 dim1，最多 50 个 |
 | `--title` | string | optional | 图表标题 |
 | `--subtitle` | string | optional | 图表副标题 |
 | `--legend-position` | string | optional | 图例位置；hidden 隐藏图例（可选值：`top` / `bottom` / `left` / `right` / `hidden`） |
@@ -250,7 +254,7 @@ _创建/更新的图表属性_
 
 ### `+chart-create-basic`
 
-首列自动作为维度，后续列作为数值系列。饼图只使用第二列数值；散点图以首列为 X、后续列为 Y；组合图以第二列为左轴柱、后续列为右轴折线。默认让 `--data-range` 包含真实表头；表头在数据范围外时，`--data-range` 只传纯数据，并用 `--header-range` 传对应表头，工具会自动建立 detached 映射。类别列与数值列不连续时，两个参数都可传逗号分隔的同表多范围。数据范围对齐且不重叠时保留独立引用，不会纳入中间间隔列；错行、错列或重叠时合并为最小包围矩形。成功后返回完整 `snapshot`，可直接检查创建结果并继续修改。兼容调用中，`--type` / `--range` 会分别按 `--chart-type` / `--data-range` 处理，`--x-axis` / `--y-axis` 会按轴标题处理；新调用仍优先使用规范参数名。
+默认使用第 1 个维度作为类别/X 轴，其余维度作为数值系列；可在创建时用 1-based 的 `--dim1-index` 和逗号分隔的 `--dim2-indexes` 精确选择。饼图只允许一个数值系列；组合图至少需要两个数值系列；所有图表最多选择 50 个数值系列。默认让 `--data-range` 包含真实表头；只有“维度/系列名称”与纯数据分离时，才让 `--data-range` 只传纯数据，并用 `--header-range` 传对应的一行（column）或一列（row）表头。类别维度与数值维度不连续时，范围参数可传逗号分隔的同表多范围。数据范围对齐且不重叠时保留独立引用，不会纳入中间间隔维度；错行、错列或重叠时合并为最小包围矩形。单独调用成功后返回完整 `snapshot`，可直接检查创建结果并继续修改。参数名使用 `--anchor-cell`（不是 `--position`）和 `--data-labels`（不是 `--show-labels`）。兼容调用中，`--type` / `--range` 会分别按 `--chart-type` / `--data-range` 处理，`--x-axis` / `--y-axis` 会按轴标题处理；新调用仍优先使用规范参数名。
 
 ```bash
 # 柱形图：默认放在数据范围右侧
@@ -270,6 +274,12 @@ lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
   --chart-type line \
   --data-range "'Sheet1'!A2:A10,'Sheet1'!K2:L10" \
   --header-range "'Sheet1'!A1,'Sheet1'!K1:L1"
+
+# 横向类别行 + 一行数值：类别行也属于 data-range，不要放进 header-range
+lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
+  --chart-type line \
+  --data-range "'Sheet1'!A1:M1,'Sheet1'!A3:M3" \
+  --data-direction row --dim1-index 1 --dim2-indexes 2
 ```
 
 多张基础图一次创建。先把所有数据准备完成，再生成 `ops.json`：
