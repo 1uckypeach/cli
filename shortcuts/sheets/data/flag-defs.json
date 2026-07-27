@@ -3408,7 +3408,14 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "One contiguous A1 range including headers, or comma-separated same-sheet ranges; aligned non-overlapping ranges stay independent, otherwise they merge to the smallest enclosing rectangle"
+        "desc": "Data range; include headers unless --header-range is set, in which case pass data only; accepts comma-separated same-sheet ranges"
+      },
+      {
+        "name": "header-range",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Optional detached header range; use one row for column direction or one column for row direction, with one header per data dimension"
       },
       {
         "name": "data-direction",
@@ -3872,7 +3879,14 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "New data range including headers; accepts comma-separated same-sheet ranges and normalizes misaligned or overlapping ranges"
+        "desc": "New data range; include headers unless --header-range is set or the chart already uses detached headers; accepts comma-separated same-sheet ranges"
+      },
+      {
+        "name": "header-range",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Optional detached header range; enables detached header mapping, while omission preserves an existing detached mapping"
       },
       {
         "name": "data-direction",

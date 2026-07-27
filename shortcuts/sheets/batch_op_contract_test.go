@@ -235,8 +235,8 @@ func TestBatchOp_BodyMatchesStandalone(t *testing.T) {
 		{
 			shortcut: "+chart-create-basic",
 			sc:       ChartCreateBasic,
-			args:     []string{"--sheet-id", "sh1", "--chart-type", "column", "--data-range", "A1:C10", "--title", "Sales", "--data-labels", "value", "--anchor-cell", "F2"},
-			subInput: `{"sheet-id":"sh1","chart-type":"column","data-range":"A1:C10","title":"Sales","data-labels":"value","anchor-cell":"F2"}`,
+			args:     []string{"--sheet-id", "sh1", "--chart-type", "column", "--data-range", "A2:C10", "--header-range", "A1:C1", "--title", "Sales", "--data-labels", "value", "--anchor-cell", "F2"},
+			subInput: `{"sheet-id":"sh1","chart-type":"column","data-range":"A2:C10","header-range":"A1:C1","title":"Sales","data-labels":"value","anchor-cell":"F2"}`,
 		},
 		{
 			shortcut: "+chart-config-update",
@@ -247,8 +247,8 @@ func TestBatchOp_BodyMatchesStandalone(t *testing.T) {
 		{
 			shortcut: "+chart-data-update",
 			sc:       ChartDataUpdate,
-			args:     []string{"--sheet-id", "sh1", "--chart-id", "c1", "--data-range", "'Sheet1'!A1:M6", "--data-direction", "column", "--dim1-index", "1", "--dim2-indexes", "4,8"},
-			subInput: `{"sheet-id":"sh1","chart-id":"c1","data-range":"'Sheet1'!A1:M6","data-direction":"column","dim1-index":1,"dim2-indexes":"4,8"}`,
+			args:     []string{"--sheet-id", "sh1", "--chart-id", "c1", "--data-range", "'Sheet1'!A2:M6", "--header-range", "'Sheet1'!A1:M1", "--data-direction", "column", "--dim1-index", "1", "--dim2-indexes", "4,8"},
+			subInput: `{"sheet-id":"sh1","chart-id":"c1","data-range":"'Sheet1'!A2:M6","header-range":"'Sheet1'!A1:M1","data-direction":"column","dim1-index":1,"dim2-indexes":"4,8"}`,
 		},
 		{
 			shortcut: "+pivot-create",

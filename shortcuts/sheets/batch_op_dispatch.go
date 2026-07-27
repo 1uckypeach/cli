@@ -657,16 +657,26 @@ const maxBatchOperations = 100
 // display cap.
 const batchOpErrorDisplayLimit = 5
 
-// translateBatchOperations 翻译整个 ops 数组。逐 op 校验并**收集全部失败**
-// 一次性返回（不再 fail-fast）——agent 一轮就能修完所有坏 op，而不是
-// 修一个、重试、再撞下一个。cell 安全上限仍是全局判定，命中即返回。
-func translateBatchOperations(rawOps []interface{}, token string) ([]interface{}, error) {
+type batchOpTranslationFailure struct {
+	Index    int
+	Shortcut string
+	Err      error
+}
+
+// collectBatchOperationTranslations translates every locally valid operation
+// and preserves its original index. Validation failures are returned alongside
+// the valid operations so +batch-update can either aggregate-and-reject
+// (strict mode) or submit the valid subset (continue-on-error mode).
+func collectBatchOperationTranslations(
+	rawOps []interface{},
+	token string,
+) ([]interface{}, []int, []batchOpTranslationFailure, error) {
 	if len(rawOps) == 0 {
-		return nil, sheetsValidationForFlag("operations", "--operations must be a non-empty JSON array")
+		return nil, nil, nil, sheetsValidationForFlag("operations", "--operations must be a non-empty JSON array")
 	}
 	if len(rawOps) > maxBatchOperations {
 		batches := (len(rawOps) + maxBatchOperations - 1) / maxBatchOperations
-		return nil, sheetsValidationForFlag("operations", "--operations accepts at most %d entries; got %d", maxBatchOperations, len(rawOps)).
+		return nil, nil, nil, sheetsValidationForFlag("operations", "--operations accepts at most %d entries; got %d", maxBatchOperations, len(rawOps)).
 			WithHint("split the operations into %d separate +batch-update calls of at most %d entries each", batches, maxBatchOperations)
 	}
 	// Preflight the cell footprint before any translator can materialize a
@@ -687,32 +697,43 @@ func translateBatchOperations(rawOps []interface{}, token string) ([]interface{}
 		return nil, budgetErr
 	}
 	out := make([]interface{}, 0, len(rawOps))
+	originalIndexes := make([]int, 0, len(rawOps))
 	var totalCells int64
-	var opErrs []error
+	var failures []batchOpTranslationFailure
 	for i, raw := range rawOps {
 		translated, err := translateBatchOp(raw, token, i)
 		if err != nil {
-			opErrs = append(opErrs, err)
+			shortcut := ""
+			if op, ok := raw.(map[string]interface{}); ok {
+				shortcut, _ = op["shortcut"].(string)
+			}
+			failures = append(failures, batchOpTranslationFailure{
+				Index:    i,
+				Shortcut: shortcut,
+				Err:      err,
+			})
 			continue
-		}
-		if len(opErrs) > 0 {
-			continue // already failing — keep scanning for more bad ops, skip cell math.
 		}
 		totalCells += translatedCellCount(translated)
 		if totalCells > maxStampMatrixCells {
-			return nil, sheetsValidationForFlag("operations",
+			return nil, nil, nil, sheetsValidationForFlag("operations",
 				"--operations materialize %d cells total, over the %d-cell safety cap; reduce the number or size of cell operations",
 				totalCells, maxStampMatrixCells)
 		}
 		out = append(out, translated)
+		originalIndexes = append(originalIndexes, i)
 	}
-	switch len(opErrs) {
+	return out, originalIndexes, failures, nil
+}
+
+func batchOperationFailuresError(failures []batchOpTranslationFailure, total int) error {
+	switch len(failures) {
 	case 0:
-		return out, nil
+		return nil
 	case 1:
-		return nil, opErrs[0] // single failure keeps the historical error byte-for-byte.
+		return failures[0].Err // single failure keeps the historical error byte-for-byte.
 	}
-	shown := opErrs
+	shown := failures
 	truncated := false
 	if len(shown) > batchOpErrorDisplayLimit {
 		shown = shown[:batchOpErrorDisplayLimit]
@@ -726,11 +747,24 @@ func translateBatchOperations(rawOps []interface{}, token string) ([]interface{}
 		// single-op one it replaces.
 		parts = append(parts, fmt.Sprintf("%d) %s", i+1, aggregatedIssueText(e)))
 	}
-	msg := fmt.Sprintf("%d of %d operations failed validation: %s", len(opErrs), len(rawOps), strings.Join(parts, "; "))
+	msg := fmt.Sprintf("%d of %d operations failed validation: %s", len(failures), total, strings.Join(parts, "; "))
 	if truncated {
-		msg += fmt.Sprintf("; (%d more not shown — fix these first)", len(opErrs)-batchOpErrorDisplayLimit)
+		msg += fmt.Sprintf("; (%d more not shown — fix these first)", len(failures)-batchOpErrorDisplayLimit)
 	}
-	return nil, sheetsValidationForFlag("operations", "%s", msg).WithCause(opErrs[0])
+	return sheetsValidationForFlag("operations", "%s", msg).WithCause(failures[0].Err)
+}
+
+// translateBatchOperations is the strict translation contract used by the
+// default atomic mode and existing translator tests.
+func translateBatchOperations(rawOps []interface{}, token string) ([]interface{}, error) {
+	out, _, failures, err := collectBatchOperationTranslations(rawOps, token)
+	if err != nil {
+		return nil, err
+	}
+	if err := batchOperationFailuresError(failures, len(rawOps)); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // estimatedBatchOpCells returns the cell footprint without invoking a

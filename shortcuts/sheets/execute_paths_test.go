@@ -493,6 +493,59 @@ func TestExecute_BatchUpdate_Translated(t *testing.T) {
 	}
 }
 
+func TestExecute_BatchUpdate_ContinueOnErrorKeepsLocallyValidOperations(t *testing.T) {
+	t.Parallel()
+	stub := toolOutputStub(testToken, "write", `{
+		"total":1,
+		"succeeded":1,
+		"failed":0,
+		"results":[{"index":0,"tool_name":"manage_chart_object","success":true}]
+	}`)
+	out, err := runShortcutWithStubs(t, BatchUpdate, []string{
+		"--url", testURL,
+		"--operations", `[
+			{"shortcut":"+chart-create-basic","input":{"sheet-id":"sh1","chart-type":"donut","data-range":"A1:C10"}},
+			{"shortcut":"+chart-create-basic","input":{"sheet-id":"sh1","chart-type":"line","data-range":"E1:G10","title":"Trend"}}
+		]`,
+		"--continue-on-error",
+		"--yes",
+	}, stub)
+	if err != nil {
+		t.Fatalf("execute failed: %v\nout=%s", err, out)
+	}
+
+	input := decodeToolInput(t, decodeRawEnvelopeBody(t, stub.CapturedBody), "batch_update")
+	ops, _ := input["operations"].([]interface{})
+	if len(ops) != 1 {
+		t.Fatalf("server should receive only the locally valid operation, got %d", len(ops))
+	}
+	for _, want := range []string{
+		`"total": 2`,
+		`"succeeded": 1`,
+		`"failed": 1`,
+		`"index": 0`,
+		`"index": 1`,
+		`"stage": "cli_validation"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("merged partial result should contain %q, got:\n%s", want, out)
+		}
+	}
+}
+
+func TestExecute_BatchUpdate_StrictModeRejectsBeforeWrite(t *testing.T) {
+	t.Parallel()
+	_, _, err := runShortcutCapturingErr(t, BatchUpdate, []string{
+		"--url", testURL,
+		"--operations", `[
+			{"shortcut":"+chart-create-basic","input":{"sheet-id":"sh1","chart-type":"donut","data-range":"A1:C10"}},
+			{"shortcut":"+chart-create-basic","input":{"sheet-id":"sh1","chart-type":"line","data-range":"E1:G10","title":"Trend"}}
+		]`,
+		"--yes",
+	})
+	requireValidation(t, err, "invalid value \"donut\" for --chart-type")
+}
+
 // TestExecute_BatchUpdate_ContinueOnErrorPrecedence locks the flag-vs-envelope
 // precedence: an explicit --continue-on-error=false must keep the strict
 // transaction even when the --operations envelope carries continue_on_error:true,

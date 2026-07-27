@@ -6,6 +6,7 @@ package sheets
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/larksuite/cli/shortcuts/common"
@@ -61,17 +62,23 @@ var BatchUpdate = common.Shortcut{
 		// Run the full translation in Validate so shape errors surface before
 		// DryRun / Execute. Translator is pure (no network), so re-running it
 		// in DryRun / Execute below is fine.
-		if _, err := batchUpdateInput(runtime, token); err != nil {
+		if _, err := buildBatchUpdatePlan(runtime, token); err != nil {
 			return err
 		}
 		return nil
 	},
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
 		token, _ := resolveSpreadsheetToken(runtime)
-		input, _ := batchUpdateInput(runtime, token)
-		dr := invokeToolDryRun(token, ToolKindWrite, "batch_update", input)
+		plan, _ := buildBatchUpdatePlan(runtime, token)
+		dr := invokeToolDryRun(token, ToolKindWrite, "batch_update", plan.input)
+		if len(plan.localFailures) > 0 {
+			dr.Set("local_validation_failures", plan.localFailures)
+		}
 		if warnings := batchWarnings(runtime); len(warnings) > 0 {
 			dr.Set("warning_message", strings.Join(warnings, "\n"))
+		}
+		if batchNeedsDimInsertBeforeStyleWarning(runtime) {
+			dr.Set("warning_message", dimInsertBeforeStyleWarning)
 		}
 		return dr
 	},
@@ -80,16 +87,19 @@ var BatchUpdate = common.Shortcut{
 		if err != nil {
 			return err
 		}
-		input, err := batchUpdateInput(runtime, token)
+		plan, err := buildBatchUpdatePlan(runtime, token)
 		if err != nil {
 			return err
 		}
 		for _, w := range batchWarnings(runtime) {
 			fmt.Fprintln(runtime.IO().ErrOut, w)
 		}
-		out, err := callTool(ctx, runtime, token, ToolKindWrite, "batch_update", input)
+		out, err := callTool(ctx, runtime, token, ToolKindWrite, "batch_update", plan.input)
 		if err != nil {
 			return err
+		}
+		if len(plan.localFailures) > 0 {
+			out = mergeBatchUpdatePartialOutput(out, plan)
 		}
 		runtime.Out(out, nil)
 		return nil
@@ -105,36 +115,172 @@ var BatchUpdate = common.Shortcut{
 // into the MCP batch_update payload. Returns ValidationErrorf-typed errors
 // (errs.ValidationError) on any per-op shape problem (translator validates
 // each entry).
+type batchLocalValidationFailure struct {
+	Index    int    `json:"index"`
+	Shortcut string `json:"shortcut,omitempty"`
+	Success  bool   `json:"success"`
+	Stage    string `json:"stage"`
+	Error    string `json:"error"`
+}
+
+type batchUpdatePlan struct {
+	input           map[string]interface{}
+	originalIndexes []int
+	localFailures   []batchLocalValidationFailure
+	total           int
+}
+
 func batchUpdateInput(runtime *common.RuntimeContext, token string) (map[string]interface{}, error) {
+	plan, err := buildBatchUpdatePlan(runtime, token)
+	if err != nil {
+		return nil, err
+	}
+	return plan.input, nil
+}
+
+func buildBatchUpdatePlan(runtime *common.RuntimeContext, token string) (*batchUpdatePlan, error) {
 	rawOps, err := parseBatchOperationsFlag(runtime)
 	if err != nil {
 		return nil, err
 	}
-	translated, err := translateBatchOperations(rawOps, token)
+	continueOnError := batchContinueOnError(runtime)
+	translated, originalIndexes, failures, err := collectBatchOperationTranslations(rawOps, token)
 	if err != nil {
 		return nil, err
+	}
+	if !continueOnError {
+		if err := batchOperationFailuresError(failures, len(rawOps)); err != nil {
+			return nil, err
+		}
+	}
+	if len(translated) == 0 {
+		return nil, batchOperationFailuresError(failures, len(rawOps))
 	}
 	input := map[string]interface{}{
 		"excel_id":   token,
 		"operations": translated,
 	}
+	if continueOnError {
+		input["continue_on_error"] = true
+	}
+	localFailures := make([]batchLocalValidationFailure, 0, len(failures))
+	for _, failure := range failures {
+		localFailures = append(localFailures, batchLocalValidationFailure{
+			Index:    failure.Index,
+			Shortcut: failure.Shortcut,
+			Success:  false,
+			Stage:    "cli_validation",
+			Error:    failure.Err.Error(),
+		})
+	}
+	return &batchUpdatePlan{
+		input:           input,
+		originalIndexes: originalIndexes,
+		localFailures:   localFailures,
+		total:           len(rawOps),
+	}, nil
+}
+
+func batchContinueOnError(runtime *common.RuntimeContext) bool {
 	if runtime.Changed("continue-on-error") {
-		// An explicit --continue-on-error always wins over the envelope, so
-		// --continue-on-error=false keeps the strict-transaction default even
-		// when the --operations envelope carries continue_on_error:true.
-		if runtime.Bool("continue-on-error") {
-			input["continue_on_error"] = true
-		}
-	} else if envelope, _ := parseJSONFlag(runtime, "operations"); envelope != nil {
-		// No explicit flag: honor an inline override when --operations is an
-		// envelope object rather than a bare operations array.
+		// An explicit false wins over the envelope.
+		return runtime.Bool("continue-on-error")
+	}
+	if envelope, _ := parseJSONFlag(runtime, "operations"); envelope != nil {
 		if m, ok := envelope.(map[string]interface{}); ok {
-			if v, ok := m["continue_on_error"].(bool); ok && v {
-				input["continue_on_error"] = true
+			if v, ok := m["continue_on_error"].(bool); ok {
+				return v
 			}
 		}
 	}
-	return input, nil
+	return false
+}
+
+// mergeBatchUpdatePartialOutput restores original operation indexes after the
+// CLI omitted locally invalid operations from the server request, then appends
+// the local failures to the same result list. The command exits successfully
+// when the server preserved at least one valid operation, but the output still
+// makes every failed operation explicit.
+func mergeBatchUpdatePartialOutput(out interface{}, plan *batchUpdatePlan) interface{} {
+	merged := map[string]interface{}{}
+	if remote, ok := out.(map[string]interface{}); ok {
+		for key, value := range remote {
+			merged[key] = value
+		}
+	} else if out != nil {
+		merged["tool_output"] = out
+	}
+
+	results := make([]interface{}, 0, plan.total)
+	if remoteResults, ok := merged["results"].([]interface{}); ok {
+		for _, raw := range remoteResults {
+			item, ok := raw.(map[string]interface{})
+			if !ok {
+				results = append(results, raw)
+				continue
+			}
+			copied := make(map[string]interface{}, len(item))
+			for key, value := range item {
+				copied[key] = value
+			}
+			if remoteIndex, ok := batchResultIndex(copied["index"]); ok &&
+				remoteIndex >= 0 && remoteIndex < len(plan.originalIndexes) {
+				copied["index"] = plan.originalIndexes[remoteIndex]
+			}
+			results = append(results, copied)
+		}
+	}
+	for _, failure := range plan.localFailures {
+		results = append(results, map[string]interface{}{
+			"index":    failure.Index,
+			"shortcut": failure.Shortcut,
+			"success":  false,
+			"stage":    failure.Stage,
+			"error":    failure.Error,
+		})
+	}
+	sort.SliceStable(results, func(i, j int) bool {
+		left, leftOK := batchResultItemIndex(results[i])
+		right, rightOK := batchResultItemIndex(results[j])
+		return leftOK && rightOK && left < right
+	})
+
+	succeeded := batchResultCount(merged["succeeded"])
+	remoteFailed := batchResultCount(merged["failed"])
+	failed := remoteFailed + len(plan.localFailures)
+	merged["total"] = plan.total
+	merged["succeeded"] = succeeded
+	merged["failed"] = failed
+	merged["results"] = results
+	merged["local_validation_failures"] = plan.localFailures
+	merged["message"] = fmt.Sprintf("batch_update: %d succeeded, %d failed", succeeded, failed)
+	return merged
+}
+
+func batchResultIndex(value interface{}) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, true
+	case int64:
+		return int(typed), true
+	case float64:
+		return int(typed), typed == float64(int(typed))
+	default:
+		return 0, false
+	}
+}
+
+func batchResultItemIndex(value interface{}) (int, bool) {
+	item, ok := value.(map[string]interface{})
+	if !ok {
+		return 0, false
+	}
+	return batchResultIndex(item["index"])
+}
+
+func batchResultCount(value interface{}) int {
+	count, _ := batchResultIndex(value)
+	return count
 }
 
 // batchNeedsDimInsertBeforeStyleWarning reports whether any +dim-insert sub-op
