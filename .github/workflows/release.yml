@@ -48,9 +48,7 @@ jobs:
           head_sha="$(git rev-parse --verify 'HEAD^{commit}')"
           tag_sha="$(git rev-parse --verify "refs/tags/${TAG}^{commit}")"
           [[ "$tag_sha" == "$head_sha" ]] || { echo "Tag ${TAG} does not resolve to checked-out HEAD." >&2; exit 1; }
-          if [[ ! "$TAG" =~ ^v1\.0\.78-beta\.([1-9]|10)$ ]]; then
-            git merge-base --is-ancestor "$head_sha" FETCH_HEAD || { echo "Tag ${TAG} is not contained in origin/main." >&2; exit 1; }
-          fi
+          git merge-base --is-ancestor "$head_sha" FETCH_HEAD || { echo "Tag ${TAG} is not contained in origin/main." >&2; exit 1; }
 
           node - "$preflight_file" "$head_sha" "$GITHUB_OUTPUT" <<'NODE'
           const fs = require("node:fs");
@@ -272,7 +270,7 @@ jobs:
           [[ "$(git rev-parse "refs/tags/${TAG}^{commit}")" == "$SOURCE_SHA" ]] || { echo "Release tag changed after preflight." >&2; exit 1; }
       - name: Publish verified Draft Release
         env:
-          GH_TOKEN: ${{ github.ref_name == 'v1.0.78-beta.10' && 'invalid-release-token' || github.token }}
+          GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: gh release edit "$TAG" --draft=false
 
