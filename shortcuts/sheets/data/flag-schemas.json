@@ -1102,40 +1102,6 @@
                       }
                     }
                   },
-                  "colorTheme": {
-                    "type": "array",
-                    "description": "颜色主题配置。支持两种模式：1. 仅传一个预设主题名称（字符串数组，长度为1）；2. 传多个自定义十六进制颜色字符串。预设主题：brandColorSeries@v2、rainbowColorSeries@v2、complementaryColorSeries@v2、converseColorSeries@v2、primaryColorSeries@v2、singleColorSeries-B-@v2、singleColorSeries-W-@v2、singleColorSeries-G-@v2、singleColorSeries-Y-@v2、singleColorSeries-O-@v2、singleColorSeries-R-@v2、singleColorSeries-D-@v2。十六进制格式：#RRGGBB",
-                    "oneOf": [
-                      {
-                        "minItems": 1,
-                        "maxItems": 1,
-                        "items": {
-                          "type": "string",
-                          "enum": [
-                            "brandColorSeries@v2",
-                            "rainbowColorSeries@v2",
-                            "complementaryColorSeries@v2",
-                            "converseColorSeries@v2",
-                            "primaryColorSeries@v2",
-                            "singleColorSeries-B-@v2",
-                            "singleColorSeries-W-@v2",
-                            "singleColorSeries-G-@v2",
-                            "singleColorSeries-Y-@v2",
-                            "singleColorSeries-O-@v2",
-                            "singleColorSeries-R-@v2",
-                            "singleColorSeries-D-@v2"
-                          ]
-                        }
-                      },
-                      {
-                        "minItems": 2,
-                        "items": {
-                          "type": "string",
-                          "description": "颜色字符串，十六进制格式：#RRGGBB"
-                        }
-                      }
-                    ]
-                  },
                   "legend": {
                     "oneOf": [
                       {
@@ -2899,40 +2865,6 @@
                         "description": "是否启用颜色渐变"
                       }
                     }
-                  },
-                  "colorTheme": {
-                    "type": "array",
-                    "description": "颜色主题配置。支持两种模式：1. 仅传一个预设主题名称（字符串数组，长度为1）；2. 传多个自定义十六进制颜色字符串。预设主题：brandColorSeries@v2、rainbowColorSeries@v2、complementaryColorSeries@v2、converseColorSeries@v2、primaryColorSeries@v2、singleColorSeries-B-@v2、singleColorSeries-W-@v2、singleColorSeries-G-@v2、singleColorSeries-Y-@v2、singleColorSeries-O-@v2、singleColorSeries-R-@v2、singleColorSeries-D-@v2。十六进制格式：#RRGGBB",
-                    "oneOf": [
-                      {
-                        "minItems": 1,
-                        "maxItems": 1,
-                        "items": {
-                          "type": "string",
-                          "enum": [
-                            "brandColorSeries@v2",
-                            "rainbowColorSeries@v2",
-                            "complementaryColorSeries@v2",
-                            "converseColorSeries@v2",
-                            "primaryColorSeries@v2",
-                            "singleColorSeries-B-@v2",
-                            "singleColorSeries-W-@v2",
-                            "singleColorSeries-G-@v2",
-                            "singleColorSeries-Y-@v2",
-                            "singleColorSeries-O-@v2",
-                            "singleColorSeries-R-@v2",
-                            "singleColorSeries-D-@v2"
-                          ]
-                        }
-                      },
-                      {
-                        "minItems": 2,
-                        "items": {
-                          "type": "string",
-                          "description": "颜色字符串，十六进制格式：#RRGGBB"
-                        }
-                      }
-                    ]
                   },
                   "legend": {
                     "oneOf": [

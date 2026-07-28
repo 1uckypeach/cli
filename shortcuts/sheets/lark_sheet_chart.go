@@ -895,17 +895,21 @@ func applyChartConfigPatch(
 		plot["extra"] = extra
 		plotChanged = true
 	}
+	var colorTheme []interface{}
 	if value, ok := updates["color_palette"].(string); ok {
-		next["colorTheme"] = []interface{}{value}
-		patch["colorTheme"] = next["colorTheme"]
+		colorTheme = []interface{}{value}
 	}
 	if values, ok := updates["colors"].([]string); ok {
-		colors := make([]interface{}, 0, len(values))
+		colorTheme = make([]interface{}, 0, len(values))
 		for _, value := range values {
-			colors = append(colors, value)
+			colorTheme = append(colorTheme, value)
 		}
-		next["colorTheme"] = colors
-		patch["colorTheme"] = colors
+	}
+	if colorTheme != nil {
+		style := chartMap(next["style"])
+		style["colorTheme"] = colorTheme
+		next["style"] = style
+		patch["style"] = map[string]interface{}{"colorTheme": colorTheme}
 	}
 	if plotChanged {
 		patch["plotArea"] = plotArea
