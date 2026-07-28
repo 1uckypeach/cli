@@ -213,9 +213,10 @@ func TestChartConfigUpdate_PartialFields(t *testing.T) {
 	if extra["smooth"] != false || extra["stack"].(map[string]interface{})["percentage"] != true {
 		t.Errorf("plot extra = %#v", extra)
 	}
-	colors, _ := snapshot["colorTheme"].([]interface{})
+	style, _ := snapshot["style"].(map[string]interface{})
+	colors, _ := style["colorTheme"].([]interface{})
 	if len(colors) != 2 || colors[0] != "#112233" || colors[1] != "#445566" {
-		t.Errorf("snapshot.colorTheme = %#v", snapshot["colorTheme"])
+		t.Errorf("snapshot.style.colorTheme = %#v", style["colorTheme"])
 	}
 	axes := plotArea["axes"].([]interface{})
 	if axes[0].(map[string]interface{})["title"].(map[string]interface{})["text"] != "Revenue" {
