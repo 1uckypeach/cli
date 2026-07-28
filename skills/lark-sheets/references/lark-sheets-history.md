@@ -10,6 +10,13 @@
 
 `+history-list` 读取版本列表以挑选目标；`+history-revert` 发起回滚；`+history-revert-status` 轮询回滚结果；`+undo` 撤销当前用户最近的 AI 工具写入。若只是想拿**当前文档版本号（revision）**当作 recover / undo / `+changeset-get` 的起点锚点，直接用 `+revision-get` 更轻量。
 
+## Undo 与历史回退的路由优先级
+
+1. **刚完成的单步写入有误 → 优先 `+undo`**：无论是用户要求撤销，还是模型在校验中确认自己刚完成的写入有误，都可以用 `+undo` 纠正。默认只撤销栈顶 1 条，省略 `--count`。
+2. **需要撤销多步 → 优先历史回退**：先用 `+history-list` 找到修改前的目标版本，再用 `+history-revert` 恢复。历史回退会覆盖整个工作簿，执行前必须向用户说明影响并取得确认。
+3. **能精确识别连续前 N 条写入 → 才使用 `--count N`**：只有确认当前用户 undo 栈顶连续 N 条记录全部属于待撤销修改，且中间没有需要保留的写入时，才一次撤销多条；否则保持单步撤销或改走历史回退。
+4. **revision 不参与 count 计算**：文档 revision 是版本锚点，不等于 undo 栈项数。禁止用 revision 差值、对话轮次、历史版本数、action 数或单元格数推算 `--count`。
+
 ## 使用场景
 
 读取历史版本、发起回滚、查询回滚状态，或撤销当前用户最近一次 AI 工具写入。本 reference 覆盖 4 个 shortcut：
@@ -19,11 +26,11 @@
 | 查看历史版本列表 | `+history-list` | 返回 `minor_histories`，每条含 `history_version_id` / `create_time` / `action` / `all_block_revision` 四个字段；支持向前分页（可选 `--end-version`） |
 | 回滚到指定历史版本 | `+history-revert` | 传入 `--history-version-id`；异步受理，返回可查询标识 |
 | 查询回滚状态 | `+history-revert-status` | 传入 `--transaction-id`（取自 `+history-revert` 的异步受理标识）；轮询某次回滚的进行中 / 成功 / 失败状态 |
-| 撤销自己最近的 AI 写入 | `+undo` | 只需 spreadsheet 定位；默认撤当前用户 undo 栈顶；可用 `--count` 连续撤销多步；支持普通单元格/结构写入，以及图表、透视表 update 的反向操作 |
+| 撤销自己最近的 AI 写入 | `+undo` | 只需 spreadsheet 定位；默认单步撤销当前用户 undo 栈顶；仅在能精确识别连续前 N 条目标写入时使用 `--count N` |
 
 典型工作流：`+history-list` 拿到目标版本的 `history_version_id`（必要时翻页拉取更早历史）→ `+history-revert` 发起回滚并取回 `transaction_id` → `+history-revert-status --transaction-id <transaction_id>` 轮询直到成功或失败。
 
-`+undo` 的典型工作流更短：执行某个 AI 写入工具后，如果用户要求撤销刚才自己的修改，直接运行 `+undo`。返回 `undone=1` 表示已撤销一条当前用户栈顶；传 `--count N` 时会按当前用户栈顶从新到旧连续撤销，返回的 `undone` 是实际撤销数量。返回 `undone=0` 且 `reason=undo_stack_empty` 表示当前用户没有可撤销项。
+`+undo` 的典型工作流更短：执行某个 AI 写入工具后，如果用户要求撤销，或模型在校验中确认刚完成的写入有误，直接运行一次 `+undo`。返回 `undone=1` 表示已撤销一条当前用户栈顶；返回 `undone=0` 且 `reason=undo_stack_empty` 表示当前用户没有可撤销项。
 
 **注意事项（必须了解）**：
 - **回滚是高风险写入操作**：会用历史版本内容覆盖当前表格，执行前应明确告知用户影响。
@@ -33,7 +40,7 @@
 - **`+history-list` 倒序分页**：首次查省略 `--end-version`，返回最新一页；若响应里附带 `next_end_version` 与 `has_more=true`，把 `next_end_version` 作为下一次的 `--end-version` 即可继续向更早翻页；当响应**不包含**这两个字段时表示已到最早一页，不必再翻。
 - **`+undo` 是用户维度**：只撤当前登录用户的 undo 栈顶；同一文档里其他用户的写入不会被撤销。
 - **`+undo` 是高风险写入**：实际撤销前必须显式传 `--yes`；`--dry-run` 仅预览请求，不需要该确认参数。
-- **`+undo --count` 是顺序多步撤销**：从当前用户最新栈项开始逐条撤销，最多 20 步；如果可撤销项不足或中途遇到不可撤销项，会停止并返回实际 `undone` 数量与 `reason`。
+- **`+undo --count` 的单位是 active undo 栈项**：1 项表示当前用户的 1 条可撤销 AI 写入记录，不是对话轮次、revision、历史版本、action 或单元格数量。默认值为 1、最大 20；优先单步撤销，只有能精确识别连续前 N 条目标写入时才传 N。
 - **遇到终止态不得继续自动撤销**：`reason=undo_in_progress` 表示栈顶正在撤销或状态未知；`reason=undo_partial_failed` 表示栈顶可能已部分生效。两种情况都不得再次自动调用 `+undo`，应先检查表格，再按需使用 `+history-list` / `+history-revert` 处理。
 - **`+undo` 不区分 session / agent**：同一用户的不同 CLI 会话或 agent 共用同一个用户 undo 栈。
 - **`+undo` 不进入 `+batch-update`**：撤销本身依赖用户栈状态，不能作为批量子操作嵌套执行。
@@ -79,11 +86,11 @@ _公共：URL/token（无 sheet 定位） · 系统：`--dry-run`_
 
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `--count` | int | optional | 连续撤销的用户 undo 栈项数量，默认 1，最大 20。按当前用户栈顶从新到旧顺序撤销，实际撤销数量以返回的 undone 为准。 |
+| `--count` | int | optional | 要撤销的当前用户 active undo 栈项数，默认 1，最大 20。1 项表示 1 条可撤销 AI 写入记录，不是对话轮次、revision、历史版本、action 或单元格数量。优先省略该参数做单步撤销；仅在能明确识别连续前 N 条目标写入时才传 N，实际撤销数量以返回的 undone 为准。 |
 
 ## Examples
 
-公共定位：所有 shortcut 顶部排列 `--url` / `--spreadsheet-token`（XOR，二选一）。`+history-revert` 用 `--history-version-id`（取自 `+history-list`）；`+history-revert-status` 用 `--transaction-id`（取自 `+history-revert` 的异步受理标识）。`+undo` 不需要 sheet-id，也不需要 history version；连续撤销多步时传 `--count`。
+公共定位：所有 shortcut 使用 `--url` / `--spreadsheet-token` 二选一。`+history-revert` 用 `--history-version-id`（取自 `+history-list`）；`+history-revert-status` 用 `--transaction-id`（取自 `+history-revert` 的异步受理标识）。`+undo` 不接受 `--sheet-id`、`--sheet-name`、revision 或 history version；执行时显式传 `--yes`，只预览请求时传 `--dry-run`。默认省略 `--count` 做单步撤销。
 
 ### `+history-list`
 
@@ -120,9 +127,6 @@ lark-cli sheets +history-revert-status --url "https://sample.feishu.cn/sheets/SH
 # 撤销当前用户最近一次 AI 工具写入
 lark-cli sheets +undo --url "https://sample.feishu.cn/sheets/SHTxxxxxx" --yes
 
-# 连续撤销当前用户最近 3 次 AI 工具写入；实际撤销数量以返回的 undone 为准
-lark-cli sheets +undo --url "https://sample.feishu.cn/sheets/SHTxxxxxx" --count 3 --yes
-
-# 先预览将调用的底层 undo_last 请求
-lark-cli sheets +undo --url "https://sample.feishu.cn/sheets/SHTxxxxxx" --count 3 --dry-run
+# 只预览单步撤销请求，不实际执行
+lark-cli sheets +undo --url "https://sample.feishu.cn/sheets/SHTxxxxxx" --dry-run
 ```
