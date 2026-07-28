@@ -61,6 +61,12 @@ func withFlagErgonomics(prev func(cmd *cobra.Command)) func(cmd *cobra.Command) 
 var commandFlagAliases = map[string]map[string]string{
 	"+csv-put":      {"file": "csv"},
 	"+sheet-create": {"name": "title"},
+	// The new name is the only name-valued input a rename takes, so the
+	// habitual spellings are unambiguous (unlike +sheet-copy, where a name
+	// could mean the copy's title or the source selector and gets a
+	// prescription instead). 07-28 root-cause report #25: 10/10 wrote
+	// --new-name, 24 occurrences.
+	"+sheet-rename": {"name": "title", "new-name": "title"},
 	// size → width/height: the styles protocol (--styles row_sizes/col_sizes)
 	// spells the pixel dimension "size", and pre-2026-07 batches accepted it
 	// here too — the rename is the single largest sub-op error cluster in
@@ -86,19 +92,39 @@ var intuitiveFlagHints = map[string]map[string]string{
 		"dimension": "+dim-insert infers rows vs columns from --position: a row number like 3 inserts rows, a column letter like C inserts columns; pair with --count N",
 	},
 	"+dim-freeze": {
-		"frozen-rows":    "freeze the first N rows with --dimension row --count N",
-		"frozen-cols":    "freeze the first N columns with --dimension column --count N",
-		"frozen-columns": "freeze the first N columns with --dimension column --count N",
+		"frozen-rows":         "freeze the first N rows with --dimension row --count N",
+		"frozen-cols":         "freeze the first N columns with --dimension column --count N",
+		"frozen-columns":      "freeze the first N columns with --dimension column --count N",
+		"frozen-row-count":    "freeze the first N rows with --dimension row --count N",
+		"frozen-col-count":    "freeze the first N columns with --dimension column --count N",
+		"frozen-column-count": "freeze the first N columns with --dimension column --count N",
 	},
 	"+cells-set-style": {
 		"bold":      "use --font-weight bold",
 		"italic":    "use --font-style italic",
 		"underline": "use --font-line underline",
+		"font-bold": "use --font-weight bold",
+		"bg-color":  "use --background-color",
+		// Google Sheets API vocabulary (wrapStrategy).
+		"wrap-strategy": "use --word-wrap (overflow / auto-wrap / word-clip)",
+		// The border family: the only border flag is --border-styles (composite
+		// JSON); color and per-side variants ride inside it.
+		"border-style":  `borders take one composite flag: --border-styles '{"all":{"style":"solid","weight":"thin","color":"#000000"}}' (sides: top/bottom/left/right, or "all" for all four)`,
+		"border-color":  `border color rides inside --border-styles JSON, e.g. --border-styles '{"all":{"style":"solid","weight":"thin","color":"#000000"}}'`,
+		"border-all":    `use --border-styles '{"all":{"style":"solid","weight":"thin","color":"#000000"}}' — the "all" key applies one spec to all four sides`,
+		"border-top":    `per-side borders ride inside --border-styles JSON, e.g. --border-styles '{"top":{"style":"solid","weight":"thin","color":"#000000"}}'`,
+		"border-bottom": `per-side borders ride inside --border-styles JSON, e.g. --border-styles '{"bottom":{"style":"solid","weight":"thin","color":"#000000"}}'`,
+		"border-left":   `per-side borders ride inside --border-styles JSON, e.g. --border-styles '{"left":{"style":"solid","weight":"thin","color":"#000000"}}'`,
+		"border-right":  `per-side borders ride inside --border-styles JSON, e.g. --border-styles '{"right":{"style":"solid","weight":"thin","color":"#000000"}}'`,
 	},
 	"+cells-set": {
 		// Predictable prior from +table-put --styles: models will try to
 		// attach range-level styling to a --writes call the same way.
 		"styles": `range-level styling goes through +styles-put (same {"styles":[...]} vocabulary); per-cell styles ride inside the cells objects as cell_styles`,
+		// +workbook-create's untyped-data flag, carried over to the write
+		// command (07-28 root-cause report #9, 63 occurrences; values↔cells
+		// shares no prefix so edit distance never suggests the fix).
+		"values": `cell contents go in --cells as a 2D array of cell objects ('[[{"value":…},…],…]'); --values is +workbook-create's flag for untyped initial data`,
 	},
 	"+table-put": {
 		"start-cell": `anchor each sub-sheet via the "start_cell" field inside --sheets (e.g. {"sheets":[{"name":"Sheet1","start_cell":"B2",…}]}); to paste CSV at a cell use +csv-put --start-cell`,
@@ -177,11 +203,16 @@ func sheetsFlagErrorFunc(c *cobra.Command, ferr error) error {
 	}
 	// A curated prescription beats both: it spells the exact correct form
 	// for a habitual name whose fix is not a rename (see intuitiveFlagHints).
+	// Edit-distance candidates are dropped with it — they can contradict the
+	// prescription (--font-bold ranked --font-color/--font-line/--font-size
+	// while the fix is --font-weight), and a machine-readable suggestion that
+	// disagrees with the hint sends agents down the wrong retry.
 	if rx, ok := intuitiveFlagHints[c.Name()][name]; ok {
 		hint = rx
 		if list := inlineFlagList(valid); list != "" {
 			hint = rx + "; valid flags: " + list
 		}
+		suggestions = nil
 	}
 	return errs.NewValidationError(errs.SubtypeInvalidArgument,
 		"unknown flag %q for %q", "--"+name, c.CommandPath()).

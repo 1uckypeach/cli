@@ -43,6 +43,50 @@ func TestTablePut_StylesErrorsAggregate(t *testing.T) {
 	}
 }
 
+// TestTablePut_StylesFieldPrescriptions pins the curated fixes for the
+// high-frequency unsupported cell_styles field names, and the near-typo
+// guard on the did-you-mean fallback (07-28 root-cause report #14/#21/#27:
+// font_bold used to draw "did you mean font_color?" and nested font drew
+// "font_line" — concept-swap neighbors that mislead worse than silence).
+func TestTablePut_StylesFieldPrescriptions(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name       string
+		field      string // JSON fragment inside the cell_styles item
+		want       []string
+		notSuggest []string // must NOT appear as a did-you-mean
+	}{
+		{"bold", `"bold":true`, []string{`font_weight:"bold"`}, nil},
+		{"font_bold", `"font_bold":true`, []string{`font_weight:"bold"`}, []string{"font_color"}},
+		{"text_align", `"text_align":"center"`, []string{"horizontal_alignment"}, nil},
+		{"nested font", `"font":{"bold":true,"size":18}`, []string{"flat font_*", `font_weight:"bold"`}, []string{"font_line"}},
+		{"near-typo still suggests", `"font_colour":"#FFF"`, []string{`did you mean "font_color"`}, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			sc := shortcutFromRegistry(t, "+table-put")
+			_, _, err := runShortcutCapturingErr(t, sc, []string{
+				"--url", testURL,
+				"--sheets", `{"sheets":[{"name":"s","columns":["a"],"data":[["x"]]}]}`,
+				"--styles", `{"styles":[{"name":"s","cell_styles":[{"range":"A1:A1",` + tc.field + `}]}]}`,
+				"--dry-run",
+			})
+			ve := requireValidation(t, err, "is not a supported style field")
+			for _, want := range tc.want {
+				if !strings.Contains(ve.Message, want) {
+					t.Errorf("message should contain %q, got %q", want, ve.Message)
+				}
+			}
+			for _, bad := range tc.notSuggest {
+				if strings.Contains(ve.Message, `did you mean "`+bad+`"`) {
+					t.Errorf("message must not suggest %q, got %q", bad, ve.Message)
+				}
+			}
+		})
+	}
+}
+
 // TestTablePut_StylesBorderAllExpands verifies the "all" shorthand is
 // rewritten to four explicit sides instead of being rejected (or worse,
 // passed through for the server to reject, as happened on the typed-cells

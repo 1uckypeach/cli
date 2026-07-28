@@ -104,6 +104,23 @@ var cellStyleAliases = []struct{ alias, canonical string }{
 	{"wrap_strategy", "word_wrap"},
 }
 
+// styleFieldPrescriptions carries the exact fix for high-frequency
+// unsupported cell_styles field names where the edit-distance suggester is
+// actively misleading (07-28 root-cause report: font_bold drew "did you mean
+// font_color?" and nested font drew "font_line" — an agent that follows
+// either burns a second failed round trip). Keyed by lowercased field name;
+// the text replaces the did-you-mean on the unsupported-field error. These
+// stay prescriptions, not silent aliases: bold/text_align are on the
+// deliberate no-alias list above.
+var styleFieldPrescriptions = map[string]string{
+	"bold":       `bold text is font_weight:"bold"`,
+	"font_bold":  `bold text is font_weight:"bold"`,
+	"italic":     `italic text is font_style:"italic"`,
+	"underline":  `underline is font_line:"underline"`,
+	"text_align": "horizontal text alignment is horizontal_alignment (left/center/right)",
+	"font":       `cell_styles has no nested font object — use the flat font_* fields (font:{"bold":true,"size":18,"color":"#000"} becomes font_weight:"bold", font_size:18, font_color:"#000")`,
+}
+
 // cellStyleEnumFields sources the enum vocabulary for enum-bearing
 // cell_styles fields from the +cells-set-style flag-defs, so the payload path
 // (--styles / typed --cells) validates and canonicalizes values the same way
@@ -280,10 +297,58 @@ func expandBorderAllShorthand(border map[string]interface{}) {
 	}
 }
 
+// normalizeBorderStylesFlagValue runs the border vocabulary rewrites on the
+// parsed --border-styles value BEFORE schema validation (jsonFlagNormalizers
+// seam in parseJSONFlag). Without it the enum check fires first and rejects
+// the weight-word-in-style habit ({"style":"thin"}) that
+// expandBorderAllShorthand exists to absorb — the acceptance layer was
+// unreachable on this path (07-28 root-cause report #2, 173 occurrences).
+// Non-object shapes pass through for the validator to prescribe.
+func normalizeBorderStylesFlagValue(v interface{}) interface{} {
+	if m, ok := v.(map[string]interface{}); ok {
+		expandBorderAllShorthand(m)
+	}
+	return v
+}
+
+// normalizeCellsFlagValue is the +cells-set --cells pre-validation pipeline:
+// wrap a lone cell object into [[cell]], then run the border vocabulary
+// rewrites on each cell's border_styles so weight words in the style slot
+// normalize before the enum check — same reachability fix as
+// normalizeBorderStylesFlagValue, for the typed-cells carrier (07-28
+// root-cause report #10, 58 occurrences). Structure is checked leniently:
+// anything that isn't the expected shape is left for the validator.
+func normalizeCellsFlagValue(v interface{}) interface{} {
+	v = wrapLoneCellObject(v)
+	rows, ok := v.([]interface{})
+	if !ok {
+		return v
+	}
+	for _, rowRaw := range rows {
+		row, ok := rowRaw.([]interface{})
+		if !ok {
+			continue
+		}
+		for _, cellRaw := range row {
+			cell, ok := cellRaw.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if bs, ok := cell["border_styles"].(map[string]interface{}); ok {
+				expandBorderAllShorthand(bs)
+			}
+		}
+	}
+	return v
+}
+
 // borderStylesFromFlag parses --border-styles as a JSON object (top/bottom/
 // left/right with style sub-objects), expanding the "all" side shorthand the
 // same as the typed --cells and --styles paths so +cells-set-style /
 // +cells-batch-set-style don't ship {"all":…} for the backend to reject.
+// The expansion normally already ran inside parseJSONFlag (see
+// normalizeBorderStylesFlagValue); the call here is an idempotent safety net
+// for entry paths that bypass the normalizer table.
 // Returns nil when the flag is empty.
 func borderStylesFromFlag(runtime flagView) (map[string]interface{}, error) {
 	if runtime.Str("border-styles") == "" {

@@ -1450,13 +1450,20 @@ func normalizeWorkbookCreateStyleObject(in map[string]interface{}, path string) 
 			return nil, common.ValidationErrorf("%s.%s is a content field — a styles spec carries no cell content; write values/formulas via +cells-set or +table-put", path, k)
 		default:
 			if !workbookCreateCellStyleField(k) {
-				// Universal rejection with did-you-mean + the full field list:
-				// this is the mechanism that absorbs the infinite tail of
-				// spelling permutations at a fixed one-retry cost — silent
-				// aliases are reserved for high-frequency words from real
-				// external vocabularies (see the style_vocab.go contract).
+				// Universal rejection with the full field list: this is the
+				// mechanism that absorbs the infinite tail of spelling
+				// permutations at a fixed one-retry cost — silent aliases are
+				// reserved for high-frequency words from real external
+				// vocabularies (see the style_vocab.go contract). A curated
+				// prescription wins over did-you-mean; without one, the
+				// distance match must be a near-typo (≤2 edits) — a
+				// concept-swap neighbor (font_bold → font_color, distance 3)
+				// misleads worse than silence.
 				msg := fmt.Sprintf("%s.%s is not a supported style field", path, k)
-				if match := suggest.Closest(strings.ToLower(k), workbookCreateCellStyleFieldList, 1); len(match) > 0 {
+				lower := strings.ToLower(k)
+				if rx, ok := styleFieldPrescriptions[lower]; ok {
+					msg += " — " + rx
+				} else if match := suggest.Closest(lower, workbookCreateCellStyleFieldList, 1); len(match) > 0 && suggest.Levenshtein(lower, match[0]) <= 2 {
 					msg += fmt.Sprintf(" — did you mean %q?", match[0])
 				}
 				msg += "; supported: " + strings.Join(workbookCreateCellStyleFieldList, ", ")
