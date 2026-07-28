@@ -984,6 +984,26 @@ func cleanupLocalDocResourcePlaceholders(runtime *common.RuntimeContext, documen
 
 		actualTokens := localDocResourceBlockTokens(block)
 		if len(actualTokens) == 0 {
+			if target.Owner.Resource.Kind == localDocResourceFile {
+				// DocX represents a file as a source child inside a figure
+				// block. Deleting the source ID is accepted by docs_ai but
+				// leaves an empty <figure><source/></figure> behind, so remove
+				// the owning figure after the tokenless child is verified.
+				parentID := strings.TrimSpace(common.GetString(block, "parent_id"))
+				if parentID == "" || parentID == target.BlockID || parentID == documentKey {
+					blockedOwners[target.Owner] = struct{}{}
+					target.Owner.Status = "bind_ambiguous"
+					target.Owner.CleanupStatus = "skipped_ambiguous"
+					target.Owner.SafeToCleanup = false
+					appendLocalDocResourceOutcomeError(target.Owner, errs.NewInternalError(
+						errs.SubtypeInvalidResponse,
+						"local file #%d figure parent could not be verified before cleanup; placeholder was preserved",
+						target.Owner.Resource.Occurrence,
+					))
+					continue
+				}
+				target.BlockID = parentID
+			}
 			verifiedTargets = append(verifiedTargets, target)
 			continue
 		}

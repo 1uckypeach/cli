@@ -696,6 +696,76 @@ func TestCleanupLocalDocResourcePlaceholdersRequiresKnownRevision(t *testing.T) 
 	}
 }
 
+func TestCleanupLocalDocResourceFileDeletesFigureParent(t *testing.T) {
+	factory, _, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("local-cleanup-file-parent"))
+	runtime := common.TestNewRuntimeContextForAPI(context.Background(), &cobra.Command{Use: "test"}, docsTestConfigWithAppID("local-cleanup-file-parent"), factory, core.AsUser)
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/docx/v1/documents/doxcn_cleanup/blocks/blk_file",
+		Body: map[string]interface{}{"code": 0, "data": map[string]interface{}{"block": map[string]interface{}{
+			"block_id":   "blk_file",
+			"block_type": 23,
+			"parent_id":  "blk_figure",
+			"file":       map[string]interface{}{"token": ""},
+		}}},
+	})
+	deleteStub := &httpmock.Stub{
+		Method: "PUT",
+		URL:    "/open-apis/docs_ai/v1/documents/doxcn_cleanup",
+		Body:   map[string]interface{}{"code": 0, "data": map[string]interface{}{"document": map[string]interface{}{"revision_id": 8}}},
+	}
+	reg.Register(deleteStub)
+	outcome := &localDocResourceOutcome{
+		Resource:        localDocResource{Occurrence: 1, Kind: localDocResourceFile},
+		BlockID:         "blk_file",
+		CleanupBlockIDs: []string{"blk_file"},
+		Status:          "upload_failed",
+		CleanupStatus:   "pending",
+		SafeToCleanup:   true,
+	}
+
+	revision, revisionKnown := cleanupLocalDocResourcePlaceholders(runtime, "doxcn_cleanup", []*localDocResourceOutcome{outcome}, float64(7))
+
+	if !revisionKnown || revision != int64(8) || outcome.CleanupStatus != "succeeded" {
+		t.Fatalf("revision=%#v known=%v outcome=%#v", revision, revisionKnown, outcome)
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(deleteStub.CapturedBody, &body); err != nil {
+		t.Fatalf("decode cleanup body: %v", err)
+	}
+	if body["block_id"] != "blk_figure" {
+		t.Fatalf("cleanup block_id=%#v, want figure parent", body["block_id"])
+	}
+}
+
+func TestCleanupLocalDocResourceFileWithoutFigureParentIsPreserved(t *testing.T) {
+	factory, _, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("local-cleanup-file-no-parent"))
+	runtime := common.TestNewRuntimeContextForAPI(context.Background(), &cobra.Command{Use: "test"}, docsTestConfigWithAppID("local-cleanup-file-no-parent"), factory, core.AsUser)
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/docx/v1/documents/doxcn_cleanup/blocks/blk_file",
+		Body: map[string]interface{}{"code": 0, "data": map[string]interface{}{"block": map[string]interface{}{
+			"block_id":   "blk_file",
+			"block_type": 23,
+			"file":       map[string]interface{}{"token": ""},
+		}}},
+	})
+	outcome := &localDocResourceOutcome{
+		Resource:        localDocResource{Occurrence: 1, Kind: localDocResourceFile},
+		BlockID:         "blk_file",
+		CleanupBlockIDs: []string{"blk_file"},
+		Status:          "upload_failed",
+		CleanupStatus:   "pending",
+		SafeToCleanup:   true,
+	}
+
+	revision, revisionKnown := cleanupLocalDocResourcePlaceholders(runtime, "doxcn_cleanup", []*localDocResourceOutcome{outcome}, float64(7))
+
+	if revision != nil || revisionKnown || outcome.Status != "bind_ambiguous" || outcome.CleanupStatus != "skipped_ambiguous" || outcome.SafeToCleanup {
+		t.Fatalf("revision=%#v known=%v outcome=%#v", revision, revisionKnown, outcome)
+	}
+}
+
 func TestDocAPINullDataIsTypedInvalidResponse(t *testing.T) {
 	factory, _, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("local-null-data"))
 	runtime := common.TestNewRuntimeContextForAPI(context.Background(), &cobra.Command{Use: "test"}, docsTestConfigWithAppID("local-null-data"), factory, core.AsUser)
