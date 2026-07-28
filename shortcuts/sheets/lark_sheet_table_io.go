@@ -272,6 +272,16 @@ func parseTablePutPayload(runtime flagView) (*tablePayload, error) {
 		verr := common.ValidationErrorf("--sheets: invalid JSON: %v", err).WithCause(err)
 		var ute *json.UnmarshalTypeError
 		if errors.As(err, &ute) {
+			// A mismatch with no field path is the missing envelope: the
+			// payload IS the sub-sheet list, written without the wrapper.
+			// Say that in the message — the Go unmarshal text ("cannot
+			// unmarshal array into Go value of type struct { Sheets …}")
+			// names the internal type, not the fix.
+			if ute.Field == "" {
+				verr = common.ValidationErrorf(
+					`--sheets: top level must be the object {"sheets":[…]}, got a bare JSON %s; wrap the sub-sheet list in a "sheets" key`,
+					ute.Value).WithCause(err)
+			}
 			return nil, verr.WithHint(
 				"expected shape: %s (columns is a flat string array; dtypes/formats are column-name-keyed maps; data is row-major)",
 				tablePutSheetsSkeleton)

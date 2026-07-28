@@ -144,6 +144,13 @@ func TestSheetHelpersValidationMetadata(t *testing.T) {
 		if validationErr.Params[0].Name != "--sheet-id" || validationErr.Params[1].Name != "--sheet-name" {
 			t.Fatalf("params = %#v, want --sheet-id/--sheet-name", validationErr.Params)
 		}
+		// Eval traces recover on the very next call, so the missing piece is
+		// which name to pass — the hint has to name Sheet1 and the lookup.
+		for _, want := range []string{"Sheet1", "+workbook-info"} {
+			if !strings.Contains(validationErr.Hint, want) {
+				t.Errorf("hint should mention %q, got %q", want, validationErr.Hint)
+			}
+		}
 	})
 
 	t.Run("spreadsheet url shape reports url param", func(t *testing.T) {

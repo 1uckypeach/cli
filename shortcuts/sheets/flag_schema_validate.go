@@ -116,9 +116,14 @@ func validateValueAgainstSchema(fv flagView, name string, value interface{}) err
 		// exact JSON Schema for this (command, flag) pair; reaching this
 		// branch means entry[name] resolved a schema from the embedded
 		// index, so the suggested command is guaranteed to print it.
+		// An enum-bearing field states its own contract far better than a
+		// whole-payload skeleton, at any depth: --border-styles with
+		// weight:1 used to answer with {"bottom": {…}, "left": {…}, …},
+		// which says nothing about thin/medium/thick. Let those fall
+		// through to the hintSuffix path below, which names the enum.
 		var tm *typeMismatchError
 		isTypeMismatch := errors.As(vErr, &tm)
-		if isTypeMismatch && pathDepth(tm.path) <= skeletonPathDepthLimit {
+		if isTypeMismatch && len(tm.enum) == 0 && pathDepth(tm.path) <= skeletonPathDepthLimit {
 			if sk := schemaSkeleton(&schema, skeletonMaxDepth); sk != "" {
 				return sheetsValidationForFlag(name,
 					"--%s: %s; expected shape: %s (run `lark-cli sheets %s --print-schema --flag-name %s` for the full JSON Schema)",

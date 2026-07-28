@@ -224,6 +224,59 @@ func TestCellsSetStyle_WordWrapBooleanNormalizes(t *testing.T) {
 	}
 }
 
+// TestCellsSetStyle_WordWrapGoogleVocabularyNormalizes pins the Google
+// Sheets wrapStrategy words (WRAP / CLIP) onto the Lark enum — the flag
+// name --wrap-strategy already prescribes --word-wrap, so the value
+// vocabulary has to land too or the retry fails a second time.
+func TestCellsSetStyle_WordWrapGoogleVocabularyNormalizes(t *testing.T) {
+	t.Parallel()
+	for word, want := range map[string]string{"wrap": "auto-wrap", "WRAP": "auto-wrap", "clip": "word-clip"} {
+		t.Run(word, func(t *testing.T) {
+			t.Parallel()
+			sc := shortcutFromRegistry(t, "+cells-set-style")
+			stdout, _, err := runShortcutCapturingErr(t, sc, []string{
+				"--url", testURL,
+				"--sheet-name", "s",
+				"--range", "A1:A1",
+				"--word-wrap", word,
+				"--dry-run",
+			})
+			if err != nil {
+				t.Fatalf("--word-wrap %s should normalize to %s, got: %v", word, want, err)
+			}
+			if !strings.Contains(stdout, want) {
+				t.Errorf("dry-run body should carry %s, got %q", want, stdout)
+			}
+		})
+	}
+}
+
+// TestCellsSetStyle_BorderWeightNumberNamesEnum pins the enum-over-skeleton
+// rule: a type mismatch on an enum-bearing field answers with the allowed
+// values, not a whole-payload skeleton ({"bottom": {…}, "left": {…}, …}
+// told the caller nothing about thin/medium/thick — 07-28 root-cause
+// report #5, 75 occurrences).
+func TestCellsSetStyle_BorderWeightNumberNamesEnum(t *testing.T) {
+	t.Parallel()
+	sc := shortcutFromRegistry(t, "+cells-set-style")
+	_, _, err := runShortcutCapturingErr(t, sc, []string{
+		"--url", testURL,
+		"--sheet-name", "s",
+		"--range", "A1",
+		"--border-styles", `{"top":{"style":"solid","weight":1}}`,
+		"--dry-run",
+	})
+	ve := requireValidation(t, err, `expected type "string", got "number"`)
+	for _, want := range []string{`"thin"`, `"medium"`, `"thick"`} {
+		if !strings.Contains(ve.Message, want) {
+			t.Errorf("message should name the weight enum %s, got %q", want, ve.Message)
+		}
+	}
+	if strings.Contains(ve.Message, "expected shape:") {
+		t.Errorf("enum-bearing mismatch should not fall back to the shape skeleton, got %q", ve.Message)
+	}
+}
+
 // TestUnderscoreFlagFormsParse pins the wire-vocabulary underscore rewrite:
 // --sheet_name / --border_styles parse as their hyphen forms (agents copy
 // field names out of JSON payloads where underscores are canonical).
