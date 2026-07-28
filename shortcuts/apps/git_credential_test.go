@@ -26,6 +26,7 @@ import (
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/sparkstore"
 	"github.com/larksuite/cli/shortcuts/apps/gitcred"
 	"github.com/larksuite/cli/shortcuts/common"
 )
@@ -283,7 +284,7 @@ func TestAppsGitCredentialInitExecutesAndRefreshes(t *testing.T) {
 	if got := stdout.String(); !strings.Contains(got, `"status": "initialized"`) || !strings.Contains(got, `"repository_url": "https://example.com/git/u/app.git"`) {
 		t.Fatalf("init stdout = %s", got)
 	}
-	meta, err := Read("app_xxx", gitcred.MetadataFilename)
+	meta, err := sparkstore.Read("app_xxx", gitcred.MetadataFilename)
 	if err != nil {
 		t.Fatalf("read app-scoped metadata: %v", err)
 	}
@@ -525,10 +526,10 @@ func TestAppsGitCredentialListEmpty(t *testing.T) {
 
 func TestGitCredentialAppStorageListAppIDsSkipsNonCredentialAppDirs(t *testing.T) {
 	newAppsExecuteFactory(t)
-	if err := Write("app/a", gitcred.MetadataFilename, []byte("{}")); err != nil {
+	if err := sparkstore.Write("app/a", gitcred.MetadataFilename, []byte("{}")); err != nil {
 		t.Fatalf("Write escaped app metadata: %v", err)
 	}
-	if err := Write("app_b", gitcred.MetadataFilename, []byte("{}")); err != nil {
+	if err := sparkstore.Write("app_b", gitcred.MetadataFilename, []byte("{}")); err != nil {
 		t.Fatalf("Write app_b metadata: %v", err)
 	}
 	root := filepath.Join(core.GetConfigDir(), "spark")
@@ -541,7 +542,7 @@ func TestGitCredentialAppStorageListAppIDsSkipsNonCredentialAppDirs(t *testing.T
 		}
 	}
 
-	appIDs, err := gitCredentialAppStorage{}.ListAppIDs()
+	appIDs, err := (sparkstore.AppStorage{}).ListAppIDs()
 	if err != nil {
 		t.Fatalf("ListAppIDs: %v", err)
 	}
@@ -569,10 +570,10 @@ func TestAppsGitCredentialListReturnsScanErrors(t *testing.T) {
 
 	t.Run("record error", func(t *testing.T) {
 		factory, _, _ := newAppsExecuteFactory(t)
-		if err := Write("app_xxx", gitcred.MetadataFilename, []byte("{bad json")); err != nil {
+		if err := sparkstore.Write("app_xxx", gitcred.MetadataFilename, []byte("{bad json")); err != nil {
 			t.Fatalf("write invalid metadata: %v", err)
 		}
-		_, err := listGitCredentialRecords(factory.Keychain, time.Now)
+		_, err := gitcred.ListCredentialRecords(factory.Keychain, time.Now)
 		if err == nil || !strings.Contains(err.Error(), "invalid git.json") {
 			t.Fatalf("listGitCredentialRecords record error = %v", err)
 		}
@@ -584,7 +585,7 @@ func TestListGitCredentialRecordsSortsDuplicateDecodedAppIDs(t *testing.T) {
 	kc := newAppsTestKeychain()
 	factory.Keychain = kc
 	now := time.Unix(1780000000, 0)
-	manager := newGitCredentialManager("app_x", kc, nil)
+	manager := gitcred.NewAppManager("app_x", kc, nil)
 	manager.Now = func() time.Time { return now }
 	record := gitcred.CredentialRecord{
 		AppID:      "app_x",
@@ -602,7 +603,7 @@ func TestListGitCredentialRecordsSortsDuplicateDecodedAppIDs(t *testing.T) {
 		t.Fatalf("mkdir duplicate encoded app dir: %v", err)
 	}
 
-	records, err := listGitCredentialRecords(kc, func() time.Time { return now })
+	records, err := gitcred.ListCredentialRecords(kc, func() time.Time { return now })
 	if err != nil {
 		t.Fatalf("listGitCredentialRecords returned error: %v", err)
 	}
@@ -682,7 +683,7 @@ func TestAppsGitCredentialRemoveRequiresAppID(t *testing.T) {
 
 func TestAppsGitCredentialRemoveReturnsStoreError(t *testing.T) {
 	factory, stdout, _ := newAppsExecuteFactory(t)
-	if err := Write("app_xxx", gitcred.MetadataFilename, []byte("{bad json")); err != nil {
+	if err := sparkstore.Write("app_xxx", gitcred.MetadataFilename, []byte("{bad json")); err != nil {
 		t.Fatalf("write invalid metadata: %v", err)
 	}
 	err := runAppsShortcut(t, AppsGitCredentialRemove, []string{"+git-credential-remove", "--app-id", "app_xxx", "--as", "user"}, factory, stdout)
@@ -738,7 +739,7 @@ func TestRunGitCredentialHelperActions(t *testing.T) {
 	factory, stdout, _ := newAppsExecuteFactory(t)
 	kc := newAppsTestKeychain()
 	factory.Keychain = kc
-	storage := gitCredentialAppStorage{}
+	storage := sparkstore.AppStorage{}
 	manager := gitcred.NewManager(gitcred.NewAppStore("app_xxx", storage), gitcred.NewSecretStore(kc), nil, testAppsIssuer{next: &gitcred.IssuedCredential{
 		GitHTTPURL: "https://example.com/git/u/app.git",
 		Username:   "x-access-token",

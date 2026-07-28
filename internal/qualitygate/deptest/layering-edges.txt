@@ -1,3 +1,1 @@
 # from	denied	owner	reason	added_at
-github.com/larksuite/cli/shortcuts/apps	github.com/larksuite/cli/internal/keychain	arch-migration	shortcut bypasses RuntimeContext gate	2026-07-24
-github.com/larksuite/cli/shortcuts/apps	github.com/larksuite/cli/internal/vfs	arch-migration	shortcut bypasses RuntimeContext gate	2026-07-24

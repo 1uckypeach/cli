@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package apps
+// Package sparkstore persists local state for Spark applications.
+package sparkstore
 
 import (
 	"errors"
@@ -12,7 +13,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/validate"
-	"github.com/larksuite/cli/internal/vfs" //nolint:depguard // existing apps storage persists CLI config-dir state; it is not user file I/O.
+	"github.com/larksuite/cli/internal/vfs"
 )
 
 // storageRoot is the per-domain local-storage directory name under the config dir.
@@ -25,7 +26,7 @@ const storageRoot = "spark"
 // can traverse out of the storage directory.
 func checkSeg(name, what string) error {
 	if err := validate.ResourceName(name, what); err != nil {
-		return appsStorageError(err, "apps storage: %v", err)
+		return storageError(err, "apps storage: %v", err)
 	}
 	if name == "." {
 		return errs.NewInternalError(errs.SubtypeStorage, "apps storage: %s must not be \".\"", what)
@@ -36,12 +37,22 @@ func checkSeg(name, what string) error {
 // appDir returns the storage directory for one app: ~/.lark-cli/spark/<esc(appID)>/
 // (workspace-aware).
 func appDir(appID string) string {
-	return filepath.Join(core.GetConfigDir(), storageRoot, validate.EncodePathSegment(appID))
+	return filepath.Join(Root(), validate.EncodePathSegment(appID))
 }
 
 // appKeyPath returns the file path for one (appID, key).
 func appKeyPath(appID, key string) string {
 	return filepath.Join(appDir(appID), validate.EncodePathSegment(key))
+}
+
+// Root returns the Spark application storage root under the CLI config directory.
+func Root() string {
+	return filepath.Join(core.GetConfigDir(), storageRoot)
+}
+
+// Path returns the storage path for one application key.
+func Path(appID, key string) string {
+	return appKeyPath(appID, key)
 }
 
 // Read returns the bytes stored under (appID, key). A missing file returns
@@ -60,7 +71,7 @@ func Read(appID, key string) ([]byte, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
 		}
-		return nil, appsStorageError(err, "apps storage: read: %v", err)
+		return nil, storageError(err, "apps storage: read: %v", err)
 	}
 	return data, nil
 }
@@ -79,10 +90,10 @@ func Write(appID, key string, data []byte) error {
 		return err
 	}
 	if err := vfs.MkdirAll(appDir(appID), 0700); err != nil {
-		return appsStorageError(err, "apps storage: create dir: %v", err)
+		return storageError(err, "apps storage: create dir: %v", err)
 	}
 	if err := validate.AtomicWrite(appKeyPath(appID, key), data, 0600); err != nil {
-		return appsStorageError(err, "apps storage: write: %v", err)
+		return storageError(err, "apps storage: write: %v", err)
 	}
 	return nil
 }
@@ -96,7 +107,7 @@ func Delete(appID, key string) error {
 		return err
 	}
 	if err := vfs.Remove(appKeyPath(appID, key)); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return appsStorageError(err, "apps storage: delete: %v", err)
+		return storageError(err, "apps storage: delete: %v", err)
 	}
 	return nil
 }
@@ -113,7 +124,7 @@ func List(appID string) ([]string, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return []string{}, nil
 		}
-		return nil, appsStorageError(err, "apps storage: read dir: %v", err)
+		return nil, storageError(err, "apps storage: read dir: %v", err)
 	}
 	keys := make([]string, 0, len(entries))
 	for _, e := range entries {
@@ -130,4 +141,9 @@ func List(appID string) ([]string, error) {
 		keys = append(keys, key)
 	}
 	return keys, nil
+}
+
+// storageError classifies local application state failures as internal/storage.
+func storageError(err error, format string, args ...any) *errs.InternalError {
+	return errs.NewInternalError(errs.SubtypeStorage, format, args...).WithCause(err)
 }
