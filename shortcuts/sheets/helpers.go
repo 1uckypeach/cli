@@ -301,7 +301,12 @@ func requireSheetSelector(sheetID, sheetName string) error {
 	sheetID = strings.TrimSpace(sheetID)
 	sheetName = strings.TrimSpace(sheetName)
 	if sheetID == "" && sheetName == "" {
+		// Eval traces show every occurrence recovering on the next call, so
+		// the gap is knowing WHICH name to pass, not that one is needed: a
+		// just-created workbook has a single sheet named Sheet1, and any
+		// other workbook needs one +workbook-info lookup.
 		return common.ValidationErrorf("specify at least one of --sheet-id or --sheet-name").
+			WithHint("a freshly created workbook has one sheet named Sheet1 (`--sheet-name Sheet1`); otherwise list the real sheets with `lark-cli sheets +workbook-info --url <URL>`").
 			WithParams(
 				sheetsInvalidParam("sheet-id", "required; specify at least one"),
 				sheetsInvalidParam("sheet-name", "required; specify at least one"),

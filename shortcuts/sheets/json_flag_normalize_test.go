@@ -223,6 +223,25 @@ func TestTablePut_SheetsDecodeHints(t *testing.T) {
 		}
 	})
 
+	t.Run("bare array names the missing envelope", func(t *testing.T) {
+		t.Parallel()
+		sc := shortcutFromRegistry(t, "+table-put")
+		_, _, err := runShortcutCapturingErr(t, sc, []string{
+			"--url", testURL,
+			"--sheets", `[{"name":"s","columns":["a"],"data":[["x"]]}]`,
+			"--dry-run",
+		})
+		// The Go unmarshal text names the internal struct, not the fix
+		// (07-28 root-cause report #4, 84 occurrences).
+		ve := requireValidation(t, err, `top level must be the object {"sheets":[…]}`)
+		if strings.Contains(ve.Message, "cannot unmarshal") {
+			t.Errorf("message should not leak the Go unmarshal wording, got %q", ve.Message)
+		}
+		if !strings.Contains(ve.Hint, "expected shape:") {
+			t.Errorf("hint should still inline the skeleton, got %q", ve.Hint)
+		}
+	})
+
 	t.Run("syntax error steers to stdin or @file", func(t *testing.T) {
 		t.Parallel()
 		sc := shortcutFromRegistry(t, "+table-put")

@@ -296,6 +296,10 @@ var enumAliases = map[string]string{
 	// a distinct truncation mode nobody spells "false").
 	"true":  "auto-wrap",
 	"false": "overflow",
+	// Google Sheets wrapStrategy vocabulary: WRAP / CLIP / OVERFLOW. Only
+	// the first two need mapping — overflow is spelled the same in both.
+	"wrap": "auto-wrap",
+	"clip": "word-clip",
 }
 
 // canonicalEnumValue returns the enum entry an off-vocabulary value
