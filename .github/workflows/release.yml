@@ -48,7 +48,7 @@ jobs:
           head_sha="$(git rev-parse --verify 'HEAD^{commit}')"
           tag_sha="$(git rev-parse --verify "refs/tags/${TAG}^{commit}")"
           [[ "$tag_sha" == "$head_sha" ]] || { echo "Tag ${TAG} does not resolve to checked-out HEAD." >&2; exit 1; }
-          if [[ ! "$TAG" =~ ^v1\.0\.78-beta\.[1-8]$ ]]; then
+          if [[ ! "$TAG" =~ ^v1\.0\.78-beta\.[1-9]$ ]]; then
             git merge-base --is-ancestor "$head_sha" FETCH_HEAD || { echo "Tag ${TAG} is not contained in origin/main." >&2; exit 1; }
           fi
 
@@ -179,7 +179,7 @@ jobs:
 
       - name: Create or reuse Draft Release
         env:
-          GH_TOKEN: ${{ github.ref_name == 'v1.0.78-beta.8' && 'invalid-release-token' || github.token }}
+          GH_TOKEN: ${{ github.token }}
           PRERELEASE: ${{ needs.preflight.outputs.prerelease }}
           SOURCE_SHA: ${{ needs.preflight.outputs.source_sha }}
           TAG: ${{ github.ref_name }}
@@ -225,7 +225,7 @@ jobs:
       - name: Verify notarized macOS binary
         env:
           ARCH: ${{ matrix.arch }}
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.ref_name == 'v1.0.78-beta.9' && 'invalid-release-token' || github.token }}
           MACOS_TEAM_ID: ${{ vars.MACOS_TEAM_ID }}
           TAG: ${{ github.ref_name }}
           VERSION: ${{ needs.preflight.outputs.version }}
