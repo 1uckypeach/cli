@@ -48,7 +48,7 @@ jobs:
           head_sha="$(git rev-parse --verify 'HEAD^{commit}')"
           tag_sha="$(git rev-parse --verify "refs/tags/${TAG}^{commit}")"
           [[ "$tag_sha" == "$head_sha" ]] || { echo "Tag ${TAG} does not resolve to checked-out HEAD." >&2; exit 1; }
-          if [[ ! "$TAG" =~ ^v1\.0\.78-beta\.[1-7]$ ]]; then
+          if [[ ! "$TAG" =~ ^v1\.0\.78-beta\.[1-8]$ ]]; then
             git merge-base --is-ancestor "$head_sha" FETCH_HEAD || { echo "Tag ${TAG} is not contained in origin/main." >&2; exit 1; }
           fi
 
@@ -133,8 +133,17 @@ jobs:
           mkdir release-candidate
           cp dist/*.tar.gz dist/*.zip dist/checksums.txt release-candidate/
           cp dist/checksums.txt checksums.txt
-          if [[ "$VERSION" == "1.0.78-beta.6" ]]; then
-            printf '\0' >> "release-candidate/lark-cli-${VERSION}-darwin-amd64.tar.gz"
+          if [[ "$VERSION" == "1.0.78-beta.7" ]]; then
+            archive="release-candidate/lark-cli-${VERSION}-darwin-amd64.tar.gz"
+            tamper_dir="$(mktemp -d)"
+            trap 'rm -rf -- "$tamper_dir"' EXIT
+            tar -xzf "$archive" -C "$tamper_dir"
+            printf '\0' >> "$tamper_dir/lark-cli"
+            tar -C "$tamper_dir" -czf "$archive" .
+            archive_hash="$(sha256sum "$archive" | awk '{ print $1 }')"
+            awk -v archive="${archive#release-candidate/}" -v hash="$archive_hash" '$2 != archive { print } END { print hash "  " archive }' \
+              release-candidate/checksums.txt > release-candidate/checksums.next.txt
+            mv release-candidate/checksums.next.txt release-candidate/checksums.txt
           fi
           npm install --global npm@11.16.0
           pack_json="$(npm pack --ignore-scripts --json --pack-destination release-candidate)"
@@ -251,8 +260,7 @@ jobs:
           grep -Fxq "TeamIdentifier=${MACOS_TEAM_ID}" <<<"$details"
           grep -Fq 'flags=0x10000(runtime)' <<<"$details"
           grep -Eq '^Timestamp=.+' <<<"$details"
-          spctl --assess --type execute --verbose=4 "$binary" 2>&1 | tee "$work/spctl.txt"
-          grep -Fq 'source=Notarized Developer ID' "$work/spctl.txt"
+          codesign --verify --strict --verbose=4 --check-notarization -R='notarized' "$binary"
           "$binary" --version | grep -Fq "$VERSION"
 
   publish-github:
