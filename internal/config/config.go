@@ -208,21 +208,6 @@ func SaveMultiAppConfig(config *MultiAppConfig) error {
 	return validate.AtomicWrite(workspace.GetConfigPath(), append(data, '\n'), 0600)
 }
 
-// RequireConfig loads the single-app config using the default profile resolution.
-func RequireConfig(kc keychain.KeychainAccess) (*CliConfig, error) {
-	return RequireConfigForProfile(kc, "")
-}
-
-// RequireConfigForProfile loads the single-app config for a specific profile.
-// Resolution priority: profileOverride > config.CurrentApp > Apps[0].
-func RequireConfigForProfile(kc keychain.KeychainAccess, profileOverride string) (*CliConfig, error) {
-	raw, err := LoadMultiAppConfig()
-	if err != nil || raw == nil || len(raw.Apps) == 0 {
-		return nil, NotConfiguredError()
-	}
-	return ResolveConfigFromMulti(raw, kc, profileOverride)
-}
-
 // ResolveConfigFromMulti resolves a single-app config from an already-loaded MultiAppConfig.
 // This avoids re-reading the config file when the caller has already loaded it.
 func ResolveConfigFromMulti(raw *MultiAppConfig, kc keychain.KeychainAccess, profileOverride string) (*CliConfig, error) {
@@ -260,24 +245,6 @@ func ResolveConfigFromMulti(raw *MultiAppConfig, kc keychain.KeychainAccess, pro
 	if len(app.Users) > 0 {
 		cfg.UserOpenId = app.Users[0].UserOpenId
 		cfg.UserName = app.Users[0].UserName
-	}
-	return cfg, nil
-}
-
-// RequireAuth loads config and ensures a user is logged in.
-func RequireAuth(kc keychain.KeychainAccess) (*CliConfig, error) {
-	return RequireAuthForProfile(kc, "")
-}
-
-// RequireAuthForProfile loads config for a profile and ensures a user is logged in.
-func RequireAuthForProfile(kc keychain.KeychainAccess, profileOverride string) (*CliConfig, error) {
-	cfg, err := RequireConfigForProfile(kc, profileOverride)
-	if err != nil {
-		return nil, err
-	}
-	if cfg.UserOpenId == "" {
-		return nil, errs.NewAuthenticationError(errs.SubtypeTokenMissing, "not logged in").
-			WithHint("run `lark-cli auth login` in the background. It blocks and outputs a verification URL — retrieve the URL and open it in a browser to complete login.")
 	}
 	return cfg, nil
 }
