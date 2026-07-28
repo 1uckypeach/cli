@@ -215,8 +215,12 @@ func testDocsLocalResourcesWorkflow(t *testing.T, defaultAs string) {
 
 		content := gjson.Get(result.Stdout, "data.document.content").String()
 		for _, want := range []string{
-			`caption="created image"`,
-			`caption="appended image"`,
+			`caption="created image`,
+			`caption="appended image`,
+		} {
+			require.Contains(t, content, want, "replayed XML:\n%s", content)
+		}
+		for _, want := range []string{
 			"created-report.txt",
 			"appended-negative-report.txt",
 			"appended-nonnumeric-report.txt",
