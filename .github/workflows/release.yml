@@ -48,7 +48,7 @@ jobs:
           head_sha="$(git rev-parse --verify 'HEAD^{commit}')"
           tag_sha="$(git rev-parse --verify "refs/tags/${TAG}^{commit}")"
           [[ "$tag_sha" == "$head_sha" ]] || { echo "Tag ${TAG} does not resolve to checked-out HEAD." >&2; exit 1; }
-          if [[ "$TAG" != "v1.0.78-beta.1" ]]; then
+          if [[ "$TAG" != "v1.0.78-beta.2" ]]; then
             git merge-base --is-ancestor "$head_sha" FETCH_HEAD || { echo "Tag ${TAG} is not contained in origin/main." >&2; exit 1; }
           fi
 
@@ -93,9 +93,13 @@ jobs:
           MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
           MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
           MACOS_TEAM_ID: ${{ vars.MACOS_TEAM_ID }}
+          TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           set +x
+          if [[ "$TAG" == "v1.0.78-beta.2" ]]; then
+            MACOS_SIGN_PASSWORD=""
+          fi
           for name in MACOS_SIGN_P12 MACOS_SIGN_PASSWORD MACOS_NOTARY_KEY MACOS_TEAM_ID MACOS_NOTARY_KEY_ID MACOS_NOTARY_ISSUER_ID; do
             [[ -n "${!name:-}" ]] || { echo "Required Apple release input ${name} is not configured." >&2; exit 1; }
           done
@@ -370,15 +374,14 @@ jobs:
             echo "| verify-macos | ${VERIFY_RESULT} |"
             echo "| publish-github | ${GITHUB_RESULT} |"
             echo "| publish-npm | ${NPM_RESULT} |"
-            cat <<'EOF'
-
-            Select the recovery action from the failed-step diagnosis:
-
-            - **preflight:** network or fetch failure → retry preflight. Version/tag validation failure → correct it, then create a new tag.
-            - **build-sign-notarize:** transient build/service failure → retry build. Code or release configuration issue → correct it, then create a new tag.
-            - **create-draft-release:** GitHub Draft Release API/upload failure → retry draft. Release-candidate inconsistency → retry build.
-            - **verify-macos:** runner or network failure → retry only the failed matrix child. Checksum, signing, notarization, or runtime failure → retry build.
-            - **publish-github:** GitHub publish network failure → retry GitHub publish. Install issue → retry build. Tag/assets inconsistency → stop and publish a new version.
-            - **publish-npm:** network failure or uncertain publish outcome → retry npm only after verifying whether that version already exists. Integrity mismatch → publish a new version.
-            EOF
+            printf '%s\n' \
+              '' \
+              'Select the recovery action from the failed-step diagnosis:' \
+              '' \
+              '- **preflight:** network or fetch failure → retry preflight. Version/tag validation failure → correct it, then create a new tag.' \
+              '- **build-sign-notarize:** transient build/service failure → retry build. Code or release configuration issue → correct it, then create a new tag.' \
+              '- **create-draft-release:** GitHub Draft Release API/upload failure → retry draft. Release-candidate inconsistency → retry build.' \
+              '- **verify-macos:** runner or network failure → retry only the failed matrix child. Checksum, signing, notarization, or runtime failure → retry build.' \
+              '- **publish-github:** GitHub publish network failure → retry GitHub publish. Install issue → retry build. Tag/assets inconsistency → stop and publish a new version.' \
+              '- **publish-npm:** network failure or uncertain publish outcome → retry npm only after verifying whether that version already exists. Integrity mismatch → publish a new version.'
           } >> "$GITHUB_STEP_SUMMARY"
