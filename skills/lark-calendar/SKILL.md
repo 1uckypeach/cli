@@ -38,6 +38,7 @@ lark-cli calendar +agenda --as user
 | [`+room-find`](references/lark-calendar-room-find.md) | 针对一个或多个**明确的**时间块查找可用会议室（无明确时间时禁止直接调用，需先走 +suggestion） |
 | [`+rsvp`](references/lark-calendar-rsvp.md) | 回复日程（接受/拒绝/待定） |
 | [`+suggestion`](references/lark-calendar-suggestion.md) | 根据非明确时间或一段时间范围，推荐多个可用时间块方案 |
+| [`+join`](references/lark-calendar-join.md) | 加入日程：用 RSVP/分享卡片的加入 token，或分享会议/日程的链接加入 |
 
 ### `+get` — 单日程详情
 
