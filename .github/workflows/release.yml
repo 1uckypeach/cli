@@ -133,18 +133,6 @@ jobs:
           mkdir release-candidate
           cp dist/*.tar.gz dist/*.zip dist/checksums.txt release-candidate/
           cp dist/checksums.txt checksums.txt
-          if [[ "$VERSION" == "1.0.78-beta.7" ]]; then
-            archive="release-candidate/lark-cli-${VERSION}-darwin-amd64.tar.gz"
-            tamper_dir="$(mktemp -d)"
-            trap 'rm -rf -- "$tamper_dir"' EXIT
-            tar -xzf "$archive" -C "$tamper_dir"
-            printf '\0' >> "$tamper_dir/lark-cli"
-            tar -C "$tamper_dir" -czf "$archive" .
-            archive_hash="$(sha256sum "$archive" | awk '{ print $1 }')"
-            awk -v archive="${archive#release-candidate/}" -v hash="$archive_hash" '$2 != archive { print } END { print hash "  " archive }' \
-              release-candidate/checksums.txt > release-candidate/checksums.next.txt
-            mv release-candidate/checksums.next.txt release-candidate/checksums.txt
-          fi
           npm install --global npm@11.16.0
           pack_json="$(npm pack --ignore-scripts --json --pack-destination release-candidate)"
           node - "$pack_json" "$VERSION" <<'NODE'
@@ -191,7 +179,7 @@ jobs:
 
       - name: Create or reuse Draft Release
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.ref_name == 'v1.0.78-beta.8' && 'invalid-release-token' || github.token }}
           PRERELEASE: ${{ needs.preflight.outputs.prerelease }}
           SOURCE_SHA: ${{ needs.preflight.outputs.source_sha }}
           TAG: ${{ github.ref_name }}
