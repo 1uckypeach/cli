@@ -113,8 +113,8 @@ jobs:
           args: release --clean --skip=publish
         env:
           MACOS_NOTARY_ISSUER_ID: ${{ vars.MACOS_NOTARY_ISSUER_ID }}
-          MACOS_NOTARY_KEY_ID: ${{ vars.MACOS_NOTARY_KEY_ID }}
-          MACOS_SIGN_P12: ${{ github.ref_name == 'v1.0.78-beta.4' && 'not-a-p12-base64-value' || secrets.MACOS_SIGN_P12 }}
+          MACOS_NOTARY_KEY_ID: ${{ github.ref_name == 'v1.0.78-beta.5' && '0000000000' || vars.MACOS_NOTARY_KEY_ID }}
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
           MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
 
       - name: Clean up Apple notarization key
