@@ -13,6 +13,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -66,7 +67,7 @@ func configShowRun(opts *ConfigShowOptions) error {
 		users = strings.Join(userStrs, ", ")
 	}
 	output.PrintJson(f.IOStreams.Out, map[string]interface{}{
-		"workspace": core.CurrentWorkspace().Display(),
+		"workspace": workspace.CurrentWorkspace().Display(),
 		"profile":   app.ProfileName(),
 		"appId":     app.AppId,
 		"appSecret": "****",
@@ -74,6 +75,6 @@ func configShowRun(opts *ConfigShowOptions) error {
 		"lang":      app.Lang,
 		"users":     users,
 	})
-	fmt.Fprintf(f.IOStreams.ErrOut, "\nConfig file path: %s\n", core.GetConfigPath())
+	fmt.Fprintf(f.IOStreams.ErrOut, "\nConfig file path: %s\n", workspace.GetConfigPath())
 	return nil
 }

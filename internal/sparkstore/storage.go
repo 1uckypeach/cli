@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 
 	"github.com/larksuite/cli/errs"
-	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/internal/vfs"
+	"github.com/larksuite/cli/internal/workspace"
 )
 
 // storageRoot is the per-domain local-storage directory name under the config dir.
@@ -47,7 +47,7 @@ func appKeyPath(appID, key string) string {
 
 // Root returns the Spark application storage root under the CLI config directory.
 func Root() string {
-	return filepath.Join(core.GetConfigDir(), storageRoot)
+	return filepath.Join(workspace.GetConfigDir(), storageRoot)
 }
 
 // Path returns the storage path for one application key.

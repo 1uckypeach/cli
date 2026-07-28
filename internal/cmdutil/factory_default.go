@@ -28,6 +28,7 @@ import (
 	_ "github.com/larksuite/cli/internal/security/contentsafety" // register content safety provider
 	"github.com/larksuite/cli/internal/transport"
 	_ "github.com/larksuite/cli/internal/vfs/localfileio" // register default FileIO provider
+	"github.com/larksuite/cli/internal/workspace"
 )
 
 // NewDefault creates a production Factory with cached closures.
@@ -48,14 +49,14 @@ func NewDefault(streams *IOStreams, inv InvocationContext) *Factory {
 	// Workspace detection: determines which config subtree to use.
 	// Must run before any config or credential load, since those paths are
 	// workspace-scoped. Default is WorkspaceLocal — existing behavior unchanged.
-	ws := core.DetectWorkspaceFromEnv(os.Getenv)
-	core.SetCurrentWorkspace(ws)
+	ws := workspace.DetectWorkspaceFromEnv(os.Getenv)
+	workspace.SetCurrentWorkspace(ws)
 
 	// Auth diagnostics: install the one logger the whole process shares, now
 	// that the workspace is known. authlog cannot resolve the workspace-aware
 	// directory itself (core imports keychain, which imports authlog), so this
 	// is the only place that can supply it.
-	authlog.SetShared(authlog.New(authlog.Options{RuntimeDir: core.GetRuntimeDir}))
+	authlog.SetShared(authlog.New(authlog.Options{RuntimeDir: workspace.GetRuntimeDir}))
 
 	// Phase 0: FileIO provider (no dependency)
 	f.FileIOProvider = fileio.GetProvider()

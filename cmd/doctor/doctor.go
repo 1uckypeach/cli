@@ -23,6 +23,7 @@ import (
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/transport"
 	"github.com/larksuite/cli/internal/update"
+	"github.com/larksuite/cli/internal/workspace"
 )
 
 // DoctorOptions holds inputs for the doctor command.
@@ -240,7 +241,7 @@ func finishDoctor(f *cmdutil.Factory, checks []checkResult) error {
 
 	result := map[string]interface{}{
 		"ok":        allOK,
-		"workspace": core.CurrentWorkspace().Display(),
+		"workspace": workspace.CurrentWorkspace().Display(),
 		"checks":    checks,
 	}
 	output.PrintJson(f.IOStreams.Out, result)

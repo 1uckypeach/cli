@@ -19,6 +19,7 @@ import (
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/workspace"
 )
 
 // wantErrDetail is the normalized comparison shape for a typed error's wire
@@ -81,8 +82,8 @@ func assertEnvelope(t *testing.T, stdout []byte, want map[string]any) {
 // Must be called at the start of any test that may trigger configBindRun (which sets workspace).
 func saveWorkspace(t *testing.T) {
 	t.Helper()
-	orig := core.CurrentWorkspace()
-	t.Cleanup(func() { core.SetCurrentWorkspace(orig) })
+	orig := workspace.CurrentWorkspace()
+	t.Cleanup(func() { workspace.SetCurrentWorkspace(orig) })
 }
 
 // ── Command flag parsing tests (aligned with config_test.go pattern) ──
@@ -640,7 +641,7 @@ func TestConfigBindRun_LarkChannel_Success(t *testing.T) {
 	// Brand is not in the stdout envelope — read it back from the persisted
 	// workspace config to verify accounts.app.tenant flowed through to the
 	// stored AppConfig.Brand field.
-	core.SetCurrentWorkspace(core.WorkspaceLarkChannel)
+	workspace.SetCurrentWorkspace(workspace.WorkspaceLarkChannel)
 	multi, err := core.LoadMultiAppConfig()
 	if err != nil {
 		t.Fatalf("load workspace config: %v", err)
@@ -687,7 +688,7 @@ func TestConfigBindRun_LarkChannel_LarkTenant(t *testing.T) {
 	if err := configBindRun(&BindOptions{Factory: f, Source: "lark-channel"}); err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}
-	core.SetCurrentWorkspace(core.WorkspaceLarkChannel)
+	workspace.SetCurrentWorkspace(workspace.WorkspaceLarkChannel)
 	multi, err := core.LoadMultiAppConfig()
 	if err != nil {
 		t.Fatalf("load workspace config: %v", err)
@@ -802,7 +803,7 @@ func TestConfigShowRun_WorkspaceField(t *testing.T) {
 	configDir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", configDir)
 
-	core.SetCurrentWorkspace(core.WorkspaceLocal)
+	workspace.SetCurrentWorkspace(workspace.WorkspaceLocal)
 
 	multi := &core.MultiAppConfig{
 		Apps: []core.AppConfig{{
@@ -828,7 +829,7 @@ func TestConfigShowRun_AgentWorkspaceNotBound(t *testing.T) {
 	saveWorkspace(t)
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
-	core.SetCurrentWorkspace(core.WorkspaceOpenClaw)
+	workspace.SetCurrentWorkspace(workspace.WorkspaceOpenClaw)
 
 	f, _, _, _ := cmdutil.TestFactory(t, nil)
 	err := configShowRun(&ConfigShowOptions{Factory: f})

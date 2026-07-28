@@ -21,6 +21,7 @@ import (
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/keychain"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/workspace"
 )
 
 // ConfigInitOptions holds all inputs for config init.
@@ -122,7 +123,7 @@ func guardAgentWorkspace(opts *ConfigInitOptions) error {
 	if opts.ForceInit {
 		return nil
 	}
-	ws := core.DetectWorkspaceFromEnv(os.Getenv)
+	ws := workspace.DetectWorkspaceFromEnv(os.Getenv)
 	if ws.IsLocal() {
 		return nil
 	}
@@ -346,7 +347,7 @@ func configInitRun(opts *ConfigInitOptions) error {
 		if err := saveInitConfig(opts.ProfileName, existing, f, opts.AppID, secret, brand, opts.Lang); err != nil {
 			return wrapSaveConfigError(err)
 		}
-		output.PrintSuccess(f.IOStreams.ErrOut, fmt.Sprintf("Configuration saved to %s", core.GetConfigPath()))
+		output.PrintSuccess(f.IOStreams.ErrOut, fmt.Sprintf("Configuration saved to %s", workspace.GetConfigPath()))
 		printLangPreferenceConfirmation(opts)
 		output.PrintJson(f.IOStreams.Out, map[string]interface{}{"appId": opts.AppID, "appSecret": "****", "brand": brand})
 		if err := runProbe(opts.Ctx, f, opts.AppID, opts.appSecret, brand); err != nil {
@@ -521,7 +522,7 @@ func configInitRun(opts *ConfigInitOptions) error {
 	if err := saveInitConfig(opts.ProfileName, existing, f, resolvedAppId, storedSecret, parseBrand(resolvedBrand), opts.Lang); err != nil {
 		return wrapSaveConfigError(err)
 	}
-	output.PrintSuccess(f.IOStreams.ErrOut, fmt.Sprintf("Configuration saved to %s", core.GetConfigPath()))
+	output.PrintSuccess(f.IOStreams.ErrOut, fmt.Sprintf("Configuration saved to %s", workspace.GetConfigPath()))
 	printLangPreferenceConfirmation(opts)
 	if appSecretInput != "" {
 		if err := runProbe(opts.Ctx, f, resolvedAppId, appSecretInput, parseBrand(resolvedBrand)); err != nil {

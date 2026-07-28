@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/larksuite/cli/internal/keychain"
 	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/internal/vfs"
+	"github.com/larksuite/cli/internal/workspace"
 )
 
 // Identity represents the caller identity for API requests.
@@ -182,19 +182,6 @@ func (c *CliConfig) CanBot() bool {
 	return c.SupportedIdentities == 0 || c.SupportedIdentities&identityBotBit != 0
 }
 
-// GetConfigDir returns the config directory path for the current workspace.
-// When workspace is local (default), this returns the same path as before
-// (LARKSUITE_CLI_CONFIG_DIR or ~/.lark-cli) — fully backward-compatible.
-// When workspace is openclaw/hermes, returns base/openclaw or base/hermes.
-func GetConfigDir() string {
-	return GetRuntimeDir()
-}
-
-// GetConfigPath returns the config file path for the current workspace.
-func GetConfigPath() string {
-	return filepath.Join(GetConfigDir(), "config.json")
-}
-
 // ErrMalformedConfig marks a config-load failure caused by malformed file
 // content (unparseable JSON, structurally empty) rather than a missing or
 // unreadable file. Callers classify with errors.Is rather than sniffing the
@@ -203,7 +190,7 @@ var ErrMalformedConfig = errors.New("malformed config")
 
 // LoadMultiAppConfig loads multi-app config from disk.
 func LoadMultiAppConfig() (*MultiAppConfig, error) {
-	data, err := vfs.ReadFile(GetConfigPath())
+	data, err := vfs.ReadFile(workspace.GetConfigPath())
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +207,7 @@ func LoadMultiAppConfig() (*MultiAppConfig, error) {
 
 // SaveMultiAppConfig saves config to disk.
 func SaveMultiAppConfig(config *MultiAppConfig) error {
-	dir := GetConfigDir()
+	dir := workspace.GetConfigDir()
 	if err := vfs.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
@@ -228,7 +215,7 @@ func SaveMultiAppConfig(config *MultiAppConfig) error {
 	if err != nil {
 		return err
 	}
-	return validate.AtomicWrite(GetConfigPath(), append(data, '\n'), 0600)
+	return validate.AtomicWrite(workspace.GetConfigPath(), append(data, '\n'), 0600)
 }
 
 // RequireConfig loads the single-app config using the default profile resolution.

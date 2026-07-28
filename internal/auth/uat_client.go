@@ -23,6 +23,7 @@ import (
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/vfs"
+	"github.com/larksuite/cli/internal/workspace"
 )
 
 var safeIDChars = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
@@ -129,7 +130,7 @@ func refreshWithLock(httpClient *http.Client, opts UATCallOptions, stored *Store
 	// 2. Cross-process lock using flock
 	// We use the same underlying storage directory resolution as keychain_other.go
 	// to ensure locks are isolated properly alongside other sensitive data.
-	configDir := core.GetConfigDir()
+	configDir := workspace.GetConfigDir()
 
 	lockDir := filepath.Join(configDir, "locks")
 	if err := vfs.MkdirAll(lockDir, 0700); err != nil {

@@ -20,6 +20,7 @@ import (
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/internal/vfs"
+	"github.com/larksuite/cli/internal/workspace"
 )
 
 // BindOptions holds all inputs for config bind.
@@ -128,8 +129,8 @@ func configBindRun(opts *BindOptions) error {
 	if err != nil {
 		return err
 	}
-	core.SetCurrentWorkspace(core.Workspace(source))
-	targetConfigPath := core.GetConfigPath()
+	workspace.SetCurrentWorkspace(workspace.Workspace(source))
+	targetConfigPath := workspace.GetConfigPath()
 
 	existing, err := reconcileExistingBinding(opts, source, targetConfigPath)
 	if err != nil {
@@ -186,12 +187,12 @@ func finalizeSource(opts *BindOptions) (string, error) {
 	}
 
 	var detected string
-	switch core.DetectWorkspaceFromEnv(os.Getenv) {
-	case core.WorkspaceOpenClaw:
+	switch workspace.DetectWorkspaceFromEnv(os.Getenv) {
+	case workspace.WorkspaceOpenClaw:
 		detected = "openclaw"
-	case core.WorkspaceHermes:
+	case workspace.WorkspaceHermes:
 		detected = "hermes"
-	case core.WorkspaceLarkChannel:
+	case workspace.WorkspaceLarkChannel:
 		detected = "lark-channel"
 	}
 
@@ -407,7 +408,7 @@ func priorLang(previousConfigBytes []byte) i18n.Lang {
 func commitBinding(opts *BindOptions, appConfig *core.AppConfig, previousConfigBytes []byte, source, configPath string) error {
 	multi := &core.MultiAppConfig{Apps: []core.AppConfig{*appConfig}}
 
-	if err := vfs.MkdirAll(core.GetConfigDir(), 0700); err != nil {
+	if err := vfs.MkdirAll(workspace.GetConfigDir(), 0700); err != nil {
 		return errs.NewInternalError(errs.SubtypeFileIO, "failed to create workspace directory: %v", err).WithCause(err)
 	}
 	data, err := json.MarshalIndent(multi, "", "  ")
@@ -503,13 +504,13 @@ func tuiSelectSource(opts *BindOptions) (string, error) {
 	var source string
 
 	// Pre-select based on detected env signals
-	detected := core.DetectWorkspaceFromEnv(os.Getenv)
+	detected := workspace.DetectWorkspaceFromEnv(os.Getenv)
 	switch detected {
-	case core.WorkspaceOpenClaw:
+	case workspace.WorkspaceOpenClaw:
 		source = "openclaw"
-	case core.WorkspaceHermes:
+	case workspace.WorkspaceHermes:
 		source = "hermes"
-	case core.WorkspaceLarkChannel:
+	case workspace.WorkspaceLarkChannel:
 		source = "lark-channel"
 	default:
 		source = "openclaw" // default first option

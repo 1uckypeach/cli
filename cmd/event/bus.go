@@ -14,10 +14,10 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/event"
 	"github.com/larksuite/cli/internal/event/bus"
 	"github.com/larksuite/cli/internal/event/transport"
+	"github.com/larksuite/cli/internal/workspace"
 )
 
 // NewCmdBus creates the hidden `event _bus` daemon subcommand, forked by the consume client; fork argv lives in consume/startup.go.
@@ -35,7 +35,7 @@ func NewCmdBus(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			// Sanitize AppID: an unsanitized value could escape events/ via ".." or separators.
-			eventsDir := filepath.Join(core.GetConfigDir(), "events", event.SanitizeAppID(cfg.AppID))
+			eventsDir := filepath.Join(workspace.GetConfigDir(), "events", event.SanitizeAppID(cfg.AppID))
 
 			logger, err := bus.SetupBusLogger(eventsDir)
 			if err != nil {

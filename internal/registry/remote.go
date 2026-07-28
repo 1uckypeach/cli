@@ -17,11 +17,11 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/build"
-	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/meta"
 	"github.com/larksuite/cli/internal/transport"
 	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/internal/vfs"
+	"github.com/larksuite/cli/internal/workspace"
 )
 
 const (
@@ -96,7 +96,7 @@ func metaTTL() time.Duration {
 // --- cache path helpers ---
 
 func cacheDir() string {
-	return filepath.Join(core.GetConfigDir(), "cache")
+	return filepath.Join(workspace.GetConfigDir(), "cache")
 }
 
 func cachePath() string {

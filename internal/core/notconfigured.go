@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/workspace"
 )
 
 // isMalformedConfigError reports whether a config load failure indicates a
@@ -69,8 +70,8 @@ const (
 // NotConfiguredError returns the canonical "not configured" error, with a
 // hint that depends on the active workspace:
 //
-//   - WorkspaceLocal → suggest `config init --new` (creates a new app).
-//   - WorkspaceOpenClaw / WorkspaceHermes → point at `config bind --help`
+//   - workspace.WorkspaceLocal → suggest `config init --new` (creates a new app).
+//   - workspace.WorkspaceOpenClaw / workspace.WorkspaceHermes → point at `config bind --help`
 //     rather than a ready-to-run command, because binding is policy-laden:
 //     the user must pick an identity preset (bot-only vs user-default),
 //     and re-binding may overwrite an existing one. The help text walks
@@ -79,7 +80,7 @@ const (
 // All "config not loaded yet" call sites should use this helper rather than
 // hand-rolling a hint, so AI agents always get a workspace-correct next step.
 func NotConfiguredError() error {
-	ws := CurrentWorkspace()
+	ws := workspace.CurrentWorkspace()
 	if ws.IsLocal() {
 		return errs.NewConfigError(errs.SubtypeNotConfigured, "not configured").
 			WithHint("%s", localInitHint)
@@ -97,7 +98,7 @@ func NotConfiguredError() error {
 // Agent → `config bind --help` so the AI reads the binding workflow and
 // confirms identity preset with the user before running the actual command.
 func reconfigureHint() string {
-	if CurrentWorkspace().IsLocal() {
+	if workspace.CurrentWorkspace().IsLocal() {
 		return "please run `lark-cli config init` to reconfigure"
 	}
 	return agentBindHint
@@ -108,7 +109,7 @@ func reconfigureHint() string {
 // workspaces a missing profile typically means the binding was wiped while
 // the workspace marker remained — re-binding is the correct fix, not init.
 func NoActiveProfileError() error {
-	ws := CurrentWorkspace()
+	ws := workspace.CurrentWorkspace()
 	if ws.IsLocal() {
 		return errs.NewConfigError(errs.SubtypeNotConfigured, "no active profile").
 			WithHint("%s", localInitHint)

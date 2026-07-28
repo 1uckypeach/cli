@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/workspace"
 )
 
 // saveAndRestoreWorkspace ensures package-level currentWorkspace is reset
@@ -17,13 +18,13 @@ import (
 // accident.
 func saveAndRestoreWorkspace(t *testing.T) {
 	t.Helper()
-	prev := CurrentWorkspace()
-	t.Cleanup(func() { SetCurrentWorkspace(prev) })
+	prev := workspace.CurrentWorkspace()
+	t.Cleanup(func() { workspace.SetCurrentWorkspace(prev) })
 }
 
 func TestNotConfiguredError_Local(t *testing.T) {
 	saveAndRestoreWorkspace(t)
-	SetCurrentWorkspace(WorkspaceLocal)
+	workspace.SetCurrentWorkspace(workspace.WorkspaceLocal)
 
 	err := NotConfiguredError()
 	var cfgErr *errs.ConfigError
@@ -46,7 +47,7 @@ func TestNotConfiguredError_Local(t *testing.T) {
 
 func TestNotConfiguredError_OpenClaw(t *testing.T) {
 	saveAndRestoreWorkspace(t)
-	SetCurrentWorkspace(WorkspaceOpenClaw)
+	workspace.SetCurrentWorkspace(workspace.WorkspaceOpenClaw)
 
 	err := NotConfiguredError()
 	var cfgErr *errs.ConfigError
@@ -74,7 +75,7 @@ func TestNotConfiguredError_OpenClaw(t *testing.T) {
 
 func TestNotConfiguredError_Hermes(t *testing.T) {
 	saveAndRestoreWorkspace(t)
-	SetCurrentWorkspace(WorkspaceHermes)
+	workspace.SetCurrentWorkspace(workspace.WorkspaceHermes)
 
 	err := NotConfiguredError()
 	var cfgErr *errs.ConfigError
@@ -94,7 +95,7 @@ func TestNotConfiguredError_Hermes(t *testing.T) {
 
 func TestNoActiveProfileError_Local(t *testing.T) {
 	saveAndRestoreWorkspace(t)
-	SetCurrentWorkspace(WorkspaceLocal)
+	workspace.SetCurrentWorkspace(workspace.WorkspaceLocal)
 
 	err := NoActiveProfileError()
 	var cfgErr *errs.ConfigError
@@ -108,7 +109,7 @@ func TestNoActiveProfileError_Local(t *testing.T) {
 
 func TestNoActiveProfileError_AgentSuggestsBind(t *testing.T) {
 	saveAndRestoreWorkspace(t)
-	SetCurrentWorkspace(WorkspaceOpenClaw)
+	workspace.SetCurrentWorkspace(workspace.WorkspaceOpenClaw)
 
 	err := NoActiveProfileError()
 	var cfgErr *errs.ConfigError
@@ -122,7 +123,7 @@ func TestNoActiveProfileError_AgentSuggestsBind(t *testing.T) {
 
 func TestReconfigureHint_Local(t *testing.T) {
 	saveAndRestoreWorkspace(t)
-	SetCurrentWorkspace(WorkspaceLocal)
+	workspace.SetCurrentWorkspace(workspace.WorkspaceLocal)
 
 	got := reconfigureHint()
 	if !strings.Contains(got, "config init") {
@@ -132,7 +133,7 @@ func TestReconfigureHint_Local(t *testing.T) {
 
 func TestReconfigureHint_Agent(t *testing.T) {
 	saveAndRestoreWorkspace(t)
-	SetCurrentWorkspace(WorkspaceHermes)
+	workspace.SetCurrentWorkspace(workspace.WorkspaceHermes)
 
 	got := reconfigureHint()
 	if !strings.Contains(got, "config bind --help") {
@@ -142,7 +143,7 @@ func TestReconfigureHint_Agent(t *testing.T) {
 
 func TestLoadOrNotConfigured_FileMissing_ReturnsNotConfigured(t *testing.T) {
 	saveAndRestoreWorkspace(t)
-	SetCurrentWorkspace(WorkspaceLocal)
+	workspace.SetCurrentWorkspace(workspace.WorkspaceLocal)
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
 	_, err := LoadOrNotConfigured()

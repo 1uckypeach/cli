@@ -114,7 +114,7 @@ func Shared() *Logger {
 
 func defaultRuntimeDir() string {
 	if dir := os.Getenv("LARKSUITE_CLI_CONFIG_DIR"); dir != "" {
-		// Deliberately unvalidated, mirroring core.GetBaseConfigDir. Routing this
+		// Deliberately unvalidated, mirroring workspace.GetBaseConfigDir. Routing this
 		// through validate.SafeEnvDirPath would also resolve symlinks, changing
 		// the directory the CLI reports and uses on any host where the path
 		// crosses one — applying it moved four packages' expectations from /var

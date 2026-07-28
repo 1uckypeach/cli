@@ -28,6 +28,7 @@ import (
 	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/sparkstore"
+	"github.com/larksuite/cli/internal/workspace"
 	"github.com/larksuite/cli/shortcuts/apps/gitcred"
 	"github.com/larksuite/cli/shortcuts/common"
 )
@@ -533,7 +534,7 @@ func TestGitCredentialAppStorageListAppIDsSkipsNonCredentialAppDirs(t *testing.T
 	if err := sparkstore.Write("app_b", gitcred.MetadataFilename, []byte("{}")); err != nil {
 		t.Fatalf("Write app_b metadata: %v", err)
 	}
-	root := filepath.Join(core.GetConfigDir(), "spark")
+	root := filepath.Join(workspace.GetConfigDir(), "spark")
 	if err := os.WriteFile(filepath.Join(root, "not-an-app-dir"), []byte("x"), 0600); err != nil {
 		t.Fatalf("write non-dir: %v", err)
 	}
@@ -559,7 +560,7 @@ func TestGitCredentialAppStorageListAppIDsSkipsNonCredentialAppDirs(t *testing.T
 func TestAppsGitCredentialListReturnsScanErrors(t *testing.T) {
 	t.Run("storage root error", func(t *testing.T) {
 		factory, stdout, _ := newAppsExecuteFactory(t)
-		root := filepath.Join(core.GetConfigDir(), "spark")
+		root := filepath.Join(workspace.GetConfigDir(), "spark")
 		if err := os.WriteFile(root, []byte("not a dir"), 0600); err != nil {
 			t.Fatalf("write storage root blocker: %v", err)
 		}
@@ -600,7 +601,7 @@ func TestListGitCredentialRecordsSortsDuplicateDecodedAppIDs(t *testing.T) {
 	if err := manager.Store.Upsert(record); err != nil {
 		t.Fatalf("Upsert returned error: %v", err)
 	}
-	if err := os.Mkdir(filepath.Join(core.GetConfigDir(), "spark", "app%5Fx"), 0700); err != nil {
+	if err := os.Mkdir(filepath.Join(workspace.GetConfigDir(), "spark", "app%5Fx"), 0700); err != nil {
 		t.Fatalf("mkdir duplicate encoded app dir: %v", err)
 	}
 

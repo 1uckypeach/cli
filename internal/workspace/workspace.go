@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package core
+package workspace
 
 import (
 	"os"
@@ -158,4 +158,17 @@ func GetRuntimeDir() string {
 		return base
 	}
 	return filepath.Join(base, string(ws))
+}
+
+// GetConfigDir returns the config directory path for the current workspace.
+// When workspace is local (default), this returns the same path as before
+// (LARKSUITE_CLI_CONFIG_DIR or ~/.lark-cli) — fully backward-compatible.
+// When workspace is openclaw/hermes, returns base/openclaw or base/hermes.
+func GetConfigDir() string {
+	return GetRuntimeDir()
+}
+
+// GetConfigPath returns the config file path for the current workspace.
+func GetConfigPath() string {
+	return filepath.Join(GetConfigDir(), "config.json")
 }
