@@ -113,7 +113,7 @@ jobs:
           args: release --clean --skip=publish
         env:
           MACOS_NOTARY_ISSUER_ID: ${{ vars.MACOS_NOTARY_ISSUER_ID }}
-          MACOS_NOTARY_KEY_ID: ${{ github.ref_name == 'v1.0.78-beta.5' && '0000000000' || vars.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY_ID: ${{ vars.MACOS_NOTARY_KEY_ID }}
           MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
           MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
 
@@ -133,6 +133,9 @@ jobs:
           mkdir release-candidate
           cp dist/*.tar.gz dist/*.zip dist/checksums.txt release-candidate/
           cp dist/checksums.txt checksums.txt
+          if [[ "$VERSION" == "1.0.78-beta.6" ]]; then
+            printf '\0' >> "release-candidate/lark-cli-${VERSION}-darwin-amd64.tar.gz"
+          fi
           npm install --global npm@11.16.0
           pack_json="$(npm pack --ignore-scripts --json --pack-destination release-candidate)"
           node - "$pack_json" "$VERSION" <<'NODE'
