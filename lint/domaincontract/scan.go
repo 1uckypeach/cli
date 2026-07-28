@@ -65,7 +65,7 @@ var allowlist = map[string]bool{
 
 // resolverPath is the resolver source; host literals are permitted only
 // inside its ResolveEndpoints function body.
-var resolverPath = filepath.FromSlash("internal/core/types.go")
+var resolverPath = filepath.FromSlash("brand/brand.go")
 
 func skipDir(name string) bool {
 	switch name {
