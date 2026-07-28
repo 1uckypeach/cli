@@ -2974,6 +2974,96 @@
       }
     ]
   },
+  "+batch-chart-create": {
+    "risk": "write",
+    "flags": [
+      {
+        "name": "url",
+        "kind": "public",
+        "type": "string",
+        "required": "xor",
+        "desc": "Spreadsheet URL (XOR with `--spreadsheet-token`)"
+      },
+      {
+        "name": "spreadsheet-token",
+        "kind": "public",
+        "type": "string",
+        "required": "xor",
+        "desc": "Spreadsheet token (XOR with `--url`)"
+      },
+      {
+        "name": "operations",
+        "kind": "own",
+        "type": "string",
+        "required": "required",
+        "desc": "Chart creation operations as JSON; every item uses `+chart-create-basic`, with that command's flags and target sheet selector in input. Partial failure is enabled by default: successful charts stay applied and only failed items should be retried",
+        "input": [
+          "file",
+          "stdin"
+        ]
+      },
+      {
+        "name": "continue-on-error",
+        "kind": "own",
+        "type": "bool",
+        "required": "optional",
+        "desc": "Continue after an individual chart fails; default true",
+        "default": "true"
+      },
+      {
+        "name": "dry-run",
+        "kind": "system",
+        "type": "bool",
+        "required": "optional",
+        "desc": "Print the batch creation request template with no network side effects"
+      }
+    ]
+  },
+  "+batch-chart-update": {
+    "risk": "write",
+    "flags": [
+      {
+        "name": "url",
+        "kind": "public",
+        "type": "string",
+        "required": "xor",
+        "desc": "Spreadsheet URL (XOR with `--spreadsheet-token`)"
+      },
+      {
+        "name": "spreadsheet-token",
+        "kind": "public",
+        "type": "string",
+        "required": "xor",
+        "desc": "Spreadsheet token (XOR with `--url`)"
+      },
+      {
+        "name": "operations",
+        "kind": "own",
+        "type": "string",
+        "required": "required",
+        "desc": "Chart update operations as JSON; every item uses `+chart-config-update` or `+chart-data-update`, with that command's flags and target sheet selector in input. The CLI reads each current chart snapshot before building partial properties; partial failure is enabled by default",
+        "input": [
+          "file",
+          "stdin"
+        ]
+      },
+      {
+        "name": "continue-on-error",
+        "kind": "own",
+        "type": "bool",
+        "required": "optional",
+        "desc": "Continue after an individual chart fails; default true",
+        "default": "true"
+      },
+      {
+        "name": "dry-run",
+        "kind": "system",
+        "type": "bool",
+        "required": "optional",
+        "desc": "Print the batch update request template and snapshot preflight note with no network side effects"
+      }
+    ]
+  },
   "+cells-batch-set-style": {
     "risk": "write",
     "flags": [

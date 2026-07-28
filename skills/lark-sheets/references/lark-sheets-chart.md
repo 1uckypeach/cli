@@ -12,18 +12,19 @@
 |---------|---------|------|
 | 查看已有图表 | `+chart-list` | 获取图表的类型、数据源和样式配置 |
 | 按类型和范围创建基础图 | `+chart-create-basic` | 支持 column/bar/line/area/pie/scatter/combo/radar、行/列方向与整图配色；无需构造 snapshot |
-| 修正已有图表的数据范围或方向 | `+chart-data-update` | 服务端重建数据映射，保留标题、样式、位置和尺寸 |
-| 批量创建或更新多个独立图表 | `+batch-update --continue-on-error` | 保留成功图表，并逐项返回失败原因；只重试失败项 |
-| 更新标题、轴、图例、标签、堆叠、平滑或整图配色 | `+chart-config-update` | 无需回写 snapshot，未传字段保持不变 |
+| 修正已有图表的数据范围或方向 | `+chart-data-update` | CLI 读取当前快照并只回写 data patch，保留其它配置 |
+| 批量创建多个独立图表 | `+batch-chart-create` | 保留成功图表，并逐项返回失败原因；只重试失败项 |
+| 批量更新多个独立图表 | `+batch-chart-update` | 逐图读取当前快照并生成 partial properties |
+| 更新标题、轴、图例、标签、堆叠、平滑或整图配色 | `+chart-config-update` | CLI 读取当前快照并只回写配置 patch |
 | 高级创建/更新、删除图表 | `+chart-{create|update|delete}` | 按系列/数据点精细设置等高级需求才使用原始 properties |
 
 典型工作流：先确认表头和精确数据范围，用 `+chart-create-basic` 一次创建并尽量在同次调用中带上已知标题/轴/标签要求；创建后用返回的完整 `snapshot` 检查范围、方向与系列，再按需用 `+chart-list` 验证。已有图表的数据范围或方向错误时用 `+chart-data-update`，常用配置修正用 `+chart-config-update`。只有用户要求单个系列、数据点或高级引擎字段时，才读取现有 snapshot 并调 `+chart-update --properties`。不要为了常用配置先输出整份 schema，也不要删除重建已经创建成功的图表。
 
-**多图表工作流**：先完成所有辅助数据和表头，列出每张目标图的类型、精确数据范围、标题和落点；确认清单后，用一次 `+batch-update --continue-on-error` 批量执行 `+chart-create-basic`。图表之间独立时允许部分成功：按返回的逐项结果定位失败图表，只重试失败项，不要重复创建成功图表。为控制批量结果体积，批量 create 的逐项结果只返回 `chart_id`、规范化范围和提示，不返回完整 snapshot；批次后每个受影响的 sheet 各调用一次 `+chart-list`，验证数量、类型、系列和范围。数据尚未稳定时不要提前创建图表；已经成功创建的图表有数据源差异时批量使用 `+chart-data-update`，有配置差异时批量使用 `+chart-config-update`，不要删除重建。
+**多图表工作流**：先完成所有辅助数据和表头，列出每张目标图的类型、精确数据范围、标题和落点；确认清单后，用一次 `+batch-chart-create` 批量执行 `+chart-create-basic`。图表之间独立时允许部分成功：按返回的逐项结果定位失败图表，只重试失败项。批量 create 的逐项结果不返回完整 snapshot；批次后每个受影响的 sheet 各调用一次 `+chart-list`。已经成功创建的图表有数据源或配置差异时，用 `+batch-chart-update` 批量执行对应的语义更新，不要删除重建。
 
 **数量词必须展开**：用户说“每个 / 每天 / 分别 / 逐一 / 各一张图”时，先从数据中数出实体数 `N`，把这 `N` 张图逐项写进清单，再加上其它汇总图得到目标总数 `M`；一个包含全部实体的多系列图不能替代这 `N` 张独立图。批次前断言 operations 中恰有 `M` 个图表创建，批次后断言图表总数、逐图标题与实体集合一致。
 
-**范围与系列前置校验（创建前必做）**：清单中同时记录每张图的表头范围、纳入维度、明确排除维度、数据方向和预期系列数。当前每张图**最多 50 个数值系列**；按列组织时通常为“所选数值列数”，按行组织时通常为“所选数值行数”。创建时就用 `+chart-create-basic --dim1-index ... --dim2-indexes ...` 显式选择类别与不超过 50 个数值系列；如果业务要求展示超过 50 个系列，应先建立紧凑汇总表或 Top-N，而不是反复删除重建。创建前根据实际表头确认索引和边界，不凭字母猜范围；创建后范围、方向或系列数不符时，使用 `+chart-data-update` 修正，服务端会重建 `refs` / `dim1` / `dim2.series` 并保留其它配置，不要删除后重建。
+**范围与系列前置校验（创建前必做）**：清单中同时记录每张图的表头范围、纳入维度、明确排除维度、数据方向和预期系列数。当前每张图**最多 50 个数值系列**；按列组织时通常为“所选数值列数”，按行组织时通常为“所选数值行数”。创建时就用 `+chart-create-basic --dim1-index ... --dim2-indexes ...` 显式选择类别与不超过 50 个数值系列；如果业务要求展示超过 50 个系列，应先建立紧凑汇总表或 Top-N，而不是反复删除重建。创建前根据实际表头确认索引和边界，不凭字母猜范围；创建后范围、方向或系列数不符时，使用 `+chart-data-update` 修正，CLI 会读取当前快照、重建 `refs` / `dim1` / `dim2.series` 并只提交 data patch，不要删除后重建。
 
 **横向类别行配方**：当日期/月份等类别横向排列在一行、目标数值在另一行时，把“类别行 + 数值行”一起放进 `--data-range` 并传 `--data-direction row`，例如 `--data-range "'Sheet1'!A1:M1,'Sheet1'!A3:M3" --data-direction row`。此时类别行属于数据映射，**不要**传给 `--header-range`。`--header-range` 仅表示与纯数据分离的“维度/系列名称”：column 方向必须是一行，row 方向必须是一列。row 方向却传入多列表头，通常说明把类别行误当成了分离表头。
 
@@ -310,8 +311,21 @@ lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
 ```
 
 ```bash
-lark-cli sheets +batch-update --url "..." --operations @ops.json --continue-on-error --yes
+lark-cli sheets +batch-chart-create --url "..." --operations @ops.json
 lark-cli sheets +chart-list --url "..." --sheet-name "Sheet1"
+```
+
+批量修正已有图表时，operations 只放配置或数据更新；CLI 会先读取每张目标图的当前快照，再把对应 partial properties 合并进一次 `batch_update`：
+
+```json
+[
+  {"shortcut":"+chart-config-update","input":{"sheet_name":"Sheet1","chart_id":"chrA","title":"新标题"}},
+  {"shortcut":"+chart-data-update","input":{"sheet_name":"Sheet1","chart_id":"chrB","data_range":"'Sheet1'!A1:D10"}}
+]
+```
+
+```bash
+lark-cli sheets +batch-chart-update --url "..." --operations @updates.json
 ```
 
 ### `+chart-data-update`

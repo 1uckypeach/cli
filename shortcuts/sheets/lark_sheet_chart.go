@@ -95,9 +95,9 @@ var ChartCreateBasic = common.Shortcut{
 var ChartConfigUpdate = common.Shortcut{
 	Service:     "sheets",
 	Command:     "+chart-config-update",
-	Description: "Update common chart titles, axes, legend, labels, stacking, smoothing, or chart-level colors without sending a snapshot.",
+	Description: "Update common chart titles, axes, legend, labels, stacking, smoothing, or chart-level colors without sending a full snapshot.",
 	Risk:        "write",
-	Scopes:      []string{"sheets:spreadsheet:write_only"},
+	Scopes:      []string{"sheets:spreadsheet:read", "sheets:spreadsheet:write_only"},
 	AuthTypes:   []string{"user", "bot"},
 	HasFormat:   true,
 	Flags:       flagsFor("+chart-config-update"),
@@ -133,16 +133,24 @@ var ChartConfigUpdate = common.Shortcut{
 		if err != nil {
 			return err
 		}
+		snapshot, err := fetchChartSnapshot(ctx, runtime, token, sheetID, sheetName, runtime.Str("chart-id"))
+		if err != nil {
+			return err
+		}
+		input, viewModel, err := chartConfigUpdateInputFromSnapshot(runtime, token, sheetID, sheetName, snapshot)
+		if err != nil {
+			return err
+		}
 		out, err := callTool(ctx, runtime, token, ToolKindWrite, "manage_chart_object", input)
 		if err != nil {
 			return err
 		}
-		runtime.Out(out, nil)
+		runtime.Out(withChartShortcutResult(out, "viewModel", viewModel), nil)
 		return nil
 	},
 }
 
-// ChartDataUpdate rebinds an existing chart to a new source range. The server
+// ChartDataUpdate rebinds an existing chart to a new source range. The CLI
 // reads the current snapshot, rebuilds its data mapping, and preserves the
 // chart's layout and visual configuration.
 var ChartDataUpdate = common.Shortcut{
@@ -150,7 +158,7 @@ var ChartDataUpdate = common.Shortcut{
 	Command:     "+chart-data-update",
 	Description: "Update an existing chart's data range or direction while preserving its layout and visual configuration.",
 	Risk:        "write",
-	Scopes:      []string{"sheets:spreadsheet:write_only"},
+	Scopes:      []string{"sheets:spreadsheet:read", "sheets:spreadsheet:write_only"},
 	AuthTypes:   []string{"user", "bot"},
 	HasFormat:   true,
 	Flags:       flagsFor("+chart-data-update"),
@@ -185,11 +193,24 @@ var ChartDataUpdate = common.Shortcut{
 		if err != nil {
 			return err
 		}
+		snapshot, err := fetchChartSnapshot(ctx, runtime, token, sheetID, sheetName, runtime.Str("chart-id"))
+		if err != nil {
+			return err
+		}
+		input, data, ranges, notice, err := chartDataUpdateInputFromSnapshot(runtime, token, sheetID, sheetName, snapshot)
+		if err != nil {
+			return err
+		}
 		out, err := callTool(ctx, runtime, token, ToolKindWrite, "manage_chart_object", input)
 		if err != nil {
 			return err
 		}
-		runtime.Out(out, nil)
+		result := withChartShortcutResult(out, "data", data)
+		result["normalized_data_ranges"] = ranges
+		if notice != "" {
+			result["normalization_notice"] = notice
+		}
+		runtime.Out(result, nil)
 		return nil
 	},
 }
@@ -371,11 +392,14 @@ func chartConfigUpdateInput(rt flagView, token, sheetID, sheetName string) (map[
 	if len(updates) == 0 {
 		return nil, common.ValidationErrorf("at least one chart configuration flag is required")
 	}
+	patch, _ := applyChartConfigPatch(map[string]interface{}{}, updates)
 	input := map[string]interface{}{
-		"excel_id":       token,
-		"operation":      "update",
-		"chart_id":       chartID,
-		"config_updates": updates,
+		"excel_id":  token,
+		"operation": "update",
+		"chart_id":  chartID,
+		"properties": map[string]interface{}{
+			"snapshot": patch,
+		},
 	}
 	sheetSelectorForToolInput(input, sheetID, sheetName)
 	if err := validateInputAgainstSchema(rt, input); err != nil {
@@ -458,16 +482,593 @@ func chartDataUpdateInput(rt flagView, token, sheetID, sheetName string) (map[st
 		updates["dim2_indexes"] = dim2Indexes
 	}
 	input := map[string]interface{}{
-		"excel_id":     token,
-		"operation":    "update",
-		"chart_id":     chartID,
-		"data_updates": updates,
+		"excel_id":  token,
+		"operation": "update",
+		"chart_id":  chartID,
+		"properties": map[string]interface{}{
+			"snapshot": map[string]interface{}{
+				"data": chartDataDryRunPatch(updates),
+			},
+		},
 	}
 	sheetSelectorForToolInput(input, sheetID, sheetName)
 	if err := validateInputAgainstSchema(rt, input); err != nil {
 		return nil, err
 	}
 	return input, nil
+}
+
+func chartConfigUpdateInputFromSnapshot(
+	rt flagView,
+	token, sheetID, sheetName string,
+	snapshot map[string]interface{},
+) (map[string]interface{}, map[string]interface{}, error) {
+	if _, err := chartConfigUpdateInput(rt, token, sheetID, sheetName); err != nil {
+		return nil, nil, err
+	}
+	updates := map[string]interface{}{}
+	addChartSemanticConfig(rt, updates)
+	patch, viewModel := applyChartConfigPatch(snapshot, updates)
+	input := map[string]interface{}{
+		"excel_id":  token,
+		"operation": "update",
+		"chart_id":  strings.TrimSpace(rt.Str("chart-id")),
+		"properties": map[string]interface{}{
+			"snapshot": patch,
+		},
+	}
+	sheetSelectorForToolInput(input, sheetID, sheetName)
+	if err := validateInputAgainstSchema(rt, input); err != nil {
+		return nil, nil, err
+	}
+	return input, viewModel, nil
+}
+
+func chartDataUpdateInputFromSnapshot(
+	rt flagView,
+	token, sheetID, sheetName string,
+	snapshot map[string]interface{},
+) (map[string]interface{}, map[string]interface{}, []string, string, error) {
+	if _, err := chartDataUpdateInput(rt, token, sheetID, sheetName); err != nil {
+		return nil, nil, nil, "", err
+	}
+	currentData, _ := snapshot["data"].(map[string]interface{})
+	if static, _ := currentData["isStaticData"].(bool); static {
+		return nil, nil, nil, "", sheetsValidationForFlag("chart-id", "+chart-data-update does not support static-data charts")
+	}
+	chartType := chartTypeFromSnapshot(snapshot)
+	if !isBasicChartType(chartType) {
+		return nil, nil, nil, "", sheetsValidationForFlag(
+			"chart-id",
+			"+chart-data-update does not support chart type %q",
+			chartType,
+		)
+	}
+
+	direction := "column"
+	if value, ok := currentData["direction"].(string); ok && value != "" {
+		direction = value
+	}
+	if rt.Changed("data-direction") {
+		direction = rt.Str("data-direction")
+	}
+	dataRange := strings.TrimSpace(rt.Str("data-range"))
+	normalized, dimensionCount, _, err := normalizeBasicChartDataRanges(dataRange, direction)
+	if err != nil {
+		return nil, nil, nil, "", err
+	}
+
+	dim1Index := 1
+	if rt.Changed("dim1-index") {
+		dim1Index = rt.Int("dim1-index")
+	}
+	if dim1Index < 1 || dim1Index > dimensionCount {
+		return nil, nil, nil, "", sheetsValidationForFlag(
+			"dim1-index",
+			"--dim1-index must be between 1 and %d for the selected --data-range",
+			dimensionCount,
+		)
+	}
+	dim2Indexes := make([]int, 0, dimensionCount-1)
+	for index := 1; index <= dimensionCount; index++ {
+		if index != dim1Index {
+			dim2Indexes = append(dim2Indexes, index)
+		}
+	}
+	if chartType == "pie" && len(dim2Indexes) > 1 {
+		dim2Indexes = dim2Indexes[:1]
+	}
+	if rt.Changed("dim2-indexes") {
+		dim2Indexes, err = parseChartDim2Indexes(rt.Str("dim2-indexes"))
+		if err != nil {
+			return nil, nil, nil, "", sheetsValidationForFlag("dim2-indexes", "%v", err)
+		}
+	}
+	for _, index := range dim2Indexes {
+		if index > dimensionCount {
+			return nil, nil, nil, "", sheetsValidationForFlag(
+				"dim2-indexes",
+				"--dim2-indexes must contain only indexes between 1 and %d for the selected --data-range",
+				dimensionCount,
+			)
+		}
+		if index == dim1Index {
+			return nil, nil, nil, "", sheetsValidationForFlag(
+				"dim2-indexes",
+				"--dim2-indexes must not contain the dim1 index %d",
+				dim1Index,
+			)
+		}
+	}
+	if chartType == "pie" && len(dim2Indexes) != 1 {
+		return nil, nil, nil, "", sheetsValidationForFlag("dim2-indexes", "pie charts require exactly one --dim2-indexes value")
+	}
+	if chartType == "combo" && len(dim2Indexes) < 2 {
+		return nil, nil, nil, "", sheetsValidationForFlag("dim2-indexes", "combo charts require at least two --dim2-indexes values")
+	}
+	if len(dim2Indexes) > chartSeriesMaxCount {
+		return nil, nil, nil, "", sheetsValidationForFlag(
+			"dim2-indexes",
+			"--dim2-indexes selects %d series, over the current limit of %d; select fewer series",
+			len(dim2Indexes),
+			chartSeriesMaxCount,
+		)
+	}
+
+	headerRefs := existingChartHeaderRefs(currentData)
+	detached := currentData["headerMode"] == "detached"
+	if rt.Changed("header-range") {
+		headerRefs, err = buildChartHeaderRefs(strings.TrimSpace(rt.Str("header-range")), direction, dimensionCount)
+		if err != nil {
+			return nil, nil, nil, "", err
+		}
+		detached = true
+	}
+	if detached {
+		for _, index := range append([]int{dim1Index}, dim2Indexes...) {
+			if headerRefs[index] == "" {
+				return nil, nil, nil, "", sheetsValidationForFlag(
+					"header-range",
+					"--header-range is required because the detached header for dimension %d is missing",
+					index,
+				)
+			}
+		}
+	}
+
+	rangeValues, _ := splitChartDataRanges(normalized)
+	refs := make([]interface{}, 0, len(rangeValues))
+	for _, value := range rangeValues {
+		refs = append(refs, map[string]interface{}{"value": value})
+	}
+	dim1 := map[string]interface{}{"index": dim1Index}
+	if detached {
+		dim1["nameRef"] = headerRefs[dim1Index]
+	}
+	series := make([]interface{}, 0, len(dim2Indexes))
+	for _, index := range dim2Indexes {
+		item := map[string]interface{}{"index": index}
+		if detached {
+			item["nameRef"] = headerRefs[index]
+		}
+		series = append(series, item)
+	}
+	data := map[string]interface{}{
+		"isStaticData": false,
+		"direction":    direction,
+		"refs":         refs,
+		"dim1":         map[string]interface{}{"serie": dim1},
+		"dim2":         map[string]interface{}{"series": series},
+	}
+	if detached {
+		data["headerMode"] = "detached"
+	}
+	patch := map[string]interface{}{"data": data}
+	if chartType == "combo" {
+		patch["plotArea"] = comboPlotAreaForIndexes(snapshot, dim2Indexes)
+	}
+	input := map[string]interface{}{
+		"excel_id":  token,
+		"operation": "update",
+		"chart_id":  strings.TrimSpace(rt.Str("chart-id")),
+		"properties": map[string]interface{}{
+			"snapshot": patch,
+		},
+	}
+	sheetSelectorForToolInput(input, sheetID, sheetName)
+	if err := validateInputAgainstSchema(rt, input); err != nil {
+		return nil, nil, nil, "", err
+	}
+	notice := ""
+	if normalized != dataRange {
+		notice = "Multiple data ranges were not aligned and were merged into the smallest enclosing rectangular range; review normalized_data_ranges before continuing."
+	}
+	return input, data, rangeValues, notice, nil
+}
+
+func chartDataDryRunPatch(updates map[string]interface{}) map[string]interface{} {
+	data := map[string]interface{}{}
+	dataRange, _ := updates["data_range"].(string)
+	direction, _ := updates["data_direction"].(string)
+	if direction == "" {
+		direction = "column"
+	}
+	normalized, dimensionCount, _, _ := normalizeBasicChartDataRanges(dataRange, direction)
+	if dataRange != "" {
+		ranges, _ := splitChartDataRanges(normalized)
+		refs := make([]interface{}, 0, len(ranges))
+		for _, item := range ranges {
+			refs = append(refs, map[string]interface{}{"value": item})
+		}
+		data["refs"] = refs
+	}
+	if value, ok := updates["data_direction"]; ok {
+		data["direction"] = value
+	}
+	dim1Index := 1
+	if value, ok := chartInt(updates["dim1_index"]); ok {
+		dim1Index = value
+	}
+	dim2Indexes := make([]int, 0, max(0, dimensionCount-1))
+	for index := 1; index <= dimensionCount; index++ {
+		if index != dim1Index {
+			dim2Indexes = append(dim2Indexes, index)
+		}
+	}
+	if values, ok := updates["dim2_indexes"].([]int); ok {
+		dim2Indexes = values
+	}
+	headerRefs := map[int]string{}
+	if headerRange, ok := updates["header_range"].(string); ok {
+		headerRefs, _ = buildChartHeaderRefs(headerRange, direction, dimensionCount)
+		data["headerMode"] = "detached"
+	}
+	dim1 := map[string]interface{}{"index": dim1Index}
+	if headerRefs[dim1Index] != "" {
+		dim1["nameRef"] = headerRefs[dim1Index]
+	}
+	data["dim1"] = map[string]interface{}{"serie": dim1}
+	series := make([]interface{}, 0, len(dim2Indexes))
+	for _, value := range dim2Indexes {
+		item := map[string]interface{}{"index": value}
+		if headerRefs[value] != "" {
+			item["nameRef"] = headerRefs[value]
+		}
+		series = append(series, item)
+	}
+	data["dim2"] = map[string]interface{}{"series": series}
+	return data
+}
+
+func fetchChartSnapshot(
+	ctx context.Context,
+	runtime *common.RuntimeContext,
+	token, sheetID, sheetName, chartID string,
+) (map[string]interface{}, error) {
+	input := map[string]interface{}{
+		"excel_id": token,
+		"chart_id": strings.TrimSpace(chartID),
+	}
+	sheetSelectorForToolInput(input, sheetID, sheetName)
+	out, err := callTool(ctx, runtime, token, ToolKindRead, "get_chart_objects", input)
+	if err != nil {
+		return nil, err
+	}
+	root, _ := out.(map[string]interface{})
+	if data, ok := root["data"].(map[string]interface{}); ok {
+		root = data
+	}
+	sheets, _ := root["sheets"].([]interface{})
+	for _, rawSheet := range sheets {
+		sheet, _ := rawSheet.(map[string]interface{})
+		charts, _ := sheet["charts"].([]interface{})
+		for _, rawChart := range charts {
+			chart, _ := rawChart.(map[string]interface{})
+			if id, _ := chart["chart_id"].(string); id != strings.TrimSpace(chartID) {
+				continue
+			}
+			details, _ := chart["details"].(map[string]interface{})
+			snapshot, _ := details["snapshot"].(map[string]interface{})
+			if snapshot == nil {
+				return nil, sheetsValidationForFlag("chart-id", "chart %q has no editable snapshot", chartID)
+			}
+			return snapshot, nil
+		}
+	}
+	return nil, sheetsValidationForFlag("chart-id", "chart %q was not found on the selected sheet", chartID)
+}
+
+func withChartShortcutResult(out interface{}, key string, value interface{}) map[string]interface{} {
+	result := map[string]interface{}{}
+	if object, ok := out.(map[string]interface{}); ok {
+		for name, item := range object {
+			result[name] = item
+		}
+	} else if out != nil {
+		result["tool_output"] = out
+	}
+	result[key] = value
+	return result
+}
+
+func applyChartConfigPatch(
+	current map[string]interface{},
+	updates map[string]interface{},
+) (map[string]interface{}, map[string]interface{}) {
+	next := cloneChartMap(current)
+	patch := map[string]interface{}{}
+	plotChanged := false
+
+	if value, ok := updates["title"].(string); ok {
+		title := chartMap(next["title"])
+		title["text"] = value
+		next["title"] = title
+		patch["title"] = title
+	}
+	if value, ok := updates["subtitle"].(string); ok {
+		subtitle := chartMap(next["subTitle"])
+		subtitle["text"] = value
+		next["subTitle"] = subtitle
+		patch["subTitle"] = subtitle
+	}
+	if value, ok := updates["legend_position"].(string); ok {
+		if value == "hidden" {
+			next["legend"] = false
+			patch["legend"] = false
+		} else {
+			legend := chartMap(next["legend"])
+			legend["position"] = value
+			next["legend"] = legend
+			patch["legend"] = legend
+		}
+	}
+
+	plotArea := chartMap(next["plotArea"])
+	plot := chartMap(plotArea["plot"])
+	plotArea["plot"] = plot
+	next["plotArea"] = plotArea
+	for _, item := range []struct {
+		key      string
+		axisType string
+		position string
+		title    bool
+	}{
+		{"x_axis_title", "x", "bottom", true},
+		{"y_axis_title", "y", "left", true},
+		{"secondary_y_axis_title", "y", "right", true},
+		{"x_axis_label_angle", "x", "bottom", false},
+		{"y_axis_label_angle", "y", "left", false},
+	} {
+		value, ok := updates[item.key]
+		if !ok {
+			continue
+		}
+		axis := ensureChartAxisMap(plotArea, item.axisType, item.position)
+		if item.title {
+			axis["title"] = map[string]interface{}{"text": value}
+		} else {
+			label := chartMap(axis["label"])
+			label["angle"] = value
+			axis["label"] = label
+		}
+		plotChanged = true
+	}
+
+	if value, ok := updates["data_labels"].(string); ok {
+		if value == "none" {
+			delete(plot, "labels")
+		} else {
+			labels := map[string]interface{}{
+				"series":     value == "series",
+				"category":   value == "category",
+				"value":      value == "value" || value == "value_percentage",
+				"percentage": value == "percentage" || value == "value_percentage",
+			}
+			if position, ok := updates["data_label_position"]; ok {
+				labels["position"] = position
+			}
+			plot["labels"] = labels
+		}
+		plotChanged = true
+	} else if position, ok := updates["data_label_position"]; ok {
+		labels := chartMap(plot["labels"])
+		if len(labels) == 0 {
+			labels["value"] = true
+		}
+		labels["position"] = position
+		plot["labels"] = labels
+		plotChanged = true
+	}
+	if value, ok := updates["stack"].(string); ok {
+		extra := chartMap(plot["extra"])
+		if value == "none" {
+			delete(extra, "stack")
+		} else {
+			extra["stack"] = map[string]interface{}{"percentage": value == "percent"}
+		}
+		plot["extra"] = extra
+		plotChanged = true
+	}
+	if value, ok := updates["smooth"].(bool); ok {
+		extra := chartMap(plot["extra"])
+		extra["smooth"] = value
+		plot["extra"] = extra
+		plotChanged = true
+	}
+	if value, ok := updates["color_palette"].(string); ok {
+		next["colorTheme"] = []interface{}{value}
+		patch["colorTheme"] = next["colorTheme"]
+	}
+	if values, ok := updates["colors"].([]string); ok {
+		colors := make([]interface{}, 0, len(values))
+		for _, value := range values {
+			colors = append(colors, value)
+		}
+		next["colorTheme"] = colors
+		patch["colorTheme"] = colors
+	}
+	if plotChanged {
+		patch["plotArea"] = plotArea
+	}
+	viewModel := cloneChartMap(next)
+	delete(viewModel, "data")
+	return patch, viewModel
+}
+
+func cloneChartMap(value map[string]interface{}) map[string]interface{} {
+	if value == nil {
+		return map[string]interface{}{}
+	}
+	raw, _ := json.Marshal(value)
+	out := map[string]interface{}{}
+	_ = json.Unmarshal(raw, &out)
+	return out
+}
+
+func chartMap(value interface{}) map[string]interface{} {
+	if object, ok := value.(map[string]interface{}); ok {
+		return object
+	}
+	return map[string]interface{}{}
+}
+
+func ensureChartAxisMap(plotArea map[string]interface{}, axisType, position string) map[string]interface{} {
+	axes, _ := plotArea["axes"].([]interface{})
+	for _, raw := range axes {
+		axis, _ := raw.(map[string]interface{})
+		if axis["type"] == axisType && axis["position"] == position {
+			return axis
+		}
+	}
+	axis := map[string]interface{}{"type": axisType, "position": position}
+	plotArea["axes"] = append(axes, axis)
+	return axis
+}
+
+func chartTypeFromSnapshot(snapshot map[string]interface{}) string {
+	plotArea := chartMap(snapshot["plotArea"])
+	plot := chartMap(plotArea["plot"])
+	value, _ := plot["type"].(string)
+	return value
+}
+
+func isBasicChartType(value string) bool {
+	switch value {
+	case "column", "bar", "line", "area", "pie", "scatter", "combo", "radar":
+		return true
+	default:
+		return false
+	}
+}
+
+func existingChartHeaderRefs(data map[string]interface{}) map[int]string {
+	out := map[int]string{}
+	if dim1 := chartMap(chartMap(data["dim1"])["serie"]); dim1 != nil {
+		index, _ := chartInt(dim1["index"])
+		name, _ := dim1["nameRef"].(string)
+		if index > 0 && name != "" {
+			out[index] = name
+		}
+	}
+	series, _ := chartMap(data["dim2"])["series"].([]interface{})
+	for _, raw := range series {
+		item := chartMap(raw)
+		index, _ := chartInt(item["index"])
+		name, _ := item["nameRef"].(string)
+		if index > 0 && name != "" {
+			out[index] = name
+		}
+	}
+	return out
+}
+
+func buildChartHeaderRefs(value, direction string, dimensionCount int) (map[int]string, error) {
+	ranges, err := splitChartDataRanges(value)
+	if err != nil {
+		return nil, sheetsValidationForFlag("header-range", "invalid --header-range %q: %v", value, err)
+	}
+	var refs []string
+	for _, rangeValue := range ranges {
+		item, parseErr := parseChartHeaderRange(rangeValue)
+		if parseErr != nil {
+			return nil, sheetsValidationForFlag("header-range", "invalid --header-range item %q: %v", rangeValue, parseErr)
+		}
+		prefix := ""
+		if item.sheet != "" {
+			prefix = item.sheet + "!"
+		}
+		if direction == "row" {
+			if item.colCount != 1 {
+				return nil, sheetsValidationForFlag("header-range", "row-oriented --header-range must be one column")
+			}
+			for row := item.row; row < item.row+item.rowCount; row++ {
+				refs = append(refs, prefix+columnIndexToLetter(item.col)+strconv.Itoa(row+1))
+			}
+		} else {
+			if item.rowCount != 1 {
+				return nil, sheetsValidationForFlag("header-range", "column-oriented --header-range must be one row")
+			}
+			for col := item.col; col < item.col+item.colCount; col++ {
+				refs = append(refs, prefix+columnIndexToLetter(col)+strconv.Itoa(item.row+1))
+			}
+		}
+	}
+	if len(refs) != dimensionCount {
+		return nil, sheetsValidationForFlag(
+			"header-range",
+			"--header-range provides %d headers but --data-range has %d dimensions",
+			len(refs),
+			dimensionCount,
+		)
+	}
+	out := make(map[int]string, len(refs))
+	for index, value := range refs {
+		out[index+1] = value
+	}
+	return out, nil
+}
+
+func comboPlotAreaForIndexes(snapshot map[string]interface{}, indexes []int) map[string]interface{} {
+	plotArea := chartMap(cloneChartMap(snapshot)["plotArea"])
+	plot := chartMap(plotArea["plot"])
+	currentSeries, _ := plot["series"].([]interface{})
+	byIndex := map[int]map[string]interface{}{}
+	for _, raw := range currentSeries {
+		item := chartMap(raw)
+		if index, ok := chartInt(item["index"]); ok {
+			byIndex[index] = item
+		}
+	}
+	nextSeries := make([]interface{}, 0, len(indexes))
+	for position, index := range indexes {
+		item := cloneChartMap(byIndex[index])
+		if len(item) == 0 {
+			item["comboType"] = "line"
+			item["yAxisPosition"] = "right"
+			if position == 0 {
+				item["comboType"] = "column"
+				item["yAxisPosition"] = "left"
+			}
+		}
+		item["index"] = index
+		nextSeries = append(nextSeries, item)
+	}
+	plot["series"] = nextSeries
+	plotArea["plot"] = plot
+	return plotArea
+}
+
+func chartInt(value interface{}) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, true
+	case int64:
+		return int(typed), true
+	case float64:
+		return int(typed), typed == float64(int(typed))
+	default:
+		return 0, false
+	}
 }
 
 func validateChartRangeListFlag(flagName, value string) error {

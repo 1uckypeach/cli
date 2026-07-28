@@ -215,42 +215,6 @@ func TestBatchOp_BodyMatchesStandalone(t *testing.T) {
 			subInput: `{"sheet-id":"sh1","range":"A2:A4","options":["x","y"],"highlight":false}`,
 		},
 		{
-			shortcut: "+chart-create",
-			sc:       ChartCreate,
-			args:     []string{"--sheet-id", "sh1", "--properties", `{"position":{"row":0,"col":"A"},"size":{"width":400,"height":300}}`},
-			subInput: `{"sheet-id":"sh1","properties":{"position":{"row":0,"col":"A"},"size":{"width":400,"height":300}}}`,
-		},
-		{
-			shortcut: "+chart-update",
-			sc:       ChartUpdate,
-			args:     []string{"--sheet-id", "sh1", "--chart-id", "c1", "--properties", `{"position":{"row":0,"col":"A"},"size":{"width":400,"height":300}}`},
-			subInput: `{"sheet-id":"sh1","chart-id":"c1","properties":{"position":{"row":0,"col":"A"},"size":{"width":400,"height":300}}}`,
-		},
-		{
-			shortcut: "+chart-delete",
-			sc:       ChartDelete,
-			args:     []string{"--sheet-id", "sh1", "--chart-id", "c1"},
-			subInput: `{"sheet-id":"sh1","chart-id":"c1"}`,
-		},
-		{
-			shortcut: "+chart-create-basic",
-			sc:       ChartCreateBasic,
-			args:     []string{"--sheet-id", "sh1", "--chart-type", "column", "--data-range", "A2:C10", "--header-range", "A1:C1", "--title", "Sales", "--data-labels", "value", "--anchor-cell", "F2"},
-			subInput: `{"sheet-id":"sh1","chart-type":"column","data-range":"A2:C10","header-range":"A1:C1","title":"Sales","data-labels":"value","anchor-cell":"F2"}`,
-		},
-		{
-			shortcut: "+chart-config-update",
-			sc:       ChartConfigUpdate,
-			args:     []string{"--sheet-id", "sh1", "--chart-id", "c1", "--title", "Updated", "--data-labels", "category", "--data-label-position", "top"},
-			subInput: `{"sheet-id":"sh1","chart-id":"c1","title":"Updated","data-labels":"category","data-label-position":"top"}`,
-		},
-		{
-			shortcut: "+chart-data-update",
-			sc:       ChartDataUpdate,
-			args:     []string{"--sheet-id", "sh1", "--chart-id", "c1", "--data-range", "'Sheet1'!A2:M6", "--header-range", "'Sheet1'!A1:M1", "--data-direction", "column", "--dim1-index", "1", "--dim2-indexes", "4,8"},
-			subInput: `{"sheet-id":"sh1","chart-id":"c1","data-range":"'Sheet1'!A2:M6","header-range":"'Sheet1'!A1:M1","data-direction":"column","dim1-index":1,"dim2-indexes":"4,8"}`,
-		},
-		{
 			shortcut: "+pivot-create",
 			sc:       PivotCreate,
 			// +pivot-create renamed --sheet-id / --sheet-name → --target-sheet-id /
@@ -450,22 +414,6 @@ func TestBatchOp_ErrorEquivalence(t *testing.T) {
 			subShortcut:  "+sheet-delete",
 			subInput:     `{}`,
 			wantContains: "specify at least one of --sheet-id or --sheet-name",
-		},
-		{
-			name:         "+chart-data-update invalid dim1 index",
-			shortcut:     ChartDataUpdate,
-			args:         []string{"--sheet-id", "sh1", "--chart-id", "c1", "--data-range", "A1:C4", "--dim1-index", "0"},
-			subShortcut:  "+chart-data-update",
-			subInput:     `{"sheet-id":"sh1","chart-id":"c1","data-range":"A1:C4","dim1-index":0}`,
-			wantContains: "--dim1-index must be a positive 1-based index",
-		},
-		{
-			name:         "+chart-data-update dim1 and dim2 conflict",
-			shortcut:     ChartDataUpdate,
-			args:         []string{"--sheet-id", "sh1", "--chart-id", "c1", "--data-range", "A1:C4", "--dim1-index", "2", "--dim2-indexes", "2,3"},
-			subShortcut:  "+chart-data-update",
-			subInput:     `{"sheet-id":"sh1","chart-id":"c1","data-range":"A1:C4","dim1-index":2,"dim2-indexes":"2,3"}`,
-			wantContains: "--dim2-indexes must not contain the dim1 index 2",
 		},
 		{
 			name:         "+float-image-create both image-token and image-uri",
@@ -700,24 +648,6 @@ func TestBatchOp_RejectsBadSubOpInput(t *testing.T) {
 			"--title is required",
 		},
 		{
-			"+chart-update missing --chart-id",
-			"+chart-update",
-			`{"sheet-id":"sh1","properties":{"title":"T"}}`,
-			"--chart-id is required",
-		},
-		{
-			"+chart-data-update missing --chart-id",
-			"+chart-data-update",
-			`{"sheet-id":"sh1","data-range":"A1:C4"}`,
-			"--chart-id is required",
-		},
-		{
-			"+chart-data-update missing --data-range",
-			"+chart-data-update",
-			`{"sheet-id":"sh1","chart-id":"c1"}`,
-			"--data-range is required",
-		},
-		{
 			"+filter-create missing --range",
 			"+filter-create",
 			`{"sheet-id":"sh1"}`,
@@ -820,14 +750,6 @@ func TestBatchOp_SchemaValidatesSubOps(t *testing.T) {
 			"+pivot-create",
 			`{"target_sheet_id":"sh1","source":"Sheet1!A1:D100","properties":{"values":[{"field":"A","summarize_by":"BOGUS"}]}}`,
 			"summarize_by",
-		},
-		// +chart-create properties.position.row has minimum:0 — P0
-		// addition; validator must catch -1 even in the batch path.
-		{
-			"+chart-create position.row below minimum",
-			"+chart-create",
-			`{"sheet-id":"sh1","properties":{"position":{"row":-1,"col":"A"},"size":{"width":400,"height":300}}}`,
-			"below minimum",
 		},
 		// +cells-set --cells is a 2D array of objects per the
 		// upstream-fixed schema; sub-op passing an object must be

@@ -1,6 +1,57 @@
 {
   "schema_version": "3",
   "flags": {
+    "+batch-chart-create": {
+      "operations": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": [
+            "shortcut",
+            "input"
+          ],
+          "properties": {
+            "shortcut": {
+              "type": "string",
+              "enum": [
+                "+chart-create-basic"
+              ]
+            },
+            "input": {
+              "type": "object",
+              "description": "+chart-create-basic 的 flag 集合；包含 sheet_id 或 sheet_name，不包含 spreadsheet token/url"
+            }
+          }
+        }
+      }
+    },
+    "+batch-chart-update": {
+      "operations": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": [
+            "shortcut",
+            "input"
+          ],
+          "properties": {
+            "shortcut": {
+              "type": "string",
+              "enum": [
+                "+chart-config-update",
+                "+chart-data-update"
+              ]
+            },
+            "input": {
+              "type": "object",
+              "description": "对应图表更新 shortcut 的 flag 集合；包含 sheet_id 或 sheet_name，不包含 spreadsheet token/url"
+            }
+          }
+        }
+      }
+    },
     "+batch-update": {
       "operations": {
         "type": "array",
@@ -46,12 +97,6 @@
                 "+sheet-set-tab-color",
                 "+sheet-show-gridline",
                 "+sheet-hide-gridline",
-                "+chart-create",
-                "+chart-update",
-                "+chart-delete",
-                "+chart-create-basic",
-                "+chart-config-update",
-                "+chart-data-update",
                 "+pivot-create",
                 "+pivot-update",
                 "+pivot-delete",
@@ -71,7 +116,7 @@
                 "+float-image-update",
                 "+float-image-delete"
               ],
-              "description": "CLI shortcut 名（不是底层 MCP tool 名）。+dim-move 不在表中——它走 legacy v2 endpoint，无法批；+cells-set-image / +workbook-create 也不在——前者含多步图片上传，后者是新建工作簿，都不属于 batch 范畴；所有读操作、fan-out wrapper（+batch-update 自身 / +styles-put / +cells-batch-set-style / +cells-batch-clear / +dropdown-{update,delete}）一律禁——美化收尾请单独调 +styles-put，不要拆成子操作数组。"
+              "description": "CLI shortcut 名（不是底层 MCP tool 名）。图表操作请改用 +batch-chart-create / +batch-chart-update；+dim-move 不在表中——它走 legacy v2 endpoint，无法批；+cells-set-image / +workbook-create 也不在——前者含多步图片上传，后者是新建工作簿，都不属于 batch 范畴；所有读操作、fan-out wrapper（+batch-update 自身 / +styles-put / +cells-batch-set-style / +cells-batch-clear / +dropdown-{update,delete}）一律禁——美化收尾请单独调 +styles-put，不要拆成子操作数组。"
             },
             "input": {
               "type": "object",

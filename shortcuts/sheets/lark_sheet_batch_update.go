@@ -111,6 +111,272 @@ var BatchUpdate = common.Shortcut{
 	},
 }
 
+var chartCreateBatchDispatch = map[string]batchOpMapping{
+	"+chart-create-basic": {"manage_chart_object", chartCreateBasicInput},
+}
+
+var chartUpdateBatchDispatch = map[string]batchOpMapping{
+	"+chart-config-update": {"manage_chart_object", chartConfigUpdateInput},
+	"+chart-data-update":   {"manage_chart_object", chartDataUpdateInput},
+}
+
+var BatchChartCreate = common.Shortcut{
+	Service:     "sheets",
+	Command:     "+batch-chart-create",
+	Description: "Create multiple independent basic charts through one batch request; valid charts continue when another chart fails.",
+	Risk:        "write",
+	Scopes:      []string{"sheets:spreadsheet:write_only"},
+	AuthTypes:   []string{"user", "bot"},
+	HasFormat:   true,
+	Flags:       flagsFor("+batch-chart-create"),
+	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
+		token, err := resolveSpreadsheetToken(runtime)
+		if err != nil {
+			return err
+		}
+		_, err = buildChartBatchPlan(runtime, token, chartCreateBatchDispatch, "+batch-chart-create")
+		return err
+	},
+	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
+		token, _ := resolveSpreadsheetToken(runtime)
+		plan, _ := buildChartBatchPlan(runtime, token, chartCreateBatchDispatch, "+batch-chart-create")
+		dryRun := invokeToolDryRun(token, ToolKindWrite, "batch_update", plan.input)
+		if len(plan.localFailures) > 0 {
+			dryRun.Set("local_validation_failures", plan.localFailures)
+		}
+		return dryRun
+	},
+	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
+		token, err := resolveSpreadsheetTokenExec(runtime)
+		if err != nil {
+			return err
+		}
+		plan, err := buildChartBatchPlan(runtime, token, chartCreateBatchDispatch, "+batch-chart-create")
+		if err != nil {
+			return err
+		}
+		out, err := callTool(ctx, runtime, token, ToolKindWrite, "batch_update", plan.input)
+		if err != nil {
+			return err
+		}
+		if len(plan.localFailures) > 0 {
+			out = mergeBatchUpdatePartialOutput(out, plan)
+		}
+		runtime.Out(compactBatchChartCreateOutput(out), nil)
+		return nil
+	},
+}
+
+var BatchChartUpdate = common.Shortcut{
+	Service:     "sheets",
+	Command:     "+batch-chart-update",
+	Description: "Update multiple independent chart configurations or data sources through one batch request.",
+	Risk:        "write",
+	Scopes:      []string{"sheets:spreadsheet:read", "sheets:spreadsheet:write_only"},
+	AuthTypes:   []string{"user", "bot"},
+	HasFormat:   true,
+	Flags:       flagsFor("+batch-chart-update"),
+	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
+		token, err := resolveSpreadsheetToken(runtime)
+		if err != nil {
+			return err
+		}
+		_, err = buildChartBatchPlan(runtime, token, chartUpdateBatchDispatch, "+batch-chart-update")
+		return err
+	},
+	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
+		token, _ := resolveSpreadsheetToken(runtime)
+		plan, _ := buildChartBatchPlan(runtime, token, chartUpdateBatchDispatch, "+batch-chart-update")
+		dryRun := invokeToolDryRun(token, ToolKindWrite, "batch_update", plan.input)
+		dryRun.Set("preflight", "execution reads each target chart snapshot before building its partial properties patch")
+		if len(plan.localFailures) > 0 {
+			dryRun.Set("local_validation_failures", plan.localFailures)
+		}
+		return dryRun
+	},
+	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
+		token, err := resolveSpreadsheetTokenExec(runtime)
+		if err != nil {
+			return err
+		}
+		rawOps, err := parseBatchOperationsFlag(runtime)
+		if err != nil {
+			return err
+		}
+		plan, err := buildChartBatchPlan(runtime, token, chartUpdateBatchDispatch, "+batch-chart-update")
+		if err != nil {
+			return err
+		}
+		if err := prepareChartBatchUpdates(ctx, runtime, token, rawOps, plan); err != nil {
+			return err
+		}
+		out, err := callTool(ctx, runtime, token, ToolKindWrite, "batch_update", plan.input)
+		if err != nil {
+			return err
+		}
+		if len(plan.localFailures) > 0 {
+			out = mergeBatchUpdatePartialOutput(out, plan)
+		}
+		runtime.Out(out, nil)
+		return nil
+	},
+}
+
+func buildChartBatchPlan(
+	runtime *common.RuntimeContext,
+	token string,
+	dispatch map[string]batchOpMapping,
+	command string,
+) (*batchUpdatePlan, error) {
+	rawOps, err := parseBatchOperationsFlag(runtime)
+	if err != nil {
+		return nil, err
+	}
+	if len(rawOps) == 0 {
+		return nil, sheetsValidationForFlag("operations", "--operations must be a non-empty JSON array")
+	}
+	if len(rawOps) > maxBatchOperations {
+		return nil, sheetsValidationForFlag(
+			"operations",
+			"--operations accepts at most %d entries; got %d",
+			maxBatchOperations,
+			len(rawOps),
+		)
+	}
+	continueOnError := true
+	if runtime.Changed("continue-on-error") {
+		continueOnError = runtime.Bool("continue-on-error")
+	}
+	translated := make([]interface{}, 0, len(rawOps))
+	originalIndexes := make([]int, 0, len(rawOps))
+	failures := make([]batchOpTranslationFailure, 0)
+	for index, raw := range rawOps {
+		item, translateErr := translateBatchOpWithDispatch(raw, token, index, dispatch, command)
+		if translateErr != nil {
+			shortcut := ""
+			if object, ok := raw.(map[string]interface{}); ok {
+				shortcut, _ = object["shortcut"].(string)
+			}
+			failures = append(failures, batchOpTranslationFailure{
+				Index:    index,
+				Shortcut: shortcut,
+				Err:      translateErr,
+			})
+			continue
+		}
+		translated = append(translated, item)
+		originalIndexes = append(originalIndexes, index)
+	}
+	if !continueOnError {
+		if err := batchOperationFailuresError(failures, len(rawOps)); err != nil {
+			return nil, err
+		}
+	}
+	if len(translated) == 0 {
+		return nil, batchOperationFailuresError(failures, len(rawOps))
+	}
+	localFailures := make([]batchLocalValidationFailure, 0, len(failures))
+	for _, failure := range failures {
+		localFailures = append(localFailures, batchLocalValidationFailure{
+			Index:    failure.Index,
+			Shortcut: failure.Shortcut,
+			Success:  false,
+			Stage:    "cli_validation",
+			Error:    failure.Err.Error(),
+		})
+	}
+	return &batchUpdatePlan{
+		input: map[string]interface{}{
+			"excel_id":          token,
+			"operations":        translated,
+			"continue_on_error": continueOnError,
+		},
+		originalIndexes: originalIndexes,
+		localFailures:   localFailures,
+		total:           len(rawOps),
+	}, nil
+}
+
+func prepareChartBatchUpdates(
+	ctx context.Context,
+	runtime *common.RuntimeContext,
+	token string,
+	rawOps []interface{},
+	plan *batchUpdatePlan,
+) error {
+	translated, _ := plan.input["operations"].([]interface{})
+	continueOnError, _ := plan.input["continue_on_error"].(bool)
+	prepared := make([]interface{}, 0, len(translated))
+	preparedIndexes := make([]int, 0, len(translated))
+	for remoteIndex, rawIndex := range plan.originalIndexes {
+		raw, _ := rawOps[rawIndex].(map[string]interface{})
+		shortcut, _ := raw["shortcut"].(string)
+		input, _ := raw["input"].(map[string]interface{})
+		fv := newMapFlagViewForCommand(shortcut, input)
+		sheetID := strings.TrimSpace(fv.Str("sheet-id"))
+		sheetName := strings.TrimSpace(fv.Str("sheet-name"))
+		chartID := strings.TrimSpace(fv.Str("chart-id"))
+		snapshot, err := fetchChartSnapshot(ctx, runtime, token, sheetID, sheetName, chartID)
+		if err != nil {
+			if !continueOnError {
+				return err
+			}
+			plan.localFailures = append(plan.localFailures, batchLocalValidationFailure{
+				Index:    rawIndex,
+				Shortcut: shortcut,
+				Success:  false,
+				Stage:    "cli_preflight",
+				Error:    err.Error(),
+			})
+			continue
+		}
+		var body map[string]interface{}
+		switch shortcut {
+		case "+chart-config-update":
+			body, _, err = chartConfigUpdateInputFromSnapshot(fv, token, sheetID, sheetName, snapshot)
+		case "+chart-data-update":
+			body, _, _, _, err = chartDataUpdateInputFromSnapshot(fv, token, sheetID, sheetName, snapshot)
+		}
+		if err != nil {
+			if !continueOnError {
+				return err
+			}
+			plan.localFailures = append(plan.localFailures, batchLocalValidationFailure{
+				Index:    rawIndex,
+				Shortcut: shortcut,
+				Success:  false,
+				Stage:    "cli_preflight",
+				Error:    err.Error(),
+			})
+			continue
+		}
+		item, _ := translated[remoteIndex].(map[string]interface{})
+		item["input"] = body
+		prepared = append(prepared, item)
+		preparedIndexes = append(preparedIndexes, rawIndex)
+	}
+	if len(prepared) == 0 {
+		return sheetsValidationForFlag("operations", "all chart updates failed CLI preflight; no write request was sent")
+	}
+	plan.input["operations"] = prepared
+	plan.originalIndexes = preparedIndexes
+	return nil
+}
+
+func compactBatchChartCreateOutput(out interface{}) interface{} {
+	root, ok := out.(map[string]interface{})
+	if !ok {
+		return out
+	}
+	results, _ := root["results"].([]interface{})
+	for _, raw := range results {
+		item, _ := raw.(map[string]interface{})
+		data, _ := item["data"].(map[string]interface{})
+		delete(data, "snapshot")
+	}
+	return root
+}
+
 // batchUpdateInput translates the user-supplied CLI-shape operations array
 // into the MCP batch_update payload. Returns ValidationErrorf-typed errors
 // (errs.ValidationError) on any per-op shape problem (translator validates
