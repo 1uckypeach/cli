@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	lark "github.com/larksuite/oapi-sdk-go/v3"
@@ -279,6 +280,29 @@ func (ctx *RuntimeContext) Changed(name string) bool {
 }
 
 // ── API helpers ──
+
+// Option configures streaming API request behavior.
+type Option = client.Option
+
+// WithHeaders adds HTTP headers to a streaming API request.
+func WithHeaders(headers http.Header) Option {
+	return client.WithHeaders(headers)
+}
+
+// WithTimeout sets a timeout for a streaming API request.
+func WithTimeout(timeout time.Duration) Option {
+	return client.WithTimeout(timeout)
+}
+
+// WrapDoAPIError classifies SDK request failures as typed command errors.
+func WrapDoAPIError(err error) error {
+	return client.WrapDoAPIError(err)
+}
+
+// ResolveFilename derives a download filename from an API response.
+func ResolveFilename(resp *larkcore.ApiResp) string {
+	return client.ResolveFilename(resp)
+}
 
 // CallAPITyped calls the Lark API using the current identity (ctx.As()) via
 // the SDK request path (buildRequest → APIClient.DoAPI → DoSDKRequest) and

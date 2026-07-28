@@ -23,7 +23,6 @@ import (
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 
 	"github.com/larksuite/cli/errs"
-	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/validate"
@@ -714,7 +713,7 @@ func fetchMessageForWatch(runtime *common.RuntimeContext, mailbox, messageID, fo
 		QueryParams: queryParams,
 	})
 	if err != nil {
-		return nil, client.WrapDoAPIError(err)
+		return nil, common.WrapDoAPIError(err)
 	}
 	data, err := runtime.ClassifyAPIResponse(apiResp)
 	if err != nil {

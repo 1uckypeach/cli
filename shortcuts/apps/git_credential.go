@@ -22,7 +22,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/larksuite/cli/errs"
-	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/errclass"
@@ -497,7 +496,7 @@ func issuedFromData(appID string, data map[string]interface{}) (*gitcred.IssuedC
 // handled locally.
 func parseIssueCredentialData(resp *larkcore.ApiResp, err error, cc errclass.ClassifyContext) (map[string]any, error) {
 	if err != nil {
-		return nil, redactGitCredentialIssueError(client.WrapDoAPIError(err))
+		return nil, redactGitCredentialIssueError(common.WrapDoAPIError(err))
 	}
 	detail := logIDDetail(resp)
 	if resp == nil || len(resp.RawBody) == 0 {
