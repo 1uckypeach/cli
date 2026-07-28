@@ -14,6 +14,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/secret"
 )
 
 // NewCmdProfileRemove creates the profile remove subcommand.
@@ -71,7 +72,7 @@ func profileRemoveRun(f *cmdutil.Factory, name string) error {
 	}
 
 	// Best-effort credential cleanup after config commit
-	core.RemoveSecretStore(appSecret, f.Keychain)
+	secret.RemoveSecretStore(appSecret, f.Keychain)
 	for _, user := range users {
 		larkauth.RemoveStoredToken(appId, user.UserOpenId)
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/output"
+	secretpkg "github.com/larksuite/cli/internal/secret"
 )
 
 // NewCmdProfileAdd creates the profile add subcommand.
@@ -116,7 +117,7 @@ func profileAddRun(f *cmdutil.Factory, name, appID string, appSecretStdin bool, 
 	}
 
 	// Store secret securely
-	secret, err := core.ForStorage(appID, core.PlainSecret(appSecret), f.Keychain)
+	secret, err := secretpkg.ForStorage(appID, secretpkg.PlainSecret(appSecret), f.Keychain)
 	if err != nil {
 		return errs.NewInternalError(errs.SubtypeStorage, "%v", err).WithCause(err)
 	}

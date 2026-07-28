@@ -11,6 +11,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/keychain"
+	"github.com/larksuite/cli/internal/secret"
 )
 
 // stubKeychain is a minimal KeychainAccess that always returns ErrNotFound.
@@ -24,7 +25,7 @@ func (stubKeychain) Remove(service, account string) error     { return nil }
 
 func TestAppConfig_LangSerialization(t *testing.T) {
 	app := AppConfig{
-		AppId: "cli_test", AppSecret: PlainSecret("secret"),
+		AppId: "cli_test", AppSecret: secret.PlainSecret("secret"),
 		Brand: brand.Feishu, Lang: "en", Users: []AppUser{},
 	}
 	data, err := json.Marshal(app)
@@ -43,7 +44,7 @@ func TestAppConfig_LangSerialization(t *testing.T) {
 
 func TestAppConfig_LangOmitEmpty(t *testing.T) {
 	app := AppConfig{
-		AppId: "cli_test", AppSecret: PlainSecret("secret"),
+		AppId: "cli_test", AppSecret: secret.PlainSecret("secret"),
 		Brand: brand.Feishu, Users: []AppUser{},
 	}
 	data, err := json.Marshal(app)
@@ -65,7 +66,7 @@ func TestMultiAppConfig_RoundTrip(t *testing.T) {
 	config := &MultiAppConfig{
 		RiskControl: &disabled,
 		Apps: []AppConfig{{
-			AppId: "cli_test", AppSecret: PlainSecret("s"),
+			AppId: "cli_test", AppSecret: secret.PlainSecret("s"),
 			Brand: brand.Lark, Lang: "zh", Users: []AppUser{},
 		}},
 	}
@@ -97,7 +98,7 @@ func TestResolveConfigFromMulti_RejectsSecretKeyMismatch(t *testing.T) {
 		Apps: []AppConfig{
 			{
 				AppId: "cli_new_app",
-				AppSecret: SecretInput{Ref: &SecretRef{
+				AppSecret: secret.SecretInput{Ref: &secret.SecretRef{
 					Source: "keychain",
 					ID:     "appsecret:cli_old_app",
 				}},
@@ -124,7 +125,7 @@ func TestResolveConfigFromMulti_AcceptsPlainSecret(t *testing.T) {
 		Apps: []AppConfig{
 			{
 				AppId:     "cli_abc",
-				AppSecret: PlainSecret("my-secret"),
+				AppSecret: secret.PlainSecret("my-secret"),
 				Brand:     brand.Feishu,
 			},
 		},
@@ -144,7 +145,7 @@ func TestResolveConfigFromMulti_CarriesLang(t *testing.T) {
 		Apps: []AppConfig{
 			{
 				AppId:     "cli_abc",
-				AppSecret: PlainSecret("my-secret"),
+				AppSecret: secret.PlainSecret("my-secret"),
 				Brand:     brand.Feishu,
 				Lang:      "en",
 			},
@@ -162,13 +163,13 @@ func TestResolveConfigFromMulti_CarriesLang(t *testing.T) {
 
 func TestResolveConfigFromMulti_MatchingKeychainRefPassesValidation(t *testing.T) {
 	// Keychain ref matches appId, so validation passes.
-	// The subsequent ResolveSecretInput will fail (no real keychain),
+	// The subsequent secret.ResolveSecretInput will fail (no real keychain),
 	// but that proves the mismatch check itself passed.
 	raw := &MultiAppConfig{
 		Apps: []AppConfig{
 			{
 				AppId: "cli_abc",
-				AppSecret: SecretInput{Ref: &SecretRef{
+				AppSecret: secret.SecretInput{Ref: &secret.SecretRef{
 					Source: "keychain",
 					ID:     "appsecret:cli_abc",
 				}},
@@ -201,7 +202,7 @@ func TestResolveConfigFromMulti_DoesNotUseEnvProfileFallback(t *testing.T) {
 			{
 				Name:      "active",
 				AppId:     "cli_active",
-				AppSecret: PlainSecret("secret"),
+				AppSecret: secret.PlainSecret("secret"),
 				Brand:     brand.Feishu,
 			},
 		},
@@ -242,7 +243,7 @@ func TestCliConfig_CanBot(t *testing.T) {
 func TestResolveConfigFromMulti_NormalizesBrand(t *testing.T) {
 	multi := &MultiAppConfig{Apps: []AppConfig{{
 		AppId:     "cli_x",
-		AppSecret: PlainSecret("test-secret"),
+		AppSecret: secret.PlainSecret("test-secret"),
 		Brand:     brand.Brand(" LARK "),
 	}}}
 	cfg, err := ResolveConfigFromMulti(multi, nil, "")

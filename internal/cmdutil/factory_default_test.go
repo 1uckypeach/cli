@@ -15,6 +15,7 @@ import (
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
+	"github.com/larksuite/cli/internal/secret"
 	"github.com/larksuite/cli/internal/vfs/localfileio"
 )
 
@@ -45,13 +46,13 @@ func TestNewDefault_InvocationProfileUsedByStrictModeAndConfig(t *testing.T) {
 			{
 				Name:      "default",
 				AppId:     "app-default",
-				AppSecret: core.PlainSecret("secret-default"),
+				AppSecret: secret.PlainSecret("secret-default"),
 				Brand:     brand.Feishu,
 			},
 			{
 				Name:       "target",
 				AppId:      "app-target",
-				AppSecret:  core.PlainSecret("secret-target"),
+				AppSecret:  secret.PlainSecret("secret-target"),
 				Brand:      brand.Feishu,
 				StrictMode: &bot,
 			},
@@ -92,7 +93,7 @@ func TestNewDefault_InvocationProfileMissingSticksAcrossEarlyStrictMode(t *testi
 			{
 				Name:      "default",
 				AppId:     "app-default",
-				AppSecret: core.PlainSecret("secret-default"),
+				AppSecret: secret.PlainSecret("secret-default"),
 				Brand:     brand.Feishu,
 			},
 		},

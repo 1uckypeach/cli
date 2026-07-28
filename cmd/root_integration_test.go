@@ -23,6 +23,7 @@ import (
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/meta"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/secret"
 	"github.com/larksuite/cli/internal/skillscheck"
 	"github.com/larksuite/cli/internal/update"
 	"github.com/larksuite/cli/shortcuts"
@@ -174,13 +175,13 @@ func newStrictModeDefaultFactory(t *testing.T, profile string, mode core.StrictM
 			{
 				Name:      "default",
 				AppId:     "app-default",
-				AppSecret: core.PlainSecret("secret-default"),
+				AppSecret: secret.PlainSecret("secret-default"),
 				Brand:     brand.Feishu,
 			},
 			{
 				Name:       "target",
 				AppId:      "app-target",
-				AppSecret:  core.PlainSecret("secret-target"),
+				AppSecret:  secret.PlainSecret("secret-target"),
 				Brand:      brand.Feishu,
 				StrictMode: &targetMode,
 			},

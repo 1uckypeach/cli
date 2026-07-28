@@ -17,6 +17,7 @@ import (
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/secret"
 	"github.com/larksuite/cli/internal/vfs"
 )
 
@@ -119,7 +120,7 @@ func TestProfileAddRun_UseAfterUpdatesCurrentAndPrevious(t *testing.T) {
 	multi := &core.MultiAppConfig{
 		CurrentApp: "default",
 		Apps: []core.AppConfig{
-			{Name: "default", AppId: "app-default", AppSecret: core.PlainSecret("secret-default"), Brand: brand.Feishu},
+			{Name: "default", AppId: "app-default", AppSecret: secret.PlainSecret("secret-default"), Brand: brand.Feishu},
 		},
 	}
 	if err := core.SaveMultiAppConfig(multi); err != nil {
@@ -154,8 +155,8 @@ func TestProfileRemoveRun_RemovesCurrentProfileAndSwitchesToFirstRemaining(t *te
 		CurrentApp:  "target",
 		PreviousApp: "default",
 		Apps: []core.AppConfig{
-			{Name: "default", AppId: "app-default", AppSecret: core.PlainSecret("secret-default"), Brand: brand.Feishu},
-			{Name: "target", AppId: "app-target", AppSecret: core.PlainSecret("secret-target"), Brand: brand.Lark},
+			{Name: "default", AppId: "app-default", AppSecret: secret.PlainSecret("secret-default"), Brand: brand.Feishu},
+			{Name: "target", AppId: "app-target", AppSecret: secret.PlainSecret("secret-target"), Brand: brand.Lark},
 		},
 	}
 	if err := core.SaveMultiAppConfig(multi); err != nil {
@@ -190,7 +191,7 @@ func TestProfileRenameRun_UpdatesCurrentAndPreviousReferences(t *testing.T) {
 		Apps: []core.AppConfig{{
 			Name:      "old",
 			AppId:     "app-old",
-			AppSecret: core.PlainSecret("secret-old"),
+			AppSecret: secret.PlainSecret("secret-old"),
 			Brand:     brand.Feishu,
 		}},
 	}
@@ -226,7 +227,7 @@ func TestProfileRenameRun_AllowsRenameToOwnAppID(t *testing.T) {
 		Apps: []core.AppConfig{{
 			Name:      "old",
 			AppId:     "app-old",
-			AppSecret: core.PlainSecret("secret-old"),
+			AppSecret: secret.PlainSecret("secret-old"),
 			Brand:     brand.Feishu,
 		}},
 	}
@@ -260,8 +261,8 @@ func TestProfileUseRun_ToggleBackUsesPreviousProfile(t *testing.T) {
 		CurrentApp:  "default",
 		PreviousApp: "target",
 		Apps: []core.AppConfig{
-			{Name: "default", AppId: "app-default", AppSecret: core.PlainSecret("secret-default"), Brand: brand.Feishu},
-			{Name: "target", AppId: "app-target", AppSecret: core.PlainSecret("secret-target"), Brand: brand.Lark},
+			{Name: "default", AppId: "app-default", AppSecret: secret.PlainSecret("secret-default"), Brand: brand.Feishu},
+			{Name: "target", AppId: "app-target", AppSecret: secret.PlainSecret("secret-target"), Brand: brand.Lark},
 		},
 	}
 	if err := core.SaveMultiAppConfig(multi); err != nil {
@@ -290,8 +291,8 @@ func TestProfileListRun_OutputsProfiles(t *testing.T) {
 	multi := &core.MultiAppConfig{
 		CurrentApp: "default",
 		Apps: []core.AppConfig{
-			{Name: "default", AppId: "app-default", AppSecret: core.PlainSecret("secret-default"), Brand: brand.Feishu},
-			{Name: "target", AppId: "app-target", AppSecret: core.PlainSecret("secret-target"), Brand: brand.Lark},
+			{Name: "default", AppId: "app-default", AppSecret: secret.PlainSecret("secret-default"), Brand: brand.Feishu},
+			{Name: "target", AppId: "app-target", AppSecret: secret.PlainSecret("secret-target"), Brand: brand.Lark},
 		},
 	}
 	if err := core.SaveMultiAppConfig(multi); err != nil {
@@ -343,8 +344,8 @@ func TestProfileRemoveRun_SaveFailureReturnsStructuredError(t *testing.T) {
 	multi := &core.MultiAppConfig{
 		CurrentApp: "target",
 		Apps: []core.AppConfig{
-			{Name: "default", AppId: "app-default", AppSecret: core.PlainSecret("secret-default"), Brand: brand.Feishu},
-			{Name: "target", AppId: "app-target", AppSecret: core.PlainSecret("secret-target"), Brand: brand.Lark},
+			{Name: "default", AppId: "app-default", AppSecret: secret.PlainSecret("secret-default"), Brand: brand.Feishu},
+			{Name: "target", AppId: "app-target", AppSecret: secret.PlainSecret("secret-target"), Brand: brand.Lark},
 		},
 	}
 	if err := core.SaveMultiAppConfig(multi); err != nil {
@@ -370,7 +371,7 @@ func TestProfileRenameRun_SaveFailureReturnsStructuredError(t *testing.T) {
 		Apps: []core.AppConfig{{
 			Name:      "old",
 			AppId:     "app-old",
-			AppSecret: core.PlainSecret("secret-old"),
+			AppSecret: secret.PlainSecret("secret-old"),
 			Brand:     brand.Feishu,
 		}},
 	}
@@ -395,8 +396,8 @@ func TestProfileUseRun_SaveFailureReturnsStructuredError(t *testing.T) {
 	multi := &core.MultiAppConfig{
 		CurrentApp: "default",
 		Apps: []core.AppConfig{
-			{Name: "default", AppId: "app-default", AppSecret: core.PlainSecret("secret-default"), Brand: brand.Feishu},
-			{Name: "target", AppId: "app-target", AppSecret: core.PlainSecret("secret-target"), Brand: brand.Lark},
+			{Name: "default", AppId: "app-default", AppSecret: secret.PlainSecret("secret-default"), Brand: brand.Feishu},
+			{Name: "target", AppId: "app-target", AppSecret: secret.PlainSecret("secret-target"), Brand: brand.Lark},
 		},
 	}
 	if err := core.SaveMultiAppConfig(multi); err != nil {
@@ -465,8 +466,8 @@ func saveTwoProfiles(t *testing.T) {
 	multi := &core.MultiAppConfig{
 		CurrentApp: "default",
 		Apps: []core.AppConfig{
-			{Name: "default", AppId: "app-default", AppSecret: core.PlainSecret("secret-default"), Brand: brand.Feishu},
-			{Name: "target", AppId: "app-target", AppSecret: core.PlainSecret("secret-target"), Brand: brand.Lark},
+			{Name: "default", AppId: "app-default", AppSecret: secret.PlainSecret("secret-default"), Brand: brand.Feishu},
+			{Name: "target", AppId: "app-target", AppSecret: secret.PlainSecret("secret-target"), Brand: brand.Lark},
 		},
 	}
 	if err := core.SaveMultiAppConfig(multi); err != nil {
@@ -613,7 +614,7 @@ func TestProfileRemoveRun_ValidationErrors(t *testing.T) {
 		multi := &core.MultiAppConfig{
 			CurrentApp: "solo",
 			Apps: []core.AppConfig{
-				{Name: "solo", AppId: "app-solo", AppSecret: core.PlainSecret("secret-solo"), Brand: brand.Feishu},
+				{Name: "solo", AppId: "app-solo", AppSecret: secret.PlainSecret("secret-solo"), Brand: brand.Feishu},
 			},
 		}
 		if err := core.SaveMultiAppConfig(multi); err != nil {

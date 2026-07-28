@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package core
+package secret
 
 import (
 	"strings"
@@ -10,14 +10,14 @@ import (
 
 func TestValidateSecretKeyMatch_KeychainMatches(t *testing.T) {
 	secret := SecretInput{Ref: &SecretRef{Source: "keychain", ID: "appsecret:cli_abc123"}}
-	if err := ValidateSecretKeyMatch("cli_abc123", secret); err != nil {
+	if err := ValidateSecretKeyMatch("cli_abc123", secret, "reconfigure"); err != nil {
 		t.Errorf("expected no error, got: %v", err)
 	}
 }
 
 func TestValidateSecretKeyMatch_KeychainMismatch(t *testing.T) {
 	secret := SecretInput{Ref: &SecretRef{Source: "keychain", ID: "appsecret:cli_old_app"}}
-	err := ValidateSecretKeyMatch("cli_new_app", secret)
+	err := ValidateSecretKeyMatch("cli_new_app", secret, "please run `lark-cli config init` to reconfigure")
 	if err == nil {
 		t.Fatal("expected error for mismatched appId and keychain key")
 	}
@@ -32,27 +32,27 @@ func TestValidateSecretKeyMatch_KeychainMismatch(t *testing.T) {
 
 func TestValidateSecretKeyMatch_PlainSecret_Skipped(t *testing.T) {
 	secret := PlainSecret("some-secret")
-	if err := ValidateSecretKeyMatch("cli_abc123", secret); err != nil {
+	if err := ValidateSecretKeyMatch("cli_abc123", secret, "reconfigure"); err != nil {
 		t.Errorf("plain secret should be skipped, got: %v", err)
 	}
 }
 
 func TestValidateSecretKeyMatch_FileRef_Skipped(t *testing.T) {
 	secret := SecretInput{Ref: &SecretRef{Source: "file", ID: "/tmp/secret.txt"}}
-	if err := ValidateSecretKeyMatch("cli_abc123", secret); err != nil {
+	if err := ValidateSecretKeyMatch("cli_abc123", secret, "reconfigure"); err != nil {
 		t.Errorf("file ref should be skipped, got: %v", err)
 	}
 }
 
 func TestValidateSecretKeyMatch_ZeroValue_Skipped(t *testing.T) {
-	if err := ValidateSecretKeyMatch("cli_abc123", SecretInput{}); err != nil {
+	if err := ValidateSecretKeyMatch("cli_abc123", SecretInput{}, "reconfigure"); err != nil {
 		t.Errorf("zero SecretInput should be skipped, got: %v", err)
 	}
 }
 
 func TestValidateSecretKeyMatch_EmptyAppId_Mismatch(t *testing.T) {
 	secret := SecretInput{Ref: &SecretRef{Source: "keychain", ID: "appsecret:cli_abc123"}}
-	err := ValidateSecretKeyMatch("", secret)
+	err := ValidateSecretKeyMatch("", secret, "reconfigure")
 	if err == nil {
 		t.Fatal("expected error when appId is empty but keychain key references a real app")
 	}

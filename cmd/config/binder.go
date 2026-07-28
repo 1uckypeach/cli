@@ -13,6 +13,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/openclawbind"
+	secretpkg "github.com/larksuite/cli/internal/secret"
 	"github.com/larksuite/cli/internal/vfs"
 )
 
@@ -196,7 +197,7 @@ func (b *openclawBinder) Build(appID string) (*core.AppConfig, error) {
 			WithCause(err)
 	}
 
-	stored, err := core.ForStorage(selected.AppID, core.PlainSecret(secret), b.opts.Factory.Keychain)
+	stored, err := secretpkg.ForStorage(selected.AppID, secretpkg.PlainSecret(secret), b.opts.Factory.Keychain)
 	if err != nil {
 		return nil, errs.NewInternalError(errs.SubtypeStorage, "keychain unavailable: %v", err).
 			WithHint("use file: reference in config to bypass keychain").
@@ -252,7 +253,7 @@ func (b *hermesBinder) Build(appID string) (*core.AppConfig, error) {
 			WithHint("run 'hermes setup' to configure Feishu credentials")
 	}
 
-	stored, err := core.ForStorage(appID, core.PlainSecret(appSecret), b.opts.Factory.Keychain)
+	stored, err := secretpkg.ForStorage(appID, secretpkg.PlainSecret(appSecret), b.opts.Factory.Keychain)
 	if err != nil {
 		return nil, errs.NewInternalError(errs.SubtypeStorage, "keychain unavailable: %v", err).
 			WithHint("use file: reference in config to bypass keychain").
@@ -317,7 +318,7 @@ func (b *larkChannelBinder) Build(appID string) (*core.AppConfig, error) {
 			WithCause(err)
 	}
 
-	stored, err := core.ForStorage(appID, core.PlainSecret(secret), b.opts.Factory.Keychain)
+	stored, err := secretpkg.ForStorage(appID, secretpkg.PlainSecret(secret), b.opts.Factory.Keychain)
 	if err != nil {
 		return nil, errs.NewInternalError(errs.SubtypeStorage, "keychain unavailable: %v", err).
 			WithHint("use file: reference in config to bypass keychain").

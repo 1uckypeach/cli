@@ -18,6 +18,7 @@ import (
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/keychain"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/secret"
 	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/internal/vfs"
 	"github.com/larksuite/cli/internal/workspace"
@@ -490,7 +491,7 @@ func cleanupKeychainFromData(kc keychain.KeychainAccess, data []byte, keep *core
 		if keepID != "" && app.AppSecret.Ref != nil && app.AppSecret.Ref.Source == "keychain" && app.AppSecret.Ref.ID == keepID {
 			continue
 		}
-		core.RemoveSecretStore(app.AppSecret, kc)
+		secret.RemoveSecretStore(app.AppSecret, kc)
 	}
 }
 

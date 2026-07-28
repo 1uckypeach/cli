@@ -14,6 +14,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/keychain"
+	"github.com/larksuite/cli/internal/secret"
 	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/internal/vfs"
 	"github.com/larksuite/cli/internal/workspace"
@@ -39,14 +40,14 @@ type AppUser struct {
 
 // AppConfig is a per-app configuration entry (stored format — secrets may be unresolved).
 type AppConfig struct {
-	Name       string      `json:"name,omitempty"`
-	AppId      string      `json:"appId"`
-	AppSecret  SecretInput `json:"appSecret"`
-	Brand      brand.Brand `json:"brand"`
-	Lang       i18n.Lang   `json:"lang,omitempty"`
-	DefaultAs  Identity    `json:"defaultAs,omitempty"` // AsUser | AsBot | AsAuto
-	StrictMode *StrictMode `json:"strictMode,omitempty"`
-	Users      []AppUser   `json:"users"`
+	Name       string             `json:"name,omitempty"`
+	AppId      string             `json:"appId"`
+	AppSecret  secret.SecretInput `json:"appSecret"`
+	Brand      brand.Brand        `json:"brand"`
+	Lang       i18n.Lang          `json:"lang,omitempty"`
+	DefaultAs  Identity           `json:"defaultAs,omitempty"` // AsUser | AsBot | AsAuto
+	StrictMode *StrictMode        `json:"strictMode,omitempty"`
+	Users      []AppUser          `json:"users"`
 }
 
 // ProfileName returns the display name for this app config.
@@ -242,13 +243,13 @@ func ResolveConfigFromMulti(raw *MultiAppConfig, kc keychain.KeychainAccess, pro
 			WithHint("available profiles: %s", formatProfileNames(raw.ProfileNames()))
 	}
 
-	if err := ValidateSecretKeyMatch(app.AppId, app.AppSecret); err != nil {
+	if err := secret.ValidateSecretKeyMatch(app.AppId, app.AppSecret, reconfigureHint()); err != nil {
 		return nil, errs.NewConfigError(errs.SubtypeNotConfigured, "appId and appSecret keychain key are out of sync").
 			WithHint("%s", err.Error()).
 			WithCause(err)
 	}
 
-	secret, err := ResolveSecretInput(app.AppSecret, kc)
+	resolvedSecret, err := secret.ResolveSecretInput(app.AppSecret, kc)
 	if err != nil {
 		if errs.IsTyped(err) {
 			return nil, err
@@ -262,7 +263,7 @@ func ResolveConfigFromMulti(raw *MultiAppConfig, kc keychain.KeychainAccess, pro
 	cfg := &CliConfig{
 		ProfileName: app.ProfileName(),
 		AppID:       app.AppId,
-		AppSecret:   secret,
+		AppSecret:   resolvedSecret,
 		Brand:       brand.ParseBrand(string(app.Brand)),
 		Lang:        app.Lang,
 		DefaultAs:   app.DefaultAs,

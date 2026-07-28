@@ -13,6 +13,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/secret"
 )
 
 // LogoutOptions holds all inputs for auth logout.
@@ -73,7 +74,7 @@ func authLogoutRun(opts *LogoutOptions) error {
 	}
 
 	httpClient, httpErr := f.HttpClient()
-	appSecret, secretErr := core.ResolveSecretInput(app.AppSecret, f.Keychain)
+	appSecret, secretErr := secret.ResolveSecretInput(app.AppSecret, f.Keychain)
 
 	for _, user := range app.Users {
 		if httpErr == nil && secretErr == nil {

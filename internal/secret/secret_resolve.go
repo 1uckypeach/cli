@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package core
+package secret
 
 import (
 	"fmt"
@@ -56,7 +56,7 @@ func ForStorage(appId string, input SecretInput, kc keychain.KeychainAccess) (Se
 // expected appId. This prevents silent mismatches when config.json is edited by
 // hand (e.g. appId changed but appSecret.id still points to the old app).
 // Only applicable when appSecret is a keychain SecretRef; other forms are skipped.
-func ValidateSecretKeyMatch(appId string, secret SecretInput) error {
+func ValidateSecretKeyMatch(appId string, secret SecretInput, reconfigureHint string) error {
 	if secret.Ref == nil || secret.Ref.Source != "keychain" {
 		return nil
 	}
@@ -64,7 +64,7 @@ func ValidateSecretKeyMatch(appId string, secret SecretInput) error {
 	if secret.Ref.ID != expected {
 		return fmt.Errorf(
 			"appSecret keychain key %q does not match appId %q (expected %q); %s",
-			secret.Ref.ID, appId, expected, reconfigureHint(),
+			secret.Ref.ID, appId, expected, reconfigureHint,
 		)
 	}
 	return nil

@@ -11,6 +11,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/secret"
 	"github.com/spf13/cobra"
 )
 
@@ -55,7 +56,7 @@ func configRemoveRun(opts *ConfigRemoveOptions) error {
 
 	// Clean up keychain entries for all apps after config is cleared.
 	for _, app := range config.Apps {
-		core.RemoveSecretStore(app.AppSecret, f.Keychain)
+		secret.RemoveSecretStore(app.AppSecret, f.Keychain)
 		for _, user := range app.Users {
 			_ = auth.RemoveStoredToken(app.AppId, user.UserOpenId)
 		}

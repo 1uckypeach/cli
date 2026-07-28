@@ -21,6 +21,7 @@ import (
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/keychain"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/secret"
 )
 
 type noopConfigKeychain struct{}
@@ -114,7 +115,7 @@ func TestConfigShowRun_NoActiveProfileReturnsStructuredError(t *testing.T) {
 		Apps: []core.AppConfig{{
 			Name:      "default",
 			AppId:     "app-default",
-			AppSecret: core.PlainSecret("secret-default"),
+			AppSecret: secret.PlainSecret("secret-default"),
 			Brand:     brand.Feishu,
 		}},
 	}
@@ -188,13 +189,13 @@ func TestSaveInitConfig_OmitLangPreservesPrior(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, nil)
 
 	existing := &core.MultiAppConfig{Apps: []core.AppConfig{
-		{AppId: "cli_x", AppSecret: core.PlainSecret("s"), Brand: brand.Feishu, Lang: i18n.LangJaJP},
+		{AppId: "cli_x", AppSecret: secret.PlainSecret("s"), Brand: brand.Feishu, Lang: i18n.LangJaJP},
 	}}
 	if err := core.SaveMultiAppConfig(existing); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
 
-	if err := saveInitConfig("", existing, f, "cli_x", core.PlainSecret("s2"), brand.Feishu, ""); err != nil {
+	if err := saveInitConfig("", existing, f, "cli_x", secret.PlainSecret("s2"), brand.Feishu, ""); err != nil {
 		t.Fatalf("saveInitConfig (no --lang): %v", err)
 	}
 
@@ -322,8 +323,8 @@ func TestConfigRemoveRun_SaveFailurePreservesExistingConfigAndSecrets(t *testing
 	multi := &core.MultiAppConfig{
 		Apps: []core.AppConfig{{
 			AppId: "app-test",
-			AppSecret: core.SecretInput{
-				Ref: &core.SecretRef{Source: "keychain", ID: "appsecret:app-test"},
+			AppSecret: secret.SecretInput{
+				Ref: &secret.SecretRef{Source: "keychain", ID: "appsecret:app-test"},
 			},
 			Brand: brand.Feishu,
 			Users: []core.AppUser{{UserOpenId: "ou_1", UserName: "Tester"}},
@@ -383,13 +384,13 @@ func TestSaveAsProfile_RejectsProfileNameCollisionWithExistingAppID(t *testing.T
 			{
 				Name:      "prod",
 				AppId:     "cli_prod",
-				AppSecret: core.PlainSecret("secret"),
+				AppSecret: secret.PlainSecret("secret"),
 				Brand:     brand.Feishu,
 			},
 		},
 	}
 
-	err := saveAsProfile(existing, keychain.KeychainAccess(&noopConfigKeychain{}), "cli_prod", "app-new", core.PlainSecret("new-secret"), brand.Lark, "en")
+	err := saveAsProfile(existing, keychain.KeychainAccess(&noopConfigKeychain{}), "cli_prod", "app-new", secret.PlainSecret("new-secret"), brand.Lark, "en")
 	if err == nil {
 		t.Fatal("expected conflict error")
 	}
@@ -435,7 +436,7 @@ func TestUpdateExistingProfileWithoutSecret_RejectsAppIDChange(t *testing.T) {
 			{
 				Name:      "prod",
 				AppId:     "app-old",
-				AppSecret: core.SecretInput{Ref: &core.SecretRef{Source: "keychain", ID: "appsecret:app-old"}},
+				AppSecret: secret.SecretInput{Ref: &secret.SecretRef{Source: "keychain", ID: "appsecret:app-old"}},
 				Brand:     brand.Feishu,
 				Lang:      "zh",
 				Users:     []core.AppUser{{UserOpenId: "ou_1", UserName: "User"}},

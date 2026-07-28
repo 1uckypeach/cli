@@ -14,6 +14,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/secret"
 	"github.com/zalando/go-keyring"
 )
 
@@ -24,7 +25,7 @@ func writeLogoutConfig(t *testing.T, users []core.AppUser) {
 		Apps: []core.AppConfig{
 			{
 				AppId:     "test-app",
-				AppSecret: core.PlainSecret("test-secret"),
+				AppSecret: secret.PlainSecret("test-secret"),
 				Brand:     brand.Feishu,
 				Users:     users,
 			},
@@ -160,7 +161,7 @@ func TestAuthLogoutRun_RevokesTokenAndClearsLocalState(t *testing.T) {
 			{
 				Name:      "default",
 				AppId:     "cli_test",
-				AppSecret: core.PlainSecret("secret"),
+				AppSecret: secret.PlainSecret("secret"),
 				Brand:     brand.Feishu,
 				Users:     []core.AppUser{{UserOpenId: "ou_user", UserName: "tester"}},
 			},
@@ -231,7 +232,7 @@ func TestAuthLogoutRun_FallsBackToAccessTokenWhenRefreshTokenMissing(t *testing.
 			{
 				Name:      "default",
 				AppId:     "cli_test",
-				AppSecret: core.PlainSecret("secret"),
+				AppSecret: secret.PlainSecret("secret"),
 				Brand:     brand.Feishu,
 				Users:     []core.AppUser{{UserOpenId: "ou_user", UserName: "tester"}},
 			},
@@ -301,7 +302,7 @@ func TestAuthLogoutRun_RevokeFailureStillClearsLocalState(t *testing.T) {
 			{
 				Name:      "default",
 				AppId:     "cli_test",
-				AppSecret: core.PlainSecret("secret"),
+				AppSecret: secret.PlainSecret("secret"),
 				Brand:     brand.Feishu,
 				Users:     []core.AppUser{{UserOpenId: "ou_user", UserName: "tester"}},
 			},

@@ -15,6 +15,7 @@ import (
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/keychain"
+	"github.com/larksuite/cli/internal/secret"
 )
 
 type noopKC struct{}
@@ -92,7 +93,7 @@ func TestFullChain_ConfigStrictMode(t *testing.T) {
 	multi := &core.MultiAppConfig{
 		Apps: []core.AppConfig{{
 			AppId:      "cfg_app",
-			AppSecret:  core.PlainSecret("cfg_secret"),
+			AppSecret:  secret.PlainSecret("cfg_secret"),
 			Brand:      brand.Lark,
 			StrictMode: &botMode,
 		}},
@@ -133,7 +134,7 @@ func TestFullChain_LangSurvivesProductionPath(t *testing.T) {
 	multi := &core.MultiAppConfig{
 		Apps: []core.AppConfig{{
 			AppId:     "cfg_app",
-			AppSecret: core.PlainSecret("cfg_secret"),
+			AppSecret: secret.PlainSecret("cfg_secret"),
 			Brand:     brand.Feishu,
 			Lang:      i18n.LangJaJP,
 		}},

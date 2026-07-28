@@ -19,6 +19,7 @@ import (
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/secret"
 	"github.com/larksuite/cli/internal/workspace"
 )
 
@@ -808,7 +809,7 @@ func TestConfigShowRun_WorkspaceField(t *testing.T) {
 	multi := &core.MultiAppConfig{
 		Apps: []core.AppConfig{{
 			AppId:     "cli_local_test",
-			AppSecret: core.PlainSecret("secret"),
+			AppSecret: secret.PlainSecret("secret"),
 			Brand:     brand.Feishu,
 		}},
 	}
@@ -1791,8 +1792,8 @@ func TestCleanupKeychainFromData_KeepsSecretSharedWithNewApp(t *testing.T) {
 	oldConfig := []byte(`{"apps":[{"appId":"cli_shared","appSecret":{"source":"keychain","id":"` + sharedID + `"}}]}`)
 	newApp := &core.AppConfig{
 		AppId: "cli_shared",
-		AppSecret: core.SecretInput{
-			Ref: &core.SecretRef{Source: "keychain", ID: sharedID},
+		AppSecret: secret.SecretInput{
+			Ref: &secret.SecretRef{Source: "keychain", ID: sharedID},
 		},
 	}
 
@@ -1821,8 +1822,8 @@ func TestCleanupKeychainFromData_RemovesStaleSecretWhenAppIDChanges(t *testing.T
 	oldConfig := []byte(`{"apps":[{"appId":"cli_old","appSecret":{"source":"keychain","id":"` + oldID + `"}}]}`)
 	newApp := &core.AppConfig{
 		AppId: "cli_new",
-		AppSecret: core.SecretInput{
-			Ref: &core.SecretRef{Source: "keychain", ID: newID},
+		AppSecret: secret.SecretInput{
+			Ref: &secret.SecretRef{Source: "keychain", ID: newID},
 		},
 	}
 

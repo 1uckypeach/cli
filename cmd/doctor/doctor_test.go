@@ -18,6 +18,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
+	"github.com/larksuite/cli/internal/secret"
 )
 
 func TestNewCmdDoctor_FlagParsing(t *testing.T) {
@@ -110,7 +111,7 @@ func TestDoctorRun_SplitsBotAndMissingUserIdentity(t *testing.T) {
 			{
 				Name:      "default",
 				AppId:     "test-app",
-				AppSecret: core.PlainSecret("secret"),
+				AppSecret: secret.PlainSecret("secret"),
 				Brand:     brand.Feishu,
 			},
 		},
@@ -183,7 +184,7 @@ func TestDoctor_ExternalProvider_IdentityReadyHintNotBlockedCommand(t *testing.T
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	if err := core.SaveMultiAppConfig(&core.MultiAppConfig{
 		CurrentApp: "default",
-		Apps:       []core.AppConfig{{Name: "default", AppId: "cli_x", AppSecret: core.PlainSecret("secret"), Brand: brand.Feishu}},
+		Apps:       []core.AppConfig{{Name: "default", AppId: "cli_x", AppSecret: secret.PlainSecret("secret"), Brand: brand.Feishu}},
 	}); err != nil {
 		t.Fatalf("SaveMultiAppConfig() error = %v", err)
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/secret"
 )
 
 // updateExistingProfileWithoutSecret guards four blank-input scenarios. Each
@@ -29,7 +30,7 @@ func TestUpdateExistingProfileWithoutSecret_UnknownProfile_EmitsValidationError(
 		Apps: []core.AppConfig{{
 			Name:      "default",
 			AppId:     "app-default",
-			AppSecret: core.PlainSecret("secret-default"),
+			AppSecret: secret.PlainSecret("secret-default"),
 			Brand:     brand.Feishu,
 		}},
 	}
@@ -43,7 +44,7 @@ func TestUpdateExistingProfileWithoutSecret_NoCurrentApp_EmitsValidationError(t 
 		Apps: []core.AppConfig{{
 			Name:      "default",
 			AppId:     "app-default",
-			AppSecret: core.PlainSecret("secret-default"),
+			AppSecret: secret.PlainSecret("secret-default"),
 			Brand:     brand.Feishu,
 		}},
 	}
@@ -56,7 +57,7 @@ func TestUpdateExistingProfileWithoutSecret_AppIdMismatch_EmitsValidationError(t
 		Apps: []core.AppConfig{{
 			Name:      "default",
 			AppId:     "app-default",
-			AppSecret: core.PlainSecret("secret-default"),
+			AppSecret: secret.PlainSecret("secret-default"),
 			Brand:     brand.Feishu,
 		}},
 	}

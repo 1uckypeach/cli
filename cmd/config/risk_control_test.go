@@ -12,12 +12,13 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/secret"
 )
 
 func TestRiskControlWorkspacePolicy(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	config := &core.MultiAppConfig{Apps: []core.AppConfig{{
-		AppId: "cli_test", AppSecret: core.PlainSecret("secret"), Brand: brand.Feishu,
+		AppId: "cli_test", AppSecret: secret.PlainSecret("secret"), Brand: brand.Feishu,
 	}}}
 	if err := core.SaveMultiAppConfig(config); err != nil {
 		t.Fatal(err)
@@ -88,7 +89,7 @@ func TestRiskControlWorkspacePolicy(t *testing.T) {
 func TestRiskControlWorkspacePolicyRejectsInvalidValue(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	if err := core.SaveMultiAppConfig(&core.MultiAppConfig{Apps: []core.AppConfig{{
-		AppId: "cli_test", AppSecret: core.PlainSecret("secret"), Brand: brand.Feishu,
+		AppId: "cli_test", AppSecret: secret.PlainSecret("secret"), Brand: brand.Feishu,
 	}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +110,7 @@ func TestRiskControlWorkspacePolicyRejectsInvalidValue(t *testing.T) {
 func TestRiskControlWorkspacePolicyAllowedWithExternalCredentials(t *testing.T) {
 	f := newConfigFactoryWithExternalProvider(t)
 	config := &core.MultiAppConfig{Apps: []core.AppConfig{{
-		AppId: "cli_test", AppSecret: core.PlainSecret("secret"), Brand: brand.Feishu,
+		AppId: "cli_test", AppSecret: secret.PlainSecret("secret"), Brand: brand.Feishu,
 	}}}
 	if err := core.SaveMultiAppConfig(config); err != nil {
 		t.Fatal(err)

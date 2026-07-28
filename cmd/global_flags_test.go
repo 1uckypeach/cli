@@ -11,6 +11,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/secret"
 	"github.com/spf13/pflag"
 )
 
@@ -60,7 +61,7 @@ func TestIsSingleAppMode_NoConfig(t *testing.T) {
 func TestIsSingleAppMode_SingleApp(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	saveAppsForTest(t, []core.AppConfig{
-		{Name: "default", AppId: "cli_a", AppSecret: core.PlainSecret("x"), Brand: brand.Feishu},
+		{Name: "default", AppId: "cli_a", AppSecret: secret.PlainSecret("x"), Brand: brand.Feishu},
 	})
 	if !isSingleAppMode() {
 		t.Fatal("isSingleAppMode() = false, want true for single-app config")
@@ -70,8 +71,8 @@ func TestIsSingleAppMode_SingleApp(t *testing.T) {
 func TestIsSingleAppMode_MultiApp(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	saveAppsForTest(t, []core.AppConfig{
-		{Name: "a", AppId: "cli_a", AppSecret: core.PlainSecret("x"), Brand: brand.Feishu},
-		{Name: "b", AppId: "cli_b", AppSecret: core.PlainSecret("y"), Brand: brand.Feishu},
+		{Name: "a", AppId: "cli_a", AppSecret: secret.PlainSecret("x"), Brand: brand.Feishu},
+		{Name: "b", AppId: "cli_b", AppSecret: secret.PlainSecret("y"), Brand: brand.Feishu},
 	})
 	if isSingleAppMode() {
 		t.Fatal("isSingleAppMode() = true, want false for multi-app config")
