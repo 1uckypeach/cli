@@ -183,13 +183,6 @@ var batchOpDispatch = map[string]batchOpMapping{
 	}},
 
 	// ─── 对象族 CRUD (manage_*_object, operation 区分) ─────────────
-	"+chart-create":        {"manage_chart_object", objCreateTranslate(chartSpec)},
-	"+chart-update":        {"manage_chart_object", objUpdateTranslate(chartSpec)},
-	"+chart-delete":        {"manage_chart_object", objDeleteTranslate(chartSpec)},
-	"+chart-create-basic":  {"manage_chart_object", chartCreateBasicInput},
-	"+chart-config-update": {"manage_chart_object", chartConfigUpdateInput},
-	"+chart-data-update":   {"manage_chart_object", chartDataUpdateInput},
-
 	"+pivot-create": {"manage_pivot_table_object", objCreateTranslate(pivotSpec)},
 	"+pivot-update": {"manage_pivot_table_object", objUpdateTranslate(pivotSpec)},
 	"+pivot-delete": {"manage_pivot_table_object", objDeleteTranslate(pivotSpec)},
@@ -228,8 +221,12 @@ var batchOpDispatch = map[string]batchOpMapping{
 // allowedBatchShortcuts lists every shortcut accepted inside +batch-update,
 // sorted, for the not-allowed error hint.
 func allowedBatchShortcuts() []string {
-	out := make([]string, 0, len(batchOpDispatch))
-	for sc := range batchOpDispatch {
+	return allowedShortcuts(batchOpDispatch)
+}
+
+func allowedShortcuts(dispatch map[string]batchOpMapping) []string {
+	out := make([]string, 0, len(dispatch))
+	for sc := range dispatch {
 		out = append(out, sc)
 	}
 	sort.Strings(out)
@@ -525,6 +522,16 @@ func normalizeSubOpInputKeys(sc string, input map[string]interface{}) error {
 //   - input 顶层出现 cell_styles / cell_merges / styles（误贴 MCP body 包裹结构）
 //   - 子操作的 translator 报错（如缺必填字段）
 func translateBatchOp(raw interface{}, token string, index int) (map[string]interface{}, error) {
+	return translateBatchOpWithDispatch(raw, token, index, batchOpDispatch, "+batch-update")
+}
+
+func translateBatchOpWithDispatch(
+	raw interface{},
+	token string,
+	index int,
+	dispatch map[string]batchOpMapping,
+	command string,
+) (map[string]interface{}, error) {
 	op, ok := raw.(map[string]interface{})
 	if !ok {
 		return nil, sheetsValidationForFlag("operations", "operations[%d] must be a JSON object", index)
@@ -538,17 +545,16 @@ func translateBatchOp(raw interface{}, token string, index int) (map[string]inte
 	if !ok || sc == "" {
 		return nil, sheetsValidationForFlag("operations", "operations[%d]: 'shortcut' must be a non-empty string (got %T)", index, scRaw)
 	}
-	mapping, ok := batchOpDispatch[sc]
+	mapping, ok := dispatch[sc]
 	if !ok {
 		// Inline the full allow-list: an agent that guessed a read op or a
 		// fan-out wrapper can pick the right shortcut immediately instead of
 		// spending a --print-schema round trip on the operations enum.
 		return nil, sheetsValidationForFlag(
 			"operations",
-			"operations[%d]: shortcut %q not allowed in +batch-update "+
-				"(read ops / fan-out wrappers like +batch-update / +styles-put / +cells-batch-set-style / +cells-batch-clear / +dropdown-{update,delete} are excluded)",
-			index, sc,
-		).WithHint("allowed shortcuts: %s", strings.Join(allowedBatchShortcuts(), ", "))
+			"operations[%d]: shortcut %q not allowed in %s",
+			index, sc, command,
+		).WithHint("allowed shortcuts: %s", strings.Join(allowedShortcuts(dispatch), ", "))
 	}
 	inputRaw, hasInput := op["input"]
 	var input map[string]interface{}

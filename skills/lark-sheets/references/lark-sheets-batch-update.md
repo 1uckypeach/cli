@@ -5,7 +5,7 @@
 `+batch-update` 把多次写入打包成单次请求，但每个子操作仍受编辑类任务硬性默认规则约束：
 
 1. **目标 range 必须落在用户授权范围内**：除用户明示要修改的区域外，子操作禁止扩张到无关单元格 / 列 / Sheet。规划 range 时先确认每个子操作的边界。
-2. **批次完成后必须回读校验**：整个 `+batch-update` 执行成功后，单元格写入用 `+csv-get` 或 `+cells-get` 抽样回读受影响区域，至少校验 3-5 个代表性单元格（首 / 中 / 末）；图表写入用一次 `+chart-list` 核对对象数量、类型、系列和范围。
+2. **批次完成后必须回读校验**：整个 `+batch-update` 执行成功后，单元格写入用 `+csv-get` 或 `+cells-get` 抽样回读受影响区域，至少校验 3-5 个代表性单元格（首 / 中 / 末）。
 3. **预期条数前置断言**：涉及"批量填充 N 行"、"对 M 个区域分别写入"或“每个 / 每天 / 分别各建一张图”时，先从数据数出 N、M 并写进清单；图表场景要断言 operations 中的创建数 = 独立实体图数 + 汇总图数。回读后断言实际等于预期，禁止用一张多系列汇总图替代多张独立图，也禁止交付半成品。
 
 若本次 `+batch-update` 的任一子操作写入了公式、复制了公式模板、或导入了含公式的数据块，**回读校验之后还必须继续执行 `+formula-verify`**。`+batch-update` 只保证"写入动作按序执行了"，不保证整批公式运行结果 zero-error。
@@ -16,19 +16,18 @@
 
 **先分流再动手（按操作组合选入口）**：美化收尾（样式 / 合并 / 行高列宽 / 冻结的任意组合）→ 一次 `+styles-put`（声明式规格，见 `lark-sheets-styles-put`），不要拼 `--operations` 子操作数组；**同一个写操作**打多个区域 → 用该命令自身的复数形态（`+cells-set --writes` / `+cells-batch-clear` / `+dim-delete --ranges` / resize 的 map 形态等）；只有跨类型、有顺序依赖的操作链才用本命令。
 
-**不可放进 `--operations` 的写 shortcut**（`shortcut` 枚举不含它们，强行写入会被校验拒）：`+cells-set-image`（需本地上传图片）、`+styles-put` / `+dropdown-update` / `+dropdown-delete` / `+cells-batch-clear`（自身已是批量入口，不可再嵌套）、`+dim-move`。这些操作需在 `+batch-update` 之外单独调用。
+**不可放进 `--operations` 的写 shortcut**（`shortcut` 枚举不含它们，强行写入会被校验拒）：所有图表操作（改用 `+batch-chart-create` / `+batch-chart-update`）、`+cells-set-image`（需本地上传图片）、`+styles-put` / `+dropdown-update` / `+dropdown-delete` / `+cells-batch-clear`（自身已是批量入口，不可再嵌套）、`+dim-move`。这些操作需走对应专用入口。
 
 **⚠️ 何时必须使用 `+batch-update`（硬性要求）**：
 - 需要对**多个**不同区域执行 `+cells-{merge|unmerge}` 时（如按分组合并多列相同内容）
 - 需要先插入行列再写入数据时（`+dim-{insert|delete|hide|unhide|freeze|group|ungroup}` + `+cells-set`）
 - 需要对多个区域执行不同写入操作时（多次 `+cells-set` + `+cells-clear` 等组合）
-- 需要创建多张基础图，或统一更新多张图的数据源、标题、坐标轴、图例、标签、堆叠和平滑配置时（多个 `+chart-create-basic` / `+chart-data-update` / `+chart-config-update`）
 
 **行高列宽批量不走这里**：多行 / 多列不同尺寸用 `+styles-put` 的 `row_sizes` / `col_sizes`（可与样式同批），或 `+rows-resize --heights` / `+cols-resize --widths` 的 map 形态（见 `lark-sheets-range-operations`）；map 形态不可作为 `--operations` 子操作嵌入（子操作里仍可用单区间形态 `range` + `height`/`width`）。
 
 **执行语义（fail-fast，不回滚）**：默认首个失败的子操作即中断剩余操作，但**已执行成功的子操作不回滚**——服务端报 "N succeeded, M failed" 时前 N 个已实际生效。修复失败项后**只重发失败起的剩余子集**，整批重发会把已成功的操作（如插行）重复应用。传 `--continue-on-error` 则遇失败仍继续执行剩余操作。正因如此，含结构变更（插删行列 / 移动）的批次失败后要先回读确认现状再续发。
 
-互不依赖的多图表创建或更新使用 `--continue-on-error`，保留成功图表并根据逐项错误只重试失败项。
+互不依赖的多图表创建或更新分别使用 `+batch-chart-create` / `+batch-chart-update`；默认继续执行其它图表，保留成功项并根据逐项错误只重试失败项。
 
 **公式相关批处理的默认闭环**：
 - 写前：先读 `lark-sheets-formula-translation`，把公式改写成飞书可执行语义。
@@ -42,6 +41,8 @@
 | Shortcut | Risk | 分组 |
 | --- | --- | --- |
 | `+batch-update` | high-risk-write | 批量 |
+| `+batch-chart-create` | write | 批量 |
+| `+batch-chart-update` | write | 批量 |
 | `+dropdown-update` | write | 对象 |
 | `+dropdown-delete` | high-risk-write | 对象 |
 | `+cells-batch-clear` | high-risk-write | 批量 |
@@ -56,6 +57,24 @@ _公共：URL/token（无 sheet 定位） · 系统：`--yes`、`--dry-run`_
 | --- | --- | --- | --- |
 | `--operations` | string + File + Stdin（复合 JSON） | required | JSON 数组：[{"shortcut":"+xxx-yyy","input":{...}}, ...]。shortcut 用 CLI 名；input 是该 shortcut 的入参集——含子表定位 sheet_id（或 sheet_name），但不含 spreadsheet token/url（后者只在顶层 --url/--spreadsheet-token 给一次；+batch-update 顶层没有 --sheet-id）；input 的键是该 shortcut 的 flag 展平成 JSON（如 "range":"A11:B12"），不是再套一层嵌套。基础 flag 查 --help，复合 JSON flag 查 --print-schema --flag-name <flag>；不要手填 operation 字段（由 CLI 按 shortcut 自动注入）。默认 fail-fast：首个失败即中断剩余操作，**已执行的子操作不回滚**（服务端报 "N succeeded, M failed" 时 N 个已生效，修复后只重发失败起的剩余子集，不要整批重发）；传 --continue-on-error 遇失败仍继续；不支持嵌套；按数组顺序串行执行 |
 | `--continue-on-error` | bool | optional | 遇子操作失败时继续执行剩余操作；默认 false（首个失败即整批中断） |
+
+### `+batch-chart-create`
+
+_公共：URL/token（无 sheet 定位） · 系统：`--dry-run`_
+
+| Flag | Type | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `--operations` | string + File + Stdin（复合 JSON） | required | 图表创建操作 JSON 数组；每项固定使用 `+chart-create-basic`，input 传该命令的 flag 集合和目标 sheet 定位。默认允许部分失败，成功图表保留，只重试失败项 |
+| `--continue-on-error` | bool | optional | 单个图表失败后是否继续；默认 true |
+
+### `+batch-chart-update`
+
+_公共：URL/token（无 sheet 定位） · 系统：`--dry-run`_
+
+| Flag | Type | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `--operations` | string + File + Stdin（复合 JSON） | required | 图表更新操作 JSON 数组；每项使用 `+chart-config-update` 或 `+chart-data-update`，input 传对应命令的 flag 集合和目标 sheet 定位。CLI 会先读取各图表当前快照，再生成 partial properties；默认允许部分失败 |
+| `--continue-on-error` | bool | optional | 单个图表失败后是否继续；默认 true |
 
 ### `+dropdown-update`
 
@@ -96,8 +115,22 @@ _公共：URL/token（无 sheet 定位） · 系统：`--yes`、`--dry-run`_
 _要批量执行的 CLI shortcut 操作列表，按声明顺序串行执行；任一失败立即中断_
 
 **数组项**（类型 object）：
-- `shortcut` (enum) — CLI shortcut 名（不是底层 MCP tool 名） [+cells-set / +cells-set-style / +cells-clear / +cells-merge / +cells-unmerge / +cells-replace / +csv-put / +dropdown-set / +dim-insert / +dim-delete / +dim-hide / +dim-unhide / +dim-freeze / +dim-group / +dim-ungroup / +rows-resize / +cols-resize / +range-move / +range-copy / +range-fill / +range-sort / +sheet-create / +sheet-delete / +sheet-rename / +sheet-move / +sheet-copy / +sheet-hide / +sheet-unhide / +sheet-set-tab-color / +sheet-show-gridline / +sheet-hide-gridline / +chart-create / +chart-update / +chart-delete / +chart-create-basic / +chart-config-update / +chart-data-update / +pivot-create / +pivot-update / +pivot-delete / +cond-format-create / +cond-format-update / +cond-format-delete / +filter-create / +filter-update / +filter-delete / +filter-view-create / +filter-view-update / +filter-view-delete / +sparkline-create / +sparkline-update / +sparkline-delete / +float-image-create / +float-image-update / +float-image-delete]
+- `shortcut` (enum) — CLI shortcut 名（不是底层 MCP tool 名） [+cells-set / +cells-set-style / +cells-clear / +cells-merge / +cells-unmerge / +cells-replace / +csv-put / +dropdown-set / +dim-insert / +dim-delete / +dim-hide / +dim-unhide / +dim-freeze / +dim-group / +dim-ungroup / +rows-resize / +cols-resize / +range-move / +range-copy / +range-fill / +range-sort / +sheet-create / +sheet-delete / +sheet-rename / +sheet-move / +sheet-copy / +sheet-hide / +sheet-unhide / +sheet-set-tab-color / +sheet-show-gridline / +sheet-hide-gridline / +pivot-create / +pivot-update / +pivot-delete / +cond-format-create / +cond-format-update / +cond-format-delete / +filter-create / +filter-update / +filter-delete / +filter-view-create / +filter-view-update / +filter-view-delete / +sparkline-create / +sparkline-update / +sparkline-delete / +float-image-create / +float-image-update / +float-image-delete]
 - `input` (object) — 该 shortcut 的入参集——含子表定位 sheet_id（或 sheet_name），但不含 spreadsheet token/url（后者只在顶层 …
+
+### `+batch-chart-create` `--operations`
+
+
+**数组项**（类型 object）：
+- `shortcut` (enum) [+chart-create-basic]
+- `input` (object) — +chart-create-basic 的 flag 集合；包含 sheet_id 或 sheet_name，不包含 spreadsheet token/url
+
+### `+batch-chart-update` `--operations`
+
+
+**数组项**（类型 object）：
+- `shortcut` (enum) [+chart-config-update / +chart-data-update]
+- `input` (object) — 对应图表更新 shortcut 的 flag 集合；包含 sheet_id 或 sheet_name，不包含 spreadsheet token/url
 
 ### `+dropdown-update` `--options`
 
@@ -143,7 +176,7 @@ lark-cli sheets +batch-update --url "https://example.feishu.cn/sheets/shtXXX" --
 > ]
 > ```
 
-> **多图表组合**：先完成全部辅助数据，再把每张图的完整语义输入放进同一个批次，并在顶层传 `--continue-on-error`；每项同时记录精确表头范围、数据方向和预期系列数。批次完成后，每个受影响的 sheet 各调用一次 `+chart-list`，不要每创建一张图就读取、调整数据后再删除重建。若数据范围或系列数不符，用 `+chart-data-update` 修正已有图表，不要删除后重建。
+> **多图表组合**：先完成全部辅助数据，再把每张图的输入放进 `+batch-chart-create`；每项同时记录精确表头范围、数据方向和预期系列数。批次完成后，每个受影响的 sheet 各调用一次 `+chart-list`。已有图表的批量修正改用 `+batch-chart-update`。
 >
 > ```json
 > [
@@ -153,7 +186,7 @@ lark-cli sheets +batch-update --url "https://example.feishu.cn/sheets/shtXXX" --
 > ```
 >
 > ```bash
-> lark-cli sheets +batch-update --url "..." --operations @ops.json --continue-on-error --yes
+> lark-cli sheets +batch-chart-create --url "..." --operations @ops.json
 > ```
 
 ### `+cells-batch-set-style`
@@ -182,6 +215,6 @@ lark-cli sheets +cells-batch-clear --url "..." \
 
 ### Validate / DryRun / Execute 约束
 
-- `Validate`：`+batch-update` 的 `--operations` 必须合法 JSON，且为非空数组；逐个子操作 `shortcut` / `input` 字段必填校验，input 键必须在该 shortcut 的 flag 词汇表内（未知键报错并提示最近似键与完整键契约）；**校验错误聚合上报**——所有子操作的首错一次性返回，全部修完再重发一次即可；**禁止嵌套 `+batch-update`**。`+cells-batch-clear` 的 `--ranges` 必须 JSON 数组、每项带 sheet 前缀，`high-risk-write` 强制 `--yes` 或 `--dry-run`（`--scope` 默认 `content`）。
+- `Validate`：`+batch-update` 的 `--operations` 必须合法 JSON，且为非空数组；逐个子操作 `shortcut` / `input` 字段必填校验，input 键必须在该 shortcut 的 flag 词汇表内；图表 shortcut 会被拒绝并引导到专用 batch。`+batch-chart-create` 只接受 `+chart-create-basic`，`+batch-chart-update` 只接受 `+chart-config-update` / `+chart-data-update`。`+cells-batch-clear` 的 `--ranges` 必须 JSON 数组、每项带 sheet 前缀，`high-risk-write` 强制 `--yes` 或 `--dry-run`。
 - `DryRun`：按顺序输出每个子操作的目标 API + 请求 body 模板，不发起调用。
-- `Execute`：按声明顺序串行执行；默认 fail-fast——任一子操作失败即中断剩余操作，**已成功的子操作不回滚**，报错会注明已生效数量与「仅重发失败起的剩余子集」的续发方式。
+- `Execute`：通用 `+batch-update` 默认 fail-fast；图表专用 batch 默认 continue-on-error。两者都不回滚已成功项。
