@@ -21,7 +21,6 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
-	"github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/shortcuts/common"
 	draftpkg "github.com/larksuite/cli/shortcuts/mail/draft"
@@ -2368,12 +2367,12 @@ func validateConfirmSendScope(runtime *common.RuntimeContext) error {
 	if appID == "" || userOpenId == "" {
 		return nil
 	}
-	stored := auth.GetStoredToken(appID, userOpenId)
-	if stored == nil {
+	storedScope, ok := runtime.StoredTokenScopes()
+	if !ok {
 		return nil
 	}
 	required := []string{"mail:user_mailbox.message:send"}
-	if missing := auth.MissingScopes(stored.Scope, required); len(missing) > 0 {
+	if missing := common.MissingScopes(storedScope, required); len(missing) > 0 {
 		return errs.NewPermissionError(errs.SubtypeMissingScope,
 			"--confirm-send requires scope: %s", strings.Join(missing, ", ")).
 			WithHint("run `lark-cli auth login --scope %q` to grant the send permission", strings.Join(missing, " ")).
@@ -2393,12 +2392,12 @@ func validateFolderReadScope(runtime *common.RuntimeContext) error {
 	if appID == "" || userOpenId == "" {
 		return nil
 	}
-	stored := auth.GetStoredToken(appID, userOpenId)
-	if stored == nil {
+	storedScope, ok := runtime.StoredTokenScopes()
+	if !ok {
 		return nil
 	}
 	required := []string{"mail:user_mailbox.folder:read"}
-	if missing := auth.MissingScopes(stored.Scope, required); len(missing) > 0 {
+	if missing := common.MissingScopes(storedScope, required); len(missing) > 0 {
 		return errs.NewPermissionError(errs.SubtypeMissingScope,
 			"folder resolution requires scope: %s", strings.Join(missing, ", ")).
 			WithHint("run `lark-cli auth login --scope %q` to grant folder read permission", strings.Join(missing, " ")).
@@ -2418,12 +2417,12 @@ func validateLabelReadScope(runtime *common.RuntimeContext) error {
 	if appID == "" || userOpenId == "" {
 		return nil
 	}
-	stored := auth.GetStoredToken(appID, userOpenId)
-	if stored == nil {
+	storedScope, ok := runtime.StoredTokenScopes()
+	if !ok {
 		return nil
 	}
 	required := []string{"mail:user_mailbox.message:modify"}
-	if missing := auth.MissingScopes(stored.Scope, required); len(missing) > 0 {
+	if missing := common.MissingScopes(storedScope, required); len(missing) > 0 {
 		return errs.NewPermissionError(errs.SubtypeMissingScope,
 			"label resolution requires scope: %s", strings.Join(missing, ", ")).
 			WithHint("run `lark-cli auth login --scope %q` to grant label access permission", strings.Join(missing, " ")).

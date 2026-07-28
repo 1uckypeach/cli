@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/larksuite/cli/errs"
-	"github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/shortcuts/common"
@@ -119,9 +118,9 @@ var VCRecording = common.Shortcut{
 		appID := runtime.Config.AppID
 		userOpenID := runtime.UserOpenId()
 		if appID != "" && userOpenID != "" {
-			stored := auth.GetStoredToken(appID, userOpenID)
-			if stored != nil {
-				if missing := auth.MissingScopes(stored.Scope, required); len(missing) > 0 {
+			storedScope, ok := runtime.StoredTokenScopes()
+			if ok {
+				if missing := common.MissingScopes(storedScope, required); len(missing) > 0 {
 					return errs.NewPermissionError(errs.SubtypeMissingScope,
 						"missing required scope(s): %s", strings.Join(missing, ", ")).
 						WithHint("run `lark-cli auth login --scope %q` in the background. It blocks and outputs a verification URL — retrieve the URL and open it in a browser to complete login.", strings.Join(missing, " ")).

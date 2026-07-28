@@ -198,6 +198,32 @@ func (ctx *RuntimeContext) EnsureScopes(scopes []string) error {
 	return checkShortcutScopes(ctx.Factory, ctx.ctx, ctx.As(), ctx.Config, scopes)
 }
 
+// ResolveTokenScopes resolves the current credential and returns its scope metadata.
+func (ctx *RuntimeContext) ResolveTokenScopes(callCtx context.Context) (string, bool, error) {
+	result, err := ctx.Factory.Credential.ResolveToken(callCtx, credential.NewTokenSpec(ctx.As(), ctx.Config.AppID))
+	if err != nil {
+		return "", false, err
+	}
+	if result == nil || result.Scopes == "" {
+		return "", false, nil
+	}
+	return result.Scopes, true, nil
+}
+
+// StoredTokenScopes returns scope metadata from the locally stored user token.
+func (ctx *RuntimeContext) StoredTokenScopes() (string, bool) {
+	stored := auth.GetStoredToken(ctx.Config.AppID, ctx.UserOpenId())
+	if stored == nil {
+		return "", false
+	}
+	return stored.Scope, true
+}
+
+// MissingScopes returns required scopes absent from the stored scope string.
+func MissingScopes(storedScope string, required []string) []string {
+	return auth.MissingScopes(storedScope, required)
+}
+
 // ── Flag accessors ──
 
 // Str returns a string flag value.
