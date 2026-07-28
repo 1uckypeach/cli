@@ -26,7 +26,6 @@ import (
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/validate"
-	"github.com/larksuite/cli/internal/vfs"
 	"github.com/larksuite/cli/shortcuts/common"
 
 	larkevent "github.com/larksuite/oapi-sdk-go/v3/event"
@@ -206,7 +205,7 @@ var MailWatch = common.Shortcut{
 				return mailValidationParamError("--output-dir", "invalid --output-dir %q: %v", outputDir, err).WithCause(err)
 			}
 			outputDir = safePath
-			if err := vfs.MkdirAll(outputDir, 0700); err != nil {
+			if err := common.EnsureOutputDir(outputDir); err != nil {
 				return mailFileIOError("cannot create output directory %q: %v", err, outputDir, err)
 			}
 		}
