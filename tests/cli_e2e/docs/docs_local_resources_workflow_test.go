@@ -61,7 +61,6 @@ func testDocsLocalResourcesWorkflow(t *testing.T, defaultAs string) {
 	var docToken string
 	var roundTripDocToken string
 	var roundTripContent string
-	var roundTripReferenceMap string
 
 	t.Run("create image and source", func(t *testing.T) {
 		args := []string{
@@ -166,22 +165,16 @@ func testDocsLocalResourcesWorkflow(t *testing.T, defaultAs string) {
 		require.NotContains(t, content, "@created.", "fetched Markdown leaked create fixture path")
 		require.NotContains(t, content, "@appended.", "fetched Markdown leaked append fixture path")
 
-		referenceMap := gjson.Get(result.Stdout, "data.document.reference_map")
-		require.True(t, referenceMap.Exists(), "Markdown fetch must return reference_map for replay:\n%s", result.Stdout)
-		require.NotEmpty(t, strings.TrimSpace(referenceMap.Raw), "Markdown fetch returned an empty reference_map")
 		roundTripContent = content
-		roundTripReferenceMap = referenceMap.Raw
 	})
 
 	t.Run("create from exported markdown restores image captions", func(t *testing.T) {
 		require.NotEmpty(t, roundTripContent, "Markdown content should be fetched before replay")
-		require.NotEmpty(t, roundTripReferenceMap, "reference_map should be fetched before replay")
 		args := []string{
 			"docs", "+create",
 			"--title", "lark-cli markdown replay " + suffix,
 			"--doc-format", "markdown",
 			"--content", "-",
-			"--reference-map", roundTripReferenceMap,
 		}
 		if folderToken != "" {
 			args = append(args, "--parent-token", folderToken)
