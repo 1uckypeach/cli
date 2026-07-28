@@ -47,20 +47,33 @@ func testDocsLocalResourcesWorkflow(t *testing.T, defaultAs string) {
 	writeLocalResourceFixture(t, workDir, "appended-negative.txt", appendedNegativeSource)
 	writeLocalResourceFixture(t, workDir, "appended-nonnumeric.txt", appendedNonNumericSource)
 
-	parentT := t
 	suffix := clie2e.GenerateSuffix()
-	folderToken := drive.CreateDriveFolder(t, parentT, ctx, "lark-cli-e2e-local-resources-"+suffix, defaultAs, "")
+	parentT := t
+	folderToken := ""
+	cleanupAs := defaultAs
+	if defaultAs == "bot" {
+		// Bot-created documents grant the current CLI user full access, while
+		// the shared PPE bot intentionally lacks Drive delete scopes.
+		cleanupAs = "user"
+	} else {
+		folderToken = drive.CreateDriveFolder(t, parentT, ctx, "lark-cli-e2e-local-resources-"+suffix, defaultAs, "")
+	}
 	var docToken string
 	var roundTripDocToken string
+	var roundTripContent string
+	var roundTripReferenceMap string
 
 	t.Run("create image and source", func(t *testing.T) {
+		args := []string{
+			"docs", "+create",
+			"--title", "lark-cli local resources " + suffix,
+			"--content", `<p>created resources</p><img path="@created.png" caption="created image" width="0" height="-1"/><source path="@created.txt" name="created-report.txt" size="0"/>`,
+		}
+		if folderToken != "" {
+			args = append(args, "--parent-token", folderToken)
+		}
 		result, err := clie2e.RunCmd(ctx, clie2e.Request{
-			Args: []string{
-				"docs", "+create",
-				"--parent-token", folderToken,
-				"--title", "lark-cli local resources " + suffix,
-				"--content", `<p>created resources</p><img path="@created.png" caption="created image" width="0" height="-1"/><source path="@created.txt" name="created-report.txt" size="0"/>`,
-			},
+			Args:      args,
 			DefaultAs: defaultAs,
 			WorkDir:   workDir,
 		})
@@ -74,7 +87,7 @@ func testDocsLocalResourcesWorkflow(t *testing.T, defaultAs string) {
 		parentT.Cleanup(func() {
 			cleanupCtx, cleanupCancel := clie2e.CleanupContext()
 			defer cleanupCancel()
-			deleteResult, deleteErr := drive.DeleteDriveResourceAndVerify(cleanupCtx, docToken, "docx", defaultAs)
+			deleteResult, deleteErr := drive.DeleteDriveResourceAndVerify(cleanupCtx, docToken, "docx", cleanupAs)
 			clie2e.ReportCleanupFailure(parentT, "delete doc "+docToken, deleteResult, deleteErr)
 		})
 	})
@@ -156,22 +169,27 @@ func testDocsLocalResourcesWorkflow(t *testing.T, defaultAs string) {
 		referenceMap := gjson.Get(result.Stdout, "data.document.reference_map")
 		require.True(t, referenceMap.Exists(), "Markdown fetch must return reference_map for replay:\n%s", result.Stdout)
 		require.NotEmpty(t, strings.TrimSpace(referenceMap.Raw), "Markdown fetch returned an empty reference_map")
-		require.NoError(t, os.WriteFile(filepath.Join(workDir, "roundtrip.md"), []byte(content), 0o600))
-		require.NoError(t, os.WriteFile(filepath.Join(workDir, "roundtrip-reference-map.json"), []byte(referenceMap.Raw), 0o600))
+		roundTripContent = content
+		roundTripReferenceMap = referenceMap.Raw
 	})
 
 	t.Run("create from exported markdown restores image captions", func(t *testing.T) {
+		require.NotEmpty(t, roundTripContent, "Markdown content should be fetched before replay")
+		require.NotEmpty(t, roundTripReferenceMap, "reference_map should be fetched before replay")
+		args := []string{
+			"docs", "+create",
+			"--title", "lark-cli markdown replay " + suffix,
+			"--doc-format", "markdown",
+			"--content", "-",
+			"--reference-map", roundTripReferenceMap,
+		}
+		if folderToken != "" {
+			args = append(args, "--parent-token", folderToken)
+		}
 		result, err := clie2e.RunCmd(ctx, clie2e.Request{
-			Args: []string{
-				"docs", "+create",
-				"--parent-token", folderToken,
-				"--title", "lark-cli markdown replay " + suffix,
-				"--doc-format", "markdown",
-				"--content", "@roundtrip.md",
-				"--reference-map", "@roundtrip-reference-map.json",
-			},
+			Args:      args,
 			DefaultAs: defaultAs,
-			WorkDir:   workDir,
+			Stdin:     []byte(roundTripContent),
 		})
 		require.NoError(t, err)
 		result.AssertExitCode(t, 0)
@@ -182,7 +200,7 @@ func testDocsLocalResourcesWorkflow(t *testing.T, defaultAs string) {
 		parentT.Cleanup(func() {
 			cleanupCtx, cleanupCancel := clie2e.CleanupContext()
 			defer cleanupCancel()
-			deleteResult, deleteErr := drive.DeleteDriveResourceAndVerify(cleanupCtx, roundTripDocToken, "docx", defaultAs)
+			deleteResult, deleteErr := drive.DeleteDriveResourceAndVerify(cleanupCtx, roundTripDocToken, "docx", cleanupAs)
 			clie2e.ReportCleanupFailure(parentT, "delete markdown replay doc "+roundTripDocToken, deleteResult, deleteErr)
 		})
 	})
