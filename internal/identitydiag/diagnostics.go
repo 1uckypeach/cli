@@ -19,6 +19,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
+	"github.com/larksuite/cli/internal/identity"
 )
 
 const (
@@ -154,7 +155,7 @@ func diagnoseExternalUser(ctx context.Context, f *cmdutil.Factory, cfg *core.Cli
 	if !verify {
 		return id
 	}
-	if _, err := f.Credential.ResolveToken(ctx, credential.NewTokenSpec(core.AsUser, cfg.AppID)); err != nil {
+	if _, err := f.Credential.ResolveToken(ctx, credential.NewTokenSpec(identity.AsUser, cfg.AppID)); err != nil {
 		return externalVerifyFailed(id, "User", provider, err)
 	}
 	id.Verified = boolPtr(true)
@@ -342,7 +343,7 @@ func resolveBotToken(ctx context.Context, f *cmdutil.Factory, cfg *core.CliConfi
 	if f == nil || f.Credential == nil {
 		return "", &credential.TokenUnavailableError{Type: credential.TokenTypeTAT}
 	}
-	result, err := f.Credential.ResolveToken(ctx, credential.NewTokenSpec(core.AsBot, cfg.AppID))
+	result, err := f.Credential.ResolveToken(ctx, credential.NewTokenSpec(identity.AsBot, cfg.AppID))
 	if err != nil {
 		return "", err
 	}

@@ -23,6 +23,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/errclass"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/sparkstore"
 	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/shortcuts/apps/gitcred"
@@ -313,11 +314,11 @@ func (i factoryIssuer) Issue(ctx context.Context, appID string, profile gitcred.
 	if optFn := cmdutil.ShortcutHeaderOpts(ctx); optFn != nil {
 		opts = append(opts, optFn)
 	}
-	resp, err := ac.DoSDKRequest(ctx, req, core.AsUser, opts...)
+	resp, err := ac.DoSDKRequest(ctx, req, identity.AsUser, opts...)
 	data, err := parseIssueCredentialData(resp, err, errclass.ClassifyContext{
 		Brand:    string(cfg.Brand),
 		AppID:    cfg.AppID,
-		Identity: string(core.AsUser),
+		Identity: string(identity.AsUser),
 	})
 	if err != nil {
 		return nil, err

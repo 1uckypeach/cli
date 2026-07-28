@@ -14,6 +14,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/spf13/cobra"
 )
@@ -65,7 +66,7 @@ func newReleaseCreateRuntimeContext(t *testing.T, appID, branch string) (*common
 		_ = cmd.Flags().Set("branch", branch)
 	}
 
-	rctx := common.TestNewRuntimeContextForAPI(context.Background(), cmd, cfg, factory, core.AsUser)
+	rctx := common.TestNewRuntimeContextForAPI(context.Background(), cmd, cfg, factory, identity.AsUser)
 	return rctx, stdoutBuf, reg
 }
 

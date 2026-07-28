@@ -17,6 +17,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
@@ -84,7 +85,7 @@ func newBotConvertlibRuntime(t *testing.T, rt http.RoundTripper) *common.Runtime
 		},
 	}
 	setConvertlibRuntimeField(t, runtime, "ctx", context.Background())
-	setConvertlibRuntimeField(t, runtime, "resolvedAs", core.AsBot)
+	setConvertlibRuntimeField(t, runtime, "resolvedAs", identity.AsBot)
 	setConvertlibRuntimeField(t, runtime, "larkSDK", sdk)
 	return runtime
 }

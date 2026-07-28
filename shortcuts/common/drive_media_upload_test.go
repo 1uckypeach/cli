@@ -20,6 +20,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 )
 
 var commonDriveMediaUploadTestSeq atomic.Int64
@@ -313,7 +314,7 @@ func newDriveMediaUploadTestRuntime(t *testing.T) (*RuntimeContext, *httpmock.Re
 		ctx:        context.Background(),
 		Config:     cfg,
 		Factory:    f,
-		resolvedAs: core.AsBot,
+		resolvedAs: identity.AsBot,
 	}
 	return runtime, reg
 }

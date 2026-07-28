@@ -11,11 +11,11 @@ import (
 	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/appmeta"
-	"github.com/larksuite/cli/internal/core"
 	eventlib "github.com/larksuite/cli/internal/event"
+	identitypkg "github.com/larksuite/cli/internal/identity"
 )
 
-func newPreflightCtx(appID string, brand brandpkg.Brand, identity core.Identity, keyDef *eventlib.KeyDefinition, appVer *appmeta.AppVersion) *preflightCtx {
+func newPreflightCtx(appID string, brand brandpkg.Brand, identity identitypkg.Identity, keyDef *eventlib.KeyDefinition, appVer *appmeta.AppVersion) *preflightCtx {
 	key := ""
 	if keyDef != nil {
 		key = keyDef.Key
@@ -109,7 +109,7 @@ func TestPreflightScopes_Bot_NoAppVer_SkipsCheck(t *testing.T) {
 		Key:    "im.message.text",
 		Scopes: []string{"im:message", "im:message.group_at_msg"},
 	}
-	err := preflightScopes(nil, newPreflightCtx("cli_x", "feishu", core.AsBot, def, nil))
+	err := preflightScopes(nil, newPreflightCtx("cli_x", "feishu", identitypkg.AsBot, def, nil))
 	if err != nil {
 		t.Fatalf("bot + nil appVer should skip, got: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestPreflightScopes_Bot_AllGranted_Passes(t *testing.T) {
 		"im:message.group_at_msg",
 		"contact:user:readonly",
 	}}
-	err := preflightScopes(nil, newPreflightCtx("cli_x", "feishu", core.AsBot, def, appVer))
+	err := preflightScopes(nil, newPreflightCtx("cli_x", "feishu", identitypkg.AsBot, def, appVer))
 	if err != nil {
 		t.Fatalf("all scopes granted, unexpected error: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestPreflightScopes_Bot_MissingBlocks(t *testing.T) {
 		Scopes: []string{"im:message", "im:message.group_at_msg"},
 	}
 	appVer := &appmeta.AppVersion{TenantScopes: []string{"im:message"}}
-	err := preflightScopes(nil, newPreflightCtx("cli_x", "feishu", core.AsBot, def, appVer))
+	err := preflightScopes(nil, newPreflightCtx("cli_x", "feishu", identitypkg.AsBot, def, appVer))
 	if err == nil {
 		t.Fatal("expected error for missing scope")
 	}
@@ -170,7 +170,7 @@ func TestPreflightScopes_Bot_MissingBlocks(t *testing.T) {
 
 func TestPreflightScopes_NoRequiredScopes_SkipsCheck(t *testing.T) {
 	def := &eventlib.KeyDefinition{Key: "x"}
-	if err := preflightScopes(nil, newPreflightCtx("cli_x", "feishu", core.AsBot, def, nil)); err != nil {
+	if err := preflightScopes(nil, newPreflightCtx("cli_x", "feishu", identitypkg.AsBot, def, nil)); err != nil {
 		t.Fatalf("no required scopes means nothing to verify, got: %v", err)
 	}
 }
@@ -180,7 +180,7 @@ func TestPreflightEventTypes_CallbackMissing(t *testing.T) {
 		appID:               "cli_x",
 		brand:               brandpkg.Feishu,
 		eventKey:            "test.cb",
-		identity:            core.AsBot,
+		identity:            identitypkg.AsBot,
 		subscribedCallbacks: []string{"profile.view.get"},
 		keyDef: &eventlib.KeyDefinition{
 			Key:                   "test.cb",
@@ -209,7 +209,7 @@ func TestPreflightEventTypes_CallbackSkippedWhenNil(t *testing.T) {
 		appID:               "cli_x",
 		brand:               brandpkg.Feishu,
 		eventKey:            "test.cb",
-		identity:            core.AsBot,
+		identity:            identitypkg.AsBot,
 		subscribedCallbacks: nil, // fetch 失败/拿不到 -> 弱依赖跳过
 		keyDef: &eventlib.KeyDefinition{
 			Key:                   "test.cb",
@@ -230,7 +230,7 @@ func TestPreflightEventTypes_CallbackEmptyReportsMissing(t *testing.T) {
 		appID:               "cli_x",
 		brand:               brandpkg.Feishu,
 		eventKey:            "test.cb",
-		identity:            core.AsBot,
+		identity:            identitypkg.AsBot,
 		subscribedCallbacks: []string{}, // fetched, none subscribed
 		keyDef: &eventlib.KeyDefinition{
 			Key:                   "test.cb",
@@ -252,7 +252,7 @@ func TestPreflightEventTypes_CallbackAllSubscribed_Passes(t *testing.T) {
 		appID:               "cli_x",
 		brand:               brandpkg.Feishu,
 		eventKey:            "test.cb",
-		identity:            core.AsBot,
+		identity:            identitypkg.AsBot,
 		subscribedCallbacks: []string{"card.action.trigger", "profile.view.get"},
 		keyDef: &eventlib.KeyDefinition{
 			Key:                   "test.cb",
@@ -267,12 +267,12 @@ func TestPreflightEventTypes_CallbackAllSubscribed_Passes(t *testing.T) {
 
 func TestScopeRemediationHint_ByIdentity(t *testing.T) {
 	// bot: scan-to-enable link (adds scopes to app manifest)
-	bot := scopeRemediationHint(brandpkg.Feishu, "cli_x", core.AsBot, []string{"im:message"})
+	bot := scopeRemediationHint(brandpkg.Feishu, "cli_x", identitypkg.AsBot, []string{"im:message"})
 	if !strings.Contains(bot, "/page/launcher?clientID=cli_x&addons=") {
 		t.Errorf("bot hint should give the scan link, got: %s", bot)
 	}
 	// user: re-login (scan link cannot grant scopes to the user's own token)
-	user := scopeRemediationHint(brandpkg.Feishu, "cli_x", core.AsUser, []string{"im:message"})
+	user := scopeRemediationHint(brandpkg.Feishu, "cli_x", identitypkg.AsUser, []string{"im:message"})
 	if !strings.Contains(user, "auth login --scope") {
 		t.Errorf("user hint should direct to auth login, got: %s", user)
 	}

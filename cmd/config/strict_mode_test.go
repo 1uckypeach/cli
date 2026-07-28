@@ -10,6 +10,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/secret"
 )
 
@@ -52,7 +53,7 @@ func TestStrictMode_SetBot_Profile(t *testing.T) {
 	}
 	multi, _ := core.LoadMultiAppConfig()
 	app := multi.CurrentAppConfig("")
-	if app.StrictMode == nil || *app.StrictMode != core.StrictModeBot {
+	if app.StrictMode == nil || *app.StrictMode != identity.StrictModeBot {
 		t.Error("expected StrictMode=bot on profile")
 	}
 }
@@ -67,7 +68,7 @@ func TestStrictMode_SetUser_Profile(t *testing.T) {
 	}
 	multi, _ := core.LoadMultiAppConfig()
 	app := multi.CurrentAppConfig("")
-	if app.StrictMode == nil || *app.StrictMode != core.StrictModeUser {
+	if app.StrictMode == nil || *app.StrictMode != identity.StrictModeUser {
 		t.Error("expected StrictMode=user on profile")
 	}
 }
@@ -85,7 +86,7 @@ func TestStrictMode_SetOff_Profile(t *testing.T) {
 	}
 	multi, _ := core.LoadMultiAppConfig()
 	app := multi.CurrentAppConfig("")
-	if app.StrictMode == nil || *app.StrictMode != core.StrictModeOff {
+	if app.StrictMode == nil || *app.StrictMode != identity.StrictModeOff {
 		t.Error("expected StrictMode=off on profile")
 	}
 }
@@ -99,7 +100,7 @@ func TestStrictMode_SetBot_Global(t *testing.T) {
 		t.Fatal(err)
 	}
 	multi, _ := core.LoadMultiAppConfig()
-	if multi.StrictMode != core.StrictModeBot {
+	if multi.StrictMode != identity.StrictModeBot {
 		t.Error("expected global StrictMode=bot")
 	}
 }
@@ -131,8 +132,8 @@ func TestStrictMode_SetGlobal_DoesNotRequireActiveProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadMultiAppConfig() error = %v", err)
 	}
-	if saved.StrictMode != core.StrictModeBot {
-		t.Fatalf("StrictMode = %q, want %q", saved.StrictMode, core.StrictModeBot)
+	if saved.StrictMode != identity.StrictModeBot {
+		t.Fatalf("StrictMode = %q, want %q", saved.StrictMode, identity.StrictModeBot)
 	}
 }
 

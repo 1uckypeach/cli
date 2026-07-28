@@ -20,6 +20,7 @@ import (
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 )
 
@@ -45,7 +46,7 @@ func newJqTestContext(jqExpr, format string) (*RuntimeContext, *bytes.Buffer, *b
 		Cmd:        cmd,
 		Format:     format,
 		JqExpr:     jqExpr,
-		resolvedAs: core.AsBot,
+		resolvedAs: identity.AsBot,
 		Factory: &cmdutil.Factory{
 			IOStreams: &cmdutil.IOStreams{Out: stdout, ErrOut: stderr},
 		},

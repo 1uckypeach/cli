@@ -21,7 +21,7 @@ import (
 type ClassifyContext struct {
 	Brand    string // "feishu" | "lark" — drives console_url host
 	AppID    string // placed in console_url
-	Identity string // "user" / "bot" / "" — caller converts core.Identity at the boundary
+	Identity string // "user" / "bot" / "" — caller converts identitypkg.Identity at the boundary
 	LarkCmd  string // e.g. "drive +delete" — used as Action fallback on CategoryConfirmation arm
 }
 

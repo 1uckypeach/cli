@@ -20,6 +20,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -537,7 +538,7 @@ func newTOSTestRuntime(t *testing.T) (*common.RuntimeContext, *httpmock.Registry
 	rt := common.TestNewRuntimeContextForAPI(
 		context.Background(),
 		&cobra.Command{Use: "+tos-test"},
-		cfg, factory, core.AsUser,
+		cfg, factory, identity.AsUser,
 	)
 	return rt, reg
 }

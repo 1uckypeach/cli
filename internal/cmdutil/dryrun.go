@@ -15,6 +15,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/util"
 )
@@ -26,7 +27,7 @@ type DryRunOutputOptions struct {
 	Format      string
 	JqExpr      string
 	CommandPath string
-	Identity    core.Identity
+	Identity    identity.Identity
 	Out         io.Writer
 	ErrOut      io.Writer
 }

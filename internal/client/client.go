@@ -23,6 +23,7 @@ import (
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/errclass"
+	identitypkg "github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/util"
 )
@@ -33,7 +34,7 @@ type RawApiRequest struct {
 	URL       string
 	Params    map[string]interface{}
 	Data      interface{}
-	As        core.Identity
+	As        identitypkg.Identity
 	ExtraOpts []larkcore.RequestOptionFunc // additional SDK request options (e.g. security headers)
 }
 
@@ -46,7 +47,7 @@ type APIClient struct {
 	Credential *credential.CredentialProvider
 }
 
-func (c *APIClient) resolveAccessToken(ctx context.Context, as core.Identity) (string, error) {
+func (c *APIClient) resolveAccessToken(ctx context.Context, as identitypkg.Identity) (string, error) {
 	result, err := c.Credential.ResolveToken(ctx, credential.NewTokenSpec(as, c.Config.AppID))
 	if err != nil {
 		var unavailableErr *credential.TokenUnavailableError
@@ -68,10 +69,10 @@ func (c *APIClient) resolveAccessToken(ctx context.Context, as core.Identity) (s
 
 // newTokenMissingError builds the typed *errs.AuthenticationError that
 // resolveAccessToken returns when no usable token is available for the
-// requested identity. cause is the underlying credential-chain error (or nil
+// requested identitypkg. cause is the underlying credential-chain error (or nil
 // for the defensive empty-token branch) and is preserved for errors.Is /
 // errors.Unwrap traversal without being serialized on the wire.
-func newTokenMissingError(as core.Identity, cause error) error {
+func newTokenMissingError(as identitypkg.Identity, cause error) error {
 	return errs.NewAuthenticationError(errs.SubtypeTokenMissing,
 		"no access token available for %s", as).
 		WithHint("run: lark-cli auth login to re-authorize").
@@ -119,7 +120,7 @@ func (c *APIClient) buildApiReq(request RawApiRequest) (*larkcore.ApiReq, []lark
 // contract in errs/ERROR_CONTRACT.md. Errors that arrive already-classified
 // (a typed *errs.* from resolveAccessToken's missing-credential paths or
 // elsewhere) flow through unchanged.
-func (c *APIClient) DoSDKRequest(ctx context.Context, req *larkcore.ApiReq, as core.Identity, extraOpts ...larkcore.RequestOptionFunc) (*larkcore.ApiResp, error) {
+func (c *APIClient) DoSDKRequest(ctx context.Context, req *larkcore.ApiReq, as identitypkg.Identity, extraOpts ...larkcore.RequestOptionFunc) (*larkcore.ApiResp, error) {
 	var opts []larkcore.RequestOptionFunc
 
 	token, err := c.resolveAccessToken(ctx, as)
@@ -155,7 +156,7 @@ func (c *APIClient) DoSDKRequest(ctx context.Context, req *larkcore.ApiReq, as c
 // any extra headers from opts are applied automatically.
 // HTTP errors (status >= 400) are handled internally: the body is read (up to 4 KB),
 // closed, and returned as a typed *errs.NetworkError — callers only receive successful responses.
-func (c *APIClient) DoStream(ctx context.Context, req *larkcore.ApiReq, as core.Identity, opts ...Option) (*http.Response, error) {
+func (c *APIClient) DoStream(ctx context.Context, req *larkcore.ApiReq, as identitypkg.Identity, opts ...Option) (*http.Response, error) {
 	cfg := buildConfig(opts)
 
 	// Resolve auth
@@ -491,7 +492,7 @@ func (c *APIClient) StreamPages(ctx context.Context, request RawApiRequest, onIt
 // the canonical Category/Subtype + identity-aware extension fields (MissingScopes,
 // ConsoleURL, etc.) for known Lark codes; unknown codes still surface as
 // *errs.APIError{Subtype: unknown}.
-func (c *APIClient) CheckResponse(result interface{}, identity core.Identity) error {
+func (c *APIClient) CheckResponse(result interface{}, identity identitypkg.Identity) error {
 	resultMap, ok := result.(map[string]interface{})
 	if !ok || resultMap == nil {
 		return nil

@@ -29,6 +29,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -107,7 +108,7 @@ func newBotShortcutRuntime(t *testing.T, rt http.RoundTripper) *common.RuntimeCo
 		},
 	}
 	setRuntimeField(t, runtime, "ctx", cmdutil.ContextWithShortcut(context.Background(), "im.test", "exec-123"))
-	setRuntimeField(t, runtime, "resolvedAs", core.AsBot)
+	setRuntimeField(t, runtime, "resolvedAs", identity.AsBot)
 	setRuntimeField(t, runtime, "larkSDK", sdk)
 	return runtime
 }
@@ -115,7 +116,7 @@ func newBotShortcutRuntime(t *testing.T, rt http.RoundTripper) *common.RuntimeCo
 func newUserShortcutRuntime(t *testing.T, rt http.RoundTripper) *common.RuntimeContext {
 	t.Helper()
 	runtime := newBotShortcutRuntime(t, rt)
-	setRuntimeField(t, runtime, "resolvedAs", core.AsUser)
+	setRuntimeField(t, runtime, "resolvedAs", identity.AsUser)
 	return runtime
 }
 

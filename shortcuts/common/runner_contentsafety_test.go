@@ -17,6 +17,7 @@ import (
 	extcs "github.com/larksuite/cli/extension/contentsafety"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 )
 
@@ -40,7 +41,7 @@ func newCSTestContext(t *testing.T) (*RuntimeContext, *bytes.Buffer, *bytes.Buff
 		ctx:        context.Background(),
 		Config:     &core.CliConfig{Brand: brand.Feishu},
 		Cmd:        cmd,
-		resolvedAs: core.AsBot,
+		resolvedAs: identity.AsBot,
 		Factory: &cmdutil.Factory{
 			IOStreams: &cmdutil.IOStreams{Out: stdout, ErrOut: stderr},
 		},

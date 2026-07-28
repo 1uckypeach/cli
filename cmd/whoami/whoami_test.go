@@ -19,6 +19,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/identitydiag"
 )
 
@@ -26,16 +27,16 @@ func TestResolveSource(t *testing.T) {
 	tests := []struct {
 		name         string
 		changedAs    bool
-		flagAs       core.Identity
+		flagAs       identity.Identity
 		autoDetected bool
-		strictForced core.Identity
+		strictForced identity.Identity
 		want         string
 	}{
-		{"explicit flag user", true, core.AsUser, false, "", "flag"},
-		{"explicit flag bot", true, core.AsBot, false, "", "flag"},
-		{"flag auto falls through to auto-detect", true, core.AsAuto, true, "", "auto_detect"},
+		{"explicit flag user", true, identity.AsUser, false, "", "flag"},
+		{"explicit flag bot", true, identity.AsBot, false, "", "flag"},
+		{"flag auto falls through to auto-detect", true, identity.AsAuto, true, "", "auto_detect"},
 		{"auto detected", false, "", true, "", "auto_detect"},
-		{"strict mode", false, "", false, core.AsBot, "strict_mode"},
+		{"strict mode", false, "", false, identity.AsBot, "strict_mode"},
 		{"default_as", false, "", false, "", "default_as"},
 	}
 	for _, tt := range tests {
@@ -49,11 +50,11 @@ func TestResolveSource(t *testing.T) {
 }
 
 func TestBuildResult_UserValid(t *testing.T) {
-	cfg := &core.CliConfig{ProfileName: "my-app", AppID: "cli_x", Brand: brand.Lark, DefaultAs: core.AsAuto}
+	cfg := &core.CliConfig{ProfileName: "my-app", AppID: "cli_x", Brand: brand.Lark, DefaultAs: identity.AsAuto}
 	diag := identitydiag.Result{
 		User: identitydiag.Identity{Available: true, Status: "ready", TokenStatus: "valid", OpenID: "ou_x", UserName: "Alice"},
 	}
-	r := buildResult(cfg, core.AsUser, "auto_detect", diag)
+	r := buildResult(cfg, identity.AsUser, "auto_detect", diag)
 
 	if r.Identity != "user" || r.IdentitySource != "auto_detect" {
 		t.Fatalf("identity/source = %q/%q", r.Identity, r.IdentitySource)
@@ -78,7 +79,7 @@ func TestBuildResult_UserMissingToken(t *testing.T) {
 	diag := identitydiag.Result{
 		User: identitydiag.Identity{Available: false, Status: "missing", Hint: "run: lark-cli auth login --help"}, // never logged in
 	}
-	r := buildResult(cfg, core.AsUser, "auto_detect", diag)
+	r := buildResult(cfg, identity.AsUser, "auto_detect", diag)
 
 	if r.Available {
 		t.Fatalf("available = true, want false")
@@ -97,11 +98,11 @@ func TestBuildResult_UserMissingToken(t *testing.T) {
 }
 
 func TestBuildResult_BotReady(t *testing.T) {
-	cfg := &core.CliConfig{ProfileName: "p", AppID: "cli_x", Brand: brand.Feishu, DefaultAs: core.AsBot}
+	cfg := &core.CliConfig{ProfileName: "p", AppID: "cli_x", Brand: brand.Feishu, DefaultAs: identity.AsBot}
 	diag := identitydiag.Result{
 		Bot: identitydiag.Identity{Available: true, Status: "ready"},
 	}
-	r := buildResult(cfg, core.AsBot, "default_as", diag)
+	r := buildResult(cfg, identity.AsBot, "default_as", diag)
 
 	if r.Identity != "bot" || r.IdentitySource != "default_as" {
 		t.Fatalf("identity/source = %q/%q", r.Identity, r.IdentitySource)
@@ -122,7 +123,7 @@ func TestBuildResult_BotNotConfigured(t *testing.T) {
 	diag := identitydiag.Result{
 		Bot: identitydiag.Identity{Available: false, Status: "not_configured", Hint: "run: lark-cli config --help"},
 	}
-	r := buildResult(cfg, core.AsBot, "auto_detect", diag)
+	r := buildResult(cfg, identity.AsBot, "auto_detect", diag)
 
 	if r.Available {
 		t.Fatalf("available = true, want false")

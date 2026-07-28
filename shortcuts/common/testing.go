@@ -11,6 +11,7 @@ import (
 
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/identity"
 )
 
 // TestNewRuntimeContext creates a RuntimeContext for testing purposes.
@@ -26,7 +27,7 @@ func TestNewRuntimeContextWithCtx(ctx context.Context, cmd *cobra.Command, cfg *
 }
 
 // TestNewRuntimeContextWithIdentity creates a RuntimeContext with a specific identity for testing.
-func TestNewRuntimeContextWithIdentity(cmd *cobra.Command, cfg *core.CliConfig, as core.Identity) *RuntimeContext {
+func TestNewRuntimeContextWithIdentity(cmd *cobra.Command, cfg *core.CliConfig, as identity.Identity) *RuntimeContext {
 	return &RuntimeContext{Cmd: cmd, Config: cfg, resolvedAs: as}
 }
 
@@ -44,11 +45,11 @@ func TestNewRuntimeContextWithBotInfo(cmd *cobra.Command, cfg *core.CliConfig, i
 // can invoke DoAPI / CallAPI directly without wiring through a cobra parent
 // command.
 //
-// Pass core.AsBot or core.AsUser explicitly — exposing the identity as a
+// Pass identity.AsBot or identity.AsUser explicitly — exposing the identity as a
 // parameter keeps the helper reusable for tests that need to exercise the
 // user-identity code path (token store, auth login, etc.) without forking
 // into a second near-identical helper.
-func TestNewRuntimeContextForAPI(ctx context.Context, cmd *cobra.Command, cfg *core.CliConfig, f *cmdutil.Factory, as core.Identity) *RuntimeContext {
+func TestNewRuntimeContextForAPI(ctx context.Context, cmd *cobra.Command, cfg *core.CliConfig, f *cmdutil.Factory, as identity.Identity) *RuntimeContext {
 	return &RuntimeContext{
 		ctx:        ctx,
 		Cmd:        cmd,

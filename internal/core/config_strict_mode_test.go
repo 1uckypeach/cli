@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/larksuite/cli/brand"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/secret"
 )
 
@@ -22,7 +23,7 @@ func TestMultiAppConfig_StrictMode_JSON(t *testing.T) {
 	}
 
 	// StrictMode="bot" should be present
-	m.StrictMode = StrictModeBot
+	m.StrictMode = identity.StrictModeBot
 	data, _ = json.Marshal(m)
 	var parsed map[string]interface{}
 	json.Unmarshal(data, &parsed)
@@ -42,7 +43,7 @@ func TestAppConfig_StrictMode_JSON(t *testing.T) {
 	}
 
 	// StrictMode = pointer to "user"
-	v := StrictModeUser
+	v := identity.StrictModeUser
 	app.StrictMode = &v
 	data, _ = json.Marshal(app)
 	json.Unmarshal(data, &parsed)
@@ -51,7 +52,7 @@ func TestAppConfig_StrictMode_JSON(t *testing.T) {
 	}
 
 	// StrictMode = pointer to "off" (explicit off — should be present, not omitted)
-	voff := StrictModeOff
+	voff := identity.StrictModeOff
 	app.StrictMode = &voff
 	data, _ = json.Marshal(app)
 	json.Unmarshal(data, &parsed)

@@ -14,6 +14,7 @@ import (
 	"github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/errclass"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/keychain"
 
 	extcred "github.com/larksuite/cli/extension/credential"
@@ -91,16 +92,16 @@ func (p *DefaultAccountProvider) ResolveAccount(ctx context.Context) (*Account, 
 // the SupportedIdentities bitflag using an already-loaded MultiAppConfig.
 func strictModeToIdentitySupport(multi *core.MultiAppConfig, profileOverride string) uint8 {
 	app := multi.CurrentAppConfig(profileOverride)
-	var mode core.StrictMode
+	var mode identity.StrictMode
 	if app != nil && app.StrictMode != nil {
 		mode = *app.StrictMode
 	} else {
 		mode = multi.StrictMode
 	}
 	switch mode {
-	case core.StrictModeBot:
+	case identity.StrictModeBot:
 		return uint8(extcred.SupportsBot)
-	case core.StrictModeUser:
+	case identity.StrictModeUser:
 		return uint8(extcred.SupportsUser)
 	default:
 		return 0

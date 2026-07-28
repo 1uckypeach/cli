@@ -14,6 +14,7 @@ import (
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/i18n"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/keychain"
 	"github.com/larksuite/cli/internal/secret"
 )
@@ -89,7 +90,7 @@ func TestFullChain_ConfigStrictMode(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)
 
-	botMode := core.StrictModeBot
+	botMode := identity.StrictModeBot
 	multi := &core.MultiAppConfig{
 		Apps: []core.AppConfig{{
 			AppId:      "cfg_app",

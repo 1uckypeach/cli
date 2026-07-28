@@ -19,6 +19,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 )
 
@@ -63,7 +64,7 @@ func servicePaginateRequest() client.RawApiRequest {
 	return client.RawApiRequest{
 		Method: "GET",
 		URL:    "/open-apis/test/v1/items",
-		As:     core.AsBot,
+		As:     identity.AsBot,
 	}
 }
 

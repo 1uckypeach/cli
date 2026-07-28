@@ -21,6 +21,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -154,7 +155,7 @@ func newSheetMediaTestRuntime(t *testing.T) (*common.RuntimeContext, *httpmock.R
 		Brand:     brand.Feishu,
 	}
 	f, _, _, reg := cmdutil.TestFactory(t, cfg)
-	runtime := common.TestNewRuntimeContextForAPI(context.Background(), &cobra.Command{Use: "sheets"}, cfg, f, core.AsBot)
+	runtime := common.TestNewRuntimeContextForAPI(context.Background(), &cobra.Command{Use: "sheets"}, cfg, f, identity.AsBot)
 	return runtime, reg
 }
 

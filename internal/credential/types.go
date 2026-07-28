@@ -12,6 +12,7 @@ import (
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/i18n"
+	identitypkg "github.com/larksuite/cli/internal/identity"
 )
 
 // Account is the credential-layer view of the active runtime account.
@@ -22,7 +23,7 @@ type Account struct {
 	AppID               string
 	AppSecret           string
 	Brand               brand.Brand
-	DefaultAs           core.Identity
+	DefaultAs           identitypkg.Identity
 	UserOpenId          string
 	UserName            string
 	Lang                i18n.Lang
@@ -133,10 +134,10 @@ type TokenResult struct {
 	Scopes string // optional, space-separated; empty = skip scope pre-check
 }
 
-// IdentityHint is credential-layer guidance for resolving the effective identity.
+// IdentityHint is credential-layer guidance for resolving the effective identitypkg.
 type IdentityHint struct {
-	DefaultAs core.Identity
-	AutoAs    core.Identity
+	DefaultAs identitypkg.Identity
+	AutoAs    identitypkg.Identity
 }
 
 // TokenUnavailableError reports that no usable token was available.
@@ -172,7 +173,7 @@ type TokenProvider interface {
 
 // NewTokenSpec returns a TokenSpec with the token type automatically
 // selected based on identity: TAT for bot, UAT for user.
-func NewTokenSpec(identity core.Identity, appID string) TokenSpec {
+func NewTokenSpec(identity identitypkg.Identity, appID string) TokenSpec {
 	t := TokenTypeUAT
 	if identity.IsBot() {
 		t = TokenTypeTAT

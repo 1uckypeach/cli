@@ -21,6 +21,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/meta"
 	"github.com/spf13/cobra"
 )
@@ -194,7 +195,7 @@ func TestNewCmdServiceMethod_RunFCallback(t *testing.T) {
 	if captured == nil {
 		t.Fatal("runF was not called")
 	}
-	if captured.As != core.AsBot {
+	if captured.As != identity.AsBot {
 		t.Errorf("expected As=bot, got %s", captured.As)
 	}
 	if captured.SchemaPath != "drive.files.list" {

@@ -19,6 +19,7 @@ import (
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/keychain"
 )
 
@@ -38,7 +39,7 @@ type Factory struct {
 	Invocation           InvocationContext       // Immutable call context; do not mutate after Factory construction.
 	Keychain             keychain.KeychainAccess // secret storage (real keychain in prod, mock in tests)
 	IdentityAutoDetected bool                    // set by ResolveAs when identity was auto-detected
-	ResolvedIdentity     core.Identity           // identity resolved by the last ResolveAs call
+	ResolvedIdentity     identity.Identity       // identity resolved by the last ResolveAs call
 	CurrentCommand       *cobra.Command          // last matched command being executed; set during PersistentPreRun
 
 	Credential *credential.CredentialProvider
@@ -60,11 +61,11 @@ func (f *Factory) ResolveFileIO(ctx context.Context) fileio.FileIO {
 // ResolveAs returns the effective identity type.
 // If the user explicitly passed --as, use that value; otherwise use the configured default.
 // When the value is "auto" (or unset), auto-detect based on credential hints.
-func (f *Factory) ResolveAs(ctx context.Context, cmd *cobra.Command, flagAs core.Identity) core.Identity {
+func (f *Factory) ResolveAs(ctx context.Context, cmd *cobra.Command, flagAs identity.Identity) identity.Identity {
 	f.IdentityAutoDetected = false
 
 	if cmd != nil && cmd.Flags().Changed("as") {
-		if flagAs != core.AsAuto {
+		if flagAs != identity.AsAuto {
 			f.ResolvedIdentity = flagAs
 			return flagAs
 		}
@@ -81,7 +82,7 @@ func (f *Factory) ResolveAs(ctx context.Context, cmd *cobra.Command, flagAs core
 
 	hint := f.resolveIdentityHint(ctx)
 	if cmd == nil || !cmd.Flags().Changed("as") {
-		if defaultAs := resolveDefaultAsFromHint(hint); defaultAs != "" && defaultAs != core.AsAuto {
+		if defaultAs := resolveDefaultAsFromHint(hint); defaultAs != "" && defaultAs != identity.AsAuto {
 			f.ResolvedIdentity = defaultAs
 			return f.ResolvedIdentity
 		}
@@ -94,18 +95,18 @@ func (f *Factory) ResolveAs(ctx context.Context, cmd *cobra.Command, flagAs core
 	return result
 }
 
-func resolveDefaultAsFromHint(hint *credential.IdentityHint) core.Identity {
+func resolveDefaultAsFromHint(hint *credential.IdentityHint) identity.Identity {
 	if hint != nil {
 		return hint.DefaultAs
 	}
 	return ""
 }
 
-func autoDetectIdentityFromHint(hint *credential.IdentityHint) core.Identity {
+func autoDetectIdentityFromHint(hint *credential.IdentityHint) identity.Identity {
 	if hint != nil && hint.AutoAs != "" {
 		return hint.AutoAs
 	}
-	return core.AsBot
+	return identity.AsBot
 }
 
 func (f *Factory) resolveIdentityHint(ctx context.Context) *credential.IdentityHint {
@@ -122,7 +123,7 @@ func (f *Factory) resolveIdentityHint(ctx context.Context) *credential.IdentityH
 // CheckIdentity verifies the resolved identity is in the supported list.
 // On success, sets f.ResolvedIdentity. On failure, returns an error
 // tailored to whether the identity was explicit (--as) or auto-detected.
-func (f *Factory) CheckIdentity(as core.Identity, supported []string) error {
+func (f *Factory) CheckIdentity(as identity.Identity, supported []string) error {
 	for _, t := range supported {
 		if string(as) == t {
 			f.ResolvedIdentity = as
@@ -147,27 +148,27 @@ func (f *Factory) CheckIdentity(as core.Identity, supported []string) error {
 
 // ResolveStrictMode returns the effective strict mode by reading
 // Account.SupportedIdentities from the credential provider chain.
-func (f *Factory) ResolveStrictMode(ctx context.Context) core.StrictMode {
+func (f *Factory) ResolveStrictMode(ctx context.Context) identity.StrictMode {
 	if f.Credential == nil {
-		return core.StrictModeOff
+		return identity.StrictModeOff
 	}
 	acct, err := f.Credential.ResolveAccount(ctx)
 	if err != nil || acct == nil {
-		return core.StrictModeOff
+		return identity.StrictModeOff
 	}
 	ids := extcred.IdentitySupport(acct.SupportedIdentities)
 	switch {
 	case ids.BotOnly():
-		return core.StrictModeBot
+		return identity.StrictModeBot
 	case ids.UserOnly():
-		return core.StrictModeUser
+		return identity.StrictModeUser
 	default:
-		return core.StrictModeOff
+		return identity.StrictModeOff
 	}
 }
 
 // CheckStrictMode returns an error if strict mode is active and identity is not allowed.
-func (f *Factory) CheckStrictMode(ctx context.Context, as core.Identity) error {
+func (f *Factory) CheckStrictMode(ctx context.Context, as identity.Identity) error {
 	mode := f.ResolveStrictMode(ctx)
 	if mode.IsActive() && !mode.AllowsIdentity(as) {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument,

@@ -14,6 +14,7 @@ import (
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 )
 
 // apiErrWithScopes builds the typed error errclass.BuildAPIError produces for a
@@ -53,7 +54,7 @@ func TestAutoGrantStderrWarning_SkippedNoUser(t *testing.T) {
 		ctx:        ctx,
 		Config:     config,
 		Factory:    f,
-		resolvedAs: core.AsBot,
+		resolvedAs: identity.AsBot,
 	}
 
 	result := AutoGrantCurrentUserDrivePermission(runtime, "tkn_doc", "docx")
@@ -98,7 +99,7 @@ func TestAutoGrantStderrWarning_GrantFailed(t *testing.T) {
 		ctx:        ctx,
 		Config:     config,
 		Factory:    f,
-		resolvedAs: core.AsBot,
+		resolvedAs: identity.AsBot,
 	}
 
 	result := AutoGrantCurrentUserDrivePermission(runtime, "tkn_doc", "docx")
@@ -288,7 +289,7 @@ func TestAutoGrantStderrWarning_GrantFailed_AppScopeNotEnabled_Annotated(t *test
 		ctx:        ctx,
 		Config:     config,
 		Factory:    f,
-		resolvedAs: core.AsBot,
+		resolvedAs: identity.AsBot,
 	}
 
 	result := AutoGrantCurrentUserDrivePermission(runtime, "tkn_doc", "docx")

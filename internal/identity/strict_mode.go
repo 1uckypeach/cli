@@ -1,7 +1,19 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package core
+package identity
+
+// Identity represents the caller identity for API requests.
+type Identity string
+
+const (
+	AsUser Identity = "user"
+	AsBot  Identity = "bot"
+	AsAuto Identity = "auto"
+)
+
+// IsBot returns true if the identity is bot.
+func (id Identity) IsBot() bool { return id == AsBot }
 
 // StrictMode represents the identity restriction policy.
 type StrictMode string

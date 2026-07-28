@@ -16,6 +16,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/i18n"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/keychain"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/secret"
@@ -314,7 +315,7 @@ func hasStrictBotLock(data []byte) bool {
 		return false
 	}
 	for _, app := range multi.Apps {
-		if app.StrictMode != nil && *app.StrictMode == core.StrictModeBot {
+		if app.StrictMode != nil && *app.StrictMode == identity.StrictModeBot {
 			return true
 		}
 	}
@@ -374,13 +375,13 @@ func preferredLang(requested, prior i18n.Lang) i18n.Lang {
 func applyPreferences(appConfig *core.AppConfig, opts *BindOptions, prior i18n.Lang) {
 	switch opts.Identity {
 	case "bot-only":
-		sm := core.StrictModeBot
+		sm := identity.StrictModeBot
 		appConfig.StrictMode = &sm
-		appConfig.DefaultAs = core.AsBot
+		appConfig.DefaultAs = identity.AsBot
 	case "user-default":
-		sm := core.StrictModeOff
+		sm := identity.StrictModeOff
 		appConfig.StrictMode = &sm
-		appConfig.DefaultAs = core.AsUser
+		appConfig.DefaultAs = identity.AsUser
 	}
 	appConfig.Lang = preferredLang(i18n.Lang(opts.Lang), prior)
 }

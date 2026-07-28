@@ -20,6 +20,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/spf13/cobra"
 )
@@ -1024,7 +1025,7 @@ func runOneQueryRuntime(t *testing.T) (*common.RuntimeContext, *httpmock.Registr
 	t.Helper()
 	f, _, _, reg := cmdutil.TestFactory(t, searchUserDefaultConfig())
 	cmd := newSearchUserTestCommand()
-	rt := common.TestNewRuntimeContextForAPI(context.Background(), cmd, searchUserDefaultConfig(), f, core.AsUser)
+	rt := common.TestNewRuntimeContextForAPI(context.Background(), cmd, searchUserDefaultConfig(), f, identity.AsUser)
 	return rt, reg
 }
 

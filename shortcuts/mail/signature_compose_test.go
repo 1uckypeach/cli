@@ -16,6 +16,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
 	draftpkg "github.com/larksuite/cli/shortcuts/mail/draft"
 	"github.com/larksuite/cli/shortcuts/mail/emlbuilder"
@@ -188,7 +189,7 @@ func newSigTestRuntime(t *testing.T) (*common.RuntimeContext, *httpmock.Registry
 	t.Helper()
 	cfg := &core.CliConfig{Brand: brand.Feishu, AppID: "cli_sigtest"}
 	f, _, _, reg := cmdutil.TestFactory(t, cfg)
-	rt := common.TestNewRuntimeContextForAPI(context.Background(), &cobra.Command{Use: "+test"}, cfg, f, core.AsUser)
+	rt := common.TestNewRuntimeContextForAPI(context.Background(), &cobra.Command{Use: "+test"}, cfg, f, identity.AsUser)
 	return rt, reg
 }
 

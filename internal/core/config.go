@@ -13,24 +13,13 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/i18n"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/keychain"
 	"github.com/larksuite/cli/internal/secret"
 	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/internal/vfs"
 	"github.com/larksuite/cli/internal/workspace"
 )
-
-// Identity represents the caller identity for API requests.
-type Identity string
-
-const (
-	AsUser Identity = "user"
-	AsBot  Identity = "bot"
-	AsAuto Identity = "auto"
-)
-
-// IsBot returns true if the identity is bot.
-func (id Identity) IsBot() bool { return id == AsBot }
 
 // AppUser is a logged-in user record stored in config.
 type AppUser struct {
@@ -40,14 +29,14 @@ type AppUser struct {
 
 // AppConfig is a per-app configuration entry (stored format — secrets may be unresolved).
 type AppConfig struct {
-	Name       string             `json:"name,omitempty"`
-	AppId      string             `json:"appId"`
-	AppSecret  secret.SecretInput `json:"appSecret"`
-	Brand      brand.Brand        `json:"brand"`
-	Lang       i18n.Lang          `json:"lang,omitempty"`
-	DefaultAs  Identity           `json:"defaultAs,omitempty"` // AsUser | AsBot | AsAuto
-	StrictMode *StrictMode        `json:"strictMode,omitempty"`
-	Users      []AppUser          `json:"users"`
+	Name       string               `json:"name,omitempty"`
+	AppId      string               `json:"appId"`
+	AppSecret  secret.SecretInput   `json:"appSecret"`
+	Brand      brand.Brand          `json:"brand"`
+	Lang       i18n.Lang            `json:"lang,omitempty"`
+	DefaultAs  identity.Identity    `json:"defaultAs,omitempty"` // AsUser | AsBot | AsAuto
+	StrictMode *identity.StrictMode `json:"strictMode,omitempty"`
+	Users      []AppUser            `json:"users"`
 }
 
 // ProfileName returns the display name for this app config.
@@ -61,11 +50,11 @@ func (a *AppConfig) ProfileName() string {
 
 // MultiAppConfig is the multi-app config file format.
 type MultiAppConfig struct {
-	StrictMode  StrictMode  `json:"strictMode,omitempty"`
-	RiskControl *bool       `json:"riskControl,omitempty"`
-	CurrentApp  string      `json:"currentApp,omitempty"`
-	PreviousApp string      `json:"previousApp,omitempty"`
-	Apps        []AppConfig `json:"apps"`
+	StrictMode  identity.StrictMode `json:"strictMode,omitempty"`
+	RiskControl *bool               `json:"riskControl,omitempty"`
+	CurrentApp  string              `json:"currentApp,omitempty"`
+	PreviousApp string              `json:"previousApp,omitempty"`
+	Apps        []AppConfig         `json:"apps"`
 }
 
 // RiskControlEnabled resolves the workspace policy. An omitted preference
@@ -166,7 +155,7 @@ type CliConfig struct {
 	AppID               string
 	AppSecret           string
 	Brand               brand.Brand
-	DefaultAs           Identity // AsUser | AsBot | AsAuto | "" (from config file)
+	DefaultAs           identity.Identity // AsUser | AsBot | AsAuto | "" (from config file)
 	UserOpenId          string
 	UserName            string
 	Lang                i18n.Lang

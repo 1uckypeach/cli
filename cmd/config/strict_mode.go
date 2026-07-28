@@ -10,6 +10,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/spf13/cobra"
 )
 
@@ -100,9 +101,9 @@ func showStrictMode(ctx context.Context, f *cmdutil.Factory, multi *core.MultiAp
 }
 
 func setStrictMode(f *cmdutil.Factory, multi *core.MultiAppConfig, app *core.AppConfig, value string, global bool) error {
-	mode := core.StrictMode(value)
+	mode := identity.StrictMode(value)
 	switch mode {
-	case core.StrictModeBot, core.StrictModeUser, core.StrictModeOff:
+	case identity.StrictModeBot, identity.StrictModeUser, identity.StrictModeOff:
 	default:
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid value %q, valid values: bot | user | off", value)
 	}
@@ -118,7 +119,7 @@ func setStrictMode(f *cmdutil.Factory, multi *core.MultiAppConfig, app *core.App
 	// false-positived (--global change while current profile has an explicit
 	// override) and false-negatived (--global broadening that doesn't affect
 	// the current profile but does affect other inheriting profiles).
-	var oldMode core.StrictMode
+	var oldMode identity.StrictMode
 	if global {
 		oldMode = multi.StrictMode
 	} else {
@@ -147,7 +148,7 @@ func setStrictMode(f *cmdutil.Factory, multi *core.MultiAppConfig, app *core.App
 		return errs.NewInternalError(errs.SubtypeStorage, "failed to save config: %v", err).WithCause(err)
 	}
 
-	if oldMode == core.StrictModeBot && (mode == core.StrictModeUser || mode == core.StrictModeOff) {
+	if oldMode == identity.StrictModeBot && (mode == identity.StrictModeUser || mode == identity.StrictModeOff) {
 		fmt.Fprintln(f.IOStreams.ErrOut, "⚠️ "+strictModeRelaxLang(app).IdentityEscalationMessage)
 	}
 
@@ -169,12 +170,12 @@ func strictModeRelaxLang(app *core.AppConfig) *bindMsg {
 	return getBindMsg("")
 }
 
-func resolveStrictModeStatus(multi *core.MultiAppConfig, app *core.AppConfig) (core.StrictMode, string) {
+func resolveStrictModeStatus(multi *core.MultiAppConfig, app *core.AppConfig) (identity.StrictMode, string) {
 	if app != nil && app.StrictMode != nil {
 		return *app.StrictMode, fmt.Sprintf("profile %q", app.ProfileName())
 	}
 	if multi.StrictMode.IsActive() {
 		return multi.StrictMode, "global"
 	}
-	return core.StrictModeOff, "global (default)"
+	return identity.StrictModeOff, "global (default)"
 }

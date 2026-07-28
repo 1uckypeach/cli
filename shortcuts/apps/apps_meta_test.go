@@ -13,6 +13,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -23,7 +24,7 @@ func newMetaTestRuntime(t *testing.T) (*common.RuntimeContext, *httpmock.Registr
 	rt := common.TestNewRuntimeContextForAPI(
 		context.Background(),
 		&cobra.Command{Use: "+meta-test"},
-		cfg, f, core.AsUser,
+		cfg, f, identity.AsUser,
 	)
 	return rt, reg
 }

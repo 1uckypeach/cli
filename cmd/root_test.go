@@ -23,6 +23,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/deprecation"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/registry"
 )
@@ -516,7 +517,7 @@ func TestApplyNeedAuthorizationHint_ServiceMethodUsesLocalScopesWhenNoUAT(t *tes
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
-	f.ResolvedIdentity = core.AsUser
+	f.ResolvedIdentity = identity.AsUser
 
 	var target registry.CommandEntry
 	for _, entry := range registry.CollectCommandScopes([]string{"calendar"}, "user") {
@@ -564,7 +565,7 @@ func TestApplyNeedAuthorizationHint_ShortcutUsesDeclaredScopesWhenNoUAT(t *testi
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
-	f.ResolvedIdentity = core.AsUser
+	f.ResolvedIdentity = identity.AsUser
 
 	root := &cobra.Command{Use: "lark-cli"}
 	serviceCmd := &cobra.Command{Use: "docs"}
@@ -589,7 +590,7 @@ func TestApplyNeedAuthorizationHint_ShortcutIncludesConditionalScopes(t *testing
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
-	f.ResolvedIdentity = core.AsUser
+	f.ResolvedIdentity = identity.AsUser
 
 	root := &cobra.Command{Use: "lark-cli"}
 	serviceCmd := &cobra.Command{Use: "drive"}
@@ -615,7 +616,7 @@ func TestApplyNeedAuthorizationHint_AppendsExistingHint(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
-	f.ResolvedIdentity = core.AsUser
+	f.ResolvedIdentity = identity.AsUser
 
 	root := &cobra.Command{Use: "lark-cli"}
 	serviceCmd := &cobra.Command{Use: "docs"}

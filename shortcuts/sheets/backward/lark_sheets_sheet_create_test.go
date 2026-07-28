@@ -16,6 +16,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -157,7 +158,7 @@ func TestSheetCreateDryRunIncludesFolderToken(t *testing.T) {
 			"data":         "",
 		},
 		nil, nil)
-	rt = common.TestNewRuntimeContextWithIdentity(rt.Cmd, nil, core.AsBot)
+	rt = common.TestNewRuntimeContextWithIdentity(rt.Cmd, nil, identity.AsBot)
 	got := mustMarshalSheetsDryRun(t, SheetCreate.DryRun(context.Background(), rt))
 	if !strings.Contains(got, `"folder_token":"fldcn123"`) {
 		t.Fatalf("DryRun should include folder_token, got: %s", got)

@@ -21,11 +21,11 @@ import (
 	"github.com/larksuite/cli/internal/appmeta"
 	"github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
 	eventlib "github.com/larksuite/cli/internal/event"
 	"github.com/larksuite/cli/internal/event/consume"
 	"github.com/larksuite/cli/internal/event/transport"
+	identitypkg "github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/validate"
 )
@@ -132,7 +132,7 @@ func runConsume(cmd *cobra.Command, f *cmdutil.Factory, eventKey string, o consu
 	}
 	runtime := &consumeRuntime{client: apiClient, accessIdentity: identity}
 	// botRuntime pins AsBot: /app_versions rejects UAT (99991668) and /connection is app-level.
-	botRuntime := &consumeRuntime{client: apiClient, accessIdentity: core.AsBot}
+	botRuntime := &consumeRuntime{client: apiClient, accessIdentity: identitypkg.AsBot}
 
 	// Weak-dependency fetch: failures leave appVer==nil and downgrade preflight to a no-op.
 	preflightErrOut := f.IOStreams.ErrOut
@@ -225,8 +225,8 @@ func runConsume(cmd *cobra.Command, f *cmdutil.Factory, eventKey string, o consu
 }
 
 // resolveIdentity resolves the session identity and enforces keyDef.AuthTypes as a whitelist.
-func resolveIdentity(cmd *cobra.Command, f *cmdutil.Factory, keyDef *eventlib.KeyDefinition) (core.Identity, error) {
-	flagAs := core.Identity(cmd.Flag("as").Value.String())
+func resolveIdentity(cmd *cobra.Command, f *cmdutil.Factory, keyDef *eventlib.KeyDefinition) (identitypkg.Identity, error) {
+	flagAs := identitypkg.Identity(cmd.Flag("as").Value.String())
 	identity := f.ResolveAs(cmd.Context(), cmd, flagAs)
 	if len(keyDef.AuthTypes) > 0 {
 		if err := f.CheckIdentity(identity, keyDef.AuthTypes); err != nil {
@@ -241,7 +241,7 @@ type preflightCtx struct {
 	appID    string
 	brand    brandpkg.Brand
 	eventKey string
-	identity core.Identity
+	identity identitypkg.Identity
 	keyDef   *eventlib.KeyDefinition
 	appVer   *appmeta.AppVersion
 	// subscribedCallbacks is the application/get 底账 for callback-type EventKeys;
@@ -265,7 +265,7 @@ func preflightScopes(ctx context.Context, pf *preflightCtx) error {
 			return nil
 		}
 		storedScopes = strings.Join(pf.appVer.TenantScopes, " ")
-	case pf.identity == core.AsUser:
+	case pf.identity == identitypkg.AsUser:
 		result, err := pf.factory.Credential.ResolveToken(ctx, credential.NewTokenSpec(pf.identity, pf.appID))
 		if err != nil || result == nil || result.Scopes == "" {
 			return nil //nolint:nilerr // best-effort: bus handshake will surface real auth error
@@ -292,7 +292,7 @@ func preflightScopes(ctx context.Context, pf *preflightCtx) error {
 // the tenant token carries them. User: the scan link only updates the app
 // manifest — the user's own token still lacks the scopes until it is
 // re-authorized — so direct the user to re-login instead.
-func scopeRemediationHint(brand brandpkg.Brand, appID string, identity core.Identity, missing []string) string {
+func scopeRemediationHint(brand brandpkg.Brand, appID string, identity identitypkg.Identity, missing []string) string {
 	if identity.IsBot() {
 		return fmt.Sprintf("grant these scopes by scanning: %s",
 			addonsHintURL(brand, appID, missingScopeAddons(identity, missing)))
@@ -369,7 +369,7 @@ func resolveTenantToken(ctx context.Context, f *cmdutil.Factory, appID string) (
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	result, err := f.Credential.ResolveToken(ctx, credential.NewTokenSpec(core.AsBot, appID))
+	result, err := f.Credential.ResolveToken(ctx, credential.NewTokenSpec(identitypkg.AsBot, appID))
 	if err != nil {
 		if _, ok := errs.ProblemOf(err); ok {
 			return "", err

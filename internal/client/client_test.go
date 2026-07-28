@@ -24,6 +24,7 @@ import (
 	internalauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 )
 
@@ -471,7 +472,7 @@ func TestDoStream_IgnoresBaseHTTPClientTimeout(t *testing.T) {
 	resp, err := ac.DoStream(context.Background(), &larkcore.ApiReq{
 		HttpMethod: http.MethodGet,
 		ApiPath:    srv.URL,
-	}, core.AsBot)
+	}, identity.AsBot)
 	if err != nil {
 		t.Fatalf("DoStream() error = %v", err)
 	}
@@ -506,7 +507,7 @@ func TestDoStream_TransportFailureSplitsSubtype(t *testing.T) {
 	_, err := ac.DoStream(context.Background(), &larkcore.ApiReq{
 		HttpMethod: http.MethodGet,
 		ApiPath:    "/open-apis/drive/v1/files/file_token/download",
-	}, core.AsBot)
+	}, identity.AsBot)
 	if err == nil {
 		t.Fatal("expected DNS error from DoStream transport, got nil")
 	}
@@ -537,7 +538,7 @@ func TestResolveAccessToken_NoToken_ReturnsTypedAuthenticationError(t *testing.T
 		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu},
 	}
 
-	_, err := ac.resolveAccessToken(context.Background(), core.AsUser)
+	_, err := ac.resolveAccessToken(context.Background(), identity.AsUser)
 	if err == nil {
 		t.Fatal("expected error when no token available, got nil")
 	}
@@ -577,7 +578,7 @@ func TestResolveAccessToken_NeedAuthorization_SurfacesAsTypedAuthentication(t *t
 		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu},
 	}
 
-	_, err := ac.resolveAccessToken(context.Background(), core.AsUser)
+	_, err := ac.resolveAccessToken(context.Background(), identity.AsUser)
 	if err == nil {
 		t.Fatal("expected error when credential chain signals need_user_authorization, got nil")
 	}
@@ -620,7 +621,7 @@ func TestDoSDKRequest_AuthFailureSurfacesTypedAuthenticationError(t *testing.T) 
 	_, err := ac.DoSDKRequest(context.Background(), &larkcore.ApiReq{
 		HttpMethod: http.MethodGet,
 		ApiPath:    "/open-apis/contact/v3/users/me",
-	}, core.AsUser)
+	}, identity.AsUser)
 
 	if err == nil {
 		t.Fatal("expected auth error, got nil")
@@ -648,7 +649,7 @@ func TestDoSDKRequest_TransportFailureWrapsAsNetwork(t *testing.T) {
 	_, err := ac.DoSDKRequest(context.Background(), &larkcore.ApiReq{
 		HttpMethod: http.MethodGet,
 		ApiPath:    "/open-apis/contact/v3/users/me",
-	}, core.AsBot)
+	}, identity.AsBot)
 
 	if err == nil {
 		t.Fatal("expected error from broken transport, got nil")

@@ -22,6 +22,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/spf13/cobra"
 )
 
@@ -61,7 +62,7 @@ func TestApiCmd_FlagParsing(t *testing.T) {
 	if gotOpts.Path != "/open-apis/test" {
 		t.Errorf("expected path /open-apis/test, got %s", gotOpts.Path)
 	}
-	if gotOpts.As != core.AsBot {
+	if gotOpts.As != identity.AsBot {
 		t.Errorf("expected as=bot, got %s", gotOpts.As)
 	}
 	if !gotOpts.DryRun {

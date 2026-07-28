@@ -25,6 +25,7 @@ import (
 	extcs "github.com/larksuite/cli/extension/contentsafety"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/shortcuts/common"
 )
@@ -403,7 +404,7 @@ func runRuntimeContextOracle(t *testing.T, data interface{}, opts runtimeOracleO
 
 	factory := &cmdutil.Factory{IOStreams: &cmdutil.IOStreams{Out: stdout, ErrOut: stderr}}
 	runtime := common.TestNewRuntimeContextForAPI(
-		context.Background(), leaf, &core.CliConfig{Brand: brand.Feishu}, factory, core.AsBot,
+		context.Background(), leaf, &core.CliConfig{Brand: brand.Feishu}, factory, identity.AsBot,
 	)
 	runtime.Format = opts.format
 	runtime.JqExpr = opts.jq

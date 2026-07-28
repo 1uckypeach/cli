@@ -14,6 +14,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/identity"
 )
 
 func TestDryRunAPI_SingleGET(t *testing.T) {
@@ -154,7 +155,7 @@ func TestPrintDryRun_JSON(t *testing.T) {
 	}, &core.CliConfig{AppID: "app123"}, DryRunOutputOptions{
 		Format:      "json",
 		CommandPath: "lark-cli api",
-		Identity:    core.AsUser,
+		Identity:    identity.AsUser,
 		Out:         &buf,
 		ErrOut:      &errBuf,
 	})
@@ -203,7 +204,7 @@ func TestPrintDryRun_Pretty(t *testing.T) {
 		As:     "bot",
 	}, &core.CliConfig{AppID: "app456"}, DryRunOutputOptions{
 		Format:   "pretty",
-		Identity: core.AsBot,
+		Identity: identity.AsBot,
 		Out:      &buf,
 		ErrOut:   &errBuf,
 	})
@@ -234,7 +235,7 @@ func TestPrintDryRun_WithJqUsesEnvelope(t *testing.T) {
 	}, &core.CliConfig{AppID: "app123"}, DryRunOutputOptions{
 		Format:   "json",
 		JqExpr:   ".data.api[0].url",
-		Identity: core.AsBot,
+		Identity: identity.AsBot,
 		Out:      &buf,
 		ErrOut:   io.Discard,
 	})
@@ -254,7 +255,7 @@ func TestPrintDryRunWithFile_JSONEnvelope(t *testing.T) {
 		As:     "bot",
 	}, &core.CliConfig{AppID: "app123", UserOpenId: "ou_tester"}, DryRunOutputOptions{
 		Format:   "json",
-		Identity: core.AsBot,
+		Identity: identity.AsBot,
 		Out:      &buf,
 		ErrOut:   io.Discard,
 	}, FileUploadMeta{FieldName: "file", FilePath: "report.txt", FormFields: map[string]any{"parent": "fld"}})
@@ -295,7 +296,7 @@ func TestPrintDryRun_MethodTranscribedVerbatim(t *testing.T) {
 		As:     "bot",
 	}, &core.CliConfig{AppID: "app123"}, DryRunOutputOptions{
 		Format:   "json",
-		Identity: core.AsBot,
+		Identity: identity.AsBot,
 		Out:      &buf,
 		ErrOut:   io.Discard,
 	})

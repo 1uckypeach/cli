@@ -16,6 +16,7 @@ import (
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/spf13/cobra"
 )
@@ -48,7 +49,7 @@ func newRoleRCtx(t *testing.T, flagDefs map[string]string, flags map[string]stri
 			t.Fatalf("set flag %q = %q: %v", name, val, err)
 		}
 	}
-	rctx := common.TestNewRuntimeContextForAPI(context.Background(), cmd, cfg, factory, core.AsUser)
+	rctx := common.TestNewRuntimeContextForAPI(context.Background(), cmd, cfg, factory, identity.AsUser)
 	return rctx, stdoutBuf, reg
 }
 

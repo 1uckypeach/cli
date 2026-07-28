@@ -12,7 +12,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/apicatalog"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/registry"
 	"github.com/larksuite/cli/internal/schema"
@@ -91,7 +91,7 @@ func schemaRun(opts *SchemaOptions) error {
 // schema owns rendering (Envelope/Envelopes); this adapter only chooses the
 // output shape — a single resolved method renders as one envelope object,
 // anything broader as an array — and maps resolve failures to hints.
-func runSchema(out io.Writer, parts []string, mode core.StrictMode) error {
+func runSchema(out io.Writer, parts []string, mode identity.StrictMode) error {
 	catalog := registry.SchemaCatalog()
 	if len(catalog.Services()) == 0 {
 		// No embedded metadata and the runtime fallback is empty too: offline

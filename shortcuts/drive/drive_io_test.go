@@ -23,6 +23,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -1089,7 +1090,7 @@ func TestDriveUploadDryRunUsesWikiTarget(t *testing.T) {
 		t.Fatalf("set --wiki-token: %v", err)
 	}
 
-	runtime := common.TestNewRuntimeContextWithIdentity(cmd, nil, core.AsBot)
+	runtime := common.TestNewRuntimeContextWithIdentity(cmd, nil, identity.AsBot)
 	dry := DriveUpload.DryRun(context.Background(), runtime)
 	if dry == nil {
 		t.Fatal("DryRun returned nil")

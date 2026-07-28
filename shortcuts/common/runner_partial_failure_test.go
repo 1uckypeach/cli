@@ -14,6 +14,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 )
 
@@ -24,7 +25,7 @@ import (
 func TestOutPartialFailure(t *testing.T) {
 	cfg := &core.CliConfig{Brand: brand.Feishu, AppID: "cli_x"}
 	f, stdout, _, _ := cmdutil.TestFactory(t, cfg)
-	rt := TestNewRuntimeContextForAPI(context.Background(), &cobra.Command{Use: "+push"}, cfg, f, core.AsUser)
+	rt := TestNewRuntimeContextForAPI(context.Background(), &cobra.Command{Use: "+push"}, cfg, f, identity.AsUser)
 
 	payload := map[string]interface{}{
 		"summary": map[string]interface{}{"uploaded": 1, "failed": 1},

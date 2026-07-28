@@ -18,6 +18,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/i18n"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/secret"
 	"github.com/larksuite/cli/internal/workspace"
@@ -1278,7 +1279,7 @@ func TestConfigBindRun_Identity_BotOnly_Applied(t *testing.T) {
 		"message":     fmt.Sprintf(msg.MessageBotOnly, "cli_abc", "Hermes", brandDisplay("feishu", "en")),
 	})
 	assertPresetApplied(t, filepath.Join(configDir, "hermes", "config.json"),
-		core.StrictModeBot, core.AsBot)
+		identity.StrictModeBot, identity.AsBot)
 }
 
 // TestConfigBindRun_FlagModeDefaultsToBotOnly verifies the flag-mode default
@@ -1313,7 +1314,7 @@ func TestConfigBindRun_FlagModeDefaultsToBotOnly(t *testing.T) {
 		"message":     fmt.Sprintf(msg.MessageBotOnly, "cli_abc", "Hermes", brandDisplay("feishu", "")),
 	})
 	assertPresetApplied(t, filepath.Join(configDir, "hermes", "config.json"),
-		core.StrictModeBot, core.AsBot)
+		identity.StrictModeBot, identity.AsBot)
 }
 
 // TestConfigBindRun_WarnsOnIdentityEscalationWithoutForce verifies the
@@ -1409,7 +1410,7 @@ func TestConfigBindRun_IdentityEscalationWithForceAllowed(t *testing.T) {
 		t.Fatalf("expected --force to allow the escalation, got: %v", err)
 	}
 	assertPresetApplied(t, filepath.Join(hermesDir, "config.json"),
-		core.StrictModeOff, core.AsUser)
+		identity.StrictModeOff, identity.AsUser)
 }
 
 // TestConfigBindRun_AllowsRebindSameBotOnly verifies re-binding the same
@@ -1445,7 +1446,7 @@ func TestConfigBindRun_AllowsRebindSameBotOnly(t *testing.T) {
 		t.Fatalf("expected rebind to same bot-only identity to succeed, got: %v", err)
 	}
 	assertPresetApplied(t, filepath.Join(hermesDir, "config.json"),
-		core.StrictModeBot, core.AsBot)
+		identity.StrictModeBot, identity.AsBot)
 }
 
 // TestConfigBindRun_AllowsUserDefaultOnUserDefaultConfig verifies that if the
@@ -1482,12 +1483,12 @@ func TestConfigBindRun_AllowsUserDefaultOnUserDefaultConfig(t *testing.T) {
 		t.Fatalf("expected user-default→user-default rebind to succeed, got: %v", err)
 	}
 	assertPresetApplied(t, filepath.Join(hermesDir, "config.json"),
-		core.StrictModeOff, core.AsUser)
+		identity.StrictModeOff, identity.AsUser)
 }
 
 // assertPresetApplied verifies the on-disk config.json applied the identity
 // preset's StrictMode + DefaultAs expansion.
-func assertPresetApplied(t *testing.T, configPath string, wantStrict core.StrictMode, wantDefault core.Identity) {
+func assertPresetApplied(t *testing.T, configPath string, wantStrict identity.StrictMode, wantDefault identity.Identity) {
 	t.Helper()
 	data, err := os.ReadFile(configPath)
 	if err != nil {

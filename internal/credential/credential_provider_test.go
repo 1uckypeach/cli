@@ -14,7 +14,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/auth"
-	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/identity"
 )
 
 type mockExtProvider struct {
@@ -224,11 +224,11 @@ func TestCredentialProvider_ResolveIdentityHint_FromExtensionAccount(t *testing.
 	if err != nil {
 		t.Fatalf("ResolveIdentityHint() error = %v", err)
 	}
-	if hint.DefaultAs != core.AsUser {
-		t.Fatalf("ResolveIdentityHint() defaultAs = %q, want %q", hint.DefaultAs, core.AsUser)
+	if hint.DefaultAs != identity.AsUser {
+		t.Fatalf("ResolveIdentityHint() defaultAs = %q, want %q", hint.DefaultAs, identity.AsUser)
 	}
-	if hint.AutoAs != core.AsUser {
-		t.Fatalf("ResolveIdentityHint() autoAs = %q, want %q", hint.AutoAs, core.AsUser)
+	if hint.AutoAs != identity.AsUser {
+		t.Fatalf("ResolveIdentityHint() autoAs = %q, want %q", hint.AutoAs, identity.AsUser)
 	}
 }
 
@@ -261,8 +261,8 @@ func TestCredentialProvider_ResolveIdentityHint_DefaultSourceUsesStoredTokenStat
 	if err != nil {
 		t.Fatalf("ResolveIdentityHint() error = %v", err)
 	}
-	if hint.AutoAs != core.AsUser {
-		t.Fatalf("ResolveIdentityHint() autoAs = %q, want %q", hint.AutoAs, core.AsUser)
+	if hint.AutoAs != identity.AsUser {
+		t.Fatalf("ResolveIdentityHint() autoAs = %q, want %q", hint.AutoAs, identity.AsUser)
 	}
 }
 
@@ -297,8 +297,8 @@ func TestCredentialProvider_ResolveIdentityHint_CachesResult(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveIdentityHint() error = %v", err)
 		}
-		if hint.AutoAs != core.AsUser {
-			t.Fatalf("ResolveIdentityHint() autoAs = %q, want %q", hint.AutoAs, core.AsUser)
+		if hint.AutoAs != identity.AsUser {
+			t.Fatalf("ResolveIdentityHint() autoAs = %q, want %q", hint.AutoAs, identity.AsUser)
 		}
 	}
 

@@ -16,6 +16,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/identity"
 )
 
 func TestDoStream_HTTPErrorIncludesLogID(t *testing.T) {
@@ -41,7 +42,7 @@ func TestDoStream_HTTPErrorIncludesLogID(t *testing.T) {
 	_, err = client.DoStream(context.Background(), &larkcore.ApiReq{
 		HttpMethod: http.MethodGet,
 		ApiPath:    "/open-apis/drive/v1/medias/file_token/download",
-	}, core.AsBot)
+	}, identity.AsBot)
 	var netErr *errs.NetworkError
 	if !errors.As(err, &netErr) {
 		t.Fatalf("expected *errs.NetworkError, got %T %v", err, err)

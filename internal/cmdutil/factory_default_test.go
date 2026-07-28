@@ -15,6 +15,7 @@ import (
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
+	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/secret"
 	"github.com/larksuite/cli/internal/vfs/localfileio"
 )
@@ -39,7 +40,7 @@ func TestNewDefault_InvocationProfileUsedByStrictModeAndConfig(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)
 
-	bot := core.StrictModeBot
+	bot := identity.StrictModeBot
 	multi := &core.MultiAppConfig{
 		CurrentApp: "default",
 		Apps: []core.AppConfig{
@@ -63,8 +64,8 @@ func TestNewDefault_InvocationProfileUsedByStrictModeAndConfig(t *testing.T) {
 	}
 
 	f := NewDefault(nil, InvocationContext{Profile: "target"})
-	if got := f.ResolveStrictMode(context.Background()); got != core.StrictModeBot {
-		t.Fatalf("ResolveStrictMode() = %q, want %q", got, core.StrictModeBot)
+	if got := f.ResolveStrictMode(context.Background()); got != identity.StrictModeBot {
+		t.Fatalf("ResolveStrictMode() = %q, want %q", got, identity.StrictModeBot)
 	}
 	cfg, err := f.Config()
 	if err != nil {
@@ -103,8 +104,8 @@ func TestNewDefault_InvocationProfileMissingSticksAcrossEarlyStrictMode(t *testi
 	}
 
 	f := NewDefault(nil, InvocationContext{Profile: "missing"})
-	if got := f.ResolveStrictMode(context.Background()); got != core.StrictModeOff {
-		t.Fatalf("ResolveStrictMode() = %q, want %q", got, core.StrictModeOff)
+	if got := f.ResolveStrictMode(context.Background()); got != identity.StrictModeOff {
+		t.Fatalf("ResolveStrictMode() = %q, want %q", got, identity.StrictModeOff)
 	}
 	_, err := f.Config()
 	if err == nil {
@@ -131,8 +132,8 @@ func TestNewDefault_ResolveAs_UsesDefaultAsFromEnvAccount(t *testing.T) {
 	cmd := newCmdWithAsFlag("auto", false)
 
 	got := f.ResolveAs(context.Background(), cmd, "auto")
-	if got != core.AsUser {
-		t.Fatalf("ResolveAs() = %q, want %q", got, core.AsUser)
+	if got != identity.AsUser {
+		t.Fatalf("ResolveAs() = %q, want %q", got, identity.AsUser)
 	}
 	if f.IdentityAutoDetected {
 		t.Fatal("IdentityAutoDetected = true, want false")

@@ -19,6 +19,7 @@ import (
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
+	"github.com/larksuite/cli/internal/identity"
 )
 
 // staticTokenResolver always returns a fixed token without any HTTP calls.
@@ -48,7 +49,7 @@ func newTestConsumeRuntime(rt http.RoundTripper) *consumeRuntime {
 			Credential: credential.NewCredentialProvider(nil, nil, &staticTokenResolver{}, nil),
 			Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu},
 		},
-		accessIdentity: core.AsBot,
+		accessIdentity: identity.AsBot,
 	}
 }
 
