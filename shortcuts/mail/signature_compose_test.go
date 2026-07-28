@@ -14,7 +14,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
@@ -187,7 +187,7 @@ func TestAddSignatureImagesToBuilderWithImages(t *testing.T) {
 // tests that exercise signature API code paths (autoResolveSignatureID, resolveSignature).
 func newSigTestRuntime(t *testing.T) (*common.RuntimeContext, *httpmock.Registry) {
 	t.Helper()
-	cfg := &core.CliConfig{Brand: brand.Feishu, AppID: "cli_sigtest"}
+	cfg := &configpkg.CliConfig{Brand: brand.Feishu, AppID: "cli_sigtest"}
 	f, _, _, reg := cmdutil.TestFactory(t, cfg)
 	rt := common.TestNewRuntimeContextForAPI(context.Background(), &cobra.Command{Use: "+test"}, cfg, f, identity.AsUser)
 	return rt, reg

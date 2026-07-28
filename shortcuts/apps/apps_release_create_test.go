@@ -12,7 +12,7 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
@@ -49,7 +49,7 @@ func TestAppsReleaseCreateMeta(t *testing.T) {
 // via the returned setter helper.
 func newReleaseCreateRuntimeContext(t *testing.T, appID, branch string) (*common.RuntimeContext, *bytes.Buffer, *httpmock.Registry) {
 	t.Helper()
-	cfg := &core.CliConfig{
+	cfg := &configpkg.CliConfig{
 		AppID:      "test-app-" + strings.ToLower(t.Name()),
 		AppSecret:  "test-secret",
 		Brand:      brand.Feishu,

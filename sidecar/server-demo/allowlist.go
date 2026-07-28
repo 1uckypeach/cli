@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/larksuite/cli/brand"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/sidecar"
 )
 
@@ -29,7 +29,7 @@ func buildAllowedHosts(endpoints ...brand.Endpoints) map[string]bool {
 
 // buildAllowedIdentities returns the set of identities the sidecar is allowed to serve,
 // based on the trusted-side strict mode / SupportedIdentities configuration.
-func buildAllowedIdentities(cfg *core.CliConfig) map[string]bool {
+func buildAllowedIdentities(cfg *configpkg.CliConfig) map[string]bool {
 	ids := make(map[string]bool)
 	switch {
 	case cfg.SupportedIdentities == 0: // unknown/unset → allow both

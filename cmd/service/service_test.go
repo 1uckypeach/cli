@@ -19,7 +19,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	extcs "github.com/larksuite/cli/extension/contentsafety"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/meta"
@@ -28,7 +28,7 @@ import (
 
 // ── helpers ──
 
-var testConfig = &core.CliConfig{
+var testConfig = &configpkg.CliConfig{
 	AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 }
 
@@ -133,7 +133,7 @@ func TestRegisterService_MergesExistingCommand(t *testing.T) {
 }
 
 func TestNewCmdServiceMethod_StrictModeHidesAsFlag(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu, SupportedIdentities: 2,
 	})
 
@@ -465,7 +465,7 @@ func TestServiceMethod_BotMode_Success(t *testing.T) {
 }
 
 func TestServiceMethod_BotMode_PageAll_JSON(t *testing.T) {
-	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app-page", AppSecret: "test-secret-page", Brand: brand.Feishu,
 	})
 
@@ -533,7 +533,7 @@ func TestServiceMethod_PageAll_DefaultJSONRunsContentSafety(t *testing.T) {
 	extcs.Register(provider)
 	t.Cleanup(func() { extcs.Register(nil) })
 
-	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app-service-safety", AppSecret: "test-secret-service-safety", Brand: brand.Feishu,
 	})
 
@@ -587,7 +587,7 @@ func TestServiceMethod_PageAll_StreamFormatRunsContentSafety(t *testing.T) {
 	extcs.Register(provider)
 	t.Cleanup(func() { extcs.Register(nil) })
 
-	f, stdout, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, stderr, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app-service-stream-safety", AppSecret: "test-secret-service-stream-safety", Brand: brand.Feishu,
 	})
 
@@ -635,7 +635,7 @@ func TestServiceMethod_PageAll_StreamFormatBlockSkipsBlockedPage(t *testing.T) {
 	extcs.Register(provider)
 	t.Cleanup(func() { extcs.Register(nil) })
 
-	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app-service-stream-block", AppSecret: "test-secret-service-stream-block", Brand: brand.Feishu,
 	})
 
@@ -691,7 +691,7 @@ func TestServiceMethod_PageAll_StreamFormatBlockSkipsBlockedPage(t *testing.T) {
 }
 
 func TestServiceMethod_BusinessErrorReturnsTypedErrorWithoutSuccessEnvelope(t *testing.T) {
-	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app-service-err", AppSecret: "test-secret-service-err", Brand: brand.Feishu,
 	})
 
@@ -722,7 +722,7 @@ func TestServiceMethod_BusinessErrorReturnsTypedErrorWithoutSuccessEnvelope(t *t
 }
 
 func TestServiceMethod_PageAll_DefaultBusinessErrorOutputsRawResponse(t *testing.T) {
-	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app-service-pageall-err", AppSecret: "test-secret-service-pageall-err", Brand: brand.Feishu,
 	})
 
@@ -752,7 +752,7 @@ func TestServiceMethod_PageAll_DefaultBusinessErrorOutputsRawResponse(t *testing
 }
 
 func TestServiceMethod_PageAll_StreamBusinessErrorDoesNotDumpJSON(t *testing.T) {
-	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app-service-pageall-stream-err", AppSecret: "test-secret-service-pageall-stream-err", Brand: brand.Feishu,
 	})
 
@@ -798,7 +798,7 @@ func TestServiceMethod_PageAll_StreamBusinessErrorDoesNotDumpJSON(t *testing.T) 
 }
 
 func TestServiceMethod_UnknownFormat_Warning(t *testing.T) {
-	f, _, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, stderr, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app-fmt", AppSecret: "test-secret-fmt", Brand: brand.Feishu,
 	})
 
@@ -882,7 +882,7 @@ func TestServiceMethod_JqAndOutputConflict(t *testing.T) {
 }
 
 func TestServiceMethod_JqFilter_AppliesExpression(t *testing.T) {
-	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app-jq", AppSecret: "test-secret-jq", Brand: brand.Feishu,
 	})
 
@@ -953,7 +953,7 @@ func TestServiceMethod_JqInvalidExpression(t *testing.T) {
 }
 
 func TestServiceMethod_PageAll_WithJq(t *testing.T) {
-	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app-spjq", AppSecret: "test-secret-spjq", Brand: brand.Feishu,
 	})
 
@@ -986,7 +986,7 @@ func TestServiceMethod_PageAll_WithJq(t *testing.T) {
 }
 
 func TestServiceMethod_PageAll_WithJqBusinessErrorOutputsRawResponse(t *testing.T) {
-	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app-spjq-err", AppSecret: "test-secret-spjq-err", Brand: brand.Feishu,
 	})
 

@@ -14,7 +14,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/spf13/cobra"
@@ -380,7 +380,7 @@ func TestWBUpdateDryRun(t *testing.T) {
 
 func newUpdateExecuteFactory(t *testing.T) (*cmdutil.Factory, *bytes.Buffer, *httpmock.Registry) {
 	t.Helper()
-	config := &core.CliConfig{
+	config := &configpkg.CliConfig{
 		AppID:      "test-app-" + strings.ReplaceAll(strings.ToLower(t.Name()), "/", "-"),
 		AppSecret:  "test-secret",
 		Brand:      brand.Feishu,

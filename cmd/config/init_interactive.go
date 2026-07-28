@@ -17,7 +17,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/transport"
 )
@@ -63,8 +63,8 @@ func runInteractiveConfigInit(ctx context.Context, f *cmdutil.Factory, msg *init
 // runExistingAppForm shows a huh form for manually entering App ID / App Secret / Brand.
 func runExistingAppForm(f *cmdutil.Factory, msg *initMsg) (*configInitResult, error) {
 	// Load existing config for defaults
-	existing, _ := core.LoadMultiAppConfig()
-	var firstApp *core.AppConfig
+	existing, _ := configpkg.LoadMultiAppConfig()
+	var firstApp *configpkg.AppConfig
 	if existing != nil {
 		firstApp = existing.CurrentAppConfig("")
 	}

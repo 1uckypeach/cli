@@ -18,7 +18,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/build"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/identitydiag"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/transport"
@@ -87,7 +87,7 @@ func doctorRun(opts *DoctorOptions) error {
 	}
 
 	// ── 1. Config file ──
-	_, err := core.LoadMultiAppConfig()
+	_, err := configpkg.LoadMultiAppConfig()
 	if err != nil {
 		// For "config not present" cases, prefer the workspace-aware
 		// NotConfiguredError message + hint (e.g. "openclaw context
@@ -98,7 +98,7 @@ func doctorRun(opts *DoctorOptions) error {
 		msg, hint := err.Error(), ""
 		if errors.Is(err, os.ErrNotExist) {
 			var cfgErr *errs.ConfigError
-			if errors.As(core.NotConfiguredError(), &cfgErr) {
+			if errors.As(configpkg.NotConfiguredError(), &cfgErr) {
 				msg, hint = cfgErr.Message, cfgErr.Hint
 			}
 		}

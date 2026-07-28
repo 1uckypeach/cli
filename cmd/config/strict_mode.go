@@ -9,7 +9,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/spf13/cobra"
 )
@@ -38,7 +38,7 @@ explicit user confirmation — never run on your own initiative.`,
   lark-cli config strict-mode --reset       # clear profile override`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			multi, err := core.LoadOrNotConfigured()
+			multi, err := configpkg.LoadOrNotConfigured()
 			if err != nil {
 				return err
 			}
@@ -46,20 +46,20 @@ explicit user confirmation — never run on your own initiative.`,
 			if reset {
 				app := multi.CurrentAppConfig(f.Invocation.Profile)
 				if app == nil {
-					return core.NoActiveProfileError()
+					return configpkg.NoActiveProfileError()
 				}
 				return resetStrictMode(f, multi, app, global, args)
 			}
 			if len(args) == 0 {
 				app := multi.CurrentAppConfig(f.Invocation.Profile)
 				if app == nil {
-					return core.NoActiveProfileError()
+					return configpkg.NoActiveProfileError()
 				}
 				return showStrictMode(cmd.Context(), f, multi, app)
 			}
 			app := multi.CurrentAppConfig(f.Invocation.Profile)
 			if !global && app == nil {
-				return core.NoActiveProfileError()
+				return configpkg.NoActiveProfileError()
 			}
 			return setStrictMode(f, multi, app, args[0], global)
 		},
@@ -72,7 +72,7 @@ explicit user confirmation — never run on your own initiative.`,
 	return cmd
 }
 
-func resetStrictMode(f *cmdutil.Factory, multi *core.MultiAppConfig, app *core.AppConfig, global bool, args []string) error {
+func resetStrictMode(f *cmdutil.Factory, multi *configpkg.MultiAppConfig, app *configpkg.AppConfig, global bool, args []string) error {
 	if global {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--reset cannot be used with --global").WithParam("--reset")
 	}
@@ -80,14 +80,14 @@ func resetStrictMode(f *cmdutil.Factory, multi *core.MultiAppConfig, app *core.A
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--reset cannot be used with a value argument").WithParam("--reset")
 	}
 	app.StrictMode = nil
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		return errs.NewInternalError(errs.SubtypeStorage, "failed to save config: %v", err).WithCause(err)
 	}
 	fmt.Fprintln(f.IOStreams.ErrOut, "Profile strict-mode reset (inherits global)")
 	return nil
 }
 
-func showStrictMode(ctx context.Context, f *cmdutil.Factory, multi *core.MultiAppConfig, app *core.AppConfig) error {
+func showStrictMode(ctx context.Context, f *cmdutil.Factory, multi *configpkg.MultiAppConfig, app *configpkg.AppConfig) error {
 	// Runtime effective mode from credential provider chain is the source of truth.
 	runtime := f.ResolveStrictMode(ctx)
 	configMode, configSource := resolveStrictModeStatus(multi, app)
@@ -100,7 +100,7 @@ func showStrictMode(ctx context.Context, f *cmdutil.Factory, multi *core.MultiAp
 	return nil
 }
 
-func setStrictMode(f *cmdutil.Factory, multi *core.MultiAppConfig, app *core.AppConfig, value string, global bool) error {
+func setStrictMode(f *cmdutil.Factory, multi *configpkg.MultiAppConfig, app *configpkg.AppConfig, value string, global bool) error {
 	mode := identity.StrictMode(value)
 	switch mode {
 	case identity.StrictModeBot, identity.StrictModeUser, identity.StrictModeOff:
@@ -139,12 +139,12 @@ func setStrictMode(f *cmdutil.Factory, multi *core.MultiAppConfig, app *core.App
 		}
 	} else {
 		if app == nil {
-			return core.NoActiveProfileError()
+			return configpkg.NoActiveProfileError()
 		}
 		app.StrictMode = &mode
 	}
 
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		return errs.NewInternalError(errs.SubtypeStorage, "failed to save config: %v", err).WithCause(err)
 	}
 
@@ -163,14 +163,14 @@ func setStrictMode(f *cmdutil.Factory, multi *core.MultiAppConfig, app *core.App
 // strictModeRelaxLang picks the bind-message bundle whose language matches the
 // active profile's Lang setting. Falls back to bindMsgZh when no profile is
 // available (global mutation with no current app).
-func strictModeRelaxLang(app *core.AppConfig) *bindMsg {
+func strictModeRelaxLang(app *configpkg.AppConfig) *bindMsg {
 	if app != nil {
 		return getBindMsg(app.Lang)
 	}
 	return getBindMsg("")
 }
 
-func resolveStrictModeStatus(multi *core.MultiAppConfig, app *core.AppConfig) (identity.StrictMode, string) {
+func resolveStrictModeStatus(multi *configpkg.MultiAppConfig, app *configpkg.AppConfig) (identity.StrictMode, string) {
 	if app != nil && app.StrictMode != nil {
 		return *app.StrictMode, fmt.Sprintf("profile %q", app.ProfileName())
 	}

@@ -13,7 +13,7 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 )
@@ -23,7 +23,7 @@ import (
 // returned error is the typed partial-failure exit signal (ExitAPI), distinct
 // from ErrBare (the silent-exit signal).
 func TestOutPartialFailure(t *testing.T) {
-	cfg := &core.CliConfig{Brand: brand.Feishu, AppID: "cli_x"}
+	cfg := &configpkg.CliConfig{Brand: brand.Feishu, AppID: "cli_x"}
 	f, stdout, _, _ := cmdutil.TestFactory(t, cfg)
 	rt := TestNewRuntimeContextForAPI(context.Background(), &cobra.Command{Use: "+push"}, cfg, f, identity.AsUser)
 

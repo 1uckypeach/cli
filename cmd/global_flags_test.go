@@ -10,7 +10,7 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/secret"
 	"github.com/spf13/pflag"
 )
@@ -60,7 +60,7 @@ func TestIsSingleAppMode_NoConfig(t *testing.T) {
 
 func TestIsSingleAppMode_SingleApp(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
-	saveAppsForTest(t, []core.AppConfig{
+	saveAppsForTest(t, []configpkg.AppConfig{
 		{Name: "default", AppId: "cli_a", AppSecret: secret.PlainSecret("x"), Brand: brand.Feishu},
 	})
 	if !isSingleAppMode() {
@@ -70,7 +70,7 @@ func TestIsSingleAppMode_SingleApp(t *testing.T) {
 
 func TestIsSingleAppMode_MultiApp(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
-	saveAppsForTest(t, []core.AppConfig{
+	saveAppsForTest(t, []configpkg.AppConfig{
 		{Name: "a", AppId: "cli_a", AppSecret: secret.PlainSecret("x"), Brand: brand.Feishu},
 		{Name: "b", AppId: "cli_b", AppSecret: secret.PlainSecret("y"), Brand: brand.Feishu},
 	})
@@ -103,10 +103,10 @@ func TestBuildInternal_DefaultShowsProfileFlag(t *testing.T) {
 	}
 }
 
-func saveAppsForTest(t *testing.T, apps []core.AppConfig) {
+func saveAppsForTest(t *testing.T, apps []configpkg.AppConfig) {
 	t.Helper()
-	multi := &core.MultiAppConfig{CurrentApp: apps[0].Name, Apps: apps}
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	multi := &configpkg.MultiAppConfig{CurrentApp: apps[0].Name, Apps: apps}
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		t.Fatalf("SaveMultiAppConfig() error = %v", err)
 	}
 }

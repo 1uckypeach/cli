@@ -19,7 +19,7 @@ import (
 	"github.com/larksuite/cli/internal/apicatalog"
 	"github.com/larksuite/cli/internal/build"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/meta"
@@ -170,9 +170,9 @@ func newStrictModeDefaultFactory(t *testing.T, profile string, mode identity.Str
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)
 
 	targetMode := mode
-	multi := &core.MultiAppConfig{
+	multi := &configpkg.MultiAppConfig{
 		CurrentApp: "default",
-		Apps: []core.AppConfig{
+		Apps: []configpkg.AppConfig{
 			{
 				Name:      "default",
 				AppId:     "app-default",
@@ -188,7 +188,7 @@ func newStrictModeDefaultFactory(t *testing.T, profile string, mode identity.Str
 			},
 		},
 	}
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		t.Fatalf("SaveMultiAppConfig() error = %v", err)
 	}
 
@@ -431,7 +431,7 @@ func TestIntegration_StrictModeBot_ProfileOverride_APIExplicitUserReturnsEnvelop
 // --- shortcut command ---
 
 func TestIntegration_Shortcut_BusinessError_OutputsEnvelope(t *testing.T) {
-	f, stdout, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, stderr, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "e2e-sc-err", AppSecret: "secret", Brand: brand.Feishu,
 	})
 	reg.Register(&httpmock.Stub{

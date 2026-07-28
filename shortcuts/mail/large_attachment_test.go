@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	brandpkg "github.com/larksuite/cli/brand"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/vfs/localfileio"
 	"github.com/larksuite/cli/shortcuts/common"
 	draftpkg "github.com/larksuite/cli/shortcuts/mail/draft"
@@ -304,7 +304,7 @@ func TestEnsureLargeAttachmentCards_InjectsMissingCards(t *testing.T) {
 			Body:      []byte("<p>Hello</p>"),
 		},
 	}
-	rt := common.TestNewRuntimeContext(&cobra.Command{}, &core.CliConfig{Brand: brandpkg.Feishu})
+	rt := common.TestNewRuntimeContext(&cobra.Command{}, &configpkg.CliConfig{Brand: brandpkg.Feishu})
 	ensureLargeAttachmentCards(rt, snapshot)
 
 	html := string(snapshot.Body.Body)
@@ -345,7 +345,7 @@ func TestEnsureLargeAttachmentCards_NoDuplicateWhenCardExists(t *testing.T) {
 			Body:      []byte("<p>Hello</p>" + existingCard),
 		},
 	}
-	rt := common.TestNewRuntimeContext(&cobra.Command{}, &core.CliConfig{Brand: brandpkg.Feishu})
+	rt := common.TestNewRuntimeContext(&cobra.Command{}, &configpkg.CliConfig{Brand: brandpkg.Feishu})
 	originalHTML := string(snapshot.Body.Body)
 	ensureLargeAttachmentCards(rt, snapshot)
 
@@ -374,7 +374,7 @@ func TestEnsureLargeAttachmentCards_PartialMissing(t *testing.T) {
 			Body:      []byte("<p>Hello</p>" + existingCard),
 		},
 	}
-	rt := common.TestNewRuntimeContext(&cobra.Command{}, &core.CliConfig{Brand: brandpkg.Feishu})
+	rt := common.TestNewRuntimeContext(&cobra.Command{}, &configpkg.CliConfig{Brand: brandpkg.Feishu})
 	ensureLargeAttachmentCards(rt, snapshot)
 
 	html := string(snapshot.Body.Body)
@@ -426,7 +426,7 @@ func TestEnsureLargeAttachmentCards_PlainTextBodyInjectsDownloadInfo(t *testing.
 			Body:      []byte("plain text body"),
 		},
 	}
-	rt := common.TestNewRuntimeContext(&cobra.Command{}, &core.CliConfig{Brand: brandpkg.Feishu})
+	rt := common.TestNewRuntimeContext(&cobra.Command{}, &configpkg.CliConfig{Brand: brandpkg.Feishu})
 	ensureLargeAttachmentCards(rt, snapshot)
 
 	body := string(snapshot.Body.Body)
@@ -458,7 +458,7 @@ func TestEnsureLargeAttachmentCards_PlainTextNoDuplicate(t *testing.T) {
 			Body:      []byte(bodyWithToken),
 		},
 	}
-	rt := common.TestNewRuntimeContext(&cobra.Command{}, &core.CliConfig{Brand: brandpkg.Feishu})
+	rt := common.TestNewRuntimeContext(&cobra.Command{}, &configpkg.CliConfig{Brand: brandpkg.Feishu})
 	ensureLargeAttachmentCards(rt, snapshot)
 
 	if string(snapshot.Body.Body) != bodyWithToken {

@@ -13,7 +13,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/output"
 )
 
@@ -41,7 +41,7 @@ func NewCmdProfileList(f *cmdutil.Factory) *cobra.Command {
 }
 
 func profileListRun(f *cmdutil.Factory) error {
-	multi, err := core.LoadMultiAppConfig()
+	multi, err := configpkg.LoadMultiAppConfig()
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			output.PrintJson(f.IOStreams.Out, []profileListItem{})

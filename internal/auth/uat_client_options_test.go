@@ -8,12 +8,12 @@ import (
 	"testing"
 
 	"github.com/larksuite/cli/brand"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 )
 
 // TestNewUATCallOptions validates the extraction of options from CLI config.
 func TestNewUATCallOptions(t *testing.T) {
-	cfg := &core.CliConfig{
+	cfg := &configpkg.CliConfig{
 		AppID:      "app123",
 		AppSecret:  "secret",
 		Brand:      brand.Lark,

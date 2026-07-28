@@ -16,7 +16,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/output"
@@ -24,7 +24,7 @@ import (
 )
 
 func TestAuthLoginCmd_FlagParsing(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
@@ -47,7 +47,7 @@ func TestAuthLoginCmd_FlagParsing(t *testing.T) {
 }
 
 func TestAuthLoginCmd_HelpGuidesNonStreamingAgentsToSplitFlow(t *testing.T) {
-	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
@@ -73,7 +73,7 @@ func TestAuthLoginCmd_HelpGuidesNonStreamingAgentsToSplitFlow(t *testing.T) {
 }
 
 func TestAuthCheckCmd_FlagParsing(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
@@ -93,7 +93,7 @@ func TestAuthCheckCmd_FlagParsing(t *testing.T) {
 }
 
 func TestAuthCheckCmd_AcceptsJSONFlag(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
@@ -193,7 +193,7 @@ func TestAuthListCmd_AcceptsJSONFlag(t *testing.T) {
 }
 
 func TestAuthStatusCmd_FlagParsing(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
@@ -212,7 +212,7 @@ func TestAuthStatusCmd_FlagParsing(t *testing.T) {
 }
 
 func TestAuthStatusCmd_AcceptsJSONFlag(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
@@ -235,7 +235,7 @@ func TestAuthStatusCmd_AcceptsJSONFlag(t *testing.T) {
 }
 
 func TestAuthStatusCmd_VerifyFlag(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
@@ -337,7 +337,7 @@ func TestDomainFlagCompletion(t *testing.T) {
 }
 
 func TestAuthScopesCmd_FlagParsing(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
@@ -357,7 +357,7 @@ func TestAuthScopesCmd_FlagParsing(t *testing.T) {
 }
 
 func TestAuthScopesCmd_JSONFlagForcesJSONFormat(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
@@ -383,7 +383,7 @@ func TestAuthScopesCmd_JSONFlagForcesJSONFormat(t *testing.T) {
 }
 
 func TestAuthScopesRun_UsesTenantAccessTokenFromCredentialProvider(t *testing.T) {
-	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "", Brand: brand.Feishu,
 	})
 	tokenResolver := &authScopesTokenResolver{}
@@ -439,7 +439,7 @@ func TestAuthScopesRun_UsesTenantAccessTokenFromCredentialProvider(t *testing.T)
 // getAppInfo classifies it as *errs.PermissionError carrying the server-
 // supplied MissingScopes — not a bare error wrapped as InternalError.
 func TestAuthScopesRun_LarkPermissionError_TypedAsPermissionError(t *testing.T) {
-	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 	tokenResolver := &authScopesTokenResolver{}

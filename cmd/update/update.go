@@ -15,7 +15,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/build"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/selfupdate"
 	"github.com/larksuite/cli/internal/skillscheck"
@@ -180,7 +180,7 @@ func resolveSkillsBrand(f *cmdutil.Factory, errOut stdio.Writer) brand.Brand {
 	if cfg, err := f.Config(); err == nil && cfg != nil {
 		return brand.ParseBrand(string(cfg.Brand))
 	}
-	if raw, err := core.LoadMultiAppConfig(); err == nil {
+	if raw, err := configpkg.LoadMultiAppConfig(); err == nil {
 		if app := raw.CurrentAppConfig(f.Invocation.Profile); app != nil {
 			return brand.ParseBrand(string(app.Brand))
 		}

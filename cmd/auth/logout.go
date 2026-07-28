@@ -11,7 +11,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/secret"
 )
@@ -45,7 +45,7 @@ func NewCmdAuthLogout(f *cmdutil.Factory, runF func(*LogoutOptions) error) *cobr
 func authLogoutRun(opts *LogoutOptions) error {
 	f := opts.Factory
 
-	multi, _ := core.LoadMultiAppConfig()
+	multi, _ := configpkg.LoadMultiAppConfig()
 	if multi == nil || len(multi.Apps) == 0 {
 		if opts.JSON {
 			output.PrintJson(f.IOStreams.Out, map[string]interface{}{
@@ -95,8 +95,8 @@ func authLogoutRun(opts *LogoutOptions) error {
 		}
 	}
 
-	app.Users = []core.AppUser{}
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	app.Users = []configpkg.AppUser{}
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		return errs.NewInternalError(errs.SubtypeStorage, "failed to save config: %v", err).WithCause(err)
 	}
 	if opts.JSON {

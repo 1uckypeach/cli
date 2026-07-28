@@ -10,7 +10,7 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/secret"
 )
@@ -26,8 +26,8 @@ func TestUpdateExistingProfileWithoutSecret_NilConfig_EmitsValidationError(t *te
 }
 
 func TestUpdateExistingProfileWithoutSecret_UnknownProfile_EmitsValidationError(t *testing.T) {
-	existing := &core.MultiAppConfig{
-		Apps: []core.AppConfig{{
+	existing := &configpkg.MultiAppConfig{
+		Apps: []configpkg.AppConfig{{
 			Name:      "default",
 			AppId:     "app-default",
 			AppSecret: secret.PlainSecret("secret-default"),
@@ -39,9 +39,9 @@ func TestUpdateExistingProfileWithoutSecret_UnknownProfile_EmitsValidationError(
 }
 
 func TestUpdateExistingProfileWithoutSecret_NoCurrentApp_EmitsValidationError(t *testing.T) {
-	existing := &core.MultiAppConfig{
+	existing := &configpkg.MultiAppConfig{
 		CurrentApp: "missing",
-		Apps: []core.AppConfig{{
+		Apps: []configpkg.AppConfig{{
 			Name:      "default",
 			AppId:     "app-default",
 			AppSecret: secret.PlainSecret("secret-default"),
@@ -53,8 +53,8 @@ func TestUpdateExistingProfileWithoutSecret_NoCurrentApp_EmitsValidationError(t 
 }
 
 func TestUpdateExistingProfileWithoutSecret_AppIdMismatch_EmitsValidationError(t *testing.T) {
-	existing := &core.MultiAppConfig{
-		Apps: []core.AppConfig{{
+	existing := &configpkg.MultiAppConfig{
+		Apps: []configpkg.AppConfig{{
 			Name:      "default",
 			AppId:     "app-default",
 			AppSecret: secret.PlainSecret("secret-default"),

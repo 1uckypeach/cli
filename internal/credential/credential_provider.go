@@ -13,7 +13,7 @@ import (
 
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/auth"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/identity"
 )
 
@@ -204,7 +204,7 @@ func (p *CredentialProvider) doResolveAccount(ctx context.Context) (*Account, er
 		p.selectedSource = defaultTokenSource{resolver: p.defaultToken}
 		return acct, nil
 	}
-	return nil, core.NotConfiguredError()
+	return nil, configpkg.NotConfiguredError()
 }
 
 // enrichUserInfo resolves user identity when extension provides a UAT.

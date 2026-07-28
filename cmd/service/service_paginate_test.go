@@ -17,7 +17,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
@@ -46,7 +46,7 @@ func newServicePaginateTestHarness(t *testing.T) (*client.APIClient, *bytes.Buff
 	output.PendingNotice = nil
 	t.Cleanup(func() { output.PendingNotice = previousNotice })
 
-	config := &core.CliConfig{
+	config := &configpkg.CliConfig{
 		AppID:     "test-app",
 		AppSecret: "test-secret",
 		Brand:     brand.Feishu,

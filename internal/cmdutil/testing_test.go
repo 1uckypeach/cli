@@ -9,13 +9,13 @@ import (
 	"testing"
 
 	"github.com/larksuite/cli/brand"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/output"
 )
 
 func TestTestFactory_ReplacesGlobals(t *testing.T) {
-	config := &core.CliConfig{
+	config := &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret",
 		Brand: brand.Feishu,
 	}

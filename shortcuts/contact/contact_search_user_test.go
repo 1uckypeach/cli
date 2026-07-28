@@ -18,7 +18,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
@@ -38,8 +38,8 @@ func newSearchUserTestCommand() *cobra.Command {
 	return cmd
 }
 
-func searchUserDefaultConfig() *core.CliConfig {
-	return &core.CliConfig{
+func searchUserDefaultConfig() *configpkg.CliConfig {
+	return &configpkg.CliConfig{
 		AppID: "test", AppSecret: "test", Brand: brand.Feishu,
 		UserOpenId: "ou_self",
 	}

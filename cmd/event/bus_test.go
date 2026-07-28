@@ -11,7 +11,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 )
 
 // The hidden `event _bus` daemon command must exit with a typed file_io error
@@ -25,7 +25,7 @@ func TestBusCommandLoggerSetupFailureIsTypedFileIO(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "cli_bus_test", AppSecret: "secret", Brand: brand.Feishu,
 	})
 	cmd := NewCmdBus(f)

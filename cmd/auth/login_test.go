@@ -17,7 +17,7 @@ import (
 	brandpkg "github.com/larksuite/cli/brand"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/registry"
@@ -309,7 +309,7 @@ func TestGetDomainMetadata_HasTitleAndDescription(t *testing.T) {
 }
 
 func TestAuthLoginRun_NonTerminal_NoFlags_RejectsWithHint(t *testing.T) {
-	f, _, stderr, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, stderr, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "cli_test", AppSecret: "secret", Brand: brandpkg.Feishu,
 	})
 	// TestFactory has IsTerminal=false by default
@@ -601,17 +601,17 @@ func TestAuthLoginRun_MissingRequestedScopeAlignsWithLoginSuccess(t *testing.T) 
 	setupLoginConfigDir(t)
 	t.Setenv("HOME", t.TempDir())
 
-	multi := &core.MultiAppConfig{
+	multi := &configpkg.MultiAppConfig{
 		CurrentApp: "default",
-		Apps: []core.AppConfig{
+		Apps: []configpkg.AppConfig{
 			{Name: "default", AppId: "cli_test"},
 		},
 	}
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		t.Fatalf("SaveMultiAppConfig() error = %v", err)
 	}
 
-	f, _, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, stderr, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
@@ -697,7 +697,7 @@ func TestAuthLoginRun_MissingRequestedScopeAlignsWithLoginSuccess(t *testing.T) 
 	if stored.Scope != "offline_access" {
 		t.Fatalf("stored scope = %q", stored.Scope)
 	}
-	cfg, err := core.LoadMultiAppConfig()
+	cfg, err := configpkg.LoadMultiAppConfig()
 	if err != nil {
 		t.Fatalf("LoadMultiAppConfig() error = %v", err)
 	}
@@ -717,17 +717,17 @@ func TestAuthLoginRun_DeviceCodeUsesCachedRequestedScopes(t *testing.T) {
 	setupLoginConfigDir(t)
 	t.Setenv("HOME", t.TempDir())
 
-	multi := &core.MultiAppConfig{
+	multi := &configpkg.MultiAppConfig{
 		CurrentApp: "default",
-		Apps: []core.AppConfig{
+		Apps: []configpkg.AppConfig{
 			{Name: "default", AppId: "cli_test"},
 		},
 	}
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		t.Fatalf("SaveMultiAppConfig() error = %v", err)
 	}
 
-	f, stdout, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, stderr, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
@@ -852,7 +852,7 @@ func TestAuthLoginRun_DeviceCodeTokenNilCleansScopeCache(t *testing.T) {
 		return &larkauth.DeviceFlowResult{OK: true, Token: nil}
 	}
 
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
@@ -891,7 +891,7 @@ func TestAuthLoginRun_JSONAbort_StdoutEventOnly_StderrEmpty(t *testing.T) {
 		return &larkauth.DeviceFlowResult{OK: false, Message: "user denied"}
 	}
 
-	f, stdout, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, stderr, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
@@ -957,7 +957,7 @@ func TestAuthLoginRun_JSONAbort_StdoutEventOnly_StderrEmpty(t *testing.T) {
 }
 
 func TestAuthLoginRun_JSONWriteFailure_NoWaitReturnsWriterError(t *testing.T) {
-	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
@@ -994,7 +994,7 @@ func TestAuthLoginRun_JSONWriteFailure_NoWaitReturnsWriterError(t *testing.T) {
 }
 
 func TestAuthLoginRun_NoWaitJSONHintIncludesRawURLGuidance(t *testing.T) {
-	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
@@ -1068,7 +1068,7 @@ func TestAuthLoginRun_NoWaitJSONHintIncludesRawURLGuidance(t *testing.T) {
 }
 
 func TestAuthLoginRun_JSONWriteFailure_DeviceAuthorizationReturnsWriterError(t *testing.T) {
-	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
@@ -1106,7 +1106,7 @@ func TestAuthLoginRun_JSONWriteFailure_DeviceAuthorizationReturnsWriterError(t *
 }
 
 func TestAuthLoginRun_JSONDeviceAuthorizationAgentHintIncludesRawURLGuidance(t *testing.T) {
-	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",

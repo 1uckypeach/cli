@@ -16,7 +16,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	extcs "github.com/larksuite/cli/extension/contentsafety"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 )
@@ -39,7 +39,7 @@ func newCSTestContext(t *testing.T) (*RuntimeContext, *bytes.Buffer, *bytes.Buff
 	parentCmd.AddCommand(cmd)
 	rctx := &RuntimeContext{
 		ctx:        context.Background(),
-		Config:     &core.CliConfig{Brand: brand.Feishu},
+		Config:     &configpkg.CliConfig{Brand: brand.Feishu},
 		Cmd:        cmd,
 		resolvedAs: identity.AsBot,
 		Factory: &cmdutil.Factory{

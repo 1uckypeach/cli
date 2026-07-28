@@ -16,7 +16,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/identity"
@@ -107,7 +107,7 @@ type mockWikiMoveTokenResolver struct {
 }
 
 type wikiMoveAccountResolver struct {
-	cfg *core.CliConfig
+	cfg *configpkg.CliConfig
 }
 
 func (r *wikiMoveAccountResolver) ResolveAccount(ctx context.Context) (*credential.Account, error) {

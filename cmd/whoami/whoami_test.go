@@ -17,7 +17,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/identitydiag"
@@ -50,7 +50,7 @@ func TestResolveSource(t *testing.T) {
 }
 
 func TestBuildResult_UserValid(t *testing.T) {
-	cfg := &core.CliConfig{ProfileName: "my-app", AppID: "cli_x", Brand: brand.Lark, DefaultAs: identity.AsAuto}
+	cfg := &configpkg.CliConfig{ProfileName: "my-app", AppID: "cli_x", Brand: brand.Lark, DefaultAs: identity.AsAuto}
 	diag := identitydiag.Result{
 		User: identitydiag.Identity{Available: true, Status: "ready", TokenStatus: "valid", OpenID: "ou_x", UserName: "Alice"},
 	}
@@ -75,7 +75,7 @@ func TestBuildResult_UserValid(t *testing.T) {
 }
 
 func TestBuildResult_UserMissingToken(t *testing.T) {
-	cfg := &core.CliConfig{ProfileName: "p", AppID: "cli_x", Brand: brand.Lark}
+	cfg := &configpkg.CliConfig{ProfileName: "p", AppID: "cli_x", Brand: brand.Lark}
 	diag := identitydiag.Result{
 		User: identitydiag.Identity{Available: false, Status: "missing", Hint: "run: lark-cli auth login --help"}, // never logged in
 	}
@@ -98,7 +98,7 @@ func TestBuildResult_UserMissingToken(t *testing.T) {
 }
 
 func TestBuildResult_BotReady(t *testing.T) {
-	cfg := &core.CliConfig{ProfileName: "p", AppID: "cli_x", Brand: brand.Feishu, DefaultAs: identity.AsBot}
+	cfg := &configpkg.CliConfig{ProfileName: "p", AppID: "cli_x", Brand: brand.Feishu, DefaultAs: identity.AsBot}
 	diag := identitydiag.Result{
 		Bot: identitydiag.Identity{Available: true, Status: "ready"},
 	}
@@ -119,7 +119,7 @@ func TestBuildResult_BotReady(t *testing.T) {
 }
 
 func TestBuildResult_BotNotConfigured(t *testing.T) {
-	cfg := &core.CliConfig{ProfileName: "p", AppID: "cli_x", Brand: brand.Feishu}
+	cfg := &configpkg.CliConfig{ProfileName: "p", AppID: "cli_x", Brand: brand.Feishu}
 	diag := identitydiag.Result{
 		Bot: identitydiag.Identity{Available: false, Status: "not_configured", Hint: "run: lark-cli config --help"},
 	}
@@ -137,7 +137,7 @@ func TestBuildResult_BotNotConfigured(t *testing.T) {
 }
 
 func TestWhoami_BotJSON(t *testing.T) {
-	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		ProfileName: "test-profile", AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
@@ -171,7 +171,7 @@ func TestWhoami_BotJSON(t *testing.T) {
 func TestWhoami_RejectsInvalidAs(t *testing.T) {
 	for _, bad := range []string{"admin", "USER", "bogus123", ""} {
 		t.Run("as="+bad, func(t *testing.T) {
-			f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+			f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 				ProfileName: "p", AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 			})
 			cmd := NewCmdWhoami(f)
@@ -197,11 +197,11 @@ func TestWhoami_RejectsInvalidAs(t *testing.T) {
 }
 
 func TestWhoami_ConfigErrorPropagates(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		ProfileName: "p", AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 	wantErr := fmt.Errorf("boom")
-	f.Config = func() (*core.CliConfig, error) { return nil, wantErr }
+	f.Config = func() (*configpkg.CliConfig, error) { return nil, wantErr }
 
 	cmd := NewCmdWhoami(f)
 	cmd.SetArgs([]string{"--json"})
@@ -220,7 +220,7 @@ func TestWhoami_StrictModeRejectsCrossIdentity(t *testing.T) {
 	// Bot-only account → strict mode bot. A real `--as user` call would be
 	// rejected by CheckStrictMode; whoami must reject it identically rather than
 	// previewing a user identity the next call would refuse.
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		ProfileName: "p", AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 		SupportedIdentities: 2, // bot only
 	})
@@ -249,7 +249,7 @@ func (p *fakeExtProvider) ResolveToken(context.Context, extcred.TokenSpec) (*ext
 	return nil, nil // no UAT served locally; whoami runs with verify=false
 }
 
-func externalWhoamiFactory(cfg *core.CliConfig) (*cmdutil.Factory, *bytes.Buffer) {
+func externalWhoamiFactory(cfg *configpkg.CliConfig) (*cmdutil.Factory, *bytes.Buffer) {
 	cred := credential.NewCredentialProvider(
 		[]extcred.Provider{&fakeExtProvider{name: "corp-sso", account: &extcred.Account{AppID: cfg.AppID}}},
 		nil, nil,
@@ -257,7 +257,7 @@ func externalWhoamiFactory(cfg *core.CliConfig) (*cmdutil.Factory, *bytes.Buffer
 	)
 	out := &bytes.Buffer{}
 	f := &cmdutil.Factory{
-		Config:     func() (*core.CliConfig, error) { return cfg, nil },
+		Config:     func() (*configpkg.CliConfig, error) { return cfg, nil },
 		Credential: cred,
 		IOStreams:  &cmdutil.IOStreams{Out: out, ErrOut: &bytes.Buffer{}},
 	}
@@ -268,7 +268,7 @@ func externalWhoamiFactory(cfg *core.CliConfig) (*cmdutil.Factory, *bytes.Buffer
 // an extension provider, a signed-in user must read as available, and an
 // unavailable identity must not be told to "auth login" (which is blocked).
 func TestWhoami_ExternalProvider_UserReady(t *testing.T) {
-	cfg := &core.CliConfig{
+	cfg := &configpkg.CliConfig{
 		ProfileName: "p", AppID: "cli_x", Brand: brand.Feishu,
 		SupportedIdentities: uint8(extcred.SupportsAll), UserOpenId: "ou_x", UserName: "Alice",
 	}
@@ -295,7 +295,7 @@ func TestWhoami_ExternalProvider_UserReady(t *testing.T) {
 }
 
 func TestWhoami_ExternalProvider_UserHintNotKeychain(t *testing.T) {
-	cfg := &core.CliConfig{
+	cfg := &configpkg.CliConfig{
 		ProfileName: "p", AppID: "cli_x", Brand: brand.Feishu,
 		SupportedIdentities: uint8(extcred.SupportsUser), // user supported but not signed in
 	}

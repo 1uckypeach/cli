@@ -20,7 +20,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/shortcuts/common"
@@ -73,8 +73,8 @@ func mountAndRun(t *testing.T, s common.Shortcut, args []string, f *cmdutil.Fact
 	return parent.Execute()
 }
 
-func defaultConfig() *core.CliConfig {
-	return &core.CliConfig{
+func defaultConfig() *configpkg.CliConfig {
+	return &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 		UserOpenId: "ou_testuser",
 	}

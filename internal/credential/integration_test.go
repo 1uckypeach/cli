@@ -11,7 +11,7 @@ import (
 	"github.com/larksuite/cli/envnames"
 	extcred "github.com/larksuite/cli/extension/credential"
 	envprovider "github.com/larksuite/cli/extension/credential/env"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/identity"
@@ -91,15 +91,15 @@ func TestFullChain_ConfigStrictMode(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)
 
 	botMode := identity.StrictModeBot
-	multi := &core.MultiAppConfig{
-		Apps: []core.AppConfig{{
+	multi := &configpkg.MultiAppConfig{
+		Apps: []configpkg.AppConfig{{
 			AppId:      "cfg_app",
 			AppSecret:  secret.PlainSecret("cfg_secret"),
 			Brand:      brand.Lark,
 			StrictMode: &botMode,
 		}},
 	}
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		t.Fatal(err)
 	}
 
@@ -132,15 +132,15 @@ func TestFullChain_LangSurvivesProductionPath(t *testing.T) {
 	t.Setenv(envnames.CliAppSecret, "")
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
-	multi := &core.MultiAppConfig{
-		Apps: []core.AppConfig{{
+	multi := &configpkg.MultiAppConfig{
+		Apps: []configpkg.AppConfig{{
 			AppId:     "cfg_app",
 			AppSecret: secret.PlainSecret("cfg_secret"),
 			Brand:     brand.Feishu,
 			Lang:      i18n.LangJaJP,
 		}},
 	}
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		t.Fatalf("SaveMultiAppConfig: %v", err)
 	}
 

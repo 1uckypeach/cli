@@ -7,14 +7,14 @@ import (
 	"io"
 	"testing"
 
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 )
 
 func TestCachedHttpClientFunc_ReturnsSameInstance(t *testing.T) {
 	isEnabled := false
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "test-app"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "test-app"})
 	f.IOStreams.ErrOut = io.Discard
-	fn := cachedHttpClientFunc(f, staticWorkspaceConfig{config: &core.MultiAppConfig{RiskControl: &isEnabled}})
+	fn := cachedHttpClientFunc(f, staticWorkspaceConfig{config: &configpkg.MultiAppConfig{RiskControl: &isEnabled}})
 
 	c1, err := fn()
 	if err != nil {
@@ -35,9 +35,9 @@ func TestCachedHttpClientFunc_ReturnsSameInstance(t *testing.T) {
 
 func TestCachedHttpClientFunc_HasTimeout(t *testing.T) {
 	isEnabled := false
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "test-app"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "test-app"})
 	f.IOStreams.ErrOut = io.Discard
-	fn := cachedHttpClientFunc(f, staticWorkspaceConfig{config: &core.MultiAppConfig{RiskControl: &isEnabled}})
+	fn := cachedHttpClientFunc(f, staticWorkspaceConfig{config: &configpkg.MultiAppConfig{RiskControl: &isEnabled}})
 	c, _ := fn()
 	if c.Timeout == 0 {
 		t.Error("expected non-zero timeout")
@@ -46,9 +46,9 @@ func TestCachedHttpClientFunc_HasTimeout(t *testing.T) {
 
 func TestCachedHttpClientFunc_HasRedirectPolicy(t *testing.T) {
 	isEnabled := false
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "test-app"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "test-app"})
 	f.IOStreams.ErrOut = io.Discard
-	fn := cachedHttpClientFunc(f, staticWorkspaceConfig{config: &core.MultiAppConfig{RiskControl: &isEnabled}})
+	fn := cachedHttpClientFunc(f, staticWorkspaceConfig{config: &configpkg.MultiAppConfig{RiskControl: &isEnabled}})
 	c, _ := fn()
 	if c.CheckRedirect == nil {
 		t.Error("expected CheckRedirect to be set (safeRedirectPolicy)")

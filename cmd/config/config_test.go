@@ -16,7 +16,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/keychain"
@@ -68,7 +68,7 @@ func TestConfigInitCmd_FlagParsing(t *testing.T) {
 }
 
 func TestConfigShowCmd_FlagParsing(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
@@ -110,16 +110,16 @@ func TestConfigShowRun_NotConfiguredReturnsStructuredError(t *testing.T) {
 
 func TestConfigShowRun_NoActiveProfileReturnsStructuredError(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
-	multi := &core.MultiAppConfig{
+	multi := &configpkg.MultiAppConfig{
 		CurrentApp: "missing",
-		Apps: []core.AppConfig{{
+		Apps: []configpkg.AppConfig{{
 			Name:      "default",
 			AppId:     "app-default",
 			AppSecret: secret.PlainSecret("secret-default"),
 			Brand:     brand.Feishu,
 		}},
 	}
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		t.Fatalf("SaveMultiAppConfig() error = %v", err)
 	}
 
@@ -188,10 +188,10 @@ func TestSaveInitConfig_OmitLangPreservesPrior(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	f, _, _, _ := cmdutil.TestFactory(t, nil)
 
-	existing := &core.MultiAppConfig{Apps: []core.AppConfig{
+	existing := &configpkg.MultiAppConfig{Apps: []configpkg.AppConfig{
 		{AppId: "cli_x", AppSecret: secret.PlainSecret("s"), Brand: brand.Feishu, Lang: i18n.LangJaJP},
 	}}
-	if err := core.SaveMultiAppConfig(existing); err != nil {
+	if err := configpkg.SaveMultiAppConfig(existing); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
 
@@ -199,7 +199,7 @@ func TestSaveInitConfig_OmitLangPreservesPrior(t *testing.T) {
 		t.Fatalf("saveInitConfig (no --lang): %v", err)
 	}
 
-	got, err := core.LoadMultiAppConfig()
+	got, err := configpkg.LoadMultiAppConfig()
 	if err != nil {
 		t.Fatalf("LoadMultiAppConfig: %v", err)
 	}
@@ -320,17 +320,17 @@ func TestConfigRemoveRun_SaveFailurePreservesExistingConfigAndSecrets(t *testing
 	configDir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", configDir)
 
-	multi := &core.MultiAppConfig{
-		Apps: []core.AppConfig{{
+	multi := &configpkg.MultiAppConfig{
+		Apps: []configpkg.AppConfig{{
 			AppId: "app-test",
 			AppSecret: secret.SecretInput{
 				Ref: &secret.SecretRef{Source: "keychain", ID: "appsecret:app-test"},
 			},
 			Brand: brand.Feishu,
-			Users: []core.AppUser{{UserOpenId: "ou_1", UserName: "Tester"}},
+			Users: []configpkg.AppUser{{UserOpenId: "ou_1", UserName: "Tester"}},
 		}},
 	}
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		t.Fatalf("SaveMultiAppConfig() error = %v", err)
 	}
 
@@ -359,7 +359,7 @@ func TestConfigRemoveRun_SaveFailurePreservesExistingConfigAndSecrets(t *testing
 	if err := os.Chmod(configDir, 0700); err != nil {
 		t.Fatalf("restore Chmod(%s) error = %v", configDir, err)
 	}
-	saved, err := core.LoadMultiAppConfig()
+	saved, err := configpkg.LoadMultiAppConfig()
 	if err != nil {
 		t.Fatalf("LoadMultiAppConfig() error = %v", err)
 	}
@@ -379,8 +379,8 @@ func TestConfigRemoveRun_SaveFailurePreservesExistingConfigAndSecrets(t *testing
 func TestSaveAsProfile_RejectsProfileNameCollisionWithExistingAppID(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
-	existing := &core.MultiAppConfig{
-		Apps: []core.AppConfig{
+	existing := &configpkg.MultiAppConfig{
+		Apps: []configpkg.AppConfig{
 			{
 				Name:      "prod",
 				AppId:     "cli_prod",
@@ -430,16 +430,16 @@ func TestWrapSaveConfigError_PassesTypedValidationThrough(t *testing.T) {
 }
 
 func TestUpdateExistingProfileWithoutSecret_RejectsAppIDChange(t *testing.T) {
-	multi := &core.MultiAppConfig{
+	multi := &configpkg.MultiAppConfig{
 		CurrentApp: "prod",
-		Apps: []core.AppConfig{
+		Apps: []configpkg.AppConfig{
 			{
 				Name:      "prod",
 				AppId:     "app-old",
 				AppSecret: secret.SecretInput{Ref: &secret.SecretRef{Source: "keychain", ID: "appsecret:app-old"}},
 				Brand:     brand.Feishu,
 				Lang:      "zh",
-				Users:     []core.AppUser{{UserOpenId: "ou_1", UserName: "User"}},
+				Users:     []configpkg.AppUser{{UserOpenId: "ou_1", UserName: "User"}},
 			},
 		},
 	}

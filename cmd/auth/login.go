@@ -18,7 +18,7 @@ import (
 
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
@@ -127,7 +127,7 @@ func authLoginRun(opts *LoginOptions) error {
 
 	// Determine UI language from saved config
 	var lang i18n.Lang
-	if multi, _ := core.LoadMultiAppConfig(); multi != nil {
+	if multi, _ := configpkg.LoadMultiAppConfig(); multi != nil {
 		if app := multi.FindApp(config.ProfileName); app != nil {
 			lang = app.Lang
 		}
@@ -393,7 +393,7 @@ func authLoginRun(opts *LoginOptions) error {
 
 // authLoginPollDeviceCode resumes the device flow by polling with a device code
 // obtained from a previous --no-wait call.
-func authLoginPollDeviceCode(opts *LoginOptions, config *core.CliConfig, msg *loginMsg, log func(string, ...interface{})) error {
+func authLoginPollDeviceCode(opts *LoginOptions, config *configpkg.CliConfig, msg *loginMsg, log func(string, ...interface{})) error {
 	f := opts.Factory
 
 	httpClient, err := f.HttpClient()
@@ -476,7 +476,7 @@ func authLoginPollDeviceCode(opts *LoginOptions, config *core.CliConfig, msg *lo
 
 // syncLoginUserToProfile persists the logged-in user info into the named profile.
 func syncLoginUserToProfile(profileName, appID, openID, userName string) error {
-	multi, err := core.LoadMultiAppConfig()
+	multi, err := configpkg.LoadMultiAppConfig()
 	if err != nil {
 		return errs.NewInternalError(errs.SubtypeStorage, "load config: %v", err).WithCause(err)
 	}
@@ -486,9 +486,9 @@ func syncLoginUserToProfile(profileName, appID, openID, userName string) error {
 		return errs.NewConfigError(errs.SubtypeNotConfigured, "profile %q not found in config", profileName)
 	}
 
-	oldUsers := append([]core.AppUser(nil), app.Users...)
-	app.Users = []core.AppUser{{UserOpenId: openID, UserName: userName}}
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	oldUsers := append([]configpkg.AppUser(nil), app.Users...)
+	app.Users = []configpkg.AppUser{{UserOpenId: openID, UserName: userName}}
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		return errs.NewInternalError(errs.SubtypeStorage, "save config: %v", err).WithCause(err)
 	}
 
@@ -501,7 +501,7 @@ func syncLoginUserToProfile(profileName, appID, openID, userName string) error {
 }
 
 // findProfileByName returns the AppConfig matching profileName, or nil.
-func findProfileByName(multi *core.MultiAppConfig, profileName string) *core.AppConfig {
+func findProfileByName(multi *configpkg.MultiAppConfig, profileName string) *configpkg.AppConfig {
 	for i := range multi.Apps {
 		if multi.Apps[i].ProfileName() == profileName {
 			return &multi.Apps[i]

@@ -12,7 +12,7 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/shortcuts/common"
 )
@@ -245,12 +245,12 @@ func TestDriveUploadUserSkipsPermissionGrantAugmentation(t *testing.T) {
 	}
 }
 
-func drivePermissionGrantTestConfig(t *testing.T, userOpenID string) *core.CliConfig {
+func drivePermissionGrantTestConfig(t *testing.T, userOpenID string) *configpkg.CliConfig {
 	t.Helper()
 
 	replacer := strings.NewReplacer("/", "-", " ", "-")
 	suffix := replacer.Replace(strings.ToLower(t.Name()))
-	return &core.CliConfig{
+	return &configpkg.CliConfig{
 		AppID:      "drive-permission-test-" + suffix,
 		AppSecret:  "drive-permission-secret-" + suffix,
 		Brand:      brand.Feishu,

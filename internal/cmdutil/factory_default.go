@@ -20,7 +20,7 @@ import (
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/authlog"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/keychain"
 	"github.com/larksuite/cli/internal/registry"
@@ -60,7 +60,7 @@ func NewDefault(streams *IOStreams, inv InvocationContext) *Factory {
 
 	// Phase 0: FileIO provider (no dependency)
 	f.FileIOProvider = fileio.GetProvider()
-	workspaceConfig := core.NewConfigSnapshot()
+	workspaceConfig := configpkg.NewConfigSnapshot()
 
 	// Phase 1: HttpClient (no credential dependency)
 	f.HttpClient = cachedHttpClientFunc(f, workspaceConfig)
@@ -75,7 +75,7 @@ func NewDefault(streams *IOStreams, inv InvocationContext) *Factory {
 	})
 
 	// Phase 3: Runtime config contains resolved account data only.
-	f.Config = sync.OnceValues(func() (*core.CliConfig, error) {
+	f.Config = sync.OnceValues(func() (*configpkg.CliConfig, error) {
 		acct, err := f.Credential.ResolveAccount(context.Background())
 		if err != nil {
 			return nil, err

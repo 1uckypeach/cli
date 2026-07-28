@@ -9,7 +9,7 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/secret"
 )
@@ -18,21 +18,21 @@ func setupStrictModeTestConfig(t *testing.T) {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)
-	multi := &core.MultiAppConfig{
-		Apps: []core.AppConfig{{
+	multi := &configpkg.MultiAppConfig{
+		Apps: []configpkg.AppConfig{{
 			AppId:     "test-app",
 			AppSecret: secret.PlainSecret("secret"),
 			Brand:     brand.Feishu,
 		}},
 	}
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestStrictMode_Show_Default(t *testing.T) {
 	setupStrictModeTestConfig(t)
-	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "test-app", AppSecret: "secret"})
+	f, stdout, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{AppID: "test-app", AppSecret: "secret"})
 	cmd := NewCmdConfigStrictMode(f)
 	cmd.SetArgs([]string{})
 	if err := cmd.Execute(); err != nil {
@@ -45,13 +45,13 @@ func TestStrictMode_Show_Default(t *testing.T) {
 
 func TestStrictMode_SetBot_Profile(t *testing.T) {
 	setupStrictModeTestConfig(t)
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "test-app", AppSecret: "secret"})
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{AppID: "test-app", AppSecret: "secret"})
 	cmd := NewCmdConfigStrictMode(f)
 	cmd.SetArgs([]string{"bot"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	multi, _ := core.LoadMultiAppConfig()
+	multi, _ := configpkg.LoadMultiAppConfig()
 	app := multi.CurrentAppConfig("")
 	if app.StrictMode == nil || *app.StrictMode != identity.StrictModeBot {
 		t.Error("expected StrictMode=bot on profile")
@@ -60,13 +60,13 @@ func TestStrictMode_SetBot_Profile(t *testing.T) {
 
 func TestStrictMode_SetUser_Profile(t *testing.T) {
 	setupStrictModeTestConfig(t)
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "test-app", AppSecret: "secret"})
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{AppID: "test-app", AppSecret: "secret"})
 	cmd := NewCmdConfigStrictMode(f)
 	cmd.SetArgs([]string{"user"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	multi, _ := core.LoadMultiAppConfig()
+	multi, _ := configpkg.LoadMultiAppConfig()
 	app := multi.CurrentAppConfig("")
 	if app.StrictMode == nil || *app.StrictMode != identity.StrictModeUser {
 		t.Error("expected StrictMode=user on profile")
@@ -75,7 +75,7 @@ func TestStrictMode_SetUser_Profile(t *testing.T) {
 
 func TestStrictMode_SetOff_Profile(t *testing.T) {
 	setupStrictModeTestConfig(t)
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "test-app", AppSecret: "secret"})
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{AppID: "test-app", AppSecret: "secret"})
 	cmd := NewCmdConfigStrictMode(f)
 	cmd.SetArgs([]string{"bot"})
 	cmd.Execute()
@@ -84,7 +84,7 @@ func TestStrictMode_SetOff_Profile(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	multi, _ := core.LoadMultiAppConfig()
+	multi, _ := configpkg.LoadMultiAppConfig()
 	app := multi.CurrentAppConfig("")
 	if app.StrictMode == nil || *app.StrictMode != identity.StrictModeOff {
 		t.Error("expected StrictMode=off on profile")
@@ -93,13 +93,13 @@ func TestStrictMode_SetOff_Profile(t *testing.T) {
 
 func TestStrictMode_SetBot_Global(t *testing.T) {
 	setupStrictModeTestConfig(t)
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "test-app", AppSecret: "secret"})
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{AppID: "test-app", AppSecret: "secret"})
 	cmd := NewCmdConfigStrictMode(f)
 	cmd.SetArgs([]string{"bot", "--global"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	multi, _ := core.LoadMultiAppConfig()
+	multi, _ := configpkg.LoadMultiAppConfig()
 	if multi.StrictMode != identity.StrictModeBot {
 		t.Error("expected global StrictMode=bot")
 	}
@@ -108,27 +108,27 @@ func TestStrictMode_SetBot_Global(t *testing.T) {
 func TestStrictMode_SetGlobal_DoesNotRequireActiveProfile(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)
-	multi := &core.MultiAppConfig{
+	multi := &configpkg.MultiAppConfig{
 		CurrentApp: "missing-profile",
-		Apps: []core.AppConfig{{
+		Apps: []configpkg.AppConfig{{
 			Name:      "default",
 			AppId:     "test-app",
 			AppSecret: secret.PlainSecret("secret"),
 			Brand:     brand.Feishu,
 		}},
 	}
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		t.Fatal(err)
 	}
 
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "test-app", AppSecret: "secret"})
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{AppID: "test-app", AppSecret: "secret"})
 	cmd := NewCmdConfigStrictMode(f)
 	cmd.SetArgs([]string{"bot", "--global"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
 
-	saved, err := core.LoadMultiAppConfig()
+	saved, err := configpkg.LoadMultiAppConfig()
 	if err != nil {
 		t.Fatalf("LoadMultiAppConfig() error = %v", err)
 	}
@@ -139,7 +139,7 @@ func TestStrictMode_SetGlobal_DoesNotRequireActiveProfile(t *testing.T) {
 
 func TestStrictMode_Reset(t *testing.T) {
 	setupStrictModeTestConfig(t)
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "test-app", AppSecret: "secret"})
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{AppID: "test-app", AppSecret: "secret"})
 	cmd := NewCmdConfigStrictMode(f)
 	cmd.SetArgs([]string{"bot"})
 	cmd.Execute()
@@ -148,7 +148,7 @@ func TestStrictMode_Reset(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	multi, _ := core.LoadMultiAppConfig()
+	multi, _ := configpkg.LoadMultiAppConfig()
 	app := multi.CurrentAppConfig("")
 	if app.StrictMode != nil {
 		t.Errorf("expected nil StrictMode after reset, got %v", *app.StrictMode)
@@ -157,7 +157,7 @@ func TestStrictMode_Reset(t *testing.T) {
 
 func TestStrictMode_InvalidValue(t *testing.T) {
 	setupStrictModeTestConfig(t)
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "test-app", AppSecret: "secret"})
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{AppID: "test-app", AppSecret: "secret"})
 	cmd := NewCmdConfigStrictMode(f)
 	cmd.SetArgs([]string{"on"})
 	err := cmd.Execute()

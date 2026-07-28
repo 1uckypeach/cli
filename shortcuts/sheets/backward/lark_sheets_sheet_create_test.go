@@ -14,7 +14,7 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
@@ -282,12 +282,12 @@ func TestSheetCreateTrimsPaddedBackendURL(t *testing.T) {
 	}
 }
 
-func sheetCreateTestConfig(t *testing.T, userOpenID string) *core.CliConfig {
+func sheetCreateTestConfig(t *testing.T, userOpenID string) *configpkg.CliConfig {
 	t.Helper()
 
 	replacer := strings.NewReplacer("/", "-", " ", "-")
 	suffix := replacer.Replace(strings.ToLower(t.Name()))
-	return &core.CliConfig{
+	return &configpkg.CliConfig{
 		AppID:      "test-sheet-create-" + suffix,
 		AppSecret:  "secret-sheet-create-" + suffix,
 		Brand:      brand.Feishu,

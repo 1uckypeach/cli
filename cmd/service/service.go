@@ -16,7 +16,7 @@ import (
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/cmdmeta"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/errclass"
 	identitypkg "github.com/larksuite/cli/internal/identity"
@@ -454,7 +454,7 @@ func serviceMethodRun(opts *ServiceMethodOptions) error {
 }
 
 // checkServiceScopes pre-checks user scopes before making the API call.
-func checkServiceScopes(ctx context.Context, cred *credential.CredentialProvider, identity identitypkg.Identity, config *core.CliConfig, method meta.Method) error {
+func checkServiceScopes(ctx context.Context, cred *credential.CredentialProvider, identity identitypkg.Identity, config *configpkg.CliConfig, method meta.Method) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -668,7 +668,7 @@ func buildServiceRequest(opts *ServiceMethodOptions) (client.RawApiRequest, *cmd
 	return request, nil, nil
 }
 
-func serviceDryRun(f *cmdutil.Factory, request client.RawApiRequest, config *core.CliConfig, opts *ServiceMethodOptions) error {
+func serviceDryRun(f *cmdutil.Factory, request client.RawApiRequest, config *configpkg.CliConfig, opts *ServiceMethodOptions) error {
 	return cmdutil.PrintDryRun(request, config, serviceDryRunOutputOptions(f, opts))
 }
 

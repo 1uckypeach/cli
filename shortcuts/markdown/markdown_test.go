@@ -25,20 +25,20 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
-func markdownTestConfig() *core.CliConfig {
-	return &core.CliConfig{
+func markdownTestConfig() *configpkg.CliConfig {
+	return &configpkg.CliConfig{
 		AppID: "markdown-test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 }
 
-func markdownPermissionTestConfig(userOpenID string) *core.CliConfig {
-	return &core.CliConfig{
+func markdownPermissionTestConfig(userOpenID string) *configpkg.CliConfig {
+	return &configpkg.CliConfig{
 		AppID: "markdown-perm-test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 		UserOpenId: userOpenID,
 	}

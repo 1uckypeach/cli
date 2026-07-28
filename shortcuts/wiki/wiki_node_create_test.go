@@ -19,7 +19,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/identity"
@@ -101,16 +101,16 @@ func (fake *fakeWikiNodeCreateClient) CreateNode(ctx context.Context, spaceID st
 
 var wikiTestConfigSeq atomic.Int64
 
-func wikiTestConfig() *core.CliConfig {
-	return &core.CliConfig{
+func wikiTestConfig() *configpkg.CliConfig {
+	return &configpkg.CliConfig{
 		AppID:     fmt.Sprintf("wiki-test-app-%d", wikiTestConfigSeq.Add(1)),
 		AppSecret: "test-secret",
 		Brand:     brand.Feishu,
 	}
 }
 
-func wikiPermissionTestConfig(userOpenID string) *core.CliConfig {
-	return &core.CliConfig{
+func wikiPermissionTestConfig(userOpenID string) *configpkg.CliConfig {
+	return &configpkg.CliConfig{
 		AppID:      fmt.Sprintf("wiki-permission-test-app-%d", wikiTestConfigSeq.Add(1)),
 		AppSecret:  "test-secret",
 		Brand:      brand.Feishu,

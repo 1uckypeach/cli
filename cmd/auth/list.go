@@ -12,7 +12,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/output"
 )
 
@@ -45,7 +45,7 @@ func NewCmdAuthList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Co
 func authListRun(opts *ListOptions) error {
 	f := opts.Factory
 
-	multi, _ := core.LoadMultiAppConfig()
+	multi, _ := configpkg.LoadMultiAppConfig()
 	if multi == nil || len(multi.Apps) == 0 {
 		if opts.JSON {
 			output.PrintJson(f.IOStreams.Out, map[string]interface{}{
@@ -61,7 +61,7 @@ func authListRun(opts *ListOptions) error {
 		// workspace-aware, so we pull the message+hint out of
 		// NotConfiguredError() instead of hard-coding it.
 		var cfgErr *errs.ConfigError
-		if errors.As(core.NotConfiguredError(), &cfgErr) {
+		if errors.As(configpkg.NotConfiguredError(), &cfgErr) {
 			fmt.Fprintln(f.IOStreams.ErrOut, cfgErr.Message)
 			if cfgErr.Hint != "" {
 				fmt.Fprintln(f.IOStreams.ErrOut, "  hint: "+cfgErr.Hint)

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/larksuite/cli/brand"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/i18n"
 )
 
@@ -47,7 +47,7 @@ func TestParseTokenType(t *testing.T) {
 }
 
 func TestAccountFromCliConfigAndBack_ReturnCopies(t *testing.T) {
-	cfg := &core.CliConfig{
+	cfg := &configpkg.CliConfig{
 		ProfileName:         "target",
 		AppID:               "app-1",
 		AppSecret:           "secret-1",

@@ -14,7 +14,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/shortcuts/common"
 )
@@ -24,7 +24,7 @@ func draftServiceTestRuntime(t *testing.T) (*common.RuntimeContext, *httpmock.Re
 	keyring.MockInit()
 	t.Setenv("HOME", t.TempDir())
 
-	cfg := &core.CliConfig{
+	cfg := &configpkg.CliConfig{
 		AppID:      "test-app",
 		AppSecret:  "test-secret",
 		Brand:      brand.Feishu,

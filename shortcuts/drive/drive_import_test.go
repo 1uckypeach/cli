@@ -14,7 +14,7 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/identity"
 	_ "github.com/larksuite/cli/internal/vfs/localfileio"
@@ -575,12 +575,12 @@ func driveImportMockEnv(t *testing.T, reg *httpmock.Registry, ticket string, pol
 // driveImportTestConfig builds a CliConfig for the import fallback tests.
 // The brand defaults to BrandFeishu when omitted; pass brand.Lark to
 // exercise the larksuite.com branch of BuildResourceURL.
-func driveImportTestConfig(suffix string, brands ...brand.Brand) *core.CliConfig {
+func driveImportTestConfig(suffix string, brands ...brand.Brand) *configpkg.CliConfig {
 	brand := brand.Feishu
 	if len(brands) > 0 {
 		brand = brands[0]
 	}
-	return &core.CliConfig{
+	return &configpkg.CliConfig{
 		AppID:     "drive-import-fallback-" + suffix,
 		AppSecret: "test-secret",
 		Brand:     brand,

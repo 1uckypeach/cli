@@ -15,7 +15,7 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/extension/fileio"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/vfs"
@@ -30,7 +30,7 @@ func (n *noopKeychain) Remove(service, account string) error        { return nil
 
 // TestFactory creates a Factory for testing.
 // Returns (factory, stdout buffer, stderr buffer, http mock registry).
-func TestFactory(t *testing.T, config *core.CliConfig) (*Factory, *bytes.Buffer, *bytes.Buffer, *httpmock.Registry) {
+func TestFactory(t *testing.T, config *configpkg.CliConfig) (*Factory, *bytes.Buffer, *bytes.Buffer, *httpmock.Registry) {
 	t.Helper()
 
 	reg := &httpmock.Registry{}
@@ -66,7 +66,7 @@ func TestFactory(t *testing.T, config *core.CliConfig) (*Factory, *bytes.Buffer,
 	)
 
 	f := &Factory{
-		Config:         func() (*core.CliConfig, error) { return config, nil },
+		Config:         func() (*configpkg.CliConfig, error) { return config, nil },
 		HttpClient:     func() (*http.Client, error) { return mockClient, nil },
 		LarkClient:     func() (*lark.Client, error) { return testLarkClient, nil },
 		IOStreams:      &IOStreams{In: nil, Out: stdoutBuf, ErrOut: stderrBuf},
@@ -78,7 +78,7 @@ func TestFactory(t *testing.T, config *core.CliConfig) (*Factory, *bytes.Buffer,
 }
 
 type testDefaultAcct struct {
-	config *core.CliConfig
+	config *configpkg.CliConfig
 }
 
 func (a *testDefaultAcct) ResolveAccount(ctx context.Context) (*credential.Account, error) {

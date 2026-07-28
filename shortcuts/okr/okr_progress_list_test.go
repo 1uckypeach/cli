@@ -15,13 +15,13 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 )
 
-func progressListTestConfig(t *testing.T) *core.CliConfig {
+func progressListTestConfig(t *testing.T) *configpkg.CliConfig {
 	t.Helper()
-	return &core.CliConfig{
+	return &configpkg.CliConfig{
 		AppID:     "test-okr-progress-list",
 		AppSecret: "secret-okr-progress-list",
 		Brand:     brand.Feishu,

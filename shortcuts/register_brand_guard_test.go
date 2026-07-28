@@ -14,13 +14,13 @@ import (
 	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 )
 
 func newFactoryWithBrand(brand brandpkg.Brand) *cmdutil.Factory {
 	return &cmdutil.Factory{
-		Config: func() (*core.CliConfig, error) {
-			return &core.CliConfig{Brand: brand}, nil
+		Config: func() (*configpkg.CliConfig, error) {
+			return &configpkg.CliConfig{Brand: brand}, nil
 		},
 	}
 }

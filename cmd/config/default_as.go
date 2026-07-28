@@ -8,7 +8,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/spf13/cobra"
 )
@@ -21,14 +21,14 @@ func NewCmdConfigDefaultAs(f *cmdutil.Factory) *cobra.Command {
 		Long:  "Without arguments, shows the current default identity. Pass user, bot, or auto to set a new default.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			multi, err := core.LoadOrNotConfigured()
+			multi, err := configpkg.LoadOrNotConfigured()
 			if err != nil {
 				return err
 			}
 
 			app := multi.CurrentAppConfig(f.Invocation.Profile)
 			if app == nil {
-				return core.NoActiveProfileError()
+				return configpkg.NoActiveProfileError()
 			}
 
 			if len(args) == 0 {
@@ -46,7 +46,7 @@ func NewCmdConfigDefaultAs(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			app.DefaultAs = identity.Identity(value)
-			if err := core.SaveMultiAppConfig(multi); err != nil {
+			if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 				return errs.NewInternalError(errs.SubtypeStorage, "failed to save config: %v", err).WithCause(err)
 			}
 			fmt.Fprintf(f.IOStreams.ErrOut, "Default identity set to: %s\n", value)

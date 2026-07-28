@@ -14,7 +14,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/keychain"
@@ -267,7 +267,7 @@ func reconcileExistingBinding(opts *BindOptions, source, configPath string) (exi
 // enumerate candidates, pick one via the shared decision layer, and build a
 // ready-to-persist AppConfig. Adding a new bind source only requires
 // implementing SourceBinder — none of the logic below needs to change.
-func resolveAccount(opts *BindOptions, source string) (*core.AppConfig, error) {
+func resolveAccount(opts *BindOptions, source string) (*configpkg.AppConfig, error) {
 	binder, err := newBinder(source, opts)
 	if err != nil {
 		return nil, err
@@ -310,7 +310,7 @@ func resolveIdentity(opts *BindOptions) error {
 // the bind flow treats a corrupt previous config (commitBinding will
 // overwrite it cleanly).
 func hasStrictBotLock(data []byte) bool {
-	var multi core.MultiAppConfig
+	var multi configpkg.MultiAppConfig
 	if err := json.Unmarshal(data, &multi); err != nil {
 		return false
 	}
@@ -372,7 +372,7 @@ func preferredLang(requested, prior i18n.Lang) i18n.Lang {
 	return prior
 }
 
-func applyPreferences(appConfig *core.AppConfig, opts *BindOptions, prior i18n.Lang) {
+func applyPreferences(appConfig *configpkg.AppConfig, opts *BindOptions, prior i18n.Lang) {
 	switch opts.Identity {
 	case "bot-only":
 		sm := identity.StrictModeBot
@@ -392,7 +392,7 @@ func applyPreferences(appConfig *core.AppConfig, opts *BindOptions, prior i18n.L
 // wrong profile's preference into a re-bind when the workspace holds multiple
 // named profiles and the active one disagrees with Apps[0].
 func priorLang(previousConfigBytes []byte) i18n.Lang {
-	var multi core.MultiAppConfig
+	var multi configpkg.MultiAppConfig
 	if json.Unmarshal(previousConfigBytes, &multi) != nil {
 		return ""
 	}
@@ -407,8 +407,8 @@ func priorLang(previousConfigBytes []byte) i18n.Lang {
 // any), and a JSON success envelope. Cleanup runs only after the new config
 // is durably written — if anything fails earlier, the old workspace stays
 // usable.
-func commitBinding(opts *BindOptions, appConfig *core.AppConfig, previousConfigBytes []byte, source, configPath string) error {
-	multi := &core.MultiAppConfig{Apps: []core.AppConfig{*appConfig}}
+func commitBinding(opts *BindOptions, appConfig *configpkg.AppConfig, previousConfigBytes []byte, source, configPath string) error {
+	multi := &configpkg.MultiAppConfig{Apps: []configpkg.AppConfig{*appConfig}}
 
 	if err := vfs.MkdirAll(workspace.GetConfigDir(), 0700); err != nil {
 		return errs.NewInternalError(errs.SubtypeFileIO, "failed to create workspace directory: %v", err).WithCause(err)
@@ -479,8 +479,8 @@ func commitBinding(opts *BindOptions, appConfig *core.AppConfig, previousConfigB
 // the secret that ForStorage just wrote (old and new secret share the same
 // keychain key, derived from appId). Best-effort: errors are silently
 // ignored (same contract as config init's cleanup).
-func cleanupKeychainFromData(kc keychain.KeychainAccess, data []byte, keep *core.AppConfig) {
-	var multi core.MultiAppConfig
+func cleanupKeychainFromData(kc keychain.KeychainAccess, data []byte, keep *configpkg.AppConfig) {
+	var multi configpkg.MultiAppConfig
 	if err := json.Unmarshal(data, &multi); err != nil {
 		return
 	}
@@ -585,7 +585,7 @@ func tuiConflictPrompt(opts *BindOptions, source, configPath string) (string, er
 	// Build existing binding summary
 	existingSummary := fmt.Sprintf(msg.ConflictDesc, source, "?", "?", configPath)
 	if data, err := vfs.ReadFile(configPath); err == nil {
-		var multi core.MultiAppConfig
+		var multi configpkg.MultiAppConfig
 		if json.Unmarshal(data, &multi) == nil && len(multi.Apps) > 0 {
 			app := multi.Apps[0]
 			existingSummary = fmt.Sprintf(msg.ConflictDesc,

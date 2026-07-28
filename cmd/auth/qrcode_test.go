@@ -13,12 +13,12 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/output"
 )
 
 func TestNewCmdAuthQRCode_FlagParsing(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
@@ -46,7 +46,7 @@ func TestNewCmdAuthQRCode_FlagParsing(t *testing.T) {
 }
 
 func TestNewCmdAuthQRCode_ASCIIFlag(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 

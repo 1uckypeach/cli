@@ -20,7 +20,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/testutil/gitcmd"
 	"github.com/larksuite/cli/shortcuts/common"
@@ -756,7 +756,7 @@ func newAppsExecuteFactoryWithStderr(t *testing.T) (*cmdutil.Factory, *bytes.Buf
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
-	cfg := &core.CliConfig{
+	cfg := &configpkg.CliConfig{
 		AppID:      "test-app-" + strings.ToLower(t.Name()),
 		AppSecret:  "test-secret",
 		Brand:      brand.Feishu,

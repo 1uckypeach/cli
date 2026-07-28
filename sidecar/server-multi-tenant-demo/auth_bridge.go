@@ -25,7 +25,7 @@ import (
 
 	brandpkg "github.com/larksuite/cli/brand"
 	larkauth "github.com/larksuite/cli/internal/auth"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/vfs"
 )
@@ -331,7 +331,7 @@ func (ab *authBridge) handlePoll(w http.ResponseWriter, r *http.Request, body []
 func (ab *authBridge) handleStatus(w http.ResponseWriter, _ *http.Request, body []byte) {
 	clientID := parseClientID(body)
 
-	multi, err := core.LoadMultiAppConfig()
+	multi, err := configpkg.LoadMultiAppConfig()
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, "failed to load config: "+err.Error())
 		return
@@ -418,7 +418,7 @@ func (ab *authBridge) resolveUserTokenByClient(clientName string) (string, error
 }
 
 func addUserToConfig(appID, openID, userName string) error {
-	multi, err := core.LoadMultiAppConfig()
+	multi, err := configpkg.LoadMultiAppConfig()
 	if err != nil {
 		return err
 	}
@@ -435,12 +435,12 @@ func addUserToConfig(appID, openID, userName string) error {
 			}
 		}
 		if !found {
-			multi.Apps[i].Users = append(multi.Apps[i].Users, core.AppUser{
+			multi.Apps[i].Users = append(multi.Apps[i].Users, configpkg.AppUser{
 				UserOpenId: openID,
 				UserName:   userName,
 			})
 		}
-		return core.SaveMultiAppConfig(multi)
+		return configpkg.SaveMultiAppConfig(multi)
 	}
 	return fmt.Errorf("app %s not found in config", appID)
 }

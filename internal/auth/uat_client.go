@@ -20,7 +20,7 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/vfs"
 	"github.com/larksuite/cli/internal/workspace"
@@ -54,7 +54,7 @@ type UATStatus struct {
 }
 
 // NewUATCallOptions creates UATCallOptions from a CLI config.
-func NewUATCallOptions(cfg *core.CliConfig, errOut io.Writer) UATCallOptions {
+func NewUATCallOptions(cfg *configpkg.CliConfig, errOut io.Writer) UATCallOptions {
 	if errOut == nil {
 		errOut = os.Stderr
 	}

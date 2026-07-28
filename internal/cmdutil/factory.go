@@ -17,7 +17,7 @@ import (
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/client"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/keychain"
@@ -31,10 +31,10 @@ type InvocationContext struct {
 }
 
 type Factory struct {
-	Config     func() (*core.CliConfig, error) // lazily loads app config from Credential
-	HttpClient func() (*http.Client, error)    // HTTP client for non-Lark API calls (with retry and security headers)
-	LarkClient func() (*lark.Client, error)    // Lark SDK client for all Open API calls
-	IOStreams  *IOStreams                      // stdin/stdout/stderr streams
+	Config     func() (*configpkg.CliConfig, error) // lazily loads app config from Credential
+	HttpClient func() (*http.Client, error)         // HTTP client for non-Lark API calls (with retry and security headers)
+	LarkClient func() (*lark.Client, error)         // Lark SDK client for all Open API calls
+	IOStreams  *IOStreams                           // stdin/stdout/stderr streams
 
 	Invocation           InvocationContext       // Immutable call context; do not mutate after Factory construction.
 	Keychain             keychain.KeychainAccess // secret storage (real keychain in prod, mock in tests)
@@ -190,7 +190,7 @@ func (f *Factory) NewAPIClient() (*client.APIClient, error) {
 
 // NewAPIClientWithConfig creates an APIClient with an explicit config.
 // Use this when the caller has already resolved the correct config.
-func (f *Factory) NewAPIClientWithConfig(cfg *core.CliConfig) (*client.APIClient, error) {
+func (f *Factory) NewAPIClientWithConfig(cfg *configpkg.CliConfig) (*client.APIClient, error) {
 	sdk, err := f.LarkClient()
 	if err != nil {
 		return nil, err

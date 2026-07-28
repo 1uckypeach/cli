@@ -13,7 +13,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	_ "github.com/larksuite/cli/extension/credential/env"
 	"github.com/larksuite/cli/extension/fileio"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/secret"
@@ -41,9 +41,9 @@ func TestNewDefault_InvocationProfileUsedByStrictModeAndConfig(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)
 
 	bot := identity.StrictModeBot
-	multi := &core.MultiAppConfig{
+	multi := &configpkg.MultiAppConfig{
 		CurrentApp: "default",
-		Apps: []core.AppConfig{
+		Apps: []configpkg.AppConfig{
 			{
 				Name:      "default",
 				AppId:     "app-default",
@@ -59,7 +59,7 @@ func TestNewDefault_InvocationProfileUsedByStrictModeAndConfig(t *testing.T) {
 			},
 		},
 	}
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		t.Fatalf("SaveMultiAppConfig() error = %v", err)
 	}
 
@@ -88,9 +88,9 @@ func TestNewDefault_InvocationProfileMissingSticksAcrossEarlyStrictMode(t *testi
 	dir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", dir)
 
-	multi := &core.MultiAppConfig{
+	multi := &configpkg.MultiAppConfig{
 		CurrentApp: "default",
-		Apps: []core.AppConfig{
+		Apps: []configpkg.AppConfig{
 			{
 				Name:      "default",
 				AppId:     "app-default",
@@ -99,7 +99,7 @@ func TestNewDefault_InvocationProfileMissingSticksAcrossEarlyStrictMode(t *testi
 			},
 		},
 	}
-	if err := core.SaveMultiAppConfig(multi); err != nil {
+	if err := configpkg.SaveMultiAppConfig(multi); err != nil {
 		t.Fatalf("SaveMultiAppConfig() error = %v", err)
 	}
 

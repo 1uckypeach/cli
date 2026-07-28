@@ -13,7 +13,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/validate"
@@ -305,7 +305,7 @@ func apiRun(opts *APIOptions) error {
 	return nil
 }
 
-func apiDryRun(f *cmdutil.Factory, request client.RawApiRequest, config *core.CliConfig, opts *APIOptions) error {
+func apiDryRun(f *cmdutil.Factory, request client.RawApiRequest, config *configpkg.CliConfig, opts *APIOptions) error {
 	return cmdutil.PrintDryRun(request, config, dryRunOutputOptions(f, opts))
 }
 

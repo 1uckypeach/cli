@@ -11,7 +11,7 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
@@ -19,7 +19,7 @@ import (
 
 func newMetaTestRuntime(t *testing.T) (*common.RuntimeContext, *httpmock.Registry) {
 	t.Helper()
-	cfg := &core.CliConfig{Brand: brand.Feishu, AppID: "cli_meta_test"}
+	cfg := &configpkg.CliConfig{Brand: brand.Feishu, AppID: "cli_meta_test"}
 	f, _, _, reg := cmdutil.TestFactory(t, cfg)
 	rt := common.TestNewRuntimeContextForAPI(
 		context.Background(),

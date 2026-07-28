@@ -12,7 +12,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 )
 
 // stubGetAppInfoErr swaps getAppInfoFn for the duration of t so authScopesRun
@@ -32,7 +32,7 @@ func stubGetAppInfoErr(t *testing.T, errToReturn error) {
 // and reach the getAppInfoFn call.
 func scopesTestFactory(t *testing.T) *ScopesOptions {
 	t.Helper()
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID:     "test-app",
 		AppSecret: "test-secret",
 		Brand:     brand.Feishu,

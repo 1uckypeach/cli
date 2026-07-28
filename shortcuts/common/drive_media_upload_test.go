@@ -18,7 +18,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/identity"
 )
@@ -306,7 +306,7 @@ func newDriveMediaUploadTestRuntime(t *testing.T) (*RuntimeContext, *httpmock.Re
 	t.Helper()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
-	cfg := &core.CliConfig{
+	cfg := &configpkg.CliConfig{
 		AppID: fmt.Sprintf("common-drive-media-test-%d", commonDriveMediaUploadTestSeq.Add(1)), AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, _, _, reg := cmdutil.TestFactory(t, cfg)

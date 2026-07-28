@@ -26,7 +26,7 @@ import (
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/cmdmeta"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/i18n"
@@ -39,7 +39,7 @@ import (
 // RuntimeContext provides helpers for shortcut execution.
 type RuntimeContext struct {
 	ctx           context.Context // from cmd.Context(), propagated through the call chain
-	Config        *core.CliConfig
+	Config        *configpkg.CliConfig
 	Cmd           *cobra.Command
 	Format        string
 	JqExpr        string                            // --jq expression; empty = no filter
@@ -1018,7 +1018,7 @@ func resolveShortcutIdentity(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut
 	return as, nil
 }
 
-func checkShortcutScopes(f *cmdutil.Factory, ctx context.Context, as identitypkg.Identity, config *core.CliConfig, scopes []string) error {
+func checkShortcutScopes(f *cmdutil.Factory, ctx context.Context, as identitypkg.Identity, config *configpkg.CliConfig, scopes []string) error {
 	if len(scopes) == 0 {
 		return nil
 	}
@@ -1036,7 +1036,7 @@ func checkShortcutScopes(f *cmdutil.Factory, ctx context.Context, as identitypkg
 		WithHint("run `lark-cli auth login --scope \"%s\"` in the background. It blocks and outputs a verification URL — retrieve the URL and open it in a browser to complete login.", strings.Join(missing, " "))
 }
 
-func newRuntimeContext(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, config *core.CliConfig, as identitypkg.Identity, botOnly bool) (*RuntimeContext, error) {
+func newRuntimeContext(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, config *configpkg.CliConfig, as identitypkg.Identity, botOnly bool) (*RuntimeContext, error) {
 	ctx := cmd.Context()
 	ctx = cmdutil.ContextWithShortcut(ctx, s.Service+":"+s.Command, uuid.New().String())
 	rctx := &RuntimeContext{ctx: ctx, Config: config, Cmd: cmd, botOnly: botOnly, resolvedAs: as, Factory: f}

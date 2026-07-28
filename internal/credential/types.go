@@ -10,14 +10,14 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	extcred "github.com/larksuite/cli/extension/credential"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/i18n"
 	identitypkg "github.com/larksuite/cli/internal/identity"
 )
 
 // Account is the credential-layer view of the active runtime account.
 // It intentionally mirrors only the resolved fields needed by runtime auth
-// and identity selection, without exposing core.CliConfig as a dependency.
+// and identity selection, without exposing configpkg.CliConfig as a dependency.
 type Account struct {
 	ProfileName         string
 	AppID               string
@@ -57,7 +57,7 @@ func normalizeAccountAppSecret(secret string) string {
 }
 
 // AccountFromCliConfig copies the resolved config view into a credential.Account.
-func AccountFromCliConfig(cfg *core.CliConfig) *Account {
+func AccountFromCliConfig(cfg *configpkg.CliConfig) *Account {
 	if cfg == nil {
 		return nil
 	}
@@ -76,11 +76,11 @@ func AccountFromCliConfig(cfg *core.CliConfig) *Account {
 
 // ToCliConfig copies the credential-layer account into the downstream config
 // shape, normalizing the brand so runtime consumers never see raw casing.
-func (a *Account) ToCliConfig() *core.CliConfig {
+func (a *Account) ToCliConfig() *configpkg.CliConfig {
 	if a == nil {
 		return nil
 	}
-	return &core.CliConfig{
+	return &configpkg.CliConfig{
 		ProfileName:         a.ProfileName,
 		AppID:               a.AppID,
 		AppSecret:           normalizeAccountAppSecret(a.AppSecret),

@@ -11,7 +11,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/workspace"
 	"github.com/spf13/cobra"
@@ -44,15 +44,15 @@ func NewCmdConfigShow(f *cmdutil.Factory, runF func(*ConfigShowOptions) error) *
 func configShowRun(opts *ConfigShowOptions) error {
 	f := opts.Factory
 
-	config, err := core.LoadMultiAppConfig()
+	config, err := configpkg.LoadMultiAppConfig()
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return core.NotConfiguredError()
+			return configpkg.NotConfiguredError()
 		}
 		return errs.NewConfigError(errs.SubtypeInvalidConfig, "failed to load config: %v", err).WithCause(err)
 	}
 	if config == nil || len(config.Apps) == 0 {
-		return core.NotConfiguredError()
+		return configpkg.NotConfiguredError()
 	}
 	app := config.CurrentAppConfig(f.Invocation.Profile)
 	if app == nil {

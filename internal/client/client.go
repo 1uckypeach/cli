@@ -20,7 +20,7 @@ import (
 
 	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/errclass"
 	identitypkg "github.com/larksuite/cli/internal/identity"
@@ -40,7 +40,7 @@ type RawApiRequest struct {
 
 // APIClient wraps lark.Client for all Lark Open API calls.
 type APIClient struct {
-	Config     *core.CliConfig
+	Config     *configpkg.CliConfig
 	SDK        *lark.Client // All Lark API calls go through SDK
 	HTTP       *http.Client // Only for non-Lark API (OAuth, MCP, etc.)
 	ErrOut     io.Writer    // debug/progress output

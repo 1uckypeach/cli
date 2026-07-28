@@ -18,13 +18,13 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
-func sheetsTestConfig() *core.CliConfig {
-	return &core.CliConfig{
+func sheetsTestConfig() *configpkg.CliConfig {
+	return &configpkg.CliConfig{
 		AppID: "sheets-test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 }

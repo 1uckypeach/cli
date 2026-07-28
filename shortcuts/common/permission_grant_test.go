@@ -11,7 +11,7 @@ import (
 
 	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/identity"
@@ -42,7 +42,7 @@ func TestPermissionGrantPermMessageUsesAPINameOnly(t *testing.T) {
 }
 
 func TestAutoGrantStderrWarning_SkippedNoUser(t *testing.T) {
-	config := &core.CliConfig{
+	config := &configpkg.CliConfig{
 		AppID:     "perm-grant-test-skip",
 		AppSecret: "perm-grant-test-secret-skip",
 		Brand:     brandpkg.Feishu,
@@ -76,7 +76,7 @@ func TestAutoGrantStderrWarning_SkippedNoUser(t *testing.T) {
 }
 
 func TestAutoGrantStderrWarning_GrantFailed(t *testing.T) {
-	config := &core.CliConfig{
+	config := &configpkg.CliConfig{
 		AppID:      "perm-grant-test-fail",
 		AppSecret:  "perm-grant-test-secret-fail",
 		Brand:      brandpkg.Feishu,
@@ -127,7 +127,7 @@ func TestAutoGrantStderrWarning_GrantFailed(t *testing.T) {
 
 func newAnnotateRuntime(brand brandpkg.Brand, appID string) *RuntimeContext {
 	return &RuntimeContext{
-		Config: &core.CliConfig{
+		Config: &configpkg.CliConfig{
 			AppID: appID,
 			Brand: brand,
 		},
@@ -259,7 +259,7 @@ func TestAnnotateGrantPermissionError_NilArgsSafe(t *testing.T) {
 // with a mocked 99991672 response — verifies the annotated fields show up
 // in the JSON result that callers downstream consume.
 func TestAutoGrantStderrWarning_GrantFailed_AppScopeNotEnabled_Annotated(t *testing.T) {
-	config := &core.CliConfig{
+	config := &configpkg.CliConfig{
 		AppID:      "cli_app_demo",
 		AppSecret:  "secret",
 		Brand:      brandpkg.Feishu,

@@ -22,7 +22,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/output"
@@ -192,7 +192,7 @@ func (r *driveSyncReadThenError) Read(p []byte) (int, error) {
 // and modified files use --on-conflict=remote-wins (the default) to pull the
 // remote version.
 func TestDriveSyncRemoteWinsPullsNewRemoteAndPushesNewLocal(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-remote-wins", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -313,7 +313,7 @@ func TestDriveSyncRemoteWinsPullsNewRemoteAndPushesNewLocal(t *testing.T) {
 }
 
 func TestDriveSyncAbortsAfterNewRemoteDownloadForbidden(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-forbidden", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -380,7 +380,7 @@ func TestDriveSyncAbortsAfterNewRemoteDownloadForbidden(t *testing.T) {
 // TestDriveSyncLocalWinsPushesOverRemote verifies that --on-conflict=local-wins
 // pushes the local version over the remote file.
 func TestDriveSyncLocalWinsPushesOverRemote(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-local-wins", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -455,7 +455,7 @@ func TestDriveSyncLocalWinsPushesOverRemote(t *testing.T) {
 // --on-conflict=keep-both renames the local file with a hash suffix
 // and then downloads the remote version to the original path.
 func TestDriveSyncKeepBothRenamesLocalAndPullsRemote(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-keep-both", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -557,7 +557,7 @@ func TestDriveSyncKeepBothRenamesLocalAndPullsRemote(t *testing.T) {
 // restores the original local path if the remote download fails after the
 // local file has been renamed.
 func TestDriveSyncKeepBothRollsBackRenameOnPullFailure(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-keep-both-rollback", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -627,7 +627,7 @@ func TestDriveSyncKeepBothRollsBackRenameOnPullFailure(t *testing.T) {
 // --on-conflict=ask fails before any sync writes start when stdin is not
 // available and the diff contains modified entries.
 func TestDriveSyncAskConflictFailsBeforeWritesWithoutStdin(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-ask-eof", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -721,7 +721,7 @@ func TestDriveSyncFailsOnDuplicateRemoteFiles(t *testing.T) {
 // TestDriveSyncUsesResolvedDuplicateTargetForDiff verifies that +sync computes
 // the diff against the same duplicate-remote selection used during execution.
 func TestDriveSyncUsesResolvedDuplicateTargetForDiff(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-duplicate-resolution", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -784,7 +784,7 @@ func TestDriveSyncUsesResolvedDuplicateTargetForDiff(t *testing.T) {
 // TestDriveSyncLocalWinsNestedFileUsesParentFolderToken verifies that local-wins
 // overwrites on nested files keep parent_node aligned with the file's parent.
 func TestDriveSyncLocalWinsNestedFileUsesParentFolderToken(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-local-wins-nested", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -871,7 +871,7 @@ func TestDriveSyncLocalWinsNestedFileUsesParentFolderToken(t *testing.T) {
 // during diff but removed before the push phase are surfaced as skipped items
 // instead of being silently dropped.
 func TestDriveSyncNewLocalDisappearanceIsReported(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-new-local-disappeared", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -924,7 +924,7 @@ func TestDriveSyncNewLocalDisappearanceIsReported(t *testing.T) {
 // TestDriveSyncQuickModeUsesModifiedTime verifies that --quick mode
 // classifies files by modified_time instead of SHA-256 hash.
 func TestDriveSyncQuickModeUsesModifiedTime(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-quick", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -1011,7 +1011,7 @@ func TestDriveSyncQuickModeUsesModifiedTime(t *testing.T) {
 // nature of --quick: a timestamp mismatch alone is enough to drive a real sync
 // action even when the file bytes are already identical.
 func TestDriveSyncQuickModeMTimeMismatchStillTriggersWrites(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-quick-mismatch", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -1074,7 +1074,7 @@ func TestDriveSyncQuickModeMTimeMismatchStillTriggersWrites(t *testing.T) {
 // TestDriveSyncNoChangesReportsEmptyItems verifies that when local and remote
 // are identical, +sync reports zero pulled/pushed items.
 func TestDriveSyncNoChangesReportsEmptyItems(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-no-changes", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -1455,7 +1455,7 @@ func TestDriveSyncRollbackRenamedLocalSurfacesStatFailure(t *testing.T) {
 }
 
 func TestDriveSyncAskConflictEOFDuringExecuteReportsFailedItem(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-ask-exec-eof", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -1521,7 +1521,7 @@ func TestDriveSyncAskConflictEOFDuringExecuteReportsFailedItem(t *testing.T) {
 }
 
 func TestDriveSyncAskConflictEOFDuringPlanningPreventsAnyWrites(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-ask-plan-eof", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -1619,7 +1619,7 @@ func TestDriveSyncDryRunQuickAcceptsMetadataOnlyScope(t *testing.T) {
 }
 
 func TestDriveSyncPreflightsActionScopesBeforeListing(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-download-scope-only", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, _ := cmdutil.TestFactory(t, syncTestConfig)
@@ -1669,7 +1669,7 @@ func TestDriveSyncPreflightsActionScopesBeforeListing(t *testing.T) {
 }
 
 func TestDriveSyncAskConflictSkipReportsSkippedItem(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-ask-skip", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -1725,7 +1725,7 @@ func TestDriveSyncAskConflictSkipReportsSkippedItem(t *testing.T) {
 }
 
 func TestDriveSyncReportsNewRemoteDownloadFailure(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-new-remote-fail", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -1776,7 +1776,7 @@ func TestDriveSyncReportsNewRemoteDownloadFailure(t *testing.T) {
 }
 
 func TestDriveSyncReportsNewLocalEnsureFailure(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-new-local-ensure-fail", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -1824,7 +1824,7 @@ func TestDriveSyncReportsNewLocalEnsureFailure(t *testing.T) {
 }
 
 func TestDriveSyncReportsNewLocalUploadFailure(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-new-local-upload-fail", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -1872,7 +1872,7 @@ func TestDriveSyncReportsNewLocalUploadFailure(t *testing.T) {
 }
 
 func TestDriveSyncLocalWinsReportsUploadFailure(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-local-wins-upload-fail", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -1933,7 +1933,7 @@ func TestDriveSyncLocalWinsReportsUploadFailure(t *testing.T) {
 }
 
 func TestDriveSyncKeepBothReportsRenameFailure(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-keep-both-rename-fail", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -2263,7 +2263,7 @@ func TestDriveSyncExecuteUnknownConflictStrategySkipsModifiedFile(t *testing.T) 
 }
 
 func TestDriveSyncModifiedFileDisappearingBeforeExecuteIsSkipped(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-modified-disappears", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -2323,7 +2323,7 @@ func TestDriveSyncModifiedFileDisappearingBeforeExecuteIsSkipped(t *testing.T) {
 }
 
 func TestDriveSyncRemoteWinsReportsModifiedPullFailure(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-remote-wins-pull-fail", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -2378,7 +2378,7 @@ func TestDriveSyncRemoteWinsReportsModifiedPullFailure(t *testing.T) {
 }
 
 func TestDriveSyncKeepBothReportsRollbackFailureAfterPullError(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-keep-both-rollback-fail", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -2468,7 +2468,7 @@ func TestDriveSyncStatusRemoteFilesUsesStableTokens(t *testing.T) {
 }
 
 func TestDriveSyncLocalWinsNestedFileReportsParentEnsureFailure(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-local-wins-parent-fail", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -2532,7 +2532,7 @@ func TestDriveSyncLocalWinsNestedFileReportsParentEnsureFailure(t *testing.T) {
 // whose rel_path is not in pullRemoteFiles (non-file types like docx,
 // shortcuts) are silently skipped rather than causing a panic or error.
 func TestDriveSyncSkipsNonFileRemoteEntries(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-skip-nonfile", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -2699,7 +2699,7 @@ func TestDriveSyncKeepBothReportsSuffixError(t *testing.T) {
 // file has been renamed, the rollback restores the original file and
 // the failure is reported via the partial-failure signal.
 func TestDriveSyncKeepBothRollbackSucceedsOnPullFailure(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-keep-both-rollback-pull-fail", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -2775,7 +2775,7 @@ func TestDriveSyncKeepBothRollbackSucceedsOnPullFailure(t *testing.T) {
 // when remoteFile.FileToken is empty in the local-wins branch, the code
 // falls back to remoteEntriesForPush to find the existing token.
 func TestDriveSyncLocalWinsFallbackToRemoteEntriesForPush(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-local-wins-fallback", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -2852,7 +2852,7 @@ func TestDriveSyncLocalWinsFallbackToRemoteEntriesForPush(t *testing.T) {
 // TestDriveSyncCreatesEmptyLocalDirectoriesOnDrive verifies that empty local
 // directories are created on Drive during +sync, mirroring +push behavior.
 func TestDriveSyncCreatesEmptyLocalDirectoriesOnDrive(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-empty-dirs", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -2910,7 +2910,7 @@ func TestDriveSyncCreatesEmptyLocalDirectoriesOnDrive(t *testing.T) {
 // file_token returned alongside error), the reported item uses the
 // freshly returned token rather than the stale existingToken.
 func TestDriveSyncLocalWinsUsesReturnedTokenOnUploadFailure(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-local-wins-partial-token", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -2984,7 +2984,7 @@ func TestDriveSyncLocalWinsUsesReturnedTokenOnUploadFailure(t *testing.T) {
 // docx, shortcut, etc.) instead of silently attempting to upload and leaving
 // the remote in a broken mixed-type state.
 func TestDriveSyncRejectsPathTypeConflict(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-type-conflict", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)
@@ -3035,7 +3035,7 @@ func TestDriveSyncRejectsPathTypeConflict(t *testing.T) {
 // which would otherwise attempt create_folder and leave the remote in a
 // broken mixed-type state.
 func TestDriveSyncRejectsLocalDirVsRemoteFileTypeConflict(t *testing.T) {
-	syncTestConfig := &core.CliConfig{
+	syncTestConfig := &configpkg.CliConfig{
 		AppID: "drive-sync-dir-vs-file-conflict", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, syncTestConfig)

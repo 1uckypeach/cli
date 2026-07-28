@@ -13,15 +13,15 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
-func taskTestConfig(t *testing.T) *core.CliConfig {
+func taskTestConfig(t *testing.T) *configpkg.CliConfig {
 	t.Helper()
 	suffix := strings.NewReplacer("/", "-", " ", "-", ":", "-", "\t", "-").Replace(t.Name())
-	return &core.CliConfig{
+	return &configpkg.CliConfig{
 		AppID:      "test-app-" + suffix,
 		AppSecret:  "test-secret-" + suffix,
 		Brand:      brand.Feishu,

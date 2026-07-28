@@ -10,12 +10,12 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/httpmock"
 )
 
 func TestAuthStatusRun_SplitsBotAndUserIdentity(t *testing.T) {
-	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "secret", Brand: brand.Feishu,
 	})
 
@@ -39,7 +39,7 @@ func TestAuthStatusRun_SplitsBotAndUserIdentity(t *testing.T) {
 }
 
 func TestAuthStatusRun_VerifyReportsBotIdentity(t *testing.T) {
-	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, reg := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "secret", Brand: brand.Feishu,
 	})
 	reg.Register(&httpmock.Stub{

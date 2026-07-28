@@ -11,7 +11,7 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/openclawbind"
 	secretpkg "github.com/larksuite/cli/internal/secret"
 	"github.com/larksuite/cli/internal/vfs"
@@ -38,7 +38,7 @@ type SourceBinder interface {
 	ListCandidates() ([]Candidate, error)
 	// Build resolves secrets, persists to keychain, and returns a ready AppConfig
 	// for the chosen candidate AppID. Must be called after ListCandidates succeeds.
-	Build(appID string) (*core.AppConfig, error)
+	Build(appID string) (*configpkg.AppConfig, error)
 }
 
 // newBinder constructs the SourceBinder for the given source name.
@@ -170,7 +170,7 @@ func (b *openclawBinder) ListCandidates() ([]Candidate, error) {
 	return result, nil
 }
 
-func (b *openclawBinder) Build(appID string) (*core.AppConfig, error) {
+func (b *openclawBinder) Build(appID string) (*configpkg.AppConfig, error) {
 	if b.cfg == nil {
 		return nil, errs.NewInternalError(errs.SubtypeSDKError, "internal: Build called before ListCandidates")
 	}
@@ -204,7 +204,7 @@ func (b *openclawBinder) Build(appID string) (*core.AppConfig, error) {
 			WithCause(err)
 	}
 
-	return &core.AppConfig{
+	return &configpkg.AppConfig{
 		AppId:     selected.AppID,
 		AppSecret: stored,
 		Brand:     brand.ParseBrand(selected.Brand),
@@ -240,7 +240,7 @@ func (b *hermesBinder) ListCandidates() ([]Candidate, error) {
 	return []Candidate{{AppID: appID, Label: "default"}}, nil
 }
 
-func (b *hermesBinder) Build(appID string) (*core.AppConfig, error) {
+func (b *hermesBinder) Build(appID string) (*configpkg.AppConfig, error) {
 	if b.envMap == nil {
 		return nil, errs.NewInternalError(errs.SubtypeSDKError, "internal: Build called before ListCandidates")
 	}
@@ -260,7 +260,7 @@ func (b *hermesBinder) Build(appID string) (*core.AppConfig, error) {
 			WithCause(err)
 	}
 
-	return &core.AppConfig{
+	return &configpkg.AppConfig{
 		AppId:     appID,
 		AppSecret: stored,
 		Brand:     brand.ParseBrand(b.envMap["FEISHU_DOMAIN"]),
@@ -297,7 +297,7 @@ func (b *larkChannelBinder) ListCandidates() ([]Candidate, error) {
 	return []Candidate{{AppID: cfg.Accounts.App.ID, Label: "default"}}, nil
 }
 
-func (b *larkChannelBinder) Build(appID string) (*core.AppConfig, error) {
+func (b *larkChannelBinder) Build(appID string) (*configpkg.AppConfig, error) {
 	if b.cfg == nil {
 		return nil, errs.NewInternalError(errs.SubtypeSDKError, "internal: Build called before ListCandidates")
 	}
@@ -325,7 +325,7 @@ func (b *larkChannelBinder) Build(appID string) (*core.AppConfig, error) {
 			WithCause(err)
 	}
 
-	return &core.AppConfig{
+	return &configpkg.AppConfig{
 		AppId:     appID,
 		AppSecret: stored,
 		Brand:     brand.ParseBrand(b.cfg.Accounts.App.Tenant),

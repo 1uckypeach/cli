@@ -16,13 +16,13 @@ import (
 	"github.com/larksuite/cli/brand"
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/secret"
 )
 
 func TestNewCmdDoctor_FlagParsing(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, _, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
@@ -105,9 +105,9 @@ func TestNetworkChecks_Offline(t *testing.T) {
 
 func TestDoctorRun_SplitsBotAndMissingUserIdentity(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
-	if err := core.SaveMultiAppConfig(&core.MultiAppConfig{
+	if err := configpkg.SaveMultiAppConfig(&configpkg.MultiAppConfig{
 		CurrentApp: "default",
-		Apps: []core.AppConfig{
+		Apps: []configpkg.AppConfig{
 			{
 				Name:      "default",
 				AppId:     "test-app",
@@ -119,7 +119,7 @@ func TestDoctorRun_SplitsBotAndMissingUserIdentity(t *testing.T) {
 		t.Fatalf("SaveMultiAppConfig() error = %v", err)
 	}
 
-	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+	f, stdout, _, _ := cmdutil.TestFactory(t, &configpkg.CliConfig{
 		AppID: "test-app", AppSecret: "secret", Brand: brand.Feishu,
 	})
 	err := doctorRun(&DoctorOptions{
@@ -182,16 +182,16 @@ func (p *fakeExtProvider) ResolveToken(context.Context, extcred.TokenSpec) (*ext
 // per-identity checks already carry the source-appropriate escalation.
 func TestDoctor_ExternalProvider_IdentityReadyHintNotBlockedCommand(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
-	if err := core.SaveMultiAppConfig(&core.MultiAppConfig{
+	if err := configpkg.SaveMultiAppConfig(&configpkg.MultiAppConfig{
 		CurrentApp: "default",
-		Apps:       []core.AppConfig{{Name: "default", AppId: "cli_x", AppSecret: secret.PlainSecret("secret"), Brand: brand.Feishu}},
+		Apps:       []configpkg.AppConfig{{Name: "default", AppId: "cli_x", AppSecret: secret.PlainSecret("secret"), Brand: brand.Feishu}},
 	}); err != nil {
 		t.Fatalf("SaveMultiAppConfig() error = %v", err)
 	}
 
 	// Provider serves neither identity: bot unsupported, user supported but not
 	// signed in → both unavailable → identity_ready fails.
-	cfg := &core.CliConfig{AppID: "cli_x", Brand: brand.Feishu, SupportedIdentities: uint8(extcred.SupportsUser)}
+	cfg := &configpkg.CliConfig{AppID: "cli_x", Brand: brand.Feishu, SupportedIdentities: uint8(extcred.SupportsUser)}
 	cred := credential.NewCredentialProvider(
 		[]extcred.Provider{&fakeExtProvider{name: "corp-sso", account: &extcred.Account{AppID: "cli_x"}}},
 		nil, nil,
@@ -199,7 +199,7 @@ func TestDoctor_ExternalProvider_IdentityReadyHintNotBlockedCommand(t *testing.T
 	)
 	out := &bytes.Buffer{}
 	f := &cmdutil.Factory{
-		Config:     func() (*core.CliConfig, error) { return cfg, nil },
+		Config:     func() (*configpkg.CliConfig, error) { return cfg, nil },
 		Credential: cred,
 		IOStreams:  &cmdutil.IOStreams{Out: out, ErrOut: &bytes.Buffer{}},
 	}

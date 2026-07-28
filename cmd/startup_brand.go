@@ -8,7 +8,7 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/envnames"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 )
 
 // ResolveStartupBrand resolves the brand before the command tree is built, so
@@ -20,7 +20,7 @@ func ResolveStartupBrand(profile string) brand.Brand {
 	if raw := os.Getenv(envnames.CliBrand); raw != "" {
 		return brand.ParseBrand(raw)
 	}
-	if cfg, err := core.LoadMultiAppConfig(); err == nil {
+	if cfg, err := configpkg.LoadMultiAppConfig(); err == nil {
 		if app := cfg.CurrentAppConfig(profile); app != nil {
 			return brand.ParseBrand(string(app.Brand))
 		}

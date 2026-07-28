@@ -12,7 +12,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/auth"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/keychain"
@@ -75,12 +75,12 @@ func NewDefaultAccountProvider(kc func() keychain.KeychainAccess, profile string
 
 func (p *DefaultAccountProvider) ResolveAccount(ctx context.Context) (*Account, error) {
 	// Load config once — used for both credentials and strict mode.
-	multi, err := core.LoadMultiAppConfig()
+	multi, err := configpkg.LoadMultiAppConfig()
 	if err != nil {
-		return nil, core.NotConfiguredError()
+		return nil, configpkg.NotConfiguredError()
 	}
 
-	cfg, err := core.ResolveConfigFromMulti(multi, p.keychain(), p.profile)
+	cfg, err := configpkg.ResolveConfigFromMulti(multi, p.keychain(), p.profile)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (p *DefaultAccountProvider) ResolveAccount(ctx context.Context) (*Account, 
 
 // strictModeToIdentitySupport maps the config-level strict mode to
 // the SupportedIdentities bitflag using an already-loaded MultiAppConfig.
-func strictModeToIdentitySupport(multi *core.MultiAppConfig, profileOverride string) uint8 {
+func strictModeToIdentitySupport(multi *configpkg.MultiAppConfig, profileOverride string) uint8 {
 	app := multi.CurrentAppConfig(profileOverride)
 	var mode identity.StrictMode
 	if app != nil && app.StrictMode != nil {

@@ -62,7 +62,7 @@ Both notices recommend the same fix command: `lark-cli update`. The skills notic
 | `internal/credential/` | Credential provider chain (extension → default) |
 | `extension/credential/` | Plugin-facing credential interfaces and env provider |
 | `internal/client/client.go` | APIClient: DoSDKRequest, DoStream |
-| `internal/core/config.go` | Multi-profile config loading/saving |
+| `internal/config/config.go` | Multi-profile config loading/saving |
 | `internal/vfs/` | Filesystem abstraction (use `vfs.*` instead of `os.*`) |
 | `internal/validate/path.go` | Path safety validation |
 

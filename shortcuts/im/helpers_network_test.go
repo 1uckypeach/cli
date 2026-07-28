@@ -27,7 +27,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/shortcuts/common"
@@ -87,7 +87,7 @@ func newBotShortcutRuntime(t *testing.T, rt http.RoundTripper) *common.RuntimeCo
 		lark.WithLogLevel(larkcore.LogLevelError),
 		lark.WithHttpClient(httpClient),
 	)
-	cfg := &core.CliConfig{
+	cfg := &configpkg.CliConfig{
 		AppID:     "test-app",
 		AppSecret: "test-secret",
 		Brand:     brand.Feishu,
@@ -96,7 +96,7 @@ func newBotShortcutRuntime(t *testing.T, rt http.RoundTripper) *common.RuntimeCo
 	runtime := &common.RuntimeContext{
 		Config: cfg,
 		Factory: &cmdutil.Factory{
-			Config:         func() (*core.CliConfig, error) { return cfg, nil },
+			Config:         func() (*configpkg.CliConfig, error) { return cfg, nil },
 			HttpClient:     func() (*http.Client, error) { return httpClient, nil },
 			LarkClient:     func() (*lark.Client, error) { return sdk, nil },
 			Credential:     testCred,

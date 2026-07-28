@@ -11,16 +11,16 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/secret"
 )
 
 func TestRiskControlWorkspacePolicy(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
-	config := &core.MultiAppConfig{Apps: []core.AppConfig{{
+	config := &configpkg.MultiAppConfig{Apps: []configpkg.AppConfig{{
 		AppId: "cli_test", AppSecret: secret.PlainSecret("secret"), Brand: brand.Feishu,
 	}}}
-	if err := core.SaveMultiAppConfig(config); err != nil {
+	if err := configpkg.SaveMultiAppConfig(config); err != nil {
 		t.Fatal(err)
 	}
 
@@ -30,7 +30,7 @@ func TestRiskControlWorkspacePolicy(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("set off: %v", err)
 	}
-	loaded, err := core.LoadMultiAppConfig()
+	loaded, err := configpkg.LoadMultiAppConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestRiskControlWorkspacePolicy(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("set on: %v", err)
 	}
-	loaded, err = core.LoadMultiAppConfig()
+	loaded, err = configpkg.LoadMultiAppConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestRiskControlWorkspacePolicy(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("reset default: %v", err)
 	}
-	loaded, err = core.LoadMultiAppConfig()
+	loaded, err = configpkg.LoadMultiAppConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestRiskControlWorkspacePolicy(t *testing.T) {
 
 func TestRiskControlWorkspacePolicyRejectsInvalidValue(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
-	if err := core.SaveMultiAppConfig(&core.MultiAppConfig{Apps: []core.AppConfig{{
+	if err := configpkg.SaveMultiAppConfig(&configpkg.MultiAppConfig{Apps: []configpkg.AppConfig{{
 		AppId: "cli_test", AppSecret: secret.PlainSecret("secret"), Brand: brand.Feishu,
 	}}}); err != nil {
 		t.Fatal(err)
@@ -109,10 +109,10 @@ func TestRiskControlWorkspacePolicyRejectsInvalidValue(t *testing.T) {
 
 func TestRiskControlWorkspacePolicyAllowedWithExternalCredentials(t *testing.T) {
 	f := newConfigFactoryWithExternalProvider(t)
-	config := &core.MultiAppConfig{Apps: []core.AppConfig{{
+	config := &configpkg.MultiAppConfig{Apps: []configpkg.AppConfig{{
 		AppId: "cli_test", AppSecret: secret.PlainSecret("secret"), Brand: brand.Feishu,
 	}}}
-	if err := core.SaveMultiAppConfig(config); err != nil {
+	if err := configpkg.SaveMultiAppConfig(config); err != nil {
 		t.Fatal(err)
 	}
 
@@ -122,7 +122,7 @@ func TestRiskControlWorkspacePolicyAllowedWithExternalCredentials(t *testing.T) 
 		t.Fatalf("set off with external credentials: %v", err)
 	}
 
-	loaded, err := core.LoadMultiAppConfig()
+	loaded, err := configpkg.LoadMultiAppConfig()
 	if err != nil {
 		t.Fatal(err)
 	}

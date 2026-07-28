@@ -19,7 +19,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
 )
@@ -42,7 +42,7 @@ func newJqTestContext(jqExpr, format string) (*RuntimeContext, *bytes.Buffer, *b
 
 	rctx := &RuntimeContext{
 		ctx:        context.Background(),
-		Config:     &core.CliConfig{Brand: brand.Feishu},
+		Config:     &configpkg.CliConfig{Brand: brand.Feishu},
 		Cmd:        cmd,
 		Format:     format,
 		JqExpr:     jqExpr,
@@ -225,8 +225,8 @@ func newTestShortcutCmd(s *Shortcut, f *cmdutil.Factory) *cobra.Command {
 
 func newTestFactory() *cmdutil.Factory {
 	return &cmdutil.Factory{
-		Config: func() (*core.CliConfig, error) {
-			return &core.CliConfig{
+		Config: func() (*configpkg.CliConfig, error) {
+			return &configpkg.CliConfig{
 				AppID: "test", AppSecret: "test", Brand: brand.Feishu,
 			}, nil
 		},

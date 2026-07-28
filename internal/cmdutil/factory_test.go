@@ -15,7 +15,7 @@ import (
 	"github.com/larksuite/cli/envnames"
 	"github.com/larksuite/cli/errs"
 	extcred "github.com/larksuite/cli/extension/credential"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
@@ -34,7 +34,7 @@ func newCmdWithAsFlag(asValue string, changed bool) *cobra.Command {
 // --- ResolveAs tests ---
 
 func TestResolveAs_ExplicitAs(t *testing.T) {
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "a", AppSecret: "s"})
 	cmd := newCmdWithAsFlag("bot", true)
 
 	got := f.ResolveAs(context.Background(), cmd, identity.AsBot)
@@ -50,7 +50,7 @@ func TestResolveAs_ExplicitAs(t *testing.T) {
 }
 
 func TestResolveAs_ExplicitAsUser(t *testing.T) {
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "a", AppSecret: "s"})
 	cmd := newCmdWithAsFlag("user", true)
 
 	got := f.ResolveAs(context.Background(), cmd, identity.AsUser)
@@ -65,7 +65,7 @@ func TestResolveAs_ExplicitAsUser(t *testing.T) {
 func TestResolveAs_ExplicitAuto_FallsToAutoDetect(t *testing.T) {
 	// --as auto explicitly: should fall through to auto-detect
 	// Config has no UserOpenId → auto-detect returns bot
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "a", AppSecret: "s"})
 	cmd := newCmdWithAsFlag("auto", true)
 
 	got := f.ResolveAs(context.Background(), cmd, "auto")
@@ -78,7 +78,7 @@ func TestResolveAs_ExplicitAuto_FallsToAutoDetect(t *testing.T) {
 }
 
 func TestResolveAs_DefaultAs_FromConfig(t *testing.T) {
-	f, _, _, _ := TestFactory(t, &core.CliConfig{
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{
 		AppID: "a", AppSecret: "s",
 		DefaultAs: "bot",
 	})
@@ -96,7 +96,7 @@ func TestResolveAs_DefaultAs_FromConfig(t *testing.T) {
 func TestResolveAs_DefaultAs_EnvDoesNotBypassConfigSource(t *testing.T) {
 	t.Setenv(envnames.CliDefaultAs, "user")
 
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "a", AppSecret: "s"})
 	cmd := newCmdWithAsFlag("auto", false)
 
 	got := f.ResolveAs(context.Background(), cmd, "auto")
@@ -110,7 +110,7 @@ func TestResolveAs_DefaultAs_EnvDoesNotBypassConfigSource(t *testing.T) {
 
 func TestResolveAs_DefaultAs_AutoValue_FallsToAutoDetect(t *testing.T) {
 	// default-as = "auto" should fall through to auto-detect
-	f, _, _, _ := TestFactory(t, &core.CliConfig{
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{
 		AppID: "a", AppSecret: "s",
 		DefaultAs: "auto",
 	})
@@ -127,7 +127,7 @@ func TestResolveAs_DefaultAs_AutoValue_FallsToAutoDetect(t *testing.T) {
 }
 
 func TestResolveAs_NilCmd_AutoDetect(t *testing.T) {
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "a", AppSecret: "s"})
 
 	got := f.ResolveAs(context.Background(), nil, "auto")
 	if got != identity.AsBot {
@@ -138,7 +138,7 @@ func TestResolveAs_NilCmd_AutoDetect(t *testing.T) {
 // --- CheckIdentity tests ---
 
 func TestCheckIdentity_Supported(t *testing.T) {
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "a", AppSecret: "s"})
 
 	err := f.CheckIdentity(identity.AsBot, []string{"bot", "user"})
 	if err != nil {
@@ -150,7 +150,7 @@ func TestCheckIdentity_Supported(t *testing.T) {
 }
 
 func TestCheckIdentity_Supported_UserOnly(t *testing.T) {
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "a", AppSecret: "s"})
 
 	err := f.CheckIdentity(identity.AsUser, []string{"user"})
 	if err != nil {
@@ -162,7 +162,7 @@ func TestCheckIdentity_Supported_UserOnly(t *testing.T) {
 }
 
 func TestCheckIdentity_Unsupported_Explicit(t *testing.T) {
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "a", AppSecret: "s"})
 	f.IdentityAutoDetected = false // explicit --as
 
 	err := f.CheckIdentity(identity.AsUser, []string{"bot"})
@@ -178,7 +178,7 @@ func TestCheckIdentity_Unsupported_Explicit(t *testing.T) {
 }
 
 func TestCheckIdentity_Unsupported_AutoDetected(t *testing.T) {
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "a", AppSecret: "s"})
 	f.IdentityAutoDetected = true
 
 	err := f.CheckIdentity(identity.AsUser, []string{"bot"})
@@ -197,7 +197,7 @@ func TestCheckIdentity_Unsupported_AutoDetected(t *testing.T) {
 // --- NewAPIClient / NewAPIClientWithConfig tests ---
 
 func TestNewAPIClient(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", Brand: brand.Lark}
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", Brand: brand.Lark}
 	f, _, _, _ := TestFactory(t, cfg)
 
 	ac, err := f.NewAPIClient()
@@ -210,7 +210,7 @@ func TestNewAPIClient(t *testing.T) {
 }
 
 func TestNewAPIClientWithConfig(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", Brand: brand.Lark}
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", Brand: brand.Lark}
 	f, _, _, _ := TestFactory(t, cfg)
 
 	ac, err := f.NewAPIClientWithConfig(cfg)
@@ -229,7 +229,7 @@ func TestNewAPIClientWithConfig(t *testing.T) {
 }
 
 func TestNewAPIClientWithConfig_NilIOStreams(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", Brand: brand.Lark}
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", Brand: brand.Lark}
 	f, _, _, _ := TestFactory(t, cfg)
 	f.IOStreams = nil
 
@@ -245,14 +245,14 @@ func TestNewAPIClientWithConfig_NilIOStreams(t *testing.T) {
 // --- ResolveStrictMode tests ---
 
 func TestResolveStrictMode_Off(t *testing.T) {
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "a", AppSecret: "s"})
 	if got := f.ResolveStrictMode(context.Background()); got != identity.StrictModeOff {
 		t.Errorf("expected off, got %q", got)
 	}
 }
 
 func TestResolveStrictMode_BotFromAccount(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 2} // SupportsBot = 2
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 2} // SupportsBot = 2
 	f, _, _, _ := TestFactory(t, cfg)
 	if got := f.ResolveStrictMode(context.Background()); got != identity.StrictModeBot {
 		t.Errorf("expected bot, got %q", got)
@@ -260,7 +260,7 @@ func TestResolveStrictMode_BotFromAccount(t *testing.T) {
 }
 
 func TestResolveStrictMode_UserFromAccount(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 1} // SupportsUser = 1
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 1} // SupportsUser = 1
 	f, _, _, _ := TestFactory(t, cfg)
 	if got := f.ResolveStrictMode(context.Background()); got != identity.StrictModeUser {
 		t.Errorf("expected user, got %q", got)
@@ -268,7 +268,7 @@ func TestResolveStrictMode_UserFromAccount(t *testing.T) {
 }
 
 func TestResolveStrictMode_BothIdentities(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 3} // SupportsAll = 3
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 3} // SupportsAll = 3
 	f, _, _, _ := TestFactory(t, cfg)
 	if got := f.ResolveStrictMode(context.Background()); got != identity.StrictModeOff {
 		t.Errorf("expected off when both supported, got %q", got)
@@ -276,7 +276,7 @@ func TestResolveStrictMode_BothIdentities(t *testing.T) {
 }
 
 func TestResolveStrictMode_NilCredential(t *testing.T) {
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "a", AppSecret: "s"})
 	f.Credential = nil
 	if got := f.ResolveStrictMode(context.Background()); got != identity.StrictModeOff {
 		t.Errorf("expected off with nil credential, got %q", got)
@@ -286,7 +286,7 @@ func TestResolveStrictMode_NilCredential(t *testing.T) {
 // --- CheckStrictMode tests ---
 
 func TestCheckStrictMode_BotMode_BotAllowed(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 2}
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 2}
 	f, _, _, _ := TestFactory(t, cfg)
 	if err := f.CheckStrictMode(context.Background(), identity.AsBot); err != nil {
 		t.Errorf("bot should be allowed in bot mode, got: %v", err)
@@ -294,7 +294,7 @@ func TestCheckStrictMode_BotMode_BotAllowed(t *testing.T) {
 }
 
 func TestCheckStrictMode_BotMode_UserBlocked(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 2}
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 2}
 	f, _, _, _ := TestFactory(t, cfg)
 	err := f.CheckStrictMode(context.Background(), identity.AsUser)
 	if err == nil {
@@ -306,7 +306,7 @@ func TestCheckStrictMode_BotMode_UserBlocked(t *testing.T) {
 }
 
 func TestCheckStrictMode_UserMode_UserAllowed(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 1}
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 1}
 	f, _, _, _ := TestFactory(t, cfg)
 	if err := f.CheckStrictMode(context.Background(), identity.AsUser); err != nil {
 		t.Errorf("user should be allowed in user mode, got: %v", err)
@@ -314,7 +314,7 @@ func TestCheckStrictMode_UserMode_UserAllowed(t *testing.T) {
 }
 
 func TestCheckStrictMode_UserMode_BotBlocked(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 1}
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 1}
 	f, _, _, _ := TestFactory(t, cfg)
 	err := f.CheckStrictMode(context.Background(), identity.AsBot)
 	if err == nil {
@@ -323,7 +323,7 @@ func TestCheckStrictMode_UserMode_BotBlocked(t *testing.T) {
 }
 
 func TestCheckStrictMode_Off_BothAllowed(t *testing.T) {
-	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
+	f, _, _, _ := TestFactory(t, &configpkg.CliConfig{AppID: "a", AppSecret: "s"})
 	if err := f.CheckStrictMode(context.Background(), identity.AsUser); err != nil {
 		t.Errorf("user should be allowed when off: %v", err)
 	}
@@ -335,7 +335,7 @@ func TestCheckStrictMode_Off_BothAllowed(t *testing.T) {
 // --- ResolveAs strict mode tests ---
 
 func TestResolveAs_StrictModeBot_ForceBot(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 2}
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 2}
 	f, _, _, _ := TestFactory(t, cfg)
 	cmd := newCmdWithAsFlag("auto", false)
 	got := f.ResolveAs(context.Background(), cmd, "auto")
@@ -345,7 +345,7 @@ func TestResolveAs_StrictModeBot_ForceBot(t *testing.T) {
 }
 
 func TestResolveAs_StrictModeUser_ForceUser(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 1}
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 1}
 	f, _, _, _ := TestFactory(t, cfg)
 	cmd := newCmdWithAsFlag("auto", false)
 	got := f.ResolveAs(context.Background(), cmd, "auto")
@@ -355,7 +355,7 @@ func TestResolveAs_StrictModeUser_ForceUser(t *testing.T) {
 }
 
 func TestResolveAs_StrictModeUser_PreservesExplicitBot(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 1}
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 1}
 	f, _, _, _ := TestFactory(t, cfg)
 	cmd := newCmdWithAsFlag("bot", true)
 	got := f.ResolveAs(context.Background(), cmd, identity.AsBot)
@@ -368,7 +368,7 @@ func TestResolveAs_StrictModeUser_PreservesExplicitBot(t *testing.T) {
 }
 
 func TestResolveAs_StrictModeBot_PreservesExplicitUser(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 2}
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 2}
 	f, _, _, _ := TestFactory(t, cfg)
 	cmd := newCmdWithAsFlag("user", true)
 	got := f.ResolveAs(context.Background(), cmd, identity.AsUser)
@@ -381,7 +381,7 @@ func TestResolveAs_StrictModeBot_PreservesExplicitUser(t *testing.T) {
 }
 
 func TestResolveAs_StrictModeUser_ExplicitAutoForcesUser(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 1}
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", SupportedIdentities: 1}
 	f, _, _, _ := TestFactory(t, cfg)
 	cmd := newCmdWithAsFlag("auto", true)
 	got := f.ResolveAs(context.Background(), cmd, identity.AsAuto)
@@ -391,7 +391,7 @@ func TestResolveAs_StrictModeUser_ExplicitAutoForcesUser(t *testing.T) {
 }
 
 func TestResolveAs_StrictModeBot_IgnoresDefaultAsUser(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", DefaultAs: "user", SupportedIdentities: 2}
+	cfg := &configpkg.CliConfig{AppID: "a", AppSecret: "s", DefaultAs: "user", SupportedIdentities: 2}
 	f, _, _, _ := TestFactory(t, cfg)
 	cmd := newCmdWithAsFlag("auto", false)
 	got := f.ResolveAs(context.Background(), cmd, "auto")

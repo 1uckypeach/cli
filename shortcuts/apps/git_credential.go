@@ -21,7 +21,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/sparkstore"
@@ -384,7 +384,7 @@ func gitCredentialDisplayStatus(status string) string {
 	return status
 }
 
-func profileFromConfig(cfg *core.CliConfig) gitcred.ProfileContext {
+func profileFromConfig(cfg *configpkg.CliConfig) gitcred.ProfileContext {
 	if cfg == nil {
 		return gitcred.ProfileContext{}
 	}

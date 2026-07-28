@@ -24,7 +24,7 @@ import (
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/sparkstore"
@@ -791,7 +791,7 @@ func TestRunGitCredentialHelperActions(t *testing.T) {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 	stderr.Reset()
-	factory.Config = func() (*core.CliConfig, error) { return nil, errors.New("config failed") }
+	factory.Config = func() (*configpkg.CliConfig, error) { return nil, errors.New("config failed") }
 	factory.IOStreams.In = bytes.NewBufferString("protocol=https\nhost=example.com\npath=/git/u/app.git\n\n")
 	if err := runGitCredentialHelper(context.Background(), factory, "app_xxx", "get"); err != nil {
 		t.Fatalf("helper config error returned error: %v", err)
@@ -799,8 +799,8 @@ func TestRunGitCredentialHelperActions(t *testing.T) {
 	if !strings.Contains(stderr.String(), "config failed") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
-	cfg = &core.CliConfig{AppID: "cli", AppSecret: "secret", Brand: brand.Feishu, UserOpenId: "ou_test"}
-	factory.Config = func() (*core.CliConfig, error) { return cfg, nil }
+	cfg = &configpkg.CliConfig{AppID: "cli", AppSecret: "secret", Brand: brand.Feishu, UserOpenId: "ou_test"}
+	factory.Config = func() (*configpkg.CliConfig, error) { return cfg, nil }
 	stderr.Reset()
 	if err := runGitCredentialHelper(context.Background(), factory, "app_xxx", "unknown"); err != nil {
 		t.Fatalf("helper unknown returned error: %v", err)
@@ -861,19 +861,19 @@ func TestFactoryIssuerBranches(t *testing.T) {
 		t.Fatalf("%s header missing", cmdutil.HeaderExecutionId)
 	}
 
-	factory.Config = func() (*core.CliConfig, error) { return nil, errors.New("config failed") }
+	factory.Config = func() (*configpkg.CliConfig, error) { return nil, errors.New("config failed") }
 	if _, err := (factoryIssuer{f: factory}).Issue(context.Background(), "app_xxx", gitcred.ProfileContext{}); err == nil {
 		t.Fatal("factory issuer config error returned nil")
 	}
 
-	factory.Config = func() (*core.CliConfig, error) {
-		return &core.CliConfig{AppID: "cli", AppSecret: "secret", Brand: brand.Feishu}, nil
+	factory.Config = func() (*configpkg.CliConfig, error) {
+		return &configpkg.CliConfig{AppID: "cli", AppSecret: "secret", Brand: brand.Feishu}, nil
 	}
 	if _, err := (factoryIssuer{f: factory}).Issue(context.Background(), "app_xxx", gitcred.ProfileContext{}); err == nil {
 		t.Fatal("factory issuer without login returned nil")
 	}
-	factory.Config = func() (*core.CliConfig, error) {
-		return &core.CliConfig{AppID: "cli", AppSecret: "secret", Brand: brand.Feishu, UserOpenId: "ou_test"}, nil
+	factory.Config = func() (*configpkg.CliConfig, error) {
+		return &configpkg.CliConfig{AppID: "cli", AppSecret: "secret", Brand: brand.Feishu, UserOpenId: "ou_test"}, nil
 	}
 	factory.LarkClient = func() (*lark.Client, error) { return nil, errors.New("sdk failed") }
 	if _, err := (factoryIssuer{f: factory}).Issue(context.Background(), "app_xxx", gitcred.ProfileContext{}); err == nil {

@@ -10,7 +10,7 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
+	configpkg "github.com/larksuite/cli/internal/config"
 	"github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/identitydiag"
 	"github.com/larksuite/cli/internal/output"
@@ -124,7 +124,7 @@ func resolveSource(changedAs bool, flagAs identity.Identity, autoDetected bool, 
 
 // buildResult maps the resolved identity and local diagnostics into the output.
 // ResolveAs only ever returns user or bot, so the default branch handles user.
-func buildResult(cfg *core.CliConfig, as identity.Identity, source string, diag identitydiag.Result) *whoamiResult {
+func buildResult(cfg *configpkg.CliConfig, as identity.Identity, source string, diag identitydiag.Result) *whoamiResult {
 	defaultAs := cfg.DefaultAs
 	if defaultAs == "" {
 		defaultAs = identity.AsAuto
