@@ -11,6 +11,26 @@ package sheets
 // with `go generate ./shortcuts/sheets/...` after data/flag-defs.json
 // changes.
 var flagDefs = map[string]commandDef{
+	"+batch-chart-create": {
+		Risk: "write",
+		Flags: []flagDef{
+			{Name: "url", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet URL (XOR with `--spreadsheet-token`)"},
+			{Name: "spreadsheet-token", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet token (XOR with `--url`)"},
+			{Name: "operations", Kind: "own", Type: "string", Required: "required", Desc: "Chart creation operations as JSON; every item uses `+chart-create-basic`, with that command's flags and target sheet selector in input. Partial failure is enabled by default: successful charts stay applied and only failed items should be retried", Input: []string{"file", "stdin"}},
+			{Name: "continue-on-error", Kind: "own", Type: "bool", Required: "optional", Desc: "Continue after an individual chart fails; default true", Default: "true"},
+			{Name: "dry-run", Kind: "system", Type: "bool", Required: "optional", Desc: "Print the batch creation request template with no network side effects"},
+		},
+	},
+	"+batch-chart-update": {
+		Risk: "write",
+		Flags: []flagDef{
+			{Name: "url", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet URL (XOR with `--spreadsheet-token`)"},
+			{Name: "spreadsheet-token", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet token (XOR with `--url`)"},
+			{Name: "operations", Kind: "own", Type: "string", Required: "required", Desc: "Chart update operations as JSON; every item uses `+chart-config-update` or `+chart-data-update`, with that command's flags and target sheet selector in input. The CLI reads each current chart snapshot before building partial properties; partial failure is enabled by default", Input: []string{"file", "stdin"}},
+			{Name: "continue-on-error", Kind: "own", Type: "bool", Required: "optional", Desc: "Continue after an individual chart fails; default true", Default: "true"},
+			{Name: "dry-run", Kind: "system", Type: "bool", Required: "optional", Desc: "Print the batch update request template and snapshot preflight note with no network side effects"},
+		},
+	},
 	"+batch-update": {
 		Risk: "high-risk-write",
 		Flags: []flagDef{

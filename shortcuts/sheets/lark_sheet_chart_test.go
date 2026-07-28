@@ -8,6 +8,19 @@ import (
 	"testing"
 )
 
+func chartDryRunSnapshot(t *testing.T, input map[string]interface{}) map[string]interface{} {
+	t.Helper()
+	properties, ok := input["properties"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("input.properties = %#v, want object", input["properties"])
+	}
+	snapshot, ok := properties["snapshot"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("input.properties.snapshot = %#v, want object", properties["snapshot"])
+	}
+	return snapshot
+}
+
 func TestChartCreateBasic_AllTypes(t *testing.T) {
 	t.Parallel()
 
@@ -150,14 +163,13 @@ func TestChartCreateBasic_RejectsCrossSheetRanges(t *testing.T) {
 	}
 }
 
-func TestChartSemanticShortcuts_InBatchUpdate(t *testing.T) {
-	body := parseDryRunBody(t, BatchUpdate, []string{
+func TestChartSemanticShortcuts_InDedicatedBatch(t *testing.T) {
+	body := parseDryRunBody(t, BatchChartCreate, []string{
 		"--url", testURL,
 		"--operations", `[
 			{"shortcut":"+chart-create-basic","input":{"sheet-id":"sh1","chart-type":"column","data-range":"A1:C10","title":"Sales"}},
 			{"shortcut":"+chart-create-basic","input":{"sheet-id":"sh1","chart-type":"line","data-range":"E1:G10","title":"Trend"}}
 		]`,
-		"--yes",
 	})
 	input := decodeToolInput(t, body, "batch_update")
 	ops := input["operations"].([]interface{})
@@ -194,16 +206,20 @@ func TestChartConfigUpdate_PartialFields(t *testing.T) {
 	if input["operation"] != "update" || input["chart_id"] != "chart-1" {
 		t.Fatalf("input = %#v", input)
 	}
-	if _, ok := input["properties"]; ok {
-		t.Fatal("semantic update must not send properties")
+	snapshot := chartDryRunSnapshot(t, input)
+	plotArea := snapshot["plotArea"].(map[string]interface{})
+	plot := plotArea["plot"].(map[string]interface{})
+	extra := plot["extra"].(map[string]interface{})
+	if extra["smooth"] != false || extra["stack"].(map[string]interface{})["percentage"] != true {
+		t.Errorf("plot extra = %#v", extra)
 	}
-	updates, _ := input["config_updates"].(map[string]interface{})
-	if updates["y_axis_title"] != "Revenue" || updates["stack"] != "percent" || updates["smooth"] != false {
-		t.Errorf("config_updates = %#v", updates)
-	}
-	colors, _ := updates["colors"].([]interface{})
+	colors, _ := snapshot["colorTheme"].([]interface{})
 	if len(colors) != 2 || colors[0] != "#112233" || colors[1] != "#445566" {
-		t.Errorf("config_updates.colors = %#v", updates["colors"])
+		t.Errorf("snapshot.colorTheme = %#v", snapshot["colorTheme"])
+	}
+	axes := plotArea["axes"].([]interface{})
+	if axes[0].(map[string]interface{})["title"].(map[string]interface{})["text"] != "Revenue" {
+		t.Errorf("axes = %#v", axes)
 	}
 }
 
@@ -216,9 +232,9 @@ func TestChartConfigUpdate_SpacedSmoothBool(t *testing.T) {
 		"--smooth", "false",
 	})
 	input := decodeToolInput(t, body, "manage_chart_object")
-	updates := input["config_updates"].(map[string]interface{})
-	if updates["smooth"] != false {
-		t.Fatalf("config_updates.smooth = %v, want false", updates["smooth"])
+	plot := chartDryRunSnapshot(t, input)["plotArea"].(map[string]interface{})["plot"].(map[string]interface{})
+	if plot["extra"].(map[string]interface{})["smooth"] != false {
+		t.Fatalf("snapshot smooth = %v, want false", plot)
 	}
 }
 
@@ -242,16 +258,18 @@ func TestChartSemanticShortcuts_CompatibleAliases(t *testing.T) {
 	body = parseDryRunBody(t, chartConfigUpdate, []string{
 		"--url", testURL, "--sheet-id", testSheetID, "--chart-id", "chart-1", "--stacked",
 	})
-	updates := decodeToolInput(t, body, "manage_chart_object")["config_updates"].(map[string]interface{})
-	if updates["stack"] != "normal" {
-		t.Fatalf("--stacked normalized stack = %v, want normal", updates["stack"])
+	snapshot := chartDryRunSnapshot(t, decodeToolInput(t, body, "manage_chart_object"))
+	extra := snapshot["plotArea"].(map[string]interface{})["plot"].(map[string]interface{})["extra"].(map[string]interface{})
+	if extra["stack"].(map[string]interface{})["percentage"] != false {
+		t.Fatalf("--stacked normalized stack = %#v, want non-percentage stack", extra["stack"])
 	}
 	body = parseDryRunBody(t, chartConfigUpdate, []string{
 		"--url", testURL, "--sheet-id", testSheetID, "--chart-id", "chart-1", "--data-labels", "category_percentage",
 	})
-	updates = decodeToolInput(t, body, "manage_chart_object")["config_updates"].(map[string]interface{})
-	if updates["data_labels"] != "value_percentage" {
-		t.Fatalf("data-labels normalized value = %v, want value_percentage", updates["data_labels"])
+	snapshot = chartDryRunSnapshot(t, decodeToolInput(t, body, "manage_chart_object"))
+	labels := snapshot["plotArea"].(map[string]interface{})["plot"].(map[string]interface{})["labels"].(map[string]interface{})
+	if labels["value"] != true || labels["percentage"] != true {
+		t.Fatalf("data-labels normalized value = %#v, want value+percentage", labels)
 	}
 	body = parseDryRunBody(t, chartConfigUpdate, []string{
 		"--url", testURL,
@@ -261,27 +279,34 @@ func TestChartSemanticShortcuts_CompatibleAliases(t *testing.T) {
 		"--y-axis", "Revenue",
 		"--data-labels", "percentage,value",
 	})
-	updates = decodeToolInput(t, body, "manage_chart_object")["config_updates"].(map[string]interface{})
-	if updates["x_axis_title"] != "Month" || updates["y_axis_title"] != "Revenue" ||
-		updates["data_labels"] != "value_percentage" {
-		t.Fatalf("chart config aliases = %#v", updates)
+	snapshot = chartDryRunSnapshot(t, decodeToolInput(t, body, "manage_chart_object"))
+	plotArea := snapshot["plotArea"].(map[string]interface{})
+	axes := plotArea["axes"].([]interface{})
+	labels = plotArea["plot"].(map[string]interface{})["labels"].(map[string]interface{})
+	if axes[0].(map[string]interface{})["title"].(map[string]interface{})["text"] != "Month" ||
+		axes[1].(map[string]interface{})["title"].(map[string]interface{})["text"] != "Revenue" ||
+		labels["value"] != true || labels["percentage"] != true {
+		t.Fatalf("chart config aliases = %#v", snapshot)
 	}
 }
 
 func TestChartSemanticShortcuts_CompatibleAliasesInBatch(t *testing.T) {
 	t.Parallel()
-	body := parseDryRunBody(t, BatchUpdate, []string{
+	body := parseDryRunBody(t, BatchChartUpdate, []string{
 		"--url", testURL,
 		"--operations", `[{"shortcut":"+chart-config-update","input":{"sheet_id":"sh1","chart_id":"chart-1","stacked":true,"x_axis":"Month","y_axis":"Revenue","data_labels":"value,percentage","smooth":false}}]`,
-		"--yes",
 	})
 	input := decodeToolInput(t, body, "batch_update")
 	ops := input["operations"].([]interface{})
 	chartInput := ops[0].(map[string]interface{})["input"].(map[string]interface{})
-	updates := chartInput["config_updates"].(map[string]interface{})
-	if updates["stack"] != "normal" || updates["x_axis_title"] != "Month" || updates["y_axis_title"] != "Revenue" ||
-		updates["data_labels"] != "value_percentage" || updates["smooth"] != false {
-		t.Fatalf("batch config_updates = %#v", updates)
+	snapshot := chartDryRunSnapshot(t, chartInput)
+	plotArea := snapshot["plotArea"].(map[string]interface{})
+	plot := plotArea["plot"].(map[string]interface{})
+	labels := plot["labels"].(map[string]interface{})
+	extra := plot["extra"].(map[string]interface{})
+	if labels["value"] != true || labels["percentage"] != true || extra["smooth"] != false ||
+		extra["stack"].(map[string]interface{})["percentage"] != false {
+		t.Fatalf("batch config patch = %#v", snapshot)
 	}
 }
 
@@ -301,13 +326,12 @@ func TestChartSemanticShortcuts_SingleCustomColorIsExpanded(t *testing.T) {
 		t.Fatalf("standalone colors = %#v", colors)
 	}
 
-	body = parseDryRunBody(t, BatchUpdate, []string{
+	body = parseDryRunBody(t, BatchChartCreate, []string{
 		"--url", testURL,
 		"--operations", `[{
 			"shortcut":"+chart-create-basic",
 			"input":{"sheet_id":"sh1","type":"line","range":"A1:C10","colors":["#445566"]}
 		}]`,
-		"--yes",
 	})
 	input := decodeToolInput(t, body, "batch_update")
 	ops := input["operations"].([]interface{})
@@ -356,13 +380,12 @@ func TestChartCreateBasic_SelectsDimensionsAtCreation(t *testing.T) {
 
 func TestChartCreateBasic_SelectsDimensionsInBatch(t *testing.T) {
 	t.Parallel()
-	body := parseDryRunBody(t, BatchUpdate, []string{
+	body := parseDryRunBody(t, BatchChartCreate, []string{
 		"--url", testURL,
 		"--operations", `[{
 			"shortcut":"+chart-create-basic",
 			"input":{"sheet_id":"sh1","chart_type":"line","data_range":"A1:DV7","dim1_index":3,"dim2_indexes":[2,6,8]}
 		}]`,
-		"--yes",
 	})
 	input := decodeToolInput(t, body, "batch_update")
 	ops := input["operations"].([]interface{})
@@ -403,7 +426,7 @@ func TestChartCreateBasic_SuggestsRowDirectionForHorizontalCategories(t *testing
 	requireValidation(t, err, "--data-direction row")
 }
 
-func TestChartDataUpdate_PreservesSnapshotServerSide(t *testing.T) {
+func TestChartDataUpdate_MapsToPartialProperties(t *testing.T) {
 	t.Parallel()
 	body := parseDryRunBody(t, ChartDataUpdate, []string{
 		"--url", testURL,
@@ -415,15 +438,13 @@ func TestChartDataUpdate_PreservesSnapshotServerSide(t *testing.T) {
 	if input["operation"] != "update" || input["chart_id"] != "chart-1" {
 		t.Fatalf("input = %#v", input)
 	}
-	if _, ok := input["properties"]; ok {
-		t.Fatal("semantic data update must not send properties")
+	data := chartDryRunSnapshot(t, input)["data"].(map[string]interface{})
+	refs := data["refs"].([]interface{})
+	if refs[0].(map[string]interface{})["value"] != "'Sheet1'!A1:M6" {
+		t.Errorf("data patch = %#v", data)
 	}
-	updates, _ := input["data_updates"].(map[string]interface{})
-	if updates["data_range"] != "'Sheet1'!A1:M6" {
-		t.Errorf("data_updates = %#v", updates)
-	}
-	if _, ok := updates["data_direction"]; ok {
-		t.Errorf("omitted --data-direction must preserve the server-side direction: %#v", updates)
+	if _, ok := data["direction"]; ok {
+		t.Errorf("omitted --data-direction must be resolved from the current snapshot during execution: %#v", data)
 	}
 }
 
@@ -437,9 +458,9 @@ func TestChartDataUpdate_ExplicitDirectionAndMultipleRanges(t *testing.T) {
 		"--data-direction", "column",
 	})
 	input := decodeToolInput(t, body, "manage_chart_object")
-	updates := input["data_updates"].(map[string]interface{})
-	if updates["data_range"] != "'Sheet1'!A1:A10,'Sheet1'!K1:L10" || updates["data_direction"] != "column" {
-		t.Errorf("data_updates = %#v", updates)
+	data := chartDryRunSnapshot(t, input)["data"].(map[string]interface{})
+	if data["direction"] != "column" || len(data["refs"].([]interface{})) != 2 {
+		t.Errorf("data patch = %#v", data)
 	}
 }
 
@@ -455,9 +476,13 @@ func TestChartDataUpdate_DetachedHeaderRange(t *testing.T) {
 		"--header-range", headerRange,
 	})
 	input := decodeToolInput(t, body, "manage_chart_object")
-	updates := input["data_updates"].(map[string]interface{})
-	if updates["data_range"] != dataRange || updates["header_range"] != headerRange {
-		t.Fatalf("data_updates = %#v", updates)
+	data := chartDryRunSnapshot(t, input)["data"].(map[string]interface{})
+	if data["headerMode"] != "detached" {
+		t.Fatalf("data patch = %#v", data)
+	}
+	dim1 := data["dim1"].(map[string]interface{})["serie"].(map[string]interface{})
+	if dim1["nameRef"] != "'Sheet1'!A1" {
+		t.Fatalf("detached dim1 = %#v", dim1)
 	}
 }
 
@@ -472,13 +497,15 @@ func TestChartDataUpdate_ExplicitSeriesIndexes(t *testing.T) {
 		"--dim2-indexes", "4, 8",
 	})
 	input := decodeToolInput(t, body, "manage_chart_object")
-	updates := input["data_updates"].(map[string]interface{})
-	if updates["dim1_index"] != float64(1) {
-		t.Errorf("data_updates.dim1_index = %#v", updates["dim1_index"])
+	data := chartDryRunSnapshot(t, input)["data"].(map[string]interface{})
+	dim1 := data["dim1"].(map[string]interface{})["serie"].(map[string]interface{})
+	if dim1["index"] != float64(1) {
+		t.Errorf("data.dim1 = %#v", dim1)
 	}
-	indexes, _ := updates["dim2_indexes"].([]interface{})
-	if len(indexes) != 2 || indexes[0] != float64(4) || indexes[1] != float64(8) {
-		t.Errorf("data_updates.dim2_indexes = %#v", updates["dim2_indexes"])
+	series := data["dim2"].(map[string]interface{})["series"].([]interface{})
+	if len(series) != 2 || series[0].(map[string]interface{})["index"] != float64(4) ||
+		series[1].(map[string]interface{})["index"] != float64(8) {
+		t.Errorf("data.dim2 = %#v", series)
 	}
 }
 
