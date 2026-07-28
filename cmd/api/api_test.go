@@ -16,6 +16,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	extcs "github.com/larksuite/cli/extension/contentsafety"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -41,7 +42,7 @@ func newTestRootCmd() *cobra.Command {
 
 func TestApiCmd_FlagParsing(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	var gotOpts *APIOptions
@@ -70,7 +71,7 @@ func TestApiCmd_FlagParsing(t *testing.T) {
 
 func TestApiCmd_DryRun(t *testing.T) {
 	f, stdout, stderr, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	cmd := newTestApiCmd(f, nil)
@@ -105,7 +106,7 @@ func TestApiCmd_DryRun(t *testing.T) {
 
 func TestApiCmd_DryRunWithJq(t *testing.T) {
 	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	cmd := newTestApiCmd(f, nil)
@@ -123,7 +124,7 @@ func TestApiCmd_DryRunWithJq(t *testing.T) {
 // write into the map ParseJSONMap returns.
 func TestApiCmd_NullParamsWithPageSize(t *testing.T) {
 	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	cmd := newTestApiCmd(f, nil)
@@ -138,7 +139,7 @@ func TestApiCmd_NullParamsWithPageSize(t *testing.T) {
 
 func TestApiCmd_BotMode(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	// Register API endpoint stub
@@ -171,7 +172,7 @@ func TestApiCmd_BotMode(t *testing.T) {
 
 func TestApiCmd_MissingArgs(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	cmd := newTestApiCmd(f, nil)
@@ -184,7 +185,7 @@ func TestApiCmd_MissingArgs(t *testing.T) {
 
 func TestApiCmd_EmptyMethodRejected(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	cmd := newTestApiCmd(f, nil)
@@ -200,7 +201,7 @@ func TestApiCmd_EmptyMethodRejected(t *testing.T) {
 
 func TestApiCmd_InvalidParamsJSON(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	cmd := newTestApiCmd(f, nil)
@@ -213,7 +214,7 @@ func TestApiCmd_InvalidParamsJSON(t *testing.T) {
 
 func TestApiValidArgsFunction(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	cmd := newTestApiCmd(f, nil)
@@ -279,7 +280,7 @@ func TestApiValidArgsFunction(t *testing.T) {
 
 func TestNewCmdApi_StrictModeHidesAsFlag(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu, SupportedIdentities: 2,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu, SupportedIdentities: 2,
 	})
 
 	cmd := newTestApiCmd(f, nil)
@@ -297,7 +298,7 @@ func TestNewCmdApi_StrictModeHidesAsFlag(t *testing.T) {
 
 func TestApiCmd_PageLimitDefault(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	var gotOpts *APIOptions
@@ -317,7 +318,7 @@ func TestApiCmd_PageLimitDefault(t *testing.T) {
 
 func TestApiCmd_ParamsAndDataBothStdinConflict(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	cmd := newTestApiCmd(f, nil)
@@ -333,7 +334,7 @@ func TestApiCmd_ParamsAndDataBothStdinConflict(t *testing.T) {
 
 func TestApiCmd_OutputAndPageAllConflict(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	var gotOpts *APIOptions
@@ -356,7 +357,7 @@ func TestApiCmd_BinaryResponse_AutoSave(t *testing.T) {
 	cmdutil.TestChdir(t, dir)
 
 	f, stdout, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app-bin", AppSecret: "test-secret-bin", Brand: core.BrandFeishu,
+		AppID: "test-app-bin", AppSecret: "test-secret-bin", Brand: brand.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -406,7 +407,7 @@ func TestApiCmd_BinaryResponse_AutoSave(t *testing.T) {
 
 func TestApiCmd_PageAll_NonBatchAPI_FallbackToJSON(t *testing.T) {
 	f, stdout, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app-pageall1", AppSecret: "test-secret-pageall1", Brand: core.BrandFeishu,
+		AppID: "test-app-pageall1", AppSecret: "test-secret-pageall1", Brand: brand.Feishu,
 	})
 
 	// Register a non-batch API that returns scalar data (no array field)
@@ -450,7 +451,7 @@ func TestApiCmd_PageAll_NonBatchAPI_FallbackToJSON(t *testing.T) {
 
 func TestApiCmd_PageAll_NonBatchAPI_ErrorStillOutputsJSON(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app-pageall-err", AppSecret: "test-secret-pageall-err", Brand: core.BrandFeishu,
+		AppID: "test-app-pageall-err", AppSecret: "test-secret-pageall-err", Brand: brand.Feishu,
 	})
 
 	// Non-batch API that returns a business error (code != 0)
@@ -487,7 +488,7 @@ func TestApiCmd_PageAll_NonBatchAPI_ErrorStillOutputsJSON(t *testing.T) {
 
 func TestApiCmd_PageAll_BatchAPI_StreamsItems(t *testing.T) {
 	f, stdout, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app-pageall2", AppSecret: "test-secret-pageall2", Brand: core.BrandFeishu,
+		AppID: "test-app-pageall2", AppSecret: "test-secret-pageall2", Brand: brand.Feishu,
 	})
 
 	// Register a batch API that returns an array field
@@ -520,7 +521,7 @@ func TestApiCmd_PageAll_BatchAPI_StreamsItems(t *testing.T) {
 
 func TestApiCmd_PageAll_StreamBusinessErrorDoesNotDumpJSON(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app-pageall-stream-err", AppSecret: "test-secret-pageall-stream-err", Brand: core.BrandFeishu,
+		AppID: "test-app-pageall-stream-err", AppSecret: "test-secret-pageall-stream-err", Brand: brand.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -562,7 +563,7 @@ func TestApiCmd_PageAll_StreamBusinessErrorDoesNotDumpJSON(t *testing.T) {
 
 func TestApiCmd_PageAll_BatchAPI_DefaultJSONEnvelope(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app-pageall-json", AppSecret: "test-secret-pageall-json", Brand: core.BrandFeishu,
+		AppID: "test-app-pageall-json", AppSecret: "test-secret-pageall-json", Brand: brand.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -628,7 +629,7 @@ func TestApiCmd_PageAll_DefaultJSONRunsContentSafety(t *testing.T) {
 	t.Cleanup(func() { extcs.Register(nil) })
 
 	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app-pageall-safety", AppSecret: "test-secret-pageall-safety", Brand: core.BrandFeishu,
+		AppID: "test-app-pageall-safety", AppSecret: "test-secret-pageall-safety", Brand: brand.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -679,7 +680,7 @@ func TestApiCmd_PageAll_StreamFormatRunsContentSafety(t *testing.T) {
 	t.Cleanup(func() { extcs.Register(nil) })
 
 	f, stdout, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app-pageall-stream-safety", AppSecret: "test-secret-pageall-stream-safety", Brand: core.BrandFeishu,
+		AppID: "test-app-pageall-stream-safety", AppSecret: "test-secret-pageall-stream-safety", Brand: brand.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -724,7 +725,7 @@ func TestApiCmd_PageAll_StreamFormatBlockSkipsBlockedPage(t *testing.T) {
 	t.Cleanup(func() { extcs.Register(nil) })
 
 	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app-pageall-stream-block", AppSecret: "test-secret-pageall-stream-block", Brand: core.BrandFeishu,
+		AppID: "test-app-pageall-stream-block", AppSecret: "test-secret-pageall-stream-block", Brand: brand.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -810,7 +811,7 @@ func TestNormalisePath_StripsQueryAndFragment(t *testing.T) {
 
 func TestApiCmd_JqFlag_Parsing(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	var gotOpts *APIOptions
@@ -830,7 +831,7 @@ func TestApiCmd_JqFlag_Parsing(t *testing.T) {
 
 func TestApiCmd_JqFlag_ShortForm(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	var gotOpts *APIOptions
@@ -850,7 +851,7 @@ func TestApiCmd_JqFlag_ShortForm(t *testing.T) {
 
 func TestApiCmd_JqAndOutputConflict(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	cmd := newTestApiCmd(f, func(opts *APIOptions) error {
@@ -868,7 +869,7 @@ func TestApiCmd_JqAndOutputConflict(t *testing.T) {
 
 func TestApiCmd_JqFilter_AppliesExpression(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app-jq", AppSecret: "test-secret-jq", Brand: core.BrandFeishu,
+		AppID: "test-app-jq", AppSecret: "test-secret-jq", Brand: brand.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -902,7 +903,7 @@ func TestApiCmd_JqFilter_AppliesExpression(t *testing.T) {
 
 func TestApiCmd_JqAndFormatConflict(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	cmd := newTestApiCmd(f, func(opts *APIOptions) error {
@@ -920,7 +921,7 @@ func TestApiCmd_JqAndFormatConflict(t *testing.T) {
 
 func TestApiCmd_JqInvalidExpression(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	cmd := newTestApiCmd(f, func(opts *APIOptions) error {
@@ -938,7 +939,7 @@ func TestApiCmd_JqInvalidExpression(t *testing.T) {
 
 func TestApiCmd_PageAll_WithJq(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app-pjq", AppSecret: "test-secret-pjq", Brand: core.BrandFeishu,
+		AppID: "test-app-pjq", AppSecret: "test-secret-pjq", Brand: brand.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -969,7 +970,7 @@ func TestApiCmd_PageAll_WithJq(t *testing.T) {
 
 func TestApiCmd_MethodUppercase(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	var gotOpts *APIOptions
@@ -989,7 +990,7 @@ func TestApiCmd_MethodUppercase(t *testing.T) {
 
 func TestApiCmd_FileFlagParsing(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 	var gotOpts *APIOptions
 	cmd := newTestApiCmd(f, func(opts *APIOptions) error {
@@ -1008,7 +1009,7 @@ func TestApiCmd_FileFlagParsing(t *testing.T) {
 
 func TestApiCmd_FileAndOutputConflict(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 	cmd := newTestApiCmd(f, func(opts *APIOptions) error {
 		return apiRun(opts)
@@ -1025,7 +1026,7 @@ func TestApiCmd_FileAndOutputConflict(t *testing.T) {
 
 func TestApiCmd_FileWithGET(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 	cmd := newTestApiCmd(f, func(opts *APIOptions) error {
 		return apiRun(opts)
@@ -1042,7 +1043,7 @@ func TestApiCmd_FileWithGET(t *testing.T) {
 
 func TestApiCmd_FileStdinConflictWithData(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 	cmd := newTestApiCmd(f, func(opts *APIOptions) error {
 		return apiRun(opts)
@@ -1065,7 +1066,7 @@ func TestApiCmd_DryRunWithFile(t *testing.T) {
 	}
 
 	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 	cmd := newTestApiCmd(f, nil)
 	cmd.SetArgs([]string{"POST", "/open-apis/im/v1/images", "--file", "image=" + tmpFile, "--data", `{"image_type":"message"}`, "--dry-run", "--as", "bot"})
@@ -1103,7 +1104,7 @@ func TestApiCmd_DryRunWithFile(t *testing.T) {
 // a CLI release.
 func TestApiCmd_PermissionError_DerivesFirstClassFields(t *testing.T) {
 	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "cli_test_perm", AppSecret: "secret", Brand: core.BrandFeishu,
+		AppID: "cli_test_perm", AppSecret: "secret", Brand: brand.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -1142,7 +1143,7 @@ func TestApiCmd_PermissionError_DerivesFirstClassFields(t *testing.T) {
 
 func TestApiCmd_JsonFlag_Accepted(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	var gotOpts *APIOptions
@@ -1195,7 +1196,7 @@ func parseMultipartFilenames(t *testing.T, stub *httpmock.Stub) (map[string]stri
 
 func TestApiCmd_FileUpload_PreservesFilename(t *testing.T) {
 	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	dir := t.TempDir()
@@ -1224,7 +1225,7 @@ func TestApiCmd_FileUpload_PreservesFilename(t *testing.T) {
 
 func TestApiCmd_FileUpload_FieldPrefixKeepsBasename(t *testing.T) {
 	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	dir := t.TempDir()
@@ -1259,7 +1260,7 @@ func TestApiCmd_FileUpload_FieldPrefixKeepsBasename(t *testing.T) {
 
 func TestApiCmd_FileUpload_WithDataFields(t *testing.T) {
 	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	dir := t.TempDir()
@@ -1292,7 +1293,7 @@ func TestApiCmd_FileUpload_WithDataFields(t *testing.T) {
 
 func TestApiCmd_FileUpload_StdinFallsBackToUnknown(t *testing.T) {
 	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 	f.IOStreams.In = bytes.NewReader([]byte("stdin-bytes"))
 

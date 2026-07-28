@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/envnames"
 	"github.com/larksuite/cli/errs"
 	_ "github.com/larksuite/cli/extension/credential/env"
@@ -45,13 +46,13 @@ func TestNewDefault_InvocationProfileUsedByStrictModeAndConfig(t *testing.T) {
 				Name:      "default",
 				AppId:     "app-default",
 				AppSecret: core.PlainSecret("secret-default"),
-				Brand:     core.BrandFeishu,
+				Brand:     brand.Feishu,
 			},
 			{
 				Name:       "target",
 				AppId:      "app-target",
 				AppSecret:  core.PlainSecret("secret-target"),
-				Brand:      core.BrandFeishu,
+				Brand:      brand.Feishu,
 				StrictMode: &bot,
 			},
 		},
@@ -92,7 +93,7 @@ func TestNewDefault_InvocationProfileMissingSticksAcrossEarlyStrictMode(t *testi
 				Name:      "default",
 				AppId:     "app-default",
 				AppSecret: core.PlainSecret("secret-default"),
-				Brand:     core.BrandFeishu,
+				Brand:     brand.Feishu,
 			},
 		},
 	}

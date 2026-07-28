@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	extcs "github.com/larksuite/cli/extension/contentsafety"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -37,7 +38,7 @@ func newCSTestContext(t *testing.T) (*RuntimeContext, *bytes.Buffer, *bytes.Buff
 	parentCmd.AddCommand(cmd)
 	rctx := &RuntimeContext{
 		ctx:        context.Background(),
-		Config:     &core.CliConfig{Brand: core.BrandFeishu},
+		Config:     &core.CliConfig{Brand: brand.Feishu},
 		Cmd:        cmd,
 		resolvedAs: core.AsBot,
 		Factory: &cmdutil.Factory{

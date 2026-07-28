@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 
 	larkauth "github.com/larksuite/cli/internal/auth"
@@ -72,7 +73,7 @@ to generate QR codes (supports ASCII and PNG formats).`,
 
 	cmd.Flags().StringVar(&opts.Scope, "scope", "", "scopes to request (space- or comma-separated). Combines additively with --domain/--recommend")
 	cmd.Flags().BoolVar(&opts.Recommend, "recommend", false, "request only recommended (auto-approve) scopes")
-	var helpBrand core.LarkBrand
+	var helpBrand brandpkg.Brand
 	if f != nil && f.Config != nil {
 		if cfg, err := f.Config(); err == nil && cfg != nil {
 			helpBrand = cfg.Brand
@@ -512,7 +513,7 @@ func findProfileByName(multi *core.MultiAppConfig, profileName string) *core.App
 // shortcut scopes for the given domain names.
 // Domains with auth_domain children are automatically expanded to include
 // their children's scopes.
-func collectScopesForDomains(domains []string, identity string, brand core.LarkBrand) []string {
+func collectScopesForDomains(domains []string, identity string, brand brandpkg.Brand) []string {
 	scopeSet := make(map[string]bool)
 
 	// 1. API scopes from from_meta projects
@@ -553,7 +554,7 @@ func collectScopesForDomains(domains []string, identity string, brand core.LarkB
 // allKnownDomains returns all valid auth domain names (from_meta projects +
 // shortcut services), excluding domains that have auth_domain set (they are
 // folded into their parent domain).
-func allKnownDomains(brand core.LarkBrand) map[string]bool {
+func allKnownDomains(brand brandpkg.Brand) map[string]bool {
 	domains := make(map[string]bool)
 	for _, p := range registry.ListFromMetaProjects() {
 		if !registry.HasAuthDomain(p) {
@@ -572,7 +573,7 @@ func allKnownDomains(brand core.LarkBrand) map[string]bool {
 }
 
 // sortedKnownDomains returns all valid domain names sorted alphabetically.
-func sortedKnownDomains(brand core.LarkBrand) []string {
+func sortedKnownDomains(brand brandpkg.Brand) []string {
 	m := allKnownDomains(brand)
 	domains := make([]string, 0, len(m))
 	for d := range m {

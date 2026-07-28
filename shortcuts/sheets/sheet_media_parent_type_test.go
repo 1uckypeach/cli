@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -150,7 +151,7 @@ func newSheetMediaTestRuntime(t *testing.T) (*common.RuntimeContext, *httpmock.R
 	cfg := &core.CliConfig{
 		AppID:     "test-sheets-media-" + t.Name(),
 		AppSecret: "test-secret",
-		Brand:     core.BrandFeishu,
+		Brand:     brand.Feishu,
 	}
 	f, _, _, reg := cmdutil.TestFactory(t, cfg)
 	runtime := common.TestNewRuntimeContextForAPI(context.Background(), &cobra.Command{Use: "sheets"}, cfg, f, core.AsBot)

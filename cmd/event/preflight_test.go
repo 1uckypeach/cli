@@ -8,13 +8,14 @@ import (
 	"strings"
 	"testing"
 
+	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/appmeta"
 	"github.com/larksuite/cli/internal/core"
 	eventlib "github.com/larksuite/cli/internal/event"
 )
 
-func newPreflightCtx(appID string, brand core.LarkBrand, identity core.Identity, keyDef *eventlib.KeyDefinition, appVer *appmeta.AppVersion) *preflightCtx {
+func newPreflightCtx(appID string, brand brandpkg.Brand, identity core.Identity, keyDef *eventlib.KeyDefinition, appVer *appmeta.AppVersion) *preflightCtx {
 	key := ""
 	if keyDef != nil {
 		key = keyDef.Key
@@ -177,7 +178,7 @@ func TestPreflightScopes_NoRequiredScopes_SkipsCheck(t *testing.T) {
 func TestPreflightEventTypes_CallbackMissing(t *testing.T) {
 	pf := &preflightCtx{
 		appID:               "cli_x",
-		brand:               core.BrandFeishu,
+		brand:               brandpkg.Feishu,
 		eventKey:            "test.cb",
 		identity:            core.AsBot,
 		subscribedCallbacks: []string{"profile.view.get"},
@@ -206,7 +207,7 @@ func TestPreflightEventTypes_CallbackMissing(t *testing.T) {
 func TestPreflightEventTypes_CallbackSkippedWhenNil(t *testing.T) {
 	pf := &preflightCtx{
 		appID:               "cli_x",
-		brand:               core.BrandFeishu,
+		brand:               brandpkg.Feishu,
 		eventKey:            "test.cb",
 		identity:            core.AsBot,
 		subscribedCallbacks: nil, // fetch 失败/拿不到 -> 弱依赖跳过
@@ -227,7 +228,7 @@ func TestPreflightEventTypes_CallbackEmptyReportsMissing(t *testing.T) {
 	// not skipped as a weak dependency.
 	pf := &preflightCtx{
 		appID:               "cli_x",
-		brand:               core.BrandFeishu,
+		brand:               brandpkg.Feishu,
 		eventKey:            "test.cb",
 		identity:            core.AsBot,
 		subscribedCallbacks: []string{}, // fetched, none subscribed
@@ -249,7 +250,7 @@ func TestPreflightEventTypes_CallbackEmptyReportsMissing(t *testing.T) {
 func TestPreflightEventTypes_CallbackAllSubscribed_Passes(t *testing.T) {
 	pf := &preflightCtx{
 		appID:               "cli_x",
-		brand:               core.BrandFeishu,
+		brand:               brandpkg.Feishu,
 		eventKey:            "test.cb",
 		identity:            core.AsBot,
 		subscribedCallbacks: []string{"card.action.trigger", "profile.view.get"},
@@ -266,12 +267,12 @@ func TestPreflightEventTypes_CallbackAllSubscribed_Passes(t *testing.T) {
 
 func TestScopeRemediationHint_ByIdentity(t *testing.T) {
 	// bot: scan-to-enable link (adds scopes to app manifest)
-	bot := scopeRemediationHint(core.BrandFeishu, "cli_x", core.AsBot, []string{"im:message"})
+	bot := scopeRemediationHint(brandpkg.Feishu, "cli_x", core.AsBot, []string{"im:message"})
 	if !strings.Contains(bot, "/page/launcher?clientID=cli_x&addons=") {
 		t.Errorf("bot hint should give the scan link, got: %s", bot)
 	}
 	// user: re-login (scan link cannot grant scopes to the user's own token)
-	user := scopeRemediationHint(core.BrandFeishu, "cli_x", core.AsUser, []string{"im:message"})
+	user := scopeRemediationHint(brandpkg.Feishu, "cli_x", core.AsUser, []string{"im:message"})
 	if !strings.Contains(user, "auth login --scope") {
 		t.Errorf("user hint should direct to auth login, got: %s", user)
 	}

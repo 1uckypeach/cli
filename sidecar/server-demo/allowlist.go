@@ -8,13 +8,14 @@ package main
 import (
 	"strings"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/sidecar"
 )
 
 // buildAllowedHosts extracts the set of allowed target hostnames from
 // multiple brand endpoints so the sidecar can serve both feishu and lark clients.
-func buildAllowedHosts(endpoints ...core.Endpoints) map[string]bool {
+func buildAllowedHosts(endpoints ...brand.Endpoints) map[string]bool {
 	hosts := make(map[string]bool)
 	for _, ep := range endpoints {
 		for _, u := range []string{ep.Open, ep.Accounts, ep.MCP} {

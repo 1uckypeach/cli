@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/openclawbind"
@@ -205,7 +206,7 @@ func (b *openclawBinder) Build(appID string) (*core.AppConfig, error) {
 	return &core.AppConfig{
 		AppId:     selected.AppID,
 		AppSecret: stored,
-		Brand:     core.ParseBrand(selected.Brand),
+		Brand:     brand.ParseBrand(selected.Brand),
 	}, nil
 }
 
@@ -261,7 +262,7 @@ func (b *hermesBinder) Build(appID string) (*core.AppConfig, error) {
 	return &core.AppConfig{
 		AppId:     appID,
 		AppSecret: stored,
-		Brand:     core.ParseBrand(b.envMap["FEISHU_DOMAIN"]),
+		Brand:     brand.ParseBrand(b.envMap["FEISHU_DOMAIN"]),
 	}, nil
 }
 
@@ -326,7 +327,7 @@ func (b *larkChannelBinder) Build(appID string) (*core.AppConfig, error) {
 	return &core.AppConfig{
 		AppId:     appID,
 		AppSecret: stored,
-		Brand:     core.ParseBrand(b.cfg.Accounts.App.Tenant),
+		Brand:     brand.ParseBrand(b.cfg.Accounts.App.Tenant),
 	}, nil
 }
 

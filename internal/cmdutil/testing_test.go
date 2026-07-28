@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/output"
@@ -16,7 +17,7 @@ import (
 func TestTestFactory_ReplacesGlobals(t *testing.T) {
 	config := &core.CliConfig{
 		AppID: "test-app", AppSecret: "test-secret",
-		Brand: core.BrandFeishu,
+		Brand: brand.Feishu,
 	}
 
 	f, stdout, stderr, reg := TestFactory(t, config)
@@ -51,7 +52,7 @@ func TestTestFactory_ReplacesGlobals(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HttpClient() error: %v", err)
 	}
-	baseURL := core.ResolveOpenBaseURL(core.BrandFeishu)
+	baseURL := brand.ResolveOpenBaseURL(brand.Feishu)
 	req, _ := http.NewRequest("GET", baseURL+"/test", nil)
 	resp, err := httpClient.Do(req)
 	if err != nil {

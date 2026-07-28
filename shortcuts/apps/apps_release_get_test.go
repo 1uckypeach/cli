@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
@@ -40,7 +41,7 @@ func newStatusRuntimeContext(t *testing.T, appID, releaseID string) (*common.Run
 	cfg := &core.CliConfig{
 		AppID:      "test-app-" + strings.ToLower(t.Name()),
 		AppSecret:  "test-secret",
-		Brand:      core.BrandFeishu,
+		Brand:      brand.Feishu,
 		UserOpenId: "ou_test",
 	}
 	factory, stdoutBuf, _, reg := cmdutil.TestFactory(t, cfg)

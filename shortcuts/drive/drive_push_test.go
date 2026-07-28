@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -2100,7 +2101,7 @@ func TestDrivePushMirrorsEmptyDirectories(t *testing.T) {
 // pattern).
 func TestDrivePushUploadsLargeFileViaMultipart(t *testing.T) {
 	pushTestConfig := &core.CliConfig{
-		AppID: "drive-push-multipart-test", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "drive-push-multipart-test", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, pushTestConfig)
 

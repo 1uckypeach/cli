@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/authlog"
-	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
 )
 
@@ -35,7 +35,7 @@ func testAuthLogger(buf *bytes.Buffer, now func() time.Time, args func() []strin
 
 // TestResolveOAuthEndpoints_Feishu validates endpoints for the Feishu brand.
 func TestResolveOAuthEndpoints_Feishu(t *testing.T) {
-	ep := ResolveOAuthEndpoints(core.BrandFeishu)
+	ep := ResolveOAuthEndpoints(brand.Feishu)
 	if ep.DeviceAuthorization != "https://accounts.feishu.cn/oauth/v1/device_authorization" {
 		t.Errorf("DeviceAuthorization = %q", ep.DeviceAuthorization)
 	}
@@ -49,7 +49,7 @@ func TestResolveOAuthEndpoints_Feishu(t *testing.T) {
 
 // TestResolveOAuthEndpoints_Lark validates endpoints for the Lark brand.
 func TestResolveOAuthEndpoints_Lark(t *testing.T) {
-	ep := ResolveOAuthEndpoints(core.BrandLark)
+	ep := ResolveOAuthEndpoints(brand.Lark)
 	if ep.DeviceAuthorization != "https://accounts.larksuite.com/oauth/v1/device_authorization" {
 		t.Errorf("DeviceAuthorization = %q", ep.DeviceAuthorization)
 	}
@@ -90,7 +90,7 @@ func TestRequestDeviceAuthorization_LogsResponse(t *testing.T) {
 		return []string{"lark-cli", "auth", "login", "--device-code", "device-code-secret", "--app-secret=top-secret"}
 	})
 
-	_, err := requestDeviceAuthorization(httpmock.NewClient(reg), "cli_a", "secret_b", core.BrandFeishu, "", nil, authLogger)
+	_, err := requestDeviceAuthorization(httpmock.NewClient(reg), "cli_a", "secret_b", brand.Feishu, "", nil, authLogger)
 	if err != nil {
 		t.Fatalf("RequestDeviceAuthorization() error: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestPollDeviceToken_DefaultsZeroIntervalToFiveSeconds(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	t.Cleanup(cancel)
 
-	result := PollDeviceToken(ctx, client, "cli_a", "secret_b", core.BrandFeishu, "device-code", 0, 10, nil)
+	result := PollDeviceToken(ctx, client, "cli_a", "secret_b", brand.Feishu, "device-code", 0, 10, nil)
 	if result == nil {
 		t.Fatal("PollDeviceToken() returned nil result")
 	}

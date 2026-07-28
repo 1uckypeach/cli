@@ -14,6 +14,7 @@ import (
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/core"
@@ -45,7 +46,7 @@ func newTestConsumeRuntime(rt http.RoundTripper) *consumeRuntime {
 			SDK:        sdk,
 			ErrOut:     io.Discard,
 			Credential: credential.NewCredentialProvider(nil, nil, &staticTokenResolver{}, nil),
-			Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu},
+			Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu},
 		},
 		accessIdentity: core.AsBot,
 	}

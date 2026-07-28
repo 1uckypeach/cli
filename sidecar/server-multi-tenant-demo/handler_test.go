@@ -20,10 +20,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/envnames"
 	"github.com/larksuite/cli/errs"
 	extcred "github.com/larksuite/cli/extension/credential"
-	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/sidecar"
 )
@@ -619,10 +619,10 @@ func TestProxyHandler_StripsClientSuppliedAuthHeaders(t *testing.T) {
 }
 
 func TestBuildAllowedHosts(t *testing.T) {
-	feishu := core.Endpoints{
+	feishu := brand.Endpoints{
 		Open: "https://open.feishu.cn", Accounts: "https://accounts.feishu.cn", MCP: "https://mcp.feishu.cn",
 	}
-	lark := core.Endpoints{
+	lark := brand.Endpoints{
 		Open: "https://open.larksuite.com", Accounts: "https://accounts.larksuite.com", MCP: "https://mcp.larksuite.com",
 	}
 	hosts := buildAllowedHosts(feishu, lark)

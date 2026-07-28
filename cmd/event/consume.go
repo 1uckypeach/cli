@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/appmeta"
 	"github.com/larksuite/cli/internal/auth"
@@ -118,7 +119,7 @@ func runConsume(cmd *cobra.Command, f *cmdutil.Factory, eventKey string, o consu
 		outputDir = safePath
 	}
 
-	domain := core.ResolveEndpoints(cfg.Brand).Open
+	domain := brandpkg.ResolveEndpoints(cfg.Brand).Open
 
 	// Surface auth errors before forking the bus daemon.
 	if _, err := resolveTenantToken(cmd.Context(), f, cfg.AppID); err != nil {
@@ -238,7 +239,7 @@ func resolveIdentity(cmd *cobra.Command, f *cmdutil.Factory, keyDef *eventlib.Ke
 type preflightCtx struct {
 	factory  *cmdutil.Factory
 	appID    string
-	brand    core.LarkBrand
+	brand    brandpkg.Brand
 	eventKey string
 	identity core.Identity
 	keyDef   *eventlib.KeyDefinition
@@ -291,7 +292,7 @@ func preflightScopes(ctx context.Context, pf *preflightCtx) error {
 // the tenant token carries them. User: the scan link only updates the app
 // manifest — the user's own token still lacks the scopes until it is
 // re-authorized — so direct the user to re-login instead.
-func scopeRemediationHint(brand core.LarkBrand, appID string, identity core.Identity, missing []string) string {
+func scopeRemediationHint(brand brandpkg.Brand, appID string, identity core.Identity, missing []string) string {
 	if identity.IsBot() {
 		return fmt.Sprintf("grant these scopes by scanning: %s",
 			addonsHintURL(brand, appID, missingScopeAddons(identity, missing)))

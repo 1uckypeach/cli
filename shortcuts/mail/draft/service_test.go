@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/zalando/go-keyring"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -26,7 +27,7 @@ func draftServiceTestRuntime(t *testing.T) (*common.RuntimeContext, *httpmock.Re
 	cfg := &core.CliConfig{
 		AppID:      "test-app",
 		AppSecret:  "test-secret",
-		Brand:      core.BrandFeishu,
+		Brand:      brand.Feishu,
 		UserOpenId: "ou_testuser",
 		UserName:   "Test User",
 	}

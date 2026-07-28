@@ -5,31 +5,24 @@ package credential
 
 import (
 	"context"
-	"strings"
+
+	"github.com/larksuite/cli/brand"
 )
 
 // Brand represents the Lark platform brand.
-type Brand string
+type Brand = brand.Brand
 
 const (
-	BrandLark   Brand = "lark"
-	BrandFeishu Brand = "feishu"
+	BrandLark   = brand.Lark
+	BrandFeishu = brand.Feishu
 )
 
 // ParseBrand maps a brand string to a Brand, defaulting to BrandFeishu.
 // It lives next to the Brand constants so every credential source resolves the
 // brand the same way; duplicating the rule per provider would let one copy
 // drift when the brand set changes.
-//
-// internal/core.ParseBrand applies the same rule to core.LarkBrand, which the
-// rest of the CLI uses. The two cannot share an implementation: this package is
-// published as a standalone SDK and may not import internal. Adding a brand
-// means changing both.
 func ParseBrand(value string) Brand {
-	if strings.ToLower(strings.TrimSpace(value)) == string(BrandLark) {
-		return BrandLark
-	}
-	return BrandFeishu
+	return brand.ParseBrand(value)
 }
 
 // NoAppSecret marks that a credential source does not provide a real app secret.

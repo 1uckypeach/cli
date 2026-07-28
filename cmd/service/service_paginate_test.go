@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -47,7 +48,7 @@ func newServicePaginateTestHarness(t *testing.T) (*client.APIClient, *bytes.Buff
 	config := &core.CliConfig{
 		AppID:     "test-app",
 		AppSecret: "test-secret",
-		Brand:     core.BrandFeishu,
+		Brand:     brand.Feishu,
 	}
 	f, out, errOut, reg := cmdutil.TestFactory(t, config)
 	ac, err := f.NewAPIClientWithConfig(config)

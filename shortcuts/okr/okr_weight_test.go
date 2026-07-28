@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -37,7 +38,7 @@ func weightTestConfig(t *testing.T) *core.CliConfig {
 	return &core.CliConfig{
 		AppID:     "test-okr-weight",
 		AppSecret: "secret-okr-weight",
-		Brand:     core.BrandFeishu,
+		Brand:     brand.Feishu,
 	}
 }
 

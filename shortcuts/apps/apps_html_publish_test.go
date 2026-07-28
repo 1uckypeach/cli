@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -528,7 +529,7 @@ func newTOSTestRuntime(t *testing.T) (*common.RuntimeContext, *httpmock.Registry
 	cfg := &core.CliConfig{
 		AppID:      "test-app-" + strings.ToLower(t.Name()),
 		AppSecret:  "test-secret",
-		Brand:      core.BrandFeishu,
+		Brand:      brand.Feishu,
 		UserOpenId: "ou_test",
 	}
 	factory, _, _, reg := cmdutil.TestFactory(t, cfg)

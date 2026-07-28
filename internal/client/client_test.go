@@ -19,6 +19,7 @@ import (
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	internalauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/core"
@@ -59,7 +60,7 @@ func newTestAPIClient(t *testing.T, rt http.RoundTripper) (*APIClient, *bytes.Bu
 		lark.WithHttpClient(httpClient),
 	)
 	testCred := credential.NewCredentialProvider(nil, nil, &staticTokenResolver{}, nil)
-	cfg := &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu}
+	cfg := &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu}
 	return &APIClient{
 		SDK:        sdk,
 		ErrOut:     errBuf,
@@ -464,7 +465,7 @@ func TestDoStream_IgnoresBaseHTTPClientTimeout(t *testing.T) {
 	ac := &APIClient{
 		HTTP:       &http.Client{Timeout: 5 * time.Millisecond},
 		Credential: credential.NewCredentialProvider(nil, nil, &staticTokenResolver{}, nil),
-		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu},
+		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu},
 	}
 
 	resp, err := ac.DoStream(context.Background(), &larkcore.ApiReq{
@@ -499,7 +500,7 @@ func TestDoStream_TransportFailureSplitsSubtype(t *testing.T) {
 	ac := &APIClient{
 		HTTP:       &http.Client{Transport: rt},
 		Credential: credential.NewCredentialProvider(nil, nil, &staticTokenResolver{}, nil),
-		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu},
+		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu},
 	}
 
 	_, err := ac.DoStream(context.Background(), &larkcore.ApiReq{
@@ -533,7 +534,7 @@ func TestResolveAccessToken_NoToken_ReturnsTypedAuthenticationError(t *testing.T
 	ac := &APIClient{
 		HTTP:       &http.Client{},
 		Credential: credential.NewCredentialProvider(nil, nil, &failingTokenResolver{}, nil),
-		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu},
+		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu},
 	}
 
 	_, err := ac.resolveAccessToken(context.Background(), core.AsUser)
@@ -573,7 +574,7 @@ func TestResolveAccessToken_NeedAuthorization_SurfacesAsTypedAuthentication(t *t
 	ac := &APIClient{
 		HTTP:       &http.Client{},
 		Credential: credential.NewCredentialProvider(nil, nil, &needAuthTokenResolver{userOpenID: "ou_test_user"}, nil),
-		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu},
+		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu},
 	}
 
 	_, err := ac.resolveAccessToken(context.Background(), core.AsUser)
@@ -613,7 +614,7 @@ func TestDoSDKRequest_AuthFailureSurfacesTypedAuthenticationError(t *testing.T) 
 	ac := &APIClient{
 		HTTP:       &http.Client{},
 		Credential: credential.NewCredentialProvider(nil, nil, &failingTokenResolver{}, nil),
-		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu},
+		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu},
 	}
 
 	_, err := ac.DoSDKRequest(context.Background(), &larkcore.ApiReq{

@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/larksuite/cli/internal/core"
+	brandpkg "github.com/larksuite/cli/brand"
 )
 
 // FetchTAT performs a single HTTP POST to mint a tenant access token via the
@@ -31,9 +31,9 @@ import (
 // deterministic credential rejection apart from upstream/transport noise.
 //
 // The caller owns the context timeout.
-func FetchTAT(ctx context.Context, httpClient *http.Client, brand core.LarkBrand, appID, appSecret string) (string, error) {
-	ep := core.ResolveEndpoints(brand)
-	endpoint := ep.Accounts + core.OAuthTokenV3Path
+func FetchTAT(ctx context.Context, httpClient *http.Client, brand brandpkg.Brand, appID, appSecret string) (string, error) {
+	ep := brandpkg.ResolveEndpoints(brand)
+	endpoint := ep.Accounts + brandpkg.OAuthTokenV3Path
 
 	form := url.Values{}
 	form.Set("grant_type", "client_credentials")

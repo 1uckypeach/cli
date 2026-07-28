@@ -13,6 +13,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
@@ -66,7 +67,7 @@ func newBotConvertlibRuntime(t *testing.T, rt http.RoundTripper) *common.Runtime
 	cfg := &core.CliConfig{
 		AppID:     "test-app",
 		AppSecret: "test-secret",
-		Brand:     core.BrandFeishu,
+		Brand:     brand.Feishu,
 	}
 	testCred := credential.NewCredentialProvider(nil, nil, &staticConvertlibTokenResolver{}, nil)
 	runtime := &common.RuntimeContext{

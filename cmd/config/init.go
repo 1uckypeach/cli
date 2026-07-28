@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -152,7 +153,7 @@ func cleanupOldConfig(existing *core.MultiAppConfig, f *cmdutil.Factory, skipApp
 }
 
 // saveAsOnlyApp overwrites config.json with a single-app config.
-func saveAsOnlyApp(appId string, secret core.SecretInput, brand core.LarkBrand, lang string) error {
+func saveAsOnlyApp(appId string, secret core.SecretInput, brand brandpkg.Brand, lang string) error {
 	config := &core.MultiAppConfig{
 		Apps: []core.AppConfig{{
 			AppId: appId, AppSecret: secret, Brand: brand, Lang: i18n.Lang(lang), Users: []core.AppUser{},
@@ -164,7 +165,7 @@ func saveAsOnlyApp(appId string, secret core.SecretInput, brand core.LarkBrand, 
 // saveInitConfig saves a new/updated app config, respecting --profile mode.
 // With profileName: appends or updates the named profile (preserves other profiles).
 // Without profileName: cleans up old config and saves as the only app.
-func saveInitConfig(profileName string, existing *core.MultiAppConfig, f *cmdutil.Factory, appId string, secret core.SecretInput, brand core.LarkBrand, lang string) error {
+func saveInitConfig(profileName string, existing *core.MultiAppConfig, f *cmdutil.Factory, appId string, secret core.SecretInput, brand brandpkg.Brand, lang string) error {
 	if profileName != "" {
 		return saveAsProfile(existing, f.Keychain, profileName, appId, secret, brand, lang)
 	}
@@ -195,7 +196,7 @@ func wrapSaveConfigError(err error) error {
 // saveAsProfile appends or updates a named profile in the config.
 // If a profile with the same name exists, it updates it; otherwise appends.
 // When updating, cleans up old keychain secrets if AppId changed.
-func saveAsProfile(existing *core.MultiAppConfig, kc keychain.KeychainAccess, profileName, appId string, secret core.SecretInput, brand core.LarkBrand, lang string) error {
+func saveAsProfile(existing *core.MultiAppConfig, kc keychain.KeychainAccess, profileName, appId string, secret core.SecretInput, brand brandpkg.Brand, lang string) error {
 	multi := existing
 	if multi == nil {
 		multi = &core.MultiAppConfig{}
@@ -272,7 +273,7 @@ func wrapUpdateExistingProfileErr(err error) error {
 	return errs.NewInternalError(errs.SubtypeSDKError, "failed to save config: %v", err).WithCause(err)
 }
 
-func updateExistingProfileWithoutSecret(existing *core.MultiAppConfig, profileName, appID string, brand core.LarkBrand, lang string) error {
+func updateExistingProfileWithoutSecret(existing *core.MultiAppConfig, profileName, appID string, brand brandpkg.Brand, lang string) error {
 	if existing == nil {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "App Secret cannot be empty for new configuration").
 			WithParam("--app-secret")

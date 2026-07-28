@@ -15,6 +15,7 @@ import (
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 
+	"github.com/larksuite/cli/brand"
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/auth"
@@ -162,7 +163,7 @@ func cachedLarkClientFunc(f *Factory, workspaceConfig workspaceConfigSource) fun
 			Transport:     sdkTransport,
 			CheckRedirect: safeRedirectPolicy,
 		}))
-		ep := core.ResolveEndpoints(acct.Brand)
+		ep := brand.ResolveEndpoints(acct.Brand)
 		opts = append(opts, lark.WithOpenBaseUrl(ep.Open))
 		return lark.NewClient(acct.AppID, credential.RuntimeAppSecret(acct.AppSecret), opts...), nil
 	})

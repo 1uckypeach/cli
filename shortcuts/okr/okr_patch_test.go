@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -22,7 +23,7 @@ func patchTestConfig(t *testing.T) *core.CliConfig {
 	return &core.CliConfig{
 		AppID:     "dummy",
 		AppSecret: patchTestValue(),
-		Brand:     core.BrandFeishu,
+		Brand:     brand.Feishu,
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -167,7 +168,7 @@ func TestNoteTranscriptDefaultsLocaleFromLarkBrand(t *testing.T) {
 	config := &core.CliConfig{
 		AppID:      "test-app-lark-locale",
 		AppSecret:  "test-secret",
-		Brand:      core.BrandLark,
+		Brand:      brand.Lark,
 		UserOpenId: "ou_testuser",
 	}
 	factory, stdout, _, reg := noteShortcutTestFactoryWithConfig(t, config)
@@ -382,7 +383,7 @@ func noteShortcutTestFactory(t *testing.T) (*cmdutil.Factory, *bytes.Buffer, *by
 	config := &core.CliConfig{
 		AppID:      "test-app-" + strings.ReplaceAll(strings.ToLower(t.Name()), "/", "-"),
 		AppSecret:  "test-secret",
-		Brand:      core.BrandFeishu,
+		Brand:      brand.Feishu,
 		UserOpenId: "ou_testuser",
 	}
 	return noteShortcutTestFactoryWithConfig(t, config)

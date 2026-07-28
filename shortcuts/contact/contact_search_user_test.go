@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -38,14 +39,14 @@ func newSearchUserTestCommand() *cobra.Command {
 
 func searchUserDefaultConfig() *core.CliConfig {
 	return &core.CliConfig{
-		AppID: "test", AppSecret: "test", Brand: core.BrandFeishu,
+		AppID: "test", AppSecret: "test", Brand: brand.Feishu,
 		UserOpenId: "ou_self",
 	}
 }
 
 func TestPickName_ExplicitLang_Hit(t *testing.T) {
 	i18n := map[string]string{"zh_cn": "张三", "en_us": "Zhangsan"}
-	got := pickName(i18n, "en-US", core.BrandFeishu, "ou_x")
+	got := pickName(i18n, "en-US", brand.Feishu, "ou_x")
 	if got != "Zhangsan" {
 		t.Errorf("got %q, want Zhangsan", got)
 	}
@@ -53,7 +54,7 @@ func TestPickName_ExplicitLang_Hit(t *testing.T) {
 
 func TestPickName_ExplicitLang_MissFallsToBrand(t *testing.T) {
 	i18n := map[string]string{"zh_cn": "张三"}
-	got := pickName(i18n, "ja-JP", core.BrandFeishu, "ou_x")
+	got := pickName(i18n, "ja-JP", brand.Feishu, "ou_x")
 	if got != "张三" {
 		t.Errorf("got %q, want 张三 (brand fallback)", got)
 	}
@@ -61,7 +62,7 @@ func TestPickName_ExplicitLang_MissFallsToBrand(t *testing.T) {
 
 func TestPickName_BrandFeishu_PicksZh(t *testing.T) {
 	i18n := map[string]string{"zh_cn": "张三", "en_us": "Zhangsan"}
-	got := pickName(i18n, "", core.BrandFeishu, "ou_x")
+	got := pickName(i18n, "", brand.Feishu, "ou_x")
 	if got != "张三" {
 		t.Errorf("got %q, want 张三", got)
 	}
@@ -69,7 +70,7 @@ func TestPickName_BrandFeishu_PicksZh(t *testing.T) {
 
 func TestPickName_BrandLark_PicksEn(t *testing.T) {
 	i18n := map[string]string{"zh_cn": "张三", "en_us": "Zhangsan"}
-	got := pickName(i18n, "", core.BrandLark, "ou_x")
+	got := pickName(i18n, "", brand.Lark, "ou_x")
 	if got != "Zhangsan" {
 		t.Errorf("got %q, want Zhangsan", got)
 	}
@@ -77,7 +78,7 @@ func TestPickName_BrandLark_PicksEn(t *testing.T) {
 
 func TestPickName_FixedLocaleList_HitJaJp(t *testing.T) {
 	i18n := map[string]string{"ja_jp": "Yamada"}
-	got := pickName(i18n, "", core.BrandFeishu, "ou_x")
+	got := pickName(i18n, "", brand.Feishu, "ou_x")
 	if got != "Yamada" {
 		t.Errorf("got %q, want Yamada (fixed locale list fallback)", got)
 	}
@@ -85,14 +86,14 @@ func TestPickName_FixedLocaleList_HitJaJp(t *testing.T) {
 
 func TestPickName_DictOrderFallback(t *testing.T) {
 	i18n := map[string]string{"xx_yy": "Foo", "aa_bb": "Bar"}
-	got := pickName(i18n, "", core.BrandFeishu, "ou_x")
+	got := pickName(i18n, "", brand.Feishu, "ou_x")
 	if got != "Bar" {
 		t.Errorf("got %q, want Bar (alphabetical tie-break, first non-empty is 'aa_bb')", got)
 	}
 }
 
 func TestPickName_AllEmpty_FallsToOpenID(t *testing.T) {
-	got := pickName(map[string]string{}, "", core.BrandFeishu, "ou_x")
+	got := pickName(map[string]string{}, "", brand.Feishu, "ou_x")
 	if got != "ou_x" {
 		t.Errorf("got %q, want ou_x", got)
 	}
@@ -100,9 +101,9 @@ func TestPickName_AllEmpty_FallsToOpenID(t *testing.T) {
 
 func TestPickName_Determinism(t *testing.T) {
 	i18n := map[string]string{"xx_yy": "Foo", "aa_bb": "Bar", "mm_nn": "Baz"}
-	first := pickName(i18n, "", core.BrandFeishu, "ou_x")
+	first := pickName(i18n, "", brand.Feishu, "ou_x")
 	for i := 0; i < 50; i++ {
-		got := pickName(i18n, "", core.BrandFeishu, "ou_x")
+		got := pickName(i18n, "", brand.Feishu, "ou_x")
 		if got != first {
 			t.Fatalf("non-deterministic: iter %d got %q, expected %q (map iteration leaked)", i, got, first)
 		}
@@ -186,7 +187,7 @@ func TestRowFromItem_FullMapping(t *testing.T) {
 			Description:           "Coffee fanatic ☕",
 		},
 	}
-	got := rowFromItem(item, "", core.BrandFeishu)
+	got := rowFromItem(item, "", brand.Feishu)
 
 	if got.OpenID != "ou_a" {
 		t.Errorf("OpenID: got %q, want ou_a", got.OpenID)
@@ -228,7 +229,7 @@ func TestRowFromItem_FullMapping(t *testing.T) {
 
 func TestRowFromItem_HasChattedFalseWhenChatIDEmpty(t *testing.T) {
 	item := &searchUserAPIItem{ID: "ou_a"}
-	got := rowFromItem(item, "", core.BrandFeishu)
+	got := rowFromItem(item, "", brand.Feishu)
 	if got.HasChatted {
 		t.Errorf("HasChatted: got true, want false")
 	}
@@ -244,7 +245,7 @@ func TestRowFromItem_CrossTenantEmptyEmailNoPanic(t *testing.T) {
 			IsCrossTenant: true,
 		},
 	}
-	got := rowFromItem(item, "", core.BrandFeishu)
+	got := rowFromItem(item, "", brand.Feishu)
 	if got.Email != "" {
 		t.Errorf("Email: expected empty, got %q", got.Email)
 	}
@@ -254,7 +255,7 @@ func TestRowFromItem_CrossTenantEmptyEmailNoPanic(t *testing.T) {
 }
 
 func TestProjectUsers_NilData(t *testing.T) {
-	users, hasMore := projectUsers(nil, "", core.BrandFeishu)
+	users, hasMore := projectUsers(nil, "", brand.Feishu)
 	if users == nil {
 		t.Fatalf("users should be an empty slice, not nil")
 	}

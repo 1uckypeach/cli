@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/shortcuts/common"
 )
@@ -151,19 +152,19 @@ func TestFormatMessageItem_UpdateTime_UnchangedMessage(t *testing.T) {
 }
 
 func TestResolveAppLinkDomain(t *testing.T) {
-	if got := resolveAppLinkDomain(core.BrandFeishu); got != "applink.feishu.cn" {
+	if got := resolveAppLinkDomain(brand.Feishu); got != "applink.feishu.cn" {
 		t.Fatalf("resolveAppLinkDomain(feishu) = %q", got)
 	}
-	if got := resolveAppLinkDomain(core.BrandLark); got != "applink.larksuite.com" {
+	if got := resolveAppLinkDomain(brand.Lark); got != "applink.larksuite.com" {
 		t.Fatalf("resolveAppLinkDomain(lark) = %q", got)
 	}
-	if got := resolveAppLinkDomain(core.LarkBrand("other")); got != "applink.feishu.cn" {
+	if got := resolveAppLinkDomain(brand.Brand("other")); got != "applink.feishu.cn" {
 		t.Fatalf("resolveAppLinkDomain(other) = %q, want feishu", got)
 	}
 }
 
 func TestFormatMessageItem_MessageAppLink_PassThrough(t *testing.T) {
-	runtime := &common.RuntimeContext{Config: &core.CliConfig{Brand: core.BrandFeishu}}
+	runtime := &common.RuntimeContext{Config: &core.CliConfig{Brand: brand.Feishu}}
 	raw := map[string]interface{}{
 		"msg_type":         "text",
 		"message_id":       "om_123",
@@ -181,7 +182,7 @@ func TestFormatMessageItem_MessageAppLink_PassThrough(t *testing.T) {
 }
 
 func TestFormatMessageItem_MessageAppLink_AssembleChat(t *testing.T) {
-	runtime := &common.RuntimeContext{Config: &core.CliConfig{Brand: core.BrandFeishu}}
+	runtime := &common.RuntimeContext{Config: &core.CliConfig{Brand: brand.Feishu}}
 	raw := map[string]interface{}{
 		"msg_type":         "text",
 		"message_id":       "om_123",
@@ -199,7 +200,7 @@ func TestFormatMessageItem_MessageAppLink_AssembleChat(t *testing.T) {
 }
 
 func TestFormatMessageItem_MessageAppLink_AssembleThread(t *testing.T) {
-	runtime := &common.RuntimeContext{Config: &core.CliConfig{Brand: core.BrandLark}}
+	runtime := &common.RuntimeContext{Config: &core.CliConfig{Brand: brand.Lark}}
 	raw := map[string]interface{}{
 		"msg_type":                "text",
 		"message_id":              "om_123",
@@ -222,7 +223,7 @@ func TestFormatMessageItem_MessageAppLink_AssembleThread(t *testing.T) {
 }
 
 func TestFormatMessageItem_MessageAppLink_FallbackToChatWhenThreadPositionInvalid(t *testing.T) {
-	runtime := &common.RuntimeContext{Config: &core.CliConfig{Brand: core.BrandFeishu}}
+	runtime := &common.RuntimeContext{Config: &core.CliConfig{Brand: brand.Feishu}}
 	raw := map[string]interface{}{
 		"msg_type":                "text",
 		"message_id":              "om_123",
@@ -242,7 +243,7 @@ func TestFormatMessageItem_MessageAppLink_FallbackToChatWhenThreadPositionInvali
 }
 
 func TestFormatMessageItem_MessageAppLink_BrandUnknownDefaultsToFeishu(t *testing.T) {
-	runtime := &common.RuntimeContext{Config: &core.CliConfig{Brand: core.LarkBrand("other")}}
+	runtime := &common.RuntimeContext{Config: &core.CliConfig{Brand: brand.Brand("other")}}
 	raw := map[string]interface{}{
 		"msg_type":         "text",
 		"message_id":       "om_123",
@@ -356,7 +357,7 @@ func TestAssembleMessageAppLink_EncodesQueryValues(t *testing.T) {
 		"chat_id":          "oc_1+2/3",
 		"message_position": 12,
 	}
-	gotChat := assembleMessageAppLink(chat, core.BrandFeishu)
+	gotChat := assembleMessageAppLink(chat, brand.Feishu)
 	assertURLHasQuery(t, gotChat, "applink.feishu.cn", "/client/chat/open", map[string]string{
 		"openChatId": "oc_1+2/3",
 		"position":   "12",
@@ -368,7 +369,7 @@ func TestAssembleMessageAppLink_EncodesQueryValues(t *testing.T) {
 		"thread_id":               "omt_1+2/3",
 		"thread_message_position": -1,
 	}
-	gotThread := assembleMessageAppLink(thread, core.BrandFeishu)
+	gotThread := assembleMessageAppLink(thread, brand.Feishu)
 	assertURLHasQuery(t, gotThread, "applink.feishu.cn", "/client/thread/open", map[string]string{
 		"open_thread_id":  "omt_1+2/3",
 		"open_chat_id":    "oc_1+2/3",
@@ -379,7 +380,7 @@ func TestAssembleMessageAppLink_EncodesQueryValues(t *testing.T) {
 }
 
 func TestFormatMessageItem_MessageAppLink_NonStringDoesNotLeakNull(t *testing.T) {
-	runtime := &common.RuntimeContext{Config: &core.CliConfig{Brand: core.BrandFeishu}}
+	runtime := &common.RuntimeContext{Config: &core.CliConfig{Brand: brand.Feishu}}
 	raw := map[string]interface{}{
 		"msg_type":         "text",
 		"message_id":       "om_123",
@@ -415,7 +416,7 @@ func TestFormatMessageItem_MessageAppLink_RuntimeNilNoAssemble(t *testing.T) {
 }
 
 func TestFormatMessageItem_MessageAppLink_MissingFieldsNoPanic(t *testing.T) {
-	runtime := &common.RuntimeContext{Config: &core.CliConfig{Brand: core.BrandFeishu}}
+	runtime := &common.RuntimeContext{Config: &core.CliConfig{Brand: brand.Feishu}}
 	raw := map[string]interface{}{
 		"msg_type":    "text",
 		"message_id":  "om_123",

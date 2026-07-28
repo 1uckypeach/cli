@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -103,7 +104,7 @@ func wikiTestConfig() *core.CliConfig {
 	return &core.CliConfig{
 		AppID:     fmt.Sprintf("wiki-test-app-%d", wikiTestConfigSeq.Add(1)),
 		AppSecret: "test-secret",
-		Brand:     core.BrandFeishu,
+		Brand:     brand.Feishu,
 	}
 }
 
@@ -111,7 +112,7 @@ func wikiPermissionTestConfig(userOpenID string) *core.CliConfig {
 	return &core.CliConfig{
 		AppID:      fmt.Sprintf("wiki-permission-test-app-%d", wikiTestConfigSeq.Add(1)),
 		AppSecret:  "test-secret",
-		Brand:      core.BrandFeishu,
+		Brand:      brand.Feishu,
 		UserOpenId: userOpenID,
 	}
 }
@@ -840,7 +841,7 @@ func TestWikiNodeURL(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := wikiNodeURL(core.BrandFeishu, tc.node); got != tc.want {
+			if got := wikiNodeURL(brand.Feishu, tc.node); got != tc.want {
 				t.Fatalf("wikiNodeURL() = %q, want %q", got, tc.want)
 			}
 		})

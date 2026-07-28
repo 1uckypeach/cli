@@ -10,6 +10,7 @@ import (
 	"net"
 
 	"github.com/charmbracelet/huh"
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/build"
 	qrcode "github.com/skip2/go-qrcode"
 
@@ -24,7 +25,7 @@ import (
 // configInitResult holds the result of the interactive config init flow.
 type configInitResult struct {
 	Mode      string // "create" or "existing"
-	Brand     core.LarkBrand
+	Brand     brand.Brand
 	AppID     string
 	AppSecret string
 }
@@ -150,8 +151,8 @@ func runExistingAppForm(f *cmdutil.Factory, msg *initMsg) (*configInitResult, er
 
 // runCreateAppFlow runs the "create new app" flow via OpenClaw device flow.
 // If brandOverride is non-empty, skip the interactive brand selection.
-func runCreateAppFlow(ctx context.Context, f *cmdutil.Factory, brandOverride core.LarkBrand, msg *initMsg) (*configInitResult, error) {
-	var larkBrand core.LarkBrand
+func runCreateAppFlow(ctx context.Context, f *cmdutil.Factory, brandOverride brand.Brand, msg *initMsg) (*configInitResult, error) {
+	var larkBrand brand.Brand
 	if brandOverride != "" {
 		larkBrand = brandOverride
 	} else {

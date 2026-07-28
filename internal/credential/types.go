@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/larksuite/cli/brand"
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/i18n"
@@ -20,7 +21,7 @@ type Account struct {
 	ProfileName         string
 	AppID               string
 	AppSecret           string
-	Brand               core.LarkBrand
+	Brand               brand.Brand
 	DefaultAs           core.Identity
 	UserOpenId          string
 	UserName            string
@@ -82,7 +83,7 @@ func (a *Account) ToCliConfig() *core.CliConfig {
 		ProfileName:         a.ProfileName,
 		AppID:               a.AppID,
 		AppSecret:           normalizeAccountAppSecret(a.AppSecret),
-		Brand:               core.ParseBrand(string(a.Brand)),
+		Brand:               brand.ParseBrand(string(a.Brand)),
 		DefaultAs:           a.DefaultAs,
 		UserOpenId:          a.UserOpenId,
 		UserName:            a.UserName,

@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -18,12 +19,12 @@ import (
 
 // profileListItem is the JSON output for a single profile entry.
 type profileListItem struct {
-	Name        string         `json:"name"`
-	AppID       string         `json:"appId"`
-	Brand       core.LarkBrand `json:"brand"`
-	Active      bool           `json:"active"`
-	User        string         `json:"user,omitempty"`
-	TokenStatus string         `json:"tokenStatus,omitempty"`
+	Name        string      `json:"name"`
+	AppID       string      `json:"appId"`
+	Brand       brand.Brand `json:"brand"`
+	Active      bool        `json:"active"`
+	User        string      `json:"user,omitempty"`
+	TokenStatus string      `json:"tokenStatus,omitempty"`
 }
 
 // NewCmdProfileList creates the profile list subcommand.

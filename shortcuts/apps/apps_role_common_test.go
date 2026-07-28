@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -24,7 +25,7 @@ func newRoleRCtx(t *testing.T, flagDefs map[string]string, flags map[string]stri
 	cfg := &core.CliConfig{
 		AppID:      "test-app-" + strings.ToLower(t.Name()),
 		AppSecret:  "test-secret",
-		Brand:      core.BrandFeishu,
+		Brand:      brand.Feishu,
 		UserOpenId: "ou_test",
 	}
 	factory, stdoutBuf, _, reg := cmdutil.TestFactory(t, cfg)

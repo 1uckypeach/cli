@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
@@ -17,7 +18,7 @@ import (
 )
 
 func appTestConfig() *core.CliConfig {
-	return &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu}
+	return &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu}
 }
 
 // mountAndRun mounts the shortcut under a parent cobra command and runs it.

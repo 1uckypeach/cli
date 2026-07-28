@@ -20,6 +20,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	extcs "github.com/larksuite/cli/extension/contentsafety"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -402,7 +403,7 @@ func runRuntimeContextOracle(t *testing.T, data interface{}, opts runtimeOracleO
 
 	factory := &cmdutil.Factory{IOStreams: &cmdutil.IOStreams{Out: stdout, ErrOut: stderr}}
 	runtime := common.TestNewRuntimeContextForAPI(
-		context.Background(), leaf, &core.CliConfig{Brand: core.BrandFeishu}, factory, core.AsBot,
+		context.Background(), leaf, &core.CliConfig{Brand: brand.Feishu}, factory, core.AsBot,
 	)
 	runtime.Format = opts.format
 	runtime.JqExpr = opts.jq

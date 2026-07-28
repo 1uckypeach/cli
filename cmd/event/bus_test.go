@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -25,7 +26,7 @@ func TestBusCommandLoggerSetupFailureIsTypedFileIO(t *testing.T) {
 	}
 
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "cli_bus_test", AppSecret: "secret", Brand: core.BrandFeishu,
+		AppID: "cli_bus_test", AppSecret: "secret", Brand: brand.Feishu,
 	})
 	cmd := NewCmdBus(f)
 	cmd.SetArgs([]string{})

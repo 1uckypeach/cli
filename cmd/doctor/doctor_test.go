@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -21,7 +22,7 @@ import (
 
 func TestNewCmdDoctor_FlagParsing(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	cmd := NewCmdDoctor(f)
@@ -88,7 +89,7 @@ func TestFinishDoctor(t *testing.T) {
 }
 
 func TestNetworkChecks_Offline(t *testing.T) {
-	ep := core.Endpoints{Open: "https://open.feishu.cn", MCP: "https://mcp.feishu.cn"}
+	ep := brand.Endpoints{Open: "https://open.feishu.cn", MCP: "https://mcp.feishu.cn"}
 	opts := &DoctorOptions{Ctx: context.Background(), Offline: true}
 	checks := networkChecks(opts.Ctx, opts, ep)
 	if len(checks) != 2 {
@@ -110,7 +111,7 @@ func TestDoctorRun_SplitsBotAndMissingUserIdentity(t *testing.T) {
 				Name:      "default",
 				AppId:     "test-app",
 				AppSecret: core.PlainSecret("secret"),
-				Brand:     core.BrandFeishu,
+				Brand:     brand.Feishu,
 			},
 		},
 	}); err != nil {
@@ -118,7 +119,7 @@ func TestDoctorRun_SplitsBotAndMissingUserIdentity(t *testing.T) {
 	}
 
 	f, stdout, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "secret", Brand: brand.Feishu,
 	})
 	err := doctorRun(&DoctorOptions{
 		Factory: f,
@@ -182,14 +183,14 @@ func TestDoctor_ExternalProvider_IdentityReadyHintNotBlockedCommand(t *testing.T
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	if err := core.SaveMultiAppConfig(&core.MultiAppConfig{
 		CurrentApp: "default",
-		Apps:       []core.AppConfig{{Name: "default", AppId: "cli_x", AppSecret: core.PlainSecret("secret"), Brand: core.BrandFeishu}},
+		Apps:       []core.AppConfig{{Name: "default", AppId: "cli_x", AppSecret: core.PlainSecret("secret"), Brand: brand.Feishu}},
 	}); err != nil {
 		t.Fatalf("SaveMultiAppConfig() error = %v", err)
 	}
 
 	// Provider serves neither identity: bot unsupported, user supported but not
 	// signed in → both unavailable → identity_ready fails.
-	cfg := &core.CliConfig{AppID: "cli_x", Brand: core.BrandFeishu, SupportedIdentities: uint8(extcred.SupportsUser)}
+	cfg := &core.CliConfig{AppID: "cli_x", Brand: brand.Feishu, SupportedIdentities: uint8(extcred.SupportsUser)}
 	cred := credential.NewCredentialProvider(
 		[]extcred.Provider{&fakeExtProvider{name: "corp-sso", account: &extcred.Account{AppID: "cli_x"}}},
 		nil, nil,

@@ -14,16 +14,16 @@ import (
 
 	"github.com/google/uuid"
 
+	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
-	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/util"
 )
 
 const mcpErrorBodyLimit = 4000
 
-func MCPEndpoint(brand core.LarkBrand) string {
-	return core.ResolveEndpoints(brand).MCP + "/mcp"
+func MCPEndpoint(brand brandpkg.Brand) string {
+	return brandpkg.ResolveEndpoints(brand).MCP + "/mcp"
 }
 
 // CallMCPTool calls an MCP tool via JSON-RPC 2.0 and returns the parsed result.

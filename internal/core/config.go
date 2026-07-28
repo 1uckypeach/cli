@@ -11,6 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/i18n"
 	"github.com/larksuite/cli/internal/keychain"
@@ -41,7 +42,7 @@ type AppConfig struct {
 	Name       string      `json:"name,omitempty"`
 	AppId      string      `json:"appId"`
 	AppSecret  SecretInput `json:"appSecret"`
-	Brand      LarkBrand   `json:"brand"`
+	Brand      brand.Brand `json:"brand"`
 	Lang       i18n.Lang   `json:"lang,omitempty"`
 	DefaultAs  Identity    `json:"defaultAs,omitempty"` // AsUser | AsBot | AsAuto
 	StrictMode *StrictMode `json:"strictMode,omitempty"`
@@ -163,7 +164,7 @@ type CliConfig struct {
 	ProfileName         string
 	AppID               string
 	AppSecret           string
-	Brand               LarkBrand
+	Brand               brand.Brand
 	DefaultAs           Identity // AsUser | AsBot | AsAuto | "" (from config file)
 	UserOpenId          string
 	UserName            string
@@ -275,7 +276,7 @@ func ResolveConfigFromMulti(raw *MultiAppConfig, kc keychain.KeychainAccess, pro
 		ProfileName: app.ProfileName(),
 		AppID:       app.AppId,
 		AppSecret:   secret,
-		Brand:       ParseBrand(string(app.Brand)),
+		Brand:       brand.ParseBrand(string(app.Brand)),
 		Lang:        app.Lang,
 		DefaultAs:   app.DefaultAs,
 	}

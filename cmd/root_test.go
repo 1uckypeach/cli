@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/cmd/api"
 	"github.com/larksuite/cli/cmd/auth"
 	cmdconfig "github.com/larksuite/cli/cmd/config"
@@ -513,7 +514,7 @@ func TestApplyNeedAuthorizationHint_ServiceMethodUsesLocalScopesWhenNoUAT(t *tes
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 	f.ResolvedIdentity = core.AsUser
 
@@ -561,7 +562,7 @@ func TestApplyNeedAuthorizationHint_ShortcutUsesDeclaredScopesWhenNoUAT(t *testi
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 	f.ResolvedIdentity = core.AsUser
 
@@ -586,7 +587,7 @@ func TestApplyNeedAuthorizationHint_ShortcutIncludesConditionalScopes(t *testing
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 	f.ResolvedIdentity = core.AsUser
 
@@ -612,7 +613,7 @@ func TestApplyNeedAuthorizationHint_AppendsExistingHint(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 	f.ResolvedIdentity = core.AsUser
 

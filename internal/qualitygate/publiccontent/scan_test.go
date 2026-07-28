@@ -829,7 +829,7 @@ func TestScanFileAllowsStrongAuthTokenKeysWithoutStrongValueEvidence(t *testing.
 
 func TestScanFileAllowsTestFixtureSecretValues(t *testing.T) {
 	got := ScanFile("fixtures/calendar_meeting_test.go", []byte(strings.Join([]string{
-		`AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,`,
+		`AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,`,
 		`cfg := &core.CliConfig{AppID: "a", AppSecret: "s"}`,
 		`os.WriteFile(path, []byte("FEISHU_APP_ID=cli_abc\nFEISHU_APP_SECRET=secret\n"), 0600)`,
 		`rt := &stubRoundTripper{respBody: ` + "`" + `{"access_token":"t","token_type":"Bearer"}` + "`" + `}`,

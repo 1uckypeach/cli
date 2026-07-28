@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/errclass"
@@ -36,7 +37,7 @@ type UATCallOptions struct {
 	UserOpenId string
 	AppId      string
 	AppSecret  string
-	Domain     core.LarkBrand
+	Domain     brand.Brand
 	ErrOut     io.Writer // diagnostic/status output (caller injects f.IOStreams.ErrOut)
 }
 

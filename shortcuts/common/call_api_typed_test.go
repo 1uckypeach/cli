@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -20,7 +21,7 @@ import (
 
 func newCallAPITypedRuntime(t *testing.T) (*RuntimeContext, *httpmock.Registry) {
 	t.Helper()
-	cfg := &core.CliConfig{Brand: core.BrandFeishu, AppID: "cli_x"}
+	cfg := &core.CliConfig{Brand: brand.Feishu, AppID: "cli_x"}
 	f, _, _, reg := cmdutil.TestFactory(t, cfg)
 	rt := TestNewRuntimeContextForAPI(context.Background(), &cobra.Command{Use: "+x"}, cfg, f, core.AsUser)
 	return rt, reg
@@ -102,7 +103,7 @@ func TestCallAPITyped_Success(t *testing.T) {
 // runtime: Brand / AppID from config, Identity from the resolved caller, and
 // LarkCmd from the running command path.
 func TestAPIClassifyContext(t *testing.T) {
-	cfg := &core.CliConfig{Brand: core.BrandLark, AppID: "cli_x"}
+	cfg := &core.CliConfig{Brand: brand.Lark, AppID: "cli_x"}
 	rt := TestNewRuntimeContextWithIdentity(&cobra.Command{Use: "+upload"}, cfg, core.AsUser)
 
 	cc := rt.APIClassifyContext()
@@ -119,7 +120,7 @@ func TestAPIClassifyContext(t *testing.T) {
 		t.Errorf("LarkCmd = %q, want +upload", cc.LarkCmd)
 	}
 
-	bot := TestNewRuntimeContextWithIdentity(&cobra.Command{Use: "+push"}, &core.CliConfig{Brand: core.BrandFeishu, AppID: "y"}, core.AsBot)
+	bot := TestNewRuntimeContextWithIdentity(&cobra.Command{Use: "+push"}, &core.CliConfig{Brand: brand.Feishu, AppID: "y"}, core.AsBot)
 	if got := bot.APIClassifyContext().Identity; got != "bot" {
 		t.Errorf("bot Identity = %q, want bot", got)
 	}

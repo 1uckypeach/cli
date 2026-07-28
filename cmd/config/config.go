@@ -4,8 +4,8 @@
 package config
 
 import (
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
 	"github.com/spf13/cobra"
 )
 
@@ -38,6 +38,6 @@ func NewCmdConfig(f *cmdutil.Factory) *cobra.Command {
 	return cmd
 }
 
-func parseBrand(value string) core.LarkBrand {
-	return core.ParseBrand(value)
+func parseBrand(value string) brand.Brand {
+	return brand.ParseBrand(value)
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/envnames"
 	extcred "github.com/larksuite/cli/extension/credential"
 	envprovider "github.com/larksuite/cli/extension/credential/env"
@@ -92,7 +93,7 @@ func TestFullChain_ConfigStrictMode(t *testing.T) {
 		Apps: []core.AppConfig{{
 			AppId:      "cfg_app",
 			AppSecret:  core.PlainSecret("cfg_secret"),
-			Brand:      core.BrandLark,
+			Brand:      brand.Lark,
 			StrictMode: &botMode,
 		}},
 	}
@@ -133,7 +134,7 @@ func TestFullChain_LangSurvivesProductionPath(t *testing.T) {
 		Apps: []core.AppConfig{{
 			AppId:     "cfg_app",
 			AppSecret: core.PlainSecret("cfg_secret"),
-			Brand:     core.BrandFeishu,
+			Brand:     brand.Feishu,
 			Lang:      i18n.LangJaJP,
 		}},
 	}

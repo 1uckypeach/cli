@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -25,7 +26,7 @@ func uploadImageTestConfig(t *testing.T) *core.CliConfig {
 	return &core.CliConfig{
 		AppID:     "test-okr-upload-image",
 		AppSecret: "secret-okr-upload-image",
-		Brand:     core.BrandFeishu,
+		Brand:     brand.Feishu,
 	}
 }
 

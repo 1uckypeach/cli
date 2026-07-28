@@ -1,12 +1,12 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package core
+package brand
 
 import "testing"
 
 func TestResolveEndpoints_Feishu(t *testing.T) {
-	ep := ResolveEndpoints(BrandFeishu)
+	ep := ResolveEndpoints(Feishu)
 	if ep.Open != "https://open.feishu.cn" {
 		t.Errorf("Open = %q, want feishu.cn", ep.Open)
 	}
@@ -22,7 +22,7 @@ func TestResolveEndpoints_Feishu(t *testing.T) {
 }
 
 func TestResolveEndpoints_Lark(t *testing.T) {
-	ep := ResolveEndpoints(BrandLark)
+	ep := ResolveEndpoints(Lark)
 	if ep.Open != "https://open.larksuite.com" {
 		t.Errorf("Open = %q, want larksuite.com", ep.Open)
 	}
@@ -50,10 +50,10 @@ func TestResolveEndpoints_EmptyDefaultsToFeishu(t *testing.T) {
 }
 
 func TestResolveOpenBaseURL(t *testing.T) {
-	if got := ResolveOpenBaseURL(BrandFeishu); got != "https://open.feishu.cn" {
+	if got := ResolveOpenBaseURL(Feishu); got != "https://open.feishu.cn" {
 		t.Errorf("ResolveOpenBaseURL(feishu) = %q", got)
 	}
-	if got := ResolveOpenBaseURL(BrandLark); got != "https://open.larksuite.com" {
+	if got := ResolveOpenBaseURL(Lark); got != "https://open.larksuite.com" {
 		t.Errorf("ResolveOpenBaseURL(lark) = %q", got)
 	}
 }
@@ -61,15 +61,15 @@ func TestResolveOpenBaseURL(t *testing.T) {
 func TestParseBrand(t *testing.T) {
 	cases := []struct {
 		in   string
-		want LarkBrand
+		want Brand
 	}{
-		{"", BrandFeishu},
-		{"feishu", BrandFeishu},
-		{"lark", BrandLark},
-		{"LARK", BrandLark},
-		{" lark ", BrandLark},
-		{"Lark", BrandLark},
-		{"xyz", BrandFeishu},
+		{"", Feishu},
+		{"feishu", Feishu},
+		{"lark", Lark},
+		{"LARK", Lark},
+		{" lark ", Lark},
+		{"Lark", Lark},
+		{"xyz", Feishu},
 	}
 	for _, c := range cases {
 		if got := ParseBrand(c.in); got != c.want {
@@ -83,11 +83,11 @@ func TestParseBrand(t *testing.T) {
 // unusual casing or whitespace still resolve to their intended endpoints.
 func TestResolveEndpoints_NormalizesBrand(t *testing.T) {
 	for _, raw := range []string{"LARK", " lark ", "Lark"} {
-		if got := ResolveEndpoints(LarkBrand(raw)).Open; got != "https://open.larksuite.com" {
+		if got := ResolveEndpoints(Brand(raw)).Open; got != "https://open.larksuite.com" {
 			t.Errorf("ResolveEndpoints(%q).Open = %q, want the lark endpoint", raw, got)
 		}
 	}
-	if got := ResolveEndpoints(LarkBrand("unexpected")).Open; got != "https://open.feishu.cn" {
+	if got := ResolveEndpoints(Brand("unexpected")).Open; got != "https://open.feishu.cn" {
 		t.Errorf("ResolveEndpoints(unexpected).Open = %q, want the feishu default", got)
 	}
 }

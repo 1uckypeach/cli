@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/identitydiag"
@@ -25,7 +26,7 @@ import (
 type whoamiResult struct {
 	Profile        string         `json:"profile"`
 	AppID          string         `json:"appId"`
-	Brand          core.LarkBrand `json:"brand"`
+	Brand          brand.Brand    `json:"brand"`
 	DefaultAs      string         `json:"defaultAs"`
 	Identity       string         `json:"identity"`
 	IdentitySource string         `json:"identitySource"`

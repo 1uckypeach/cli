@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/errclass"
@@ -43,7 +44,7 @@ func TestAutoGrantStderrWarning_SkippedNoUser(t *testing.T) {
 	config := &core.CliConfig{
 		AppID:     "perm-grant-test-skip",
 		AppSecret: "perm-grant-test-secret-skip",
-		Brand:     core.BrandFeishu,
+		Brand:     brandpkg.Feishu,
 	}
 	f, _, stderr, _ := cmdutil.TestFactory(t, config)
 
@@ -77,7 +78,7 @@ func TestAutoGrantStderrWarning_GrantFailed(t *testing.T) {
 	config := &core.CliConfig{
 		AppID:      "perm-grant-test-fail",
 		AppSecret:  "perm-grant-test-secret-fail",
-		Brand:      core.BrandFeishu,
+		Brand:      brandpkg.Feishu,
 		UserOpenId: "ou_test_user",
 	}
 	f, _, stderr, reg := cmdutil.TestFactory(t, config)
@@ -123,7 +124,7 @@ func TestAutoGrantStderrWarning_GrantFailed(t *testing.T) {
 
 // ── annotateGrantPermissionError unit tests ────────────────────────────────
 
-func newAnnotateRuntime(brand core.LarkBrand, appID string) *RuntimeContext {
+func newAnnotateRuntime(brand brandpkg.Brand, appID string) *RuntimeContext {
 	return &RuntimeContext{
 		Config: &core.CliConfig{
 			AppID: appID,
@@ -136,7 +137,7 @@ func newAnnotateRuntime(brand core.LarkBrand, appID string) *RuntimeContext {
 // console_url must be brand-specific. The hint should be overridden to point
 // at the developer console.
 func TestAnnotateGrantPermissionError_AppScopeNotEnabled(t *testing.T) {
-	rt := newAnnotateRuntime(core.BrandFeishu, "cli_demo")
+	rt := newAnnotateRuntime(brandpkg.Feishu, "cli_demo")
 	result := map[string]interface{}{
 		"hint": "generic fallback hint",
 	}
@@ -168,7 +169,7 @@ func TestAnnotateGrantPermissionError_AppScopeNotEnabled(t *testing.T) {
 }
 
 func TestAnnotateGrantPermissionError_LarkBrand(t *testing.T) {
-	rt := newAnnotateRuntime(core.BrandLark, "cli_demo")
+	rt := newAnnotateRuntime(brandpkg.Lark, "cli_demo")
 	result := map[string]interface{}{}
 	err := apiErrWithScopes(99991679, "Permission denied [99991679]", "docs:permission.member:create")
 
@@ -182,7 +183,7 @@ func TestAnnotateGrantPermissionError_LarkBrand(t *testing.T) {
 // Non-permission errors (network, validation, plain errors) must not be
 // annotated — keep the existing generic hint untouched.
 func TestAnnotateGrantPermissionError_NonPermissionErrorNoOp(t *testing.T) {
-	rt := newAnnotateRuntime(core.BrandFeishu, "cli_demo")
+	rt := newAnnotateRuntime(brandpkg.Feishu, "cli_demo")
 
 	cases := []error{
 		errors.New("plain error"),
@@ -209,7 +210,7 @@ func TestAnnotateGrantPermissionError_NonPermissionErrorNoOp(t *testing.T) {
 // permission_violations missing → only lark_code is annotated; no console_url
 // and the existing hint stays as-is (caller's generic fallback wins).
 func TestAnnotateGrantPermissionError_NoViolations(t *testing.T) {
-	rt := newAnnotateRuntime(core.BrandFeishu, "cli_demo")
+	rt := newAnnotateRuntime(brandpkg.Feishu, "cli_demo")
 	result := map[string]interface{}{
 		"hint": "untouched fallback",
 	}
@@ -230,7 +231,7 @@ func TestAnnotateGrantPermissionError_NoViolations(t *testing.T) {
 
 // AppID empty → no console_url even when violations exist.
 func TestAnnotateGrantPermissionError_EmptyAppID(t *testing.T) {
-	rt := newAnnotateRuntime(core.BrandFeishu, "")
+	rt := newAnnotateRuntime(brandpkg.Feishu, "")
 	result := map[string]interface{}{}
 	err := apiErrWithScopes(99991672, "Permission denied", "docs:doc")
 
@@ -245,7 +246,7 @@ func TestAnnotateGrantPermissionError_EmptyAppID(t *testing.T) {
 
 // Defensive: nil/empty arguments must be safe no-ops.
 func TestAnnotateGrantPermissionError_NilArgsSafe(t *testing.T) {
-	rt := newAnnotateRuntime(core.BrandFeishu, "cli_demo")
+	rt := newAnnotateRuntime(brandpkg.Feishu, "cli_demo")
 
 	annotateGrantPermissionError(nil, map[string]interface{}{}, nil)
 	annotateGrantPermissionError(rt, nil, nil)
@@ -260,7 +261,7 @@ func TestAutoGrantStderrWarning_GrantFailed_AppScopeNotEnabled_Annotated(t *test
 	config := &core.CliConfig{
 		AppID:      "cli_app_demo",
 		AppSecret:  "secret",
-		Brand:      core.BrandFeishu,
+		Brand:      brandpkg.Feishu,
 		UserOpenId: "ou_test_user",
 	}
 	f, _, _, reg := cmdutil.TestFactory(t, config)

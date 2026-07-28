@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/cmd/api"
 	"github.com/larksuite/cli/cmd/auth"
 	"github.com/larksuite/cli/cmd/service"
@@ -174,13 +175,13 @@ func newStrictModeDefaultFactory(t *testing.T, profile string, mode core.StrictM
 				Name:      "default",
 				AppId:     "app-default",
 				AppSecret: core.PlainSecret("secret-default"),
-				Brand:     core.BrandFeishu,
+				Brand:     brand.Feishu,
 			},
 			{
 				Name:       "target",
 				AppId:      "app-target",
 				AppSecret:  core.PlainSecret("secret-target"),
-				Brand:      core.BrandFeishu,
+				Brand:      brand.Feishu,
 				StrictMode: &targetMode,
 			},
 		},
@@ -429,7 +430,7 @@ func TestIntegration_StrictModeBot_ProfileOverride_APIExplicitUserReturnsEnvelop
 
 func TestIntegration_Shortcut_BusinessError_OutputsEnvelope(t *testing.T) {
 	f, stdout, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "e2e-sc-err", AppSecret: "secret", Brand: core.BrandFeishu,
+		AppID: "e2e-sc-err", AppSecret: "secret", Brand: brand.Feishu,
 	})
 	reg.Register(&httpmock.Stub{
 		URL:    "/open-apis/im/v1/messages",

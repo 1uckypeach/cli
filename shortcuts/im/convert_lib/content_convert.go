@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/larksuite/cli/internal/core"
+	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/imcontent"
 	"github.com/larksuite/cli/shortcuts/common"
 )
@@ -222,7 +222,7 @@ func formatMessageItem(m map[string]interface{}, runtime *common.RuntimeContext,
 	return msg
 }
 
-func assembleMessageAppLink(m map[string]interface{}, brand core.LarkBrand) string {
+func assembleMessageAppLink(m map[string]interface{}, brand brandpkg.Brand) string {
 	domain := resolveAppLinkDomain(brand)
 	if domain == "" {
 		return ""
@@ -357,8 +357,8 @@ func normalizeMessagePosition(v interface{}) (string, bool) {
 	}
 }
 
-func resolveAppLinkDomain(brand core.LarkBrand) string {
-	appLink := core.ResolveEndpoints(brand).AppLink
+func resolveAppLinkDomain(brand brandpkg.Brand) string {
+	appLink := brandpkg.ResolveEndpoints(brand).AppLink
 	u, err := url.Parse(appLink)
 	if err != nil {
 		return ""

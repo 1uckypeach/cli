@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/larksuite/cli/brand"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -24,7 +25,7 @@ import (
 
 func TestAuthCheckRun_NotLoggedIn_ExitOneWithStdoutOnly(t *testing.T) {
 	f, stdout, stderr, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 		// UserOpenId left empty: triggers the not_logged_in branch.
 	})
 
@@ -56,7 +57,7 @@ func TestAuthCheckRun_NotLoggedIn_ExitOneWithStdoutOnly(t *testing.T) {
 
 func TestAuthCheckRun_NoStoredToken_ExitOneWithStdoutOnly(t *testing.T) {
 	f, stdout, stderr, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 		UserOpenId: "ou_user", UserName: "tester",
 	})
 
@@ -95,7 +96,7 @@ func TestAuthCheckRun_ScopedTokenPresent_ExitZero(t *testing.T) {
 	cfg := &core.CliConfig{
 		AppID:      "test-app",
 		AppSecret:  "test-secret",
-		Brand:      core.BrandFeishu,
+		Brand:      brand.Feishu,
 		UserOpenId: "ou_user",
 		UserName:   "tester",
 	}
@@ -151,7 +152,7 @@ func TestAuthCheckRun_EmptyScopeIsValidationError(t *testing.T) {
 	// answer — it must surface as a typed ValidationError with the normal
 	// stderr envelope, distinct from the silent ErrBare predicate path.
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	err := authCheckRun(&CheckOptions{Factory: f, Scope: "   "})

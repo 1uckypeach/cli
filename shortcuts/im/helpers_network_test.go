@@ -23,6 +23,7 @@ import (
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -88,7 +89,7 @@ func newBotShortcutRuntime(t *testing.T, rt http.RoundTripper) *common.RuntimeCo
 	cfg := &core.CliConfig{
 		AppID:     "test-app",
 		AppSecret: "test-secret",
-		Brand:     core.BrandFeishu,
+		Brand:     brand.Feishu,
 	}
 	testCred := credential.NewCredentialProvider(nil, nil, &staticShortcutTokenResolver{}, nil)
 	runtime := &common.RuntimeContext{

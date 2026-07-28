@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -120,7 +121,7 @@ func profileAddRun(f *cmdutil.Factory, name, appID string, appSecretStdin bool, 
 		return errs.NewInternalError(errs.SubtypeStorage, "%v", err).WithCause(err)
 	}
 
-	parsedBrand := core.ParseBrand(brand)
+	parsedBrand := brandpkg.ParseBrand(brand)
 
 	// Capture current profile before appending (avoid setting PreviousApp to self)
 	var previousName string

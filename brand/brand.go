@@ -1,31 +1,27 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-package core
+package brand
 
 import "strings"
 
-// LarkBrand represents the Lark platform brand.
+// Brand represents the Lark platform brand.
 // "feishu" targets China-mainland, "lark" targets international.
-// ParseBrand and ResolveEndpoints map unrecognized values to BrandFeishu.
-type LarkBrand string
+// ParseBrand and ResolveEndpoints map unrecognized values to Feishu.
+type Brand string
 
 const (
-	BrandFeishu LarkBrand = "feishu"
-	BrandLark   LarkBrand = "lark"
+	Feishu Brand = "feishu"
+	Lark   Brand = "lark"
 )
 
 // ParseBrand normalizes a brand string (case-insensitive, whitespace-tolerant);
-// anything other than "lark" normalizes to BrandFeishu.
-//
-// extension/credential.ParseBrand applies the same rule to its own Brand type.
-// The two cannot share an implementation: extension is published as a standalone
-// SDK and may not import internal. Adding a brand means changing both.
-func ParseBrand(value string) LarkBrand {
+// anything other than "lark" normalizes to Feishu.
+func ParseBrand(value string) Brand {
 	if strings.ToLower(strings.TrimSpace(value)) == "lark" {
-		return BrandLark
+		return Lark
 	}
-	return BrandFeishu
+	return Feishu
 }
 
 // OAuthTokenV3Path is the unified OAuth 2.0 Token Endpoint path on the accounts
@@ -44,9 +40,9 @@ type Endpoints struct {
 
 // ResolveEndpoints resolves endpoint URLs for the brand, normalizing its
 // input so stored values with unusual casing still resolve correctly.
-func ResolveEndpoints(brand LarkBrand) Endpoints {
+func ResolveEndpoints(brand Brand) Endpoints {
 	switch ParseBrand(string(brand)) {
-	case BrandLark:
+	case Lark:
 		return Endpoints{
 			Open:     "https://open.larksuite.com",
 			Accounts: "https://accounts.larksuite.com",
@@ -64,6 +60,6 @@ func ResolveEndpoints(brand LarkBrand) Endpoints {
 }
 
 // ResolveOpenBaseURL returns the Open API base URL for the given brand.
-func ResolveOpenBaseURL(brand LarkBrand) string {
+func ResolveOpenBaseURL(brand Brand) string {
 	return ResolveEndpoints(brand).Open
 }

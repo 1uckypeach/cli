@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -199,7 +200,7 @@ func TestSchemaCmd_NoYesForReadRisk(t *testing.T) {
 
 func TestSchemaCmd_UnknownService(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	cmd := NewCmdSchema(f, nil)
@@ -228,7 +229,7 @@ func TestSchemaCmd_UnknownService(t *testing.T) {
 // subtype invalid_argument and a hint listing the available methods.
 func TestSchemaCmd_UnknownMethod_TypedValidation(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	cmd := NewCmdSchema(f, nil)

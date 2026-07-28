@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 
+	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/cmd/api"
 	"github.com/larksuite/cli/cmd/auth"
 	"github.com/larksuite/cli/cmd/completion"
@@ -25,7 +26,6 @@ import (
 	"github.com/larksuite/cli/internal/build"
 	"github.com/larksuite/cli/internal/cmdpolicy"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/hook"
 	"github.com/larksuite/cli/internal/keychain"
 	"github.com/larksuite/cli/internal/registry"
@@ -44,7 +44,7 @@ type buildConfig struct {
 	skipStrictMode bool
 	skipService    bool
 	serviceCatalog *apicatalog.Catalog
-	startupBrand   core.LarkBrand
+	startupBrand   brandpkg.Brand
 }
 
 // WithStartupBrand initializes the API registry with the given brand before
@@ -52,7 +52,7 @@ type buildConfig struct {
 // registry's sync.Once locks onto the Feishu default at first catalog access,
 // long before the lazily-resolved config brand is known — see
 // ResolveStartupBrand for the caller-side resolution.
-func WithStartupBrand(brand core.LarkBrand) BuildOption {
+func WithStartupBrand(brand brandpkg.Brand) BuildOption {
 	return func(c *buildConfig) {
 		c.startupBrand = brand
 	}

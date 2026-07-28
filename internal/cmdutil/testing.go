@@ -13,6 +13,7 @@ import (
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
@@ -52,7 +53,7 @@ func TestFactory(t *testing.T, config *core.CliConfig) (*Factory, *bytes.Buffer,
 			lark.WithHeaders(BaseSecurityHeaders()),
 		}
 		if config.Brand != "" {
-			opts = append(opts, lark.WithOpenBaseUrl(core.ResolveOpenBaseURL(config.Brand)))
+			opts = append(opts, lark.WithOpenBaseUrl(brand.ResolveOpenBaseURL(config.Brand)))
 		}
 		testLarkClient = lark.NewClient(config.AppID, credential.RuntimeAppSecret(config.AppSecret), opts...)
 	}

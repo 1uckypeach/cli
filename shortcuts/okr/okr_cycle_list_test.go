@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -29,7 +30,7 @@ func cycleListTestConfig(t *testing.T) *core.CliConfig {
 	return &core.CliConfig{
 		AppID:     "test-okr-list-" + suffix,
 		AppSecret: "secret-okr-list-" + suffix,
-		Brand:     core.BrandFeishu,
+		Brand:     brand.Feishu,
 	}
 }
 

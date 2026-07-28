@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
@@ -252,7 +253,7 @@ func drivePermissionGrantTestConfig(t *testing.T, userOpenID string) *core.CliCo
 	return &core.CliConfig{
 		AppID:      "drive-permission-test-" + suffix,
 		AppSecret:  "drive-permission-secret-" + suffix,
-		Brand:      core.BrandFeishu,
+		Brand:      brand.Feishu,
 		UserOpenId: userOpenID,
 	}
 }

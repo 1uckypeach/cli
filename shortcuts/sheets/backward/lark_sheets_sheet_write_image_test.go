@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -24,7 +25,7 @@ import (
 
 func sheetsTestConfig() *core.CliConfig {
 	return &core.CliConfig{
-		AppID: "sheets-test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "sheets-test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 }
 

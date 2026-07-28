@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/output"
@@ -19,7 +20,7 @@ import (
 // not for missing user input.
 
 func TestUpdateExistingProfileWithoutSecret_NilConfig_EmitsValidationError(t *testing.T) {
-	err := updateExistingProfileWithoutSecret(nil, "", "cli_test", core.BrandFeishu, "en")
+	err := updateExistingProfileWithoutSecret(nil, "", "cli_test", brand.Feishu, "en")
 	assertValidationParam(t, err, "--app-secret")
 }
 
@@ -29,10 +30,10 @@ func TestUpdateExistingProfileWithoutSecret_UnknownProfile_EmitsValidationError(
 			Name:      "default",
 			AppId:     "app-default",
 			AppSecret: core.PlainSecret("secret-default"),
-			Brand:     core.BrandFeishu,
+			Brand:     brand.Feishu,
 		}},
 	}
-	err := updateExistingProfileWithoutSecret(existing, "missing-profile", "cli_test", core.BrandFeishu, "en")
+	err := updateExistingProfileWithoutSecret(existing, "missing-profile", "cli_test", brand.Feishu, "en")
 	assertValidationParam(t, err, "--app-secret")
 }
 
@@ -43,10 +44,10 @@ func TestUpdateExistingProfileWithoutSecret_NoCurrentApp_EmitsValidationError(t 
 			Name:      "default",
 			AppId:     "app-default",
 			AppSecret: core.PlainSecret("secret-default"),
-			Brand:     core.BrandFeishu,
+			Brand:     brand.Feishu,
 		}},
 	}
-	err := updateExistingProfileWithoutSecret(existing, "", "cli_test", core.BrandFeishu, "en")
+	err := updateExistingProfileWithoutSecret(existing, "", "cli_test", brand.Feishu, "en")
 	assertValidationParam(t, err, "--app-secret")
 }
 
@@ -56,10 +57,10 @@ func TestUpdateExistingProfileWithoutSecret_AppIdMismatch_EmitsValidationError(t
 			Name:      "default",
 			AppId:     "app-default",
 			AppSecret: core.PlainSecret("secret-default"),
-			Brand:     core.BrandFeishu,
+			Brand:     brand.Feishu,
 		}},
 	}
-	err := updateExistingProfileWithoutSecret(existing, "", "cli_different", core.BrandFeishu, "en")
+	err := updateExistingProfileWithoutSecret(existing, "", "cli_different", brand.Feishu, "en")
 	assertValidationParam(t, err, "--app-secret")
 }
 

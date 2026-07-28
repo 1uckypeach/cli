@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -34,7 +35,7 @@ func scopesTestFactory(t *testing.T) *ScopesOptions {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID:     "test-app",
 		AppSecret: "test-secret",
-		Brand:     core.BrandFeishu,
+		Brand:     brand.Feishu,
 	})
 	return &ScopesOptions{
 		Factory: f,

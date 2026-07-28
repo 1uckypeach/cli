@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -22,7 +23,7 @@ func progressGetTestConfig(t *testing.T) *core.CliConfig {
 	return &core.CliConfig{
 		AppID:     "test-okr-progress-get",
 		AppSecret: "secret-okr-progress-get",
-		Brand:     core.BrandFeishu,
+		Brand:     brand.Feishu,
 	}
 }
 

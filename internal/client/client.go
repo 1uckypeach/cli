@@ -18,6 +18,7 @@ import (
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 
+	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
@@ -262,7 +263,7 @@ func (r *cancelOnCloseBody) Close() error {
 	return err
 }
 
-func buildStreamURL(brand core.LarkBrand, req *larkcore.ApiReq) (string, error) {
+func buildStreamURL(brand brandpkg.Brand, req *larkcore.ApiReq) (string, error) {
 	requestURL := req.ApiPath
 	if !strings.HasPrefix(requestURL, "http://") && !strings.HasPrefix(requestURL, "https://") {
 		var pathSegs []string
@@ -281,7 +282,7 @@ func buildStreamURL(brand core.LarkBrand, req *larkcore.ApiReq) (string, error) 
 			}
 			pathSegs = append(pathSegs, url.PathEscape(pathValue))
 		}
-		endpoints := core.ResolveEndpoints(brand)
+		endpoints := brandpkg.ResolveEndpoints(brand)
 		requestURL = strings.TrimRight(endpoints.Open, "/") + strings.Join(pathSegs, "/")
 	}
 	if query := req.QueryParams.Encode(); query != "" {

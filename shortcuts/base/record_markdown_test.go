@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	extcs "github.com/larksuite/cli/extension/contentsafety"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -39,7 +40,7 @@ func newRecordMarkdownTestRuntime(stdout, stderr *bytes.Buffer) *common.RuntimeC
 	parentCmd.AddCommand(baseCmd)
 	baseCmd.AddCommand(cmd)
 	return &common.RuntimeContext{
-		Config:  &core.CliConfig{Brand: core.BrandFeishu},
+		Config:  &core.CliConfig{Brand: brand.Feishu},
 		Cmd:     cmd,
 		Factory: &cmdutil.Factory{IOStreams: &cmdutil.IOStreams{Out: stdout, ErrOut: stderr}},
 	}

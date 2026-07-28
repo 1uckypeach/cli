@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -67,7 +68,7 @@ func TestConfigInitCmd_FlagParsing(t *testing.T) {
 
 func TestConfigShowCmd_FlagParsing(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	})
 
 	var gotOpts *ConfigShowOptions
@@ -114,7 +115,7 @@ func TestConfigShowRun_NoActiveProfileReturnsStructuredError(t *testing.T) {
 			Name:      "default",
 			AppId:     "app-default",
 			AppSecret: core.PlainSecret("secret-default"),
-			Brand:     core.BrandFeishu,
+			Brand:     brand.Feishu,
 		}},
 	}
 	if err := core.SaveMultiAppConfig(multi); err != nil {
@@ -187,13 +188,13 @@ func TestSaveInitConfig_OmitLangPreservesPrior(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, nil)
 
 	existing := &core.MultiAppConfig{Apps: []core.AppConfig{
-		{AppId: "cli_x", AppSecret: core.PlainSecret("s"), Brand: core.BrandFeishu, Lang: i18n.LangJaJP},
+		{AppId: "cli_x", AppSecret: core.PlainSecret("s"), Brand: brand.Feishu, Lang: i18n.LangJaJP},
 	}}
 	if err := core.SaveMultiAppConfig(existing); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
 
-	if err := saveInitConfig("", existing, f, "cli_x", core.PlainSecret("s2"), core.BrandFeishu, ""); err != nil {
+	if err := saveInitConfig("", existing, f, "cli_x", core.PlainSecret("s2"), brand.Feishu, ""); err != nil {
 		t.Fatalf("saveInitConfig (no --lang): %v", err)
 	}
 
@@ -324,7 +325,7 @@ func TestConfigRemoveRun_SaveFailurePreservesExistingConfigAndSecrets(t *testing
 			AppSecret: core.SecretInput{
 				Ref: &core.SecretRef{Source: "keychain", ID: "appsecret:app-test"},
 			},
-			Brand: core.BrandFeishu,
+			Brand: brand.Feishu,
 			Users: []core.AppUser{{UserOpenId: "ou_1", UserName: "Tester"}},
 		}},
 	}
@@ -383,12 +384,12 @@ func TestSaveAsProfile_RejectsProfileNameCollisionWithExistingAppID(t *testing.T
 				Name:      "prod",
 				AppId:     "cli_prod",
 				AppSecret: core.PlainSecret("secret"),
-				Brand:     core.BrandFeishu,
+				Brand:     brand.Feishu,
 			},
 		},
 	}
 
-	err := saveAsProfile(existing, keychain.KeychainAccess(&noopConfigKeychain{}), "cli_prod", "app-new", core.PlainSecret("new-secret"), core.BrandLark, "en")
+	err := saveAsProfile(existing, keychain.KeychainAccess(&noopConfigKeychain{}), "cli_prod", "app-new", core.PlainSecret("new-secret"), brand.Lark, "en")
 	if err == nil {
 		t.Fatal("expected conflict error")
 	}
@@ -435,14 +436,14 @@ func TestUpdateExistingProfileWithoutSecret_RejectsAppIDChange(t *testing.T) {
 				Name:      "prod",
 				AppId:     "app-old",
 				AppSecret: core.SecretInput{Ref: &core.SecretRef{Source: "keychain", ID: "appsecret:app-old"}},
-				Brand:     core.BrandFeishu,
+				Brand:     brand.Feishu,
 				Lang:      "zh",
 				Users:     []core.AppUser{{UserOpenId: "ou_1", UserName: "User"}},
 			},
 		},
 	}
 
-	err := updateExistingProfileWithoutSecret(multi, "", "app-new", core.BrandLark, "en")
+	err := updateExistingProfileWithoutSecret(multi, "", "app-new", brand.Lark, "en")
 	if err == nil {
 		t.Fatal("expected error when changing app ID without a new secret")
 	}

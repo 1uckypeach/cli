@@ -11,6 +11,7 @@ import (
 
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -20,7 +21,7 @@ import (
 func TestDoStream_HTTPErrorIncludesLogID(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
-	config := &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu}
+	config := &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu}
 	factory, _, _, reg := cmdutil.TestFactory(t, config)
 	reg.Register(&httpmock.Stub{
 		Method:  http.MethodGet,

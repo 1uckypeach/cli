@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/build"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -118,7 +119,7 @@ func doctorRun(opts *DoctorOptions) error {
 	}
 	checks = append(checks, pass("app_resolved", fmt.Sprintf("app: %s (%s)", cfg.AppID, cfg.Brand)))
 
-	ep := core.ResolveEndpoints(cfg.Brand)
+	ep := brand.ResolveEndpoints(cfg.Brand)
 
 	// ── 3. Identity readiness ──
 	diagnostics := identitydiag.Diagnose(opts.Ctx, f, cfg, !opts.Offline)
@@ -149,7 +150,7 @@ func identityCheck(name string, id identitydiag.Identity) checkResult {
 }
 
 // networkChecks probes Open API and MCP endpoints concurrently.
-func networkChecks(ctx context.Context, opts *DoctorOptions, ep core.Endpoints) []checkResult {
+func networkChecks(ctx context.Context, opts *DoctorOptions, ep brand.Endpoints) []checkResult {
 	if opts.Offline {
 		return []checkResult{
 			skip("endpoint_open", "skipped (--offline)"),

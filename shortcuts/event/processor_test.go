@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -124,7 +125,7 @@ func newSubscribeTestRuntime(t *testing.T) *common.RuntimeContext {
 		Config: &core.CliConfig{
 			AppID:     "cli_event_test",
 			AppSecret: "secret",
-			Brand:     core.BrandFeishu,
+			Brand:     brand.Feishu,
 		},
 		Factory: &cmdutil.Factory{
 			IOStreams: cmdutil.NewIOStreams(strings.NewReader(""), &out, &errOut),

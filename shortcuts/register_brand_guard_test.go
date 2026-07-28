@@ -11,12 +11,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	brandpkg "github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 )
 
-func newFactoryWithBrand(brand core.LarkBrand) *cmdutil.Factory {
+func newFactoryWithBrand(brand brandpkg.Brand) *cmdutil.Factory {
 	return &cmdutil.Factory{
 		Config: func() (*core.CliConfig, error) {
 			return &core.CliConfig{Brand: brand}, nil
@@ -35,7 +36,7 @@ func findChild(root *cobra.Command, name string) *cobra.Command {
 
 func TestBrandGuard_AppsStaysRegisteredOnLark(t *testing.T) {
 	program := &cobra.Command{Use: "root"}
-	RegisterShortcuts(program, newFactoryWithBrand(core.BrandLark))
+	RegisterShortcuts(program, newFactoryWithBrand(brandpkg.Lark))
 
 	apps := findChild(program, "apps")
 	if apps == nil {
@@ -56,7 +57,7 @@ func TestBrandGuard_AppsStaysRegisteredOnLark(t *testing.T) {
 
 func TestBrandGuard_AppsExecuteReturnsBrandError(t *testing.T) {
 	program := &cobra.Command{Use: "root"}
-	RegisterShortcuts(program, newFactoryWithBrand(core.BrandLark))
+	RegisterShortcuts(program, newFactoryWithBrand(brandpkg.Lark))
 
 	apps := findChild(program, "apps")
 	if apps == nil {
@@ -85,7 +86,7 @@ func TestBrandGuard_AppsExecuteReturnsBrandError(t *testing.T) {
 
 func TestBrandGuard_AppsExecutableOnFeishu(t *testing.T) {
 	program := &cobra.Command{Use: "root"}
-	RegisterShortcuts(program, newFactoryWithBrand(core.BrandFeishu))
+	RegisterShortcuts(program, newFactoryWithBrand(brandpkg.Feishu))
 
 	apps := findChild(program, "apps")
 	if apps == nil {
@@ -105,7 +106,7 @@ func TestBrandGuard_AppsExecutableOnFeishu(t *testing.T) {
 
 func TestBrandGuard_DispatchHitsStubViaCobra(t *testing.T) {
 	program := &cobra.Command{Use: "root"}
-	RegisterShortcuts(program, newFactoryWithBrand(core.BrandLark))
+	RegisterShortcuts(program, newFactoryWithBrand(brandpkg.Lark))
 
 	program.SetArgs([]string{"apps", "+create", "--name", "x", "--app-type", "HTML"})
 	program.SetContext(context.Background())

@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	brandpkg "github.com/larksuite/cli/brand"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
@@ -38,7 +39,7 @@ type authBridge struct {
 	key       []byte
 	appID     string
 	appSecret string
-	brand     core.LarkBrand
+	brand     brandpkg.Brand
 	cred      *credential.CredentialProvider
 	logger    *log.Logger
 	httpCl    *http.Client
@@ -51,7 +52,7 @@ type authBridge struct {
 	mapFile string
 }
 
-func newAuthBridge(key []byte, appID, appSecret string, brand core.LarkBrand, cred *credential.CredentialProvider, logger *log.Logger) *authBridge {
+func newAuthBridge(key []byte, appID, appSecret string, brand brandpkg.Brand, cred *credential.CredentialProvider, logger *log.Logger) *authBridge {
 	configDir := os.Getenv("LARKSUITE_CLI_CONFIG_DIR")
 	mapFile := ""
 	if configDir != "" {
@@ -287,7 +288,7 @@ func (ab *authBridge) handlePoll(w http.ResponseWriter, r *http.Request, body []
 		GrantedAt:        now,
 	}
 
-	ep := core.ResolveEndpoints(ab.brand)
+	ep := brandpkg.ResolveEndpoints(ab.brand)
 	openID, userName, err := fetchUserInfoDirect(ab.httpCl, ep.Open, result.Token.AccessToken)
 	if err != nil {
 		ab.logger.Printf("AUTH_BRIDGE_WARN action=user_info error=%q", err.Error())

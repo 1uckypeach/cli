@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/core"
 	eventlib "github.com/larksuite/cli/internal/event"
 )
@@ -55,11 +56,11 @@ func TestEncodeAddons_RoundTrip(t *testing.T) {
 }
 
 func TestConsoleAddonsURL_FormatAndBrandHost(t *testing.T) {
-	url, err := consoleAddonsURL(core.BrandFeishu, "cli_x", ManifestAddons{Callbacks: &AddonsCallbacks{Items: []string{"card.action.trigger"}}})
+	url, err := consoleAddonsURL(brand.Feishu, "cli_x", ManifestAddons{Callbacks: &AddonsCallbacks{Items: []string{"card.action.trigger"}}})
 	if err != nil {
 		t.Fatalf("url: %v", err)
 	}
-	host := core.ResolveEndpoints(core.BrandFeishu).Open
+	host := brand.ResolveEndpoints(brand.Feishu).Open
 	prefix := host + "/page/launcher?clientID=cli_x&addons="
 	if !strings.HasPrefix(url, prefix) {
 		t.Errorf("url = %q, want prefix %q", url, prefix)

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/larksuite/cli/brand"
 	extcred "github.com/larksuite/cli/extension/credential"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -363,7 +364,7 @@ func fetchBotInfo(ctx context.Context, f *cmdutil.Factory, cfg *core.CliConfig, 
 	}
 	ctx, cancel := context.WithTimeout(ctx, verifyTimeout)
 	defer cancel()
-	url := strings.TrimRight(core.ResolveEndpoints(cfg.Brand).Open, "/") + "/open-apis/bot/v3/info"
+	url := strings.TrimRight(brand.ResolveEndpoints(cfg.Brand).Open, "/") + "/open-apis/bot/v3/info"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

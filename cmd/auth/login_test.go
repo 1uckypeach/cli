@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	brandpkg "github.com/larksuite/cli/brand"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -309,7 +310,7 @@ func TestGetDomainMetadata_HasTitleAndDescription(t *testing.T) {
 
 func TestAuthLoginRun_NonTerminal_NoFlags_RejectsWithHint(t *testing.T) {
 	f, _, stderr, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "cli_test", AppSecret: "secret", Brand: core.BrandFeishu,
+		AppID: "cli_test", AppSecret: "secret", Brand: brandpkg.Feishu,
 	})
 	// TestFactory has IsTerminal=false by default
 	opts := &LoginOptions{Factory: f, Ctx: context.Background()}
@@ -614,7 +615,7 @@ func TestAuthLoginRun_MissingRequestedScopeAlignsWithLoginSuccess(t *testing.T) 
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
-		Brand:       core.BrandFeishu,
+		Brand:       brandpkg.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -730,7 +731,7 @@ func TestAuthLoginRun_DeviceCodeUsesCachedRequestedScopes(t *testing.T) {
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
-		Brand:       core.BrandFeishu,
+		Brand:       brandpkg.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -847,7 +848,7 @@ func TestAuthLoginRun_DeviceCodeTokenNilCleansScopeCache(t *testing.T) {
 
 	original := pollDeviceToken
 	t.Cleanup(func() { pollDeviceToken = original })
-	pollDeviceToken = func(ctx context.Context, httpClient *http.Client, appId, appSecret string, brand core.LarkBrand, deviceCode string, interval, expiresIn int, errOut io.Writer) *larkauth.DeviceFlowResult {
+	pollDeviceToken = func(ctx context.Context, httpClient *http.Client, appId, appSecret string, brand brandpkg.Brand, deviceCode string, interval, expiresIn int, errOut io.Writer) *larkauth.DeviceFlowResult {
 		return &larkauth.DeviceFlowResult{OK: true, Token: nil}
 	}
 
@@ -855,7 +856,7 @@ func TestAuthLoginRun_DeviceCodeTokenNilCleansScopeCache(t *testing.T) {
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
-		Brand:       core.BrandFeishu,
+		Brand:       brandpkg.Feishu,
 	})
 
 	err := authLoginRun(&LoginOptions{
@@ -886,7 +887,7 @@ func TestAuthLoginRun_JSONAbort_StdoutEventOnly_StderrEmpty(t *testing.T) {
 
 	original := pollDeviceToken
 	t.Cleanup(func() { pollDeviceToken = original })
-	pollDeviceToken = func(ctx context.Context, httpClient *http.Client, appId, appSecret string, brand core.LarkBrand, deviceCode string, interval, expiresIn int, errOut io.Writer) *larkauth.DeviceFlowResult {
+	pollDeviceToken = func(ctx context.Context, httpClient *http.Client, appId, appSecret string, brand brandpkg.Brand, deviceCode string, interval, expiresIn int, errOut io.Writer) *larkauth.DeviceFlowResult {
 		return &larkauth.DeviceFlowResult{OK: false, Message: "user denied"}
 	}
 
@@ -894,7 +895,7 @@ func TestAuthLoginRun_JSONAbort_StdoutEventOnly_StderrEmpty(t *testing.T) {
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
-		Brand:       core.BrandFeishu,
+		Brand:       brandpkg.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -960,7 +961,7 @@ func TestAuthLoginRun_JSONWriteFailure_NoWaitReturnsWriterError(t *testing.T) {
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
-		Brand:       core.BrandFeishu,
+		Brand:       brandpkg.Feishu,
 	})
 	f.IOStreams.Out = failWriter{}
 
@@ -997,7 +998,7 @@ func TestAuthLoginRun_NoWaitJSONHintIncludesRawURLGuidance(t *testing.T) {
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
-		Brand:       core.BrandFeishu,
+		Brand:       brandpkg.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -1071,7 +1072,7 @@ func TestAuthLoginRun_JSONWriteFailure_DeviceAuthorizationReturnsWriterError(t *
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
-		Brand:       core.BrandFeishu,
+		Brand:       brandpkg.Feishu,
 	})
 	f.IOStreams.Out = failWriter{}
 
@@ -1109,7 +1110,7 @@ func TestAuthLoginRun_JSONDeviceAuthorizationAgentHintIncludesRawURLGuidance(t *
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
-		Brand:       core.BrandFeishu,
+		Brand:       brandpkg.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{

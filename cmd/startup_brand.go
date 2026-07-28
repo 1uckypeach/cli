@@ -6,6 +6,7 @@ package cmd
 import (
 	"os"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/envnames"
 	"github.com/larksuite/cli/internal/core"
 )
@@ -15,14 +16,14 @@ import (
 // first catalog access. It mirrors the credential chain's brand precedence —
 // environment, then the active profile's raw config entry — without touching
 // the keychain (no secrets are needed to know the brand).
-func ResolveStartupBrand(profile string) core.LarkBrand {
+func ResolveStartupBrand(profile string) brand.Brand {
 	if raw := os.Getenv(envnames.CliBrand); raw != "" {
-		return core.ParseBrand(raw)
+		return brand.ParseBrand(raw)
 	}
 	if cfg, err := core.LoadMultiAppConfig(); err == nil {
 		if app := cfg.CurrentAppConfig(profile); app != nil {
-			return core.ParseBrand(string(app.Brand))
+			return brand.ParseBrand(string(app.Brand))
 		}
 	}
-	return core.BrandFeishu
+	return brand.Feishu
 }

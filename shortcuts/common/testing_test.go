@@ -9,13 +9,14 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 )
 
 func TestTestNewRuntimeContextForAPIWiresFields(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
-	cfg := &core.CliConfig{AppID: "self-test-app", AppSecret: "secret", Brand: core.BrandFeishu}
+	cfg := &core.CliConfig{AppID: "self-test-app", AppSecret: "secret", Brand: brand.Feishu}
 	f, _, _, _ := cmdutil.TestFactory(t, cfg)
 	cmd := &cobra.Command{Use: "testing-helper"}
 

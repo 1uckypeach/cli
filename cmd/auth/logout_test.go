@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -24,7 +25,7 @@ func writeLogoutConfig(t *testing.T, users []core.AppUser) {
 			{
 				AppId:     "test-app",
 				AppSecret: core.PlainSecret("test-secret"),
-				Brand:     core.BrandFeishu,
+				Brand:     brand.Feishu,
 				Users:     users,
 			},
 		},
@@ -160,7 +161,7 @@ func TestAuthLogoutRun_RevokesTokenAndClearsLocalState(t *testing.T) {
 				Name:      "default",
 				AppId:     "cli_test",
 				AppSecret: core.PlainSecret("secret"),
-				Brand:     core.BrandFeishu,
+				Brand:     brand.Feishu,
 				Users:     []core.AppUser{{UserOpenId: "ou_user", UserName: "tester"}},
 			},
 		},
@@ -181,7 +182,7 @@ func TestAuthLogoutRun_RevokesTokenAndClearsLocalState(t *testing.T) {
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
-		Brand:       core.BrandFeishu,
+		Brand:       brand.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -231,7 +232,7 @@ func TestAuthLogoutRun_FallsBackToAccessTokenWhenRefreshTokenMissing(t *testing.
 				Name:      "default",
 				AppId:     "cli_test",
 				AppSecret: core.PlainSecret("secret"),
-				Brand:     core.BrandFeishu,
+				Brand:     brand.Feishu,
 				Users:     []core.AppUser{{UserOpenId: "ou_user", UserName: "tester"}},
 			},
 		},
@@ -251,7 +252,7 @@ func TestAuthLogoutRun_FallsBackToAccessTokenWhenRefreshTokenMissing(t *testing.
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
-		Brand:       core.BrandFeishu,
+		Brand:       brand.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{
@@ -301,7 +302,7 @@ func TestAuthLogoutRun_RevokeFailureStillClearsLocalState(t *testing.T) {
 				Name:      "default",
 				AppId:     "cli_test",
 				AppSecret: core.PlainSecret("secret"),
-				Brand:     core.BrandFeishu,
+				Brand:     brand.Feishu,
 				Users:     []core.AppUser{{UserOpenId: "ou_user", UserName: "tester"}},
 			},
 		},
@@ -322,7 +323,7 @@ func TestAuthLogoutRun_RevokeFailureStillClearsLocalState(t *testing.T) {
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
-		Brand:       core.BrandFeishu,
+		Brand:       brand.Feishu,
 	})
 
 	reg.Register(&httpmock.Stub{

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package domaincontract guards the Go CLI against direct reuse of the current
-// resolver-owned host FQDNs outside core.ResolveEndpoints.
+// resolver-owned host FQDNs outside brand.ResolveEndpoints.
 package domaincontract
 
 import (
@@ -150,8 +150,8 @@ func ScanRepo(root string) ([]lintapi.Violation, error) {
 						Action:     lintapi.ActionReject,
 						File:       display,
 						Line:       pos.Line,
-						Message:    "SDK base-URL global " + pkg.Name + "." + node.Sel.Name + " bypasses the resolver — use core.ResolveEndpoints",
-						Suggestion: "derive the host from core.ResolveEndpoints(brand) instead of the SDK global",
+						Message:    "SDK base-URL global " + pkg.Name + "." + node.Sel.Name + " bypasses the resolver — use brand.ResolveEndpoints",
+						Suggestion: "derive the host from brand.ResolveEndpoints(brand) instead of the SDK global",
 					})
 				}
 			case *ast.BasicLit:
@@ -175,8 +175,8 @@ func ScanRepo(root string) ([]lintapi.Violation, error) {
 							Action:     lintapi.ActionReject,
 							File:       display,
 							Line:       pos.Line,
-							Message:    "hardcoded resolver host " + host + " — outbound domains must come from core.ResolveEndpoints",
-							Suggestion: "use core.ResolveEndpoints(brand) instead of a literal host",
+							Message:    "hardcoded resolver host " + host + " — outbound domains must come from brand.ResolveEndpoints",
+							Suggestion: "use brand.ResolveEndpoints(brand) instead of a literal host",
 						})
 						return true
 					}

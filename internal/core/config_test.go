@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/keychain"
 )
@@ -24,7 +25,7 @@ func (stubKeychain) Remove(service, account string) error     { return nil }
 func TestAppConfig_LangSerialization(t *testing.T) {
 	app := AppConfig{
 		AppId: "cli_test", AppSecret: PlainSecret("secret"),
-		Brand: BrandFeishu, Lang: "en", Users: []AppUser{},
+		Brand: brand.Feishu, Lang: "en", Users: []AppUser{},
 	}
 	data, err := json.Marshal(app)
 	if err != nil {
@@ -43,7 +44,7 @@ func TestAppConfig_LangSerialization(t *testing.T) {
 func TestAppConfig_LangOmitEmpty(t *testing.T) {
 	app := AppConfig{
 		AppId: "cli_test", AppSecret: PlainSecret("secret"),
-		Brand: BrandFeishu, Users: []AppUser{},
+		Brand: brand.Feishu, Users: []AppUser{},
 	}
 	data, err := json.Marshal(app)
 	if err != nil {
@@ -65,7 +66,7 @@ func TestMultiAppConfig_RoundTrip(t *testing.T) {
 		RiskControl: &disabled,
 		Apps: []AppConfig{{
 			AppId: "cli_test", AppSecret: PlainSecret("s"),
-			Brand: BrandLark, Lang: "zh", Users: []AppUser{},
+			Brand: brand.Lark, Lang: "zh", Users: []AppUser{},
 		}},
 	}
 	data, err := json.MarshalIndent(config, "", "  ")
@@ -83,8 +84,8 @@ func TestMultiAppConfig_RoundTrip(t *testing.T) {
 	if got.Apps[0].Lang != "zh" {
 		t.Errorf("Lang = %q, want %q", got.Apps[0].Lang, "zh")
 	}
-	if got.Apps[0].Brand != BrandLark {
-		t.Errorf("Brand = %q, want %q", got.Apps[0].Brand, BrandLark)
+	if got.Apps[0].Brand != brand.Lark {
+		t.Errorf("Brand = %q, want %q", got.Apps[0].Brand, brand.Lark)
 	}
 	if got.RiskControl == nil || *got.RiskControl {
 		t.Errorf("RiskControl = %v, want explicit false", got.RiskControl)
@@ -100,7 +101,7 @@ func TestResolveConfigFromMulti_RejectsSecretKeyMismatch(t *testing.T) {
 					Source: "keychain",
 					ID:     "appsecret:cli_old_app",
 				}},
-				Brand: BrandFeishu,
+				Brand: brand.Feishu,
 			},
 		},
 	}
@@ -124,7 +125,7 @@ func TestResolveConfigFromMulti_AcceptsPlainSecret(t *testing.T) {
 			{
 				AppId:     "cli_abc",
 				AppSecret: PlainSecret("my-secret"),
-				Brand:     BrandFeishu,
+				Brand:     brand.Feishu,
 			},
 		},
 	}
@@ -144,7 +145,7 @@ func TestResolveConfigFromMulti_CarriesLang(t *testing.T) {
 			{
 				AppId:     "cli_abc",
 				AppSecret: PlainSecret("my-secret"),
-				Brand:     BrandFeishu,
+				Brand:     brand.Feishu,
 				Lang:      "en",
 			},
 		},
@@ -171,7 +172,7 @@ func TestResolveConfigFromMulti_MatchingKeychainRefPassesValidation(t *testing.T
 					Source: "keychain",
 					ID:     "appsecret:cli_abc",
 				}},
-				Brand: BrandFeishu,
+				Brand: brand.Feishu,
 			},
 		},
 	}
@@ -201,7 +202,7 @@ func TestResolveConfigFromMulti_DoesNotUseEnvProfileFallback(t *testing.T) {
 				Name:      "active",
 				AppId:     "cli_active",
 				AppSecret: PlainSecret("secret"),
-				Brand:     BrandFeishu,
+				Brand:     brand.Feishu,
 			},
 		},
 	}
@@ -242,13 +243,13 @@ func TestResolveConfigFromMulti_NormalizesBrand(t *testing.T) {
 	multi := &MultiAppConfig{Apps: []AppConfig{{
 		AppId:     "cli_x",
 		AppSecret: PlainSecret("test-secret"),
-		Brand:     LarkBrand(" LARK "),
+		Brand:     brand.Brand(" LARK "),
 	}}}
 	cfg, err := ResolveConfigFromMulti(multi, nil, "")
 	if err != nil {
 		t.Fatalf("ResolveConfigFromMulti error = %v", err)
 	}
-	if cfg.Brand != BrandLark {
-		t.Errorf("Brand = %q, want %q (normalized at ingress)", cfg.Brand, BrandLark)
+	if cfg.Brand != brand.Lark {
+		t.Errorf("Brand = %q, want %q (normalized at ingress)", cfg.Brand, brand.Lark)
 	}
 }

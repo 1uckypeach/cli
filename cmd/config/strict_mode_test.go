@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 )
@@ -19,7 +20,7 @@ func setupStrictModeTestConfig(t *testing.T) {
 		Apps: []core.AppConfig{{
 			AppId:     "test-app",
 			AppSecret: core.PlainSecret("secret"),
-			Brand:     core.BrandFeishu,
+			Brand:     brand.Feishu,
 		}},
 	}
 	if err := core.SaveMultiAppConfig(multi); err != nil {
@@ -111,7 +112,7 @@ func TestStrictMode_SetGlobal_DoesNotRequireActiveProfile(t *testing.T) {
 			Name:      "default",
 			AppId:     "test-app",
 			AppSecret: core.PlainSecret("secret"),
-			Brand:     core.BrandFeishu,
+			Brand:     brand.Feishu,
 		}},
 	}
 	if err := core.SaveMultiAppConfig(multi); err != nil {

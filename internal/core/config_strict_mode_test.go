@@ -6,12 +6,14 @@ package core
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/larksuite/cli/brand"
 )
 
 func TestMultiAppConfig_StrictMode_JSON(t *testing.T) {
 	// StrictMode="" should be omitted (omitempty)
 	m := &MultiAppConfig{
-		Apps: []AppConfig{{AppId: "a", AppSecret: PlainSecret("s"), Brand: BrandFeishu, Users: []AppUser{}}},
+		Apps: []AppConfig{{AppId: "a", AppSecret: PlainSecret("s"), Brand: brand.Feishu, Users: []AppUser{}}},
 	}
 	data, _ := json.Marshal(m)
 	if string(data) != `{"apps":[{"appId":"a","appSecret":"s","brand":"feishu","users":[]}]}` {
@@ -30,7 +32,7 @@ func TestMultiAppConfig_StrictMode_JSON(t *testing.T) {
 
 func TestAppConfig_StrictMode_JSON(t *testing.T) {
 	// StrictMode nil should be omitted
-	app := &AppConfig{AppId: "a", AppSecret: PlainSecret("s"), Brand: BrandFeishu, Users: []AppUser{}}
+	app := &AppConfig{AppId: "a", AppSecret: PlainSecret("s"), Brand: brand.Feishu, Users: []AppUser{}}
 	data, _ := json.Marshal(app)
 	var parsed map[string]interface{}
 	json.Unmarshal(data, &parsed)

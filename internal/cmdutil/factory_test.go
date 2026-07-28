@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/envnames"
 	"github.com/larksuite/cli/errs"
 	extcred "github.com/larksuite/cli/extension/credential"
@@ -195,7 +196,7 @@ func TestCheckIdentity_Unsupported_AutoDetected(t *testing.T) {
 // --- NewAPIClient / NewAPIClientWithConfig tests ---
 
 func TestNewAPIClient(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", Brand: core.BrandLark}
+	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", Brand: brand.Lark}
 	f, _, _, _ := TestFactory(t, cfg)
 
 	ac, err := f.NewAPIClient()
@@ -208,7 +209,7 @@ func TestNewAPIClient(t *testing.T) {
 }
 
 func TestNewAPIClientWithConfig(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", Brand: core.BrandLark}
+	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", Brand: brand.Lark}
 	f, _, _, _ := TestFactory(t, cfg)
 
 	ac, err := f.NewAPIClientWithConfig(cfg)
@@ -227,7 +228,7 @@ func TestNewAPIClientWithConfig(t *testing.T) {
 }
 
 func TestNewAPIClientWithConfig_NilIOStreams(t *testing.T) {
-	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", Brand: core.BrandLark}
+	cfg := &core.CliConfig{AppID: "a", AppSecret: "s", Brand: brand.Lark}
 	f, _, _, _ := TestFactory(t, cfg)
 	f.IOStreams = nil
 

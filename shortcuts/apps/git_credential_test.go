@@ -21,6 +21,7 @@ import (
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -797,7 +798,7 @@ func TestRunGitCredentialHelperActions(t *testing.T) {
 	if !strings.Contains(stderr.String(), "config failed") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
-	cfg = &core.CliConfig{AppID: "cli", AppSecret: "secret", Brand: core.BrandFeishu, UserOpenId: "ou_test"}
+	cfg = &core.CliConfig{AppID: "cli", AppSecret: "secret", Brand: brand.Feishu, UserOpenId: "ou_test"}
 	factory.Config = func() (*core.CliConfig, error) { return cfg, nil }
 	stderr.Reset()
 	if err := runGitCredentialHelper(context.Background(), factory, "app_xxx", "unknown"); err != nil {
@@ -865,13 +866,13 @@ func TestFactoryIssuerBranches(t *testing.T) {
 	}
 
 	factory.Config = func() (*core.CliConfig, error) {
-		return &core.CliConfig{AppID: "cli", AppSecret: "secret", Brand: core.BrandFeishu}, nil
+		return &core.CliConfig{AppID: "cli", AppSecret: "secret", Brand: brand.Feishu}, nil
 	}
 	if _, err := (factoryIssuer{f: factory}).Issue(context.Background(), "app_xxx", gitcred.ProfileContext{}); err == nil {
 		t.Fatal("factory issuer without login returned nil")
 	}
 	factory.Config = func() (*core.CliConfig, error) {
-		return &core.CliConfig{AppID: "cli", AppSecret: "secret", Brand: core.BrandFeishu, UserOpenId: "ou_test"}, nil
+		return &core.CliConfig{AppID: "cli", AppSecret: "secret", Brand: brand.Feishu, UserOpenId: "ou_test"}, nil
 	}
 	factory.LarkClient = func() (*lark.Client, error) { return nil, errors.New("sdk failed") }
 	if _, err := (factoryIssuer{f: factory}).Issue(context.Background(), "app_xxx", gitcred.ProfileContext{}); err == nil {

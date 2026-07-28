@@ -21,6 +21,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -31,13 +32,13 @@ import (
 
 func markdownTestConfig() *core.CliConfig {
 	return &core.CliConfig{
-		AppID: "markdown-test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "markdown-test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 	}
 }
 
 func markdownPermissionTestConfig(userOpenID string) *core.CliConfig {
 	return &core.CliConfig{
-		AppID: "markdown-perm-test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "markdown-perm-test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 		UserOpenId: userOpenID,
 	}
 }

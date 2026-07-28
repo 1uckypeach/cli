@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/core"
 )
 
@@ -15,7 +16,7 @@ func TestNewUATCallOptions(t *testing.T) {
 	cfg := &core.CliConfig{
 		AppID:      "app123",
 		AppSecret:  "secret",
-		Brand:      core.BrandLark,
+		Brand:      brand.Lark,
 		UserOpenId: "ou_test",
 	}
 	errOut := &bytes.Buffer{}
@@ -28,7 +29,7 @@ func TestNewUATCallOptions(t *testing.T) {
 	if opts.AppSecret != "secret" {
 		t.Errorf("AppSecret = %q, want secret", opts.AppSecret)
 	}
-	if opts.Domain != core.BrandLark {
+	if opts.Domain != brand.Lark {
 		t.Errorf("Domain = %q, want lark", opts.Domain)
 	}
 	if opts.UserOpenId != "ou_test" {

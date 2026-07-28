@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -807,7 +808,7 @@ func TestConfigShowRun_WorkspaceField(t *testing.T) {
 		Apps: []core.AppConfig{{
 			AppId:     "cli_local_test",
 			AppSecret: core.PlainSecret("secret"),
-			Brand:     core.BrandFeishu,
+			Brand:     brand.Feishu,
 		}},
 	}
 	if err := core.SaveMultiAppConfig(multi); err != nil {
@@ -1008,8 +1009,8 @@ func TestConfigBindRun_HermesSuccess(t *testing.T) {
 	if multi.Apps[0].AppId != "cli_hermes_abc" {
 		t.Errorf("appId = %q, want %q", multi.Apps[0].AppId, "cli_hermes_abc")
 	}
-	if multi.Apps[0].Brand != core.BrandLark {
-		t.Errorf("brand = %q, want %q", multi.Apps[0].Brand, core.BrandLark)
+	if multi.Apps[0].Brand != brand.Lark {
+		t.Errorf("brand = %q, want %q", multi.Apps[0].Brand, brand.Lark)
 	}
 }
 

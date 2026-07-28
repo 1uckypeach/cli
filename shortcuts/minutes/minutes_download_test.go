@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -72,7 +73,7 @@ func mountAndRun(t *testing.T, s common.Shortcut, args []string, f *cmdutil.Fact
 
 func defaultConfig() *core.CliConfig {
 	return &core.CliConfig{
-		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+		AppID: "test-app", AppSecret: "test-secret", Brand: brand.Feishu,
 		UserOpenId: "ou_testuser",
 	}
 }

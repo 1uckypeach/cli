@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -765,7 +766,7 @@ func slidesTestConfig(t *testing.T, userOpenID string) *core.CliConfig {
 	return &core.CliConfig{
 		AppID:      "test-slides-create-" + suffix,
 		AppSecret:  "secret-slides-create-" + suffix,
-		Brand:      core.BrandFeishu,
+		Brand:      brand.Feishu,
 		UserOpenId: userOpenID,
 	}
 }

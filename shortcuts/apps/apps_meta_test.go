@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
@@ -17,7 +18,7 @@ import (
 
 func newMetaTestRuntime(t *testing.T) (*common.RuntimeContext, *httpmock.Registry) {
 	t.Helper()
-	cfg := &core.CliConfig{Brand: core.BrandFeishu, AppID: "cli_meta_test"}
+	cfg := &core.CliConfig{Brand: brand.Feishu, AppID: "cli_meta_test"}
 	f, _, _, reg := cmdutil.TestFactory(t, cfg)
 	rt := common.TestNewRuntimeContextForAPI(
 		context.Background(),

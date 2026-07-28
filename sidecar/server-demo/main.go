@@ -28,10 +28,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/envnames"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
-	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/vfs"
 	"github.com/larksuite/cli/sidecar"
 )
@@ -120,8 +120,8 @@ func run(ctx context.Context, listen, keyFile, logFile, profile string) error {
 	defer listener.Close()
 
 	allowedHosts := buildAllowedHosts(
-		core.ResolveEndpoints(core.BrandFeishu),
-		core.ResolveEndpoints(core.BrandLark),
+		brand.ResolveEndpoints(brand.Feishu),
+		brand.ResolveEndpoints(brand.Lark),
 	)
 	allowedIDs := buildAllowedIdentities(cfg)
 

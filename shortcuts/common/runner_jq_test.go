@@ -15,6 +15,7 @@ import (
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/brand"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -40,7 +41,7 @@ func newJqTestContext(jqExpr, format string) (*RuntimeContext, *bytes.Buffer, *b
 
 	rctx := &RuntimeContext{
 		ctx:        context.Background(),
-		Config:     &core.CliConfig{Brand: core.BrandFeishu},
+		Config:     &core.CliConfig{Brand: brand.Feishu},
 		Cmd:        cmd,
 		Format:     format,
 		JqExpr:     jqExpr,
@@ -225,7 +226,7 @@ func newTestFactory() *cmdutil.Factory {
 	return &cmdutil.Factory{
 		Config: func() (*core.CliConfig, error) {
 			return &core.CliConfig{
-				AppID: "test", AppSecret: "test", Brand: core.BrandFeishu,
+				AppID: "test", AppSecret: "test", Brand: brand.Feishu,
 			}, nil
 		},
 		LarkClient: func() (*lark.Client, error) {
