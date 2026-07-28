@@ -63,11 +63,13 @@ func New(options Options) *Logger {
 // descriptor and re-run the prune for every line written.
 //
 // SetShared is the single writer and runs once while the command factory is
-// built, which is also the only place that knows the workspace-aware runtime
-// directory. This package cannot resolve that directory itself: internal/core
-// imports internal/keychain, which imports this package, so importing core here
-// would close an import cycle. Untangling that belongs to the internal/core
-// split, after which this indirection can go away.
+// built, which is also the only place that resolves the workspace-aware runtime
+// directory. After the internal/core split, importing internal/workspace here
+// would no longer close a cycle — it is a leaf over internal/vfs — but the
+// indirection stays on purpose: a factory-installed logger follows the detected
+// workspace, while the Shared() fallback below stays on the pre-workspace
+// directory. Resolving the directory in this package would collapse that
+// distinction.
 var (
 	sharedMu        sync.Mutex
 	sharedLog       *Logger

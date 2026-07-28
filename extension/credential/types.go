@@ -18,9 +18,10 @@ const (
 )
 
 // ParseBrand maps a brand string to a Brand, defaulting to BrandFeishu.
-// It lives next to the Brand constants so every credential source resolves the
-// brand the same way; duplicating the rule per provider would let one copy
-// drift when the brand set changes.
+// It forwards to the repository-root brand package so every credential source
+// and the rest of the CLI resolve the brand through one implementation;
+// re-spelling the rule here would let the two copies drift when the brand set
+// changes. It stays exported so SDK callers need not import brand directly.
 func ParseBrand(value string) Brand {
 	return brand.ParseBrand(value)
 }
