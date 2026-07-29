@@ -204,7 +204,7 @@ func installBrandRestrictionGuard(svc *cobra.Command, service string, brand bran
 	walk(svc)
 
 	// --help bypasses RunE, so surface the restriction in Long too.
-	svc.Long = fmt.Sprintf("The %q feature is not yet supported on the %s brandpkg.", service, brand)
+	svc.Long = fmt.Sprintf("The %q feature is not yet supported on the %s brand.", service, brand)
 }
 
 // Sheets backward-compatibility grouping.

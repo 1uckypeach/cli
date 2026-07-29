@@ -51,7 +51,7 @@ type OAuthEndpoints struct {
 	Token               string
 }
 
-// ResolveOAuthEndpoints resolves OAuth endpoint URLs based on brandpkg.
+// ResolveOAuthEndpoints resolves OAuth endpoint URLs based on brand.
 func ResolveOAuthEndpoints(brand brandpkg.Brand) OAuthEndpoints {
 	ep := brandpkg.ResolveEndpoints(brand)
 	return OAuthEndpoints{

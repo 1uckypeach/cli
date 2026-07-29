@@ -104,6 +104,26 @@ func TestBrandGuard_AppsExecutableOnFeishu(t *testing.T) {
 	}
 }
 
+// TestBrandGuard_HelpTextNamesTheBrand covers the surface the tests above cannot
+// reach: --help bypasses RunE, so the restriction is repeated in Long. A
+// package-rename sweep turned the sentence's trailing "brand." into the import
+// alias, and `apps --help` on Lark read "the lark brandpkg." until this pinned
+// the wording. Asserting the whole sentence keeps a substring check from passing
+// on a mangled tail.
+func TestBrandGuard_HelpTextNamesTheBrand(t *testing.T) {
+	program := &cobra.Command{Use: "root"}
+	RegisterShortcuts(program, newFactoryWithBrand(brandpkg.Lark))
+
+	apps := findChild(program, "apps")
+	if apps == nil {
+		t.Fatal("apps should be registered")
+	}
+	want := `The "apps" feature is not yet supported on the lark brand.`
+	if apps.Long != want {
+		t.Errorf("apps help text = %q, want %q", apps.Long, want)
+	}
+}
+
 func TestBrandGuard_DispatchHitsStubViaCobra(t *testing.T) {
 	program := &cobra.Command{Use: "root"}
 	RegisterShortcuts(program, newFactoryWithBrand(brandpkg.Lark))

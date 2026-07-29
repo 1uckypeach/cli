@@ -94,7 +94,7 @@ func TestRequestAppRegistration_UsesFeishuBootstrapAndConfiguredVerificationBran
 // Full Lark routing contract: Lark selects the Lark verification page, while
 // registration bootstraps on Feishu and switches only after the tenant signal.
 // The Lark credential response omits user_info, so the effective domain must
-// still determine the saved brandpkg.
+// still determine the saved brand.
 func TestRegisterAppWithDiscovery_LarkFlowUsesProtocolBootstrap(t *testing.T) {
 	var calls []string
 	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
