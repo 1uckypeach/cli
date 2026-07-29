@@ -142,7 +142,7 @@ CLI arguments are untrusted (they come from AI agents). Call `validate.SafeInput
 - Place in `tests/cli_e2e/dryrun/` or the corresponding domain directory
 - Set env vars `LARKSUITE_CLI_APP_ID`/`APP_SECRET`/`BRAND`, use `--dry-run`, assert method/URL/params
 - No secrets needed — runs on fork PRs
-- Explore correct params with `lark-cli <domain> --help` and `lark-cli schema` first
+- Explore correct params with `lark-cli <domain> --help` (flattened method listing), then `lark-cli <domain> <resource> <method> --help` for params and request body; `lark-cli schema <domain>` / `lark-cli schema <domain>.<resource>.<method>` give the machine-readable index and contract
 
 **Live E2E (required for new flows or behavior changes)**
 - Validates real API round-trips

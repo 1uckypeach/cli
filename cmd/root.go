@@ -31,9 +31,10 @@ import (
 const rootLong = `lark-cli — Lark/Feishu CLI tool.
 
 AGENT QUICKSTART (driving this as an agent? start here):
-    Browse commands:  lark-cli <domain> --help            # +shortcuts (preferred) and raw API resources
+    Browse commands:  lark-cli <domain> --help            # +shortcuts (preferred) and flattened API methods
+    List API methods: lark-cli schema <domain>            # one line per method, machine-readable
     Inspect a call:   lark-cli schema <service>.<resource>.<method>   # params, types, scopes, examples
-    Prefer a +shortcut over the raw API resource when one matches the task.
+    Prefer a +shortcut over the raw API method when one matches the task.
     Risk: each command's --help shows read | write | high-risk-write;
           high-risk-write needs --yes, only after the user confirms.
     On any API call: --jq <expr> filters JSON output, --dry-run previews the request (runs nothing).
