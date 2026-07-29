@@ -81,6 +81,10 @@ func registerServiceWithContext(ctx context.Context, parent *cobra.Command, svc 
 		for _, seg := range ref.ResourcePath {
 			path = append(path, seg)
 			resCmd = ensureChildCommand(resCmd, seg, resourceShort(seg, verbs[strings.Join(path, ".")]))
+			// The domain listing names every method directly, so a resource row
+			// would only duplicate it while naming no method to call. Hiding is
+			// listing-only — `lark-cli im chat.members --help` still resolves.
+			resCmd.Hidden = true
 		}
 		resCmd.AddCommand(buildMethodCommand(ctx, f, newMethodCommandSpec(ref), nil, parent.PersistentFlags()))
 	}

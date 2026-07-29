@@ -7,12 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"sort"
 	"strings"
 
 	"github.com/larksuite/cli/internal/affordance"
 	"github.com/larksuite/cli/internal/cmdmeta"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/meta"
+	"github.com/larksuite/cli/internal/schema"
 	"github.com/spf13/cobra"
 )
 
@@ -39,26 +41,31 @@ func PrepareDomainHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 	if src, _ := cmdmeta.SourceOf(cmd); src != cmdmeta.SourceService && cmdmeta.Domain(cmd) == "" {
 		return false
 	}
-	if !cmd.HasAvailableSubCommands() {
+	// The API surface is counted from the flattened listing, not from the visible
+	// children: the resource commands are hidden, so a child-based check would
+	// find no API side at all — it would drop the routing line below, and for a
+	// domain whose only children are API resources it would skip this rendering
+	// altogether, leaving that domain's methods unlisted anywhere.
+	flat := flattenedAPIMethods(cmd)
+
+	if !cmd.HasAvailableSubCommands() && len(flat) == 0 {
 		return false
 	}
 
-	hasShortcuts, hasResources := false, false
+	hasShortcuts := false
 	for _, c := range cmd.Commands() {
 		if c.Hidden || c.Name() == "help" || c.Name() == "completion" {
 			continue
 		}
 		if strings.HasPrefix(c.Name(), "+") {
 			hasShortcuts = true
-		} else {
-			hasResources = true
 		}
 	}
 
 	var b strings.Builder
 	b.WriteString(domainHelpBase(cmd))
-	if hasShortcuts && hasResources { // routing only matters when both styles exist
-		b.WriteString("\n\nPrefer a +-prefixed shortcut when one matches your task; otherwise use the raw API resource below.")
+	if hasShortcuts && len(flat) > 0 { // routing only matters when both styles exist
+		b.WriteString("\n\nPrefer a +-prefixed shortcut when one matches your task; otherwise use the raw API method below.")
 	}
 	b.WriteString("\n\nRisk levels (read | write | high-risk-write) appear in each command's --help; high-risk-write requires --yes, only after the user confirms.")
 	if skill := "lark-" + cmd.Name(); skillFS != nil {
@@ -66,8 +73,67 @@ func PrepareDomainHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 			fmt.Fprintf(&b, "\n\nDomain guide (concepts, command choice, conventions): lark-cli skills read %s", skill)
 		}
 	}
+	if len(flat) > 0 {
+		b.WriteString("\n\nAPI methods (replace the last dot with a space to run; append --help for params")
+		if hasShortcuts {
+			// cobra's help template renders Long before UsageString, so this
+			// listing physically precedes the +shortcut rows in Available
+			// Commands — the reverse of the preference stated above. The pointer
+			// is positional only: the "prefer a shortcut" judgement is made once
+			// on the boundary line, and restating it here would dilute it.
+			// Omitted when the domain has no shortcuts (nothing to point at).
+			b.WriteString("; +shortcuts are listed under Available Commands below")
+		}
+		b.WriteString("):\n")
+		b.WriteString(strings.Join(flat, "\n"))
+	}
 	cmd.Long = b.String()
 	return true
+}
+
+// flattenedAPIMethods renders one line per Meta API method under the domain:
+// "  <resource>.<method>  <first-sentence description>". The resource
+// intermediate commands are hidden from the listing (they stay invocable), so
+// this flattened block is the domain help's whole Meta API surface — a reader
+// picks a full command path in one hop instead of stopping at a resource row
+// that names no methods. Descriptions run through the same first-sentence and
+// sanitize pipeline as the schema method index, so both surfaces render one
+// method identically.
+func flattenedAPIMethods(domainCmd *cobra.Command) []string {
+	type row struct{ path, desc string }
+	var rows []row
+	var walk func(c *cobra.Command, prefix string)
+	walk = func(c *cobra.Command, prefix string) {
+		for _, ch := range c.Commands() {
+			name := ch.Name()
+			if strings.HasPrefix(name, "+") || name == "help" || name == "completion" {
+				continue
+			}
+			dotted := name
+			if prefix != "" {
+				dotted = prefix + "." + name
+			}
+			if ch.Annotations[schemaPathAnnotation] != "" { // a method leaf
+				rows = append(rows, row{dotted, schema.SanitizeIndexDesc(schema.FirstSentence(ch.Short))})
+				continue
+			}
+			walk(ch, dotted) // a (hidden) resource group
+		}
+	}
+	walk(domainCmd, "")
+	sort.Slice(rows, func(i, j int) bool { return rows[i].path < rows[j].path })
+
+	width := 0
+	for _, r := range rows {
+		if len(r.path) > width { // paths are ASCII; byte length == display width
+			width = len(r.path)
+		}
+	}
+	out := make([]string, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, fmt.Sprintf("  %-*s  %s", width, r.path, r.desc))
+	}
+	return out
 }
 
 // domainHelpBase returns the description to seed domain help with — the
