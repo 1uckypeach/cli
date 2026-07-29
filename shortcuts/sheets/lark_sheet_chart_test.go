@@ -167,8 +167,8 @@ func TestChartSemanticShortcuts_InDedicatedBatch(t *testing.T) {
 	body := parseDryRunBody(t, BatchChartCreate, []string{
 		"--url", testURL,
 		"--operations", `[
-			{"shortcut":"+chart-create-basic","input":{"sheet-id":"sh1","chart-type":"column","data-range":"A1:C10","title":"Sales"}},
-			{"shortcut":"+chart-create-basic","input":{"sheet-id":"sh1","chart-type":"line","data-range":"E1:G10","title":"Trend"}}
+			{"sheet-id":"sh1","chart-type":"column","data-range":"A1:C10","title":"Sales"},
+			{"sheet-id":"sh1","chart-type":"line","data-range":"E1:G10","title":"Trend"}
 		]`,
 	})
 	input := decodeToolInput(t, body, "batch_update")
@@ -188,6 +188,22 @@ func TestChartSemanticShortcuts_InDedicatedBatch(t *testing.T) {
 		if _, ok := chartInput["basic_chart"].(map[string]interface{}); !ok {
 			t.Fatalf("operations[%d].input.basic_chart = %#v", i, chartInput["basic_chart"])
 		}
+	}
+}
+
+func TestBatchChartCreate_LegacyWrappedInputStillAccepted(t *testing.T) {
+	t.Parallel()
+	body := parseDryRunBody(t, BatchChartCreate, []string{
+		"--url", testURL,
+		"--operations", `[{
+			"shortcut":"+chart-create-basic",
+			"input":{"sheet_id":"sh1","chart_type":"line","data_range":"A1:C10"}
+		}]`,
+	})
+	input := decodeToolInput(t, body, "batch_update")
+	ops := input["operations"].([]interface{})
+	if len(ops) != 1 || ops[0].(map[string]interface{})["tool_name"] != "manage_chart_object" {
+		t.Fatalf("legacy wrapped operation was not translated: %#v", ops)
 	}
 }
 
@@ -330,8 +346,7 @@ func TestChartSemanticShortcuts_SingleCustomColorIsExpanded(t *testing.T) {
 	body = parseDryRunBody(t, BatchChartCreate, []string{
 		"--url", testURL,
 		"--operations", `[{
-			"shortcut":"+chart-create-basic",
-			"input":{"sheet_id":"sh1","type":"line","range":"A1:C10","colors":["#445566"]}
+			"sheet_id":"sh1","type":"line","range":"A1:C10","colors":["#445566"]
 		}]`,
 	})
 	input := decodeToolInput(t, body, "batch_update")
@@ -384,8 +399,7 @@ func TestChartCreateBasic_SelectsDimensionsInBatch(t *testing.T) {
 	body := parseDryRunBody(t, BatchChartCreate, []string{
 		"--url", testURL,
 		"--operations", `[{
-			"shortcut":"+chart-create-basic",
-			"input":{"sheet_id":"sh1","chart_type":"line","data_range":"A1:DV7","dim1_index":3,"dim2_indexes":[2,6,8]}
+			"sheet_id":"sh1","chart_type":"line","data_range":"A1:DV7","dim1_index":3,"dim2_indexes":[2,6,8]
 		}]`,
 	})
 	input := decodeToolInput(t, body, "batch_update")
