@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/validate"
@@ -461,31 +462,87 @@ func csvPutWriteRangeFromInput(input map[string]interface{}) (string, bool) {
 // guardCSVValueIsNotFilePath catches the common slip of passing a CSV file path
 // to --csv without the "@" that reads it (e.g. `--csv data.csv` instead of
 // `--csv @data.csv`). Because any string is a valid one-cell CSV, the mistake
-// would otherwise be written silently as the literal text "data.csv". It runs
-// in +csv-put's Validate, after resolveInputFlags — so an @file / stdin value is
-// already its contents (a real CSV blob, never a path) and only a bare value
-// reaches here unchanged. It flags the value only when it actually names an
-// existing file in the cwd subtree; checking real existence (not name shape)
-// means inline content that merely ends in a filename ("see config.json") is
-// never misjudged. Fails open: any Stat error or a directory leaves the value
-// untouched. Scoped to --csv only — no other flag is affected.
+// would otherwise be written silently as the literal text "data.csv" — a wrong
+// value in the sheet plus a success exit code, which costs more than a
+// rejection because nothing surfaces it. It runs in +csv-put's Validate, after
+// resolveInputFlags — so an @file / stdin value is already its contents (a real
+// CSV blob, never a path) and only a bare value reaches here unchanged.
+//
+// Two tiers, because the fix differs:
+//
+//   - the value names an existing file in the cwd subtree → a forgotten "@";
+//   - the file does not exist but the value is unmistakably path-shaped →
+//     usually an absolute path (which "@" rejects) that the caller retried
+//     without the "@", or a stale relative path from another working
+//     directory. Same silent-write outcome, different prescription: stdin.
+//
+// Everything else passes through. Existence alone can't carry tier two, so
+// shape does — but only the narrow shape defined by csvValueLooksLikePath,
+// which is what keeps prose that merely mentions a filename out of it.
+// Fails open: any Stat error or a directory falls through to the shape check.
+// Scoped to --csv only — no other flag is affected.
+//
+// A value that arrived via @file / stdin is skipped entirely
+// (InputResolvedFromSource): its content was already read from the right
+// place and may legitimately look like anything, including a path. That
+// also makes stdin the guard-proof way to write such text verbatim.
 func guardCSVValueIsNotFilePath(runtime *common.RuntimeContext) error {
+	if runtime.InputResolvedFromSource("csv") {
+		return nil
+	}
 	raw := strings.TrimSpace(runtime.Str("csv"))
 	if raw == "" {
 		return nil
 	}
-	fio := runtime.FileIO()
-	if fio == nil {
+	if fio := runtime.FileIO(); fio != nil {
+		info, err := fio.Stat(raw)
+		if err == nil && info != nil && !info.IsDir() {
+			return sheetsValidationForFlag("csv",
+				"--csv value %q is an existing file, not inline CSV; to read it use --csv @%s, or pass the literal text via stdin (--csv -)",
+				raw, raw,
+			)
+		}
+	}
+	if !csvValueLooksLikePath(raw) {
 		return nil
 	}
-	info, err := fio.Stat(raw)
-	if err != nil || info == nil || info.IsDir() {
-		return nil //nolint:nilerr // fail-open: a missing/unreadable path is treated as inline content, not a forgotten @
-	}
 	return sheetsValidationForFlag("csv",
-		"--csv value %q is an existing file, not inline CSV; to read it use --csv @%s, or pass the literal text via stdin (--csv -)",
-		raw, raw,
+		"--csv value %q looks like a file path, not inline CSV, and no such file exists under the current directory",
+		raw,
+	).WithHint(
+		"to read a file: --csv @<path> (relative to the current directory; @ rejects absolute paths, so for one of those pipe the file in instead: --csv - < %s). To write this text into the cell verbatim, pass it on stdin the same way (--csv -); values arriving via stdin or @file skip this check",
+		raw,
 	)
+}
+
+// csvValueLooksLikePath reports whether a --csv value is unmistakably a path
+// rather than CSV content. Deliberately narrow: the guard rejects on it, so a
+// false positive blocks a legitimate write, and an earlier name-shape
+// heuristic was replaced by an existence check precisely because it misjudged
+// prose ("改完记得更新config.json"). Three conditions, all required:
+//
+//	no comma / newline / whitespace  — real CSV has separators, prose has spaces
+//	pure ASCII                       — CJK text is content, never a path here
+//	a .csv/.tsv extension, or an explicit ./ ../ / ~/ prefix
+//
+// The extension-or-prefix rule is what keeps ordinary single-cell values safe:
+// "N/A" contains a slash but neither, and "README.md" is a filename but not a
+// CSV one. A caller who genuinely means such a literal still has stdin.
+func csvValueLooksLikePath(s string) bool {
+	if strings.ContainsAny(s, ", \t\r\n\"") {
+		return false
+	}
+	for _, r := range s {
+		if r > unicode.MaxASCII {
+			return false
+		}
+	}
+	lower := strings.ToLower(s)
+	if strings.HasSuffix(lower, ".csv") || strings.HasSuffix(lower, ".tsv") {
+		return true
+	}
+	return strings.HasPrefix(s, "./") || strings.HasPrefix(s, "../") ||
+		strings.HasPrefix(s, "/") || strings.HasPrefix(s, "~/")
 }
 
 func csvPutInput(runtime flagView, token, sheetID, sheetName string) (map[string]interface{}, error) {
