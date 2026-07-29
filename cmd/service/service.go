@@ -352,8 +352,14 @@ func buildMethodCommand(ctx context.Context, f *cmdutil.Factory, spec methodComm
 	// Build-time Long; the agent guidance is added lazily by PrepareMethodHelp
 	// (setMethodHelpData records the coordinates it needs).
 	paramsOnly := opts.binder.paramsOnlyHelp()
-	cmd.Long = methodLong(m.Description, spec.schemaPath, paramsOnly)
-	setMethodHelpData(cmd, spec.serviceName, m.ID, spec.schemaPath, paramsOnly)
+	// Only methods whose metadata documents body fields get the contract; for a
+	// bare --data escape hatch there is nothing to describe.
+	var body string
+	if spec.declaresBody {
+		body = bodyHelp(m.Data())
+	}
+	cmd.Long = methodLong(m.Description, spec.schemaPath, paramsOnly, body)
+	setMethodHelpData(cmd, spec.serviceName, m.ID, spec.schemaPath, paramsOnly, body)
 
 	// Group flags for the grouped --help renderer (typed param flags are grouped
 	// as API Parameters by the binder). tagFlagGroup is a no-op for flags not

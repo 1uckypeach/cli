@@ -165,9 +165,12 @@ func captureHelpBase(cmd *cobra.Command, key string) string {
 // methodLong is the build-time Long (description + schema pointer +
 // params-only addendum). Agent guidance is added lazily by PrepareMethodHelp,
 // so command construction never parses the overlay.
-func methodLong(description, schemaPath, paramsOnly string) string {
+func methodLong(description, schemaPath, paramsOnly, body string) string {
 	var b strings.Builder
 	b.WriteString(description)
+	if body != "" {
+		b.WriteString("\n\n" + strings.TrimRight(body, "\n"))
+	}
 	fmt.Fprintf(&b, "\n\nFull parameter schema:\n  lark-cli schema %s", schemaPath)
 	b.WriteString(paramsOnly)
 	return b.String()
@@ -178,13 +181,14 @@ func methodLong(description, schemaPath, paramsOnly string) string {
 const (
 	schemaPathAnnotation   = "method-schema-path"
 	paramsOnlyAnnotation   = "method-params-only"
+	bodyHelpAnnotation     = "method-body-help"
 	domainBaseAnnotation   = "affordance-domain-base"
 	shortcutBaseAnnotation = "affordance-shortcut-base"
 )
 
 // setMethodHelpData records the coordinates PrepareMethodHelp needs (storing a
 // few strings is the only build-time cost; the overlay stays untouched).
-func setMethodHelpData(cmd *cobra.Command, service, methodID, schemaPath, paramsOnly string) {
+func setMethodHelpData(cmd *cobra.Command, service, methodID, schemaPath, paramsOnly, body string) {
 	if cmd.Annotations == nil {
 		cmd.Annotations = map[string]string{}
 	}
@@ -192,6 +196,9 @@ func setMethodHelpData(cmd *cobra.Command, service, methodID, schemaPath, params
 	cmd.Annotations[schemaPathAnnotation] = schemaPath
 	if paramsOnly != "" {
 		cmd.Annotations[paramsOnlyAnnotation] = paramsOnly
+	}
+	if body != "" {
+		cmd.Annotations[bodyHelpAnnotation] = body
 	}
 }
 
@@ -227,6 +234,9 @@ func PrepareMethodHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 		}
 	}
 
+	if body := ann[bodyHelpAnnotation]; body != "" {
+		b.WriteString("\n\n" + strings.TrimRight(body, "\n"))
+	}
 	fmt.Fprintf(&b, "\n\nFull parameter schema:\n  lark-cli schema %s", schemaPath)
 	b.WriteString(ann[paramsOnlyAnnotation])
 
