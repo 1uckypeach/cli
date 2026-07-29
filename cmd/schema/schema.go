@@ -13,6 +13,7 @@ import (
 	"github.com/larksuite/cli/internal/apicatalog"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/meta"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/registry"
 	"github.com/larksuite/cli/internal/schema"
@@ -28,6 +29,9 @@ type SchemaOptions struct {
 	// form ("im.messages.reply") or the space-separated form ("im messages
 	// reply"); apicatalog.ParsePath normalizes both.
 	Args []string
+
+	// JqExpr filters the JSON output when non-empty.
+	JqExpr string
 }
 
 // NewCmdSchema creates the schema command. If runF is non-nil it is called instead of schemaRun (test hook).
@@ -83,15 +87,18 @@ func completeSchemaPath(f *cmdutil.Factory) func(*cobra.Command, []string, strin
 func schemaRun(opts *SchemaOptions) error {
 	out := opts.Factory.IOStreams.Out
 	mode := opts.Factory.ResolveStrictMode(opts.Ctx)
-	return runSchema(out, apicatalog.ParsePath(opts.Args), mode)
+	return runSchema(out, apicatalog.ParsePath(opts.Args), mode, opts.JqExpr)
 }
 
-// runSchema resolves the path through the schema catalog and renders the
-// matching envelope(s). The catalog owns navigation (Resolve + MethodRefs) and
-// schema owns rendering (Envelope/Envelopes); this adapter only chooses the
-// output shape — a single resolved method renders as one envelope object,
-// anything broader as an array — and maps resolve failures to hints.
-func runSchema(out io.Writer, parts []string, mode core.StrictMode) error {
+// runSchema resolves the path through the schema catalog and renders the shape
+// matching the target's depth: the whole catalog renders as a service index, a
+// service or resource as a method index, and a single method as the full
+// envelope. The catalog owns navigation (Resolve + MethodRefs) and schema owns
+// rendering; this adapter only chooses the shape and maps resolve failures to
+// hints. There is deliberately no bulk-envelope path — rendering every method's
+// full contract at once exceeds any practical single-response budget, and
+// offline consumers that need the whole contract read the catalog directly.
+func runSchema(out io.Writer, parts []string, mode core.StrictMode, jqExpr string) error {
 	catalog := registry.SchemaCatalog()
 	if len(catalog.Services()) == 0 {
 		// No embedded metadata and the runtime fallback is empty too: offline
@@ -103,18 +110,55 @@ func runSchema(out io.Writer, parts []string, mode core.StrictMode) error {
 	if err != nil {
 		return resolveError(err)
 	}
-	refs := catalog.MethodRefs(target, registry.FilterForStrictMode(mode))
-	if target.Kind == apicatalog.TargetMethod {
-		if len(refs) == 0 {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument,
-				"Method %s not available in current identity mode", target.Method.SchemaPath()).
-				WithHint("strict mode hides methods the active account identity cannot call; it is shown for an identity (user or bot) that has the required access token")
+	filter := registry.FilterForStrictMode(mode)
+
+	switch target.Kind {
+	case apicatalog.TargetAll:
+		return emit(out, jqExpr, schema.BuildServiceIndex(
+			visibleServices(catalog, mode, filter),
+			func(name string) string { return registry.GetServiceDescription(name, "en") },
+		))
+	case apicatalog.TargetService, apicatalog.TargetResource:
+		return emit(out, jqExpr, schema.BuildMethodIndex(parts[0], catalog.MethodRefs(target, filter)))
+	}
+
+	refs := catalog.MethodRefs(target, filter)
+	if len(refs) == 0 {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"Method %s not available in current identity mode", target.Method.SchemaPath()).
+			WithHint("strict mode hides methods the active account identity cannot call; it is shown for an identity (user or bot) that has the required access token")
+	}
+	return emit(out, jqExpr, schema.EnvelopeOf(refs[0]))
+}
+
+// visibleServices lists the services for the service index. Service-level
+// filtering follows strict mode: when it is off (the common case) the listing is
+// unfiltered and needs no per-service metadata walk, matching the unpruned root
+// help; when it is active the listing drops services with no reachable method,
+// matching how the root help is pruned. Filtering unconditionally would make
+// the bare `schema` walk every service; filtering never would make this listing
+// wider than the root help, re-exposing services the command tree hides.
+func visibleServices(catalog apicatalog.Catalog, mode core.StrictMode, filter apicatalog.MethodFilter) []meta.Service {
+	all := catalog.Services()
+	if !mode.IsActive() {
+		return all
+	}
+	out := make([]meta.Service, 0, len(all))
+	for _, svc := range all {
+		if len(apicatalog.ServiceMethods(svc, filter)) > 0 {
+			out = append(out, svc)
 		}
-		output.PrintJson(out, schema.EnvelopeOf(refs[0]))
+	}
+	return out
+}
+
+// emit renders v as JSON, applying the jq expression when present.
+func emit(out io.Writer, jqExpr string, v any) error {
+	if jqExpr == "" {
+		output.PrintJson(out, v)
 		return nil
 	}
-	output.PrintJson(out, schema.Envelopes(refs))
-	return nil
+	return output.JqFilter(out, v, jqExpr)
 }
 
 // resolveError maps a catalog *ResolveError to a typed *errs.ValidationError

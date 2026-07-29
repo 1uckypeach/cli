@@ -12,6 +12,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/registry"
 )
 
 func TestSchemaCmd_FlagParsing(t *testing.T) {
@@ -65,7 +66,7 @@ func TestSchemaCmd_OutputFlagsAcceptedForCompat(t *testing.T) {
 	}
 }
 
-func TestSchemaCmd_NoArgs_JSON_IsArray(t *testing.T) {
+func TestSchemaCmd_NoArgs_RendersServiceIndex(t *testing.T) {
 	f, stdout, _, _ := cmdutil.TestFactory(t, nil)
 
 	cmd := NewCmdSchema(f, nil)
@@ -74,19 +75,32 @@ func TestSchemaCmd_NoArgs_JSON_IsArray(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	out := strings.TrimSpace(stdout.String())
-	if !strings.HasPrefix(out, "[") {
+	// The bare form renders a service index object, not the former array of
+	// every method's full envelope — that shape exceeded any practical
+	// single-response budget.
+	if !strings.HasPrefix(out, "{") {
 		head := out
 		if len(head) > 80 {
 			head = head[:80]
 		}
-		t.Errorf("expected JSON array root, first 80 chars:\n%s", head)
+		t.Errorf("expected JSON object root, first 80 chars:\n%s", head)
 	}
-	var envs []map[string]interface{}
-	if err := json.Unmarshal([]byte(out), &envs); err != nil {
+	var idx struct {
+		Kind     string `json:"kind"`
+		Services []struct {
+			Name string `json:"name"`
+		} `json:"services"`
+	}
+	if err := json.Unmarshal([]byte(out), &idx); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
-	if len(envs) < 193 {
-		t.Errorf("envelopes count = %d, want >= 193", len(envs))
+	if idx.Kind != "service_index" {
+		t.Errorf("kind = %q, want service_index", idx.Kind)
+	}
+	// Every service the catalog knows must be listed — this index is the entry
+	// point for discovering them, so a missing one is unreachable.
+	if want := len(registry.SchemaCatalog().Services()); len(idx.Services) != want {
+		t.Errorf("services count = %d, want %d", len(idx.Services), want)
 	}
 }
 
@@ -136,7 +150,7 @@ func TestSchemaCmd_SpaceSeparatedPath_EqualsDotted(t *testing.T) {
 	}
 }
 
-func TestSchemaCmd_ServiceListIsArray(t *testing.T) {
+func TestSchemaCmd_ServiceRendersMethodIndex(t *testing.T) {
 	f, stdout, _, _ := cmdutil.TestFactory(t, nil)
 
 	cmd := NewCmdSchema(f, nil)
@@ -144,17 +158,26 @@ func TestSchemaCmd_ServiceListIsArray(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	var envs []map[string]interface{}
-	if err := json.Unmarshal(stdout.Bytes(), &envs); err != nil {
+	var idx struct {
+		Kind    string `json:"kind"`
+		Service string `json:"service"`
+		Methods []struct {
+			Path string `json:"path"`
+		} `json:"methods"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &idx); err != nil {
 		t.Fatalf("unmarshal failed: %v\n%s", err, stdout.String())
 	}
-	if len(envs) == 0 {
-		t.Fatal("expected non-empty array for service im")
+	if idx.Kind != "method_index" || idx.Service != "im" {
+		t.Errorf("kind/service = %q/%q, want method_index/im", idx.Kind, idx.Service)
 	}
-	for _, e := range envs {
-		name, _ := e["name"].(string)
-		if !strings.HasPrefix(name, "im ") {
-			t.Errorf("envelope name %q does not start with \"im \"", name)
+	if len(idx.Methods) == 0 {
+		t.Fatal("expected non-empty method index for service im")
+	}
+	// Scoping to one service must not leak another service's methods.
+	for _, m := range idx.Methods {
+		if !strings.HasPrefix(m.Path, "im.") {
+			t.Errorf("method path %q does not start with \"im.\"", m.Path)
 		}
 	}
 }
