@@ -127,6 +127,21 @@ func TestBodyHelp_SkeletonEscapesFieldNames(t *testing.T) {
 	}
 }
 
+// The facts line renders name, type and description from the same upstream
+// document; cleaning only the description would leave the row forgeable through
+// the other two.
+func TestBodyHelp_SanitizesNameAndType(t *testing.T) {
+	got := bodyHelp([]meta.Field{{
+		Name: "na\x1b[31mme", Type: "str\x1b[0ming", Description: "desc",
+	}})
+	if strings.Contains(got, "\x1b") {
+		t.Errorf("facts line must not carry escape sequences, got %q", got)
+	}
+	if !strings.Contains(got, "name") {
+		t.Errorf("sanitized name must survive, got %q", got)
+	}
+}
+
 // bodyHelp has to survive PrepareMethodHelp's lazy Long rebuild — that path
 // recomposes from annotations, so a body section only written at build time
 // would vanish the moment help is actually rendered.

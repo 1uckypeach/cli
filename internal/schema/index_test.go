@@ -37,3 +37,31 @@ func TestSanitizeIndexDesc_StripsControlAndZeroWidth(t *testing.T) {
 		}
 	}
 }
+
+// Text that visually reorders itself can make a listing row read as something
+// other than what it says, so every bidi-control group has to go — not just the
+// embedding/override one.
+func TestSanitizeIndexDesc_StripsAllBidiControls(t *testing.T) {
+	for _, r := range []rune{
+		0x202a, 0x202b, 0x202c, 0x202d, 0x202e, // embedding / override
+		0x2066, 0x2067, 0x2068, 0x2069, // isolates
+		0x061c, // arabic letter mark
+		0x200b, 0x200e, 0x200f, 0xfeff,
+	} {
+		in := "safe" + string(r) + "tail"
+		if got := SanitizeIndexDesc(in); got != "safetail" {
+			t.Errorf("SanitizeIndexDesc(U+%04X) = %q, want %q", r, got, "safetail")
+		}
+	}
+}
+
+// C1 carries a second set of escape introducers (0x9b is CSI), so folding only
+// C0 would leave those usable.
+func TestSanitizeIndexDesc_FoldsC1Controls(t *testing.T) {
+	for _, r := range []rune{0x80, 0x9b, 0x9f} {
+		in := "a" + string(r) + "b"
+		if got := SanitizeIndexDesc(in); got != "a b" {
+			t.Errorf("SanitizeIndexDesc(U+%04X) = %q, want %q", r, got, "a b")
+		}
+	}
+}

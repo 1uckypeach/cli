@@ -121,8 +121,12 @@ func FirstSentence(s string) string {
 }
 
 var (
-	ansiRe      = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
-	zeroWidthRe = regexp.MustCompile(`[\x{200b}-\x{200f}\x{2028}\x{2029}\x{feff}\x{202a}-\x{202e}]`)
+	ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+	// Zero-width and bidirectional-control characters. The bidi set covers both
+	// the embedding/override controls (202a-202e) and the isolates (2066-2069,
+	// 061c) — reordering text visually needs only one of the two groups, so
+	// covering one without the other would leave the same trick available.
+	zeroWidthRe = regexp.MustCompile(`[\x{200b}-\x{200f}\x{2028}\x{2029}\x{feff}\x{202a}-\x{202e}\x{2066}-\x{2069}\x{061c}]`)
 )
 
 // SanitizeIndexDesc is the rendering-side defence in depth for upstream
@@ -139,7 +143,9 @@ func SanitizeIndexDesc(s string) string {
 	s = zeroWidthRe.ReplaceAllString(s, "")
 	var b strings.Builder
 	for _, r := range s {
-		if r == 0x7f || r < 0x20 {
+		// C0 (incl. DEL) and C1: C1 carries a second set of escape introducers,
+		// so folding only C0 would let those through.
+		if r == 0x7f || r < 0x20 || (r >= 0x80 && r <= 0x9f) {
 			b.WriteRune(' ')
 			continue
 		}

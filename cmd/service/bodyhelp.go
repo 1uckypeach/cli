@@ -45,7 +45,11 @@ func writeFieldLine(b *strings.Builder, f meta.Field, indent string) {
 	if f.Required {
 		req = "required"
 	}
-	line := fmt.Sprintf("%s%s  (%s, %s)", indent, f.Name, req, f.CanonicalType())
+	// Name and type come from the same upstream document as the description, so
+	// they get the same sanitizing — a facts line that cleaned only one of the
+	// three would still be forgeable through the others.
+	line := fmt.Sprintf("%s%s  (%s, %s)", indent,
+		schema.SanitizeIndexDesc(f.Name), req, schema.SanitizeIndexDesc(f.CanonicalType()))
 	if d := schema.SanitizeIndexDesc(schema.FirstSentence(f.Description)); d != "" {
 		line += "  " + d
 	}
