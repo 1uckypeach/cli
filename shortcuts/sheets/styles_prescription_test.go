@@ -43,6 +43,50 @@ func TestTablePut_StylesErrorsAggregate(t *testing.T) {
 	}
 }
 
+// TestTablePut_StylesFieldPrescriptions pins the curated fixes for the
+// high-frequency unsupported cell_styles field names, and the near-typo
+// guard on the did-you-mean fallback (07-28 root-cause report #14/#21/#27:
+// font_bold used to draw "did you mean font_color?" and nested font drew
+// "font_line" — concept-swap neighbors that mislead worse than silence).
+func TestTablePut_StylesFieldPrescriptions(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name       string
+		field      string // JSON fragment inside the cell_styles item
+		want       []string
+		notSuggest []string // must NOT appear as a did-you-mean
+	}{
+		{"bold", `"bold":true`, []string{`font_weight:"bold"`}, nil},
+		{"font_bold", `"font_bold":true`, []string{`font_weight:"bold"`}, []string{"font_color"}},
+		{"text_align", `"text_align":"center"`, []string{"horizontal_alignment"}, nil},
+		{"nested font", `"font":{"bold":true,"size":18}`, []string{"flat font_*", `font_weight:"bold"`}, []string{"font_line"}},
+		{"near-typo still suggests", `"font_colour":"#FFF"`, []string{`did you mean "font_color"`}, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			sc := shortcutFromRegistry(t, "+table-put")
+			_, _, err := runShortcutCapturingErr(t, sc, []string{
+				"--url", testURL,
+				"--sheets", `{"sheets":[{"name":"s","columns":["a"],"data":[["x"]]}]}`,
+				"--styles", `{"styles":[{"name":"s","cell_styles":[{"range":"A1:A1",` + tc.field + `}]}]}`,
+				"--dry-run",
+			})
+			ve := requireValidation(t, err, "is not a supported style field")
+			for _, want := range tc.want {
+				if !strings.Contains(ve.Message, want) {
+					t.Errorf("message should contain %q, got %q", want, ve.Message)
+				}
+			}
+			for _, bad := range tc.notSuggest {
+				if strings.Contains(ve.Message, `did you mean "`+bad+`"`) {
+					t.Errorf("message must not suggest %q, got %q", bad, ve.Message)
+				}
+			}
+		})
+	}
+}
+
 // TestTablePut_StylesBorderAllExpands verifies the "all" shorthand is
 // rewritten to four explicit sides instead of being rejected (or worse,
 // passed through for the server to reject, as happened on the typed-cells
@@ -177,6 +221,59 @@ func TestCellsSetStyle_WordWrapBooleanNormalizes(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "auto-wrap") {
 		t.Errorf("dry-run body should carry auto-wrap, got %q", stdout)
+	}
+}
+
+// TestCellsSetStyle_WordWrapGoogleVocabularyNormalizes pins the Google
+// Sheets wrapStrategy words (WRAP / CLIP) onto the Lark enum — the flag
+// name --wrap-strategy already prescribes --word-wrap, so the value
+// vocabulary has to land too or the retry fails a second time.
+func TestCellsSetStyle_WordWrapGoogleVocabularyNormalizes(t *testing.T) {
+	t.Parallel()
+	for word, want := range map[string]string{"wrap": "auto-wrap", "WRAP": "auto-wrap", "clip": "word-clip"} {
+		t.Run(word, func(t *testing.T) {
+			t.Parallel()
+			sc := shortcutFromRegistry(t, "+cells-set-style")
+			stdout, _, err := runShortcutCapturingErr(t, sc, []string{
+				"--url", testURL,
+				"--sheet-name", "s",
+				"--range", "A1:A1",
+				"--word-wrap", word,
+				"--dry-run",
+			})
+			if err != nil {
+				t.Fatalf("--word-wrap %s should normalize to %s, got: %v", word, want, err)
+			}
+			if !strings.Contains(stdout, want) {
+				t.Errorf("dry-run body should carry %s, got %q", want, stdout)
+			}
+		})
+	}
+}
+
+// TestCellsSetStyle_BorderWeightNumberNamesEnum pins the enum-over-skeleton
+// rule: a type mismatch on an enum-bearing field answers with the allowed
+// values, not a whole-payload skeleton ({"bottom": {…}, "left": {…}, …}
+// told the caller nothing about thin/medium/thick — 07-28 root-cause
+// report #5, 75 occurrences).
+func TestCellsSetStyle_BorderWeightNumberNamesEnum(t *testing.T) {
+	t.Parallel()
+	sc := shortcutFromRegistry(t, "+cells-set-style")
+	_, _, err := runShortcutCapturingErr(t, sc, []string{
+		"--url", testURL,
+		"--sheet-name", "s",
+		"--range", "A1",
+		"--border-styles", `{"top":{"style":"solid","weight":1}}`,
+		"--dry-run",
+	})
+	ve := requireValidation(t, err, `expected type "string", got "number"`)
+	for _, want := range []string{`"thin"`, `"medium"`, `"thick"`} {
+		if !strings.Contains(ve.Message, want) {
+			t.Errorf("message should name the weight enum %s, got %q", want, ve.Message)
+		}
+	}
+	if strings.Contains(ve.Message, "expected shape:") {
+		t.Errorf("enum-bearing mismatch should not fall back to the shape skeleton, got %q", ve.Message)
 	}
 }
 

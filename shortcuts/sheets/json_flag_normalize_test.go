@@ -117,6 +117,90 @@ func TestCellsSet_LoneCellObjectAutoWraps(t *testing.T) {
 	}
 }
 
+// TestCellsSetStyle_BorderWeightWordInStyleNormalizes pins the reachability
+// fix for the border acceptance layer on the --border-styles flag path: the
+// eval-trace failure shape ({"style":"thin"} — 07-28 root-cause report #2,
+// 173 occurrences) must normalize to style:solid + weight:thin BEFORE the
+// schema enum check, instead of dying on `value "thin" is not in enum`.
+func TestCellsSetStyle_BorderWeightWordInStyleNormalizes(t *testing.T) {
+	t.Parallel()
+	sc := shortcutFromRegistry(t, "+cells-set-style")
+
+	t.Run("full nested form with weight word in style", func(t *testing.T) {
+		t.Parallel()
+		stdout, _, err := runShortcutCapturingErr(t, sc, []string{
+			"--url", testURL,
+			"--sheet-name", "s",
+			"--range", "A1:B2",
+			"--border-styles", `{"top":{"style":"thin","color":"#B4B4B4"},"bottom":{"style":"thin","color":"#B4B4B4"}}`,
+			"--dry-run",
+		})
+		if err != nil {
+			t.Fatalf("weight word in style slot should normalize, got: %v", err)
+		}
+		for _, want := range []string{`"style": "solid"`, `"weight": "thin"`} {
+			if !strings.Contains(stdout, want) {
+				t.Errorf("dry-run body should carry %s, got %q", want, stdout)
+			}
+		}
+	})
+
+	t.Run("all shorthand with weight word in style", func(t *testing.T) {
+		t.Parallel()
+		stdout, _, err := runShortcutCapturingErr(t, sc, []string{
+			"--url", testURL,
+			"--sheet-name", "s",
+			"--range", "A1",
+			"--border-styles", `{"all":{"style":"medium","color":"#000000"}}`,
+			"--dry-run",
+		})
+		if err != nil {
+			t.Fatalf("all shorthand + weight word should normalize, got: %v", err)
+		}
+		for _, want := range []string{`"top"`, `"bottom"`, `"weight": "medium"`, `"style": "solid"`} {
+			if !strings.Contains(stdout, want) {
+				t.Errorf("dry-run body should carry %s, got %q", want, stdout)
+			}
+		}
+	})
+
+	t.Run("explicit conflicting weight keeps the enum error", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := runShortcutCapturingErr(t, sc, []string{
+			"--url", testURL,
+			"--sheet-name", "s",
+			"--range", "A1",
+			"--border-styles", `{"top":{"style":"thin","weight":"thick"}}`,
+			"--dry-run",
+		})
+		requireValidation(t, err, "not in enum")
+	})
+}
+
+// TestCellsSet_BorderWeightWordInStyleNormalizes pins the same reachability
+// fix on the typed --cells carrier (07-28 root-cause report #10, 58
+// occurrences): border_styles inside a cell object normalizes before the
+// enum check.
+func TestCellsSet_BorderWeightWordInStyleNormalizes(t *testing.T) {
+	t.Parallel()
+	sc := shortcutFromRegistry(t, "+cells-set")
+	stdout, _, err := runShortcutCapturingErr(t, sc, []string{
+		"--url", testURL,
+		"--sheet-name", "s",
+		"--range", "A1",
+		"--cells", `[[{"value":"x","border_styles":{"top":{"style":"thin","color":"#000000"}}}]]`,
+		"--dry-run",
+	})
+	if err != nil {
+		t.Fatalf("weight word in style slot should normalize on --cells, got: %v", err)
+	}
+	for _, want := range []string{`"style": "solid"`, `"weight": "thin"`} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("dry-run body should carry %s, got %q", want, stdout)
+		}
+	}
+}
+
 // TestTablePut_SheetsDecodeHints pins the two decode-failure prescriptions:
 // wrong JSON kind inlines the expected shape; mangled JSON steers to
 // stdin/@file.
@@ -136,6 +220,25 @@ func TestTablePut_SheetsDecodeHints(t *testing.T) {
 			if !strings.Contains(ve.Hint, want) {
 				t.Errorf("hint should contain %q, got %q", want, ve.Hint)
 			}
+		}
+	})
+
+	t.Run("bare array names the missing envelope", func(t *testing.T) {
+		t.Parallel()
+		sc := shortcutFromRegistry(t, "+table-put")
+		_, _, err := runShortcutCapturingErr(t, sc, []string{
+			"--url", testURL,
+			"--sheets", `[{"name":"s","columns":["a"],"data":[["x"]]}]`,
+			"--dry-run",
+		})
+		// The Go unmarshal text names the internal struct, not the fix
+		// (07-28 root-cause report #4, 84 occurrences).
+		ve := requireValidation(t, err, `top level must be the object {"sheets":[…]}`)
+		if strings.Contains(ve.Message, "cannot unmarshal") {
+			t.Errorf("message should not leak the Go unmarshal wording, got %q", ve.Message)
+		}
+		if !strings.Contains(ve.Hint, "expected shape:") {
+			t.Errorf("hint should still inline the skeleton, got %q", ve.Hint)
 		}
 	})
 

@@ -385,6 +385,23 @@ func TestShortcuts_IntuitiveFlagAliases(t *testing.T) {
 		}
 	})
 
+	t.Run("sheet-rename --new-name parses as --title", func(t *testing.T) {
+		t.Parallel()
+		sc := shortcutFromRegistry(t, "+sheet-rename")
+		stdout, _, err := runShortcutCapturingErr(t, sc, []string{
+			"--url", testURL,
+			"--sheet-name", "s",
+			"--new-name", "授权需求清单",
+			"--dry-run",
+		})
+		if err != nil {
+			t.Fatalf("--new-name should alias to --title and pass, got: %v", err)
+		}
+		if !strings.Contains(stdout, "授权需求清单") {
+			t.Errorf("dry-run body should carry the aliased title, got %q", stdout)
+		}
+	})
+
 	t.Run("range-fill --source/--target parse as ranges", func(t *testing.T) {
 		t.Parallel()
 		sc := shortcutFromRegistry(t, "+range-fill")
@@ -534,6 +551,54 @@ func TestShortcuts_IntuitiveFlagHints(t *testing.T) {
 			wrong:    "--show-labels",
 			wantHint: []string{"--data-labels value", "none"},
 		},
+		{
+			command:  "+cells-set",
+			args:     []string{"--url", testURL, "--sheet-name", "s", "--range", "A1", "--values", `[["x"]]`},
+			wrong:    "--values",
+			wantHint: []string{"--cells", "+workbook-create"},
+		},
+		{
+			command:  "+dim-freeze",
+			args:     []string{"--url", testURL, "--sheet-name", "s", "--frozen-row-count", "1"},
+			wrong:    "--frozen-row-count",
+			wantHint: []string{"--dimension row --count N"},
+		},
+		{
+			command:  "+cells-set-style",
+			args:     []string{"--url", testURL, "--sheet-name", "s", "--range", "A1", "--font-bold", "true"},
+			wrong:    "--font-bold",
+			wantHint: []string{"--font-weight bold"},
+		},
+		{
+			command:  "+cells-set-style",
+			args:     []string{"--url", testURL, "--sheet-name", "s", "--range", "A1", "--bg-color", "#FFF"},
+			wrong:    "--bg-color",
+			wantHint: []string{"--background-color"},
+		},
+		{
+			command:  "+cells-set-style",
+			args:     []string{"--url", testURL, "--sheet-name", "s", "--range", "A1", "--wrap-strategy", "overflow"},
+			wrong:    "--wrap-strategy",
+			wantHint: []string{"--word-wrap"},
+		},
+		{
+			command:  "+cells-set-style",
+			args:     []string{"--url", testURL, "--sheet-name", "s", "--range", "A1", "--border-all", "thin"},
+			wrong:    "--border-all",
+			wantHint: []string{"--border-styles", `"all"`},
+		},
+		{
+			command:  "+cells-set-style",
+			args:     []string{"--url", testURL, "--sheet-name", "s", "--range", "A1", "--border-top", "thin"},
+			wrong:    "--border-top",
+			wantHint: []string{"--border-styles", `"top"`},
+		},
+		{
+			command:  "+cells-set-style",
+			args:     []string{"--url", testURL, "--sheet-name", "s", "--range", "A1", "--border-color", "#000"},
+			wrong:    "--border-color",
+			wantHint: []string{"--border-styles", "color"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.command+" "+tc.wrong, func(t *testing.T) {
@@ -544,6 +609,14 @@ func TestShortcuts_IntuitiveFlagHints(t *testing.T) {
 			for _, want := range tc.wantHint {
 				if !strings.Contains(ve.Hint, want) {
 					t.Errorf("hint should contain %q, got %q", want, ve.Hint)
+				}
+			}
+			// A curated prescription must not ship contradicting edit-distance
+			// candidates (--font-bold used to carry --font-color/--font-line/
+			// --font-size in params while the fix is --font-weight).
+			for _, p := range ve.Params {
+				if len(p.Suggestions) > 0 {
+					t.Errorf("curated prescription should drop edit-distance suggestions, got %v", p.Suggestions)
 				}
 			}
 		})

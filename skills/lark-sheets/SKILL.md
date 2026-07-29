@@ -1,6 +1,6 @@
 ---
 name: lark-sheets
-version: 3.1.0
+version: 3.1.1
 description: "飞书电子表格：创建和操作电子表格。支持创建表格、管理工作表与行列结构（增删/合并/调整尺寸/隐藏/冻结）、读写单元格（值/公式/样式/批注/单元格图片）、查找替换、多操作原子批量更新，以及图表、透视表、条件格式、筛选器、迷你图、浮动图片等对象的创建与维护。当用户需要创建电子表格、管理工作表、批量读写或编辑数据、统计汇总与可视化、表格美化、公式计算（含 Excel 公式迁移）、金融/财务建模（DCF、三张表、预算、Sensitivity 等）等任务时使用。若用户是想按名称或关键词搜索云空间（云盘/云存储）里的表格文件，请改用 lark-drive 的 drive +search 先定位资源。当用户给出 doubao.com 的 /sheets/ URL/token 时，也应直接使用本 skill，不要因为域名不是飞书而回退到 WebFetch；路由依据是 URL 路径模式和 token，而不是域名。"
 metadata:
   requires:
@@ -41,7 +41,7 @@ metadata:
 9. **全量处理前置断言条数**：翻译 / 打标 / 批量公式落地等逐条任务，先把预期条数硬编码再 `assert actual == expected`，禁止输出"已完成前 N 条，剩余继续"的半成品。
 10. **缺失值不编造**：补齐 / 扩展 / 按原表格式续填时，查不到或无法确定的值一律留空 + 备注注明（"暂未发布 / 未知 / 待核实"），禁止用推算值 / 估算值 / 凭空数据充数；原表若已示范缺失值写法（空值 + 备注），照抄该约定。宁可留空标注，不填不可靠的数。
 
-> 端到端工作流：了解结构（`+workbook-info`）→ 读数据 → 理解语义 → 原生工具优先 → 写入 → 回读验证；实操展开见下方「执行要点」。
+> 端到端工作流：了解结构（`scripts/lark_inspect_workbook.py` / `+workbook-info`）→ 读数据 → 理解语义 → 原生工具优先 → 写入 → 回读验证；实操展开见下方「执行要点」。
 
 ## 场景 → 命令速查（拿不准命令名先查这里，别按直觉拼）
 
@@ -104,8 +104,8 @@ lark-cli sheets +sheet-copy --url <U> --sheet-name 源表名 --title 副本名  
 
 | 用户需求 | 读取路径 |
 |---|---|
-| "完善 / 补齐 / 修正所有 XX"、分析 / 清洗 / 大数据 | 原生优先（公式 / `+pivot` / `+filter`）；表达不了再分批 `+csv-get` 导出 + 脚本处理 + 分批回写（默认覆盖所有对应数据行） |
-| "查一下 / 统计 / 汇总"等只读 | `+csv-get` 读到上下文 |
+| "完善 / 补齐 / 修正所有 XX"、分析 / 清洗 / 大数据 | 先 `scripts/lark_profile_table.py` 确认目标区域与字段画像，再原生优先（公式 / `+pivot` / `+filter`）；表达不了再分批 `+csv-get` 导出 + 脚本处理 + 分批回写（默认覆盖所有对应数据行） |
+| "查一下 / 统计 / 汇总"等只读 | 小表 `+csv-get` 读到上下文；大表先 `+workbook-info` + 小窗口 `+csv-get` 定边界，再对未截断窗口跑 `scripts/lark_detect_subtables.py` / `scripts/lark_profile_table.py` |
 | 需要公式 / 样式 / 批注 | `+cells-get` |
 | 续写 / 扩展已有内容 | `+csv-get` 看结构 + `+cells-get` 读源区样式 + `+sheet-info --include row_heights,merges`（见准则 5） |
 
@@ -127,6 +127,7 @@ lark-cli sheets +sheet-copy --url <U> --sheet-name 源表名 --title 副本名  
 ### 用脚本配合 CLI 时
 
 - **只读 stdout**：CLI 数据走 stdout、诊断走 stderr；解析 JSON 别 `2>&1`（警告混入会解析失败），用管道或单独重定向 stdout。
+- **读表理解优先用 `scripts/lark_*.py`**：`lark_inspect_workbook.py` / `lark_detect_subtables.py` / `lark_profile_table.py` 是只读脚本，用来把在线表格整理成结构摘要。它们不替代写入类 shortcut；确认目标区域后，写入仍按对应 reference 执行。
 - **喂 CLI 的 CSV / JSON 用 UTF-8 无 BOM**；临时文件放系统临时目录、勿落项目目录。
 - **命令失败先读 stderr 再调整**，别原样重发。
 - **回写纯单元格值**：剥离 `值(V-Align: bottom)` 这类"值(样式)"串与残留引号再写；排序优先 `+range-sort` 原生工具，别"读出本地排完再整列写回"。
@@ -136,7 +137,7 @@ lark-cli sheets +sheet-copy --url <U> --sheet-name 源表名 --title 副本名  
 - **`+dim-insert` 不继承行高**：只继承值 / 公式 / 边框；插行填长文本前读相邻行 `row_height`，用 `+batch-update` 合 `+rows-resize` 补齐。
 - **公式容错**：日期 / 查找 / 转换公式用 `IFERROR` 包裹；写完查首末各 5 行错误码，再跑 `+formula-verify` 到 `status='success'`；同一方案试错上限 3 次。
 - **循环引用**：聚合公式引用范围不能含目标 cell 自身或其传递依赖。
-- **隐藏行列**：`+csv-get` 默认含隐藏行列；`--skip-hidden=true` 只看可见，但返回行序号与实际行号不再对应。
+- **隐藏行列**：`+csv-get` 默认含隐藏行列；`--skip-hidden=true` 只看可见，真实行号会跳空——禁止按返回数组下标推导行号，用 `annotated_csv` 的 `[row=N]` 或 `row_indices`。
 - **跨 sheet 对象**：图表 / 条件格式 / 透视表 / 浮动图片可能分布在多个子表，先 `+workbook-info` 掌握全局。
 - **NLP 任务分批**：语义理解 / 翻译 / 打标用 NLP 处理（代码只做分批 / 行号映射 / 写回）；大数据量分批（约 30 行 / 批）即时写回，多批用 `+batch-update`。
 
