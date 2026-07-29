@@ -303,7 +303,7 @@ func collectBuildConstraints(t *testing.T, root string) []buildConstraintGroup {
 			return err
 		}
 		if entry.IsDir() {
-			if skipBuildConstraintDir(entry.Name()) {
+			if skipLayeringScopeDir(root, path, entry.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -355,11 +355,23 @@ func collectBuildConstraints(t *testing.T, root string) []buildConstraintGroup {
 	return groups
 }
 
-// skipBuildConstraintDir reports directories the Go tool never builds from, so
-// files under them are not expected in any graph.
-func skipBuildConstraintDir(name string) bool {
-	return name == ".git" || name == "node_modules" || name == "testdata" ||
-		strings.HasPrefix(name, "_")
+// skipLayeringScopeDir reports directories outside the scope the constraint walk
+// and the file-selection walk share: what `go list ./...` builds for this
+// module.
+//
+// One predicate rather than two, because the two walks feed each other. The
+// constraints found by one become the configurations the other is measured
+// against, so a directory in scope for one and out of scope for the other is a
+// contradiction: a constraint in a nested module would add a configuration whose
+// only justification is a file that module walk never requires to be selected.
+func skipLayeringScopeDir(root, path, name string) bool {
+	// Directories the Go tool never builds from.
+	if name == ".git" || name == "node_modules" || name == "testdata" || strings.HasPrefix(name, "_") {
+		return true
+	}
+	// Nested modules: `go list ./...` stops at them, and the rules are written
+	// against this module's import paths.
+	return path != root && isModuleRoot(path)
 }
 
 // isModuleRoot reports whether dir declares its own module.
@@ -1350,6 +1362,36 @@ func TestBuildConstraintLineStopsAtThePackageClause(t *testing.T) {
 	}
 }
 
+// TestLayeringScopeStopsAtNestedModules pins the scope both walks share. When
+// only the file walk skipped nested modules, a compound tag added under lint/
+// produced a configuration for this module's sweep — seven more `go list` runs
+// selecting nothing here, and a failing configuration list — over a file the
+// file walk never asked anyone to select.
+func TestLayeringScopeStopsAtNestedModules(t *testing.T) {
+	root := t.TempDir()
+	nested := filepath.Join(root, "lint")
+	if err := vfs.MkdirAll(nested, 0o700); err != nil {
+		t.Fatalf("create nested module dir: %v", err)
+	}
+	if err := vfs.WriteFile(filepath.Join(nested, "go.mod"), []byte("module example.com/lint\n"), 0o600); err != nil {
+		t.Fatalf("write nested go.mod: %v", err)
+	}
+	plain := filepath.Join(root, "internal")
+	if err := vfs.MkdirAll(plain, 0o700); err != nil {
+		t.Fatalf("create package dir: %v", err)
+	}
+
+	if !skipLayeringScopeDir(root, nested, "lint") {
+		t.Error("a nested module must be out of scope for both walks")
+	}
+	if skipLayeringScopeDir(root, plain, "internal") {
+		t.Error("a plain package directory must stay in scope")
+	}
+	if skipLayeringScopeDir(root, root, filepath.Base(root)) {
+		t.Error("the module root declares this module and must stay in scope")
+	}
+}
+
 func mustParseConstraint(t *testing.T, line string) constraint.Expr {
 	t.Helper()
 	expr, err := constraint.Parse(line)
@@ -1398,10 +1440,7 @@ func moduleGoFiles(t *testing.T, root string) []string {
 			return err
 		}
 		if entry.IsDir() {
-			if skipBuildConstraintDir(entry.Name()) {
-				return filepath.SkipDir
-			}
-			if path != root && isModuleRoot(path) {
+			if skipLayeringScopeDir(root, path, entry.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
