@@ -1253,3 +1253,66 @@ func TestServiceMethod_JsonFlag_Accepted(t *testing.T) {
 		t.Fatal("expected runF to be called")
 	}
 }
+
+func TestResourceShort_UsesCatalogDescriptionWhenPresent(t *testing.T) {
+	if got, want := resourceShort("chat.members", []string{"get", "create"}, "Group member management"),
+		"Group member management"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	// Absent description: byte-identical to the verb-list rendering.
+	if got, want := resourceShort("chat.members", []string{"get", "create"}, ""), "create, get"; got != want {
+		t.Errorf("fallback: got %q, want %q", got, want)
+	}
+	// An intermediate group with neither description nor methods.
+	if got, want := resourceShort("chat", nil, ""), "chat operations"; got != want {
+		t.Errorf("placeholder: got %q, want %q", got, want)
+	}
+	// Descriptions are upstream text, so they go through the same sanitizing as
+	// every other rendered description.
+	if got := resourceShort("chat.members", nil, "a\x1b[31mred\ttail"); got != "ared tail" {
+		t.Errorf("description must be sanitized, got %q", got)
+	}
+}
+
+// The description has to reach the resource command from the catalog, not just
+// be accepted by resourceShort: the field is optional and absent from today's
+// metadata, so the wiring is what makes it usable once upstream adds it.
+func TestRegisterService_ResourceDescriptionReachesCommand(t *testing.T) {
+	parent := &cobra.Command{Use: "root"}
+	f := &cmdutil.Factory{}
+	svc := meta.ServiceFromMap(map[string]interface{}{
+		"name":        "im",
+		"description": "Messaging API",
+		"servicePath": "/open-apis/im/v1",
+		"resources": map[string]interface{}{
+			"chat.members": map[string]interface{}{
+				"description": "Group member management",
+				"methods": map[string]interface{}{
+					"get": map[string]interface{}{"description": "List members", "httpMethod": "GET"},
+				},
+			},
+			"messages": map[string]interface{}{
+				"methods": map[string]interface{}{
+					"list": map[string]interface{}{"description": "List messages", "httpMethod": "GET"},
+				},
+			},
+		},
+	})
+	registerService(parent, svc, f)
+
+	withDesc, _, err := parent.Find([]string{"im", "chat.members"})
+	if err != nil {
+		t.Fatalf("chat.members not registered: %v", err)
+	}
+	if withDesc.Short != "Group member management" {
+		t.Errorf("resource Short = %q, want the catalog description", withDesc.Short)
+	}
+	// A resource without the field keeps the verb-list rendering unchanged.
+	noDesc, _, err := parent.Find([]string{"im", "messages"})
+	if err != nil {
+		t.Fatalf("messages not registered: %v", err)
+	}
+	if noDesc.Short != "list" {
+		t.Errorf("resource without description = %q, want the verb list %q", noDesc.Short, "list")
+	}
+}

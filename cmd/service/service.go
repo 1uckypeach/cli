@@ -22,6 +22,7 @@ import (
 	"github.com/larksuite/cli/internal/meta"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/registry"
+	"github.com/larksuite/cli/internal/schema"
 	"github.com/larksuite/cli/internal/validate"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	"github.com/spf13/cobra"
@@ -80,7 +81,8 @@ func registerServiceWithContext(ctx context.Context, parent *cobra.Command, svc 
 		var path []string
 		for _, seg := range ref.ResourcePath {
 			path = append(path, seg)
-			resCmd = ensureChildCommand(resCmd, seg, resourceShort(seg, verbs[strings.Join(path, ".")]))
+			resCmd = ensureChildCommand(resCmd, seg,
+				resourceShort(seg, verbs[strings.Join(path, ".")], resourceDescriptionAt(svc, path)))
 			// The domain listing names every method directly, so a resource row
 			// would only duplicate it while naming no method to call. Hiding is
 			// listing-only — `lark-cli im chat.members --help` still resolves.
@@ -90,15 +92,42 @@ func registerServiceWithContext(ctx context.Context, parent *cobra.Command, svc 
 	}
 }
 
-// resourceShort summarizes a resource as its sorted verb list, or the
-// "<name> operations" placeholder for an intermediate group with no methods.
-func resourceShort(seg string, verbs []string) string {
+// resourceShort summarizes a resource. A catalog-supplied description wins when
+// present, since it says what the resource is rather than which verbs it has;
+// otherwise this falls back to the sorted verb list, or the "<name> operations"
+// placeholder for an intermediate group with no methods. The description is
+// upstream text, so it goes through the same sanitizing as every other rendered
+// description.
+func resourceShort(seg string, verbs []string, description string) string {
+	if d := schema.SanitizeIndexDesc(description); d != "" {
+		return d
+	}
 	if len(verbs) == 0 {
 		return seg + " operations"
 	}
 	sorted := append([]string(nil), verbs...)
 	sort.Strings(sorted)
 	return strings.Join(sorted, ", ")
+}
+
+// resourceDescriptionAt walks path down the service's resource tree and returns
+// that node's description, or "" when either the node or the field is absent.
+func resourceDescriptionAt(svc meta.Service, path []string) string {
+	if len(path) == 0 {
+		return ""
+	}
+	res, ok := svc.Resource(path[0])
+	if !ok {
+		return ""
+	}
+	for _, seg := range path[1:] {
+		next, ok := res.Resources[seg]
+		if !ok {
+			return ""
+		}
+		res = next
+	}
+	return res.Description
 }
 
 // serviceShort is the service command's help summary: the localized description
