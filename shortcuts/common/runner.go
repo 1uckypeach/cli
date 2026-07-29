@@ -50,6 +50,7 @@ type RuntimeContext struct {
 	botInfoFunc   func() (*BotInfo, error)          // sync.OnceValues; lazy bot identity from /bot/v3/info
 	larkSDK       *lark.Client                      // eagerly initialized in mountDeclarative
 	stdinConsumed bool                              // set when an Input flag has consumed stdin (`-`); guards against a second flag also using `-` within the same call
+	inputResolved map[string]bool                   // flags whose value was replaced by @file / stdin content in resolveInputFlags; see InputResolvedFromSource
 }
 
 // ── Identity ──
@@ -1016,6 +1017,25 @@ func stripUTF8BOM(s string) string {
 	return strings.TrimPrefix(s, "\uFEFF")
 }
 
+// InputResolvedFromSource reports whether the named flag's value was loaded
+// from an external source (@file or stdin `-`) by resolveInputFlags, as
+// opposed to typed inline on the command line. Domain guards that apply
+// shape heuristics to inline values ("this looks like a file path — did you
+// forget the @?") must skip resolved values: their content was already read
+// from the right place and may legitimately look like anything, including a
+// path. Without this bit such a guard re-rejects correct @file / stdin
+// invocations, because by the time Validate runs both arrive as plain text.
+func (ctx *RuntimeContext) InputResolvedFromSource(name string) bool {
+	return ctx.inputResolved[name]
+}
+
+func (ctx *RuntimeContext) markInputResolved(name string) {
+	if ctx.inputResolved == nil {
+		ctx.inputResolved = map[string]bool{}
+	}
+	ctx.inputResolved[name] = true
+}
+
 // resolveInputFlags resolves @file and - (stdin) for flags with Input sources.
 // Must be called before Validate/DryRun/Execute so that runtime.Str() returns resolved content.
 func resolveInputFlags(rctx *RuntimeContext, flags []Flag) error {
@@ -1055,6 +1075,7 @@ func resolveInputFlags(rctx *RuntimeContext, flags []Flag) error {
 			// strip a leading UTF-8 BOM so it can't corrupt the first CSV
 			// cell or break JSON parsing downstream.
 			rctx.Cmd.Flags().Set(fl.Name, stripUTF8BOM(string(data)))
+			rctx.markInputResolved(fl.Name)
 			continue
 		}
 
@@ -1091,6 +1112,7 @@ func resolveInputFlags(rctx *RuntimeContext, flags []Flag) error {
 			// strip a leading UTF-8 BOM so it
 			// can't corrupt the first CSV cell or break JSON parsing downstream.
 			rctx.Cmd.Flags().Set(fl.Name, stripUTF8BOM(string(data)))
+			rctx.markInputResolved(fl.Name)
 			continue
 		}
 	}
