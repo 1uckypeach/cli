@@ -6,8 +6,10 @@ package schema
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 )
 
@@ -98,6 +100,52 @@ func TestRunSchema_ResourceRendersMethodIndex(t *testing.T) {
 	}
 	if got.Kind != "method_index" || got.Service != "im" {
 		t.Errorf("kind/service = %q/%q, want method_index/im", got.Kind, got.Service)
+	}
+}
+
+func TestRunSchema_JQFiltersIndex(t *testing.T) {
+	var buf bytes.Buffer
+	if err := runSchema(&buf, []string{"im"}, core.StrictModeOff, ".methods | length"); err != nil {
+		t.Fatalf("runSchema: %v", err)
+	}
+	if got := strings.TrimSpace(buf.String()); got == "" || got == "null" {
+		t.Errorf("jq output = %q, want a method count", got)
+	}
+}
+
+func TestRunSchema_JQFiltersEnvelope(t *testing.T) {
+	var buf bytes.Buffer
+	if err := runSchema(&buf, []string{"im", "chat.members", "get"}, core.StrictModeOff,
+		".inputSchema.properties.params.required"); err != nil {
+		t.Fatalf("runSchema: %v", err)
+	}
+	if strings.TrimSpace(buf.String()) == "" {
+		t.Error("jq must apply to the single-method envelope too")
+	}
+}
+
+// The -q flag has to reach runSchema through the command layer, not just be
+// accepted: a registered-but-unwired flag would silently ignore the expression.
+func TestSchemaCmd_JQFlagIsWired(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, nil)
+
+	cmd := NewCmdSchema(f, nil)
+	cmd.SetArgs([]string{"im", "-q", ".kind"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := strings.TrimSpace(stdout.String()); got != "method_index" {
+		t.Errorf("-q '.kind' = %q, want method_index", got)
+	}
+}
+
+func TestSchemaCmd_JQRejectsInvalidExpression(t *testing.T) {
+	f, _, _, _ := cmdutil.TestFactory(t, nil)
+
+	cmd := NewCmdSchema(f, nil)
+	cmd.SetArgs([]string{"im", "-q", ".methods |"})
+	if err := cmd.Execute(); err == nil {
+		t.Error("a syntactically invalid jq expression must be rejected")
 	}
 }
 

@@ -45,6 +45,13 @@ func NewCmdSchema(f *cmdutil.Factory, runF func(*SchemaOptions) error) *cobra.Co
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.Args = append([]string(nil), args...)
 			opts.Ctx = cmd.Context()
+			// schema has no --output, so the mutual-exclusion arm never fires
+			// here; going through the shared validator keeps the error text for a
+			// bad expression identical to every other command's.
+			format, _ := cmd.Flags().GetString("format")
+			if err := output.ValidateJqFlags(opts.JqExpr, "", format); err != nil {
+				return err
+			}
 			if runF != nil {
 				return runF(opts)
 			}
@@ -62,6 +69,8 @@ func NewCmdSchema(f *cmdutil.Factory, runF func(*SchemaOptions) error) *cobra.Co
 	_ = cmd.Flags().MarkHidden("format")
 	_ = cmd.Flags().MarkHidden("json")
 	_ = cmd.Flags().MarkHidden("as")
+
+	cmd.Flags().StringVarP(&opts.JqExpr, "jq", "q", "", "jq expression to filter JSON output")
 
 	cmd.ValidArgsFunction = completeSchemaPath(f)
 	cmdutil.SetRisk(cmd, cmdutil.RiskRead)
