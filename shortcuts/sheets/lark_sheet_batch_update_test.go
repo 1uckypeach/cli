@@ -361,7 +361,7 @@ func TestValidateDropdownRanges_RejectsMalformedRange(t *testing.T) {
 
 // TestBatchUpdate_TranslatorRejects covers per-op shape errors caught by
 // translateBatchOp: unknown shortcut, missing shortcut, banned (read /
-// fan-out / legacy v2) shortcuts, hand-filled reserved keys, etc.
+// fan-out / legacy v2) shortcuts, malformed wrapper keys, etc.
 func TestBatchUpdate_TranslatorRejects(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -413,16 +413,6 @@ func TestBatchUpdate_TranslatorRejects(t *testing.T) {
 			name:      "user filled operation manually",
 			opsJSON:   `[{"shortcut":"+dim-insert","input":{"operation":"delete","position":"1","count":1}}]`,
 			wantMatch: "do not pass input.operation",
-		},
-		{
-			name:      "user filled excel_id",
-			opsJSON:   `[{"shortcut":"+cells-set","input":{"excel_id":"shtcnX","range":"A1"}}]`,
-			wantMatch: "do not pass input.excel_id",
-		},
-		{
-			name:      "user filled url",
-			opsJSON:   `[{"shortcut":"+cells-set","input":{"url":"https://x.feishu.cn/sheets/sh","range":"A1"}}]`,
-			wantMatch: "do not pass input.url",
 		},
 		{
 			name:      "extra top-level key",

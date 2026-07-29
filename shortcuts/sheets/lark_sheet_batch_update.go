@@ -50,7 +50,7 @@ var BatchUpdate = common.Shortcut{
 	Command:     "+batch-update",
 	Description: "Execute a batch of write shortcuts in one request; fail-fast on the first failing sub-op (already-applied sub-ops are NOT rolled back).",
 	Risk:        "high-risk-write",
-	Scopes:      []string{"sheets:spreadsheet:write_only"},
+	Scopes:      []string{"sheets:spreadsheet:read", "sheets:spreadsheet:write_only"},
 	AuthTypes:   []string{"user", "bot"},
 	HasFormat:   true,
 	Flags:       flagsFor("+batch-update"),
@@ -71,6 +71,9 @@ var BatchUpdate = common.Shortcut{
 		token, _ := resolveSpreadsheetToken(runtime)
 		plan, _ := buildBatchUpdatePlan(runtime, token)
 		dr := invokeToolDryRun(token, ToolKindWrite, "batch_update", plan.input)
+		if batchContainsSemanticChartUpdate(runtime) {
+			dr.Set("preflight", "execution reads each target chart snapshot before building its partial properties patch")
+		}
 		if len(plan.localFailures) > 0 {
 			dr.Set("local_validation_failures", plan.localFailures)
 		}
@@ -87,8 +90,15 @@ var BatchUpdate = common.Shortcut{
 		if err != nil {
 			return err
 		}
+		rawOps, err := parseBatchOperationsFlag(runtime)
+		if err != nil {
+			return err
+		}
 		plan, err := buildBatchUpdatePlan(runtime, token)
 		if err != nil {
+			return err
+		}
+		if err := prepareBatchChartUpdates(ctx, runtime, token, rawOps, plan); err != nil {
 			return err
 		}
 		for _, w := range batchWarnings(runtime) {
@@ -101,13 +111,14 @@ var BatchUpdate = common.Shortcut{
 		if len(plan.localFailures) > 0 {
 			out = mergeBatchUpdatePartialOutput(out, plan)
 		}
-		runtime.Out(out, nil)
+		runtime.Out(compactBatchChartCreateOutput(out), nil)
 		return nil
 	},
 	Tips: []string{
 		"high-risk-write: preview with --dry-run, get the user's explicit consent, then re-run with --yes appended — do not pass --yes before the user has confirmed (without it the call exits 10 asking for confirmation).",
 		"Execution is fail-fast, NOT transactional: on \"N succeeded, M failed\" the succeeded sub-ops stay applied (no rollback) — fix the failure and resend ONLY the operations from the first failed index onward; resending the whole batch re-applies the succeeded ones. Pass --continue-on-error to keep going past failures instead.",
-		"Each sub-op is {shortcut, input}. Do NOT pass input.operation (implied by shortcut name) or input.excel_id / input.url (set at the +batch-update top level).",
+		"Each sub-op is {shortcut, input}. Do NOT pass input.operation (implied by shortcut name). Repeated input.excel_id / input.spreadsheet_token / input.url fields are ignored; the top-level locator wins.",
+		"Chart operations are supported, but prefer +batch-chart-create / +batch-chart-update for chart-only work because their contracts and partial-failure recovery are simpler.",
 	},
 }
 
@@ -129,6 +140,11 @@ var BatchChartCreate = common.Shortcut{
 	AuthTypes:   []string{"user", "bot"},
 	HasFormat:   true,
 	Flags:       flagsFor("+batch-chart-create"),
+	Tips: []string{
+		"Each operation directly contains +chart-create-basic flags such as sheet_name, chart_type, and data_range; do not wrap it in shortcut/input. The legacy wrapped shape remains accepted for compatibility.",
+		"--dry-run prints the translated internal MCP body (tool_name / operation / basic_chart) for inspection only; never copy that body back into --operations.",
+		"Inspect succeeded, failed, and results after execution. Keep successful charts, retry only failed indexes, then call +chart-list once per affected sheet and repair mismatches with +batch-chart-update instead of deleting/recreating charts.",
+	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		token, err := resolveSpreadsheetToken(runtime)
 		if err != nil {
@@ -207,7 +223,7 @@ var BatchChartUpdate = common.Shortcut{
 		if err != nil {
 			return err
 		}
-		if err := prepareChartBatchUpdates(ctx, runtime, token, rawOps, plan); err != nil {
+		if err := prepareBatchChartUpdates(ctx, runtime, token, rawOps, plan); err != nil {
 			return err
 		}
 		out, err := callTool(ctx, runtime, token, ToolKindWrite, "batch_update", plan.input)
@@ -231,6 +247,12 @@ func buildChartBatchPlan(
 	rawOps, err := parseBatchOperationsFlag(runtime)
 	if err != nil {
 		return nil, err
+	}
+	if command == "+batch-chart-create" {
+		rawOps, err = normalizeChartCreateBatchOperations(rawOps)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if len(rawOps) == 0 {
 		return nil, sheetsValidationForFlag("operations", "--operations must be a non-empty JSON array")
@@ -297,7 +319,54 @@ func buildChartBatchPlan(
 	}, nil
 }
 
-func prepareChartBatchUpdates(
+func normalizeChartCreateBatchOperations(rawOps []interface{}) ([]interface{}, error) {
+	normalized := make([]interface{}, 0, len(rawOps))
+	for index, raw := range rawOps {
+		op, ok := raw.(map[string]interface{})
+		if !ok {
+			return nil, sheetsValidationForFlag("operations", "operations[%d] must be a JSON object", index)
+		}
+		_, hasShortcut := op["shortcut"]
+		_, hasInput := op["input"]
+		if hasShortcut && hasInput {
+			normalized = append(normalized, op)
+			continue
+		}
+
+		input := make(map[string]interface{}, len(op))
+		for key, value := range op {
+			if key != "shortcut" && key != "input" {
+				input[key] = value
+			}
+		}
+		if hasInput {
+			rawInput := op["input"]
+			var inputObject map[string]interface{}
+			if rawInput != nil {
+				inputObject, ok = rawInput.(map[string]interface{})
+				if !ok {
+					return nil, sheetsValidationForFlag("operations", "operations[%d]: 'input' must be a JSON object (got %T)", index, rawInput)
+				}
+			}
+			input = inputObject
+		}
+		shortcut := "+chart-create-basic"
+		if hasShortcut {
+			value, ok := op["shortcut"].(string)
+			if !ok || strings.TrimSpace(value) == "" {
+				return nil, sheetsValidationForFlag("operations", "operations[%d]: 'shortcut' must be a non-empty string", index)
+			}
+			shortcut = value
+		}
+		normalized = append(normalized, map[string]interface{}{
+			"shortcut": shortcut,
+			"input":    input,
+		})
+	}
+	return normalized, nil
+}
+
+func prepareBatchChartUpdates(
 	ctx context.Context,
 	runtime *common.RuntimeContext,
 	token string,
@@ -311,6 +380,11 @@ func prepareChartBatchUpdates(
 	for remoteIndex, rawIndex := range plan.originalIndexes {
 		raw, _ := rawOps[rawIndex].(map[string]interface{})
 		shortcut, _ := raw["shortcut"].(string)
+		if shortcut != "+chart-config-update" && shortcut != "+chart-data-update" {
+			prepared = append(prepared, translated[remoteIndex])
+			preparedIndexes = append(preparedIndexes, rawIndex)
+			continue
+		}
 		input, _ := raw["input"].(map[string]interface{})
 		fv := newMapFlagViewForCommand(shortcut, input)
 		sheetID := strings.TrimSpace(fv.Str("sheet-id"))
@@ -361,6 +435,21 @@ func prepareChartBatchUpdates(
 	plan.input["operations"] = prepared
 	plan.originalIndexes = preparedIndexes
 	return nil
+}
+
+func batchContainsSemanticChartUpdate(runtime *common.RuntimeContext) bool {
+	rawOps, err := parseBatchOperationsFlag(runtime)
+	if err != nil {
+		return false
+	}
+	for _, raw := range rawOps {
+		op, _ := raw.(map[string]interface{})
+		shortcut, _ := op["shortcut"].(string)
+		if shortcut == "+chart-config-update" || shortcut == "+chart-data-update" {
+			return true
+		}
+	}
+	return false
 }
 
 func compactBatchChartCreateOutput(out interface{}) interface{} {
