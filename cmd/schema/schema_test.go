@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -278,3 +279,52 @@ func TestSchemaCmd_UnknownMethod_TypedValidation(t *testing.T) {
 // Completion candidate generation (dotted + space forms, strict-mode filtering,
 // dotted-resource handling) now lives in internal/apicatalog and is covered by
 // apicatalog's TestComplete. cmd/schema only adapts catalog.Complete to cobra.
+
+func TestResolveError_ShortcutPathPointsAtHelp(t *testing.T) {
+	var buf bytes.Buffer
+	err := runSchema(&buf, []string{"im", "+messages-send"}, core.StrictModeOff, "")
+	if err == nil {
+		t.Fatal("a +shortcut path must not resolve")
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatal("error must carry a problem envelope")
+	}
+	for _, want := range []string{
+		"shortcuts are documented in --help, not schema",
+		"lark-cli im +messages-send --help",
+		"lark-cli im --help",
+	} {
+		if !strings.Contains(problem.Hint, want) {
+			t.Errorf("hint must contain %q, got %q", want, problem.Hint)
+		}
+	}
+}
+
+func TestResolveError_UnknownResourceAlsoPointsAtSchemaIndex(t *testing.T) {
+	var buf bytes.Buffer
+	err := runSchema(&buf, []string{"mail", "nonexist"}, core.StrictModeOff, "")
+	if err == nil {
+		t.Fatal("an unknown resource must not resolve")
+	}
+	problem, _ := errs.ProblemOf(err)
+	// The candidate list stays; only the guidance sentence is added.
+	if !strings.Contains(problem.Hint, "Available:") {
+		t.Errorf("hint must keep the candidate list, got %q", problem.Hint)
+	}
+	if !strings.Contains(problem.Hint, "lark-cli schema mail") {
+		t.Errorf("hint must point at the method index, got %q", problem.Hint)
+	}
+}
+
+func TestResolveError_SanitizesEchoedInput(t *testing.T) {
+	var buf bytes.Buffer
+	err := runSchema(&buf, []string{"im", "+bad\x1b[31mname"}, core.StrictModeOff, "")
+	if err == nil {
+		t.Fatal("must not resolve")
+	}
+	problem, _ := errs.ProblemOf(err)
+	if strings.Contains(problem.Hint, "\x1b") {
+		t.Errorf("hint must not echo control characters, got %q", problem.Hint)
+	}
+}

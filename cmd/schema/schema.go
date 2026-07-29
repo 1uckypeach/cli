@@ -6,7 +6,9 @@ package schema
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"regexp"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
@@ -117,7 +119,7 @@ func runSchema(out io.Writer, parts []string, mode core.StrictMode, jqExpr strin
 	}
 	target, err := catalog.Resolve(parts)
 	if err != nil {
-		return resolveError(err)
+		return resolveError(err, parts)
 	}
 	filter := registry.FilterForStrictMode(mode)
 
@@ -170,24 +172,58 @@ func emit(out io.Writer, jqExpr string, v any) error {
 	return output.JqFilter(out, v, jqExpr)
 }
 
+// pathSegRe is the allowed character set for a command path segment echoed back
+// into a hint. Anything outside it is replaced wholesale, so a crafted argument
+// cannot inject text into the error envelope a consumer parses.
+var pathSegRe = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)
+
+// safeSeg returns seg when it is a plain command-path segment, or a neutral
+// placeholder otherwise.
+func safeSeg(seg string) string {
+	if pathSegRe.MatchString(seg) {
+		return seg
+	}
+	return "<name>"
+}
+
 // resolveError maps a catalog *ResolveError to a typed *errs.ValidationError
-// (CategoryValidation drives the exit code; Hint promotes to the envelope),
-// preserving the historical message + hint text.
-func resolveError(err error) error {
+// (CategoryValidation drives the exit code; Hint promotes to the envelope). The
+// hints route the caller back to a usable surface instead of dead-ending:
+// shortcuts are documented only in help, and an unresolvable typed path gets
+// both the candidate list and the service's method index.
+func resolveError(err error, parts []string) error {
 	var re *apicatalog.ResolveError
 	if !errors.As(err, &re) {
 		return err
 	}
+
+	domain := ""
+	if len(parts) > 0 {
+		domain = safeSeg(parts[0])
+	}
+
+	// A trailing +name is a shortcut: it has no schema, only help.
+	if last := len(parts) - 1; last >= 0 && strings.HasPrefix(parts[last], "+") {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown resource: %s", re.Subject).
+			WithHint("shortcuts are documented in --help, not schema; run `lark-cli %s %s --help` for parameters and examples, or `lark-cli %s --help` to list all commands",
+				domain, safeSeg(parts[last]), domain)
+	}
+
+	indexHint := ""
+	if domain != "" {
+		indexHint = fmt.Sprintf("; run `lark-cli %s --help` to see both +shortcuts and API resources, or `lark-cli schema %s` for the API method index", domain, domain)
+	}
+
 	switch re.Kind {
 	case apicatalog.ErrService:
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown service: %s", re.Subject).
 			WithHint("Available: %s", strings.Join(re.Candidates, ", "))
 	case apicatalog.ErrResource:
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown resource: %s", re.Subject).
-			WithHint("Available: %s", strings.Join(re.Candidates, ", "))
+			WithHint("Available: %s%s", strings.Join(re.Candidates, ", "), indexHint)
 	case apicatalog.ErrMethod:
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown method: %s", re.Subject).
-			WithHint("Available: %s", strings.Join(re.Candidates, ", "))
+			WithHint("Available: %s%s", strings.Join(re.Candidates, ", "), indexHint)
 	case apicatalog.ErrPath:
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown path: %s", re.Subject).
 			WithHint("Method %q exists but the trailing segments %q do not resolve", re.Method, re.Trailing)
