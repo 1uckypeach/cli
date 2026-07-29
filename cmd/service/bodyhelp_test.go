@@ -142,6 +142,34 @@ func TestBodyHelp_SanitizesNameAndType(t *testing.T) {
 	}
 }
 
+// The skeleton and the facts line below it name the same fields, so they have to
+// sanitize identically. json.Marshal alone escapes C0 and quotes but passes bidi
+// controls and zero-width characters, which would make the two lines disagree.
+func TestBodyHelp_SkeletonSanitizesInvisibleChars(t *testing.T) {
+	for name, raw := range map[string]string{
+		"bidi override":    "user_id‮",
+		"zero width":       "user​id",
+		"C1 control":       "userid",
+		"arabic letter mk": "user؜id",
+	} {
+		got := bodyHelp([]meta.Field{{Name: raw, Type: "string"}})
+		for _, bad := range []string{"‮", "​", "", "؜"} {
+			if strings.Contains(got, bad) {
+				t.Errorf("%s: output must not carry %q, got %q", name, bad, got)
+			}
+		}
+	}
+	// Two fields differing only by an invisible character must not render as two
+	// identical skeleton keys — sanitizing collapses them, so the shape stays
+	// honest about there being two distinct fields only if both are cleaned the
+	// same way.
+	same := bodySkeleton([]meta.Field{{Name: "user_id", Type: "string"}})
+	withBidi := bodySkeleton([]meta.Field{{Name: "user_id‮", Type: "string"}})
+	if same != withBidi {
+		t.Errorf("skeleton must sanitize the key: %q vs %q", same, withBidi)
+	}
+}
+
 // bodyHelp has to survive PrepareMethodHelp's lazy Long rebuild — that path
 // recomposes from annotations, so a body section only written at build time
 // would vanish the moment help is actually rendered.

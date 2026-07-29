@@ -328,3 +328,24 @@ func TestResolveError_SanitizesEchoedInput(t *testing.T) {
 		t.Errorf("hint must not echo control characters, got %q", problem.Hint)
 	}
 }
+
+// The rejected segment appears in both the message and the hint, so both go
+// through the same whitelist — a raw bidi override in the message could still
+// reorder how the rejection reads.
+func TestResolveError_SanitizesShortcutMessageToo(t *testing.T) {
+	var buf bytes.Buffer
+	err := runSchema(&buf, []string{"im", "+bad‮name"}, core.StrictModeOff, "")
+	if err == nil {
+		t.Fatal("must not resolve")
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatal("error must carry a problem envelope")
+	}
+	if strings.ContainsRune(problem.Message, '‮') {
+		t.Errorf("message must not echo bidi controls, got %q", problem.Message)
+	}
+	if strings.ContainsRune(problem.Hint, '‮') {
+		t.Errorf("hint must not echo bidi controls, got %q", problem.Hint)
+	}
+}

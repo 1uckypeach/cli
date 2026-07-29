@@ -69,9 +69,13 @@ func bodySkeleton(fields []meta.Field) string {
 	return "{" + strings.Join(parts, ", ") + "}"
 }
 
-// quoteJSONKey renders name as a JSON string literal, falling back to %q if it
-// somehow cannot be marshaled (no known input does).
+// quoteJSONKey renders name as a JSON string literal. The name is sanitized
+// first: json.Marshal escapes quotes, backslashes and C0, but passes bidi
+// controls, C1 and zero-width characters through — which would let the skeleton
+// line and the facts line below it disagree about what a field is called, and
+// let two different fields render identically.
 func quoteJSONKey(name string) string {
+	name = schema.SanitizeIndexDesc(name)
 	if q, err := json.Marshal(name); err == nil {
 		return string(q)
 	}

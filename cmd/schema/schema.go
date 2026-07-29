@@ -202,9 +202,12 @@ func resolveError(err error, parts []string) error {
 		domain = safeSeg(parts[0])
 	}
 
-	// A trailing +name is a shortcut: it has no schema, only help.
+	// A trailing +name is a shortcut: it has no schema, only help. The message
+	// echoes the same caller-supplied segment as the hint, so it gets the same
+	// whitelist — cleaning one and not the other would leave the pair
+	// inconsistent about what was rejected.
 	if last := len(parts) - 1; last >= 0 && strings.HasPrefix(parts[last], "+") {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown resource: %s", re.Subject).
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown resource: %s", safeSeg(re.Subject)).
 			WithHint("shortcuts are documented in --help, not schema; run `lark-cli %s %s --help` for parameters and examples, or `lark-cli %s --help` to list all commands",
 				domain, safeSeg(parts[last]), domain)
 	}
