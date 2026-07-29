@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"go/build/constraint"
 	"io"
 	"io/fs"
 	"os"
@@ -168,6 +169,14 @@ type listedPackage struct {
 	ImportPath string
 	Imports    []string
 	Deps       []string
+	// Dir and the file lists are only read by
+	// TestLayeringBuildConfigsSelectEveryFile, which needs the toolchain's own
+	// answer to "which files did this configuration compile".
+	Dir          string
+	GoFiles      []string
+	CgoFiles     []string
+	TestGoFiles  []string
+	XTestGoFiles []string
 }
 
 type goListTarget struct {
@@ -221,20 +230,273 @@ var layeringBuildTargets = []goListTarget{
 	{GOOS: "windows", GOARCH: "arm64"},
 }
 
-// layeringBuildTags is the set of build tags whose import graphs are unioned
-// before evaluating the rules. A tag that appears in neither this list nor
-// layeringExcludedBuildTags leaves its files unscanned, so
-// TestLayeringBuildTagsCoverTheRepository requires every custom tag in the tree
-// to appear in one of them.
-var layeringBuildTags = []string{"", "authsidecar"}
+// maxBuildConstraintTerms bounds the satisfying-set search. The search is
+// exponential in the number of distinct terms in one constraint, so a
+// pathological expression would hang the suite instead of failing it.
+const maxBuildConstraintTerms = 12
 
-// layeringExcludedBuildTags names custom build tags deliberately left out of the
-// union. The reason is checked, not just recorded: every file carrying one of
-// these must sit outside every rule's FromPrefix, so enabling the tag cannot
-// change what the rules see.
-var layeringExcludedBuildTags = map[string]string{
-	"authsidecar_demo":              "demo binary under sidecar/, which no rule governs",
-	"authsidecar_multi_tenant_demo": "demo binary under sidecar/, which no rule governs",
+// layeringBuildConfigs derives the -tags values whose import graphs are unioned
+// before the rules are evaluated.
+//
+// This is derived rather than hand-kept because a list of individual tags cannot
+// express what `go list` needs. A file constrained by `foo && bar` is selected
+// by neither `-tags foo` nor `-tags bar`; only `-tags foo,bar` selects it. A
+// registry that records tag names therefore accepts "foo and bar are both
+// registered" as coverage while the file sits in no graph at all — and the
+// remedy such a registry prints ("union the tag") is what puts it there.
+//
+// Deriving the sets from the constraints removes the registry, and with it the
+// exclusion list that used to carve out the sidecar demo tags: every constraint
+// in the tree now contributes a tag set that satisfies it, so nothing is left
+// unscanned by omission.
+//
+// This derivation is trusted only as far as TestLayeringBuildConfigsSelectEveryFile
+// confirms it against the toolchain.
+func layeringBuildConfigs(t *testing.T, root string) []string {
+	t.Helper()
+	builtin := toolchainBuildTerms(t)
+
+	// The empty set stands for the files carrying no constraint at all.
+	sets := map[string]bool{"": true}
+	for _, group := range collectBuildConstraints(t, root) {
+		satisfying := satisfyingTagSets(t, group.Expr, builtin)
+		if len(satisfying) == 0 {
+			t.Errorf(
+				"build constraint %q in %v holds under no assignment; those files can never enter a graph",
+				group.Text, group.Files,
+			)
+			continue
+		}
+		// One set per constraint suffices: the rules read the union of every
+		// graph, so a file only has to be selected once. satisfyingTagSets
+		// returns the cheapest set first, which keeps a platform-only
+		// constraint from adding a configuration it does not need.
+		sets[satisfying[0]] = true
+	}
+
+	configs := make([]string, 0, len(sets))
+	for set := range sets {
+		configs = append(configs, set)
+	}
+	sort.Strings(configs)
+	return configs
+}
+
+// buildConstraintGroup is one distinct //go:build expression and the files that
+// carry it. Grouping by expression keeps the satisfying-set search proportional
+// to the number of distinct constraints rather than to the file count.
+type buildConstraintGroup struct {
+	Text  string
+	Expr  constraint.Expr
+	Files []string
+}
+
+// collectBuildConstraints parses the //go:build line of every Go file in the
+// tree. Only the header is scanned, so a constraint quoted inside a string
+// literal further down cannot register as one.
+func collectBuildConstraints(t *testing.T, root string) []buildConstraintGroup {
+	t.Helper()
+
+	byText := make(map[string]*buildConstraintGroup)
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if skipBuildConstraintDir(entry.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+
+		content, err := vfs.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		relative = filepath.ToSlash(relative)
+
+		line, found := buildConstraintLine(string(content))
+		if !found {
+			return nil
+		}
+		expr, parseErr := constraint.Parse(line)
+		if parseErr != nil {
+			t.Errorf("parse build constraint %q in %s: %v", line, relative, parseErr)
+			return nil
+		}
+
+		group := byText[line]
+		if group == nil {
+			group = &buildConstraintGroup{Text: line, Expr: expr}
+			byText[line] = group
+		}
+		if !slices.Contains(group.Files, relative) {
+			group.Files = append(group.Files, relative)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", root, err)
+	}
+
+	groups := make([]buildConstraintGroup, 0, len(byText))
+	for _, group := range byText {
+		sort.Strings(group.Files)
+		groups = append(groups, *group)
+	}
+	sort.Slice(groups, func(i, j int) bool { return groups[i].Text < groups[j].Text })
+	return groups
+}
+
+// skipBuildConstraintDir reports directories the Go tool never builds from, so
+// files under them are not expected in any graph.
+func skipBuildConstraintDir(name string) bool {
+	return name == ".git" || name == "node_modules" || name == "testdata" ||
+		strings.HasPrefix(name, "_")
+}
+
+// isModuleRoot reports whether dir declares its own module.
+func isModuleRoot(dir string) bool {
+	_, err := vfs.Stat(filepath.Join(dir, "go.mod"))
+	return err == nil
+}
+
+// layeringUnreleasedPlatformFiles names files that no executed configuration
+// compiles because their constraint excludes every GOOS the release matrix
+// builds. The rules govern what ships, and these files enter no shipped binary,
+// so they are out of scope rather than unscanned by omission.
+//
+// The claim is checked rather than trusted:
+// TestLayeringUnreleasedPlatformFilesStayOutOfScope rejects an entry whose
+// constraint names a custom build tag — a tag set could have covered that, which
+// makes it the derivation's bug and not a platform gap — and rejects an entry
+// that some release target does compile.
+var layeringUnreleasedPlatformFiles = map[string]string{
+	"internal/riskcontrol/osmodel_other.go": "fallback for a GOOS outside the release matrix (!darwin && !windows && !linux)",
+}
+
+// buildConstraintLine returns the //go:build line from a file header. The search
+// stops at the package clause because a constraint is only a constraint above
+// it.
+func buildConstraintLine(content string) (string, bool) {
+	for _, raw := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(strings.TrimSuffix(raw, "\r"))
+		if strings.HasPrefix(line, "package ") {
+			return "", false
+		}
+		if constraint.IsGoBuild(line) {
+			return line, true
+		}
+	}
+	return "", false
+}
+
+// satisfyingTagSets returns every set of custom tags under which expr can hold,
+// cheapest first, as comma-joined -tags values.
+//
+// Platform terms are free variables: layeringBuildTargets already varies GOOS
+// and GOARCH, and `-tags` cannot set them anyway. A set that only becomes
+// satisfying under a port the target matrix does not build is therefore
+// reported as covered here and caught by
+// TestLayeringBuildConfigsSelectEveryFile instead, which asks the toolchain
+// rather than this model.
+func satisfyingTagSets(t *testing.T, expr constraint.Expr, builtin map[string]bool) []string {
+	t.Helper()
+
+	terms := constraintTerms(expr)
+	if len(terms) > maxBuildConstraintTerms {
+		t.Fatalf(
+			"build constraint has %d distinct terms, more than the %d this search allows; split the constraint",
+			len(terms), maxBuildConstraintTerms,
+		)
+	}
+
+	sets := map[string]bool{}
+	for assignment := 0; assignment < 1<<len(terms); assignment++ {
+		enabled := make(map[string]bool, len(terms))
+		for i, term := range terms {
+			if assignment&(1<<i) != 0 {
+				enabled[term] = true
+			}
+		}
+		if !expr.Eval(func(tag string) bool { return enabled[tag] }) {
+			continue
+		}
+
+		custom := make([]string, 0, len(terms))
+		for _, term := range terms {
+			if enabled[term] && !isPlatformBuildTerm(term, builtin) {
+				custom = append(custom, term)
+			}
+		}
+		sort.Strings(custom)
+		sets[strings.Join(custom, ",")] = true
+	}
+
+	tagSets := make([]string, 0, len(sets))
+	for set := range sets {
+		tagSets = append(tagSets, set)
+	}
+	// Cheapest first: fewer tags, then lexicographic. Callers take the head, so
+	// this is what keeps the executed configuration count near the number of
+	// custom tags actually in use.
+	sort.Slice(tagSets, func(i, j int) bool {
+		left, right := tagSets[i], tagSets[j]
+		if leftSize, rightSize := tagSetSize(left), tagSetSize(right); leftSize != rightSize {
+			return leftSize < rightSize
+		}
+		return left < right
+	})
+	return tagSets
+}
+
+// constraintTerms returns the distinct tags named anywhere in expr.
+func constraintTerms(expr constraint.Expr) []string {
+	seen := map[string]bool{}
+	var walk func(constraint.Expr)
+	walk = func(node constraint.Expr) {
+		switch typed := node.(type) {
+		case *constraint.TagExpr:
+			seen[typed.Tag] = true
+		case *constraint.NotExpr:
+			walk(typed.X)
+		case *constraint.AndExpr:
+			walk(typed.X)
+			walk(typed.Y)
+		case *constraint.OrExpr:
+			walk(typed.X)
+			walk(typed.Y)
+		}
+	}
+	walk(expr)
+
+	terms := make([]string, 0, len(seen))
+	for term := range seen {
+		terms = append(terms, term)
+	}
+	sort.Strings(terms)
+	return terms
+}
+
+// isPlatformBuildTerm reports whether a term is one the toolchain resolves on
+// its own, which `-tags` neither needs nor is able to set.
+func isPlatformBuildTerm(term string, builtin map[string]bool) bool {
+	return builtin[term] || strings.HasPrefix(term, "go1.")
+}
+
+// tagSetSize counts the tags in a comma-joined -tags value.
+func tagSetSize(set string) int {
+	if set == "" {
+		return 0
+	}
+	return strings.Count(set, ",") + 1
 }
 
 type layeringEdge struct {
@@ -898,73 +1160,248 @@ func TestLayeringBuildTargets(t *testing.T) {
 	}
 }
 
-func TestLayeringBuildTags(t *testing.T) {
-	want := []string{"", "authsidecar"}
-	if !slices.Equal(layeringBuildTags, want) {
-		t.Fatalf("layering build tags = %q, want %q", layeringBuildTags, want)
+// TestLayeringBuildConfigs pins what the derivation currently produces. The
+// derivation is what makes the configurations correct; this literal only makes a
+// change to them visible, so adding a build tag to the tree cannot quietly
+// change what the gate executes.
+func TestLayeringBuildConfigs(t *testing.T) {
+	want := []string{"", "authsidecar", "authsidecar_demo", "authsidecar_multi_tenant_demo"}
+	got := layeringBuildConfigs(t, repoRoot(t))
+	if !slices.Equal(got, want) {
+		t.Fatalf("layering build configurations = %q, want %q", got, want)
 	}
 }
 
-// TestLayeringBuildTagsCoverTheRepository closes the gap the list above cannot
-// close on its own: comparing it against a literal only catches edits to the
-// list, never a build tag introduced somewhere else. A tag nobody added here
-// leaves its files out of every graph, and the rules go quiet on them.
-func TestLayeringBuildTagsCoverTheRepository(t *testing.T) {
+// TestLayeringBuildConfigsSelectEveryFile is the check a tag registry cannot
+// make. It asks the toolchain which files each executed configuration actually
+// compiles and fails on any Go file that no configuration selects: an import
+// edge only reaches the rules through a selected file, so an unselected file is
+// an unenforced one.
+//
+// It sweeps `go list` again rather than reusing TestPackageLayering's graph:
+// that graph merges each package across every configuration and keeps only
+// imports, so it can no longer say which configuration contributed which file.
+// The extra sweep roughly doubles this package's runtime, which is the price of
+// asking the toolchain instead of re-deriving the answer from the same model
+// that produced the configurations.
+func TestLayeringBuildConfigsSelectEveryFile(t *testing.T) {
 	root := repoRoot(t)
-	tagFiles := collectCustomBuildTags(t, root)
+	configs := layeringBuildConfigs(t, root)
+	selected := selectedGoFiles(t, root, configs)
 
-	for tag, files := range tagFiles {
-		if slices.Contains(layeringBuildTags, tag) {
+	for _, file := range moduleGoFiles(t, root) {
+		if selected[file] {
+			if _, unreleased := layeringUnreleasedPlatformFiles[file]; unreleased {
+				t.Errorf(
+					"%s is listed in layeringUnreleasedPlatformFiles but a release target compiles it; drop the entry",
+					file,
+				)
+			}
 			continue
 		}
-		reason, excluded := layeringExcludedBuildTags[tag]
-		if !excluded {
-			t.Errorf(
-				"build tag %q is used by %v but is neither unioned into layeringBuildTags nor listed in layeringExcludedBuildTags; its files are never scanned",
-				tag, files,
-			)
+		if _, unreleased := layeringUnreleasedPlatformFiles[file]; unreleased {
 			continue
 		}
+		t.Errorf(
+			"%s is compiled by none of the %d executed configurations (tags %q across %d targets); its imports never reach the layering rules",
+			file,
+			len(configs)*len(layeringBuildTargets),
+			configs,
+			len(layeringBuildTargets),
+		)
+	}
+}
 
-		// The exclusion claims the tagged code sits outside every rule. Check it,
-		// so the reason cannot quietly stop being true.
-		for _, file := range files {
-			pkg := packageImportPath(root, file)
-			for _, rule := range rules {
-				if matchesPackagePrefix(rule.FromPrefix, pkg) {
-					t.Errorf(
-						"build tag %q is excluded because %s, but %s is governed by %s; union the tag instead",
-						tag, reason, pkg, rule.Name,
-					)
+// TestLayeringUnreleasedPlatformFilesStayOutOfScope checks the reason each
+// exemption records. An exemption is only legitimate when no tag set could have
+// helped: the moment a listed file names a custom build tag, the gap belongs to
+// layeringBuildConfigs and hiding it here would restore the blind spot that
+// derivation exists to remove.
+func TestLayeringUnreleasedPlatformFilesStayOutOfScope(t *testing.T) {
+	root := repoRoot(t)
+	builtin := toolchainBuildTerms(t)
+
+	for file, reason := range layeringUnreleasedPlatformFiles {
+		content, err := vfs.ReadFile(filepath.Join(root, filepath.FromSlash(file)))
+		if err != nil {
+			t.Errorf("%s is exempt because %s but cannot be read: %v", file, reason, err)
+			continue
+		}
+		line, found := buildConstraintLine(string(content))
+		if !found {
+			t.Errorf("%s is exempt because %s but carries no build constraint", file, reason)
+			continue
+		}
+		expr := mustParseConstraint(t, line)
+
+		for _, term := range constraintTerms(expr) {
+			if !isPlatformBuildTerm(term, builtin) {
+				t.Errorf(
+					"%s is exempt because %s, but its constraint %q names the custom tag %q; a build configuration should cover it instead",
+					file, reason, line, term,
+				)
+			}
+		}
+
+		for _, target := range layeringBuildTargets {
+			if expr.Eval(targetBuildTerms(target)) {
+				t.Errorf(
+					"%s is exempt because %s, but %s/%s satisfies %q; drop the entry",
+					file, reason, target.GOOS, target.GOARCH, line,
+				)
+			}
+		}
+	}
+}
+
+// targetBuildTerms reports which constraint terms hold for one release target.
+// CGO_ENABLED=0 is what loadPackagesForTarget sets, so cgo is false here too.
+func targetBuildTerms(target goListTarget) func(string) bool {
+	unix := map[string]bool{
+		"aix": true, "android": true, "darwin": true, "dragonfly": true,
+		"freebsd": true, "hurd": true, "illumos": true, "ios": true,
+		"linux": true, "netbsd": true, "openbsd": true, "solaris": true,
+	}
+	return func(term string) bool {
+		switch term {
+		case target.GOOS, target.GOARCH, "gc":
+			return true
+		case "unix":
+			return unix[target.GOOS]
+		}
+		return strings.HasPrefix(term, "go1.")
+	}
+}
+
+// TestSatisfyingTagSetsRequiresCompoundTagsTogether is the regression for the
+// hole a per-tag registry left open. Registering "foo" and "bar" as separate
+// tags satisfies a name-based coverage check while `-tags foo` and `-tags bar`
+// each select nothing, so a file constrained by both stayed out of every graph
+// and its imports were never ruled on. The satisfying set has to name them
+// together.
+func TestSatisfyingTagSetsRequiresCompoundTagsTogether(t *testing.T) {
+	expr := mustParseConstraint(t, "//go:build foo && bar")
+
+	got := satisfyingTagSets(t, expr, map[string]bool{"linux": true, "darwin": true})
+	if want := []string{"bar,foo"}; !slices.Equal(got, want) {
+		t.Fatalf("satisfying tag sets = %q, want %q", got, want)
+	}
+
+	// The other half of the regression: the sets a per-tag registry would have
+	// executed do not select the file at all.
+	for _, single := range []string{"foo", "bar"} {
+		if expr.Eval(func(tag string) bool { return tag == single }) {
+			t.Errorf("-tags %s satisfies `foo && bar`; this test no longer describes the toolchain", single)
+		}
+	}
+}
+
+// TestSatisfyingTagSetsRespectsNegation checks that a negated term is left out
+// of the set rather than enabled by having been mentioned.
+func TestSatisfyingTagSetsRespectsNegation(t *testing.T) {
+	expr := mustParseConstraint(t, "//go:build foo && !bar")
+
+	got := satisfyingTagSets(t, expr, map[string]bool{})
+	if want := []string{"foo"}; !slices.Equal(got, want) {
+		t.Fatalf("satisfying tag sets = %q, want %q", got, want)
+	}
+}
+
+// TestSatisfyingTagSetsIgnorePlatformTerms keeps platform-only constraints from
+// adding configurations. GOOS and GOARCH are varied by layeringBuildTargets and
+// cannot be set through -tags, so the empty set is the right answer.
+func TestSatisfyingTagSetsIgnorePlatformTerms(t *testing.T) {
+	builtin := map[string]bool{"darwin": true, "windows": true, "linux": true}
+	expr := mustParseConstraint(t, "//go:build !darwin && !windows && !linux")
+
+	got := satisfyingTagSets(t, expr, builtin)
+	if want := []string{""}; !slices.Equal(got, want) {
+		t.Fatalf("satisfying tag sets = %q, want %q", got, want)
+	}
+}
+
+// TestSatisfyingTagSetsPreferTheCheapestSet pins the ordering layeringBuildConfigs
+// relies on when it takes the head: a constraint an existing configuration
+// already satisfies must not introduce another one.
+func TestSatisfyingTagSetsPreferTheCheapestSet(t *testing.T) {
+	expr := mustParseConstraint(t, "//go:build foo || (bar && baz)")
+
+	got := satisfyingTagSets(t, expr, map[string]bool{})
+	if len(got) == 0 {
+		t.Fatal("no satisfying tag set for `foo || (bar && baz)`")
+	}
+	if got[0] != "foo" {
+		t.Errorf("cheapest satisfying set = %q, want %q; head selection would execute more than it needs", got[0], "foo")
+	}
+}
+
+// TestBuildConstraintLineStopsAtThePackageClause guards the header scan: a
+// //go:build line below the package clause is not a constraint, and treating one
+// as a constraint would invent build configurations from string literals.
+func TestBuildConstraintLineStopsAtThePackageClause(t *testing.T) {
+	header := "//go:build foo\n\npackage p\n\nconst sample = \"//go:build bar\"\n"
+	if line, found := buildConstraintLine(header); !found || line != "//go:build foo" {
+		t.Fatalf("build constraint line = %q, %v; want %q, true", line, found, "//go:build foo")
+	}
+
+	below := "package p\n\n//go:build bar\n"
+	if line, found := buildConstraintLine(below); found {
+		t.Fatalf("build constraint line = %q, true; want no constraint below the package clause", line)
+	}
+}
+
+func mustParseConstraint(t *testing.T, line string) constraint.Expr {
+	t.Helper()
+	expr, err := constraint.Parse(line)
+	if err != nil {
+		t.Fatalf("parse %q: %v", line, err)
+	}
+	return expr
+}
+
+// selectedGoFiles returns every module-relative Go file the toolchain compiles
+// under at least one executed configuration.
+func selectedGoFiles(t *testing.T, root string, configs []string) map[string]bool {
+	t.Helper()
+
+	selected := make(map[string]bool)
+	for _, target := range layeringBuildTargets {
+		for _, tags := range configs {
+			for _, pkg := range goListPackages(t, root, target, tags) {
+				if pkg.Dir == "" {
+					continue
+				}
+				names := slices.Concat(pkg.GoFiles, pkg.CgoFiles, pkg.TestGoFiles, pkg.XTestGoFiles)
+				for _, name := range names {
+					relative, err := filepath.Rel(root, filepath.Join(pkg.Dir, name))
+					if err != nil {
+						t.Fatalf("relativize %s in %s: %v", name, pkg.Dir, err)
+					}
+					selected[filepath.ToSlash(relative)] = true
 				}
 			}
 		}
 	}
-
-	for tag := range layeringExcludedBuildTags {
-		if _, used := tagFiles[tag]; !used {
-			t.Errorf("build tag %q is listed as excluded but no file uses it; drop the entry", tag)
-		}
-	}
+	return selected
 }
 
-// collectCustomBuildTags maps every non-platform build tag in the tree to the
-// files that carry it. GOOS, GOARCH and toolchain terms come from the toolchain
-// itself rather than a hand-kept list, so a new port cannot look like a custom
-// tag.
-func collectCustomBuildTags(t *testing.T, root string) map[string][]string {
+// moduleGoFiles returns every Go file in this module minus the directories the
+// Go tool never builds from, which are the files a configuration is expected to
+// select. Nested modules are skipped: `go list ./...` does not reach into them,
+// and the rules are written against this module's import paths.
+func moduleGoFiles(t *testing.T, root string) []string {
 	t.Helper()
-	builtin := toolchainBuildTerms(t)
-	constraint := regexp.MustCompile(`(?m)^//go:build (.+)$`)
-	splitter := regexp.MustCompile(`[\s()&|!,]+`)
 
-	tags := make(map[string][]string)
+	var files []string
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if entry.IsDir() {
-			if entry.Name() == ".git" || entry.Name() == "node_modules" {
+			if skipBuildConstraintDir(entry.Name()) {
+				return filepath.SkipDir
+			}
+			if path != root && isModuleRoot(path) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -972,32 +1409,18 @@ func collectCustomBuildTags(t *testing.T, root string) map[string][]string {
 		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}
-
-		content, err := vfs.ReadFile(path)
-		if err != nil {
-			return err
-		}
 		relative, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
-		for _, match := range constraint.FindAllStringSubmatch(string(content), -1) {
-			for _, term := range splitter.Split(match[1], -1) {
-				if term == "" || builtin[term] || strings.HasPrefix(term, "go1.") {
-					continue
-				}
-				relative = filepath.ToSlash(relative)
-				if !slices.Contains(tags[term], relative) {
-					tags[term] = append(tags[term], relative)
-				}
-			}
-		}
+		files = append(files, filepath.ToSlash(relative))
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walk %s: %v", root, err)
 	}
-	return tags
+	sort.Strings(files)
+	return files
 }
 
 // toolchainBuildTerms returns the build constraint terms Go defines itself.
@@ -1025,16 +1448,6 @@ func toolchainBuildTerms(t *testing.T) map[string]bool {
 		terms[goarch] = true
 	}
 	return terms
-}
-
-// packageImportPath maps a file inside the module to the import path of the
-// package that holds it.
-func packageImportPath(root, relativeFile string) string {
-	dir := filepath.ToSlash(filepath.Dir(relativeFile))
-	if dir == "." {
-		return modulePath
-	}
-	return modulePath + "/" + dir
 }
 
 func TestLayeringBuildTargetsMatchGoReleaser(t *testing.T) {
@@ -1598,9 +2011,10 @@ func TestGoListCommandHelperProcess(t *testing.T) {
 
 func goListPackageGraph(t *testing.T, root string) []listedPackage {
 	t.Helper()
+	configs := layeringBuildConfigs(t, root)
 	packagesByPath := make(map[string]listedPackage)
 	for _, target := range layeringBuildTargets {
-		for _, tags := range layeringBuildTags {
+		for _, tags := range configs {
 			listed := goListPackages(t, root, target, tags)
 			if len(listed) == 0 {
 				t.Fatalf(
