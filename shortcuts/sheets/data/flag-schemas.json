@@ -8,21 +8,83 @@
         "items": {
           "type": "object",
           "required": [
-            "shortcut",
-            "input"
+            "chart_type",
+            "data_range"
           ],
-          "properties": {
-            "shortcut": {
-              "type": "string",
-              "enum": [
-                "+chart-create-basic"
+          "anyOf": [
+            {
+              "required": [
+                "sheet_id"
               ]
             },
-            "input": {
-              "type": "object",
-              "description": "+chart-create-basic 的 flag 集合；包含 sheet_id 或 sheet_name，不包含 spreadsheet token/url"
+            {
+              "required": [
+                "sheet_name"
+              ]
             }
-          }
+          ],
+          "properties": {
+            "sheet_id": {
+              "type": "string",
+              "description": "目标子表 ID；与 sheet_name 二选一"
+            },
+            "sheet_name": {
+              "type": "string",
+              "description": "目标子表名；与 sheet_id 二选一"
+            },
+            "chart_type": {
+              "type": "string",
+              "enum": [
+                "column",
+                "bar",
+                "line",
+                "area",
+                "pie",
+                "scatter",
+                "combo",
+                "radar"
+              ]
+            },
+            "data_range": {
+              "type": "string"
+            },
+            "header_range": {
+              "type": "string"
+            },
+            "data_direction": {
+              "type": "string",
+              "enum": [
+                "row",
+                "column"
+              ]
+            },
+            "dim1_index": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "dim2_indexes": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "anchor_cell": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true,
+          "description": "每项直接填写 +chart-create-basic 的 flag；CLI 内部固定按 +chart-create-basic 创建，无需也不应再写 shortcut / input。"
         }
       }
     },
@@ -112,15 +174,21 @@
                 "+sparkline-create",
                 "+sparkline-update",
                 "+sparkline-delete",
+                "+chart-create",
+                "+chart-update",
+                "+chart-delete",
+                "+chart-create-basic",
+                "+chart-config-update",
+                "+chart-data-update",
                 "+float-image-create",
                 "+float-image-update",
                 "+float-image-delete"
               ],
-              "description": "CLI shortcut 名（不是底层 MCP tool 名）。图表操作请改用 +batch-chart-create / +batch-chart-update；+dim-move 不在表中——它走 legacy v2 endpoint，无法批；+cells-set-image / +workbook-create 也不在——前者含多步图片上传，后者是新建工作簿，都不属于 batch 范畴；所有读操作、fan-out wrapper（+batch-update 自身 / +styles-put / +cells-batch-set-style / +cells-batch-clear / +dropdown-{update,delete}）一律禁——美化收尾请单独调 +styles-put，不要拆成子操作数组。"
+              "description": "CLI shortcut 名（不是底层 MCP tool 名）。图表操作可用，但纯图表任务优先使用结构更简单、默认支持部分成功的 +batch-chart-create / +batch-chart-update；+dim-move 不在表中——它走 legacy v2 endpoint，无法批；+cells-set-image / +workbook-create 也不在——前者含多步图片上传，后者是新建工作簿，都不属于 batch 范畴；所有读操作、fan-out wrapper（+batch-update 自身 / +styles-put / +cells-batch-set-style / +cells-batch-clear / +dropdown-{update,delete}）一律禁——美化收尾请单独调 +styles-put，不要拆成子操作数组。"
             },
             "input": {
               "type": "object",
-              "description": "该 shortcut 的入参集——含子表定位 sheet_id（或 sheet_name），但不含 spreadsheet token/url（后者只在顶层 --url/--spreadsheet-token 给一次；+batch-update 顶层没有 --sheet-id）；input 的键是该 shortcut 的 flag 展平成 JSON、不是再套一层嵌套。基础 flag 跑 `lark-cli sheets <shortcut> --help`，复合 JSON flag 跑 `--print-schema --flag-name <flag>`。不要手填 `operation`（动作由 shortcut 名表达）。"
+              "description": "该 shortcut 的入参集——含子表定位 sheet_id（或 sheet_name）。spreadsheet token/url 只需在顶层给一次；如果 input 里重复出现 excel_id / spreadsheet_token / url，CLI 会忽略它们且始终以顶层定位为准。input 的键是该 shortcut 的 flag 展平成 JSON、不是底层 MCP body。基础 flag 跑 `lark-cli sheets <shortcut> --help`，复合 JSON flag 跑 `--print-schema --flag-name <flag>`。不要手填 `operation`（动作由 shortcut 名表达）。"
             }
           }
         }

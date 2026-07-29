@@ -504,8 +504,8 @@ func TestExecute_BatchChartCreate_ContinueOnErrorKeepsLocallyValidOperations(t *
 	out, err := runShortcutWithStubs(t, BatchChartCreate, []string{
 		"--url", testURL,
 		"--operations", `[
-			{"shortcut":"+chart-create-basic","input":{"sheet-id":"sh1","chart-type":"donut","data-range":"A1:C10"}},
-			{"shortcut":"+chart-create-basic","input":{"sheet-id":"sh1","chart-type":"line","data-range":"E1:G10","title":"Trend"}}
+			{"sheet-id":"sh1","chart-type":"donut","data-range":"A1:C10"},
+			{"sheet-id":"sh1","chart-type":"line","data-range":"E1:G10","title":"Trend"}
 		]`,
 		"--continue-on-error",
 	}, stub)
@@ -537,8 +537,8 @@ func TestExecute_BatchChartCreate_StrictModeRejectsBeforeWrite(t *testing.T) {
 	_, _, err := runShortcutCapturingErr(t, BatchChartCreate, []string{
 		"--url", testURL,
 		"--operations", `[
-			{"shortcut":"+chart-create-basic","input":{"sheet-id":"sh1","chart-type":"donut","data-range":"A1:C10"}},
-			{"shortcut":"+chart-create-basic","input":{"sheet-id":"sh1","chart-type":"line","data-range":"E1:G10","title":"Trend"}}
+			{"sheet-id":"sh1","chart-type":"donut","data-range":"A1:C10"},
+			{"sheet-id":"sh1","chart-type":"line","data-range":"E1:G10","title":"Trend"}
 		]`,
 		"--continue-on-error=false",
 	})
@@ -581,6 +581,84 @@ func TestExecute_BatchChartUpdate_PreflightsSnapshots(t *testing.T) {
 	snapshot := chartDryRunSnapshot(t, chartInput)
 	if snapshot["title"].(map[string]interface{})["text"] != "New" {
 		t.Fatalf("batch partial title = %#v", snapshot["title"])
+	}
+}
+
+func TestExecute_BatchUpdate_MixesCellsAndSemanticChartUpdate(t *testing.T) {
+	t.Parallel()
+	read := toolOutputStub(testToken, "read", `{
+		"sheets":[{
+			"sheet_id":"shtSubA",
+			"charts":[{
+				"chart_id":"chart-1",
+				"details":{"snapshot":{
+					"title":{"text":"Old"},
+					"plotArea":{"plot":{"type":"line"}}
+				}}
+			}]
+		}]
+	}`)
+	write := toolOutputStub(testToken, "write", `{
+		"total":2,
+		"succeeded":2,
+		"failed":0,
+		"results":[
+			{"index":0,"tool_name":"set_cell_range","success":true},
+			{"index":1,"tool_name":"manage_chart_object","success":true}
+		]
+	}`)
+	out, err := runShortcutWithStubs(t, BatchUpdate, []string{
+		"--url", testURL,
+		"--operations", `[
+			{"shortcut":"+cells-set","input":{"sheet-id":"shtSubA","range":"A1","cells":[[{"value":1}]]}},
+			{"shortcut":"+chart-config-update","input":{"sheet-id":"shtSubA","chart-id":"chart-1","title":"New"}}
+		]`,
+		"--yes",
+	}, read, write)
+	if err != nil {
+		t.Fatalf("execute failed: %v\nout=%s", err, out)
+	}
+	input := decodeToolInput(t, decodeRawEnvelopeBody(t, write.CapturedBody), "batch_update")
+	ops := input["operations"].([]interface{})
+	if len(ops) != 2 || ops[0].(map[string]interface{})["tool_name"] != "set_cell_range" {
+		t.Fatalf("mixed operations = %#v", ops)
+	}
+	chartInput := ops[1].(map[string]interface{})["input"].(map[string]interface{})
+	snapshot := chartDryRunSnapshot(t, chartInput)
+	if snapshot["title"].(map[string]interface{})["text"] != "New" {
+		t.Fatalf("generic batch partial title = %#v", snapshot["title"])
+	}
+}
+
+func TestExecute_BatchUpdate_CompactsChartCreateSnapshot(t *testing.T) {
+	t.Parallel()
+	write := toolOutputStub(testToken, "write", `{
+		"total":1,
+		"succeeded":1,
+		"failed":0,
+		"results":[{
+			"index":0,
+			"tool_name":"manage_chart_object",
+			"success":true,
+			"data":{"chart_id":"chart-1","snapshot":{"title":{"text":"Large"}}}
+		}]
+	}`)
+	out, err := runShortcutWithStubs(t, BatchUpdate, []string{
+		"--url", testURL,
+		"--operations", `[{
+			"shortcut":"+chart-create-basic",
+			"input":{"sheet-id":"shtSubA","chart-type":"line","data-range":"A1:C10"}
+		}]`,
+		"--yes",
+	}, write)
+	if err != nil {
+		t.Fatalf("execute failed: %v\nout=%s", err, out)
+	}
+	if strings.Contains(out, `"snapshot"`) {
+		t.Fatalf("generic batch create must omit the full chart snapshot: %s", out)
+	}
+	if !strings.Contains(out, `"chart_id": "chart-1"`) {
+		t.Fatalf("generic batch create must retain chart_id: %s", out)
 	}
 }
 

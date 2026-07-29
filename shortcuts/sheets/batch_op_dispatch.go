@@ -203,6 +203,13 @@ var batchOpDispatch = map[string]batchOpMapping{
 	"+sparkline-update": {"manage_sparkline_object", objUpdateTranslate(sparklineSpec)},
 	"+sparkline-delete": {"manage_sparkline_object", objDeleteTranslate(sparklineSpec)},
 
+	"+chart-create":        {"manage_chart_object", objCreateTranslate(chartSpec)},
+	"+chart-update":        {"manage_chart_object", objUpdateTranslate(chartSpec)},
+	"+chart-delete":        {"manage_chart_object", objDeleteTranslate(chartSpec)},
+	"+chart-create-basic":  {"manage_chart_object", chartCreateBasicInput},
+	"+chart-config-update": {"manage_chart_object", chartConfigUpdateInput},
+	"+chart-data-update":   {"manage_chart_object", chartDataUpdateInput},
+
 	"+float-image-create": {"manage_float_image_object", func(fv flagView, token, sid, sname string) (map[string]interface{}, error) {
 		if err := rejectLocalImageInBatch(fv); err != nil {
 			return nil, err
@@ -312,8 +319,10 @@ func sheetMoveBatchInput(fv flagView, token, sheetID, sheetName string) (map[str
 	}, nil
 }
 
-// reservedSubOpKeys 是禁止用户在 sub-op input 里手填的 key —— 它们由
-// +batch-update 顶层 --url/--token 统一提供（excel_id / spreadsheet_token / url）。
+// reservedSubOpKeys are redundant inside a sub-op: +batch-update supplies the
+// spreadsheet locator once at the top level. The translator silently drops
+// these keys so an otherwise valid operation is not rejected for harmless
+// repetition.
 var reservedSubOpKeys = []string{"excel_id", "spreadsheet_token", "url"}
 
 // wrappedSubOpInputKeys are nested MCP-body container keys that must never
@@ -518,7 +527,6 @@ func normalizeSubOpInputKeys(sc string, input map[string]interface{}) error {
 //   - shortcut 不在 dispatch 表（拼写错；read 操作；嵌套 fan-out wrapper）
 //   - input 不是 object
 //   - input 里手填了 operation（由 shortcut 名隐含，禁手填以防 mismatch）
-//   - input 里手填了 excel_id / spreadsheet_token / url
 //   - input 顶层出现 cell_styles / cell_merges / styles（误贴 MCP body 包裹结构）
 //   - 子操作的 translator 报错（如缺必填字段）
 func translateBatchOp(raw interface{}, token string, index int) (map[string]interface{}, error) {
@@ -574,17 +582,15 @@ func translateBatchOpWithDispatch(
 			index, sc,
 		)
 	}
-	// 禁在 sub-op 重复填 spreadsheet 定位 —— 由 +batch-update 顶层 --url/--token 统一提供。
-	// 连字符 / 下划线两种写法都算命中（spreadsheet-token 与 spreadsheet_token 同罪）。
+	// Ignore repeated spreadsheet locators. The top-level +batch-update
+	// locator is authoritative, so these fields are harmlessly redundant and
+	// must never override it. Hyphen and underscore spellings both match.
 	for userKey := range input {
 		normalized := strings.ReplaceAll(userKey, "-", "_")
 		for _, k := range reservedSubOpKeys {
 			if normalized == k {
-				return nil, sheetsValidationForFlag(
-					"operations",
-					"operations[%d] (%s): do not pass input.%s — it is already set from +batch-update top-level --url / --token",
-					index, sc, userKey,
-				)
+				delete(input, userKey)
+				break
 			}
 		}
 	}

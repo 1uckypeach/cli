@@ -2945,7 +2945,7 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "JSON array: [{\"shortcut\":\"+xxx-yyy\",\"input\":{...}}, ...]. shortcut uses CLI names; input is that shortcut's flag set — it includes the per-operation sheet locator (sheet_id or sheet_name) but not the spreadsheet token/url (pass that once at the top level via --url/--spreadsheet-token; +batch-update has no top-level --sheet-id). input keys are the shortcut's flags flattened into JSON (e.g. \"range\":\"A11:B12\"), not another nested layer. For basic flags use lark-cli sheets <shortcut> --help; for composite JSON flags use --print-schema --flag-name <flag>. Do not pass an explicit operation field. Fail-fast by default: the first failure aborts the remaining operations and already-applied sub-operations are NOT rolled back (on \"N succeeded, M failed\" resend only the failed tail, not the whole batch); pass --continue-on-error to keep going past failures; no nesting; executed serially.",
+        "desc": "JSON array: [{\"shortcut\":\"+xxx-yyy\",\"input\":{...}}, ...]. shortcut uses CLI names; input is that shortcut's flattened flag set, including sheet_id or sheet_name, not an MCP body. Pass the spreadsheet locator once at the top level; repeated excel_id / spreadsheet_token / url fields inside input are ignored and never override the top-level locator. Use --help for basic flags and --print-schema --flag-name <flag> for composite JSON flags. Do not pass operation explicitly. Chart sub-operations are supported, but prefer +batch-chart-create / +batch-chart-update for chart-only work. Fail-fast by default: the first failure aborts the remaining operations and already-applied sub-operations are NOT rolled back (on \"N succeeded, M failed\" resend only the failed tail, not the whole batch); pass --continue-on-error to keep going past failures; no nesting; executed serially.",
         "input": [
           "file",
           "stdin"
@@ -2996,7 +2996,7 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "Chart creation operations as JSON; every item uses `+chart-create-basic`, with that command's flags and target sheet selector in input. Partial failure is enabled by default: successful charts stay applied and only failed items should be retried",
+        "desc": "Chart creation operations as JSON; put each target sheet selector and `+chart-create-basic` flag directly on the item, without `shortcut` or `input`. The CLI dispatches every item through `+chart-create-basic` internally. Partial failure is enabled by default: successful charts stay applied and only failed items should be retried",
         "input": [
           "file",
           "stdin"
@@ -3015,7 +3015,7 @@
         "kind": "system",
         "type": "bool",
         "required": "optional",
-        "desc": "Print the batch creation request template with no network side effects"
+        "desc": "Print the internal MCP request template with no network side effects; tool_name / operation / basic_chart in the output are for inspection only and must not be copied back into --operations"
       }
     ]
   },

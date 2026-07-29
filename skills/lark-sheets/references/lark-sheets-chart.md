@@ -20,7 +20,14 @@
 
 典型工作流：先确认表头和精确数据范围，用 `+chart-create-basic` 一次创建并尽量在同次调用中带上已知标题/轴/标签要求；创建后用返回的完整 `snapshot` 检查范围、方向与系列，再按需用 `+chart-list` 验证。已有图表的数据范围或方向错误时用 `+chart-data-update`，常用配置修正用 `+chart-config-update`。只有用户要求单个系列、数据点或高级引擎字段时，才读取现有 snapshot 并调 `+chart-update --properties`。不要为了常用配置先输出整份 schema，也不要删除重建已经创建成功的图表。
 
-**多图表工作流**：先完成所有辅助数据和表头，列出每张目标图的类型、精确数据范围、标题和落点；确认清单后，用一次 `+batch-chart-create` 批量执行 `+chart-create-basic`。图表之间独立时允许部分成功：按返回的逐项结果定位失败图表，只重试失败项。批量 create 的逐项结果不返回完整 snapshot；批次后每个受影响的 sheet 各调用一次 `+chart-list`。已经成功创建的图表有数据源或配置差异时，用 `+batch-chart-update` 批量执行对应的语义更新，不要删除重建。
+**多图表工作流**：先完成所有辅助数据和表头，列出每张目标图的类型、精确数据范围、标题和落点；确认清单后，用一次 `+batch-chart-create` 批量创建。它的每个 operation 直接填写 `+chart-create-basic` flags，CLI 内部固定按 `+chart-create-basic` 执行，不要再套 `shortcut` / `input`。图表之间独立时允许部分成功：按返回的逐项结果定位失败图表，只重试失败项。批量 create 的逐项结果不返回完整 snapshot；批次后每个受影响的 sheet 各调用一次 `+chart-list`。已经成功创建的图表有数据源或配置差异时，用 `+batch-chart-update` 批量执行对应的语义更新，不要删除重建。
+
+**图表错误处理工作流（必须按顺序）**：
+1. 创建前先用 `--dry-run` 检查数量、sheet、范围、类型和落点；`dry-run` 输出中的 `tool_name` / `operation` / `basic_chart` / `properties` 是 CLI 翻译后的内部 MCP body，**只能读，不能复制回 operations**。
+2. 执行后同时检查 `succeeded`、`failed` 和逐项 `results[index]`；命令退出成功或顶层 `ok=true` 不代表每张图都成功。
+3. 有失败时保留成功图表，按原始 `index` 只重试失败项。禁止整批重发，否则会重复创建已经成功的图表。
+4. 对成功项，每个受影响 sheet 只调用一次 `+chart-list` 获取完整快照并核对总数、标题、范围、方向与系列。
+5. 快照不符合预期时原地修复：数据源、方向、维度/系列、分离表头用 `+chart-data-update`；标题、轴、图例、标签、堆叠、平滑、配色用 `+chart-config-update`；只有高级字段才用 `+chart-update --properties`。不要删除重建。
 
 **数量词必须展开**：用户说“每个 / 每天 / 分别 / 逐一 / 各一张图”时，先从数据中数出实体数 `N`，把这 `N` 张图逐项写进清单，再加上其它汇总图得到目标总数 `M`；一个包含全部实体的多系列图不能替代这 `N` 张独立图。批次前断言 operations 中恰有 `M` 个图表创建，批次后断言图表总数、逐图标题与实体集合一致。
 
@@ -288,24 +295,18 @@ lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
 ```json
 [
   {
-    "shortcut": "+chart-create-basic",
-    "input": {
-      "sheet_name": "Sheet1",
-      "chart_type": "column",
-      "data_range": "'Sheet1'!A1:C10",
-      "title": "分类对比",
-      "anchor_cell": "F2"
-    }
+    "sheet_name": "Sheet1",
+    "chart_type": "column",
+    "data_range": "'Sheet1'!A1:C10",
+    "title": "分类对比",
+    "anchor_cell": "F2"
   },
   {
-    "shortcut": "+chart-create-basic",
-    "input": {
-      "sheet_name": "Sheet1",
-      "chart_type": "line",
-      "data_range": "'Sheet1'!E1:G10",
-      "title": "趋势变化",
-      "anchor_cell": "F18"
-    }
+    "sheet_name": "Sheet1",
+    "chart_type": "line",
+    "data_range": "'Sheet1'!E1:G10",
+    "title": "趋势变化",
+    "anchor_cell": "F18"
   }
 ]
 ```
@@ -314,6 +315,14 @@ lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
 lark-cli sheets +batch-chart-create --url "..." --operations @ops.json
 lark-cli sheets +chart-list --url "..." --sheet-name "Sheet1"
 ```
+
+`ops.json` 不接受 MCP body。不要把 `--dry-run` 输出里的以下结构反抄回来：
+
+```json
+{"tool_name":"manage_chart_object","input":{"operation":"create","basic_chart":{}}}
+```
+
+批量创建的公开输入就是上面的扁平 `+chart-create-basic` flags。为了兼容旧调用，CLI 仍能读取历史 `{shortcut:"+chart-create-basic",input:{...}}` 结构，但新任务不要生成旧格式。
 
 批量修正已有图表时，operations 只放配置或数据更新；CLI 会先读取每张目标图的当前快照，再把对应 partial properties 合并进一次 `batch_update`：
 
