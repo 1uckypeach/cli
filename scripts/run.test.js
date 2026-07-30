@@ -240,21 +240,26 @@ describe("run.js pass-through when the binary runs", () => {
     assertBinaryRan(res);
   });
 
-  it(
-    "exits 1 without a diagnostic when the binary receives SIGTERM",
-    { skip: IS_WINDOWS ? "POSIX signals" : false },
-    (t) => {
-      const sandbox = makeSandbox(t);
-      installRunnableBinary(sandbox);
+  for (const signal of ["SIGINT", "SIGTERM"]) {
+    it(
+      `exits 1 without a diagnostic when the binary receives ${signal}`,
+      { skip: IS_WINDOWS ? "POSIX signals" : false },
+      (t) => {
+        const sandbox = makeSandbox(t);
+        installRunnableBinary(sandbox);
 
-      const res = runRanBinary(sandbox, "process.kill(process.pid, 'SIGTERM')");
+        const res = runRanBinary(
+          sandbox,
+          `process.kill(process.pid, '${signal}')`
+        );
 
-      assert.equal(res.status, 1);
-      assert.equal(res.stdout, "", `stdout should stay empty: ${res.stdout}`);
-      assert.equal(res.stderr, "", `stderr should stay empty: ${res.stderr}`);
-      assertBinaryRan(res);
-    }
-  );
+        assert.equal(res.status, 1);
+        assert.equal(res.stdout, "", `stdout should stay empty: ${res.stdout}`);
+        assert.equal(res.stderr, "", `stderr should stay empty: ${res.stderr}`);
+        assertBinaryRan(res);
+      }
+    );
+  }
 
   it(
     "reports the signal when the binary crashes",
