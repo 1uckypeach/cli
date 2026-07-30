@@ -225,3 +225,45 @@ func TestBodyHelp_SkeletonKeepsPlaceholderForUntypedArray(t *testing.T) {
 		t.Errorf("an array with no element schema keeps the placeholder, got %s", skeleton)
 	}
 }
+
+// Running out of nesting budget must not change what an element's *type* looks
+// like. This is the shape that regressed once: the same field renders correctly
+// at the top level but is nested one deeper in a sibling method (task create vs
+// task patch, which wraps the body in "task"), and collapsing both stop
+// conditions to ["<item>"] silently turned an object array into a string array
+// only in the nested case.
+func TestBodyHelp_NestedObjectArrayDoesNotClaimScalarElements(t *testing.T) {
+	objArray := meta.Field{
+		Name: "custom_fields", Type: "array",
+		Properties: map[string]meta.Field{
+			"guid": {Name: "guid", Type: "string"},
+		},
+	}
+	nested := bodySkeleton([]meta.Field{{
+		Name: "task", Type: "object",
+		Properties: map[string]meta.Field{"custom_fields": objArray},
+	}})
+	if strings.Contains(nested, `"custom_fields": ["<item>"]`) {
+		t.Errorf("a nested object array must not render as a string array: %s", nested)
+	}
+	if !strings.Contains(nested, `"custom_fields": [{}]`) {
+		t.Errorf("past the nesting budget an object array degrades to [{}], got: %s", nested)
+	}
+	// A genuinely scalar array keeps the item placeholder at any depth.
+	scalarNested := bodySkeleton([]meta.Field{{
+		Name: "task", Type: "object",
+		Properties: map[string]meta.Field{
+			"tags": {Name: "tags", Type: "array"},
+		},
+	}})
+	if !strings.Contains(scalarNested, `"tags": ["<item>"]`) {
+		t.Errorf("a scalar array keeps the placeholder when nested, got: %s", scalarNested)
+	}
+	// Both shapes must still be copyable into --data.
+	for _, s := range []string{nested, scalarNested} {
+		var into map[string]any
+		if err := json.Unmarshal([]byte(s), &into); err != nil {
+			t.Fatalf("skeleton is not valid JSON: %v\n%s", err, s)
+		}
+	}
+}

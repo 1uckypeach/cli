@@ -91,13 +91,20 @@ func skeletonValue(f meta.Field, depth int) string {
 		return "{" + joinProperties(f, depth) + "}"
 	case "array":
 		// The metadata wraps an array's *element* schema in "properties", so
-		// these children describe one element rather than sibling fields. An
-		// array of objects therefore has to render as [{…}]: emitting
-		// ["<item>"] would show a string array, and a caller copying that
-		// builds a body the API rejects — with nothing local to catch it,
-		// since --dry-run does not validate body structure.
-		if depth <= 0 || len(f.Properties) == 0 {
+		// these children describe one element rather than sibling fields. The
+		// two reasons to stop recursing are not interchangeable here: with no
+		// element schema the array really is scalar, but running out of nesting
+		// budget says nothing about the element type. Collapsing both to
+		// ["<item>"] would assert "array of strings" for an array of objects,
+		// and a caller copying that builds a body the API rejects — with
+		// nothing local to catch it, since --dry-run does not validate body
+		// structure. So the budget case degrades to [{}], mirroring how an
+		// object degrades to {}.
+		if len(f.Properties) == 0 {
 			return `["<item>"]`
+		}
+		if depth <= 0 {
+			return "[{}]"
 		}
 		return "[{" + joinProperties(f, depth) + "}]"
 	case "boolean":
