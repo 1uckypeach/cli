@@ -4,6 +4,8 @@
 package cmdutil
 
 import (
+	"fmt"
+
 	"github.com/larksuite/cli/internal/core"
 	"github.com/spf13/cobra"
 )
@@ -42,4 +44,25 @@ func GetRisk(cmd *cobra.Command) (level string, ok bool) {
 	}
 	level, ok = cmd.Annotations[riskLevelAnnotationKey]
 	return level, ok && level != ""
+}
+
+// RiskLine renders the "Risk: <level>" line shown in help. ok is false when the
+// command carries no risk annotation.
+//
+// high-risk-write carries the confirmation warning: --yes asserts that the USER
+// confirmed, so an agent must never add it on its own. Keeping the wording here
+// means every help path — the affordance-composed Long and the bottom-of-help
+// append — shows the same sentence.
+//
+// The returned line has no surrounding whitespace; callers add their own
+// separators.
+func RiskLine(cmd *cobra.Command) (line string, ok bool) {
+	level, ok := GetRisk(cmd)
+	if !ok {
+		return "", false
+	}
+	if level == RiskHighRiskWrite {
+		return fmt.Sprintf("Risk: %s (requires explicit user confirmation to execute; the agent must NOT add --yes on its own — only pass --yes after the user has confirmed)", level), true
+	}
+	return fmt.Sprintf("Risk: %s", level), true
 }

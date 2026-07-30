@@ -4,6 +4,7 @@
 package cmdutil
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -91,5 +92,46 @@ func TestGetRisk_EmptyValueReturnsNotOK(t *testing.T) {
 	}
 	if level != "" {
 		t.Errorf("expected empty level, got %q", level)
+	}
+}
+
+func TestRiskLine_HighRiskWriteCarriesConfirmationWarning(t *testing.T) {
+	cmd := &cobra.Command{Use: "delete"}
+	SetRisk(cmd, RiskHighRiskWrite)
+
+	line, ok := RiskLine(cmd)
+	if !ok {
+		t.Fatal("expected ok for an annotated command")
+	}
+	if !strings.HasPrefix(line, "Risk: "+RiskHighRiskWrite) {
+		t.Errorf("expected the line to lead with the level, got %q", line)
+	}
+	if !strings.Contains(line, "must NOT add --yes on its own") {
+		t.Errorf("high-risk-write must carry the agent guardrail, got %q", line)
+	}
+}
+
+func TestRiskLine_LowerLevelsRenderBare(t *testing.T) {
+	for _, level := range []string{RiskRead, RiskWrite} {
+		cmd := &cobra.Command{Use: "list"}
+		SetRisk(cmd, level)
+
+		line, ok := RiskLine(cmd)
+		if !ok {
+			t.Fatalf("%s: expected ok for an annotated command", level)
+		}
+		if line != "Risk: "+level {
+			t.Errorf("%s: expected a bare line, got %q", level, line)
+		}
+	}
+}
+
+func TestRiskLine_UnannotatedReturnsNotOK(t *testing.T) {
+	line, ok := RiskLine(&cobra.Command{Use: "list"})
+	if ok {
+		t.Errorf("expected ok=false without a risk annotation, got %q", line)
+	}
+	if line != "" {
+		t.Errorf("expected an empty line when ok=false, got %q", line)
 	}
 }
