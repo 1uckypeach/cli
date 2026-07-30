@@ -323,11 +323,10 @@ func TestBodyHelp_FactsSanitizeEnumText(t *testing.T) {
 	if !strings.Contains(got, "enum: ") {
 		t.Errorf("sanitizing must not drop the clause itself, got:\n%s", got)
 	}
-	// The skeleton never carries a string field's allowed value in the first
-	// place, so it has nothing to sanitize and nothing to leak — the reason this
-	// assertion holds is structural, not a cleaning step.
+	// An optional field's allowed value never reaches the skeleton, so there is
+	// nothing there to leak — this half holds structurally, not by cleaning.
 	if !strings.Contains(got, `{"mode": "<string>"}`) {
-		t.Errorf("a string enum must not reach the skeleton at all, got:\n%s", got)
+		t.Errorf("an optional enum must not reach the skeleton, got:\n%s", got)
 	}
 }
 
@@ -353,36 +352,42 @@ func TestBodyHelp_SkeletonPlaceholdersAreLegalValues(t *testing.T) {
 		field meta.Field
 		want  string
 	}{
-		// A string can advertise itself as a placeholder, so it does — filling in
-		// the first allowed value would make the skeleton read as ready to send,
-		// and the facts line already lists what is allowed.
-		{"string enum keeps its type marker",
-			meta.Field{Name: "visibility", Type: "string", Enum: []any{"default", "public"}},
-			`{"visibility": "<string>"}`},
-		{"numeric enum has no such marker, so it takes an allowed value",
-			meta.Field{Name: "mode", Type: "integer", Enum: []any{"1", "2"}},
-			`{"mode": 1}`},
-		{"integer floor beats zero",
-			meta.Field{Name: "agent_task_status", Type: "integer", Min: "1", Max: "4"},
-			`{"agent_task_status": 1}`},
-		{"single-valued bound leaves no legal alternative",
-			meta.Field{Name: "event_type", Type: "integer", Min: "1", Max: "1"},
-			`{"event_type": 1}`},
-		{"required enum without a bound still resolves",
+		// Required: the caller cannot omit it, so an allowed value is a head start.
+		{"required string enum takes its first allowed value",
+			meta.Field{Name: "obj_type", Type: "string", Required: true, Enum: []any{"doc", "sheet"}},
+			`{"obj_type": "doc"}`},
+		{"required numeric enum likewise",
 			meta.Field{Name: "to_entity_type", Type: "integer", Required: true, Enum: []any{"2"}},
 			`{"to_entity_type": 2}`},
+		{"required integer takes a floor that puts 0 out of range",
+			meta.Field{Name: "event_type", Type: "integer", Required: true, Min: "1", Max: "1"},
+			`{"event_type": 1}`},
+		// Optional: the caller never asked to set it, so the skeleton must not read
+		// as though they chose the value. The facts line carries what is allowed.
+		{"optional string enum keeps its type marker",
+			meta.Field{Name: "share_entity", Type: "string", Enum: []any{"anyone", "same_tenant"}},
+			`{"share_entity": "<string>"}`},
+		{"optional numeric enum keeps zero",
+			meta.Field{Name: "approval_method", Type: "integer", Enum: []any{"1", "2", "3"}},
+			`{"approval_method": 0}`},
+		// The one place the two rules conflict: 0 is out of range here, and rule two
+		// still wins. A rejection beats a silent write the caller did not ask for,
+		// and the facts line states the range either way.
+		{"optional integer keeps zero even below its floor",
+			meta.Field{Name: "agent_task_status", Type: "integer", Min: "1", Max: "4"},
+			`{"agent_task_status": 0}`},
 		{"no enum and no floor keeps zero",
 			meta.Field{Name: "relative_fire_minute", Type: "integer"},
 			`{"relative_fire_minute": 0}`},
 		// A floor only displaces 0 when 0 is below it. Reaching for the floor
 		// regardless turns okr indicators patch's -99999999999 into the suggested
 		// value for a field whose upstream example is plain 0 — legal, and absurd.
-		{"a negative floor leaves zero alone",
-			meta.Field{Name: "current_value", Type: "number", Min: "-99999999999", Max: "99999999999"},
+		{"a required field's negative floor leaves zero alone",
+			meta.Field{Name: "current_value", Type: "number", Required: true, Min: "-99999999999", Max: "99999999999"},
 			`{"current_value": 0}`},
-		{"a zero floor leaves zero alone",
-			meta.Field{Name: "offset", Type: "integer", Min: "0"},
-			`{"offset": 0}`},
+		{"a required string's length bound is not a value",
+			meta.Field{Name: "summary", Type: "string", Required: true, Min: "1"},
+			`{"summary": "<string>"}`},
 		{"a string with no enum keeps its type marker",
 			meta.Field{Name: "summary", Type: "string", Min: "1"},
 			`{"summary": "<string>"}`},
@@ -412,11 +417,16 @@ func TestBodyHelp_SkeletonRejectsUnrenderablePlaceholders(t *testing.T) {
 		field      meta.Field
 	}{
 		{"non-finite floor is not a JSON number", `{"t": 0}`,
-			meta.Field{Name: "t", Type: "integer", Min: "Inf"}},
+			meta.Field{Name: "t", Type: "integer", Required: true, Min: "Inf"}},
 		{"NaN floor likewise", `{"t": 0}`,
-			meta.Field{Name: "t", Type: "number", Min: "NaN"}},
+			meta.Field{Name: "t", Type: "number", Required: true, Min: "NaN"}},
 		{"a non-finite allowed value is refused the same way", `{"t": 0}`,
-			meta.Field{Name: "t", Type: "number", Enum: []any{"Inf"}}},
+			meta.Field{Name: "t", Type: "number", Required: true, Enum: []any{"Inf"}}},
+		// The text guard, reachable through a required string enum: cleaning the
+		// value would emit something the API no longer accepts, so it is refused
+		// and the field falls back to its marker.
+		{"an allowed value carrying a bidi override is refused", `{"t": "<string>"}`,
+			meta.Field{Name: "t", Type: "string", Required: true, Enum: []any{"a‮b"}}},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -432,15 +442,16 @@ func TestBodyHelp_SkeletonRejectsUnrenderablePlaceholders(t *testing.T) {
 }
 
 // An enum cannot stand in for a shape: substituting a scalar would tell the
-// caller to send a string where the API wants an object or a list. The numeric
-// branch is the only one that consults EnumOptions, so this holds structurally —
-// which is the point. It fails the moment someone hoists that lookup back above
-// the type switch, where it was and where it does reach objects and arrays.
+// caller to send a string where the API wants an object or a list. Objects and
+// arrays return before the scalar rules are reached, so this holds structurally —
+// which is the point. It fails the moment someone hoists the EnumOptions lookup
+// above the type switch, where it was and where it does reach both shapes. Both
+// fields are required, which is the case that would fill a scalar in.
 func TestBodyHelp_SkeletonKeepsShapeOverEnum(t *testing.T) {
 	got := bodySkeleton([]meta.Field{
-		{Name: "setting", Type: "object", Enum: []any{"x"},
+		{Name: "setting", Type: "object", Required: true, Enum: []any{"x"},
 			Properties: map[string]meta.Field{"id": {Name: "id", Type: "string"}}},
-		{Name: "tags", Type: "array", Enum: []any{"y"}},
+		{Name: "tags", Type: "array", Required: true, Enum: []any{"y"}},
 	})
 	if !strings.Contains(got, `"setting": {"id": "<string>"}`) {
 		t.Errorf("an object must keep its shape, got %s", got)

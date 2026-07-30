@@ -103,25 +103,45 @@ func quoteJSONKey(name string) string {
 // skeleton, and the array branch below is an instance of the first, not a
 // special case.
 //
-// One: a placeholder must never positively assert something the API rejects.
-// The skeleton is meant to be copied verbatim and --dry-run does not validate
-// the body, so a wrong assertion has nothing local to catch it.
+// One: a placeholder should not positively assert something the API rejects. The
+// skeleton is meant to be copied verbatim and --dry-run does not validate the
+// body, so a wrong assertion has nothing local to catch it. This is a default,
+// not an invariant — two cases knowingly fall short of it. A shape past the
+// nesting budget renders {} or [{}], which the API rejects when it has required
+// children, and an integer that upstream documents as a formatted value renders
+// 0 (attendance user_tasks query's required check_date_from is a yyyyMMdd date).
+// Both predate the enum and bounds work and neither is expressible in what the
+// metadata declares.
 //
-// Two: where the type admits a placeholder that advertises itself as one — a
-// string can hold "<string>", a number cannot hold anything comparable — prefer
-// that over a real value, even a legal one. A skeleton whose every field already
-// holds a plausible value reads as ready to send, and 56 of the enum-carrying
-// body fields sit on write or high-risk-write methods with drive
-// permission.public.patch's share_entity among them, where the first allowed
-// value happens to be "anyone". Nothing is lost by not filling them in: the
-// facts line below the skeleton now lists the allowed values, so the skeleton is
-// no longer the only place to learn them.
+// Two: an OPTIONAL field keeps a bare type marker, even when a legal value is
+// known. Filling one in makes the skeleton read as ready to send while quietly
+// deciding something the caller never asked about: 56 of the enum-carrying body
+// fields sit on write or high-risk-write methods, and drive
+// permission.public.patch has six optional ones whose first allowed values
+// include share_entity's "anyone", the most permissive of its three. The first
+// allowed value tracks upstream field order, not caution — attendee_ability
+// starts at the strictest value and share_entity at the loosest. Nothing is lost
+// by leaving them alone: the facts line below the skeleton lists the allowed
+// values, so the skeleton is no longer the only place to learn them.
 //
-// The two rules only ever conflict for numbers, where rule two has nothing to
-// offer, so there `0` gives way to an allowed value or to a floor that puts 0
-// out of range.
+// A REQUIRED field is the opposite case. The caller cannot omit it, so a legal
+// value is a head start rather than a decision taken on their behalf, and it is
+// mostly type discriminators that benefit (obj_type, image_type, event_type).
+//
+// The rules conflict only where an optional field's marker is itself illegal — a
+// numeric floor above 0. Rule two wins there: an out-of-range 0 draws a rejection,
+// which for a write is a better outcome than a silent, unintended one, and the
+// facts line states the range either way.
+//
+// Rule two is imperfectly served by the markers available. Only a string has one
+// that reads as a placeholder; an optional number renders 0 and an optional
+// boolean false, both concrete legal values. The saving grace is that neither is
+// chosen by position the way an enum's first value is — a false flag is the "do
+// not do this" side of every switch, and 0 the neutral quantity — so where they
+// are legal they are also the inert choice.
 func skeletonValue(f meta.Field, depth int) string {
-	switch f.CanonicalType() {
+	ct := f.CanonicalType()
+	switch ct {
 	case "object":
 		if depth <= 0 || len(f.Properties) == 0 {
 			return "{}"
@@ -143,31 +163,36 @@ func skeletonValue(f meta.Field, depth int) string {
 			return "[{}]"
 		}
 		return "[{" + joinProperties(f, depth) + "}]"
-	case "boolean":
-		return "false"
-	case "integer", "number":
+	}
+
+	// Scalars, per rule two: only a required field is filled in.
+	if f.Required {
 		if opts := f.EnumOptions(); len(opts) > 0 {
 			if v, ok := skeletonLiteral(opts[0].Value); ok {
 				return v
 			}
 		}
-		// 0 stays the placeholder unless it is below the field's floor. Reaching
-		// for the floor unconditionally trades a legal neutral value for a legal
-		// absurd one: okr indicators patch declares min -99999999999 on three
-		// value fields whose upstream example is plain 0. Of the 27 numeric fields
-		// declaring a min, only 10 put 0 out of range; 6 declare a negative floor,
-		// and those are the ones this guard protects. No field declares a max
-		// below 0, so "below the floor" is the whole of "out of range" here.
+		// The floor displaces 0 only when 0 is below it. Reaching for it
+		// unconditionally trades a legal neutral value for a legal absurd one: okr
+		// indicators patch declares min -99999999999 on three value fields whose
+		// upstream example is plain 0. No field declares a max below 0, so "below
+		// the floor" is the whole of "out of range" here.
 		//
-		// min/max are type-agnostic upstream — they may bound a value or a
-		// string's length (see meta.Field.MinBound) — so a bound is only read as
-		// a value here, where a length reading is meaningless. String fields keep
-		// their type marker for that reason as well as rule two above.
-		if min := f.MinBound(); min != nil && *min > 0 {
-			if v, ok := skeletonLiteral(*min); ok {
-				return v
+		// Only numbers consult it: min/max are type-agnostic upstream and may bound
+		// a value or a string's length (see meta.Field.MinBound), and a length
+		// reading is meaningless only for numbers.
+		if ct == "integer" || ct == "number" {
+			if min := f.MinBound(); min != nil && *min > 0 {
+				if v, ok := skeletonLiteral(*min); ok {
+					return v
+				}
 			}
 		}
+	}
+	switch ct {
+	case "boolean":
+		return "false"
+	case "integer", "number":
 		return "0"
 	default:
 		return `"<string>"`
@@ -178,20 +203,22 @@ func skeletonValue(f meta.Field, depth int) string {
 // floor — as a JSON literal, reporting false when it cannot be rendered both
 // safely and faithfully. Callers fall back to the type marker.
 //
-// The live guard is the marshal error. Both callers are the numeric branch, and
-// meta.coerceLiteral reaches "number" through strconv.ParseFloat, which accepts
-// "Inf" and "NaN"; rendering those with strconv would print `+Inf` and cost the
-// skeleton its one hard promise, that it parses. json.Marshal refuses them.
+// Two guards, both live. The marshal error covers non-finite floats: a min or an
+// allowed value arrives as a string and meta.coerceLiteral reaches "number"
+// through strconv.ParseFloat, which accepts "Inf" and "NaN"; rendering those with
+// strconv would print `+Inf` and cost the skeleton its one hard promise, that it
+// parses. json.Marshal refuses them.
 //
-// The sanitize comparison guards the other half of "safely": json.Marshal
-// escapes quotes, backslashes and C0 but passes bidi controls, C1 and zero-width
-// characters through. No caller passes text today — a numeric enum coerces to
-// int64/float64 or is dropped — so this half is currently unreachable, and it
-// stays because the alternative is a helper whose contract quietly depends on
-// who calls it. Note that sanitizing a *value* is not the fix it is for a field
-// name (quoteJSONKey): the sanitized text is no longer the value the API
+// The sanitize comparison covers upstream text, which reaches here through a
+// required string enum's allowed value. json.Marshal escapes quotes, backslashes
+// and C0 but passes bidi controls, C1 and zero-width characters through — the
+// same gap quoteJSONKey covers for field names. Sanitizing a *value* is not the
+// fix it is for a name, though: the sanitized text is no longer the value the API
 // accepts, so it would trade a rendering risk for the wrong-assertion risk
 // skeletonValue exists to prevent. Hence reject rather than clean.
+//
+// Reading the rendered literal rather than the Go value also means neither guard
+// depends on the value's type, at any nesting depth.
 //
 // Marshal FIRST, then compare — the order is load-bearing, not stylistic.
 // Comparing the marshalled form puts quotes around the payload, so
