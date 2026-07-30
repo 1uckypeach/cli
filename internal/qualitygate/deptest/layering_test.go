@@ -365,13 +365,23 @@ func collectBuildConstraints(t *testing.T, root string) []buildConstraintGroup {
 // contradiction: a constraint in a nested module would add a configuration whose
 // only justification is a file that module walk never requires to be selected.
 func skipLayeringScopeDir(root, path, name string) bool {
-	// Directories the Go tool never builds from.
-	if name == ".git" || name == "node_modules" || name == "testdata" || strings.HasPrefix(name, "_") {
+	// The module root is in scope whatever it is called: a checkout can sit
+	// under a directory the rules below would otherwise reject (".worktrees/x"),
+	// and skipping it would empty both walks.
+	if path == root {
+		return false
+	}
+	// Directories the Go tool never builds from. Every name beginning with "."
+	// or "_" is ignored by the go command — which covers ".git" without naming
+	// it, and keeps a gitignored scratch directory that happens to hold Go files
+	// (".cache/…") from being demanded of configurations `go list ./...` never
+	// offered it to.
+	if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "node_modules" || name == "testdata" {
 		return true
 	}
 	// Nested modules: `go list ./...` stops at them, and the rules are written
 	// against this module's import paths.
-	return path != root && isModuleRoot(path)
+	return isModuleRoot(path)
 }
 
 // isModuleRoot reports whether dir declares its own module.
@@ -1389,6 +1399,16 @@ func TestLayeringScopeStopsAtNestedModules(t *testing.T) {
 	}
 	if skipLayeringScopeDir(root, root, filepath.Base(root)) {
 		t.Error("the module root declares this module and must stay in scope")
+	}
+
+	// The go command ignores directories whose name begins with "." or "_", so
+	// `go list ./...` never offers their files to any configuration. Walking
+	// into one turns a developer's gitignored scratch directory into a file the
+	// selection check demands and cannot find.
+	for _, name := range []string{".cache", ".git", "_scratch", "node_modules", "testdata"} {
+		if !skipLayeringScopeDir(root, filepath.Join(root, name), name) {
+			t.Errorf("%s is outside what `go list ./...` builds and must be out of scope for both walks", name)
+		}
 	}
 }
 
