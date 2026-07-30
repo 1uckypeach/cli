@@ -41,7 +41,17 @@ type ConvertContext struct {
 }
 
 // ConvertBodyContent converts body.content (a raw JSON string) to human-readable text.
+//
+// The empty-content guard has to live here, above the merge_forward dispatch,
+// not only in imcontent.ConvertBodyContent: the shortcut-side merge_forward
+// converter never consults imcontent on its expansion paths, so a guard that
+// only sat below the dispatch would let an empty-content merge_forward render a
+// prefetched <forwarded_messages> tree — or issue an inline
+// GET /open-apis/im/v1/messages/{id} — where every other message type returns "".
 func ConvertBodyContent(msgType string, ctx *ConvertContext) string {
+	if ctx == nil || ctx.RawContent == "" {
+		return ""
+	}
 	if msgType == "merge_forward" {
 		return (mergeForwardConverter{}).Convert(ctx)
 	}
