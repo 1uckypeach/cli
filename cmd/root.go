@@ -684,15 +684,15 @@ func installTipsHelpFunc(root *cobra.Command) {
 			defaultHelp(cmd, args)
 			return
 		}
-		if service.PrepareShortcutHelp(cmd, embeddedSkillContent) {
-			defaultHelp(cmd, args)
-			return
-		}
+		// Shortcut help composes its affordance block into Long but leaves Risk
+		// and Tips to the shared append below, so every shortcut shows them in
+		// the same place with the same wording.
+		service.PrepareShortcutHelp(cmd, embeddedSkillContent)
 		defaultHelp(cmd, args)
 		out := cmd.OutOrStdout()
-		if level, ok := cmdutil.GetRisk(cmd); ok {
+		if line, ok := cmdutil.RiskLine(cmd); ok {
 			fmt.Fprintln(out)
-			fmt.Fprintln(out, "Risk:", level)
+			fmt.Fprintln(out, line)
 		}
 		tips := cmdutil.GetTips(cmd)
 		if len(tips) == 0 {

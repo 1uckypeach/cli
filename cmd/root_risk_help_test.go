@@ -68,3 +68,31 @@ func TestHelpFunc_RiskLinePrecedesTips(t *testing.T) {
 		t.Errorf("expected Risk to precede Tips; got Risk@%d, Tips@%d", riskIdx, tipsIdx)
 	}
 }
+
+func TestHelpFunc_HighRiskWriteCarriesGuardrail(t *testing.T) {
+	root := &cobra.Command{Use: "lark-cli"}
+	installTipsHelpFunc(root)
+
+	child := &cobra.Command{Use: "delete", Short: "delete a file"}
+	cmdutil.SetRisk(child, cmdutil.RiskHighRiskWrite)
+	root.AddCommand(child)
+
+	out := rendersHelp(t, child)
+	if !strings.Contains(out, "must NOT add --yes on its own") {
+		t.Errorf("high-risk-write help must warn agents not to self-approve, got:\n%s", out)
+	}
+}
+
+func TestHelpFunc_LowerRiskHasNoGuardrail(t *testing.T) {
+	root := &cobra.Command{Use: "lark-cli"}
+	installTipsHelpFunc(root)
+
+	child := &cobra.Command{Use: "list", Short: "list files"}
+	cmdutil.SetRisk(child, cmdutil.RiskRead)
+	root.AddCommand(child)
+
+	out := rendersHelp(t, child)
+	if strings.Contains(out, "must NOT add --yes") {
+		t.Errorf("read-level help must not carry the confirmation warning, got:\n%s", out)
+	}
+}
