@@ -73,7 +73,7 @@ if (args[0] === "install") {
     }
     // SIGINT and SIGTERM are the explicit quiet allowlist for intentional
     // interruption (Ctrl+C during `auth login`, for one). Other signals are
-    // crash evidence worth reporting, but do not prove the binary failed to
+    // crash evidence worth surfacing, but do not prove the binary failed to
     // launch. Only print e.signal and the known bin path: e.message and related
     // error fields can contain the caller's full argv.
     if (e.signal) {
@@ -82,9 +82,7 @@ if (args[0] === "install") {
       }
       console.error(
         `\nlark-cli: the native binary was terminated by signal ${e.signal}.\n` +
-        `  path:  ${bin}\n\n` +
-        `Report this error at https://github.com/larksuite/cli/issues\n` +
-        `Please include the path and signal shown above.\n`
+        `  path:  ${bin}`
       );
       process.exit(1);
     }
@@ -97,9 +95,7 @@ if (args[0] === "install") {
     console.error(
       `\nlark-cli: failed to launch the native binary.\n` +
       `  path:  ${bin}\n` +
-      `  error: ${reason}\n\n` +
-      `Report this error at https://github.com/larksuite/cli/issues\n` +
-      `Please include the path and error shown above.\n`
+      `  error: ${reason}`
     );
     process.exit(1);
   }

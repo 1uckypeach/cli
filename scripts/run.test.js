@@ -117,19 +117,16 @@ function assertLaunchFailure(res, sandbox) {
   assert.ok(line, `diagnostic omits an error line: ${res.stderr}`);
   const reason = line[1].trim();
   assert.notEqual(reason, "", "error line is empty");
-  // Closure of a security review finding: a user facing EACCES with no
-  // pointer tends to reach for sudo / chmod 777 / disabling endpoint
-  // protection. Without this assertion, deleting the tracker line (and its
-  // follow-up sentence) from run.js leaves the suite fully green.
+  // Keep failure output factual and local. A launch failure is not necessarily
+  // a lark-cli bug, and prompting users to paste local paths into an issue adds
+  // noise and may expose machine-specific information.
   assert.ok(
-    res.stderr.includes(
-      "Report this error at https://github.com/larksuite/cli/issues"
-    ),
-    `diagnostic omits the issue tracker line: ${res.stderr}`
+    !res.stderr.includes("github.com/larksuite/cli/issues"),
+    `diagnostic should not prompt issue creation: ${res.stderr}`
   );
   assert.ok(
-    res.stderr.includes("Please include the path and error shown above."),
-    `diagnostic omits the follow-up line: ${res.stderr}`
+    !res.stderr.includes("Please include"),
+    `diagnostic should not ask users to share local details: ${res.stderr}`
   );
   // The sentinel check for launch-failure cases is not redundant with the
   // check in assertBinaryRan: when the launch fails, e.message contains only
@@ -272,9 +269,7 @@ describe("run.js pass-through when the binary runs", () => {
 
       const expected =
         `\nlark-cli: the native binary was terminated by signal SIGKILL.\n` +
-        `  path:  ${sandbox.bin}\n\n` +
-        `Report this error at https://github.com/larksuite/cli/issues\n` +
-        `Please include the path and signal shown above.\n\n`;
+        `  path:  ${sandbox.bin}\n`;
       assert.equal(res.status, 1);
       assert.equal(res.stdout, "", `stdout should stay empty: ${res.stdout}`);
       assert.equal(res.stderr, expected);
