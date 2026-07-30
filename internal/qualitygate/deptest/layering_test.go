@@ -60,6 +60,20 @@ type Rule struct {
 	// whenever the rule name promises a surface rather than a blocklist, so the
 	// guarantee cannot drift as the repository grows new top-level trees.
 	AllowedRepoDeps []string
+	// TestExempt lists dependency prefixes this rule tolerates in the test view
+	// only — the graph built from TestImports and XTestImports. Production files
+	// stay under Denied.
+	//
+	// The two views need different answers because a test's reason for importing
+	// a package is different in kind: a shortcut's test constructs the runtime
+	// the shortcut receives at run time, which means naming the credential, auth
+	// and filesystem packages the runtime is assembled from. Denying those in
+	// tests would not move a single production import; it would only push ten
+	// packages into the exception registry for writing ordinary tests.
+	//
+	// What stays denied in tests is direction: a test may reach down for
+	// scaffolding, never up at a layer above its own.
+	TestExempt []string
 }
 
 // examplesPrefix is the plugin-SDK example tree. Each subdirectory is a
@@ -130,6 +144,17 @@ var rules = []Rule{
 			{From: modulePath + "/shortcuts/apps/gitcred", Denied: modulePath + "/internal/keychain"},
 			{From: modulePath + "/shortcuts/apps/gitcred", Denied: modulePath + "/internal/vfs"},
 		},
+		// A shortcut's test builds the runtime the shortcut is handed at run
+		// time, so it names the pieces that runtime is assembled from: a token
+		// resolver, an identity, a file on disk to upload. keychain and client
+		// stay denied — a test needs neither to construct a RuntimeContext, and
+		// reaching for them means it is talking to the real keyring or issuing
+		// real requests.
+		TestExempt: []string{
+			modulePath + "/internal/auth",
+			modulePath + "/internal/credential",
+			modulePath + "/internal/vfs",
+		},
 	},
 	{
 		Name:       "cmd-assembly-only",
@@ -169,6 +194,15 @@ type listedPackage struct {
 	ImportPath string
 	Imports    []string
 	Deps       []string
+	// TestImports and XTestImports are what `go list` reports for the in-package
+	// and external test files. They are separate fields in the toolchain's answer
+	// and were separate holes in this gate: reading only Imports and Deps let a
+	// denied dependency reach the tree through a _test.go file unchecked, which
+	// TestLayeringBuildConfigsSelectEveryFile then counted as covered because it
+	// compiles those files. testDependencyView turns them into a second graph the
+	// same rules walk.
+	TestImports  []string
+	XTestImports []string
 	// Dir and the file lists are only read by
 	// TestLayeringBuildConfigsSelectEveryFile, which needs the toolchain's own
 	// answer to "which files did this configuration compile".
@@ -529,6 +563,11 @@ type layeringEdge struct {
 type layeringViolation struct {
 	layeringEdge
 	Rule string
+	// TestOnly marks a violation found in the test view rather than the
+	// production graph. It is not part of the edge identity: the exception
+	// registry is keyed by (from, denied), so a row covers the edge whichever
+	// view found it.
+	TestOnly bool
 }
 
 type seededLayeringEdge struct {
@@ -542,13 +581,17 @@ type seededLayeringEdge struct {
 func TestPackageLayering(t *testing.T) {
 	root := repoRoot(t)
 	packages := goListPackageGraph(t, root)
+	testPackages := testDependencyView(packages)
 	seeded := readLayeringEdges(t, filepath.Join(root, "internal/qualitygate/deptest/layering-edges.txt"))
 	seededByEdge := indexSeededLayeringEdges(t, seeded)
 
 	actualByRule := make(map[string][]layeringViolation, len(rules))
 	actualEdges := make(map[layeringEdge]struct{})
 	for _, rule := range rules {
-		violations := evaluateLayeringRule(packages, rule)
+		violations := slices.Concat(
+			evaluateLayeringRule(packages, rule),
+			evaluateLayeringTestRule(testPackages, rule),
+		)
 		actualByRule[rule.Name] = violations
 		for _, violation := range violations {
 			actualEdges[violation.layeringEdge] = struct{}{}
@@ -558,11 +601,16 @@ func TestPackageLayering(t *testing.T) {
 	for _, rule := range rules {
 		t.Run(rule.Name, func(t *testing.T) {
 			for _, violation := range findUnseededLayeringViolations(actualByRule[rule.Name], seededByEdge) {
+				where := "production files"
+				if violation.TestOnly {
+					where = "test files"
+				}
 				t.Errorf(
-					"new layering violation: from=%s denied=%s rule=%s; use the approved dependency gate or fix the dependency; do not add rows to layering-edges.txt",
+					"new layering violation: from=%s denied=%s rule=%s in=%s; use the approved dependency gate or fix the dependency; do not add rows to layering-edges.txt",
 					violation.From,
 					violation.Denied,
 					violation.Rule,
+					where,
 				)
 			}
 		})
@@ -727,6 +775,97 @@ func TestMatchesPackagePrefix(t *testing.T) {
 	}
 }
 
+// TestTestDependencyViewCarriesTestImports pins what the test view is built from:
+// the two import lists `go list` keeps separate from Imports, the transitive
+// closure through each one, and the package's own path dropped so an external
+// test package's import of the package it tests is not a dependency.
+func TestTestDependencyViewCarriesTestImports(t *testing.T) {
+	packages := []listedPackage{
+		{
+			ImportPath:   modulePath + "/shortcuts/probe",
+			Imports:      []string{modulePath + "/shortcuts/common"},
+			Deps:         []string{modulePath + "/shortcuts/common"},
+			TestImports:  []string{modulePath + "/internal/httpmock", modulePath + "/shortcuts/probe"},
+			XTestImports: []string{modulePath + "/internal/client"},
+		},
+		{
+			ImportPath: modulePath + "/internal/httpmock",
+			Deps:       []string{modulePath + "/internal/vfs"},
+		},
+		{
+			ImportPath: modulePath + "/internal/leaf",
+		},
+	}
+
+	view := testDependencyView(packages)
+	if len(view) != 1 {
+		t.Fatalf("testDependencyView returned %d packages, want only the one with test imports", len(view))
+	}
+	probe := view[0]
+	wantImports := []string{modulePath + "/internal/client", modulePath + "/internal/httpmock"}
+	if !slices.Equal(probe.Imports, wantImports) {
+		t.Fatalf("test view imports = %q, want %q (self-import dropped, XTestImports included)", probe.Imports, wantImports)
+	}
+	if !slices.Contains(probe.Deps, modulePath+"/internal/vfs") {
+		t.Fatalf("test view deps = %q, want the closure through internal/httpmock to reach internal/vfs", probe.Deps)
+	}
+	if slices.Contains(probe.Deps, modulePath+"/shortcuts/probe") {
+		t.Fatalf("test view deps = %q, want the package's own path dropped", probe.Deps)
+	}
+	// Production imports stay out of the test view: they are the other graph's
+	// business, and mixing them in would report one edge from two views.
+	if slices.Contains(probe.Imports, modulePath+"/shortcuts/common") {
+		t.Fatalf("test view imports = %q, want production imports excluded", probe.Imports)
+	}
+}
+
+// TestEvaluateLayeringTestRuleAppliesTestExempt is the reverse check for the hole
+// this view closes: a denied dependency that exists only in test files has to be
+// reported, and TestExempt has to relax the test view without relaxing production.
+func TestEvaluateLayeringTestRuleAppliesTestExempt(t *testing.T) {
+	rule := Rule{
+		Name:       "test-exempt",
+		Mode:       Direct,
+		FromPrefix: modulePath + "/shortcuts",
+		Denied:     []string{modulePath + "/internal/vfs", modulePath + "/internal/client"},
+		TestExempt: []string{modulePath + "/internal/vfs"},
+	}
+	// Prefix matching means the exemption covers the subpackage too.
+	testView := []listedPackage{
+		{
+			ImportPath: modulePath + "/shortcuts/probe",
+			Imports: []string{
+				modulePath + "/internal/client",
+				modulePath + "/internal/vfs",
+				modulePath + "/internal/vfs/localfileio",
+			},
+		},
+	}
+
+	violations := evaluateLayeringTestRule(testView, rule)
+	if len(violations) != 1 {
+		t.Fatalf("evaluateLayeringTestRule returned %+v, want only the unexempted internal/client edge", violations)
+	}
+	if violations[0].Denied != modulePath+"/internal/client" {
+		t.Fatalf("test-view violation = %s, want internal/client", violations[0].Denied)
+	}
+	if !violations[0].TestOnly {
+		t.Fatal("a test-view violation must be marked TestOnly so the failure names the files to look in")
+	}
+
+	// The same imports in production stay denied: TestExempt is not a way to
+	// widen the rule for everyone.
+	production := evaluateLayeringRule(testView, rule)
+	if len(production) != 3 {
+		t.Fatalf("evaluateLayeringRule returned %d violations, want all 3 — TestExempt must not apply to production", len(production))
+	}
+	for _, violation := range production {
+		if violation.TestOnly {
+			t.Fatalf("production violation %s is marked TestOnly", violation.Denied)
+		}
+	}
+}
+
 func TestEvaluateLayeringRuleUsesExactExceptions(t *testing.T) {
 	rule := Rule{
 		Name:       "exact-exception",
@@ -797,6 +936,11 @@ func TestLayeringRuleContracts(t *testing.T) {
 			ExceptEdges: []layeringEdge{
 				{From: modulePath + "/shortcuts/apps/gitcred", Denied: modulePath + "/internal/keychain"},
 				{From: modulePath + "/shortcuts/apps/gitcred", Denied: modulePath + "/internal/vfs"},
+			},
+			TestExempt: []string{
+				modulePath + "/internal/auth",
+				modulePath + "/internal/credential",
+				modulePath + "/internal/vfs",
 			},
 		},
 		{
@@ -1199,6 +1343,11 @@ func TestLayeringBuildConfigs(t *testing.T) {
 // compiles and fails on any Go file that no configuration selects: an import
 // edge only reaches the rules through a selected file, so an unselected file is
 // an unenforced one.
+//
+// Test files count as selected, and that is now the truth rather than an
+// assumption: TestPackageLayering walks a second graph built from TestImports and
+// XTestImports, so a denied dependency in a _test.go file is reported like any
+// other. Until it did, this test vouched for coverage the rules never provided.
 //
 // It sweeps `go list` again rather than reusing TestPackageLayering's graph:
 // that graph merges each package across every configuration and keeps only
@@ -2088,6 +2237,8 @@ func goListPackageGraph(t *testing.T, root string) []listedPackage {
 				merged.ImportPath = pkg.ImportPath
 				merged.Imports = mergeStrings(merged.Imports, pkg.Imports)
 				merged.Deps = mergeStrings(merged.Deps, pkg.Deps)
+				merged.TestImports = mergeStrings(merged.TestImports, pkg.TestImports)
+				merged.XTestImports = mergeStrings(merged.XTestImports, pkg.XTestImports)
 				packagesByPath[pkg.ImportPath] = merged
 			}
 		}
@@ -2101,6 +2252,54 @@ func goListPackageGraph(t *testing.T, root string) []listedPackage {
 		return packages[i].ImportPath < packages[j].ImportPath
 	})
 	return packages
+}
+
+// testDependencyView returns the graph the rules walk for test files. Each
+// package's Imports become its direct test imports, and its Deps the transitive
+// closure of those: importing a package from a test pulls that package in along
+// with everything it depends on, so the closure is the union of each test import
+// and its production Deps.
+//
+// A package's own import path is dropped from both. An external test package
+// (`package foo_test`) always imports the package it tests, and counting that as
+// a dependency would make every leaf rule — errs-leaf denies this module
+// wholesale — fail on the test file that exists to test the leaf.
+func testDependencyView(packages []listedPackage) []listedPackage {
+	depsByPath := make(map[string][]string, len(packages))
+	for _, pkg := range packages {
+		depsByPath[pkg.ImportPath] = pkg.Deps
+	}
+
+	view := make([]listedPackage, 0, len(packages))
+	for _, pkg := range packages {
+		imports := make([]string, 0, len(pkg.TestImports)+len(pkg.XTestImports))
+		closure := map[string]bool{}
+		for _, imported := range slices.Concat(pkg.TestImports, pkg.XTestImports) {
+			if imported == pkg.ImportPath {
+				continue
+			}
+			imports = append(imports, imported)
+			closure[imported] = true
+			for _, dep := range depsByPath[imported] {
+				if dep != pkg.ImportPath {
+					closure[dep] = true
+				}
+			}
+		}
+		if len(imports) == 0 {
+			continue
+		}
+		deps := make([]string, 0, len(closure))
+		for dep := range closure {
+			deps = append(deps, dep)
+		}
+		slices.Sort(imports)
+		imports = slices.Compact(imports)
+		slices.Sort(deps)
+		view = append(view, listedPackage{ImportPath: pkg.ImportPath, Imports: imports, Deps: deps})
+	}
+	sort.Slice(view, func(i, j int) bool { return view[i].ImportPath < view[j].ImportPath })
+	return view
 }
 
 func goListPackages(t *testing.T, root string, target goListTarget, tags string) []listedPackage {
@@ -2199,7 +2398,25 @@ func sortedKeys(values map[string]struct{}) []string {
 	return keys
 }
 
+// evaluateLayeringRule walks the production graph: pkg.Imports for a Direct rule,
+// pkg.Deps for a Transitive one.
 func evaluateLayeringRule(packages []listedPackage, rule Rule) []layeringViolation {
+	return evaluateLayeringRuleWithExemptions(packages, rule, nil, false)
+}
+
+// evaluateLayeringTestRule walks the graph testDependencyView built from the test
+// files, where the rule's TestExempt prefixes are tolerated. Violations are
+// marked TestOnly so the failure says which files to look in.
+func evaluateLayeringTestRule(packages []listedPackage, rule Rule) []layeringViolation {
+	return evaluateLayeringRuleWithExemptions(packages, rule, rule.TestExempt, true)
+}
+
+func evaluateLayeringRuleWithExemptions(
+	packages []listedPackage,
+	rule Rule,
+	exempt []string,
+	testOnly bool,
+) []layeringViolation {
 	var violations []layeringViolation
 	for _, pkg := range packages {
 		if !matchesPackagePrefix(rule.FromPrefix, pkg.ImportPath) {
@@ -2217,6 +2434,9 @@ func evaluateLayeringRule(packages []listedPackage, rule Rule) []layeringViolati
 			if !ruleRejectsDependency(rule, dependency) {
 				continue
 			}
+			if matchesAnyPackagePrefix(exempt, dependency) {
+				continue
+			}
 			if slices.Contains(rule.ExceptEdges, layeringEdge{From: pkg.ImportPath, Denied: dependency}) {
 				continue
 			}
@@ -2225,7 +2445,8 @@ func evaluateLayeringRule(packages []listedPackage, rule Rule) []layeringViolati
 					From:   pkg.ImportPath,
 					Denied: dependency,
 				},
-				Rule: rule.Name,
+				Rule:     rule.Name,
+				TestOnly: testOnly,
 			})
 		}
 	}
