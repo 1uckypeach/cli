@@ -218,17 +218,15 @@ func PrepareShortcutHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 
 // writeRisk appends the "Risk: <level>" line, warning agents not to self-approve
 // high-risk-write commands. A no-op when the command has no risk annotation.
+// The wording lives in cmdutil.RiskLine so help and any other surface stay in
+// sync.
 func writeRisk(b *strings.Builder, cmd *cobra.Command) {
-	level, ok := cmdutil.GetRisk(cmd)
+	line, ok := cmdutil.RiskLine(cmd)
 	if !ok {
 		return
 	}
-	// --yes asserts the USER confirmed; the agent must not self-approve.
-	if level == cmdutil.RiskHighRiskWrite {
-		fmt.Fprintf(b, "\n\nRisk: %s (requires explicit user confirmation to execute; the agent must NOT add --yes on its own — only pass --yes after the user has confirmed)", level)
-	} else {
-		fmt.Fprintf(b, "\n\nRisk: %s", level)
-	}
+	b.WriteString("\n\n")
+	b.WriteString(line)
 }
 
 // writeRelatedSkills appends the "Related skills" block for the entries that
