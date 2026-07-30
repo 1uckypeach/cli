@@ -67,6 +67,27 @@ if (args[0] === "install") {
   try {
     execFileSync(bin, args, { stdio: "inherit" });
   } catch (e) {
-    process.exit(e.status || 1);
+    // The binary ran and chose its own status — forward it untouched.
+    if (typeof e.status === "number") {
+      process.exit(e.status);
+    }
+    // The binary ran and was killed by a signal (Ctrl+C during `auth login`,
+    // for one). Not the shim's business to editorialise.
+    if (e.signal) {
+      process.exit(1);
+    }
+    // Neither: the launch itself failed. Report only what is actually known —
+    // permissions, file format, CPU architecture and endpoint policy all land
+    // here, and the errno is the only evidence. Print e.code and never
+    // e.message: when the child does run, e.message carries the full argv,
+    // which can contain values the caller passed on the command line.
+    const reason = typeof e.code === "string" ? e.code : "UNKNOWN";
+    console.error(
+      `\nlark-cli: failed to launch the native binary.\n` +
+      `  path:  ${bin}\n` +
+      `  error: ${reason}\n\n` +
+      `Report this error at https://github.com/larksuite/cli/issues\n`
+    );
+    process.exit(1);
   }
 }
