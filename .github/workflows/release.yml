@@ -217,6 +217,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PRERELEASE: ${{ needs.preflight.outputs.prerelease }}
+          REHEARSAL_PARTIAL_DRAFT: true
           SOURCE_SHA: ${{ needs.preflight.outputs.source_sha }}
           TAG: ${{ github.ref_name }}
         run: |
@@ -279,6 +280,11 @@ jobs:
             gh release create "${args[@]}" --notes-file "$release_notes"
           fi
           gh release edit "$TAG" --notes-file "$release_notes"
+          if [[ "${REHEARSAL_PARTIAL_DRAFT:-}" == "true" && "$GITHUB_RUN_ATTEMPT" == "1" ]]; then
+            gh release upload "$TAG" "${release_assets[0]}"
+            echo "S2 rehearsal: partial Draft uploaded; re-run failed jobs to resume." >&2
+            exit 1
+          fi
           gh release upload "$TAG" "${release_assets[@]}"
           diff --brief \
             <(printf '%s\n' "${release_assets[@]##*/}" | sort) \
@@ -308,6 +314,7 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}
           MACOS_TEAM_ID: ${{ vars.MACOS_TEAM_ID }}
+          REHEARSAL_EXPECTED_TEAM_ID: TEST_INVALID_TEAM
           VERSION: ${{ needs.preflight.outputs.version }}
         run: |
           set -euo pipefail
@@ -323,6 +330,7 @@ jobs:
           [[ -f "$binary" && ! -L "$binary" ]] || { echo "Archive did not contain a regular lark-cli binary." >&2; exit 1; }
           codesign --verify --strict --verbose=4 "$binary"
           details="$(codesign -dv --verbose=4 "$binary" 2>&1)"
+          [[ -z "${REHEARSAL_EXPECTED_TEAM_ID:-}" ]] || MACOS_TEAM_ID="$REHEARSAL_EXPECTED_TEAM_ID"
           grep -Eq '^Authority=Developer ID Application: .+' <<<"$details"
           grep -Fxq "TeamIdentifier=${MACOS_TEAM_ID}" <<<"$details"
           grep -Eq '^flags=0x[0-9A-Fa-f]+\(.*runtime.*\)' <<<"$details"
