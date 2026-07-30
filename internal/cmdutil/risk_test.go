@@ -95,8 +95,15 @@ func TestGetRisk_EmptyValueReturnsNotOK(t *testing.T) {
 	}
 }
 
-func TestRiskLine_HighRiskWriteCarriesConfirmationWarning(t *testing.T) {
+// The guardrail sentence follows the presence of a --yes gate, not the risk
+// level alone: it asserts that --yes means the user confirmed, which is only
+// true when the command actually wires --yes into a confirmation check. A
+// command that only carries the high-risk-write annotation without --yes
+// (e.g. `update`) has no such gate, so RiskLine must not claim one exists.
+
+func TestRiskLine_HighRiskWriteWithYesFlagCarriesConfirmationWarning(t *testing.T) {
 	cmd := &cobra.Command{Use: "delete"}
+	cmd.Flags().Bool("yes", false, "confirm high-risk operation")
 	SetRisk(cmd, RiskHighRiskWrite)
 
 	line, ok := RiskLine(cmd)
@@ -107,7 +114,26 @@ func TestRiskLine_HighRiskWriteCarriesConfirmationWarning(t *testing.T) {
 		t.Errorf("expected the line to lead with the level, got %q", line)
 	}
 	if !strings.Contains(line, "must NOT add --yes on its own") {
-		t.Errorf("high-risk-write must carry the agent guardrail, got %q", line)
+		t.Errorf("high-risk-write with a --yes flag must carry the agent guardrail, got %q", line)
+	}
+}
+
+func TestRiskLine_HighRiskWriteWithoutYesFlagRendersBare(t *testing.T) {
+	// Shape of `update`: annotated high-risk-write but no --yes flag and no
+	// confirmation gate at all. The guardrail sentence must not appear — it
+	// would tell an agent to pass a flag the command doesn't define.
+	cmd := &cobra.Command{Use: "update"}
+	SetRisk(cmd, RiskHighRiskWrite)
+
+	line, ok := RiskLine(cmd)
+	if !ok {
+		t.Fatal("expected ok for an annotated command")
+	}
+	if line != "Risk: "+RiskHighRiskWrite {
+		t.Errorf("expected a bare line without a --yes gate, got %q", line)
+	}
+	if strings.Contains(line, "--yes") {
+		t.Errorf("must not mention --yes when the command has no --yes flag, got %q", line)
 	}
 }
 
