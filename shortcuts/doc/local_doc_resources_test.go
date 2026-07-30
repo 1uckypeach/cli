@@ -4,9 +4,12 @@
 package doc
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/png"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -25,10 +28,10 @@ import (
 
 func TestPrepareLocalDocResourcesXMLImageAndSource(t *testing.T) {
 	runtime := newLocalDocResourceTestRuntime(t, map[string]string{
-		"diagram.png": "png-data",
+		"diagram.png": localDocResourcePNG(t, 100, 80),
 		"report.pdf":  "pdf-data",
 	})
-	content := `<p>before</p><img path="@diagram.png" alt="diagram" width="640" height="480" align="right" scale="0.5"/><source path="@report.pdf" name="report.pdf"></source>`
+	content := `<p>before</p><img path="@diagram.png" alt="diagram" width="50" height="40" align="right" scale="0.5"/><source path="@report.pdf" name="report.pdf"></source>`
 
 	got, resources, err := prepareLocalDocResources(runtime, "xml", content)
 	if err != nil {
@@ -46,10 +49,144 @@ func TestPrepareLocalDocResourcesXMLImageAndSource(t *testing.T) {
 	if strings.Contains(got, "@diagram.png") || strings.Contains(got, "@report.pdf") {
 		t.Fatalf("rewritten content leaks local path: %s", got)
 	}
-	for _, want := range []string{resources[0].Marker, resources[1].Marker, `width="640"`, `height="480"`, `align="right"`, `scale="0.5"`} {
+	for _, want := range []string{resources[0].Marker, resources[1].Marker, `width="100"`, `height="80"`, `align="right"`, `scale="0.500000"`} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("rewritten content missing %q: %s", want, got)
 		}
+	}
+}
+
+func TestPrepareLocalDocResourcesNormalizesImageDimensionsAndScale(t *testing.T) {
+	tests := []struct {
+		name          string
+		nativeWidth   int
+		nativeHeight  int
+		attrs         string
+		wantWidth     int
+		wantHeight    int
+		wantScale     float64
+		wantHasScale  bool
+		wantScaleText string
+	}{
+		{
+			name:         "intrinsic dimensions without model display size",
+			nativeWidth:  100,
+			nativeHeight: 80,
+			wantWidth:    100,
+			wantHeight:   80,
+		},
+		{
+			name:          "model width becomes scale",
+			nativeWidth:   100,
+			nativeHeight:  80,
+			attrs:         ` width="50"`,
+			wantWidth:     100,
+			wantHeight:    80,
+			wantScale:     0.5,
+			wantHasScale:  true,
+			wantScaleText: `scale="0.500000"`,
+		},
+		{
+			name:          "model height becomes scale",
+			nativeWidth:   100,
+			nativeHeight:  80,
+			attrs:         ` height="20"`,
+			wantWidth:     100,
+			wantHeight:    80,
+			wantScale:     0.25,
+			wantHasScale:  true,
+			wantScaleText: `scale="0.250000"`,
+		},
+		{
+			name:          "model width wins when both dimensions exist",
+			nativeWidth:   100,
+			nativeHeight:  80,
+			attrs:         ` width="25" height="70"`,
+			wantWidth:     100,
+			wantHeight:    80,
+			wantScale:     0.25,
+			wantHasScale:  true,
+			wantScaleText: `scale="0.250000"`,
+		},
+		{
+			name:          "explicit scale wins over model dimensions",
+			nativeWidth:   100,
+			nativeHeight:  80,
+			attrs:         ` width="50" scale="0.75"`,
+			wantWidth:     100,
+			wantHeight:    80,
+			wantScale:     0.75,
+			wantHasScale:  true,
+			wantScaleText: `scale="0.750000"`,
+		},
+		{
+			name:          "percentage width becomes scale",
+			nativeWidth:   100,
+			nativeHeight:  80,
+			attrs:         ` width="80%"`,
+			wantWidth:     100,
+			wantHeight:    80,
+			wantScale:     0.8,
+			wantHasScale:  true,
+			wantScaleText: `scale="0.800000"`,
+		},
+		{
+			name:         "invalid model dimensions are ignored",
+			nativeWidth:  100,
+			nativeHeight: 80,
+			attrs:        ` width="invalid" height="0" scale="-1"`,
+			wantWidth:    100,
+			wantHeight:   80,
+		},
+		{
+			name:          "wide image is capped below page width",
+			nativeWidth:   1200,
+			nativeHeight:  800,
+			wantWidth:     1200,
+			wantHeight:    800,
+			wantScale:     0.849999,
+			wantHasScale:  true,
+			wantScaleText: `scale="0.849999"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runtime := newLocalDocResourceTestRuntime(t, map[string]string{
+				"diagram.png": localDocResourcePNG(t, tt.nativeWidth, tt.nativeHeight),
+			})
+			content := `<img path="@diagram.png"` + tt.attrs + `/>`
+
+			got, resources, err := prepareLocalDocResources(runtime, "xml", content)
+			if err != nil {
+				t.Fatalf("prepareLocalDocResources() error: %v", err)
+			}
+			if len(resources) != 1 {
+				t.Fatalf("resources len = %d, want 1: %#v", len(resources), resources)
+			}
+			resource := resources[0]
+			if resource.ImageWidth != tt.wantWidth || resource.ImageHeight != tt.wantHeight {
+				t.Fatalf("intrinsic dimensions = %dx%d, want %dx%d; content=%s", resource.ImageWidth, resource.ImageHeight, tt.wantWidth, tt.wantHeight, got)
+			}
+			if resource.HasScale != tt.wantHasScale || resource.ImageScale != tt.wantScale {
+				t.Fatalf("scale = %v (present=%v), want %v (present=%v); content=%s", resource.ImageScale, resource.HasScale, tt.wantScale, tt.wantHasScale, got)
+			}
+			for _, want := range []string{
+				fmt.Sprintf(`width="%d"`, tt.wantWidth),
+				fmt.Sprintf(`height="%d"`, tt.wantHeight),
+			} {
+				if !strings.Contains(got, want) {
+					t.Fatalf("rewritten content missing %q: %s", want, got)
+				}
+			}
+			if tt.wantHasScale {
+				if !strings.Contains(got, tt.wantScaleText) {
+					t.Fatalf("rewritten content missing %q: %s", tt.wantScaleText, got)
+				}
+			} else if strings.Contains(got, ` scale=`) {
+				t.Fatalf("rewritten content unexpectedly contains scale: %s", got)
+			}
+		})
 	}
 }
 
@@ -905,4 +1042,13 @@ func newLocalDocResourceTestRuntime(t *testing.T, files map[string]string) *comm
 		factory,
 		core.AsUser,
 	)
+}
+
+func localDocResourcePNG(t *testing.T, width, height int) string {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, width, height))); err != nil {
+		t.Fatalf("encode %dx%d PNG: %v", width, height, err)
+	}
+	return buf.String()
 }

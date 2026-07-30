@@ -36,6 +36,8 @@ const (
 	localDocResourceVerifyInterval      = 220 * time.Millisecond
 	localDocResourceUploadConflictCode  = 1061045
 	localDocResourceUploadRateLimitCode = 99991400
+	localDocImageMaxDisplayWidthPx      = 1020
+	localDocImageScalePrecision         = 1000000
 )
 
 var waitLocalDocResourceRequest = func(ctx context.Context, delay time.Duration) error {
@@ -375,6 +377,7 @@ func rewriteRawLocalResourceTag(runtime *common.RuntimeContext, raw, name string
 		if _, hasCaption := tag.attr("caption"); !hasCaption {
 			tag.renameAttr("alt", "caption")
 		}
+		normalizeLocalDocImagePresentation(runtime, &tag, &resource)
 		resource.captureImagePresentation(tag)
 	} else if rawName, hasName := tag.attr("name"); hasName {
 		fileName := strings.TrimSpace(rawName)
@@ -410,6 +413,119 @@ func (r *localDocResource) captureImagePresentation(tag localDocResourceTag) {
 			r.HasScale = true
 		}
 	}
+}
+
+// normalizeLocalDocImagePresentation mirrors the SDK's network-image
+// normalization before the local path is replaced by an opaque marker. The
+// stored width/height are always the source image's intrinsic pixel
+// dimensions; model-provided display dimensions are converted to scale.
+func normalizeLocalDocImagePresentation(runtime *common.RuntimeContext, tag *localDocResourceTag, resource *localDocResource) {
+	nativeWidth, nativeHeight, err := detectImageDimensionsFromPath(runtime.FileIO(), resource.Path)
+	if err != nil || nativeWidth <= 0 || nativeHeight <= 0 {
+		tag.deleteAttr("width")
+		tag.deleteAttr("height")
+		tag.deleteAttr("scale")
+		return
+	}
+
+	modelScale, hasModelScale := positiveLocalDocImageFloatAttr(*tag, "scale")
+	modelWidth, hasModelWidth := positiveLocalDocImageDisplaySizeAttr(*tag, "width", nativeWidth)
+	modelHeight, hasModelHeight := positiveLocalDocImageDisplaySizeAttr(*tag, "height", nativeHeight)
+
+	tag.setAttr("width", strconv.Itoa(nativeWidth))
+	tag.setAttr("height", strconv.Itoa(nativeHeight))
+
+	scale, hasScale := resolveLocalDocImageScale(
+		nativeWidth,
+		nativeHeight,
+		modelScale,
+		hasModelScale,
+		modelWidth,
+		hasModelWidth,
+		modelHeight,
+		hasModelHeight,
+	)
+	if !hasScale {
+		tag.deleteAttr("scale")
+		return
+	}
+	tag.setAttr("scale", strconv.FormatFloat(scale, 'f', 6, 64))
+}
+
+func resolveLocalDocImageScale(nativeWidth, nativeHeight int, modelScale float64, hasModelScale bool, modelWidth float64, hasModelWidth bool, modelHeight float64, hasModelHeight bool) (float64, bool) {
+	var scale float64
+	switch {
+	case hasModelScale:
+		scale = modelScale
+	case hasModelWidth:
+		scale = modelWidth / float64(nativeWidth)
+	case hasModelHeight:
+		scale = modelHeight / float64(nativeHeight)
+	case nativeWidth >= localDocImageMaxDisplayWidthPx:
+		scale = 1
+	default:
+		return 0, false
+	}
+	scale = floorLocalDocImageScalePrecision(scale)
+	return capLocalDocImageScaleBelowPageWidth(nativeWidth, scale), true
+}
+
+func positiveLocalDocImageFloatAttr(tag localDocResourceTag, name string) (float64, bool) {
+	value, ok := tag.attr(name)
+	if !ok {
+		return 0, false
+	}
+	return positiveLocalDocImageFloat(strings.TrimSpace(value))
+}
+
+func positiveLocalDocImageDisplaySizeAttr(tag localDocResourceTag, name string, nativeSize int) (float64, bool) {
+	value, ok := tag.attr(name)
+	if !ok {
+		return 0, false
+	}
+	value = strings.TrimSpace(value)
+	if strings.HasSuffix(value, "%") {
+		percentage, valid := positiveLocalDocImageFloat(strings.TrimSpace(strings.TrimSuffix(value, "%")))
+		if !valid {
+			return 0, false
+		}
+		return float64(nativeSize) * percentage / 100, true
+	}
+	return positiveLocalDocImageFloat(value)
+}
+
+func positiveLocalDocImageFloat(value string) (float64, bool) {
+	if value == "" {
+		return 0, false
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil || parsed <= 0 || math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+		return 0, false
+	}
+	return parsed, true
+}
+
+func floorLocalDocImageScalePrecision(scale float64) float64 {
+	floored := math.Floor(scale*localDocImageScalePrecision) / localDocImageScalePrecision
+	if floored <= 0 {
+		return scale
+	}
+	return floored
+}
+
+func capLocalDocImageScaleBelowPageWidth(nativeWidth int, scale float64) float64 {
+	maxScale := float64(localDocImageMaxDisplayWidthPx) / float64(nativeWidth)
+	if scale < maxScale {
+		return scale
+	}
+	capped := math.Floor(maxScale*localDocImageScalePrecision) / localDocImageScalePrecision
+	if capped >= maxScale {
+		capped -= 1.0 / localDocImageScalePrecision
+	}
+	if capped <= 0 {
+		return math.Nextafter(maxScale, 0)
+	}
+	return capped
 }
 
 func newLocalDocResource(runtime *common.RuntimeContext, kind localDocResourceKind, pathValue string, occurrence int) (localDocResource, error) {
@@ -1417,6 +1533,16 @@ func (t *localDocResourceTag) setAttr(name, value string) {
 		}
 	}
 	t.Attrs = append(t.Attrs, html5BlockAttr{Name: name, Value: value})
+}
+
+func (t *localDocResourceTag) deleteAttr(name string) {
+	attrs := t.Attrs[:0]
+	for _, attr := range t.Attrs {
+		if attr.Name != name {
+			attrs = append(attrs, attr)
+		}
+	}
+	t.Attrs = attrs
 }
 
 func (t *localDocResourceTag) renameAttr(oldName, newName string) bool {

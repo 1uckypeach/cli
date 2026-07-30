@@ -22,9 +22,9 @@ func TestDocs_LocalResourcesDryRun(t *testing.T) {
 	t.Cleanup(cancel)
 
 	workDir := t.TempDir()
-	writeLocalResourceFixture(t, workDir, "dry-run.png", onePixelPNG)
+	writeLocalResourceFixture(t, workDir, "dry-run.png", hundredByEightyPNG)
 	writeLocalResourceFixture(t, workDir, "dry-run.txt", []byte("dry-run source fixture\n"))
-	content := `<p>dry-run resources</p><img path="@dry-run.png" caption="dry-run image"/><source path="@dry-run.txt" name="dry-run-report.txt"/>`
+	content := `<p>dry-run resources</p><img path="@dry-run.png" caption="dry-run image" width="50"/><source path="@dry-run.txt" name="dry-run-report.txt"/>`
 
 	tests := []struct {
 		name            string
@@ -86,6 +86,9 @@ func TestDocs_LocalResourcesDryRun(t *testing.T) {
 			require.Contains(t, apis[3].Get("url").String(), "/blocks/batch_update")
 			require.NotEmpty(t, apis[3].Get("params.client_token").String())
 			require.Equal(t, "<uploaded_file_token_1>", apis[3].Get("body.requests.0.replace_image.token").String())
+			require.Equal(t, int64(100), apis[3].Get("body.requests.0.replace_image.width").Int())
+			require.Equal(t, int64(80), apis[3].Get("body.requests.0.replace_image.height").Int())
+			require.InDelta(t, 0.5, apis[3].Get("body.requests.0.replace_image.scale").Float(), 0.000001)
 			require.Equal(t, "<uploaded_file_token_2>", apis[3].Get("body.requests.1.replace_file.token").String())
 
 			require.Equal(t, "GET", apis[4].Get("method").String())

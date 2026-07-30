@@ -4,9 +4,11 @@
 package docs
 
 import (
+	"bytes"
 	"context"
-	"encoding/base64"
 	"fmt"
+	"image"
+	"image/png"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -41,7 +43,7 @@ func testDocsLocalResourcesWorkflow(t *testing.T, defaultAs string) {
 	createdSource := []byte("created source fixture\n")
 	appendedNegativeSource := []byte("appended negative source fixture\n")
 	appendedNonNumericSource := []byte("appended nonnumeric source fixture\n")
-	writeLocalResourceFixture(t, workDir, "created.png", onePixelPNG)
+	writeLocalResourceFixture(t, workDir, "created.png", hundredByEightyPNG)
 	writeLocalResourceFixture(t, workDir, "created.txt", createdSource)
 	writeLocalResourceFixture(t, workDir, "appended.png", onePixelPNG)
 	writeLocalResourceFixture(t, workDir, "appended-negative.txt", appendedNegativeSource)
@@ -66,7 +68,7 @@ func testDocsLocalResourcesWorkflow(t *testing.T, defaultAs string) {
 		args := []string{
 			"docs", "+create",
 			"--title", "lark-cli local resources " + suffix,
-			"--content", `<p>created resources</p><img path="@created.png" caption="created image" width="0" height="-1"/><source path="@created.txt" name="created-report.txt" size="0"/>`,
+			"--content", `<p>created resources</p><img path="@created.png" caption="created image" width="50"/><source path="@created.txt" name="created-report.txt" size="0"/>`,
 		}
 		if folderToken != "" {
 			args = append(args, "--parent-token", folderToken)
@@ -137,6 +139,7 @@ func testDocsLocalResourcesWorkflow(t *testing.T, defaultAs string) {
 		require.NotContains(t, content, "@lcli_", "fetched XML leaked internal correlation marker")
 		require.NotContains(t, content, "@created.", "fetched XML leaked create fixture path")
 		require.NotContains(t, content, "@appended.", "fetched XML leaked append fixture path")
+		assertFetchedImagePresentation(t, content, "created image", 100, 80, 0.5)
 	})
 
 	t.Run("fetch markdown preserves resource metadata", func(t *testing.T) {
@@ -273,10 +276,34 @@ func writeLocalResourceFixture(t *testing.T, dir, name string, data []byte) {
 	require.NoError(t, os.WriteFile(path, data, 0o600))
 }
 
-var onePixelPNG = func() []byte {
-	data, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
-	if err != nil {
-		panic(fmt.Sprintf("decode embedded PNG fixture: %v", err))
+func assertFetchedImagePresentation(t *testing.T, content, caption string, width, height int, scale float64) {
+	t.Helper()
+	for _, tag := range regexp.MustCompile(`(?s)<img\b[^>]*>`).FindAllString(content, -1) {
+		if !strings.Contains(tag, fmt.Sprintf(`caption="%s"`, caption)) {
+			continue
+		}
+		require.Contains(t, tag, fmt.Sprintf(`width="%d"`, width), "image tag in fetched XML:\n%s", tag)
+		require.Contains(t, tag, fmt.Sprintf(`height="%d"`, height), "image tag in fetched XML:\n%s", tag)
+		scaleMatch := regexp.MustCompile(`\bscale="([^"]+)"`).FindStringSubmatch(tag)
+		require.Len(t, scaleMatch, 2, "image tag has no scale: %s", tag)
+		var gotScale float64
+		_, err := fmt.Sscanf(scaleMatch[1], "%f", &gotScale)
+		require.NoError(t, err, "parse image scale from %s", tag)
+		require.InDelta(t, scale, gotScale, 0.000001, "image tag in fetched XML:\n%s", tag)
+		return
 	}
-	return data
-}()
+	require.Failf(t, "image presentation not found", "fetched XML has no image with caption %q:\n%s", caption, content)
+}
+
+func encodePNGFixture(width, height int) []byte {
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, width, height))); err != nil {
+		panic(fmt.Sprintf("encode embedded %dx%d PNG fixture: %v", width, height, err))
+	}
+	return buf.Bytes()
+}
+
+var (
+	onePixelPNG        = encodePNGFixture(1, 1)
+	hundredByEightyPNG = encodePNGFixture(100, 80)
+)
