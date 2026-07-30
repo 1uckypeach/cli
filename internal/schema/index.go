@@ -23,8 +23,14 @@ const (
 const (
 	serviceIndexHint = "run `lark-cli schema <service>` for that service's method index, " +
 		"or `lark-cli schema <service>.<resource>.<method>` for one method's full parameter contract"
+	// "first and last", not "last": methods[].path is the FULL dotted path, so
+	// the service boundary needs a space too — replacing only the last dot
+	// yields `lark-cli mail.user_mailbox.messages list`, an unknown command
+	// that cobra cannot even suggest against. Inner dots stay: a resource path
+	// is one argument. (The domain-help listing in cmd/service says "last dot"
+	// because its rows are service-relative — that boundary is already spent.)
 	methodIndexHint = "run `lark-cli schema <path>` for one method's full parameter contract; " +
-		"to execute the command, replace the last dot with a space (`lark-cli mail user_mailbox.messages list`)"
+		"to execute the command, replace the first and last dots with spaces (`lark-cli mail user_mailbox.messages list`)"
 )
 
 // ServiceIndex is the output of a bare `schema`: which services exist, and what
