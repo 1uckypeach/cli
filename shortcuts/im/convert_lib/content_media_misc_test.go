@@ -11,6 +11,7 @@ import (
 
 	"github.com/larksuite/cli/brand"
 	configpkg "github.com/larksuite/cli/internal/config"
+	"github.com/larksuite/cli/internal/imcontent"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -500,8 +501,8 @@ func TestMiscConverters(t *testing.T) {
 		{name: "share user", got: convertPureForTest("share_user", `{"user_id":"ou_1"}`), want: "[User card: ou_1]"},
 		{name: "location", got: convertPureForTest("location", `{"name":"Shanghai"}`), want: "[Location: Shanghai]"},
 		{name: "folder", got: convertPureForTest("folder", `{"file_key":"fld_1","file_name":"Docs"}`), want: `<folder key="fld_1" name="Docs"/>`},
-		{name: "calendar share", got: convertPureForTest("share_calendar_event", `{"summary":"Review","start_time":"1710500000","end_time":"1710503600","open_calendar_id":"cal_1","open_event_id":"evt_1"}`), want: "<calendar_share open_calendar_id=\"cal_1\" open_event_id=\"evt_1\">\nReview\n" + formatTimestamp("1710500000") + " ~ " + formatTimestamp("1710503600") + "\n</calendar_share>"},
-		{name: "calendar invite", got: convertPureForTest("calendar", `{"summary":"Invite","start_time":"1710500000"}`), want: "<calendar_invite>\nInvite\n" + formatTimestamp("1710500000") + "\n</calendar_invite>"},
+		{name: "calendar share", got: convertPureForTest("share_calendar_event", `{"summary":"Review","start_time":"1710500000","end_time":"1710503600","open_calendar_id":"cal_1","open_event_id":"evt_1"}`), want: "<calendar_share open_calendar_id=\"cal_1\" open_event_id=\"evt_1\">\nReview\n" + imcontent.FormatTimestamp("1710500000") + " ~ " + imcontent.FormatTimestamp("1710503600") + "\n</calendar_share>"},
+		{name: "calendar invite", got: convertPureForTest("calendar", `{"summary":"Invite","start_time":"1710500000"}`), want: "<calendar_invite>\nInvite\n" + imcontent.FormatTimestamp("1710500000") + "\n</calendar_invite>"},
 		{name: "general calendar", got: convertPureForTest("general_calendar", `{"summary":"All Hands"}`), want: "<calendar>\nAll Hands\n</calendar>"},
 		{name: "vote", got: convertPureForTest("vote", `{"topic":"Lunch","options":["A","B"],"status":1}`), want: "<vote>\nLunch\n• A\n• B\n(Closed)\n</vote>"},
 		{name: "hongbao", got: convertPureForTest("hongbao", `{"text":"恭喜发财"}`), want: `<hongbao text="恭喜发财"/>`},
@@ -594,7 +595,7 @@ func TestStickerUnchanged(t *testing.T) {
 
 func TestTodoConverter(t *testing.T) {
 	got := convertPureForTest("todo", `{"task_id":"task_1","summary":{"title":"Finish report","content":[[{"tag":"text","text":"prepare slides"}]]},"due_time":"1710500000"}`)
-	want := "<todo task_id=\"task_1\">\nFinish report\nprepare slides\nDue: " + formatTimestamp("1710500000") + "\n</todo>"
+	want := "<todo task_id=\"task_1\">\nFinish report\nprepare slides\nDue: " + imcontent.FormatTimestamp("1710500000") + "\n</todo>"
 	if got != want {
 		t.Fatalf("ConvertBodyContent(todo) = %q, want %q", got, want)
 	}

@@ -8,27 +8,16 @@ import (
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
-// ParseJSONObject parses a raw JSON string into a map.
-func ParseJSONObject(raw string) (map[string]interface{}, error) {
-	return imcontent.ParseJSONObject(raw)
-}
-
 // BuildMentionKeyMap builds a key→name lookup from the message "mentions" array.
+// It stays as the IM shortcut layer's entry point because shortcuts/event builds
+// a ConvertContext through this package and should not have to reach past it.
+//
+// The other pure helpers are called as imcontent.X directly: ResolveMentionKeys,
+// FormatTimestamp and ExtractPostBlocksText had no caller here but a test once
+// the converters moved down, and forwarding ParseJSONObject only gave one
+// function two entry points.
 func BuildMentionKeyMap(mentions []interface{}) map[string]string {
 	return imcontent.BuildMentionKeyMap(mentions)
-}
-
-// ResolveMentionKeys replaces mention keys in text with @name format.
-func ResolveMentionKeys(text string, mentionMap map[string]string) string {
-	return imcontent.ResolveMentionKeys(text, mentionMap)
-}
-
-// formatTimestamp converts a Unix timestamp string (seconds or milliseconds) to
-// "YYYY-MM-DD HH:mm:ss" local time. Values with fewer than 10 digits are treated as
-// seconds; larger values are treated as milliseconds.
-// Returns empty string if the input is empty or unparseable.
-func formatTimestamp(ts string) string {
-	return imcontent.FormatTimestamp(ts)
 }
 
 // pickSenderName returns the server-provided display name from a message sender:
@@ -92,9 +81,4 @@ func AttachSenderNames(messages []map[string]interface{}, nameMap map[string]str
 		// sender_name exactly duplicates `name`; drop it. Keep sender_i18n_names + open_bot_id.
 		delete(sender, "sender_name")
 	}
-}
-
-// extractPostBlocksText extracts plain text from post-style content blocks ([][]element).
-func extractPostBlocksText(blocks []interface{}) string {
-	return imcontent.ExtractPostBlocksText(blocks)
 }
