@@ -16,7 +16,7 @@ cleanup_tmp() {
 trap cleanup_tmp EXIT
 
 row() {
-  printf '%s\t%s\towner\treason\t2026-07-24\n' "$1" "$2"
+  printf '%s\t%s\towner\treason\t%s\n' "$1" "$2" "${row_added_at:-2026-07-24}"
 }
 
 git_init() {
@@ -258,6 +258,68 @@ test_bootstrap_requires_the_approved_snapshot() {
   expect_bootstrap_fail "$dir" "$base" 39 "$expected_hash"
 }
 
+test_added_at_rewrite_fails() {
+  local dir="$tmp/added-at"
+  git_init "$dir"
+  write_rows "$dir" from/a denied/a from/b denied/b
+  commit_ratchet "$dir"
+  local base
+  base="$(git -C "$dir" rev-parse HEAD)"
+
+  # Refreshing the date on an approved row would make an old debt look new
+  # without touching a single import.
+  sed -i.bak 's/\t2026-07-24$/\t2026-09-01/' "$dir/$ratchet_file"
+  rm -f "$dir/$ratchet_file.bak"
+  expect_fail "$dir" "$base" "from=from/a denied=denied/a added_at=2026-07-24 -> 2026-09-01"
+  expect_fail "$dir" "$base" "moved added_at on an already-approved exception"
+
+  # Backdating is the same rule.
+  write_rows "$dir" from/a denied/a from/b denied/b
+  sed -i.bak 's/^from\/b\(.*\)\t2026-07-24$/from\/b\1\t2020-01-01/' "$dir/$ratchet_file"
+  rm -f "$dir/$ratchet_file.bak"
+  expect_fail "$dir" "$base" "from=from/b denied=denied/b added_at=2026-07-24 -> 2020-01-01"
+
+  # A row that is newly registered carries whatever date it likes: the new-key
+  # error owns that case, and the date check must not double-report it.
+  write_rows "$dir" from/a denied/a from/b denied/b
+  row_added_at=2026-09-01 write_rows_appended "$dir" from/c denied/c
+  expect_fail "$dir" "$base" "from=from/c denied=denied/c"
+}
+
+# write_rows_appended adds rows to an existing registry, keeping the rows already
+# written (write_rows rewrites the file from scratch).
+write_rows_appended() {
+  local dir="$1"
+  shift
+  while (( $# > 0 )); do
+    row "$1" "$2" >>"$dir/$ratchet_file"
+    shift 2
+  done
+}
+
+test_stale_base_points_at_the_rebase() {
+  local dir="$tmp/stale-base"
+  git_init "$dir"
+  printf 'base\n' >"$dir/base.txt"
+  git -C "$dir" add base.txt
+  git -C "$dir" commit -q -m "base predating the gate"
+  local base
+  base="$(git -C "$dir" rev-parse HEAD)"
+
+  # A branch that forked before the gate landed and registers one exception must
+  # be told to rebase — and must still see the key it registered, so it can fix
+  # the dependency instead of editing the approved baseline.
+  write_rows "$dir" from/a denied/a
+  expect_fail "$dir" "$base" "rebase onto the target branch"
+  expect_fail "$dir" "$base" "carries no $ratchet_file"
+  expect_fail "$dir" "$base" "from=from/a denied=denied/a"
+
+  # The same stale base with nothing registered stays green: an old base is not
+  # itself a failure.
+  write_rows "$dir"
+  expect_pass "$dir" "$base"
+}
+
 test_invalid_base_fails() {
   local dir="$tmp/invalid-base"
   git_init "$dir"
@@ -275,4 +337,6 @@ test_surrounding_whitespace_fails
 test_crlf_rows_pass
 test_duplicate_key_fails
 test_bootstrap_requires_the_approved_snapshot
+test_added_at_rewrite_fails
+test_stale_base_points_at_the_rebase
 test_invalid_base_fails
