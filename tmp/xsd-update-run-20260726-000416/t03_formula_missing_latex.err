@@ -1,0 +1,2 @@
+tmp/xsd-update-run-20260726-000416/t03_formula_missing_latex.xml:1: element formula: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}formula': Missing child element(s). Expected is ( {http://www.larkoffice.com/sml/2.0}latex ).
+tmp/xsd-update-run-20260726-000416/t03_formula_missing_latex.xml fails to validate

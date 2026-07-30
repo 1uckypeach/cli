@@ -1,0 +1,2 @@
+tmp/xsd-update-run-20260726-000416/t03_formula_two_latex.xml:1: element latex: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}latex': This element is not expected.
+tmp/xsd-update-run-20260726-000416/t03_formula_two_latex.xml fails to validate

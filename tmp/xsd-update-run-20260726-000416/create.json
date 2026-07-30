@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "identity": "user",
+  "data": {
+    "revision_id": 1,
+    "slide_ids": [
+      "pWW",
+      "pWX",
+      "pWq",
+      "pWB"
+    ],
+    "slides_added": 4,
+    "title": "XSD update validation 20260726-000550",
+    "url": "https://bytedance.larkoffice.com/slides/VMTVs6XKhlQD5zd0L9Zc1wMgnpd",
+    "xml_presentation_id": "VMTVs6XKhlQD5zd0L9Zc1wMgnpd"
+  }
+}

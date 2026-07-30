@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<presentation xmlns="http://www.larkoffice.com/sml/2.0" width="960" height="540">
+  <title>资产处置类型分布</title>
+  <theme>
+    <textStyles>
+      <headline fontColor="rgba(31, 35, 41, 1)"/>
+      <body fontColor="rgba(31, 35, 41, 1)"/>
+      <caption fontColor="rgba(155, 158, 162, 1)" fontSize="14"/>
+    </textStyles>
+  </theme>
+  <slide>
+    <style>
+      <fill>
+        <fillColor color="rgba(250, 248, 242, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="800" height="40" topLeftX="80" topLeftY="40" type="text">
+        <content textType="headline" fontSize="24" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)" bold="true">
+          <p>资产处置类型分布</p>
+        </content>
+      </shape>
+      <chart width="700" height="440" topLeftX="130" topLeftY="80">
+        <chartPlotArea>
+          <chartPlot type="pie" yAxisPosition="right">
+            <chartExtra/>
+            <chartLabels position="outside" category="false" value="true" percentage="true" fontSize="14" color="rgba(60, 60, 60, 1)"/>
+            <chartSeriesList>
+              <chartSeries index="1">
+                <chartSectors innerRadius="0.5" offsetRadius="0" startAngle="90"/>
+              </chartSeries>
+            </chartSeriesList>
+          </chartPlot>
+        </chartPlotArea>
+        <chartLegend position="right" fontSize="16" color="rgba(60, 60, 60, 1)"/>
+        <chartData>
+          <dim1>
+            <chartField name="类型">股权处置,土地经营权,停车泊位,供水污水,房产处置,保障房,林水经营</chartField>
+          </dim1>
+          <dim2>
+            <chartField name="规模">24,19,8.5,7.5,5,4.15,2.7</chartField>
+          </dim2>
+        </chartData>
+        <chartStyle>
+          <chartBackground color="rgba(0, 0, 0, 0)"/>
+          <chartBorder color="rgb(222, 224, 227)" width="0"/>
+          <chartColorTheme>
+            <color value="rgb(178, 34, 34)"/>
+            <color value="rgb(205, 50, 50)"/>
+            <color value="rgb(224, 80, 80)"/>
+            <color value="rgb(238, 110, 110)"/>
+            <color value="rgb(218, 165, 32)"/>
+            <color value="rgb(238, 195, 55)"/>
+            <color value="rgb(248, 222, 100)"/>
+          </chartColorTheme>
+        </chartStyle>
+      </chart>
+    </data>
+    <note>
+      <content/>
+    </note>
+  </slide>
+</presentation>

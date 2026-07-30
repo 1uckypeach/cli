@@ -1,0 +1,31 @@
+{
+  "schema_version": "2.0",
+  "tool": "xml_text_overlap_lint",
+  "file": "/Users/bytedance/go/src/github.com/larksuite/cli/tmp/xsd-update-run-20260726-000416/t03_field_slidenum.xml",
+  "slide_size": {
+    "width": 960,
+    "height": 540
+  },
+  "summary": {
+    "slide_count": 1,
+    "error_count": 0,
+    "warning_count": 0,
+    "status": "passed",
+    "release_ready": true,
+    "screenshot_review_required": false
+  },
+  "document": {
+    "errors": [],
+    "warnings": []
+  },
+  "slides": [
+    {
+      "slide_number": 1,
+      "status": "passed",
+      "element_count": 1,
+      "errors": [],
+      "warnings": [],
+      "issues": []
+    }
+  ]
+}

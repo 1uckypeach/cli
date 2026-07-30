@@ -1,0 +1,26 @@
+<table>
+<colgroup><col width="60"/><col width="240"/><col width="60"/><col width="70"/><col width="70"/><col width="290"/></colgroup>
+<thead><tr>
+<th background-color="light-gray">#</th>
+<th background-color="light-gray">链接</th>
+<th background-color="light-gray">页数</th>
+<th background-color="light-gray">errors</th>
+<th background-color="light-gray">warns</th>
+<th background-color="light-gray">主要报错信息</th>
+</tr></thead>
+<tbody>
+<tr><td>01</td><td><a href="https://feishu.doubao.com/slides/NF7ps9bi1la8ArdJCzycaf5Rncb">NF7ps9bi1la8ArdJCzycaf5Rncb</a></td><td>13</td><td>0</td><td>0</td><td>—</td></tr>
+<tr><td>02</td><td><a href="https://feishu.doubao.com/slides/XkVtsIZjOl4f4hdcY65cXM4OnJe">XkVtsIZjOl4f4hdcY65cXM4OnJe</a></td><td>12</td><td>0</td><td>0</td><td>—</td></tr>
+<tr><td>03</td><td><a href="https://www.doubao.com/slides/F4AIs6Ok5lRMsnd1ps6cZVOlnMd">F4AIs6Ok5lRMsnd1ps6cZVOlnMd</a></td><td>16</td><td>1</td><td>2</td><td>p3 <code>bbox_overlap</code>: shape bBy overlaps bBn；p5 <code>text_may_overflow_shape</code> ×2: text shape bFX/bFP may overflow its own content box (estimated 40px, available 26px)</td></tr>
+<tr><td>04</td><td><a href="https://feishu.doubao.com/slides/RQZAskrcil7r89ddRZkcFb1dnoc">RQZAskrcil7r89ddRZkcFb1dnoc</a></td><td>11</td><td>15</td><td>0</td><td><code>icon_missing_fill_color</code> ×15（p3 ×4 / p5 ×4 / p7 ×3 / p9 ×4）: &lt;icon&gt; must set explicit non-transparent fillColor for visual visibility</td></tr>
+<tr><td>05</td><td><a href="https://feishu.doubao.com/slides/ZW5UscZRXlvPk9d02uhcEYzan4g">ZW5UscZRXlvPk9d02uhcEYzan4g</a></td><td>19</td><td>0</td><td>3</td><td>p16 <code>text_may_overflow_shape</code> ×3: text shape bwQ 等 may overflow its own content box (estimated 25px, available 20px, overflow 5px)</td></tr>
+<tr><td>06</td><td><a href="https://feishu.doubao.com/slides/Xytksv7b5lAWtJdaVGrcKkKRnCg">Xytksv7b5lAWtJdaVGrcKkKRnCg</a></td><td>22</td><td>0</td><td>0</td><td>—</td></tr>
+<tr><td>07</td><td><a href="https://feishu.doubao.com/slides/AeoYs6ZGrlozGqdJAQ3cW9KnnWd">AeoYs6ZGrlozGqdJAQ3cW9KnnWd</a></td><td>17</td><td>0</td><td>0</td><td>—</td></tr>
+<tr><td>08</td><td><a href="https://feishu.doubao.com/slides/H2FlssNFhleATbd1kJncfL4Lnqg">H2FlssNFhleATbd1kJncfL4Lnqg</a></td><td>16</td><td>0</td><td>0</td><td>—</td></tr>
+<tr><td>09</td><td><a href="https://feishu.doubao.com/slides/L2qMsLiCylkq5mdmt6fcM1Nunke">L2qMsLiCylkq5mdmt6fcM1Nunke</a></td><td>8</td><td>0</td><td>0</td><td>—</td></tr>
+<tr><td>10</td><td><a href="https://feishu.doubao.com/slides/KqmBsF2Sgl8y1ndfvrFcNxqDnKh">KqmBsF2Sgl8y1ndfvrFcNxqDnKh</a></td><td>14</td><td>0</td><td>0</td><td>—</td></tr>
+<tr><td>11</td><td><a href="https://feishu.doubao.com/slides/NvgJssk2nlVF34d6KcfcECnYnD2">NvgJssk2nlVF34d6KcfcECnYnD2</a></td><td>16</td><td>0</td><td>0</td><td>—</td></tr>
+<tr><td>12</td><td><a href="https://feishu.doubao.com/slides/ExsmsZG2cld2LsdUlM5cKSHynkd">ExsmsZG2cld2LsdUlM5cKSHynkd</a></td><td>30</td><td>0</td><td>0</td><td>—</td></tr>
+<tr><td>13</td><td><a href="https://feishu.doubao.com/slides/FuaBsBakKlwpCzdsDMKcdLJYnme">FuaBsBakKlwpCzdsDMKcdLJYnme</a></td><td>15</td><td>10</td><td>0</td><td><code>image_covers_text</code> ×10：p1 image bHd covers text shape bHk/bHx/bHt/bHW/bHA；p15 image bgK covers text shape bgs/bgi/bgN/bgG/bgE</td></tr>
+</tbody>
+</table>

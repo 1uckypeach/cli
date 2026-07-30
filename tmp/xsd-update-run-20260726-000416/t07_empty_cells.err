@@ -1,0 +1,2 @@
+tmp/xsd-update-run-20260726-000416/t07_empty_cells.xml:1: element cells: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}cells': Missing child element(s). Expected is ( {http://www.larkoffice.com/sml/2.0}cell ).
+tmp/xsd-update-run-20260726-000416/t07_empty_cells.xml fails to validate

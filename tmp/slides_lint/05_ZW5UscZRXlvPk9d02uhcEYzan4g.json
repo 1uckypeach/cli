@@ -1,0 +1,153 @@
+{
+  "file": "/Users/bytedance/go/src/github.com/larksuite/cli/tmp/slides_lint/05_ZW5UscZRXlvPk9d02uhcEYzan4g.xml",
+  "slide_size": {
+    "width": 960,
+    "height": 540
+  },
+  "summary": {
+    "slide_count": 19,
+    "error_count": 0,
+    "warning_count": 3,
+    "info_count": 0
+  },
+  "slides": [
+    {
+      "slide_number": 1,
+      "element_count": 7,
+      "issues": []
+    },
+    {
+      "slide_number": 2,
+      "element_count": 19,
+      "issues": []
+    },
+    {
+      "slide_number": 3,
+      "element_count": 23,
+      "issues": []
+    },
+    {
+      "slide_number": 4,
+      "element_count": 20,
+      "issues": []
+    },
+    {
+      "slide_number": 5,
+      "element_count": 25,
+      "issues": []
+    },
+    {
+      "slide_number": 6,
+      "element_count": 25,
+      "issues": []
+    },
+    {
+      "slide_number": 7,
+      "element_count": 25,
+      "issues": []
+    },
+    {
+      "slide_number": 8,
+      "element_count": 25,
+      "issues": []
+    },
+    {
+      "slide_number": 9,
+      "element_count": 25,
+      "issues": []
+    },
+    {
+      "slide_number": 10,
+      "element_count": 25,
+      "issues": []
+    },
+    {
+      "slide_number": 11,
+      "element_count": 25,
+      "issues": []
+    },
+    {
+      "slide_number": 12,
+      "element_count": 23,
+      "issues": []
+    },
+    {
+      "slide_number": 13,
+      "element_count": 23,
+      "issues": []
+    },
+    {
+      "slide_number": 14,
+      "element_count": 61,
+      "issues": []
+    },
+    {
+      "slide_number": 15,
+      "element_count": 20,
+      "issues": []
+    },
+    {
+      "slide_number": 16,
+      "element_count": 75,
+      "issues": [
+        {
+          "level": "warning",
+          "code": "text_may_overflow_shape",
+          "elements": [
+            "bGM"
+          ],
+          "line_count": 2,
+          "line_height": 15.0,
+          "estimated_height": 25.0,
+          "available_height": 20,
+          "overflow": 5.0,
+          "message": "text shape bGM may overflow its own content box (estimated 25px, available 20px); consider setting content wrap=\"true\" autoFit=\"normal-auto-fit\"",
+          "hint": "Increase shape.height, reduce the text, or set content wrap=\"true\" autoFit=\"normal-auto-fit\". This is an estimate based on font size, line spacing, and wrapped line count."
+        },
+        {
+          "level": "warning",
+          "code": "text_may_overflow_shape",
+          "elements": [
+            "bGS"
+          ],
+          "line_count": 2,
+          "line_height": 15.0,
+          "estimated_height": 25.0,
+          "available_height": 20,
+          "overflow": 5.0,
+          "message": "text shape bGS may overflow its own content box (estimated 25px, available 20px); consider setting content wrap=\"true\" autoFit=\"normal-auto-fit\"",
+          "hint": "Increase shape.height, reduce the text, or set content wrap=\"true\" autoFit=\"normal-auto-fit\". This is an estimate based on font size, line spacing, and wrapped line count."
+        },
+        {
+          "level": "warning",
+          "code": "text_may_overflow_shape",
+          "elements": [
+            "bwQ"
+          ],
+          "line_count": 2,
+          "line_height": 15.0,
+          "estimated_height": 25.0,
+          "available_height": 20,
+          "overflow": 5.0,
+          "message": "text shape bwQ may overflow its own content box (estimated 25px, available 20px); consider setting content wrap=\"true\" autoFit=\"normal-auto-fit\"",
+          "hint": "Increase shape.height, reduce the text, or set content wrap=\"true\" autoFit=\"normal-auto-fit\". This is an estimate based on font size, line spacing, and wrapped line count."
+        }
+      ]
+    },
+    {
+      "slide_number": 17,
+      "element_count": 33,
+      "issues": []
+    },
+    {
+      "slide_number": 18,
+      "element_count": 27,
+      "issues": []
+    },
+    {
+      "slide_number": 19,
+      "element_count": 9,
+      "issues": []
+    }
+  ]
+}

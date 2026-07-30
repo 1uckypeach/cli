@@ -1,0 +1,2 @@
+tmp/xsd-update-run-20260726-000416/t02_bulletchar_empty.xml:1: element content: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}content', attribute 'bulletChar': [facet 'minLength'] The value '' has a length of '0'; this underruns the allowed minimum length of '1'.
+tmp/xsd-update-run-20260726-000416/t02_bulletchar_empty.xml fails to validate

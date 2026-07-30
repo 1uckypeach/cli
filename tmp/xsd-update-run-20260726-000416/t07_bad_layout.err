@@ -1,0 +1,2 @@
+tmp/xsd-update-run-20260726-000416/t07_bad_layout.xml:1: element smartLayout: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}smartLayout', attribute 'layoutType': [facet 'enumeration'] The value 'bad' is not an element of the set {'solid-pyramid', 'step-pyramid', 'filled-up-step', 'linear-up-step'}.
+tmp/xsd-update-run-20260726-000416/t07_bad_layout.xml fails to validate

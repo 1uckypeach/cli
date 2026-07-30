@@ -1,0 +1,134 @@
+{
+  "file": "/Users/bytedance/go/src/github.com/larksuite/cli/tmp/slides_lint/03_F4AIs6Ok5lRMsnd1ps6cZVOlnMd.xml",
+  "slide_size": {
+    "width": 960,
+    "height": 540
+  },
+  "summary": {
+    "slide_count": 16,
+    "error_count": 1,
+    "warning_count": 2,
+    "info_count": 0
+  },
+  "slides": [
+    {
+      "slide_number": 1,
+      "element_count": 7,
+      "issues": []
+    },
+    {
+      "slide_number": 2,
+      "element_count": 19,
+      "issues": []
+    },
+    {
+      "slide_number": 3,
+      "element_count": 6,
+      "issues": [
+        {
+          "level": "error",
+          "code": "bbox_overlap",
+          "elements": [
+            "bBy",
+            "bBn"
+          ],
+          "message": "bBy overlaps bBn"
+        }
+      ]
+    },
+    {
+      "slide_number": 4,
+      "element_count": 21,
+      "issues": []
+    },
+    {
+      "slide_number": 5,
+      "element_count": 19,
+      "issues": [
+        {
+          "level": "warning",
+          "code": "text_may_overflow_shape",
+          "elements": [
+            "bFX"
+          ],
+          "line_count": 2,
+          "line_height": 24.0,
+          "estimated_height": 40.0,
+          "available_height": 26,
+          "overflow": 14.0,
+          "message": "text shape bFX may overflow its own content box (estimated 40px, available 26px); consider setting content wrap=\"true\" autoFit=\"normal-auto-fit\"",
+          "hint": "Increase shape.height, reduce the text, or set content wrap=\"true\" autoFit=\"normal-auto-fit\". This is an estimate based on font size, line spacing, and wrapped line count."
+        },
+        {
+          "level": "warning",
+          "code": "text_may_overflow_shape",
+          "elements": [
+            "bFP"
+          ],
+          "line_count": 2,
+          "line_height": 24.0,
+          "estimated_height": 40.0,
+          "available_height": 26,
+          "overflow": 14.0,
+          "message": "text shape bFP may overflow its own content box (estimated 40px, available 26px); consider setting content wrap=\"true\" autoFit=\"normal-auto-fit\"",
+          "hint": "Increase shape.height, reduce the text, or set content wrap=\"true\" autoFit=\"normal-auto-fit\". This is an estimate based on font size, line spacing, and wrapped line count."
+        }
+      ]
+    },
+    {
+      "slide_number": 6,
+      "element_count": 25,
+      "issues": []
+    },
+    {
+      "slide_number": 7,
+      "element_count": 6,
+      "issues": []
+    },
+    {
+      "slide_number": 8,
+      "element_count": 23,
+      "issues": []
+    },
+    {
+      "slide_number": 9,
+      "element_count": 26,
+      "issues": []
+    },
+    {
+      "slide_number": 10,
+      "element_count": 6,
+      "issues": []
+    },
+    {
+      "slide_number": 11,
+      "element_count": 23,
+      "issues": []
+    },
+    {
+      "slide_number": 12,
+      "element_count": 48,
+      "issues": []
+    },
+    {
+      "slide_number": 13,
+      "element_count": 6,
+      "issues": []
+    },
+    {
+      "slide_number": 14,
+      "element_count": 32,
+      "issues": []
+    },
+    {
+      "slide_number": 15,
+      "element_count": 34,
+      "issues": []
+    },
+    {
+      "slide_number": 16,
+      "element_count": 8,
+      "issues": []
+    }
+  ]
+}

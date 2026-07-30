@@ -1,0 +1,192 @@
+{
+  "file": "/Users/bytedance/go/src/github.com/larksuite/cli/tmp/slides_lint/13_FuaBsBakKlwpCzdsDMKcdLJYnme.xml",
+  "slide_size": {
+    "width": 960,
+    "height": 540
+  },
+  "summary": {
+    "slide_count": 15,
+    "error_count": 10,
+    "warning_count": 0,
+    "info_count": 0
+  },
+  "slides": [
+    {
+      "slide_number": 1,
+      "element_count": 8,
+      "issues": [
+        {
+          "level": "error",
+          "code": "image_covers_text",
+          "elements": [
+            "bHd",
+            "bHk"
+          ],
+          "message": "image bHd covers text shape bHk",
+          "hint": "Move the image before the text shape in XML order, or adjust the image and text shape coordinates or dimensions."
+        },
+        {
+          "level": "error",
+          "code": "image_covers_text",
+          "elements": [
+            "bHd",
+            "bHx"
+          ],
+          "message": "image bHd covers text shape bHx",
+          "hint": "Move the image before the text shape in XML order, or adjust the image and text shape coordinates or dimensions."
+        },
+        {
+          "level": "error",
+          "code": "image_covers_text",
+          "elements": [
+            "bHd",
+            "bHt"
+          ],
+          "message": "image bHd covers text shape bHt",
+          "hint": "Move the image before the text shape in XML order, or adjust the image and text shape coordinates or dimensions."
+        },
+        {
+          "level": "error",
+          "code": "image_covers_text",
+          "elements": [
+            "bHd",
+            "bHW"
+          ],
+          "message": "image bHd covers text shape bHW",
+          "hint": "Move the image before the text shape in XML order, or adjust the image and text shape coordinates or dimensions."
+        },
+        {
+          "level": "error",
+          "code": "image_covers_text",
+          "elements": [
+            "bHd",
+            "bHA"
+          ],
+          "message": "image bHd covers text shape bHA",
+          "hint": "Move the image before the text shape in XML order, or adjust the image and text shape coordinates or dimensions."
+        }
+      ]
+    },
+    {
+      "slide_number": 2,
+      "element_count": 33,
+      "issues": []
+    },
+    {
+      "slide_number": 3,
+      "element_count": 17,
+      "issues": []
+    },
+    {
+      "slide_number": 4,
+      "element_count": 38,
+      "issues": []
+    },
+    {
+      "slide_number": 5,
+      "element_count": 39,
+      "issues": []
+    },
+    {
+      "slide_number": 6,
+      "element_count": 15,
+      "issues": []
+    },
+    {
+      "slide_number": 7,
+      "element_count": 37,
+      "issues": []
+    },
+    {
+      "slide_number": 8,
+      "element_count": 32,
+      "issues": []
+    },
+    {
+      "slide_number": 9,
+      "element_count": 40,
+      "issues": []
+    },
+    {
+      "slide_number": 10,
+      "element_count": 27,
+      "issues": []
+    },
+    {
+      "slide_number": 11,
+      "element_count": 44,
+      "issues": []
+    },
+    {
+      "slide_number": 12,
+      "element_count": 40,
+      "issues": []
+    },
+    {
+      "slide_number": 13,
+      "element_count": 33,
+      "issues": []
+    },
+    {
+      "slide_number": 14,
+      "element_count": 23,
+      "issues": []
+    },
+    {
+      "slide_number": 15,
+      "element_count": 8,
+      "issues": [
+        {
+          "level": "error",
+          "code": "image_covers_text",
+          "elements": [
+            "bgK",
+            "bgs"
+          ],
+          "message": "image bgK covers text shape bgs",
+          "hint": "Move the image before the text shape in XML order, or adjust the image and text shape coordinates or dimensions."
+        },
+        {
+          "level": "error",
+          "code": "image_covers_text",
+          "elements": [
+            "bgK",
+            "bgi"
+          ],
+          "message": "image bgK covers text shape bgi",
+          "hint": "Move the image before the text shape in XML order, or adjust the image and text shape coordinates or dimensions."
+        },
+        {
+          "level": "error",
+          "code": "image_covers_text",
+          "elements": [
+            "bgK",
+            "bgN"
+          ],
+          "message": "image bgK covers text shape bgN",
+          "hint": "Move the image before the text shape in XML order, or adjust the image and text shape coordinates or dimensions."
+        },
+        {
+          "level": "error",
+          "code": "image_covers_text",
+          "elements": [
+            "bgK",
+            "bgG"
+          ],
+          "message": "image bgK covers text shape bgG",
+          "hint": "Move the image before the text shape in XML order, or adjust the image and text shape coordinates or dimensions."
+        },
+        {
+          "level": "error",
+          "code": "image_covers_text",
+          "elements": [
+            "bgK",
+            "bgE"
+          ],
+          "message": "image bgK covers text shape bgE",
+          "hint": "Move the image before the text shape in XML order, or adjust the image and text shape coordinates or dimensions."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "lark-slides-text-measure",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone CanvasKit single-line text measurement, reusing ee/slide text-measure-module's core measure function.",
+  "bin": {
+    "measure-text": "./cli.ts"
+  },
+  "scripts": {
+    "measure": "tsx cli.ts"
+  },
+  "dependencies": {
+    "canvaskit-wasm": "*"
+  },
+  "devDependencies": {
+    "@types/node": "*",
+    "tsx": "*",
+    "typescript": "*"
+  }
+}

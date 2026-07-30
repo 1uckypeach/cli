@@ -1,0 +1,46 @@
+<slide id="pWs">
+  <style>
+    <fill id="fWs">
+      <fillColor color="rgba(255, 85, 0, 1)"/>
+    </fill>
+  </style>
+  <data>
+    <shape width="920" height="350" topLeftX="20" topLeftY="20" type="text" id="bdp">
+      <content textType="title" fontSize="240" fontFamily="思源黑体" color="rgba(255, 255, 255, 0.102)" bold="true" letterSpacing="-5" textAlign="left">
+        <p>PULSE</p>
+      </content>
+    </shape>
+    <shape width="800" height="120" topLeftX="80" topLeftY="160" type="text" id="bdX">
+      <content textType="title" fontSize="72" fontFamily="思源黑体" color="rgba(255, 255, 255, 1)" bold="true" letterSpacing="2" textAlign="left">
+        <p>MOVE BEYOND.</p>
+      </content>
+    </shape>
+    <shape width="600" height="80" topLeftX="80" topLeftY="280" type="text" id="bdy">
+      <content textType="headline" fontSize="36" fontFamily="思源黑体" color="rgba(255, 255, 255, 1)" bold="true" textAlign="left">
+        <p>超越边界，脉动不止</p>
+      </content>
+    </shape>
+    <line id="bdd" startX="80" startY="380" endX="200.00416659433122" endY="380">
+      <border color="rgba(255, 255, 255, 1)" width="3"/>
+    </line>
+    <shape width="500" height="80" topLeftX="80" topLeftY="400" type="text" id="bdZ">
+      <content fontSize="14" fontFamily="思源黑体" color="rgba(255, 255, 255, 0.851)" lineSpacing="multiple:1.8" textAlign="left">
+        <p>我们相信运动不只是竞技，更是一种生活态度。</p>
+        <p>PULSE 为街头而生，为每一个不甘平凡的灵魂。</p>
+      </content>
+    </shape>
+    <shape width="40" height="380" topLeftX="750" topLeftY="80" rotation="90" type="text" id="bdm">
+      <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(255, 255, 255, 0.6)" letterSpacing="6" textAlign="left">
+        <p>BRAND MANIFESTO / 品牌宣言</p>
+      </content>
+    </shape>
+    <shape width="200" height="20" topLeftX="60" topLeftY="490" type="text" id="bdc">
+      <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(255, 255, 255, 0.6)" letterSpacing="2" textAlign="left">
+        <p>02 / 12</p>
+      </content>
+    </shape>
+  </data>
+  <note id="bdH">
+    <content/>
+  </note>
+</slide>

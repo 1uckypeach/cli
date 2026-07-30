@@ -1,0 +1,77 @@
+{
+  "schema_version": "2.0",
+  "tool": "xml_text_overlap_lint",
+  "file": "/Users/bytedance/go/src/github.com/larksuite/cli/tmp/xsd-update-run-20260726-000416/t07_smartlayout_minimal.xml",
+  "slide_size": {
+    "width": 960,
+    "height": 540
+  },
+  "summary": {
+    "slide_count": 1,
+    "error_count": 1,
+    "warning_count": 0,
+    "status": "blocked",
+    "release_ready": false,
+    "screenshot_review_required": false
+  },
+  "document": {
+    "errors": [],
+    "warnings": []
+  },
+  "slides": [
+    {
+      "slide_number": 1,
+      "status": "blocked",
+      "element_count": 0,
+      "errors": [
+        {
+          "level": "error",
+          "code": "blank_slide",
+          "schema_version": "2.0",
+          "target": {
+            "slide_number": 1
+          },
+          "rule": {
+            "name": "slide_has_visible_content",
+            "comparison": "visible_element_count == 0",
+            "id": "blank_slide"
+          },
+          "measurement": {
+            "visible_element_count": 0,
+            "declared_element_count": 0
+          },
+          "elements": [],
+          "message": "slide has no visible content beyond empty layout shapes",
+          "hint": "Add visible text, an image, a chart, a table, a whiteboard, or an icon before creating the slide.",
+          "element_ids": [],
+          "related_objects": []
+        }
+      ],
+      "warnings": [],
+      "issues": [
+        {
+          "level": "error",
+          "code": "blank_slide",
+          "schema_version": "2.0",
+          "target": {
+            "slide_number": 1
+          },
+          "rule": {
+            "name": "slide_has_visible_content",
+            "comparison": "visible_element_count == 0",
+            "id": "blank_slide"
+          },
+          "measurement": {
+            "visible_element_count": 0,
+            "declared_element_count": 0
+          },
+          "elements": [],
+          "message": "slide has no visible content beyond empty layout shapes",
+          "hint": "Add visible text, an image, a chart, a table, a whiteboard, or an icon before creating the slide.",
+          "element_ids": [],
+          "related_objects": []
+        }
+      ]
+    }
+  ]
+}

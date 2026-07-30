@@ -1,0 +1,192 @@
+{
+  "file": "/Users/bytedance/go/src/github.com/larksuite/cli/tmp/slides_lint/04_RQZAskrcil7r89ddRZkcFb1dnoc.xml",
+  "slide_size": {
+    "width": 960,
+    "height": 540
+  },
+  "summary": {
+    "slide_count": 11,
+    "error_count": 15,
+    "warning_count": 0,
+    "info_count": 0
+  },
+  "slides": [
+    {
+      "slide_number": 1,
+      "element_count": 8,
+      "issues": []
+    },
+    {
+      "slide_number": 2,
+      "element_count": 33,
+      "issues": []
+    },
+    {
+      "slide_number": 3,
+      "element_count": 22,
+      "issues": []
+    },
+    {
+      "slide_number": 4,
+      "element_count": 47,
+      "issues": []
+    },
+    {
+      "slide_number": 5,
+      "element_count": 26,
+      "issues": []
+    },
+    {
+      "slide_number": 6,
+      "element_count": 19,
+      "issues": []
+    },
+    {
+      "slide_number": 7,
+      "element_count": 29,
+      "issues": []
+    },
+    {
+      "slide_number": 8,
+      "element_count": 50,
+      "issues": []
+    },
+    {
+      "slide_number": 9,
+      "element_count": 25,
+      "issues": []
+    },
+    {
+      "slide_number": 10,
+      "element_count": 29,
+      "issues": []
+    },
+    {
+      "slide_number": 11,
+      "element_count": 11,
+      "issues": []
+    }
+  ],
+  "issues": [
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    },
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    },
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    },
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    },
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    },
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    },
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    },
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    },
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    },
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    },
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    },
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    },
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    },
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    },
+    {
+      "level": "error",
+      "code": "icon_missing_fill_color",
+      "tag": "icon",
+      "path": "presentation/slide/data/icon",
+      "message": "<icon> must set explicit non-transparent fillColor for visual visibility at presentation/slide/data/icon",
+      "hint": "Add <fill><fillColor color=\"rgba(R, G, B, 1)\"/></fill> inside <icon>. This is a visual lint rule, not an SXSD required field."
+    }
+  ]
+}

@@ -935,6 +935,96 @@ def estimate_text_width(
     return base + max(len(text) - 1, 0) * letter_spacing
 
 
+def is_cjk_char(character: str) -> bool:
+    """CJK-like characters may wrap between any two adjacent glyphs.
+
+    Mirrors the isCJKLike ranges used by ee/slide text-measure-module so that
+    line-count estimation matches DOM/Skia wrapping: CJK breaks per glyph while
+    latin words stay atomic.
+    """
+    code = ord(character)
+    return (
+        0x2E80 <= code <= 0x9FFF
+        or 0x3000 <= code <= 0xD7AF
+        or 0xF900 <= code <= 0xFAFF
+        or 0xFE30 <= code <= 0xFE4F
+        or 0xFF01 <= code <= 0xFF60
+        or 0xFFE0 <= code <= 0xFFE6
+    )
+
+
+def tokenize_for_wrap(text: str) -> list[tuple[str, str]]:
+    """Split a hard line into wrap tokens: latin words are atomic, CJK glyphs
+    are individually breakable, whitespace runs are collapse points."""
+    tokens: list[tuple[str, str]] = []
+    index = 0
+    length = len(text)
+    while index < length:
+        character = text[index]
+        if character.isspace():
+            start = index
+            while index < length and text[index].isspace():
+                index += 1
+            tokens.append(("space", text[start:index]))
+        elif is_cjk_char(character):
+            tokens.append(("cjk", character))
+            index += 1
+        else:
+            start = index
+            while index < length and not text[index].isspace() and not is_cjk_char(text[index]):
+                index += 1
+            tokens.append(("word", text[start:index]))
+    return tokens
+
+
+def count_wrapped_lines(
+    text: str,
+    font_size: int | float,
+    letter_spacing: int | float,
+    bold: bool,
+    font_family: str | None,
+    available_width: int | float,
+) -> int:
+    """Greedy word-aware wrapped line count.
+
+    Unlike ceil(width / available), latin words are never split mid-word (unless
+    a single word is wider than the line, in which case it breaks like DOM
+    overflow-wrap:break-word). This avoids under-counting lines for word-heavy
+    text and matches how ee/slide reconciles Skia wrapping with the DOM.
+    """
+    tokens = tokenize_for_wrap(text)
+    if not tokens:
+        return 1
+    lines = 1
+    current = 0.0
+
+    def token_width(token: str) -> int | float:
+        return estimate_text_width(token, font_size, letter_spacing, bold, font_family)
+
+    for kind, token in tokens:
+        width = token_width(token)
+        # letter-spacing applies at every glyph boundary, including the seam
+        # between two tokens on the same line; add it back so a packed line
+        # matches estimate_text_width of the concatenated run.
+        junction = letter_spacing if current > 0 else 0
+        if kind == "space":
+            if current > 0:
+                current += junction + width
+            continue
+        if current > 0 and current + junction + width <= available_width:
+            current += junction + width
+            continue
+        if current > 0:
+            lines += 1
+        if kind == "word" and width > available_width:
+            extra = math.ceil(width / available_width) - 1
+            lines += extra
+            current = width - extra * available_width
+        else:
+            current = width
+    return lines
+
+
 def resolve_letter_spacing(element: dict[str, Any], paragraph: dict[str, Any] | None = None) -> int | float:
     if paragraph is not None:
         value = paragraph.get("letterSpacing")
@@ -967,6 +1057,11 @@ def is_short_metric_text(text: str) -> bool:
     return re.fullmatch(r"[+\-–—]?[0-9A-Za-z,.，/%％\-–—\u4e00-\u9fff]+", compact) is not None
 
 
+def is_labeled_short_metric_text(text: str) -> bool:
+    """Return whether a short metric contains a separate label before its value."""
+    return is_short_metric_text(text) and re.search(r"[A-Za-z]+\s+[+\-–—]?\d", text) is not None
+
+
 def is_single_line_visual_candidate(
     element: dict[str, Any],
     paragraph: dict[str, Any] | None,
@@ -976,7 +1071,7 @@ def is_single_line_visual_candidate(
 ) -> bool:
     if "\n" in text or logical_width <= effective_width:
         return False
-    if is_short_metric_text(text):
+    if is_short_metric_text(text) and not is_labeled_short_metric_text(text):
         return logical_width <= effective_width * SINGLE_LINE_METRIC_WIDTH_RATIO
 
     text_align = (paragraph or {}).get("textAlign") or element.get("textAlign")
@@ -995,7 +1090,12 @@ def estimate_text_max_line_width(element: dict[str, Any]) -> int | float:
     bold = element.get("bold", False)
     font_family = element.get("fontFamily", "")
     letter_spacing = resolve_letter_spacing(element)
-    paragraphs = [paragraph for paragraph in re.split(r"\n+", element["text"]) if paragraph]
+    # Visual width ignores trailing whitespace: like Skia (which trims line-end
+    # spaces), a run's rightmost visible glyph bounds the box. Counting trailing
+    # spaces inflates the right edge and manufactures overlap false positives.
+    paragraphs = [
+        stripped for paragraph in re.split(r"\n+", element["text"]) if (stripped := paragraph.rstrip())
+    ]
     return max(
         [estimate_text_width(paragraph, font_size, letter_spacing, bold, font_family) for paragraph in paragraphs]
         or [1]
@@ -1033,7 +1133,9 @@ def estimate_text_line_count_for_text(
         if is_single_line_visual_candidate(element, paragraph, hard_line, logical_width, effective_width):
             line_count += 1
             continue
-        line_count += max(1, math.ceil(logical_width / effective_width))
+        line_count += count_wrapped_lines(
+            hard_line, font_size, letter_spacing, bold, font_family, effective_width
+        )
     return line_count
 
 

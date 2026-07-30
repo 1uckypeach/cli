@@ -1,0 +1,2 @@
+tmp/xsd-update-run-20260726-000416/t07_index_after_title.xml:1: element index: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}index': This element is not expected.
+tmp/xsd-update-run-20260726-000416/t07_index_after_title.xml fails to validate

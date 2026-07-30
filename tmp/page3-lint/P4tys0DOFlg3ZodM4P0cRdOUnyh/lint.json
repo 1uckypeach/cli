@@ -1,0 +1,599 @@
+{
+  "schema_version": "2.0",
+  "tool": "xml_text_overlap_lint",
+  "file": "/Users/bytedance/go/src/github.com/larksuite/cli/tmp/page3-lint/P4tys0DOFlg3ZodM4P0cRdOUnyh/readback.xml",
+  "slide_size": {
+    "width": 960,
+    "height": 540
+  },
+  "summary": {
+    "slide_count": 22,
+    "error_count": 0,
+    "warning_count": 0,
+    "info_count": 4,
+    "status": "passed",
+    "release_ready": true,
+    "screenshot_review_required": false
+  },
+  "document": {
+    "errors": [],
+    "warnings": [],
+    "infos": []
+  },
+  "slides": [
+    {
+      "slide_number": 1,
+      "status": "passed",
+      "element_count": 18,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 2,
+      "status": "passed",
+      "element_count": 18,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 3,
+      "status": "passed",
+      "element_count": 9,
+      "errors": [],
+      "warnings": [],
+      "infos": [
+        {
+          "level": "info",
+          "code": "text_may_overflow_shape",
+          "elements": [
+            "baC"
+          ],
+          "line_count": 2,
+          "line_height": 420.0,
+          "estimated_height": 700.0,
+          "available_height": 400,
+          "overflow": 300.0,
+          "message": "text shape baC may overflow its own content box (estimated 700px, available 400px); consider setting content wrap=\"true\" autoFit=\"normal-auto-fit\" (likely background decoration: large font, low alpha, underneath other text)",
+          "hint": "Increase shape.height, reduce the text, or set content wrap=\"true\" autoFit=\"normal-auto-fit\". This is an estimate based on font size, line spacing, and wrapped line count.",
+          "schema_version": "2.0",
+          "element_ids": [
+            "baC"
+          ],
+          "target": {
+            "slide_number": 3
+          },
+          "rule": {
+            "id": "text_may_overflow_shape",
+            "name": "estimated_text_fits_declared_shape",
+            "comparison": "estimated_height <= available_height"
+          },
+          "measurement": {
+            "line_count": 2,
+            "line_height": 420.0,
+            "estimated_height": 700.0,
+            "available_height": 400,
+            "overflow": 300.0
+          },
+          "related_objects": [
+            {
+              "element_id": "baC",
+              "kind": "shape",
+              "type": "text",
+              "bbox": {
+                "x": 400,
+                "y": 50,
+                "width": 500,
+                "height": 400
+              }
+            }
+          ]
+        }
+      ],
+      "issues": [
+        {
+          "level": "info",
+          "code": "text_may_overflow_shape",
+          "elements": [
+            "baC"
+          ],
+          "line_count": 2,
+          "line_height": 420.0,
+          "estimated_height": 700.0,
+          "available_height": 400,
+          "overflow": 300.0,
+          "message": "text shape baC may overflow its own content box (estimated 700px, available 400px); consider setting content wrap=\"true\" autoFit=\"normal-auto-fit\" (likely background decoration: large font, low alpha, underneath other text)",
+          "hint": "Increase shape.height, reduce the text, or set content wrap=\"true\" autoFit=\"normal-auto-fit\". This is an estimate based on font size, line spacing, and wrapped line count.",
+          "schema_version": "2.0",
+          "element_ids": [
+            "baC"
+          ],
+          "target": {
+            "slide_number": 3
+          },
+          "rule": {
+            "id": "text_may_overflow_shape",
+            "name": "estimated_text_fits_declared_shape",
+            "comparison": "estimated_height <= available_height"
+          },
+          "measurement": {
+            "line_count": 2,
+            "line_height": 420.0,
+            "estimated_height": 700.0,
+            "available_height": 400,
+            "overflow": 300.0
+          },
+          "related_objects": [
+            {
+              "element_id": "baC",
+              "kind": "shape",
+              "type": "text",
+              "bbox": {
+                "x": 400,
+                "y": 50,
+                "width": 500,
+                "height": 400
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slide_number": 4,
+      "status": "passed",
+      "element_count": 14,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 5,
+      "status": "passed",
+      "element_count": 14,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 6,
+      "status": "passed",
+      "element_count": 12,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 7,
+      "status": "passed",
+      "element_count": 9,
+      "errors": [],
+      "warnings": [],
+      "infos": [
+        {
+          "level": "info",
+          "code": "text_may_overflow_shape",
+          "elements": [
+            "bni"
+          ],
+          "line_count": 2,
+          "line_height": 420.0,
+          "estimated_height": 700.0,
+          "available_height": 400,
+          "overflow": 300.0,
+          "message": "text shape bni may overflow its own content box (estimated 700px, available 400px); consider setting content wrap=\"true\" autoFit=\"normal-auto-fit\" (likely background decoration: large font, low alpha, underneath other text)",
+          "hint": "Increase shape.height, reduce the text, or set content wrap=\"true\" autoFit=\"normal-auto-fit\". This is an estimate based on font size, line spacing, and wrapped line count.",
+          "schema_version": "2.0",
+          "element_ids": [
+            "bni"
+          ],
+          "target": {
+            "slide_number": 7
+          },
+          "rule": {
+            "id": "text_may_overflow_shape",
+            "name": "estimated_text_fits_declared_shape",
+            "comparison": "estimated_height <= available_height"
+          },
+          "measurement": {
+            "line_count": 2,
+            "line_height": 420.0,
+            "estimated_height": 700.0,
+            "available_height": 400,
+            "overflow": 300.0
+          },
+          "related_objects": [
+            {
+              "element_id": "bni",
+              "kind": "shape",
+              "type": "text",
+              "bbox": {
+                "x": 400,
+                "y": 50,
+                "width": 500,
+                "height": 400
+              }
+            }
+          ]
+        }
+      ],
+      "issues": [
+        {
+          "level": "info",
+          "code": "text_may_overflow_shape",
+          "elements": [
+            "bni"
+          ],
+          "line_count": 2,
+          "line_height": 420.0,
+          "estimated_height": 700.0,
+          "available_height": 400,
+          "overflow": 300.0,
+          "message": "text shape bni may overflow its own content box (estimated 700px, available 400px); consider setting content wrap=\"true\" autoFit=\"normal-auto-fit\" (likely background decoration: large font, low alpha, underneath other text)",
+          "hint": "Increase shape.height, reduce the text, or set content wrap=\"true\" autoFit=\"normal-auto-fit\". This is an estimate based on font size, line spacing, and wrapped line count.",
+          "schema_version": "2.0",
+          "element_ids": [
+            "bni"
+          ],
+          "target": {
+            "slide_number": 7
+          },
+          "rule": {
+            "id": "text_may_overflow_shape",
+            "name": "estimated_text_fits_declared_shape",
+            "comparison": "estimated_height <= available_height"
+          },
+          "measurement": {
+            "line_count": 2,
+            "line_height": 420.0,
+            "estimated_height": 700.0,
+            "available_height": 400,
+            "overflow": 300.0
+          },
+          "related_objects": [
+            {
+              "element_id": "bni",
+              "kind": "shape",
+              "type": "text",
+              "bbox": {
+                "x": 400,
+                "y": 50,
+                "width": 500,
+                "height": 400
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slide_number": 8,
+      "status": "passed",
+      "element_count": 15,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 9,
+      "status": "passed",
+      "element_count": 14,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 10,
+      "status": "passed",
+      "element_count": 14,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 11,
+      "status": "passed",
+      "element_count": 9,
+      "errors": [],
+      "warnings": [],
+      "infos": [
+        {
+          "level": "info",
+          "code": "text_may_overflow_shape",
+          "elements": [
+            "bqs"
+          ],
+          "line_count": 2,
+          "line_height": 420.0,
+          "estimated_height": 700.0,
+          "available_height": 400,
+          "overflow": 300.0,
+          "message": "text shape bqs may overflow its own content box (estimated 700px, available 400px); consider setting content wrap=\"true\" autoFit=\"normal-auto-fit\" (likely background decoration: large font, low alpha, underneath other text)",
+          "hint": "Increase shape.height, reduce the text, or set content wrap=\"true\" autoFit=\"normal-auto-fit\". This is an estimate based on font size, line spacing, and wrapped line count.",
+          "schema_version": "2.0",
+          "element_ids": [
+            "bqs"
+          ],
+          "target": {
+            "slide_number": 11
+          },
+          "rule": {
+            "id": "text_may_overflow_shape",
+            "name": "estimated_text_fits_declared_shape",
+            "comparison": "estimated_height <= available_height"
+          },
+          "measurement": {
+            "line_count": 2,
+            "line_height": 420.0,
+            "estimated_height": 700.0,
+            "available_height": 400,
+            "overflow": 300.0
+          },
+          "related_objects": [
+            {
+              "element_id": "bqs",
+              "kind": "shape",
+              "type": "text",
+              "bbox": {
+                "x": 400,
+                "y": 50,
+                "width": 500,
+                "height": 400
+              }
+            }
+          ]
+        }
+      ],
+      "issues": [
+        {
+          "level": "info",
+          "code": "text_may_overflow_shape",
+          "elements": [
+            "bqs"
+          ],
+          "line_count": 2,
+          "line_height": 420.0,
+          "estimated_height": 700.0,
+          "available_height": 400,
+          "overflow": 300.0,
+          "message": "text shape bqs may overflow its own content box (estimated 700px, available 400px); consider setting content wrap=\"true\" autoFit=\"normal-auto-fit\" (likely background decoration: large font, low alpha, underneath other text)",
+          "hint": "Increase shape.height, reduce the text, or set content wrap=\"true\" autoFit=\"normal-auto-fit\". This is an estimate based on font size, line spacing, and wrapped line count.",
+          "schema_version": "2.0",
+          "element_ids": [
+            "bqs"
+          ],
+          "target": {
+            "slide_number": 11
+          },
+          "rule": {
+            "id": "text_may_overflow_shape",
+            "name": "estimated_text_fits_declared_shape",
+            "comparison": "estimated_height <= available_height"
+          },
+          "measurement": {
+            "line_count": 2,
+            "line_height": 420.0,
+            "estimated_height": 700.0,
+            "available_height": 400,
+            "overflow": 300.0
+          },
+          "related_objects": [
+            {
+              "element_id": "bqs",
+              "kind": "shape",
+              "type": "text",
+              "bbox": {
+                "x": 400,
+                "y": 50,
+                "width": 500,
+                "height": 400
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slide_number": 12,
+      "status": "passed",
+      "element_count": 14,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 13,
+      "status": "passed",
+      "element_count": 14,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 14,
+      "status": "passed",
+      "element_count": 15,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 15,
+      "status": "passed",
+      "element_count": 12,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 16,
+      "status": "passed",
+      "element_count": 14,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 17,
+      "status": "passed",
+      "element_count": 9,
+      "errors": [],
+      "warnings": [],
+      "infos": [
+        {
+          "level": "info",
+          "code": "text_may_overflow_shape",
+          "elements": [
+            "baJ"
+          ],
+          "line_count": 2,
+          "line_height": 420.0,
+          "estimated_height": 700.0,
+          "available_height": 400,
+          "overflow": 300.0,
+          "message": "text shape baJ may overflow its own content box (estimated 700px, available 400px); consider setting content wrap=\"true\" autoFit=\"normal-auto-fit\" (likely background decoration: large font, low alpha, underneath other text)",
+          "hint": "Increase shape.height, reduce the text, or set content wrap=\"true\" autoFit=\"normal-auto-fit\". This is an estimate based on font size, line spacing, and wrapped line count.",
+          "schema_version": "2.0",
+          "element_ids": [
+            "baJ"
+          ],
+          "target": {
+            "slide_number": 17
+          },
+          "rule": {
+            "id": "text_may_overflow_shape",
+            "name": "estimated_text_fits_declared_shape",
+            "comparison": "estimated_height <= available_height"
+          },
+          "measurement": {
+            "line_count": 2,
+            "line_height": 420.0,
+            "estimated_height": 700.0,
+            "available_height": 400,
+            "overflow": 300.0
+          },
+          "related_objects": [
+            {
+              "element_id": "baJ",
+              "kind": "shape",
+              "type": "text",
+              "bbox": {
+                "x": 400,
+                "y": 50,
+                "width": 500,
+                "height": 400
+              }
+            }
+          ]
+        }
+      ],
+      "issues": [
+        {
+          "level": "info",
+          "code": "text_may_overflow_shape",
+          "elements": [
+            "baJ"
+          ],
+          "line_count": 2,
+          "line_height": 420.0,
+          "estimated_height": 700.0,
+          "available_height": 400,
+          "overflow": 300.0,
+          "message": "text shape baJ may overflow its own content box (estimated 700px, available 400px); consider setting content wrap=\"true\" autoFit=\"normal-auto-fit\" (likely background decoration: large font, low alpha, underneath other text)",
+          "hint": "Increase shape.height, reduce the text, or set content wrap=\"true\" autoFit=\"normal-auto-fit\". This is an estimate based on font size, line spacing, and wrapped line count.",
+          "schema_version": "2.0",
+          "element_ids": [
+            "baJ"
+          ],
+          "target": {
+            "slide_number": 17
+          },
+          "rule": {
+            "id": "text_may_overflow_shape",
+            "name": "estimated_text_fits_declared_shape",
+            "comparison": "estimated_height <= available_height"
+          },
+          "measurement": {
+            "line_count": 2,
+            "line_height": 420.0,
+            "estimated_height": 700.0,
+            "available_height": 400,
+            "overflow": 300.0
+          },
+          "related_objects": [
+            {
+              "element_id": "baJ",
+              "kind": "shape",
+              "type": "text",
+              "bbox": {
+                "x": 400,
+                "y": 50,
+                "width": 500,
+                "height": 400
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slide_number": 18,
+      "status": "passed",
+      "element_count": 14,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 19,
+      "status": "passed",
+      "element_count": 12,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 20,
+      "status": "passed",
+      "element_count": 14,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 21,
+      "status": "passed",
+      "element_count": 15,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    },
+    {
+      "slide_number": 22,
+      "status": "passed",
+      "element_count": 10,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "issues": []
+    }
+  ]
+}

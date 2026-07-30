@@ -1,0 +1,2 @@
+tmp/xsd-update-run-20260726-000416/t06_gradient_missing_color.xml:1: element chartBars: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}chartBars': Element content is not allowed, because the content type is empty.
+tmp/xsd-update-run-20260726-000416/t06_gradient_missing_color.xml fails to validate

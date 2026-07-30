@@ -1,0 +1,183 @@
+{
+  "file": "/Users/bytedance/go/src/github.com/larksuite/cli/tmp/slides_image_lint_whitebox/readback.xml",
+  "slide_size": {
+    "width": 960,
+    "height": 540
+  },
+  "summary": {
+    "slide_count": 16,
+    "error_count": 3,
+    "warning_count": 0,
+    "info_count": 5
+  },
+  "slides": [
+    {
+      "slide_number": 1,
+      "element_count": 2,
+      "issues": [
+        {
+          "level": "error",
+          "code": "image_covers_text",
+          "elements": [
+            "bqu",
+            "bqq"
+          ],
+          "message": "image bqu covers text shape bqq",
+          "hint": "Move the image before the text shape in XML order, or adjust the image and text shape coordinates or dimensions."
+        }
+      ]
+    },
+    {
+      "slide_number": 2,
+      "element_count": 2,
+      "issues": []
+    },
+    {
+      "slide_number": 3,
+      "element_count": 2,
+      "issues": []
+    },
+    {
+      "slide_number": 4,
+      "element_count": 2,
+      "issues": []
+    },
+    {
+      "slide_number": 5,
+      "element_count": 2,
+      "issues": []
+    },
+    {
+      "slide_number": 6,
+      "element_count": 2,
+      "issues": []
+    },
+    {
+      "slide_number": 7,
+      "element_count": 2,
+      "issues": []
+    },
+    {
+      "slide_number": 8,
+      "element_count": 2,
+      "issues": [
+        {
+          "level": "error",
+          "code": "image_covers_text",
+          "elements": [
+            "bqD",
+            "bqi"
+          ],
+          "message": "image bqD covers text shape bqi",
+          "hint": "Move the image before the text shape in XML order, or adjust the image and text shape coordinates or dimensions."
+        }
+      ]
+    },
+    {
+      "slide_number": 9,
+      "element_count": 2,
+      "issues": []
+    },
+    {
+      "slide_number": 10,
+      "element_count": 2,
+      "issues": [
+        {
+          "level": "error",
+          "code": "image_covers_text",
+          "elements": [
+            "bqC",
+            "bqL"
+          ],
+          "message": "image bqC covers text shape bqL",
+          "hint": "Move the image before the text shape in XML order, or adjust the image and text shape coordinates or dimensions."
+        }
+      ]
+    },
+    {
+      "slide_number": 11,
+      "element_count": 2,
+      "issues": [
+        {
+          "level": "info",
+          "code": "image_may_cover_vertical_text",
+          "elements": [
+            "bql",
+            "bqf"
+          ],
+          "message": "image bql may cover vertical text shape bqf",
+          "hint": "Inspect the rendered slide because vertical text layout is not statically modeled."
+        }
+      ]
+    },
+    {
+      "slide_number": 12,
+      "element_count": 2,
+      "issues": [
+        {
+          "level": "info",
+          "code": "image_may_cover_vertical_text",
+          "elements": [
+            "bqU",
+            "bqT"
+          ],
+          "message": "image bqU may cover vertical text shape bqT",
+          "hint": "Inspect the rendered slide because vertical text layout is not statically modeled."
+        }
+      ]
+    },
+    {
+      "slide_number": 13,
+      "element_count": 2,
+      "issues": [
+        {
+          "level": "info",
+          "code": "image_may_cover_vertical_text",
+          "elements": [
+            "bqh",
+            "bqr"
+          ],
+          "message": "image bqh may cover vertical text shape bqr",
+          "hint": "Inspect the rendered slide because vertical text layout is not statically modeled."
+        }
+      ]
+    },
+    {
+      "slide_number": 14,
+      "element_count": 2,
+      "issues": [
+        {
+          "level": "info",
+          "code": "image_may_cover_vertical_text",
+          "elements": [
+            "bqE",
+            "bqm"
+          ],
+          "message": "image bqE may cover vertical text shape bqm",
+          "hint": "Inspect the rendered slide because vertical text layout is not statically modeled."
+        }
+      ]
+    },
+    {
+      "slide_number": 15,
+      "element_count": 2,
+      "issues": [
+        {
+          "level": "info",
+          "code": "image_may_cover_vertical_text",
+          "elements": [
+            "bqw",
+            "bqa"
+          ],
+          "message": "image bqw may cover vertical text shape bqa",
+          "hint": "Inspect the rendered slide because vertical text layout is not statically modeled."
+        }
+      ]
+    },
+    {
+      "slide_number": 16,
+      "element_count": 2,
+      "issues": []
+    }
+  ]
+}

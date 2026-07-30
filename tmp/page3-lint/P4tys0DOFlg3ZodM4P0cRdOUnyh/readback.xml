@@ -1,0 +1,1670 @@
+<presentation id="P4tys0DOFlg3ZodM4P0cRdOUnyh" xmlns="/sml/2.0" width="960" height="540">
+  <title>中国少数民族图鉴</title>
+  <theme>
+    <textStyles>
+      <headline fontColor="rgba(31, 35, 41, 1)"/>
+      <sub-headline fontColor="rgba(31, 35, 41, 1)"/>
+      <body fontColor="rgba(31, 35, 41, 1)"/>
+      <caption fontColor="rgba(155, 158, 162, 1)" fontSize="14"/>
+    </textStyles>
+  </theme>
+  <slide id="pXo">
+    <style>
+      <fill id="fXo">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="520" height="440" topLeftX="390" topLeftY="50" presetHandlers="0" type="rect" id="blq">
+        <fill>
+          <fillColor color="rgba(252, 248, 240, 1)"/>
+        </fill>
+        <border color="rgba(190, 178, 160, 1)" width="1"/>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="500" height="420" topLeftX="400" topLeftY="60" presetHandlers="0" type="rect" id="baX">
+        <fill>
+          <fillColor color="rgba(245, 240, 230, 1)"/>
+        </fill>
+        <border color="rgba(120, 105, 85, 1)"/>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <img id="baN" src="R12rbufdyorqPRxbICgcI1SYn5e" width="487.99999999999994" height="408" topLeftX="406" topLeftY="66">
+        <crop type="rect" leftOffset="89.74233128834356" rightOffset="89.74233128834362" topOffset="0" bottomOffset="0"/>
+      </img>
+      <shape width="30" height="30" topLeftX="858" topLeftY="76" presetHandlers="0" type="rect" id="bar">
+        <fill>
+          <fillColor color="rgba(192, 57, 43, 0.9)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="30" height="30" topLeftX="858" topLeftY="76" type="text" id="bln">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(255, 255, 255, 1)" lineSpacing="multiple:1.1" textAlign="center">
+          <p>中</p>
+          <p>华</p>
+        </content>
+      </shape>
+      <shape width="26" height="26" topLeftX="412" topLeftY="444" presetHandlers="0" type="rect" id="bas">
+        <fill>
+          <fillColor color="rgba(192, 57, 43, 0.75)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="26" height="26" topLeftX="412" topLeftY="444" type="text" id="baf">
+        <content textType="caption" fontSize="8" fontFamily="思源宋体" color="rgba(255, 255, 255, 1)" lineSpacing="multiple:1.1" textAlign="center">
+          <p>民</p>
+          <p>族</p>
+        </content>
+      </shape>
+      <shape width="60" height="400" topLeftX="110" topLeftY="60" type="text" id="baA">
+        <content textType="title" fontSize="45" fontFamily="思源宋体" color="rgba(30, 30, 30, 1)" bold="true" lineSpacing="multiple:1.1" letterSpacing="5" textAlign="center">
+          <p>中</p>
+          <p>国</p>
+          <p>少</p>
+          <p>数</p>
+          <p>民</p>
+          <p>族</p>
+          <p>图</p>
+          <p>鉴</p>
+        </content>
+      </shape>
+      <shape width="180" height="25" topLeftX="190" topLeftY="80" type="text" id="baH">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(130, 120, 108, 1)" letterSpacing="2" textAlign="left">
+          <p>ETHNIC GROUPS OF CHINA</p>
+        </content>
+      </shape>
+      <line id="blc" startX="190" startY="120" endX="190" endY="175.0090901579003">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <line id="bav" startX="190.00000000000003" startY="195" endX="190.00000000000006" endY="350.0032257728851">
+        <border color="rgba(192, 57, 43, 1)" width="1"/>
+      </line>
+      <line id="bak" startX="189.99999999999994" startY="370" endX="189.99999999999994" endY="425.0090901579003">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="200" height="32" topLeftX="190" topLeftY="395" type="text" id="bad">
+        <content textType="headline" fontSize="18" fontFamily="思源宋体" color="rgba(50, 50, 50, 1)" bold="true" letterSpacing="3" textAlign="left">
+          <p>五十六个民族</p>
+        </content>
+      </shape>
+      <shape width="200" height="32" topLeftX="190" topLeftY="430" type="text" id="baE">
+        <content textType="headline" fontSize="18" fontFamily="思源宋体" color="rgba(50, 50, 50, 1)" bold="true" letterSpacing="3" textAlign="left">
+          <p>五十六朵花</p>
+        </content>
+      </shape>
+      <shape width="55" height="55" topLeftX="110" topLeftY="470" presetHandlers="0" type="rect" id="blR">
+        <fill>
+          <fillColor color="rgba(192, 57, 43, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="55" height="55" topLeftX="110" topLeftY="470" type="text" id="baS">
+        <content textType="caption" fontSize="16" fontFamily="思源宋体" color="rgba(255, 255, 255, 1)" textAlign="center">
+          <p>图鉴</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="baU">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>01 / 22</p>
+        </content>
+      </shape>
+      <line id="baY" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="baT">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXC">
+    <style>
+      <fill id="fXC">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="400" height="50" topLeftX="80" topLeftY="60" type="text" id="bWf">
+        <content textType="headline" fontSize="32" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>中华民族大家庭</p>
+        </content>
+      </shape>
+      <shape width="300" height="20" topLeftX="80" topLeftY="115" type="text" id="bWA">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="2" textAlign="left">
+          <p>THE CHINESE NATION FAMILY</p>
+        </content>
+      </shape>
+      <line id="ban" startX="80" startY="145" endX="200.00416659433122" endY="145">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="380" height="200" topLeftX="80" topLeftY="170" type="text" id="baW">
+        <content fontSize="14" fontFamily="思源宋体" color="rgba(60, 60, 60, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p>中国是一个统一的多民族国家，共有56个民族。各民族在长期的历史发展过程中，形成了各具特色的民族文化，共同构成了丰富多彩的中华文明。</p>
+          <p/>
+          <p>汉族是中国人口最多的民族，约占全国总人口的91.11%。其他55个民族由于人口相对较少，习惯上被称为&quot;少数民族&quot;。</p>
+        </content>
+      </shape>
+      <shape width="360" height="270" topLeftX="520" topLeftY="160" presetHandlers="0" type="rect" id="bWs">
+        <fill>
+          <fillColor color="rgba(255, 255, 255, 0.5)"/>
+        </fill>
+        <border color="rgba(210, 200, 190, 1)" width="1"/>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="320" height="30" topLeftX="540" topLeftY="175" type="text" id="bWd">
+        <content textType="sub-headline" fontSize="18" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>民族人口概览</p>
+        </content>
+      </shape>
+      <shape width="100" height="35" topLeftX="540" topLeftY="215" type="text" id="bWH">
+        <content textType="title" fontSize="32" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>56</p>
+        </content>
+      </shape>
+      <shape width="200" height="25" topLeftX="650" topLeftY="222" type="text" id="bac">
+        <content fontSize="14" fontFamily="思源宋体" color="rgba(60, 60, 60, 1)" textAlign="left">
+          <p>个民族</p>
+        </content>
+      </shape>
+      <shape width="100" height="35" topLeftX="540" topLeftY="260" type="text" id="baV">
+        <content textType="title" fontSize="32" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>55</p>
+        </content>
+      </shape>
+      <shape width="200" height="25" topLeftX="650" topLeftY="267" type="text" id="bWk">
+        <content fontSize="14" fontFamily="思源宋体" color="rgba(60, 60, 60, 1)" textAlign="left">
+          <p>个少数民族</p>
+        </content>
+      </shape>
+      <shape width="100" height="35" topLeftX="540" topLeftY="305" type="text" id="bWY">
+        <content textType="title" fontSize="32" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>1.25亿</p>
+        </content>
+      </shape>
+      <shape width="200" height="25" topLeftX="650" topLeftY="312" type="text" id="bWE">
+        <content fontSize="14" fontFamily="思源宋体" color="rgba(60, 60, 60, 1)" textAlign="left">
+          <p>少数民族总人口</p>
+        </content>
+      </shape>
+      <shape width="100" height="35" topLeftX="540" topLeftY="350" type="text" id="baR">
+        <content textType="title" fontSize="32" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>8.89%</p>
+        </content>
+      </shape>
+      <shape width="200" height="25" topLeftX="650" topLeftY="357" type="text" id="bWU">
+        <content fontSize="14" fontFamily="思源宋体" color="rgba(60, 60, 60, 1)" textAlign="left">
+          <p>占全国总人口</p>
+        </content>
+      </shape>
+      <shape width="800" height="60" topLeftX="80" topLeftY="400" type="text" id="bWr">
+        <content fontSize="13" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p><strong>分布特点：</strong>各民族分布呈现&quot;大杂居、小聚居、交错居住&quot;的特点。少数民族主要分布在西南、西北和东北地区，其中云南省是中国民族种类最多的省份。</p>
+        </content>
+      </shape>
+      <shape width="400" height="20" topLeftX="80" topLeftY="475" type="text" id="bWT">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="left">
+          <p>数据来源：第七次全国人口普查（2020年）</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="baq">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>02 / 22</p>
+        </content>
+      </shape>
+      <line id="baa" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bWN">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXG">
+    <style>
+      <fill id="fXG">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="500" height="400" topLeftX="400" topLeftY="50" type="text" id="baC">
+        <content textType="title" fontSize="280" fontFamily="思源宋体" color="rgba(42, 42, 42, 0.059)" bold="true" letterSpacing="-10" textAlign="center">
+          <p>东北</p>
+        </content>
+      </shape>
+      <shape width="100" height="40" topLeftX="80" topLeftY="120" type="text" id="baQ">
+        <content textType="title" fontSize="36" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>01</p>
+        </content>
+      </shape>
+      <line id="bax" startX="80" startY="175" endX="150.00714249274853" endY="175">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="60" height="300" topLeftX="80" topLeftY="200" type="text" id="baD">
+        <content textType="title" fontSize="32" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" lineSpacing="multiple:1.3" letterSpacing="4" textAlign="center">
+          <p>东</p>
+          <p>北</p>
+          <p>·</p>
+          <p>内</p>
+          <p>蒙</p>
+          <p>古</p>
+        </content>
+      </shape>
+      <shape width="200" height="25" topLeftX="160" topLeftY="210" type="text" id="baj">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="2" textAlign="left">
+          <p>NORTHEAST &amp; INNER MONGOLIA</p>
+        </content>
+      </shape>
+      <shape width="200" height="150" topLeftX="160" topLeftY="260" type="text" id="baM">
+        <content fontSize="16" fontFamily="思源宋体" color="rgba(60, 60, 60, 1)" lineSpacing="multiple:2.2" textAlign="left">
+          <p>满族 MANCHU</p>
+          <p>朝鲜族 KOREAN</p>
+          <p>蒙古族 MONGOLIAN</p>
+        </content>
+      </shape>
+      <shape width="280" height="80" topLeftX="160" topLeftY="410" type="text" id="bao">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p>白山黑水，草原辽阔。东北与内蒙古地区孕育了独特的渔猎、游牧文明，各民族在此交融共生。</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bat">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>03 / 22</p>
+        </content>
+      </shape>
+      <line id="baG" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bag">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXi">
+    <style>
+      <fill id="fXi">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bcU" src="WoXEbKZaIoePkQxQ1rVceTjDnHe" width="380" height="419.99999999999994" topLeftX="80" topLeftY="60">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="43.3828125" bottomOffset="43.38281250000006"/>
+      </img>
+      <shape width="60" height="300" topLeftX="500" topLeftY="80" type="text" id="bcY">
+        <content textType="title" fontSize="48" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" lineSpacing="multiple:1.6" letterSpacing="4" textAlign="center">
+          <p>满</p>
+          <p>族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="580" topLeftY="90" type="text" id="bcE">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>MANCHU</p>
+        </content>
+      </shape>
+      <line id="bcS" startX="580" startY="120" endX="680.0049998750062" endY="120">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="100" height="40" topLeftX="580" topLeftY="140" type="text" id="bcN">
+        <content textType="title" fontSize="28" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>1042万</p>
+        </content>
+      </shape>
+      <shape width="150" height="25" topLeftX="690" topLeftY="150" type="text" id="bcr">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口（约）</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="200" type="text" id="bcT">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>分布地区</p>
+        </content>
+      </shape>
+      <shape width="300" height="40" topLeftX="580" topLeftY="230" type="text" id="bcX">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>辽宁、河北、黑龙江、吉林、北京</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="280" type="text" id="bcs">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>文化特色</p>
+        </content>
+      </shape>
+      <shape width="300" height="60" topLeftX="580" topLeftY="310" type="text" id="bcf">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p>旗袍、萨满文化、满族剪纸</p>
+          <p>满语、八角鼓、珍珠球</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="380" type="text" id="bcA">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>传统节日</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="410" type="text" id="bck">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>颁金节、春节、元宵节</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bcd">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>04 / 22</p>
+        </content>
+      </shape>
+      <line id="bcH" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bcv">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXe">
+    <style>
+      <fill id="fXe">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bnz" src="MqjHb57DFoifNhxG4Vzc4LOinhg" width="380" height="420" topLeftX="500" topLeftY="60">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="43.33333333333334" bottomOffset="43.333333333333314"/>
+      </img>
+      <shape width="60" height="300" topLeftX="380" topLeftY="80" type="text" id="bnp">
+        <content textType="title" fontSize="48" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" lineSpacing="multiple:1.6" letterSpacing="4" textAlign="center">
+          <p>朝</p>
+          <p>鲜</p>
+          <p>族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="80" topLeftY="90" type="text" id="bnt">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>KOREAN</p>
+        </content>
+      </shape>
+      <line id="bnP" startX="80" startY="120" endX="180.00499987500626" endY="120">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="100" height="40" topLeftX="80" topLeftY="140" type="text" id="bnJ">
+        <content textType="title" fontSize="28" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>170万</p>
+        </content>
+      </shape>
+      <shape width="150" height="25" topLeftX="190" topLeftY="150" type="text" id="bnX">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口（约）</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="200" type="text" id="bnD">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>分布地区</p>
+        </content>
+      </shape>
+      <shape width="280" height="40" topLeftX="80" topLeftY="230" type="text" id="bnO">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>吉林、黑龙江、辽宁</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="280" type="text" id="bny">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>文化特色</p>
+        </content>
+      </shape>
+      <shape width="280" height="60" topLeftX="80" topLeftY="310" type="text" id="bnG">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p>长鼓舞、伽倻琴、农乐舞</p>
+          <p>冷面、泡菜、打糕</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="380" type="text" id="bne">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>传统节日</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="410" type="text" id="bnZ">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>老人节、回甲节、回婚节</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bnu">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>05 / 22</p>
+        </content>
+      </shape>
+      <line id="bnx" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bnL">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXd">
+    <style>
+      <fill id="fXd">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bnj" src="FYi1bxPcAod6YAxGu4WcO6h6nxd" width="800" height="280" topLeftX="80" topLeftY="60">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="393.56766256590504" bottomOffset="393.56766256590504"/>
+      </img>
+      <shape width="200" height="50" topLeftX="80" topLeftY="360" type="text" id="bnM">
+        <content textType="headline" fontSize="36" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>蒙古族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="80" topLeftY="410" type="text" id="bno">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>MONGOLIAN</p>
+        </content>
+      </shape>
+      <line id="bnw" startX="80" startY="435" endX="180.00499987500626" endY="435">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="100" height="35" topLeftX="320" topLeftY="365" type="text" id="bnK">
+        <content textType="title" fontSize="24" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>629万</p>
+        </content>
+      </shape>
+      <shape width="100" height="20" topLeftX="420" topLeftY="372" type="text" id="bnb">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口（约）</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="320" topLeftY="410" type="text" id="bng">
+        <content fontSize="11" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p><strong>分布：</strong>内蒙古、辽宁、新疆、吉林、黑龙江</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="600" topLeftY="365" type="text" id="bnC">
+        <content fontSize="11" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p><strong>文化：</strong>那达慕、马头琴、蒙古包</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="600" topLeftY="400" type="text" id="bnQ">
+        <content fontSize="11" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p><strong>节日：</strong>那达慕大会、马奶节、祭敖包</p>
+        </content>
+      </shape>
+      <shape width="280" height="50" topLeftX="600" topLeftY="435" type="text" id="bnB">
+        <content fontSize="10" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>蒙古族是一个历史悠久的游牧民族，被誉为&quot;草原骄子&quot;。</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bnF">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>06 / 22</p>
+        </content>
+      </shape>
+      <line id="bnm" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bnh">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXZ">
+    <style>
+      <fill id="fXZ">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="500" height="400" topLeftX="400" topLeftY="50" type="text" id="bni">
+        <content textType="title" fontSize="280" fontFamily="思源宋体" color="rgba(42, 42, 42, 0.059)" bold="true" letterSpacing="-10" textAlign="center">
+          <p>西北</p>
+        </content>
+      </shape>
+      <shape width="100" height="40" topLeftX="80" topLeftY="120" type="text" id="bnn">
+        <content textType="title" fontSize="36" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>02</p>
+        </content>
+      </shape>
+      <line id="bnR" startX="80" startY="175" endX="150.00714249274853" endY="175">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="60" height="240" topLeftX="80" topLeftY="200" type="text" id="bnW">
+        <content textType="title" fontSize="40" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" lineSpacing="multiple:1.6" letterSpacing="4" textAlign="center">
+          <p>西</p>
+          <p>北</p>
+          <p>地</p>
+          <p>区</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="160" topLeftY="210" type="text" id="bna">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>NORTHWEST CHINA</p>
+        </content>
+      </shape>
+      <shape width="200" height="150" topLeftX="160" topLeftY="260" type="text" id="bnI">
+        <content fontSize="16" fontFamily="思源宋体" color="rgba(60, 60, 60, 1)" lineSpacing="multiple:2.2" textAlign="left">
+          <p>维吾尔族 UYGHUR</p>
+          <p>回族 HUI</p>
+          <p>哈萨克族 KAZAKH</p>
+        </content>
+      </shape>
+      <shape width="280" height="80" topLeftX="160" topLeftY="380" type="text" id="bnc">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p>大漠孤烟，丝路花雨。西北地区是古丝绸之路的重要通道，各民族文化在此交融绽放。</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bnq">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>07 / 22</p>
+        </content>
+      </shape>
+      <line id="bnV" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bnl">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXO">
+    <style>
+      <fill id="fXO">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bnU" src="UgAWb3RrHo5PHgxQpwxcC6JCnge" width="800" height="419.99999999999994" topLeftX="80" topLeftY="60">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="189.99999999999997" bottomOffset="190.0000000000001"/>
+      </img>
+      <shape width="350" height="420" topLeftX="80" topLeftY="60" presetHandlers="0" type="rect" id="bnY">
+        <fill>
+          <fillColor color="rgba(245, 240, 230, 0.92)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="280" height="50" topLeftX="110" topLeftY="100" type="text" id="bnE">
+        <content textType="headline" fontSize="36" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>维吾尔族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="110" topLeftY="155" type="text" id="bnS">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>UYGHUR</p>
+        </content>
+      </shape>
+      <line id="bnN" startX="110" startY="185" endX="210.00499987500626" endY="185">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="120" height="40" topLeftX="110" topLeftY="205" type="text" id="bnr">
+        <content textType="title" fontSize="28" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>1177万</p>
+        </content>
+      </shape>
+      <shape width="120" height="25" topLeftX="240" topLeftY="215" type="text" id="bnT">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口（约）</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="110" topLeftY="270" type="text" id="bns">
+        <content textType="sub-headline" fontSize="13" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>分布地区</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="110" topLeftY="295" type="text" id="bnf">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>新疆维吾尔自治区</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="110" topLeftY="335" type="text" id="bnA">
+        <content textType="sub-headline" fontSize="13" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>文化特色</p>
+        </content>
+      </shape>
+      <shape width="280" height="50" topLeftX="110" topLeftY="360" type="text" id="bqn">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>木卡姆艺术、达瓦孜、手抓饭</p>
+          <p>艾德莱斯绸、烤馕、葡萄</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="110" topLeftY="420" type="text" id="bnk">
+        <content textType="sub-headline" fontSize="13" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>传统节日</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="110" topLeftY="445" type="text" id="bnd">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>古尔邦节、肉孜节、诺鲁孜节</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bnH">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>08 / 22</p>
+        </content>
+      </shape>
+      <line id="bqc" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bnv">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXr">
+    <style>
+      <fill id="fXr">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bql" src="LrbqbcwmFoP9IZxftnIcwAEwnyM" width="380.00000000000006" height="420" topLeftX="80" topLeftY="60">
+        <crop type="rect" leftOffset="136.6666666666667" rightOffset="136.66666666666663" topOffset="0" bottomOffset="0"/>
+      </img>
+      <shape width="60" height="200" topLeftX="500" topLeftY="80" type="text" id="bqw">
+        <content textType="title" fontSize="48" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" lineSpacing="multiple:1.6" letterSpacing="4" textAlign="center">
+          <p>回</p>
+          <p>族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="580" topLeftY="90" type="text" id="bqb">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>HUI</p>
+        </content>
+      </shape>
+      <line id="bqm" startX="580" startY="120" endX="680.0049998750062" endY="120">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="100" height="40" topLeftX="580" topLeftY="140" type="text" id="bqV">
+        <content textType="title" fontSize="28" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>1138万</p>
+        </content>
+      </shape>
+      <shape width="150" height="25" topLeftX="690" topLeftY="150" type="text" id="bqI">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口（约）</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="200" type="text" id="bqh">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>分布地区</p>
+        </content>
+      </shape>
+      <shape width="300" height="40" topLeftX="580" topLeftY="230" type="text" id="bqW">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>宁夏、甘肃、河南、新疆、青海</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="280" type="text" id="bqi">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>文化特色</p>
+        </content>
+      </shape>
+      <shape width="300" height="60" topLeftX="580" topLeftY="310" type="text" id="bqK">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p>清真饮食、清真寺建筑</p>
+          <p>花儿、回族武术、汤瓶八诊</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="380" type="text" id="bqq">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>传统节日</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="410" type="text" id="bqa">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>开斋节、古尔邦节、圣纪节</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bqB">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>09 / 22</p>
+        </content>
+      </shape>
+      <line id="bqF" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bqR">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXR">
+    <style>
+      <fill id="fXR">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bqO" src="YQEIbPJaIo0UUgxmFZqcvnSUnvd" width="380" height="420.00000000000006" topLeftX="500" topLeftY="60">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="75" bottomOffset="74.99999999999994"/>
+      </img>
+      <shape width="60" height="300" topLeftX="380" topLeftY="80" type="text" id="bqg">
+        <content textType="title" fontSize="40" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" lineSpacing="multiple:1.6" letterSpacing="4" textAlign="center">
+          <p>哈</p>
+          <p>萨</p>
+          <p>克</p>
+          <p>族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="80" topLeftY="90" type="text" id="bqQ">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>KAZAKH</p>
+        </content>
+      </shape>
+      <line id="bqP" startX="80" startY="120" endX="180.00499987500626" endY="120">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="100" height="40" topLeftX="80" topLeftY="140" type="text" id="bqM">
+        <content textType="title" fontSize="28" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>156万</p>
+        </content>
+      </shape>
+      <shape width="150" height="25" topLeftX="190" topLeftY="150" type="text" id="bqD">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口（约）</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="200" type="text" id="bqt">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>分布地区</p>
+        </content>
+      </shape>
+      <shape width="280" height="40" topLeftX="80" topLeftY="230" type="text" id="bqL">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>新疆维吾尔自治区</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="280" type="text" id="bqC">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>文化特色</p>
+        </content>
+      </shape>
+      <shape width="280" height="60" topLeftX="80" topLeftY="310" type="text" id="bqx">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p>冬不拉、叼羊、姑娘追</p>
+          <p>阿肯弹唱、哈萨克刺绣</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="380" type="text" id="bqe">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>传统节日</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="410" type="text" id="bqZ">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>纳吾热孜节、古尔邦节、肉孜节</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bqj">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>10 / 22</p>
+        </content>
+      </shape>
+      <line id="bqo" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bqG">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXy">
+    <style>
+      <fill id="fXy">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="500" height="400" topLeftX="400" topLeftY="50" type="text" id="bqs">
+        <content textType="title" fontSize="280" fontFamily="思源宋体" color="rgba(42, 42, 42, 0.059)" bold="true" letterSpacing="-10" textAlign="center">
+          <p>西南</p>
+        </content>
+      </shape>
+      <shape width="100" height="40" topLeftX="80" topLeftY="120" type="text" id="bqu">
+        <content textType="title" fontSize="36" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>03</p>
+        </content>
+      </shape>
+      <line id="bqX" startX="80" startY="175" endX="150.00714249274853" endY="175">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="60" height="240" topLeftX="80" topLeftY="200" type="text" id="bqy">
+        <content textType="title" fontSize="40" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" lineSpacing="multiple:1.6" letterSpacing="4" textAlign="center">
+          <p>西</p>
+          <p>南</p>
+          <p>地</p>
+          <p>区</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="160" topLeftY="210" type="text" id="bqp">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>SOUTHWEST CHINA</p>
+        </content>
+      </shape>
+      <shape width="240" height="180" topLeftX="160" topLeftY="260" type="text" id="bqS">
+        <content fontSize="15" fontFamily="思源宋体" color="rgba(60, 60, 60, 1)" lineSpacing="multiple:2.2" textAlign="left">
+          <p>藏族 TIBETAN</p>
+          <p>彝族 YI</p>
+          <p>苗族 MIAO</p>
+          <p>傣族 DAI</p>
+          <p>白族 BAI</p>
+        </content>
+      </shape>
+      <shape width="280" height="60" topLeftX="160" topLeftY="400" type="text" id="bqk">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p>雪山梯田，彩云之南。西南地区民族种类最多，文化最丰富，是中国民族文化的宝库。</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bqz">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>11 / 22</p>
+        </content>
+      </shape>
+      <line id="bqJ" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bqv">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXD">
+    <style>
+      <fill id="fXD">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bRc" src="AvnKb3okCoej4lxf9oXcz3Yvnag" width="379.99999999999994" height="420" topLeftX="500" topLeftY="60">
+        <crop type="rect" leftOffset="19.999999999999943" rightOffset="20.000000000000114" topOffset="0" bottomOffset="0"/>
+      </img>
+      <shape width="60" height="200" topLeftX="380" topLeftY="80" type="text" id="bqd">
+        <content textType="title" fontSize="48" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" lineSpacing="multiple:1.6" letterSpacing="4" textAlign="center">
+          <p>藏</p>
+          <p>族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="80" topLeftY="90" type="text" id="bqY">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>TIBETAN</p>
+        </content>
+      </shape>
+      <line id="bqE" startX="80" startY="120" endX="180.00499987500626" endY="120">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="100" height="40" topLeftX="80" topLeftY="140" type="text" id="bRR">
+        <content textType="title" fontSize="28" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>706万</p>
+        </content>
+      </shape>
+      <shape width="150" height="25" topLeftX="190" topLeftY="150" type="text" id="bqU">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口（约）</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="200" type="text" id="bqr">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>分布地区</p>
+        </content>
+      </shape>
+      <shape width="280" height="40" topLeftX="80" topLeftY="230" type="text" id="bqT">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>西藏、四川、青海、甘肃、云南</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="280" type="text" id="bRq">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>文化特色</p>
+        </content>
+      </shape>
+      <shape width="280" height="60" topLeftX="80" topLeftY="310" type="text" id="bqN">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p>藏传佛教、唐卡、藏戏</p>
+          <p>藏医、酥油茶、糌粑</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="380" type="text" id="bqA">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>传统节日</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="410" type="text" id="bRn">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>藏历新年、雪顿节、望果节</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bRV">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>12 / 22</p>
+        </content>
+      </shape>
+      <line id="bqf" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bqH">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXp">
+    <style>
+      <fill id="fXp">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bRB" src="SVt9bGFxaoYcrexZS6jcUl1Fnod" width="379.99999999999994" height="420" topLeftX="80" topLeftY="60">
+        <crop type="rect" leftOffset="20" rightOffset="20.000000000000057" topOffset="0" bottomOffset="0"/>
+      </img>
+      <shape width="60" height="200" topLeftX="500" topLeftY="80" type="text" id="bRb">
+        <content textType="title" fontSize="48" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" lineSpacing="multiple:1.6" letterSpacing="4" textAlign="center">
+          <p>彝</p>
+          <p>族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="580" topLeftY="90" type="text" id="bRj">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>YI</p>
+        </content>
+      </shape>
+      <line id="bRW" startX="580" startY="120" endX="680.0049998750062" endY="120">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="100" height="40" topLeftX="580" topLeftY="140" type="text" id="bRi">
+        <content textType="title" fontSize="28" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>983万</p>
+        </content>
+      </shape>
+      <shape width="150" height="25" topLeftX="690" topLeftY="150" type="text" id="bRF">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口（约）</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="200" type="text" id="bRg">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>分布地区</p>
+        </content>
+      </shape>
+      <shape width="300" height="40" topLeftX="580" topLeftY="230" type="text" id="bRI">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>云南、四川、贵州、广西</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="280" type="text" id="bRK">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>文化特色</p>
+        </content>
+      </shape>
+      <shape width="300" height="60" topLeftX="580" topLeftY="310" type="text" id="bRh">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p>火把节、彝族年、毕摩文化</p>
+          <p>漆器工艺、阿诗玛叙事诗</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="380" type="text" id="bRl">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>传统节日</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="410" type="text" id="bRw">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>火把节、彝族年、跳公节</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bRm">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>13 / 22</p>
+        </content>
+      </shape>
+      <line id="bRC" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bRa">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXu">
+    <style>
+      <fill id="fXu">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bRe" src="INY0bcasMoQK02xXGapcjVUHndf" width="800" height="420.00000000000006" topLeftX="80" topLeftY="60">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="345" bottomOffset="345"/>
+      </img>
+      <shape width="350" height="420" topLeftX="80" topLeftY="60" presetHandlers="0" type="rect" id="bRZ">
+        <fill>
+          <fillColor color="rgba(245, 240, 230, 0.92)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="280" height="50" topLeftX="110" topLeftY="100" type="text" id="bRu">
+        <content textType="headline" fontSize="36" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>苗族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="110" topLeftY="155" type="text" id="bRo">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>MIAO</p>
+        </content>
+      </shape>
+      <line id="bRG" startX="110" startY="185" endX="210.00499987500626" endY="185">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="120" height="40" topLeftX="110" topLeftY="205" type="text" id="bRO">
+        <content textType="title" fontSize="28" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>1107万</p>
+        </content>
+      </shape>
+      <shape width="120" height="25" topLeftX="240" topLeftY="215" type="text" id="bRy">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口（约）</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="110" topLeftY="270" type="text" id="bRQ">
+        <content textType="sub-headline" fontSize="13" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>分布地区</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="110" topLeftY="295" type="text" id="bRD">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>贵州、湖南、云南、重庆、广西</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="110" topLeftY="335" type="text" id="bRP">
+        <content textType="sub-headline" fontSize="13" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>文化特色</p>
+        </content>
+      </shape>
+      <shape width="280" height="50" topLeftX="110" topLeftY="360" type="text" id="bRJ">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>银饰、芦笙、蜡染、吊脚楼</p>
+          <p>苗绣、苗族古歌、飞歌</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="110" topLeftY="420" type="text" id="bRM">
+        <content textType="sub-headline" fontSize="13" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>传统节日</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="110" topLeftY="445" type="text" id="bRt">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>苗年、姊妹节、芦笙节</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bRL">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>14 / 22</p>
+        </content>
+      </shape>
+      <line id="bRz" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bRx">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXY">
+    <style>
+      <fill id="fXY">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bRN" src="Und3bbNLuovqDaxpZ8Scg2fvnke" width="800" height="279.99999999999994" topLeftX="80" topLeftY="60">
+        <crop type="rect" leftOffset="0" rightOffset="-1.1368683772161603e-13" topOffset="459.7071742313323" bottomOffset="459.70717423133226"/>
+      </img>
+      <shape width="200" height="50" topLeftX="80" topLeftY="360" type="text" id="bRf">
+        <content textType="headline" fontSize="36" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>傣族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="80" topLeftY="410" type="text" id="bRr">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>DAI</p>
+        </content>
+      </shape>
+      <line id="bRp" startX="80" startY="435" endX="180.00499987500626" endY="435">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="100" height="35" topLeftX="320" topLeftY="365" type="text" id="bRS">
+        <content textType="title" fontSize="24" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>133万</p>
+        </content>
+      </shape>
+      <shape width="100" height="20" topLeftX="420" topLeftY="372" type="text" id="bRs">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口（约）</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="320" topLeftY="410" type="text" id="bRU">
+        <content fontSize="11" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p><strong>分布：</strong>云南省西双版纳、德宏等地</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="600" topLeftY="365" type="text" id="bRd">
+        <content fontSize="11" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p><strong>文化：</strong>泼水节、孔雀舞、竹楼</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="600" topLeftY="400" type="text" id="bRY">
+        <content fontSize="11" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p><strong>节日：</strong>泼水节、关门节、开门节</p>
+        </content>
+      </shape>
+      <shape width="280" height="50" topLeftX="600" topLeftY="435" type="text" id="bRH">
+        <content fontSize="10" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>傣族与水结缘，被誉为&quot;水的民族&quot;，泼水节是其最盛大的节日。</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bRX">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>15 / 22</p>
+        </content>
+      </shape>
+      <line id="bRv" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bRk">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXN">
+    <style>
+      <fill id="fXN">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bVn" src="CMuZbm4Beoi2xOxvfrYcVFw8nec" width="380" height="420" topLeftX="500" topLeftY="60">
+        <crop type="rect" leftOffset="0" rightOffset="-5.684341886080802e-14" topOffset="43.234375" bottomOffset="43.23437499999994"/>
+      </img>
+      <shape width="60" height="200" topLeftX="380" topLeftY="80" type="text" id="bVW">
+        <content textType="title" fontSize="48" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" lineSpacing="multiple:1.6" letterSpacing="4" textAlign="center">
+          <p>白</p>
+          <p>族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="80" topLeftY="90" type="text" id="bVi">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>BAI</p>
+        </content>
+      </shape>
+      <line id="bRT" startX="80" startY="120" endX="180.00499987500626" endY="120">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="100" height="40" topLeftX="80" topLeftY="140" type="text" id="bVq">
+        <content textType="title" fontSize="28" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>209万</p>
+        </content>
+      </shape>
+      <shape width="150" height="25" topLeftX="190" topLeftY="150" type="text" id="bVa">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口（约）</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="200" type="text" id="bVB">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>分布地区</p>
+        </content>
+      </shape>
+      <shape width="280" height="40" topLeftX="80" topLeftY="230" type="text" id="bRE">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>云南、贵州、湖南</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="280" type="text" id="bVR">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>文化特色</p>
+        </content>
+      </shape>
+      <shape width="280" height="60" topLeftX="80" topLeftY="310" type="text" id="bVl">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p>三道茶、扎染、本主崇拜</p>
+          <p>白族建筑、霸王鞭、大本曲</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="380" type="text" id="bVw">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>传统节日</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="410" type="text" id="bVc">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>三月街、绕三灵、火把节</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bVV">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>16 / 22</p>
+        </content>
+      </shape>
+      <line id="bVI" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bRA">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXw">
+    <style>
+      <fill id="fXw">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="500" height="400" topLeftX="400" topLeftY="50" type="text" id="baJ">
+        <content textType="title" fontSize="280" fontFamily="思源宋体" color="rgba(42, 42, 42, 0.059)" bold="true" letterSpacing="-10" textAlign="center">
+          <p>中南</p>
+        </content>
+      </shape>
+      <shape width="100" height="40" topLeftX="80" topLeftY="120" type="text" id="bau">
+        <content textType="title" fontSize="36" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>04</p>
+        </content>
+      </shape>
+      <line id="bae" startX="80" startY="175" endX="150.00714249274853" endY="175">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="60" height="280" topLeftX="80" topLeftY="200" type="text" id="baP">
+        <content textType="title" fontSize="32" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" lineSpacing="multiple:1.3" letterSpacing="4" textAlign="center">
+          <p>中</p>
+          <p>南</p>
+          <p>·</p>
+          <p>东</p>
+          <p>南</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="160" topLeftY="210" type="text" id="baz">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>CENTRAL &amp; SOUTHEAST</p>
+        </content>
+      </shape>
+      <shape width="240" height="150" topLeftX="160" topLeftY="260" type="text" id="bay">
+        <content fontSize="16" fontFamily="思源宋体" color="rgba(60, 60, 60, 1)" lineSpacing="multiple:2.2" textAlign="left">
+          <p>壮族 ZHUANG</p>
+          <p>土家族 TUJIA</p>
+          <p>瑶族 YAO</p>
+          <p>黎族 LI</p>
+        </content>
+      </shape>
+      <shape width="280" height="60" topLeftX="160" topLeftY="420" type="text" id="bap">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p>山水秀丽，海岛风情。中南东南地区民族文化与自然山水深度融合，各具特色。</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="baL">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>17 / 22</p>
+        </content>
+      </shape>
+      <line id="baO" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="baZ">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXT">
+    <style>
+      <fill id="fXT">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bWl" src="ARnObspqHoynDExY2fYcYFYTn0e" width="379.99999999999994" height="420" topLeftX="80" topLeftY="60">
+        <crop type="rect" leftOffset="20" rightOffset="20.000000000000057" topOffset="0" bottomOffset="0"/>
+      </img>
+      <shape width="60" height="200" topLeftX="500" topLeftY="80" type="text" id="bWw">
+        <content textType="title" fontSize="48" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" lineSpacing="multiple:1.6" letterSpacing="4" textAlign="center">
+          <p>壮</p>
+          <p>族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="580" topLeftY="90" type="text" id="bVE">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>ZHUANG</p>
+        </content>
+      </shape>
+      <line id="bWV" startX="580" startY="120" endX="680.0049998750062" endY="120">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="120" height="40" topLeftX="580" topLeftY="140" type="text" id="bWI">
+        <content textType="title" fontSize="28" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>1956万</p>
+        </content>
+      </shape>
+      <shape width="170" height="25" topLeftX="710" topLeftY="150" type="text" id="bWK">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口最多的少数民族</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="200" type="text" id="bWc">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>分布地区</p>
+        </content>
+      </shape>
+      <shape width="300" height="40" topLeftX="580" topLeftY="230" type="text" id="bWW">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>广西、云南、广东、贵州</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="280" type="text" id="bWi">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>文化特色</p>
+        </content>
+      </shape>
+      <shape width="300" height="60" topLeftX="580" topLeftY="310" type="text" id="bWn">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p>壮锦、铜鼓、山歌</p>
+          <p>干栏建筑、五色糯米饭</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="380" type="text" id="bWq">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>传统节日</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="580" topLeftY="410" type="text" id="bWa">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>三月三歌节、牛魂节、中元节</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bWB">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>18 / 22</p>
+        </content>
+      </shape>
+      <line id="bVT" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bWR">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXQ">
+    <style>
+      <fill id="fXQ">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bVy" src="MKz1byxvGo97zRxfZJKc1qNPnCh" width="800" height="280" topLeftX="80" topLeftY="60">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="260" bottomOffset="260"/>
+      </img>
+      <shape width="200" height="50" topLeftX="80" topLeftY="360" type="text" id="bVx">
+        <content textType="headline" fontSize="36" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>土家族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="80" topLeftY="410" type="text" id="bVD">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>TUJIA</p>
+        </content>
+      </shape>
+      <line id="bVe" startX="80" startY="435" endX="180.00499987500626" endY="435">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="100" height="35" topLeftX="320" topLeftY="365" type="text" id="bVP">
+        <content textType="title" fontSize="24" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>959万</p>
+        </content>
+      </shape>
+      <shape width="100" height="20" topLeftX="420" topLeftY="372" type="text" id="bVZ">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口（约）</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="320" topLeftY="410" type="text" id="bVz">
+        <content fontSize="11" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p><strong>分布：</strong>湖南、湖北、重庆、贵州</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="600" topLeftY="365" type="text" id="bVo">
+        <content fontSize="11" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p><strong>文化：</strong>吊脚楼、西兰卡普、摆手舞</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="600" topLeftY="400" type="text" id="bVt">
+        <content fontSize="11" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p><strong>节日：</strong>赶年、牛王节、六月六</p>
+        </content>
+      </shape>
+      <shape width="280" height="50" topLeftX="600" topLeftY="435" type="text" id="bVG">
+        <content fontSize="10" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>土家族自称&quot;毕兹卡&quot;，意为&quot;本地人&quot;，是中国最古老的民族之一。</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bVL">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>19 / 22</p>
+        </content>
+      </shape>
+      <line id="bVO" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bVJ">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXx">
+    <style>
+      <fill id="fXx">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bVk" src="KdevbPeKGoDYg9xhEYic3dOsnUh" width="379.99999999999994" height="420" topLeftX="500" topLeftY="60">
+        <crop type="rect" leftOffset="19.999999999999943" rightOffset="20.000000000000114" topOffset="0" bottomOffset="0"/>
+      </img>
+      <shape width="60" height="200" topLeftX="380" topLeftY="80" type="text" id="bVd">
+        <content textType="title" fontSize="48" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" lineSpacing="multiple:1.6" letterSpacing="4" textAlign="center">
+          <p>瑶</p>
+          <p>族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="80" topLeftY="90" type="text" id="bVH">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>YAO</p>
+        </content>
+      </shape>
+      <line id="bVu" startX="80" startY="120" endX="180.00499987500626" endY="120">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="100" height="40" topLeftX="80" topLeftY="140" type="text" id="bVv">
+        <content textType="title" fontSize="28" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>330万</p>
+        </content>
+      </shape>
+      <shape width="150" height="25" topLeftX="190" topLeftY="150" type="text" id="bVU">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口（约）</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="200" type="text" id="bVY">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>分布地区</p>
+        </content>
+      </shape>
+      <shape width="280" height="40" topLeftX="80" topLeftY="230" type="text" id="bVS">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>广西、湖南、云南、广东、贵州</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="280" type="text" id="bVN">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>文化特色</p>
+        </content>
+      </shape>
+      <shape width="280" height="60" topLeftX="80" topLeftY="310" type="text" id="bVr">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.8" textAlign="left">
+          <p>盘王节、长鼓舞、瑶医</p>
+          <p>瑶绣、盘瓠文化、耍歌堂</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="380" type="text" id="bVX">
+        <content textType="sub-headline" fontSize="14" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>传统节日</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="80" topLeftY="410" type="text" id="bVs">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>盘王节、达努节、晒衣节</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bVf">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>20 / 22</p>
+        </content>
+      </shape>
+      <line id="bVA" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bVp">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXn">
+    <style>
+      <fill id="fXn">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <img id="bWP" src="OtfYbZPPyon53KxNafIc3n7ZnNe" width="800" height="419.99999999999994" topLeftX="80" topLeftY="60">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="189.99999999999997" bottomOffset="190.0000000000001"/>
+      </img>
+      <shape width="350" height="420" topLeftX="80" topLeftY="60" presetHandlers="0" type="rect" id="bWJ">
+        <fill>
+          <fillColor color="rgba(245, 240, 230, 0.92)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="280" height="50" topLeftX="110" topLeftY="100" type="text" id="bWX">
+        <content textType="headline" fontSize="36" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>黎族</p>
+        </content>
+      </shape>
+      <shape width="200" height="20" topLeftX="110" topLeftY="155" type="text" id="bWG">
+        <content textType="caption" fontSize="10" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="3" textAlign="left">
+          <p>LI</p>
+        </content>
+      </shape>
+      <line id="bWO" startX="110" startY="185" endX="210.00499987500626" endY="185">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="120" height="40" topLeftX="110" topLeftY="205" type="text" id="bWy">
+        <content textType="title" fontSize="28" fontFamily="思源宋体" color="rgba(192, 57, 43, 1)" bold="true" textAlign="left">
+          <p>160万</p>
+        </content>
+      </shape>
+      <shape width="120" height="25" topLeftX="240" topLeftY="215" type="text" id="bWS">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" textAlign="left">
+          <p>人口（约）</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="110" topLeftY="270" type="text" id="bWe">
+        <content textType="sub-headline" fontSize="13" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>分布地区</p>
+        </content>
+      </shape>
+      <shape width="280" height="30" topLeftX="110" topLeftY="295" type="text" id="bWZ">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>海南省中南部地区</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="110" topLeftY="335" type="text" id="bWu">
+        <content textType="sub-headline" fontSize="13" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>文化特色</p>
+        </content>
+      </shape>
+      <shape width="280" height="50" topLeftX="110" topLeftY="360" type="text" id="bWv">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" lineSpacing="multiple:1.6" textAlign="left">
+          <p>黎锦、竹竿舞、船型屋</p>
+          <p>打柴舞、黎族文身、三月三</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="110" topLeftY="420" type="text" id="bWt">
+        <content textType="sub-headline" fontSize="13" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" textAlign="left">
+          <p>传统节日</p>
+        </content>
+      </shape>
+      <shape width="280" height="25" topLeftX="110" topLeftY="445" type="text" id="bWL">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(80, 80, 80, 1)" textAlign="left">
+          <p>三月三、牛节、军坡节</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bWz">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>21 / 22</p>
+        </content>
+      </shape>
+      <line id="bWp" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bWD">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pXj">
+    <style>
+      <fill id="fXj">
+        <fillColor color="rgba(245, 240, 230, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="400" height="450" topLeftX="300" topLeftY="30" type="text" id="bWm">
+        <content textType="title" fontSize="350" fontFamily="思源宋体" color="rgba(42, 42, 42, 0.051)" bold="true" textAlign="center">
+          <p>美</p>
+        </content>
+      </shape>
+      <shape width="600" height="80" topLeftX="180" topLeftY="180" type="text" id="bWg">
+        <content textType="headline" fontSize="48" fontFamily="思源宋体" color="rgba(42, 42, 42, 1)" bold="true" letterSpacing="8" textAlign="center">
+          <p>各美其美 美美与共</p>
+        </content>
+      </shape>
+      <line id="bWC" startX="400" startY="280" endX="560.003124969483" endY="280">
+        <border color="rgba(192, 57, 43, 1)"/>
+      </line>
+      <shape width="600" height="40" topLeftX="180" topLeftY="300" type="text" id="bWQ">
+        <content fontSize="18" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" letterSpacing="4" textAlign="center">
+          <p>—— 费孝通</p>
+        </content>
+      </shape>
+      <shape width="600" height="30" topLeftX="180" topLeftY="360" type="text" id="bWx">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(120, 110, 100, 1)" letterSpacing="5" textAlign="center">
+          <p>BEAUTY IN DIVERSITY · HARMONY IN UNITY</p>
+        </content>
+      </shape>
+      <shape width="400" height="40" topLeftX="280" topLeftY="420" type="text" id="bWb">
+        <content fontSize="12" fontFamily="思源宋体" color="rgba(100, 90, 80, 1)" lineSpacing="multiple:1.8" textAlign="center">
+          <p>五十六个民族 五十六朵花</p>
+        </content>
+      </shape>
+      <shape width="60" height="60" topLeftX="450" topLeftY="460" presetHandlers="0" type="rect" id="bWh">
+        <fill>
+          <fillColor color="rgba(192, 57, 43, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="60" height="50" topLeftX="450" topLeftY="465" type="text" id="bWj">
+        <content fontSize="14" fontFamily="思源宋体" color="rgba(245, 240, 230, 1)" lineSpacing="multiple:1.4" textAlign="center">
+          <p>图鉴</p>
+        </content>
+      </shape>
+      <shape width="60" height="20" topLeftX="880" topLeftY="500" type="text" id="bWM">
+        <content textType="caption" fontSize="9" fontFamily="思源宋体" color="rgba(150, 140, 130, 1)" textAlign="right">
+          <p>22 / 22</p>
+        </content>
+      </shape>
+      <line id="bWo" startX="80" startY="510" endX="880.0006249997559" endY="510">
+        <border color="rgba(200, 190, 180, 1)" width="1"/>
+      </line>
+    </data>
+    <note id="bWF">
+      <content/>
+    </note>
+  </slide>
+</presentation>

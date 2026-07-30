@@ -1,0 +1,3 @@
+tmp/xsd-update-run-20260726-000416/t01_fontsize_negative_0.xml:1: parser error : Attribute fontSize redefined
+="40" topLeftY="40" width="600" height="300"><content fontSize="16" fontSize="0"
+                                                                               ^

@@ -1,0 +1,89 @@
+<slide id="pBU">
+  <style>
+    <fill id="fBU">
+      <fillColor color="rgba(55, 42, 30, 1)"/>
+    </fill>
+  </style>
+  <data>
+    <shape width="360" height="200" topLeftX="600" topLeftY="20" type="text" id="bqp">
+      <content textType="title" fontSize="180" fontFamily="思源宋体" color="rgba(180, 130, 80, 0.078)" bold="true" textAlign="right">
+        <p>土</p>
+      </content>
+    </shape>
+    <shape width="150" height="30" topLeftX="80" topLeftY="60" type="text" id="bqR">
+      <content textType="caption" fontSize="12" fontFamily="思源宋体" color="rgba(200, 150, 100, 1)" letterSpacing="2">
+        <p>06 / 品牌价值</p>
+      </content>
+    </shape>
+    <shape width="600" height="80" topLeftX="80" topLeftY="100" type="text" id="bqg">
+      <content textType="title" fontSize="40" fontFamily="思源宋体" color="rgba(240, 230, 215, 1)" bold="true">
+        <p>我们坚持的三件事</p>
+      </content>
+    </shape>
+    <line id="bqx" startX="80" startY="185" endX="120.01249804748511" endY="185">
+      <border color="rgba(200, 150, 100, 1)"/>
+    </line>
+    <shape width="60" height="60" topLeftX="80" topLeftY="230" type="text" id="bqF">
+      <content textType="title" fontSize="48" fontFamily="思源宋体" color="rgba(200, 150, 100, 1)" bold="true">
+        <p>壹</p>
+      </content>
+    </shape>
+    <shape width="200" height="30" topLeftX="150" topLeftY="235" type="text" id="bqu">
+      <content fontSize="18" fontFamily="思源宋体" color="rgba(240, 220, 190, 1)" bold="true">
+        <p>全手工制作</p>
+      </content>
+    </shape>
+    <shape width="200" height="30" topLeftX="150" topLeftY="268" type="text" id="bqc">
+      <content fontSize="13" fontFamily="思源宋体" color="rgba(220, 205, 185, 1)">
+        <p>拒绝模具量产，每一件都是孤品</p>
+      </content>
+    </shape>
+    <shape width="60" height="60" topLeftX="380" topLeftY="230" type="text" id="bqj">
+      <content textType="title" fontSize="48" fontFamily="思源宋体" color="rgba(200, 150, 100, 1)" bold="true">
+        <p>贰</p>
+      </content>
+    </shape>
+    <shape width="200" height="30" topLeftX="450" topLeftY="235" type="text" id="bqk">
+      <content fontSize="18" fontFamily="思源宋体" color="rgba(240, 220, 190, 1)" bold="true">
+        <p>天然原矿釉</p>
+      </content>
+    </shape>
+    <shape width="200" height="30" topLeftX="450" topLeftY="268" type="text" id="bqh">
+      <content fontSize="13" fontFamily="思源宋体" color="rgba(220, 205, 185, 1)">
+        <p>安全无毒，可食用级釉料</p>
+      </content>
+    </shape>
+    <shape width="60" height="60" topLeftX="680" topLeftY="230" type="text" id="bqC">
+      <content textType="title" fontSize="48" fontFamily="思源宋体" color="rgba(200, 150, 100, 1)" bold="true">
+        <p>叁</p>
+      </content>
+    </shape>
+    <shape width="180" height="30" topLeftX="750" topLeftY="235" type="text" id="bqB">
+      <content fontSize="18" fontFamily="思源宋体" color="rgba(240, 220, 190, 1)" bold="true">
+        <p>高温烧制</p>
+      </content>
+    </shape>
+    <shape width="180" height="30" topLeftX="750" topLeftY="268" type="text" id="bqV">
+      <content fontSize="13" fontFamily="思源宋体" color="rgba(220, 205, 185, 1)">
+        <p>1280°C高温，坚固耐用</p>
+      </content>
+    </shape>
+    <line id="bql" startX="80" startY="350" endX="880.0006249997559" endY="350">
+      <border color="rgba(200, 150, 100, 0.3)" width="1"/>
+    </line>
+    <shape width="800" height="80" topLeftX="80" topLeftY="380" type="text" id="bqe">
+      <content fontSize="14" fontFamily="思源宋体" color="rgba(180, 165, 145, 1)" lineSpacing="multiple:2" textAlign="center">
+        <p>我们相信，好的器物应该陪伴人很久很久</p>
+        <p>在日复一日的使用中，包浆、温润，成为生活的一部分</p>
+      </content>
+    </shape>
+    <shape width="60" height="30" topLeftX="860" topLeftY="490" type="text" id="bqW">
+      <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(140, 125, 110, 1)" textAlign="right">
+        <p>07 / 10</p>
+      </content>
+    </shape>
+  </data>
+  <note id="bqG">
+    <content/>
+  </note>
+</slide>

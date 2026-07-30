@@ -1,0 +1,2 @@
+tmp/xsd-update-run-20260726-000416/t04_crop_bad_unknown.xml:1: element crop: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}crop', attribute 'anchor': [facet 'enumeration'] The value 'unknown' is not an element of the set {'top', 'bottom', 'left', 'right'}.
+tmp/xsd-update-run-20260726-000416/t04_crop_bad_unknown.xml fails to validate

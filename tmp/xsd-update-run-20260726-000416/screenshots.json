@@ -1,0 +1,38 @@
+{
+  "ok": true,
+  "identity": "user",
+  "data": {
+    "output_dir": "tmp/xsd-update-run-20260726-000416/screenshots",
+    "screenshots": [
+      {
+        "format": "jpeg",
+        "path": "/Users/bytedance/go/src/github.com/larksuite/cli/tmp/xsd-update-run-20260726-000416/screenshots/VMTVs6XKhlQD5zd0L9Zc1wMgnpd_p001.jpg",
+        "size": 9915,
+        "slide_id": "",
+        "slide_number": 1
+      },
+      {
+        "format": "jpeg",
+        "path": "/Users/bytedance/go/src/github.com/larksuite/cli/tmp/xsd-update-run-20260726-000416/screenshots/VMTVs6XKhlQD5zd0L9Zc1wMgnpd_p002.jpg",
+        "size": 9377,
+        "slide_id": "",
+        "slide_number": 2
+      },
+      {
+        "format": "jpeg",
+        "path": "/Users/bytedance/go/src/github.com/larksuite/cli/tmp/xsd-update-run-20260726-000416/screenshots/VMTVs6XKhlQD5zd0L9Zc1wMgnpd_p003.jpg",
+        "size": 10418,
+        "slide_id": "",
+        "slide_number": 3
+      },
+      {
+        "format": "jpeg",
+        "path": "/Users/bytedance/go/src/github.com/larksuite/cli/tmp/xsd-update-run-20260726-000416/screenshots/VMTVs6XKhlQD5zd0L9Zc1wMgnpd_p004.jpg",
+        "size": 9153,
+        "slide_id": "",
+        "slide_number": 4
+      }
+    ],
+    "xml_presentation_id": "VMTVs6XKhlQD5zd0L9Zc1wMgnpd"
+  }
+}

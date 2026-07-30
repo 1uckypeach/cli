@@ -1,0 +1,63 @@
+<presentation id="VMTVs6XKhlQD5zd0L9Zc1wMgnpd" xmlns="/sml/2.0" width="960" height="540">
+  <title>XSD update validation 20260726-000550</title>
+  <theme>
+    <textStyles>
+      <headline fontColor="rgba(31, 35, 41, 1)"/>
+      <sub-headline fontColor="rgba(31, 35, 41, 1)"/>
+      <body fontColor="rgba(31, 35, 41, 1)"/>
+      <caption fontColor="rgba(155, 158, 162, 1)" fontSize="14"/>
+    </textStyles>
+  </theme>
+  <slide id="pWW">
+    <style/>
+    <data>
+      <shape width="600" height="300" topLeftX="40" topLeftY="40" type="text" id="bdZ">
+        <content fontSize="10.5" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)">
+          <p>decimal</p>
+        </content>
+      </shape>
+    </data>
+    <note id="bdE">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pWX">
+    <style/>
+    <data>
+      <shape width="600" height="300" topLeftX="40" topLeftY="40" type="text" id="bdO">
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)" list="bullet" listStyle="circle-hollow-square" bulletColor="rgba(255, 0, 0, 1)" bulletChar="*">
+          <p>A</p>
+        </content>
+      </shape>
+    </data>
+    <note id="bdx">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pWq">
+    <style/>
+    <data>
+      <shape width="600" height="300" topLeftX="40" topLeftY="40" type="text" id="bdy">
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)">
+          <p><formula><latex>E = mc^2</latex></formula></p>
+        </content>
+      </shape>
+    </data>
+    <note id="bdJ">
+      <content/>
+    </note>
+  </slide>
+  <slide id="pWB">
+    <style/>
+    <data>
+      <shape width="600" height="300" topLeftX="40" topLeftY="40" type="text" id="bdc">
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)">
+          <p>fallback</p>
+        </content>
+      </shape>
+    </data>
+    <note id="bdd">
+      <content/>
+    </note>
+  </slide>
+</presentation>

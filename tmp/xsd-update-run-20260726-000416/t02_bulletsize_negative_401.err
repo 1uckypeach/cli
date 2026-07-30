@@ -1,0 +1,2 @@
+tmp/xsd-update-run-20260726-000416/t02_bulletsize_negative_401.xml:1: element content: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}content', attribute 'bulletSize': '401' is not a valid value of the union type '{http://www.larkoffice.com/sml/2.0}BulletSizeType'.
+tmp/xsd-update-run-20260726-000416/t02_bulletsize_negative_401.xml fails to validate

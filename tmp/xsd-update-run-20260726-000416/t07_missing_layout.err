@@ -1,0 +1,2 @@
+tmp/xsd-update-run-20260726-000416/t07_missing_layout.xml:1: element smartLayout: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}smartLayout': The attribute 'layoutType' is required but missing.
+tmp/xsd-update-run-20260726-000416/t07_missing_layout.xml fails to validate

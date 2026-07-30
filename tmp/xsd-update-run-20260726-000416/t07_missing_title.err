@@ -1,0 +1,2 @@
+tmp/xsd-update-run-20260726-000416/t07_missing_title.xml:1: element cell: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}cell': Missing child element(s). Expected is one of ( {http://www.larkoffice.com/sml/2.0}index, {http://www.larkoffice.com/sml/2.0}title ).
+tmp/xsd-update-run-20260726-000416/t07_missing_title.xml fails to validate

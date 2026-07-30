@@ -814,6 +814,28 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
         ]
         self.assertEqual(overflow_issues, [])
 
+    def test_lint_xml_reports_labeled_short_metric_when_it_wraps(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0">
+              <data>
+                <shape id="sheet-success" type="text" topLeftX="520" topLeftY="385" width="180" height="50">
+                  <content textType="headline" fontSize="32" bold="true" autoFit="no-auto-fit">
+                    <p>Sheet 98.5%</p>
+                  </content>
+                </shape>
+              </data>
+            </slide>
+            """
+        )
+        overflow_issues = [
+            issue
+            for issue in result["slides"][0]["issues"]
+            if issue["code"] == "text_may_overflow_shape"
+        ]
+        self.assertEqual(len(overflow_issues), 1)
+        self.assertEqual(overflow_issues[0]["elements"], ["sheet-success"])
+
     def test_lint_xml_reports_plain_short_metric_when_it_wraps(self) -> None:
         result = xml_text_overlap_lint.lint_xml(
             """

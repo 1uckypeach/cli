@@ -1,0 +1,4 @@
+tmp/xsd-update-run-20260726-000416/t02_bulletchar_on_ol.xml:1: element ol: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}ol', attribute 'bulletChar': The attribute 'bulletChar' is not allowed.
+tmp/xsd-update-run-20260726-000416/t02_bulletchar_on_ol.xml:1: element li: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}li': Character content other than whitespace is not allowed because the content type is 'element-only'.
+tmp/xsd-update-run-20260726-000416/t02_bulletchar_on_ol.xml:1: element li: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}li': Missing child element(s). Expected is ( {http://www.larkoffice.com/sml/2.0}p ).
+tmp/xsd-update-run-20260726-000416/t02_bulletchar_on_ol.xml fails to validate

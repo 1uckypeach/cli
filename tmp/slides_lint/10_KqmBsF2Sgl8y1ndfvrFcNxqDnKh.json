@@ -1,0 +1,85 @@
+{
+  "file": "/Users/bytedance/go/src/github.com/larksuite/cli/tmp/slides_lint/10_KqmBsF2Sgl8y1ndfvrFcNxqDnKh.xml",
+  "slide_size": {
+    "width": 960,
+    "height": 540
+  },
+  "summary": {
+    "slide_count": 14,
+    "error_count": 0,
+    "warning_count": 0,
+    "info_count": 0
+  },
+  "slides": [
+    {
+      "slide_number": 1,
+      "element_count": 7,
+      "issues": []
+    },
+    {
+      "slide_number": 2,
+      "element_count": 25,
+      "issues": []
+    },
+    {
+      "slide_number": 3,
+      "element_count": 19,
+      "issues": []
+    },
+    {
+      "slide_number": 4,
+      "element_count": 23,
+      "issues": []
+    },
+    {
+      "slide_number": 5,
+      "element_count": 15,
+      "issues": []
+    },
+    {
+      "slide_number": 6,
+      "element_count": 17,
+      "issues": []
+    },
+    {
+      "slide_number": 7,
+      "element_count": 20,
+      "issues": []
+    },
+    {
+      "slide_number": 8,
+      "element_count": 31,
+      "issues": []
+    },
+    {
+      "slide_number": 9,
+      "element_count": 20,
+      "issues": []
+    },
+    {
+      "slide_number": 10,
+      "element_count": 17,
+      "issues": []
+    },
+    {
+      "slide_number": 11,
+      "element_count": 24,
+      "issues": []
+    },
+    {
+      "slide_number": 12,
+      "element_count": 22,
+      "issues": []
+    },
+    {
+      "slide_number": 13,
+      "element_count": 17,
+      "issues": []
+    },
+    {
+      "slide_number": 14,
+      "element_count": 23,
+      "issues": []
+    }
+  ]
+}

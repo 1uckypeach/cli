@@ -1,0 +1,159 @@
+slide_number,slide_id,element_id,x,y,shape_width,shape_height,padding_left,padding_right,available_width,font_size,font_family,bold,italic,wrap,auto_fit,text_align,text_clean,text_length,text_type,is_single_line_hard,estimated_width,width_ratio,likely_wraps_actual,notes
+1,pmm,bNA,80,160,800,120,0,0,800,64,思源黑体,true,false,true,none,center,字体排版测试样张,8,中文,true,512,0.64,no_slack,估算宽度 < 70% 可用宽度(0.64)，明显有留白
+1,pmm,bNj,80,300,800,60,0,0,800,24,思源黑体,true,false,true,none,center,TypographyTestSample·30Pages,28,英文+数字,true,369.6,0.462,no_slack,估算宽度 < 70% 可用宽度(0.46)，明显有留白
+1,pmm,bNV,80,420,800,40,0,0,800,16,思源黑体,false,false,true,none,center,包含字号/字体/中英文/数字/样式/间距/颜色等全面测试,28,中文,true,404.8,0.506,no_slack,估算宽度 < 70% 可用宽度(0.51)，明显有留白
+2,pmZ,bNt,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,02·超大字号测试72pt,13,中文+英文+数字,true,275.8,0.3283,no_slack,估算宽度 < 70% 可用宽度(0.33)，明显有留白
+2,pmZ,bNh,60,140,840,110,0,0,840,72,思源黑体,true,false,true,none,center,汉字测试ABC123,10,中文+英文+数字,true,525.6,0.6257,no_slack,估算宽度 < 70% 可用宽度(0.63)，明显有留白
+2,pmZ,bNn,60,270,840,100,0,0,840,72,思源黑体,true,false,true,none,center,排版设计Typography,14,中文+英文,true,684.0,0.8143,no,估算宽度 0.81x 可用宽度，大概率单行
+2,pmZ,bNk,60,400,840,60,0,0,840,14,思源黑体,false,false,true,none,center,72pt超大字号·用于标题展示·测试字重与字间距,24,中文+英文+数字,true,298.2,0.355,no_slack,估算宽度 < 70% 可用宽度(0.35)，明显有留白
+3,pmY,bNw,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,03·大字号测试48pt,12,中文+英文+数字,true,247.8,0.295,no_slack,估算宽度 < 70% 可用宽度(0.30)，明显有留白
+3,pmY,bNv,60,130,840,80,0,0,840,48,思源黑体,true,false,true,none,center,中华人民共和国2024,11,中文+数字,true,441.6,0.5257,no_slack,估算宽度 < 70% 可用宽度(0.53)，明显有留白
+3,pmY,bNe,60,230,840,80,0,0,840,48,思源黑体,true,false,true,none,center,TheQuickBrownFox,16,英文,true,422.4,0.5029,no_slack,估算宽度 < 70% 可用宽度(0.50)，明显有留白
+3,pmY,bNz,60,330,840,80,0,0,840,48,思源黑体,true,false,true,none,center,0123456789数字测试,14,中文+数字,true,456.0,0.5429,no_slack,估算宽度 < 70% 可用宽度(0.54)，明显有留白
+3,pmY,bNp,60,440,840,50,0,0,840,14,思源黑体,false,false,true,none,center,48pt大字号·常用于主标题·中英文数字混排测试,24,中文+英文+数字,true,298.2,0.355,no_slack,估算宽度 < 70% 可用宽度(0.35)，明显有留白
+4,pma,bNc,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,04·中大号字号测试36pt,14,中文+英文+数字,true,303.8,0.3617,no_slack,估算宽度 < 70% 可用宽度(0.36)，明显有留白
+4,pma,bNZ,80,130,800,60,0,0,800,36,思源黑体,true,false,true,none,,科技创新驱动未来发展Innovation,20,中文+英文,true,558.0,0.6975,no_slack,估算宽度 < 70% 可用宽度(0.70)，明显有留白
+4,pma,bNd,80,210,800,60,0,0,800,36,思源黑体,true,false,true,none,,人工智能改变生活方式AI2024,16,中文+英文+数字,true,478.8,0.5985,no_slack,估算宽度 < 70% 可用宽度(0.60)，明显有留白
+4,pma,bNB,80,290,800,60,0,0,800,36,思源黑体,true,false,true,none,,数据可视化DataVisualization,22,中文+英文,true,516.6,0.6458,no_slack,估算宽度 < 70% 可用宽度(0.65)，明显有留白
+4,pma,bNN,80,370,800,60,0,0,800,36,思源黑体,true,false,true,none,,云计算CloudComputing99%,20,中文+英文+数字,true,444.6,0.5558,no_slack,估算宽度 < 70% 可用宽度(0.56)，明显有留白
+4,pma,bNb,80,450,800,40,0,0,800,14,思源黑体,false,false,true,none,center,36pt中大号·副标题级·多行对比测试,19,中文+英文+数字,true,228.2,0.2853,no_slack,估算宽度 < 70% 可用宽度(0.29)，明显有留白
+5,pmW,bNs,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,05·中号字号测试28pt,13,中文+英文+数字,true,275.8,0.3283,no_slack,估算宽度 < 70% 可用宽度(0.33)，明显有留白
+5,pmW,bNT,80,120,800,50,0,0,800,28,思源黑体,true,false,true,none,,一、项目背景与目标Background,19,中文+英文,true,406.0,0.5075,no_slack,估算宽度 < 70% 可用宽度(0.51)，明显有留白
+5,pmW,bNI,80,185,800,50,0,0,800,28,思源黑体,true,false,true,none,,二、市场分析与调研Market2024,19,中文+英文+数字,true,406.0,0.5075,no_slack,估算宽度 < 70% 可用宽度(0.51)，明显有留白
+5,pmW,bNY,80,250,800,50,0,0,800,28,思源黑体,true,false,true,none,,三、技术方案与架构Technology,19,中文+英文,true,406.0,0.5075,no_slack,估算宽度 < 70% 可用宽度(0.51)，明显有留白
+5,pmW,bNq,80,315,800,50,0,0,800,28,思源黑体,true,false,true,none,,四、实施计划与时间表Plan12月,17,中文+英文+数字,true,400.4,0.5005,no_slack,估算宽度 < 70% 可用宽度(0.50)，明显有留白
+5,pmW,bNr,80,380,800,50,0,0,800,28,思源黑体,true,false,true,none,,五、预期效果与收益BenefitROI,19,中文+英文,true,406.0,0.5075,no_slack,估算宽度 < 70% 可用宽度(0.51)，明显有留白
+5,pmW,bNM,80,450,800,40,0,0,800,14,思源黑体,false,false,true,none,center,28pt中号·章节标题级·目录式排列测试,20,中文+英文+数字,true,242.2,0.3027,no_slack,估算宽度 < 70% 可用宽度(0.30)，明显有留白
+6,pmL,bNO,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,06·正文字号测试18pt,13,中文+英文+数字,true,275.8,0.3283,no_slack,估算宽度 < 70% 可用宽度(0.33)，明显有留白
+6,pmL,bNf,80,120,800,320,0,0,800,18,思源黑体,false,false,true,none,,"这是一段正文测试文字，使用18pt字号，是幻灯片中最常用的正文字号。Typographyistheartandtechniqueofarrangingtypetomakewrittenlanguagelegible,readable,andappealingwhendisplayed.中文与英文混排测试：Thequickbrownfoxjumpsoverthelazydog.敏捷的棕色狐狸跳过了懒狗。数字测试：2024年12月25日，增长率12.5%，用户数1,234,567人。",242,中文+英文+数字,false,1079.1,1.3489,likely_wrap,估算宽度 1.35x 可用宽度，大概率换2行
+6,pmL,bNE,80,460,800,30,0,0,800,14,思源黑体,false,false,true,none,center,18pt正文·行间距1.8倍·中英文数字混排,22,中文+英文+数字,true,251.3,0.3141,no_slack,估算宽度 < 70% 可用宽度(0.31)，明显有留白
+7,pmy,bNK,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,07·小号字号测试14pt,13,中文+英文+数字,true,275.8,0.3283,no_slack,估算宽度 < 70% 可用宽度(0.33)，明显有留白
+7,pmy,bNU,80,120,800,340,0,0,800,14,思源黑体,false,false,true,none,,"小号正文测试14pt这是一段使用14pt字号的正文文字，适合用于内容较多的页面或说明性文字。在信息密度较高的幻灯片中，14pt是一个兼顾可读性与信息量的选择。Thisisaparagraphofbodytextin14ptsize.Itiscommonlyusedfordetaileddescriptions,footnotes,orcontent-heavyslideswhereinformationdensitymatters.中英文数字混排：2024年度报告显示，公司营收达到1,234.56万元，同比增长23.45%，用户满意度98.6%。常用标点符号测试：逗号，句号。感叹号！问号？冒号：分号；引号""""括号（）省略号……破折号——",322,中文+英文+数字,false,1070.3,1.3379,likely_wrap,估算宽度 1.34x 可用宽度，大概率换2行
+7,pmy,bNF,80,475,800,30,0,0,800,12,思源黑体,false,false,true,none,center,14pt小号正文·行间距1.6倍·高密度信息展示,24,中文+英文+数字,true,239.4,0.2992,no_slack,估算宽度 < 70% 可用宽度(0.30)，明显有留白
+8,pmX,bNX,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,08·极小字号测试10pt,13,中文+英文+数字,true,275.8,0.3283,no_slack,估算宽度 < 70% 可用宽度(0.33)，明显有留白
+8,pmX,bNm,80,120,800,360,0,0,800,10,思源黑体,false,false,true,none,,"极小字号测试10pt—用于脚注、注释、数据来源说明等本页测试10pt极小字号的可读性。在正式演示中，10pt通常仅用于数据来源标注、脚注说明、版权信息等非核心内容，不建议用于正文。Datasource:NationalBureauofStatistics,2024AnnualReport.AllfiguresareinRMB10,000unlessotherwisenoted.Growthratesarecalculatedyear-over-year.数据来源：国家统计局2024年度报告。所有金额单位为万元，另有说明除外。增长率按同比计算。样本量n=10,234，置信区间95%。©2024TypographyTestLab.Allrightsreserved.版权所有，翻印必究。",345,中文+英文+数字,false,764.5,0.9556,tight_single,估算宽度 0.96x 可用宽度，接近填满，需确认是否单行
+8,pmX,bNl,80,490,800,30,0,0,800,10,思源黑体,false,false,true,none,center,10pt极小字号·脚注/注释级·测试极限可读性,23,中文+英文+数字,true,198.5,0.2481,no_slack,估算宽度 < 70% 可用宽度(0.25)，明显有留白
+9,pmE,baa,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,09·字号阶梯对比测试,11,中文+数字,true,270.2,0.3217,no_slack,估算宽度 < 70% 可用宽度(0.32)，明显有留白
+9,pmE,bao,100,115,760,70,0,0,760,60,思源黑体,true,false,true,none,,60pt标题字号Title,13,中文+英文+数字,true,537.0,0.7066,no,估算宽度 0.71x 可用宽度，大概率单行
+9,pmE,bac,100,185,760,55,0,0,760,44,思源黑体,true,false,true,none,,44pt大标题Headline,15,中文+英文+数字,true,422.4,0.5558,no_slack,估算宽度 < 70% 可用宽度(0.56)，明显有留白
+9,pmE,bNg,100,245,760,45,0,0,760,32,思源黑体,true,false,true,none,,32pt副标题Sub-headline,19,中文+英文+数字,true,377.6,0.4968,no_slack,估算宽度 < 70% 可用宽度(0.50)，明显有留白
+9,pmE,bNL,100,295,760,38,0,0,760,24,思源黑体,false,false,true,none,,24pt小标题Section,14,中文+英文+数字,true,217.2,0.2858,no_slack,估算宽度 < 70% 可用宽度(0.29)，明显有留白
+9,pmE,baN,100,340,760,32,0,0,760,18,思源黑体,false,false,true,none,,18pt正文字号BodyText,16,中文+英文+数字,true,190.8,0.2511,no_slack,估算宽度 < 70% 可用宽度(0.25)，明显有留白
+9,pmE,bab,100,380,760,28,0,0,760,14,思源黑体,false,false,true,none,,14pt小号正文SmallBody,17,中文+英文+数字,true,156.1,0.2054,no_slack,估算宽度 < 70% 可用宽度(0.21)，明显有留白
+9,pmE,bad,100,415,760,24,0,0,760,11,思源黑体,false,false,true,none,,11pt注释字号Caption/Footnote,24,中文+英文+数字,true,165.0,0.2171,no_slack,估算宽度 < 70% 可用宽度(0.22)，明显有留白
+9,pmE,baB,100,455,760,30,0,0,760,13,思源黑体,false,false,true,none,center,从60pt到11pt·七级字号阶梯对比·一目了然,24,中文+英文+数字,true,253.5,0.3336,no_slack,估算宽度 < 70% 可用宽度(0.33)，明显有留白
+10,pms,baw,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,10·中文字体测试·黑体,12,中文+数字,true,285.6,0.34,no_slack,估算宽度 < 70% 可用宽度(0.34)，明显有留白
+10,pms,bav,80,120,800,80,0,0,800,48,思源黑体,true,false,true,none,center,思源黑体SourceHanSans,17,中文+英文,true,535.2,0.669,no_slack,估算宽度 < 70% 可用宽度(0.67)，明显有留白
+10,pms,bae,80,220,800,60,0,0,800,32,思源黑体,true,false,true,none,center,现代简洁清晰易读专业稳重,12,中文,true,384,0.48,no_slack,估算宽度 < 70% 可用宽度(0.48)，明显有留白
+10,pms,baz,80,300,800,150,0,0,800,18,思源黑体,false,false,true,none,center,黑体字笔画均匀、结构方正，具有现代感和力量感。广泛应用于标题、标语、UI界面等场景。Thequickbrownfoxjumpsoverthelazydog.0123456789,88,中文+英文+数字,false,455.4,0.5692,no_slack,估算宽度 < 70% 可用宽度(0.57)，明显有留白
+10,pms,bap,80,470,800,30,0,0,800,12,思源黑体,false,false,true,none,center,思源黑体·无衬线中文字体·现代商务风格首选,21,中文,true,241.2,0.3015,no_slack,估算宽度 < 70% 可用宽度(0.30)，明显有留白
+11,pmV,baA,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,11·中文字体测试·宋体,12,中文+数字,true,285.6,0.34,no_slack,估算宽度 < 70% 可用宽度(0.34)，明显有留白
+11,pmV,baj,80,120,800,80,0,0,800,48,思源宋体,true,false,true,none,center,思源宋体SourceHanSerif,18,中文+英文,true,561.6,0.702,no,估算宽度 0.70x 可用宽度，大概率单行
+11,pmV,bau,80,220,800,60,0,0,800,32,思源宋体,true,false,true,none,center,典雅端庄文化底蕴传统韵味,12,中文,true,384,0.48,no_slack,估算宽度 < 70% 可用宽度(0.48)，明显有留白
+11,pmV,baW,80,300,800,150,0,0,800,18,思源宋体,false,false,true,none,center,宋体字横细竖粗，笔画末端有装饰性衬线，具有传统文化气息，适合正式、庄重的场合。Thequickbrownfoxjumpsoverthelazydog.0123456789,85,中文+英文+数字,false,455.4,0.5692,no_slack,估算宽度 < 70% 可用宽度(0.57)，明显有留白
+11,pmV,baJ,80,470,800,30,0,0,800,12,思源黑体,false,false,true,none,center,思源宋体·衬线中文字体·学术文化风格首选,20,中文,true,229.2,0.2865,no_slack,估算宽度 < 70% 可用宽度(0.29)，明显有留白
+12,pmD,ban,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,12·英文字体测试·无衬线体,14,中文+数字,true,341.6,0.4067,no_slack,估算宽度 < 70% 可用宽度(0.41)，明显有留白
+12,pmD,bay,80,120,800,80,0,0,800,52,Helvetica,true,false,true,none,center,HelveticaNeue,13,英文,true,371.8,0.4648,no_slack,估算宽度 < 70% 可用宽度(0.46)，明显有留白
+12,pmD,baf,80,210,800,50,0,0,800,28,Helvetica,true,false,true,none,center,ABCDEFGHIJKLMNOPQRSTUVWXYZ,26,英文,true,400.4,0.5005,no_slack,估算宽度 < 70% 可用宽度(0.50)，明显有留白
+12,pmD,baU,80,265,800,50,0,0,800,28,Helvetica,true,false,true,none,center,abcdefghijklmnopqrstuvwxyz,26,英文,true,400.4,0.5005,no_slack,估算宽度 < 70% 可用宽度(0.50)，明显有留白
+12,pmD,bah,80,320,800,50,0,0,800,28,Helvetica,true,false,true,none,center,0123456789!@#$%^&*(),20,数字,true,308.0,0.385,no_slack,估算宽度 < 70% 可用宽度(0.39)，明显有留白
+12,pmD,bak,80,390,800,60,0,0,800,16,Helvetica,false,false,true,none,center,"Sans-seriffontsareclean,modern,andhighlylegible.WidelyusedinUIdesign,branding,anddigitalmedia.",94,英文,false,422.4,0.528,no_slack,估算宽度 < 70% 可用宽度(0.53)，明显有留白
+12,pmD,baO,80,475,800,30,0,0,800,12,思源黑体,false,false,true,none,center,无衬线体Sans-serif·现代简洁·数字界面首选,26,中文+英文,true,247.2,0.309,no_slack,估算宽度 < 70% 可用宽度(0.31)，明显有留白
+13,pmA,bai,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,13·英文字体测试·衬线体,13,中文+数字,true,313.6,0.3733,no_slack,估算宽度 < 70% 可用宽度(0.37)，明显有留白
+13,pmA,bam,80,120,800,80,0,0,800,52,Georgia,true,false,true,none,center,GeorgiaSerif,12,英文,true,343.2,0.429,no_slack,估算宽度 < 70% 可用宽度(0.43)，明显有留白
+13,pmA,bal,80,210,800,50,0,0,800,28,Georgia,true,false,true,none,center,ABCDEFGHIJKLMNOPQRSTUVWXYZ,26,英文,true,400.4,0.5005,no_slack,估算宽度 < 70% 可用宽度(0.50)，明显有留白
+13,pmA,baq,80,265,800,50,0,0,800,28,Georgia,true,false,true,none,center,abcdefghijklmnopqrstuvwxyz,26,英文,true,400.4,0.5005,no_slack,估算宽度 < 70% 可用宽度(0.50)，明显有留白
+13,pmA,bar,80,320,800,50,0,0,800,28,Georgia,true,false,true,none,center,0123456789!@#$%^&*(),20,数字,true,308.0,0.385,no_slack,估算宽度 < 70% 可用宽度(0.39)，明显有留白
+13,pmA,baM,80,390,800,60,0,0,800,16,Georgia,false,false,true,none,center,"Seriffontshavesmalllinesattheendsofcharacters,conveyingtradition,elegance,andauthority.",87,英文,false,404.8,0.506,no_slack,估算宽度 < 70% 可用宽度(0.51)，明显有留白
+13,pmA,baC,80,475,800,30,0,0,800,12,思源黑体,false,false,true,none,center,衬线体Serif·优雅传统·印刷出版首选,20,中文+英文,true,202.2,0.2527,no_slack,估算宽度 < 70% 可用宽度(0.25)，明显有留白
+14,pmi,baY,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,14·数字测试·阿拉伯数字,13,中文+数字,true,313.6,0.3733,no_slack,估算宽度 < 70% 可用宽度(0.37)，明显有留白
+14,pmi,baK,80,120,800,100,0,0,800,72,思源黑体,true,false,true,none,center,0123456789,10,数字,true,396.0,0.495,no_slack,估算宽度 < 70% 可用宽度(0.50)，明显有留白
+14,pmi,baP,80,240,800,60,0,0,800,36,思源黑体,true,false,true,none,center,0123456789零壹贰叁肆伍陆柒捌玖,20,中文+数字,true,558.0,0.6975,no_slack,估算宽度 < 70% 可用宽度(0.70)，明显有留白
+14,pmi,bax,80,320,800,120,0,0,800,20,思源黑体,false,false,true,none,center,"金额：¥12,345,678.90元百分比：99.99%增长率：+23.45%日期：2024-12-25时间：14:30:00",63,中文+数字,false,318.0,0.3975,no_slack,估算宽度 < 70% 可用宽度(0.40)，明显有留白
+14,pmi,baD,80,460,800,30,0,0,800,12,思源黑体,false,false,true,none,center,阿拉伯数字·等宽比例·金额/百分比/日期格式测试,24,中文,true,266.4,0.333,no_slack,估算宽度 < 70% 可用宽度(0.33)，明显有留白
+15,pmK,bag,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,15·数字测试·中文数字,12,中文+数字,true,285.6,0.34,no_slack,估算宽度 < 70% 可用宽度(0.34)，明显有留白
+15,pmK,bba,80,120,800,80,0,0,800,48,思源黑体,true,false,true,none,center,小写：〇一二三四五六七八九十,14,中文,true,672,0.84,no,估算宽度 0.84x 可用宽度，大概率单行
+15,pmK,baX,80,210,800,80,0,0,800,48,思源黑体,true,false,true,none,center,大写：零壹贰叁肆伍陆柒捌玖拾,14,中文,true,672,0.84,no,估算宽度 0.84x 可用宽度，大概率单行
+15,pmK,baG,80,310,800,130,0,0,800,20,思源黑体,false,false,true,none,center,人民币壹佰贰拾叁万肆仟伍佰陆拾柒元捌角玖分二千零二十四年十二月二十五日第一百二十届第三季度百分之八十五,51,中文,false,420,0.525,no_slack,估算宽度 < 70% 可用宽度(0.53)，明显有留白
+15,pmK,bbN,80,465,800,30,0,0,800,12,思源黑体,false,false,true,none,center,中文数字·大小写·财务/正式文书场景,18,中文,true,199.8,0.2497,no_slack,估算宽度 < 70% 可用宽度(0.25)，明显有留白
+16,pmQ,bbc,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,16·数字测试·罗马数字,12,中文+数字,true,285.6,0.34,no_slack,估算宽度 < 70% 可用宽度(0.34)，明显有留白
+16,pmQ,bbd,80,130,800,80,0,0,800,48,思源黑体,true,false,true,none,center,IIIIIIIVVVIVIIVIIIIXX,21,英文,true,554.4,0.693,no_slack,估算宽度 < 70% 可用宽度(0.69)，明显有留白
+16,pmQ,bbB,80,225,800,60,0,0,800,36,思源黑体,true,false,true,none,center,XLLXCCCDDCMM,12,英文,true,237.6,0.297,no_slack,估算宽度 < 70% 可用宽度(0.30)，明显有留白
+16,pmQ,bbv,80,300,800,140,0,0,800,20,思源黑体,false,false,true,none,center,ChapterXXIV·VolumeIII·EditionIXKingHenryVIII·PopeJohnPaulII第XXI届冬季奥林匹克运动会·第III季度报告MMXXIV年·MCMLXXI年,98,中文+英文,false,397.0,0.4963,no_slack,估算宽度 < 70% 可用宽度(0.50)，明显有留白
+16,pmQ,bbb,80,465,800,30,0,0,800,12,思源黑体,false,false,true,none,center,罗马数字·古典风格·章节编号/正式命名场景,21,中文,true,235.8,0.2947,no_slack,估算宽度 < 70% 可用宽度(0.29)，明显有留白
+17,pme,bbe,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,17·中英文混排测试,10,中文+数字,true,242.2,0.2883,no_slack,估算宽度 < 70% 可用宽度(0.29)，明显有留白
+17,pme,bbz,80,120,800,60,0,0,800,32,思源黑体,true,false,true,none,center,人工智能ArtificialIntelligence技术,28,中文+英文,true,579.2,0.724,no,估算宽度 0.72x 可用宽度，大概率单行
+17,pme,bbR,80,200,800,200,0,0,800,18,思源黑体,false,false,true,none,,随着AI技术的快速发展，MachineLearning与DeepLearning已经渗透到各行各业。在NaturalLanguageProcessing领域，大语言模型LLM的出现彻底改变了人机交互方式。从ChatGPT到文心一言，从GPT-4到Claude3，AI助手正在成为人们工作生活的标配。2024年被称为AI应用元年，GenerativeAI创造了无限可能。,184,中文+英文+数字,false,709.2,0.8865,tight_single,估算宽度 0.89x 可用宽度，接近填满，需确认是否单行
+17,pme,bbp,80,420,800,60,0,0,800,16,思源黑体,false,false,true,none,center,"测试中英文之间的间距、基线对齐、字号协调等混排效果Testingspacing,baselinealignment,andsizeharmonybetweenCJKandLatinscripts",97,中文+英文,false,633.6,0.792,no,估算宽度 0.79x 可用宽度，大概率单行
+18,pmF,bbj,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,18·中英文数字混排测试,12,中文+数字,true,298.2,0.355,no_slack,估算宽度 < 70% 可用宽度(0.35)，明显有留白
+18,pmF,bbu,80,115,800,55,0,0,800,28,思源黑体,true,false,true,none,,2024Q4季度业绩报告QuarterlyReport,27,中文+英文+数字,true,491.4,0.6142,no_slack,估算宽度 < 70% 可用宽度(0.61)，明显有留白
+18,pmF,bbA,80,180,800,250,0,0,800,17,思源黑体,false,false,true,none,,"核心数据KeyMetrics：总营收Revenue：¥1,234.56万元，同比增长+23.45%用户数Users：567,890人，月活MAU达89%净利润NetProfit：¥234.56万元，利润率19.0%客户满意度CSAT：4.8/5.0分，NPS达72产品迭代Version：v3.2.1，发布于2024-12-15",164,中文+英文+数字,false,402.05,0.5026,no_slack,估算宽度 < 70% 可用宽度(0.50)，明显有留白
+18,pmF,bbW,80,450,800,40,0,0,800,14,思源黑体,false,false,true,none,center,中文+英文+数字+符号+列表·综合混排测试,21,中文,true,262.5,0.3281,no_slack,估算宽度 < 70% 可用宽度(0.33)，明显有留白
+19,pmz,bbD,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,19·字重测试·粗体Bold,14,中文+英文+数字,true,291.2,0.3467,no_slack,估算宽度 < 70% 可用宽度(0.35)，明显有留白
+19,pmz,bbs,80,120,380,60,0,0,380,32,思源黑体,true,false,true,none,,常规Regular,9,中文+英文,true,187.2,0.4926,no_slack,估算宽度 < 70% 可用宽度(0.49)，明显有留白
+19,pmz,bbF,500,120,380,60,0,0,380,32,思源黑体,true,false,true,none,,粗体Bold,6,中文+英文,true,134.4,0.3537,no_slack,估算宽度 < 70% 可用宽度(0.35)，明显有留白
+19,pmz,bbK,80,200,380,60,0,0,380,32,思源黑体,true,false,true,none,,正常字重400,7,中文+数字,true,180.8,0.4758,no_slack,估算宽度 < 70% 可用宽度(0.48)，明显有留白
+19,pmz,bbI,500,200,380,60,0,0,380,32,思源黑体,true,false,true,none,,加粗字重700,7,中文+数字,true,180.8,0.4758,no_slack,估算宽度 < 70% 可用宽度(0.48)，明显有留白
+19,pmz,bbY,80,290,800,150,0,0,800,18,思源黑体,false,false,true,none,,"在正文中，粗体文字用于强调关键信息，引导读者视线。Inbodytext,boldtexthighlightskeyinformationandguidesthereader.数字加粗：1234567890对比常规：1234567890",117,中文+英文+数字,false,613.8,0.7672,no,估算宽度 0.77x 可用宽度，大概率单行
+19,pmz,bbU,80,460,800,30,0,0,800,12,思源黑体,false,false,true,none,center,粗体vs常规·字重对比·强调效果测试,18,中文+英文,true,194.4,0.243,no_slack,估算宽度 < 70% 可用宽度(0.24)，明显有留白
+20,pmd,bbE,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,20·字体样式测试·斜体Italic,18,中文+英文+数字,true,378.0,0.45,no_slack,估算宽度 < 70% 可用宽度(0.45)，明显有留白
+20,pmd,bbS,80,120,380,60,0,0,380,32,思源黑体,true,false,true,none,,正体Upright,9,中文+英文,true,187.2,0.4926,no_slack,估算宽度 < 70% 可用宽度(0.49)，明显有留白
+20,pmd,bbk,500,120,380,60,0,0,380,32,思源黑体,true,true,true,none,,斜体Italic,8,中文+英文,true,169.6,0.4463,no_slack,估算宽度 < 70% 可用宽度(0.45)，明显有留白
+20,pmd,bbO,80,200,380,60,0,0,380,32,思源黑体,true,false,true,none,,NormalText,10,英文,true,176.0,0.4632,no_slack,估算宽度 < 70% 可用宽度(0.46)，明显有留白
+20,pmd,bbf,500,200,380,60,0,0,380,32,思源黑体,true,true,true,none,,ItalicText,10,英文,true,176.0,0.4632,no_slack,估算宽度 < 70% 可用宽度(0.46)，明显有留白
+20,pmd,bbJ,80,290,800,150,0,0,800,18,思源黑体,false,false,true,none,,"斜体常用于引用、书名、外来词等场景，增添文字的韵律感。Italictextisoftenusedforquotes,booktitles,andforeignwords.数字斜体：1234567890对比正体：1234567890",115,中文+英文+数字,false,574.2,0.7177,no,估算宽度 0.72x 可用宽度，大概率单行
+20,pmd,bbn,80,460,800,30,0,0,800,12,思源黑体,false,false,true,none,center,斜体vs正体·引用/书名/强调场景,17,中文+英文,true,177.0,0.2213,no_slack,估算宽度 < 70% 可用宽度(0.22)，明显有留白
+21,pmG,bbM,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,21·文字装饰测试·下划线/删除线,17,中文+数字,true,413.0,0.4917,no_slack,估算宽度 < 70% 可用宽度(0.49)，明显有留白
+21,pmG,bbq,80,120,800,60,0,0,800,32,思源黑体,true,false,true,none,center,下划线文字UnderlineText,18,中文+英文,true,388.8,0.486,no_slack,估算宽度 < 70% 可用宽度(0.49)，明显有留白
+21,pmG,bbi,80,200,800,60,0,0,800,32,思源黑体,true,false,true,none,center,删除线文字StrikethroughText,22,中文+英文,true,459.2,0.574,no_slack,估算宽度 < 70% 可用宽度(0.57)，明显有留白
+21,pmG,bbT,80,290,800,150,0,0,800,18,思源黑体,false,false,true,none,,"下划线常用于链接、重点标注等场景，删除线用于表示已删除或作废的内容。Underlineisusedforlinksandkeyannotations,strikethroughfordeletedcontent.组合效果：加粗加下划线·斜体加下划线",124,中文+英文,false,712.8,0.891,tight_single,估算宽度 0.89x 可用宽度，接近填满，需确认是否单行
+21,pmG,bbC,80,460,800,30,0,0,800,12,思源黑体,false,false,true,none,center,下划线·删除线·组合样式测试,14,中文,true,157.2,0.1965,no_slack,估算宽度 < 70% 可用宽度(0.20)，明显有留白
+22,pmq,bZa,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,22·字间距测试LetterSpacing,21,中文+英文+数字,true,386.4,0.46,no_slack,估算宽度 < 70% 可用宽度(0.46)，明显有留白
+22,pmq,bbg,80,120,800,50,0,0,800,28,思源黑体,true,false,true,none,center,紧凑字间距-2pxTight,14,中文+英文+数字,true,278.6,0.3483,no_slack,估算宽度 < 70% 可用宽度(0.35)，明显有留白
+22,pmq,bbG,80,185,800,50,0,0,800,28,思源黑体,true,false,true,none,center,正常字间距0pxNormal,14,中文+英文+数字,true,278.6,0.3483,no_slack,估算宽度 < 70% 可用宽度(0.35)，明显有留白
+22,pmq,bZN,80,250,800,50,0,0,800,28,思源黑体,true,false,true,none,center,宽松字间距3pxLoose,13,中文+英文+数字,true,263.2,0.329,no_slack,估算宽度 < 70% 可用宽度(0.33)，明显有留白
+22,pmq,bZb,80,315,800,50,0,0,800,28,思源黑体,true,false,true,none,center,超宽字间距8pxWide,12,中文+英文+数字,true,247.8,0.3098,no_slack,估算宽度 < 70% 可用宽度(0.31)，明显有留白
+22,pmq,bbl,80,390,800,80,0,0,800,16,思源黑体,false,false,true,none,center,字间距影响文字的呼吸感和阅读节奏标题常用宽松字间距营造高级感，正文用正常字间距保证可读性,44,中文,false,448,0.56,no_slack,估算宽度 < 70% 可用宽度(0.56)，明显有留白
+22,pmq,bbX,80,485,800,25,0,0,800,11,思源黑体,false,false,true,none,center,从-2px到8px·四级字间距对比,17,中文+英文+数字,true,147.4,0.1842,no_slack,估算宽度 < 70% 可用宽度(0.18)，明显有留白
+23,pmS,bZB,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,23·行间距测试LineSpacing,19,中文+英文+数字,true,355.6,0.4233,no_slack,估算宽度 < 70% 可用宽度(0.42)，明显有留白
+23,pmS,bZZ,60,115,270,340,0,0,270,14,思源黑体,false,false,true,none,,1.0倍行距这是一段测试文字，用于展示1.0倍行间距的效果。行间距较小时，文字显得紧凑，但可能影响可读性。紧凑排版适合空间有限的场景。,67,中文+数字,false,639.1,2.367,yes,估算宽度 2.37x 可用宽度，肯定换行（多行）
+23,pmS,bZo,345,115,270,340,0,0,270,14,思源黑体,false,false,true,none,,1.5倍行距这是一段测试文字，用于展示1.5倍行间距的效果。这是最常用的行间距设置，兼顾可读性和信息密度。适合大多数正文排版场景。,65,中文+数字,false,639.1,2.367,yes,估算宽度 2.37x 可用宽度，肯定换行（多行）
+23,pmS,bZc,630,115,270,340,0,0,270,14,思源黑体,false,false,true,none,,2.0倍行距这是一段测试文字，用于展示2.0倍行间距的效果。行间距较大时，文字显得疏朗透气，阅读体验轻松。适合需要留白感的设计。,64,中文+数字,false,322,1.1926,borderline,估算宽度 1.19x 可用宽度，边界情况，需截图确认是否换行
+23,pmS,bZH,60,475,840,30,0,0,840,12,思源黑体,false,false,true,none,center,1.0/1.5/2.0倍行距对比·三列并排展示,23,中文+数字,true,211.2,0.2514,no_slack,估算宽度 < 70% 可用宽度(0.25)，明显有留白
+24,pmM,bZR,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,24·对齐方式测试Alignment,18,中文+英文+数字,true,352.8,0.42,no_slack,估算宽度 < 70% 可用宽度(0.42)，明显有留白
+24,pmM,bZu,80,115,800,50,0,0,800,24,思源黑体,true,false,true,none,left,←左对齐LeftAlign,13,中文+英文,true,204.0,0.255,no_slack,估算宽度 < 70% 可用宽度(0.25)，明显有留白
+24,pmM,bZe,80,180,800,50,0,0,800,24,思源黑体,true,false,true,none,center,居中对齐CenterAlign,15,中文+英文,true,241.2,0.3015,no_slack,估算宽度 < 70% 可用宽度(0.30)，明显有留白
+24,pmM,bZz,80,245,800,50,0,0,800,24,思源黑体,true,false,true,none,right,右对齐RightAlign→,14,中文+英文,true,217.2,0.2715,no_slack,估算宽度 < 70% 可用宽度(0.27)，明显有留白
+24,pmM,bZp,80,310,800,120,0,0,800,16,思源黑体,false,false,true,none,justify,两端对齐Justify：这是一段用于测试两端对齐效果的较长文字，文字的左右两边都会对齐，形成整齐的文字块边缘，适合报纸、杂志等正式排版。Thequickbrownfoxjumpsoverthelazydog.Typographyistheartandtechniqueofarrangingtype.,150,中文+英文,true,1759.2,2.199,yes,估算宽度 2.20x 可用宽度，肯定换行（多行）
+24,pmM,bZV,80,455,800,30,0,0,800,12,思源黑体,false,false,true,none,center,左对齐·居中·右对齐·两端对齐·四种对齐方式,22,中文,true,242.4,0.303,no_slack,估算宽度 < 70% 可用宽度(0.30)，明显有留白
+25,pmP,bZt,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,25·文字颜色测试Colors,15,中文+英文+数字,true,306.6,0.365,no_slack,估算宽度 < 70% 可用宽度(0.36)，明显有留白
+25,pmP,bZk,80,115,800,45,0,0,800,26,思源黑体,true,false,true,none,center,深蓝DarkBlue·主色Primary,20,中文+英文,true,332.8,0.416,no_slack,估算宽度 < 70% 可用宽度(0.42)，明显有留白
+25,pmP,bZO,80,170,800,45,0,0,800,26,思源黑体,true,false,true,none,center,亮蓝BrightBlue·辅色Secondary,24,中文+英文,true,390.0,0.4875,no_slack,估算宽度 < 70% 可用宽度(0.49)，明显有留白
+25,pmP,bZA,80,225,800,45,0,0,800,26,思源黑体,true,false,true,none,center,青绿Teal·成功色Success,17,中文+英文,true,301.6,0.377,no_slack,估算宽度 < 70% 可用宽度(0.38)，明显有留白
+25,pmP,bZJ,80,280,800,45,0,0,800,26,思源黑体,true,false,true,none,center,琥珀Amber·警告色Warning,18,中文+英文,true,315.9,0.3949,no_slack,估算宽度 < 70% 可用宽度(0.39)，明显有留白
+25,pmP,bZn,80,335,800,45,0,0,800,26,思源黑体,true,false,true,none,center,红色Red·危险色Danger,15,中文+英文,true,273.0,0.3413,no_slack,估算宽度 < 70% 可用宽度(0.34)，明显有留白
+25,pmP,bZS,80,390,800,45,0,0,800,26,思源黑体,true,false,true,none,center,灰色Gray·辅助色Neutral,17,中文+英文,true,301.6,0.377,no_slack,估算宽度 < 70% 可用宽度(0.38)，明显有留白
+25,pmP,bZy,80,455,800,30,0,0,800,12,思源黑体,false,false,true,none,center,六色系统·主/辅/成功/警告/危险/中性·色彩对比测试,27,中文,true,286.2,0.3577,no_slack,估算宽度 < 70% 可用宽度(0.36)，明显有留白
+26,pmh,bZU,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,26·特殊符号测试Symbols,16,中文+英文+数字,true,322.0,0.3833,no_slack,估算宽度 < 70% 可用宽度(0.38)，明显有留白
+26,pmh,bZD,80,115,800,50,0,0,800,28,思源黑体,true,false,true,none,center,"标点符号：，。！？：；""""&apos;&apos;（）【】",29,中文+英文,true,635.6,0.7945,no,估算宽度 0.79x 可用宽度，大概率单行
+26,pmh,bZE,80,180,800,50,0,0,800,28,思源黑体,true,false,true,none,center,数学符号：＋－×÷＝≈≠≤≥±%,16,中文,true,347.2,0.434,no_slack,估算宽度 < 70% 可用宽度(0.43)，明显有留白
+26,pmh,bZF,80,245,800,50,0,0,800,28,思源黑体,true,false,true,none,center,货币符号：¥$€£₩₹¢,12,中文,true,247.8,0.3098,no_slack,估算宽度 < 70% 可用宽度(0.31)，明显有留白
+26,pmh,bZK,80,310,800,50,0,0,800,28,思源黑体,true,false,true,none,center,单位符号：℃℉°‰㎡kgms,14,中文+英文,true,291.2,0.364,no_slack,估算宽度 < 70% 可用宽度(0.36)，明显有留白
+26,pmh,bZI,80,375,800,50,0,0,800,28,思源黑体,true,false,true,none,center,其他符号：@#&*§¶©®™,14,中文,true,278.6,0.3483,no_slack,估算宽度 < 70% 可用宽度(0.35)，明显有留白
+26,pmh,bZP,80,450,800,30,0,0,800,12,思源黑体,false,false,true,none,center,标点·数学·货币·单位·特殊符号·全面测试,21,中文,true,225.0,0.2812,no_slack,估算宽度 < 70% 可用宽度(0.28)，明显有留白
+27,pml,bZY,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,27·段落与列表测试Lists,15,中文+英文+数字,true,319.2,0.38,no_slack,估算宽度 < 70% 可用宽度(0.38)，明显有留白
+27,pml,bZq,80,115,380,340,0,0,380,16,思源黑体,false,false,true,none,,无序列表UnorderedList第一项ItemOne第二项ItemTwo第三项ItemThree第四项ItemFour第五项ItemFive,71,中文+英文,false,178.4,0.4695,no_slack,估算宽度 < 70% 可用宽度(0.47)，明显有留白
+27,pml,bZi,500,115,380,340,0,0,380,16,思源黑体,false,false,true,none,,有序列表OrderedList第一步StepOne第二步StepTwo第三步StepThree第四步StepFour第五步StepFive,69,中文+英文,false,160.8,0.4232,no_slack,估算宽度 < 70% 可用宽度(0.42)，明显有留白
+27,pml,bZr,80,470,800,30,0,0,800,12,思源黑体,false,false,true,none,center,无序列表·有序列表·中英文列表项对比,18,中文,true,205.2,0.2565,no_slack,估算宽度 < 70% 可用宽度(0.26)，明显有留白
+28,pmB,bZl,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,28·综合排版测试Layout,15,中文+英文+数字,true,306.6,0.365,no_slack,估算宽度 < 70% 可用宽度(0.36)，明显有留白
+28,pmB,bZG,60,110,420,50,0,0,420,26,思源黑体,true,false,true,none,,左栏标题LeftColumn,14,中文+英文,true,247.0,0.5881,no_slack,估算宽度 < 70% 可用宽度(0.59)，明显有留白
+28,pmB,bZM,500,110,400,50,0,0,400,26,思源黑体,true,false,true,none,,右栏标题RightColumn,15,中文+英文,true,261.3,0.6533,no_slack,估算宽度 < 70% 可用宽度(0.65)，明显有留白
+28,pmB,bZm,60,170,420,280,0,0,420,15,思源黑体,false,false,true,none,,"这是左栏的正文内容，使用15pt字号，1.7倍行间距。多栏排版可以有效利用页面空间，提升信息密度。要点一：重点信息加粗显示要点二：引用内容斜体标注要点三：关键数据下划线强调数字测试：123,456,789·百分比：99.9%",112,中文+英文+数字,false,357.75,0.8518,tight_single,估算宽度 0.85x 可用宽度，接近填满，需确认是否单行
+28,pmB,bZQ,500,170,400,280,0,0,400,15,思源黑体,false,false,true,none,,"Thisistherightcolumnbodytextin15ptsize.Multi-columnlayoutoptimizesspaceandinformationdensity.Point1:BoldforemphasisPoint2:ItalicforquotesPoint3:UnderlineforkeydataNumbers:123,456,789·Percent:99.9%",196,英文+数字,false,445.5,1.1138,borderline,估算宽度 1.11x 可用宽度，边界情况，需截图确认是否换行
+28,pmB,bZg,60,470,840,30,0,0,840,12,思源黑体,false,false,true,none,center,双栏布局·中英对照·列表+强调+数字·综合测试,23,中文,true,249.0,0.2964,no_slack,估算宽度 < 70% 可用宽度(0.30)，明显有留白
+29,pmU,bdZ,60,40,840,50,0,0,840,28,思源黑体,true,false,true,none,,29·字符密度测试Density,16,中文+英文+数字,true,322.0,0.3833,no_slack,估算宽度 < 70% 可用宽度(0.38)，明显有留白
+29,pmU,bdN,60,110,840,360,0,0,840,13,思源黑体,false,false,true,none,,"高密度文字排版测试·小字号大信息量场景排版设计（Typography）是一门关于文字排列和视觉呈现的艺术与技术。它涉及字体选择、字号大小、行间距、字间距、对齐方式、颜色搭配等多个方面。好的排版设计不仅能让文字更易读，还能传递情感和品牌调性。Typographyistheartandtechniqueofarrangingtypetomakewrittenlanguagelegible,readable,andappealingwhendisplayed.Thearrangementoftypeinvolvesselectingtypefaces,pointsizes,linelengths,line-spacing,andletter-spacing,andadjustingthespacebetweenpairsofletters.中文排版与英文排版有许多不同之处：中文是方块字，每个字符宽度基本一致；英文是比例字体，字符宽度各不相同。中文排版需要考虑标点符号的位置、中英文混排的间距等问题。数字0123456789在中英文混排时也需要特别注意基线对齐和宽度协调。数据：2024年全球字体市场规模达$12.34亿美元，年增长率8.5%。Top5字体：Helvetica,Arial,TimesNewRoman,Calibri,Garamond。",578,中文+英文+数字,false,1801.8,2.145,yes,估算宽度 2.15x 可用宽度，肯定换行（多行）
+29,pmU,bda,60,485,840,25,0,0,840,11,思源黑体,false,false,true,none,center,13pt高密度·多段落·中英文数字混排·信息密度测试,26,中文+英文+数字,true,251.35,0.2992,no_slack,估算宽度 < 70% 可用宽度(0.30)，明显有留白
+30,pmv,bdB,80,180,800,100,0,0,800,56,思源黑体,true,false,true,none,center,测试样张·完,6,中文,true,310.8,0.3885,no_slack,估算宽度 < 70% 可用宽度(0.39)，明显有留白
+30,pmv,bdc,80,300,800,50,0,0,800,22,思源黑体,true,false,true,none,center,EndofTypographyTestSample,25,英文,true,302.5,0.3781,no_slack,估算宽度 < 70% 可用宽度(0.38)，明显有留白
+30,pmv,bdd,80,380,800,80,0,0,800,14,思源黑体,false,false,true,none,center,共30页·涵盖字号/字体/中英文/数字/样式/间距/颜色/排版30Pages·Size/Font/CJK&Latin/Numbers/Style/Spacing/Color/Layout,93,中文+英文+数字,false,477.4,0.5967,no_slack,估算宽度 < 70% 可用宽度(0.60)，明显有留白

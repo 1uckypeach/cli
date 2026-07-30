@@ -1,0 +1,53 @@
+<title>Lark Slides 批量 Lint 报告 (2026-07-21)</title>
+
+<p>工作目录：<code>tmp/slides_lint/</code>（XML、Lint JSON、shots/ 截图）。使用 <code>skills/lark-slides/scripts/xml_text_overlap_lint.py</code> 对 13 份 Slides 共 209 页做静态检查，对有问题的页做截图人工复核。</p>
+
+<h1>原始 PPT 链接</h1>
+
+<table>
+<thead><tr><th background-color="light-gray">#</th><th background-color="light-gray">链接</th><th background-color="light-gray">页数</th><th background-color="light-gray">errors</th><th background-color="light-gray">warns</th></tr></thead>
+<tbody>
+<tr><td>01</td><td><a type="url-preview" href="https://feishu.doubao.com/slides/NF7ps9bi1la8ArdJCzycaf5Rncb">NF7ps9bi1la8ArdJCzycaf5Rncb</a></td><td>13</td><td>0</td><td>0</td></tr>
+<tr><td>02</td><td><a type="url-preview" href="https://feishu.doubao.com/slides/XkVtsIZjOl4f4hdcY65cXM4OnJe">XkVtsIZjOl4f4hdcY65cXM4OnJe</a></td><td>12</td><td>0</td><td>0</td></tr>
+<tr><td>03</td><td><a type="url-preview" href="https://www.doubao.com/slides/F4AIs6Ok5lRMsnd1ps6cZVOlnMd">F4AIs6Ok5lRMsnd1ps6cZVOlnMd</a></td><td>16</td><td>1</td><td>2</td></tr>
+<tr><td>04</td><td><a type="url-preview" href="https://feishu.doubao.com/slides/RQZAskrcil7r89ddRZkcFb1dnoc">RQZAskrcil7r89ddRZkcFb1dnoc</a></td><td>11</td><td>15</td><td>0</td></tr>
+<tr><td>05</td><td><a type="url-preview" href="https://feishu.doubao.com/slides/ZW5UscZRXlvPk9d02uhcEYzan4g">ZW5UscZRXlvPk9d02uhcEYzan4g</a></td><td>19</td><td>0</td><td>3</td></tr>
+<tr><td>06</td><td><a type="url-preview" href="https://feishu.doubao.com/slides/Xytksv7b5lAWtJdaVGrcKkKRnCg">Xytksv7b5lAWtJdaVGrcKkKRnCg</a></td><td>22</td><td>0</td><td>0</td></tr>
+<tr><td>07</td><td><a type="url-preview" href="https://feishu.doubao.com/slides/AeoYs6ZGrlozGqdJAQ3cW9KnnWd">AeoYs6ZGrlozGqdJAQ3cW9KnnWd</a></td><td>17</td><td>0</td><td>0</td></tr>
+<tr><td>08</td><td><a type="url-preview" href="https://feishu.doubao.com/slides/H2FlssNFhleATbd1kJncfL4Lnqg">H2FlssNFhleATbd1kJncfL4Lnqg</a></td><td>16</td><td>0</td><td>0</td></tr>
+<tr><td>09</td><td><a type="url-preview" href="https://feishu.doubao.com/slides/L2qMsLiCylkq5mdmt6fcM1Nunke">L2qMsLiCylkq5mdmt6fcM1Nunke</a></td><td>8</td><td>0</td><td>0</td></tr>
+<tr><td>10</td><td><a type="url-preview" href="https://feishu.doubao.com/slides/KqmBsF2Sgl8y1ndfvrFcNxqDnKh">KqmBsF2Sgl8y1ndfvrFcNxqDnKh</a></td><td>14</td><td>0</td><td>0</td></tr>
+<tr><td>11</td><td><a type="url-preview" href="https://feishu.doubao.com/slides/NvgJssk2nlVF34d6KcfcECnYnD2">NvgJssk2nlVF34d6KcfcECnYnD2</a></td><td>16</td><td>0</td><td>0</td></tr>
+<tr><td>12</td><td><a type="url-preview" href="https://feishu.doubao.com/slides/ExsmsZG2cld2LsdUlM5cKSHynkd">ExsmsZG2cld2LsdUlM5cKSHynkd</a></td><td>30</td><td>0</td><td>0</td></tr>
+<tr><td>13</td><td><a type="url-preview" href="https://feishu.doubao.com/slides/FuaBsBakKlwpCzdsDMKcdLJYnme">FuaBsBakKlwpCzdsDMKcdLJYnme</a></td><td>15</td><td>10</td><td>0</td></tr>
+</tbody>
+</table>
+
+<h1>逐页视觉复核</h1>
+
+<table>
+<thead><tr><th background-color="light-gray">Deck</th><th background-color="light-gray">页</th><th background-color="light-gray">Lint code</th><th background-color="light-gray">报错内容</th><th background-color="light-gray">截图观察</th><th background-color="light-gray">判定</th></tr></thead>
+<tbody>
+<tr><td>03</td><td>p3</td><td>bbox_overlap</td><td>shape bBy 与 bBn 边框重叠</td><td>章节封面页，"01" 大号数字水印与其下方金色横线 + "第一部分：回顾与复盘" 主标题存在 bbox 交叠，视觉上属设计意图，无阅读干扰</td><td><b>误报</b>（模板堆叠）</td></tr>
+<tr><td>03</td><td>p5</td><td>text_may_overflow_shape ×2</td><td>"标杆项目"标题 shape 预估 40px &gt; 26px 可用高度</td><td>"标杆项目一/三"标题实际换行为两行，均在卡片内部，未穿出卡片或遮挡下方正文</td><td><b>误报</b>（估算保守）</td></tr>
+<tr><td>04</td><td>p3</td><td>icon_missing_fill_color ×4</td><td>4 个 icon 无显式 fillColor</td><td>右侧 4 张卡片顶部只剩纯色 rect 底条，本应显示的分类图标全部不可见</td><td><b>正确</b></td></tr>
+<tr><td>04</td><td>p5</td><td>icon_missing_fill_color ×4</td><td>同上</td><td>4 张卡片左上角浅色小方块无图标图形，仅剩底色</td><td><b>正确</b></td></tr>
+<tr><td>04</td><td>p7</td><td>icon_missing_fill_color ×3</td><td>同上</td><td>3 张场景卡上方灰色大方块本应是场景插图 icon，实际全空</td><td><b>正确</b></td></tr>
+<tr><td>04</td><td>p9</td><td>icon_missing_fill_color ×4</td><td>同上</td><td>右侧 4 张收入结构卡片左侧浅色方块本应是分类图标，全部空白</td><td><b>正确</b></td></tr>
+<tr><td>05</td><td>p16</td><td>text_may_overflow_shape ×3</td><td>敏感性分析区块 shape 预估 25px &gt; 20px</td><td>右上"敏感性分析"表格及旁注文字均在自己的白色卡片内部，未溢出到相邻元素或页面边界</td><td><b>误报</b>（5px 估算溢出）</td></tr>
+<tr><td>13</td><td>p1</td><td>image_covers_text ×5</td><td>背景 img bgK 覆盖 5 个文本 shape</td><td>纯粹的数据科技蓝紫色抽象背景图，页面上完全看不到"数据科学实战营+大数据行业导师面对面"等 5 段封面文字</td><td><b>正确</b>（真实漏字）</td></tr>
+<tr><td>13</td><td>p15</td><td>image_covers_text ×5</td><td>背景 img bgK 覆盖 5 个文本 shape</td><td>学校建筑 + 数据科技元素背景图，"感谢聆听 敬请指导"等结束页文案完全不可见</td><td><b>正确</b>（真实漏字）</td></tr>
+</tbody>
+</table>
+
+<h1>统计</h1>
+
+<ul>
+<li>检测 13 份 Slides、共 209 页。</li>
+<li>Lint 报出问题的页共 9 页，跨 4 份 deck。</li>
+<li><b>真实缺陷</b> 6 页 / 25 issues：deck 04 的 4 页 icon 丢失（15）、deck 13 的 p1/p15 封面结束页文字被背景图整块遮盖（10）。</li>
+<li><b>误报</b> 3 页 / 6 issues：deck 03 p3 模板堆叠、deck 03 p5、deck 05 p16 的 text_may_overflow_shape 估算偏保守。</li>
+</ul>
+
+<h1>问题页截图</h1>
+<p>下方按 Deck-Page 顺序附上 9 张问题页截图，用于人工复核。</p>

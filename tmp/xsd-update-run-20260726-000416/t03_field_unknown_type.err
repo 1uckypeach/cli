@@ -1,0 +1,2 @@
+tmp/xsd-update-run-20260726-000416/t03_field_unknown_type.xml:1: element field: Schemas validity error : Element '{http://www.larkoffice.com/sml/2.0}field', attribute 'type': [facet 'enumeration'] The value 'unknown' is not an element of the set {'slidenum', 'datetime', 'datetime1', 'datetime2', 'datetime3', 'datetime4', 'datetime5', 'datetime6', 'datetime7', 'datetime8', 'datetime9', 'datetime10', 'datetime11', 'datetime12', 'datetime13'}.
+tmp/xsd-update-run-20260726-000416/t03_field_unknown_type.xml fails to validate
