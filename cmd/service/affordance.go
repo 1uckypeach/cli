@@ -225,8 +225,10 @@ func PrepareShortcutHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 
 // writeRisk appends the "Risk: <level>" line, warning agents not to self-approve
 // high-risk-write commands. A no-op when the command has no risk annotation.
-// The wording lives in cmdutil.RiskLine so help and any other surface stay in
-// sync.
+// The wording lives in cmdutil.RiskLine so this method-help path and the
+// shortcut bottom-of-help append (installTipsHelpFunc) render identical text;
+// other --yes-related prompts (internal/cmdutil/confirm.go,
+// internal/schema/assembler.go) have their own independent wording.
 func writeRisk(b *strings.Builder, cmd *cobra.Command) {
 	line, ok := cmdutil.RiskLine(cmd)
 	if !ok {

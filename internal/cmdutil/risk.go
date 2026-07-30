@@ -49,10 +49,15 @@ func GetRisk(cmd *cobra.Command) (level string, ok bool) {
 // RiskLine renders the "Risk: <level>" line shown in help. ok is false when the
 // command carries no risk annotation.
 //
-// high-risk-write carries the confirmation warning: --yes asserts that the USER
-// confirmed, so an agent must never add it on its own. Keeping the wording here
-// means every help path — the affordance-composed Long and the bottom-of-help
-// append — shows the same sentence.
+// The confirmation warning only applies when the command actually gates on
+// --yes: the sentence asserts that passing --yes means the USER confirmed, and
+// that assertion is only true where the flag exists and RunE checks it. Some
+// commands carry the high-risk-write annotation for documentation purposes
+// without wiring a --yes gate (e.g. `update`, which has no confirmation step at
+// all); warning those callers about --yes would describe a flag that doesn't
+// exist and a gate that isn't there. So the guardrail sentence is conditioned on
+// cmd.Flags().Lookup("yes") != nil — a command without that flag gets the bare
+// "Risk: <level>" line instead.
 //
 // The returned line has no surrounding whitespace; callers add their own
 // separators.
@@ -61,7 +66,7 @@ func RiskLine(cmd *cobra.Command) (line string, ok bool) {
 	if !ok {
 		return "", false
 	}
-	if level == RiskHighRiskWrite {
+	if level == RiskHighRiskWrite && cmd.Flags().Lookup("yes") != nil {
 		return fmt.Sprintf("Risk: %s (requires explicit user confirmation to execute; the agent must NOT add --yes on its own — only pass --yes after the user has confirmed)", level), true
 	}
 	return fmt.Sprintf("Risk: %s", level), true
