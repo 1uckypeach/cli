@@ -31,6 +31,7 @@ lint_section="$(awk '
   /^  script-test:/ { exit }
 ' "$workflow")"
 script_test_section="$(job_section script-test)"
+shim_test_windows_section="$(job_section shim-test-windows)"
 deterministic_section="$(awk '
   /^  deterministic-gate:/ { in_job = 1 }
   in_job { print }
@@ -167,6 +168,23 @@ fi
 
 if grep -Fq '${{ secrets.' <<<"$script_test_section"; then
   echo "script-test must not reference secrets"
+  exit 1
+fi
+
+if ! grep -Fq "runs-on: windows-latest" <<<"$shim_test_windows_section"; then
+  echo "shim-test-windows must run on windows-latest so the npm shim is exercised on the platform it broke on"
+  exit 1
+fi
+if ! grep -Fq "node --test scripts/run.test.js" <<<"$shim_test_windows_section"; then
+  echo "shim-test-windows must run the npm shim tests"
+  exit 1
+fi
+if ! grep -Fq "node-version: '22'" <<<"$shim_test_windows_section"; then
+  echo "shim-test-windows must pin node-version so process.execPath fixtures stay reproducible"
+  exit 1
+fi
+if ! grep -Fq '"${{ needs.shim-test-windows.result }}"' <<<"$results_section"; then
+  echo "shim-test-windows must sit inside the results FAILED loop; needs and the summary table alone leave it non-blocking"
   exit 1
 fi
 
