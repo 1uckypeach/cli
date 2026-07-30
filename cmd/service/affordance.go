@@ -187,6 +187,10 @@ func PrepareMethodHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 // the overlay declares none; when the overlay has tips, the Go tips are dropped
 // (replaced, not merged) so tips never render twice. Authoring a ### Tips block
 // therefore silently retires that shortcut's Go Tips — consolidate into one.
+//
+// Risk and Tips do not go into Long. They render at the bottom of help
+// (installTipsHelpFunc) for every shortcut, whether or not it has an overlay, so
+// the two paths cannot drift apart in wording or position.
 func PrepareShortcutHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 	if src, _ := cmdmeta.SourceOf(cmd); src != cmdmeta.SourceShortcut {
 		return false
@@ -202,10 +206,13 @@ func PrepareShortcutHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 	if len(a.Tips) == 0 {
 		a.Tips = cmdutil.GetTips(cmd)
 	}
+	// Hand the resolved tips to the command and keep them out of the affordance
+	// block: the bottom-of-help append is the one place tips render.
+	cmdutil.SetTips(cmd, a.Tips)
+	a.Tips = nil
 
 	var b strings.Builder
 	b.WriteString(captureHelpBase(cmd, shortcutBaseAnnotation))
-	writeRisk(&b, cmd)
 	if block := renderAffordanceValue(a); block != "" {
 		b.WriteString("\n\n")
 		b.WriteString(block)

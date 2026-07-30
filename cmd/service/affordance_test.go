@@ -143,9 +143,9 @@ func TestPrepareMethodHelp(t *testing.T) {
 }
 
 // PrepareShortcutHelp composes a shortcut's Long from its overlay with the same
-// top layout as method help (no schema pointer), folding declarative tips when
-// the overlay declares none, and leaves shortcuts without an overlay entry (and
-// non-shortcut commands) for the default help path.
+// top layout as method help (no schema pointer). Risk and Tips are deliberately
+// absent from Long — they render at the bottom of help for every shortcut — so
+// the overlay's tips are handed to the command instead.
 func TestPrepareShortcutHelp(t *testing.T) {
 	orig := affordanceLookup
 	t.Cleanup(func() { affordanceLookup = orig })
@@ -165,10 +165,18 @@ func TestPrepareShortcutHelp(t *testing.T) {
 	if !PrepareShortcutHelp(sc, nil) {
 		t.Fatal("PrepareShortcutHelp returned false for a shortcut with an overlay")
 	}
-	for _, want := range []string{"Create an event", "Risk: write", "When to use:", "高层创建日程", "Tips:", "start/end 收 ISO 8601"} {
+	for _, want := range []string{"Create an event", "When to use:", "高层创建日程"} {
 		if !strings.Contains(sc.Long, want) {
 			t.Errorf("shortcut Long missing %q:\n%s", want, sc.Long)
 		}
+	}
+	for _, unwanted := range []string{"Risk:", "Tips:", "start/end 收 ISO 8601"} {
+		if strings.Contains(sc.Long, unwanted) {
+			t.Errorf("shortcut Long must not carry %q (it renders at the bottom of help):\n%s", unwanted, sc.Long)
+		}
+	}
+	if got := cmdutil.GetTips(sc); len(got) != 1 || got[0] != "start/end 收 ISO 8601" {
+		t.Errorf("expected the tips to move onto the command for the bottom append, got %v", got)
 	}
 	if strings.Contains(sc.Long, "Full parameter schema:") {
 		t.Errorf("shortcut Long must not carry a schema pointer:\n%s", sc.Long)
@@ -187,6 +195,25 @@ func TestPrepareShortcutHelp(t *testing.T) {
 	cmdmeta.SetAffordanceRef(notSc, "calendar", "+create")
 	if PrepareShortcutHelp(notSc, nil) {
 		t.Error("PrepareShortcutHelp should return false for a non-shortcut command")
+	}
+
+	// The overlay's own Tips still win over the declarative Go Tips (replace,
+	// not merge) — only the render location moved.
+	affordanceLookup = func(service, methodID string) (json.RawMessage, bool) {
+		if service == "calendar" && methodID == "+overlay-tips" {
+			return json.RawMessage(`{"tips":["overlay wins"]}`), true
+		}
+		return nil, false
+	}
+	both := &cobra.Command{Use: "+overlay-tips", Short: "x"}
+	cmdmeta.SetSource(both, cmdmeta.SourceShortcut, false)
+	cmdmeta.SetAffordanceRef(both, "calendar", "+overlay-tips")
+	cmdutil.SetTips(both, []string{"go tips lose"})
+	if !PrepareShortcutHelp(both, nil) {
+		t.Fatal("PrepareShortcutHelp returned false for a shortcut with an overlay")
+	}
+	if got := cmdutil.GetTips(both); len(got) != 1 || got[0] != "overlay wins" {
+		t.Errorf("expected the overlay tips to replace the declarative tips, got %v", got)
 	}
 }
 
