@@ -386,6 +386,36 @@ func TestBodyHelp_SkeletonPlaceholdersAreLegalValues(t *testing.T) {
 	}
 }
 
+// The skeleton's one hard promise is that it parses, and that promise must not
+// rest on upstream data happening to be benign. Both inputs below are reachable
+// through the metadata contract: a type meta.coerceLiteral does not recognize
+// leaves an enum value uncoerced (so a type-based guard would not see it), and
+// strconv.ParseFloat accepts "Inf"/"NaN" as a min.
+func TestBodyHelp_SkeletonRejectsUnrenderablePlaceholders(t *testing.T) {
+	cases := []struct {
+		name, want string
+		field      meta.Field
+	}{
+		{"non-string enum value bypasses no guard", `{"t": "<string>"}`,
+			meta.Field{Name: "t", Enum: []any{map[string]any{"k": "a‮b"}}}},
+		{"non-finite floor is not a JSON number", `{"t": 0}`,
+			meta.Field{Name: "t", Type: "integer", Min: "Inf"}},
+		{"NaN floor likewise", `{"t": 0}`,
+			meta.Field{Name: "t", Type: "number", Min: "NaN"}},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			got := bodySkeleton([]meta.Field{tt.field})
+			if got != tt.want {
+				t.Errorf("skeleton = %s, want %s", got, tt.want)
+			}
+			if !json.Valid([]byte(got)) {
+				t.Errorf("skeleton must always parse, got %s", got)
+			}
+		})
+	}
+}
+
 // An enum cannot stand in for a shape: substituting a scalar would tell the
 // caller to send a string where the API wants an object or a list.
 func TestBodyHelp_SkeletonKeepsShapeOverEnum(t *testing.T) {

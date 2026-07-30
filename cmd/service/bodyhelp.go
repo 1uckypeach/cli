@@ -115,7 +115,7 @@ func skeletonValue(f meta.Field, depth int) string {
 	// shape even if upstream declared one (none do today).
 	if ct != "object" && ct != "array" {
 		if opts := f.EnumOptions(); len(opts) > 0 {
-			if v, ok := enumLiteral(opts[0].Value); ok {
+			if v, ok := skeletonLiteral(opts[0].Value); ok {
 				return v
 			}
 		}
@@ -150,7 +150,9 @@ func skeletonValue(f meta.Field, depth int) string {
 		// as a value here, where a length reading is meaningless. String fields
 		// keep their type marker for exactly that reason.
 		if min := f.MinBound(); min != nil {
-			return formatBound(*min)
+			if v, ok := skeletonLiteral(*min); ok {
+				return v
+			}
 		}
 		return "0"
 	default:
@@ -158,25 +160,39 @@ func skeletonValue(f meta.Field, depth int) string {
 	}
 }
 
-// enumLiteral renders an allowed value as a JSON literal, reporting false when
-// it cannot be rendered both safely and faithfully. EnumOptions has already
-// coerced the literal to the field's type, so a number comes out unquoted and a
-// string quoted. The catch is the one quoteJSONKey covers for field names:
-// json.Marshal escapes quotes, backslashes and C0 but passes bidi controls, C1
-// and zero-width characters through. Sanitizing a *value* is not the fix it is
-// for a name — the sanitized text is no longer the value the API accepts, so it
-// would trade a rendering risk for the wrong-assertion risk skeletonValue exists
-// to avoid. A value carrying those characters therefore yields no usable
-// placeholder, and the caller falls back to the type marker.
-func enumLiteral(v any) (string, bool) {
-	if s, ok := v.(string); ok && schema.SanitizeIndexDesc(s) != s {
-		return "", false
-	}
+// skeletonLiteral renders a concrete placeholder — an allowed value or a numeric
+// floor — as a JSON literal, reporting false when it cannot be rendered both
+// safely and faithfully. Callers fall back to the type marker.
+//
+// Sanitizing a *value* is not the fix it is for a field name (quoteJSONKey): the
+// sanitized text is no longer the value the API accepts, so it would trade a
+// rendering risk for the wrong-assertion risk skeletonValue exists to prevent.
+// So an unrenderable value yields no placeholder at all.
+//
+// The check reads the rendered literal rather than the Go value, which covers
+// both halves at once. json.Marshal escapes quotes, backslashes and C0 but
+// passes bidi controls, C1 and zero-width characters through — and a value that
+// is not a Go string (an upstream type meta.coerceLiteral does not recognize
+// reaches here uncoerced) would slip a type-based check entirely, at any nesting
+// depth. Marshal also rejects the non-finite floats a min of "Inf"/"NaN" parses
+// into, which would otherwise render `+Inf` and cost the skeleton its one hard
+// promise: that it parses.
+//
+// Marshal FIRST, then compare — the order is load-bearing, not stylistic.
+// Comparing the marshalled form puts quotes around the payload, so
+// SanitizeIndexDesc's TrimSpace cannot reach a value's own leading or trailing
+// space, and a tab arrives already escaped to `\t` so it cannot trip the
+// two-space run collapse. Sanitizing before marshalling loses both properties
+// and starts rejecting legitimate values.
+func skeletonLiteral(v any) (string, bool) {
 	q, err := json.Marshal(v)
 	if err != nil {
 		return "", false
 	}
-	return string(q), true
+	if s := string(q); schema.SanitizeIndexDesc(s) == s {
+		return s, true
+	}
+	return "", false
 }
 
 // joinProperties renders f's children as JSON members, one nesting level down.
