@@ -154,6 +154,7 @@ draft_step = jobs.fetch("create-draft-release").fetch("steps").find { |step| ste
 draft_run = draft_step&.fetch("run", nil)
 fail("Draft Release creation must write generated release notes") unless draft_run&.include?("--notes-file")
 fail("Draft Release reuse must validate target commit and prerelease state") unless draft_run&.include?("targetCommitish") && draft_run.include?("isPrerelease")
+fail("Draft Release creation must derive its target from the existing tag") if draft_run&.include?("--target")
 
 github_steps = jobs.fetch("publish-github").fetch("steps")
 github_check = github_steps.find { |step| step["name"] == "Verify Draft assets match the candidate" }
