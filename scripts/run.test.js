@@ -129,6 +129,16 @@ function assertLaunchFailure(res, sandbox) {
     res.stderr.includes("Please include the path and error shown above."),
     `diagnostic omits the follow-up line: ${res.stderr}`
   );
+  // The sentinel check for launch-failure cases is not redundant with the
+  // check in assertBinaryRan: when the launch fails, e.message contains only
+  // the errno, not the full argv. However, the error object also carries
+  // e.spawnargs and e.path, which hold the complete argument list even on
+  // launch failure. This assertion catches any future edit that prints
+  // e.spawnargs, String(e), or the whole error object.
+  assert.ok(
+    !res.stderr.includes(SENTINEL_TOKEN),
+    `caller arguments leaked into stderr: ${res.stderr}`
+  );
   return reason;
 }
 
@@ -140,7 +150,7 @@ describe("run.js launch-failure diagnostics", () => {
       fs.chmodSync(sandbox.bin, 0o755);
     }
 
-    const res = runShim(sandbox, ["--version"]);
+    const res = runShim(sandbox, ["--version", SENTINEL]);
     const reason = assertLaunchFailure(res, sandbox);
 
     // The errno is deliberately not pinned to a literal here: POSIX reports
@@ -174,7 +184,7 @@ describe("run.js launch-failure diagnostics", () => {
       fs.writeFileSync(sandbox.bin, "#!/bin/sh\nexit 0\n");
       fs.chmodSync(sandbox.bin, 0o000);
 
-      const res = runShim(sandbox, ["--version"]);
+      const res = runShim(sandbox, ["--version", SENTINEL]);
 
       assert.equal(assertLaunchFailure(res, sandbox), "EACCES");
     }
@@ -183,7 +193,7 @@ describe("run.js launch-failure diagnostics", () => {
   it("reports a missing binary when the installer produced nothing", (t) => {
     const sandbox = makeSandbox(t);
 
-    const res = runShim(sandbox, ["--version"]);
+    const res = runShim(sandbox, ["--version", SENTINEL]);
 
     assert.equal(assertLaunchFailure(res, sandbox), "ENOENT");
   });

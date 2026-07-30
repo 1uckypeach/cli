@@ -188,6 +188,11 @@ if ! grep -Fq '"${{ needs.shim-test-windows.result }}"' <<<"$results_section"; t
   exit 1
 fi
 
+if grep -Fq '${{ secrets.' <<<"$shim_test_windows_section"; then
+  echo "shim-test-windows must not reference secrets"
+  exit 1
+fi
+
 if grep -Fq "metadata-gate:" "$workflow"; then
   echo "metadata-gate should not run alongside deterministic-gate because both would upload the same facts artifact"
   exit 1
