@@ -54,8 +54,9 @@ func NewDefault(streams *IOStreams, inv InvocationContext) *Factory {
 
 	// Auth diagnostics: install the one logger the whole process shares, now
 	// that the workspace is known. authlog cannot resolve the workspace-aware
-	// directory itself (core imports keychain, which imports authlog), so this
-	// is the only place that can supply it.
+	// directory itself — keychain imports authlog, so authlog importing
+	// workspace-aware config would close a cycle — which leaves this the only
+	// place that can supply it.
 	authlog.SetShared(authlog.New(authlog.Options{RuntimeDir: workspace.GetRuntimeDir}))
 
 	// Phase 0: FileIO provider (no dependency)

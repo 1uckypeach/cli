@@ -836,77 +836,63 @@ func TestLayeringViolationsByRuleReportsTestOnlyEdges(t *testing.T) {
 // separately. Dropping either one empties the test view for a whole class of files
 // while every other check still passes.
 //
-// The expectation is derived from the tree rather than pinned to a package that
-// happens to import something today: whichever kinds of test file exist in this
-// module must show up in the graph.
+// It runs against a module written for the purpose rather than against this
+// repository, so the two kinds of test file are guaranteed to be present. Deriving
+// the expectation from the tree instead would mean the assertion quietly stops
+// asserting on the day the last file of one kind is deleted or moved.
 func TestGoListGraphCarriesBothTestImportKinds(t *testing.T) {
-	root := repoRoot(t)
-	inPackage, external := testFilePackageKinds(t, root)
-	if !inPackage && !external {
-		t.Skip("no test files in the module")
-	}
+	root := writeTestImportFixtureModule(t)
 
 	packages := goListPackageGraph(t, root)
-	var withTestImports, withXTestImports int
-	for _, pkg := range packages {
-		if len(pkg.TestImports) > 0 {
-			withTestImports++
-		}
-		if len(pkg.XTestImports) > 0 {
-			withXTestImports++
-		}
-	}
 
-	if inPackage && withTestImports == 0 {
-		t.Error("the module has in-package test files but no package reports TestImports; goListPackageGraph is dropping the field")
+	var subject *listedPackage
+	for i, pkg := range packages {
+		if pkg.ImportPath == "example.com/fixture/subject" {
+			subject = &packages[i]
+			break
+		}
 	}
-	if external && withXTestImports == 0 {
-		t.Error("the module has external test packages but no package reports XTestImports; goListPackageGraph is dropping the field")
+	if subject == nil {
+		t.Fatalf("fixture package missing from the graph: %+v", packages)
+	}
+	if !slices.Contains(subject.TestImports, "example.com/fixture/inpackage") {
+		t.Errorf(
+			"TestImports = %q, want the in-package test file's import; goListPackageGraph is dropping the field",
+			subject.TestImports,
+		)
+	}
+	if !slices.Contains(subject.XTestImports, "example.com/fixture/external") {
+		t.Errorf(
+			"XTestImports = %q, want the external test package's import; goListPackageGraph is dropping the field",
+			subject.XTestImports,
+		)
 	}
 }
 
-// testFilePackageKinds reports which kinds of test file the module contains: files
-// in the package under test, and files in its external `_test` package.
-func testFilePackageKinds(t *testing.T, root string) (inPackage, external bool) {
+// writeTestImportFixtureModule creates a module whose subject package imports one
+// package from an in-package test file and another from its external test package,
+// so the two `go list` fields it exercises can never both come from the same file.
+func writeTestImportFixtureModule(t *testing.T) string {
 	t.Helper()
-	for _, file := range moduleGoFiles(t, root) {
-		if !strings.HasSuffix(file, "_test.go") {
-			continue
+	root := t.TempDir()
+	files := map[string]string{
+		"go.mod":                   "module example.com/fixture\n\ngo 1.23.0\n",
+		"subject/subject.go":       "package subject\n\nfunc Subject() string { return \"subject\" }\n",
+		"subject/subject_test.go":  "package subject\n\nimport (\n\t\"testing\"\n\n\t\"example.com/fixture/inpackage\"\n)\n\nfunc TestSubject(t *testing.T) {\n\tif inpackage.Name() == \"\" {\n\t\tt.Fatal(\"empty\")\n\t}\n}\n",
+		"subject/external_test.go": "package subject_test\n\nimport (\n\t\"testing\"\n\n\t\"example.com/fixture/external\"\n)\n\nfunc TestExternal(t *testing.T) {\n\tif external.Name() == \"\" {\n\t\tt.Fatal(\"empty\")\n\t}\n}\n",
+		"inpackage/inpackage.go":   "package inpackage\n\nfunc Name() string { return \"inpackage\" }\n",
+		"external/external.go":     "package external\n\nfunc Name() string { return \"external\" }\n",
+	}
+	for name, content := range files {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := vfs.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatalf("create %s: %v", filepath.Dir(path), err)
 		}
-		content, err := vfs.ReadFile(filepath.Join(root, filepath.FromSlash(file)))
-		if err != nil {
-			t.Fatalf("read %s: %v", file, err)
-		}
-		name, ok := packageClause(string(content))
-		if !ok {
-			continue
-		}
-		if strings.HasSuffix(name, "_test") {
-			external = true
-		} else {
-			inPackage = true
-		}
-		if inPackage && external {
-			return inPackage, external
+		if err := vfs.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
 		}
 	}
-	return inPackage, external
-}
-
-// packageClause returns the package name a Go file declares.
-func packageClause(content string) (string, bool) {
-	for _, raw := range strings.Split(content, "\n") {
-		line := strings.TrimSpace(strings.TrimSuffix(raw, "\r"))
-		if !strings.HasPrefix(line, "package ") {
-			continue
-		}
-		name := strings.TrimSpace(strings.TrimPrefix(line, "package "))
-		if index := strings.Index(name, "//"); index >= 0 {
-			name = strings.TrimSpace(name[:index])
-		}
-		return name, name != ""
-	}
-	return "", false
+	return root
 }
 
 // TestTestDependencyViewCarriesTestImports pins what the test view is built from:

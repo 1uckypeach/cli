@@ -117,3 +117,28 @@ func TestRuntimeContextOutCarriesMeta(t *testing.T) {
 		t.Fatalf("Out() meta = %+v, want count=3 rollback=%q", envelope.Meta, "lark-cli undo")
 	}
 }
+
+// TestRuntimeContextOutCarriesNotice pins the last thing newEmitter forwards: the
+// notice provider. Nothing else in this package would notice its removal — the
+// envelope stays valid JSON without _notice, so a dropped assignment would only
+// show up as users no longer being told their token is about to expire.
+func TestRuntimeContextOutCarriesNotice(t *testing.T) {
+	previous := output.PendingNotice
+	t.Cleanup(func() { output.PendingNotice = previous })
+	output.PendingNotice = func() map[string]interface{} {
+		return map[string]interface{}{"warning": "token expires in 2 days"}
+	}
+
+	rctx, stdout, _ := newJqTestContext("", "")
+	rctx.Out(wiringPayload(), nil)
+
+	var envelope struct {
+		Notice map[string]interface{} `json:"_notice"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("Out() stdout is not JSON: %v\n%s", err, stdout.String())
+	}
+	if envelope.Notice["warning"] != "token expires in 2 days" {
+		t.Fatalf("Out() _notice = %#v, want the pending notice — NoticeProvider is not reaching the Emitter", envelope.Notice)
+	}
+}

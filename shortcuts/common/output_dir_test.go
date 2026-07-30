@@ -30,3 +30,19 @@ func TestEnsureOutputDirForwards(t *testing.T) {
 		t.Fatal("EnsureOutputDir(../escaped) = nil, wanted the validation error to propagate")
 	}
 }
+
+// TestEnsureOutputDirPropagatesFilesystemFailure is the other half of the forwarder
+// contract: a shortcut that cannot create its output directory must be told, not
+// left to write into a directory that was never created.
+func TestEnsureOutputDirPropagatesFilesystemFailure(t *testing.T) {
+	dir := t.TempDir()
+	cmdutil.TestChdir(t, dir)
+
+	if err := os.WriteFile(filepath.Join(dir, "blocker"), []byte("not a directory"), 0o600); err != nil {
+		t.Fatalf("write blocking file: %v", err)
+	}
+
+	if err := EnsureOutputDir(filepath.Join("blocker", "child")); err == nil {
+		t.Fatal("EnsureOutputDir(under a regular file) = nil, want the filesystem error")
+	}
+}

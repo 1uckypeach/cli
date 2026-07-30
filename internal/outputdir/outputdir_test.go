@@ -76,3 +76,24 @@ func TestEnsureAcceptsAbsolutePath(t *testing.T) {
 		t.Fatalf("%s is not a directory", target)
 	}
 }
+
+// TestEnsurePropagatesFilesystemFailure covers the branch the other cases never
+// reach: a path whose parent is a regular file cannot be created, and Ensure has to
+// return that error rather than reporting success for a directory that does not
+// exist.
+func TestEnsurePropagatesFilesystemFailure(t *testing.T) {
+	dir := t.TempDir()
+	cmdutil.TestChdir(t, dir)
+
+	blocker := filepath.Join(dir, "blocker")
+	if err := os.WriteFile(blocker, []byte("not a directory"), 0o600); err != nil {
+		t.Fatalf("write blocking file: %v", err)
+	}
+
+	if err := Ensure(filepath.Join("blocker", "child")); err == nil {
+		t.Fatal("Ensure(under a regular file) = nil, want the filesystem error")
+	}
+	if err := Ensure(filepath.Join(blocker, "child")); err == nil {
+		t.Fatal("Ensure(absolute, under a regular file) = nil, want the filesystem error")
+	}
+}
