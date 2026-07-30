@@ -107,6 +107,8 @@ metadata:
 
 **CRITICAL — 创建或大幅改写后，MUST 按 [validation-checklist.md](references/validation-checklist.md) 做显式验证：回读全文 XML、核对页数和关键元素，并使用 [`scripts/xml_text_overlap_lint.py`](scripts/xml_text_overlap_lint.py) 统一检查 XML、越界、重叠、空白页和内容稀疏风险。**
 
+**CRITICAL — 创建或编辑后，MUST 对当前演示文稿的全部页面做渲染视觉验收：从最新 `slides +xml-get` 回读结果取得完整 `slide_id` 清单，再用 `slides +screenshot` 每批最多 10 页覆盖全部页面，并实际查看每张截图。只抽查关键页、只生成截图未查看、或仅通过静态 lint 均不算完成；任一页面未截图、未查看或仍需修复时不得交付。**
+
 **CRITICAL — 创建前自检或失败排障时，MUST 按 [troubleshooting.md](references/troubleshooting.md) 检查 XML 转义、结构、shell 截断、图片 token、3350001 和布局风险。**
 
 **编辑已有幻灯片页面**：单个标题、文本块、图片或局部元素优先用 [`+replace-slide`](references/lark-slides-replace-slide.md)（块级替换/插入，不动页序）；已有 Slides 的多页大改优先用 [`+replace-pages`](references/lark-slides-replace-pages.md) 在原 presentation 内批量重建页面，避免 `slides +create` 生成新链接。选择 action 和完整读-改-写流程见 [`lark-slides-edit-workflows.md`](references/lark-slides-edit-workflows.md)。
@@ -213,7 +215,9 @@ Step 3: 按 slide_plan.json 生成 XML → 创建
 
 Step 4: 审查 & 交付
   - 创建完成后，必须用 `slides +xml-get --presentation <xml_presentation_id>` 读取全文 XML，并按 validation-checklist.md 做显式验证记录，包括 XML 文本重叠检查
-  - 失败或部分成功按 troubleshooting.md 处理；局部问题优先用 `+replace-slide` 修正
+  - 从最新回读结果取得完整 `slide_id` 清单，用 `slides +screenshot` 每批最多 10 页截图，直到覆盖全部页面；截图数量必须等于当前页面数量，并实际查看每张截图
+  - 失败或部分成功按 troubleshooting.md 处理；局部问题优先用 `+replace-slide` 修正，修正后重新截图并复验该页
+  - 任一页面未截图、未查看或仍需修复时不得交付，也不得声称已完成视觉验收
   - 没问题 → 交付：使用 NotifyHuman 工具交付 PPT 链接
 ```
 
