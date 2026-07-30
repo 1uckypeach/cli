@@ -11,6 +11,8 @@ const { spawnSync } = require("child_process");
 const MARKER = "failed to launch the native binary";
 const IS_WINDOWS = process.platform === "win32";
 const BIN_NAME = "lark-cli" + (IS_WINDOWS ? ".exe" : "");
+const SENTINEL = "--sentinel=LEAKCANARY";
+const SENTINEL_TOKEN = "LEAKCANARY";
 
 // run.js resolves the native binary relative to its own directory
 // (<dir>/../bin/lark-cli), so a fixture needs a full scripts/ + bin/ layout.
@@ -46,6 +48,34 @@ function runShim(sandbox, args) {
   return spawnSync(process.execPath, [sandbox.runJs, ...args], {
     encoding: "utf8",
   });
+}
+
+// A fixture that actually launches: a copy of the running node executable.
+// A #!/bin/sh script cannot be started as lark-cli.exe on Windows, which would
+// make every "the binary ran" case inert there.
+function installRunnableBinary(sandbox) {
+  fs.copyFileSync(process.execPath, sandbox.bin);
+  if (!IS_WINDOWS) {
+    fs.chmodSync(sandbox.bin, 0o755);
+  }
+}
+
+// `--` stops node from claiming the sentinel as one of its own options; without
+// it node bails out with "bad option" and exits 9, which would silently
+// invalidate the fixture instead of exercising the intended exit status.
+function runRanBinary(sandbox, code) {
+  return runShim(sandbox, ["-e", code, "--", SENTINEL]);
+}
+
+function assertBinaryRan(res) {
+  assert.ok(
+    !res.stderr.includes(MARKER),
+    `launch-failure diagnostic on a binary that ran: ${res.stderr}`
+  );
+  assert.ok(
+    !res.stderr.includes(SENTINEL_TOKEN),
+    `caller arguments leaked into stderr: ${res.stderr}`
+  );
 }
 
 function assertLaunchFailure(res, sandbox) {
@@ -119,5 +149,42 @@ describe("run.js launch-failure diagnostics", () => {
     const res = runShim(sandbox, ["--version"]);
 
     assert.equal(assertLaunchFailure(res, sandbox), "ENOENT");
+  });
+});
+
+describe("run.js pass-through when the binary runs", () => {
+  it("forwards a non-zero exit status unchanged", (t) => {
+    const sandbox = makeSandbox(t);
+    installRunnableBinary(sandbox);
+
+    const res = runRanBinary(sandbox, "process.exit(7)");
+
+    assert.equal(res.status, 7);
+    assertBinaryRan(res);
+  });
+
+  it(
+    "exits 1 without a diagnostic when the binary is killed by a signal",
+    { skip: IS_WINDOWS ? "POSIX signals" : false },
+    (t) => {
+      const sandbox = makeSandbox(t);
+      installRunnableBinary(sandbox);
+
+      const res = runRanBinary(sandbox, "process.kill(process.pid, 'SIGTERM')");
+
+      assert.equal(res.status, 1);
+      assertBinaryRan(res);
+    }
+  );
+
+  it("passes stdout through and exits 0", (t) => {
+    const sandbox = makeSandbox(t);
+    installRunnableBinary(sandbox);
+
+    const res = runRanBinary(sandbox, "console.log('shim-passthrough')");
+
+    assert.equal(res.status, 0);
+    assert.match(res.stdout, /shim-passthrough/);
+    assertBinaryRan(res);
   });
 });
