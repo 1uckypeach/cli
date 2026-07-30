@@ -227,6 +227,12 @@ func TestBaseDeleteShortcutsRisk(t *testing.T) {
 	}
 }
 
+// TestBaseHighRiskShortcutsTipsGuideAgents asserts that every high-risk-write
+// base shortcut with a --yes flag carries the agent-facing --yes guardrail.
+// The guardrail is now rendered by the framework's Risk line (RiskLine, see
+// internal/cmdutil/risk.go) rather than by a per-shortcut Tips string, so this
+// checks that render path instead of Tips content. Shortcut-level Tips must
+// not restate or contradict it (see shortcuts/base/high_risk.go removal).
 func TestBaseHighRiskShortcutsTipsGuideAgents(t *testing.T) {
 	for _, shortcut := range Shortcuts() {
 		if shortcut.Risk != "high-risk-write" {
@@ -239,9 +245,9 @@ func TestBaseHighRiskShortcutsTipsGuideAgents(t *testing.T) {
 		if flag == nil {
 			t.Fatalf("%s missing --yes flag", shortcut.Command)
 		}
-		tips := strings.Join(cmdutil.GetTips(cmd), "\n")
-		if !strings.Contains(tips, "pass --yes without asking again") {
-			t.Fatalf("%s tips missing agent guidance:\n%s", shortcut.Command, tips)
+		riskLine, ok := cmdutil.RiskLine(cmd)
+		if !ok || !strings.Contains(riskLine, "must NOT add --yes on its own") {
+			t.Fatalf("%s Risk line missing agent guidance: %q", shortcut.Command, riskLine)
 		}
 	}
 }
@@ -537,7 +543,6 @@ func TestBaseDashboardHelpGuidesAgents(t *testing.T) {
 			wantTips: []string{
 				"lark-cli base +dashboard-delete --base-token <base_token> --dashboard-id <dashboard_id> --yes",
 				"also deletes its blocks",
-				"pass --yes",
 			},
 		},
 		{
@@ -605,7 +610,6 @@ func TestBaseDashboardHelpGuidesAgents(t *testing.T) {
 			shortcut: BaseDashboardBlockDelete,
 			wantTips: []string{
 				"lark-cli base +dashboard-block-delete --base-token <base_token> --dashboard-id <dashboard_id> --block-id <block_id> --yes",
-				"pass --yes",
 			},
 		},
 	}

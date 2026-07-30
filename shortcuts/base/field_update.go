@@ -24,7 +24,6 @@ var BaseFieldUpdate = common.Shortcut{
 		{Name: "i-have-read-guide", Type: "bool", Desc: "acknowledge reading formula/lookup guide before creating or updating those field types", Hidden: true},
 	},
 	Tips: []string{
-		baseHighRiskYesTip,
 		`Example text: lark-cli base +field-update --base-token <base_token> --table-id <table_id> --field-id "Status" --json '{"name":"Status","type":"text"}' --yes`,
 		`Example select: lark-cli base +field-update --base-token <base_token> --table-id <table_id> --field-id "Status" --json '{"name":"Status","type":"select","multiple":false,"options":[{"name":"Todo"},{"name":"Done"}]}' --yes`,
 		`Example auto_number update: lark-cli base +field-update --base-token <base_token> --table-id <table_id> --field-id "编号" --json '{"name":"编号","type":"auto_number","style":{"rules":[{"type":"text","text":"TASK-"},{"type":"created_time","date_format":"yyyyMM"},{"type":"text","text":"-"},{"type":"incremental_number","length":4}]}}' --yes`,

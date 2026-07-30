@@ -18,7 +18,6 @@ var BaseViewDelete = common.Shortcut{
 	AuthTypes:   authTypes(),
 	Flags:       []common.Flag{baseTokenFlag(true), tableRefFlag(true), viewRefFlag(true)},
 	Tips: []string{
-		baseHighRiskYesTip,
 		`Example: lark-cli base +view-delete --base-token <base_token> --table-id <table_id> --view-id "Old View" --yes`,
 	},
 	DryRun: dryRunViewDelete,

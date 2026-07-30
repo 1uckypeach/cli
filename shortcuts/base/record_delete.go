@@ -23,7 +23,6 @@ var BaseRecordDelete = common.Shortcut{
 		{Name: "json", Desc: `JSON object with record_id_list, e.g. {"record_id_list":["rec_xxx"]}`},
 	},
 	Tips: []string{
-		baseHighRiskYesTip,
 		`Example: lark-cli base +record-delete --base-token <base_token> --table-id <table_id> --record-id <record_id_1> --record-id <record_id_2> --yes`,
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
