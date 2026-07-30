@@ -5,7 +5,7 @@ package localfileio
 
 import (
 	"fmt"
-	"os"
+
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -22,8 +22,7 @@ func SafeOutputPath(path string) (string, error) {
 // SafeInputPath validates an upload/read source path for --file flags.
 // Deliberately strict (relative-to-cwd only): several callers — drive sync,
 // upload flags, the CI quality gates — treat "absolute paths rejected" as a
-// load-bearing invariant. The one deliberate exception is the @file payload
-// expansion, which layers SafeTempAbsInputPath on top (see cmdutil).
+// load-bearing invariant. Out-of-tree content reaches flags via stdin ("-").
 func SafeInputPath(path string) (string, error) {
 	return safePath(path, "--file")
 }
@@ -147,32 +146,6 @@ func safePath(raw, flagName string) (string, error) {
 	}
 
 	return resolved, nil
-}
-
-// absPathUnderTempDir accepts an absolute path only when, after cleaning and
-// resolving symlinks (through the nearest existing ancestor for
-// not-yet-created files), it still lives under the canonical system temp dir.
-// A symlink inside the temp dir pointing outside it resolves outside and is
-// rejected.
-func absPathUnderTempDir(raw string) (string, bool) {
-	canonicalTmp, err := filepath.EvalSymlinks(os.TempDir())
-	if err != nil {
-		return "", false
-	}
-	// os.TempDir() is env-controlled (TMPDIR): a degenerate value like "/"
-	// would widen this narrow temp-dir exception into accepting nearly any
-	// absolute path, dissolving the relative-only invariant callers rely on.
-	if canonicalTmp == "" || filepath.Dir(canonicalTmp) == canonicalTmp {
-		return "", false
-	}
-	resolved, err := resolveNearestAncestor(filepath.Clean(raw))
-	if err != nil {
-		return "", false
-	}
-	if !isUnderDir(resolved, canonicalTmp) || resolved == canonicalTmp {
-		return "", false
-	}
-	return resolved, true
 }
 
 func resolveNearestAncestor(path string) (string, error) {
