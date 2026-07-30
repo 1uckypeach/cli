@@ -241,7 +241,7 @@ describe("run.js pass-through when the binary runs", () => {
   });
 
   it(
-    "exits 1 without a diagnostic when the binary is killed by a signal",
+    "exits 1 without a diagnostic when the binary receives SIGTERM",
     { skip: IS_WINDOWS ? "POSIX signals" : false },
     (t) => {
       const sandbox = makeSandbox(t);
@@ -250,7 +250,37 @@ describe("run.js pass-through when the binary runs", () => {
       const res = runRanBinary(sandbox, "process.kill(process.pid, 'SIGTERM')");
 
       assert.equal(res.status, 1);
+      assert.equal(res.stdout, "", `stdout should stay empty: ${res.stdout}`);
+      assert.equal(res.stderr, "", `stderr should stay empty: ${res.stderr}`);
       assertBinaryRan(res);
+    }
+  );
+
+  it(
+    "reports the signal when the binary crashes",
+    { skip: IS_WINDOWS ? "POSIX signals" : false },
+    (t) => {
+      const sandbox = makeSandbox(t);
+      installRunnableBinary(sandbox);
+
+      const res = runRanBinary(sandbox, "process.kill(process.pid, 'SIGKILL')");
+
+      const expected =
+        `\nlark-cli: the native binary was terminated by signal SIGKILL.\n` +
+        `  path:  ${sandbox.bin}\n\n` +
+        `Report this error at https://github.com/larksuite/cli/issues\n` +
+        `Please include the path and signal shown above.\n\n`;
+      assert.equal(res.status, 1);
+      assert.equal(res.stdout, "", `stdout should stay empty: ${res.stdout}`);
+      assert.equal(res.stderr, expected);
+      assert.ok(
+        !res.stderr.includes(MARKER),
+        `crash signal was misreported as a launch failure: ${res.stderr}`
+      );
+      assert.ok(
+        !res.stderr.includes(SENTINEL_TOKEN),
+        `caller arguments leaked into stderr: ${res.stderr}`
+      );
     }
   );
 

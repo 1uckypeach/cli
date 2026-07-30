@@ -71,9 +71,21 @@ if (args[0] === "install") {
     if (typeof e.status === "number") {
       process.exit(e.status);
     }
-    // The binary ran and was killed by a signal (Ctrl+C during `auth login`,
-    // for one). Not the shim's business to editorialise.
+    // SIGINT and SIGTERM are the explicit quiet allowlist for intentional
+    // interruption (Ctrl+C during `auth login`, for one). Other signals are
+    // crash evidence worth reporting, but do not prove the binary failed to
+    // launch. Only print e.signal and the known bin path: e.message and related
+    // error fields can contain the caller's full argv.
     if (e.signal) {
+      if (e.signal === "SIGINT" || e.signal === "SIGTERM") {
+        process.exit(1);
+      }
+      console.error(
+        `\nlark-cli: the native binary was terminated by signal ${e.signal}.\n` +
+        `  path:  ${bin}\n\n` +
+        `Report this error at https://github.com/larksuite/cli/issues\n` +
+        `Please include the path and signal shown above.\n`
+      );
       process.exit(1);
     }
     // Neither: the launch itself failed. Report only what is actually known —
