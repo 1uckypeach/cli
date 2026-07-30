@@ -10,6 +10,8 @@ const { spawnSync } = require("child_process");
 
 const MARKER = "failed to launch the native binary";
 const IS_WINDOWS = process.platform === "win32";
+const IS_ROOT =
+  !IS_WINDOWS && typeof process.getuid === "function" && process.getuid() === 0;
 const BIN_NAME = "lark-cli" + (IS_WINDOWS ? ".exe" : "");
 const SENTINEL = "--sentinel=LEAKCANARY";
 const SENTINEL_TOKEN = "LEAKCANARY";
@@ -143,42 +145,70 @@ function assertLaunchFailure(res, sandbox) {
 }
 
 describe("run.js launch-failure diagnostics", () => {
-  it("reports a zero-byte binary instead of exiting silently", (t) => {
+  it("reports a binary that fails to launch instead of exiting silently", (t) => {
     const sandbox = makeSandbox(t);
-    fs.writeFileSync(sandbox.bin, "");
-    if (!IS_WINDOWS) {
-      fs.chmodSync(sandbox.bin, 0o755);
+
+    if (IS_WINDOWS) {
+      // On win32 a zero-byte file is not a valid PE image, so CreateProcess
+      // genuinely fails to start it: this really is a launch failure there.
+      fs.writeFileSync(sandbox.bin, "");
+    } else {
+      // A 0-byte + executable file is NOT a launch failure on POSIX. libuv
+      // uses execvp, and POSIX execvp falls back to running the file through
+      // /bin/sh whenever execve returns ENOEXEC. /bin/sh then executes the
+      // empty file as an empty script and exits 0 -- execFileSync never
+      // throws, so this branch would never fire (measured as uid 0 in the
+      // Linux sandbox container: no throw, child exited 0). Do NOT
+      // "simplify" this back to a 0-byte file. A directory at the bin path
+      // passes the shim's existence check and then fails at exec with
+      // EACCES, and unlike chmod 0o000 that holds for uid 0 too, so this
+      // still proves the branch when CI runs as root.
+      fs.mkdirSync(sandbox.bin);
     }
 
     const res = runShim(sandbox, ["--version", SENTINEL]);
     const reason = assertLaunchFailure(res, sandbox);
 
-    // The errno is deliberately not pinned to a literal here: POSIX reports
-    // ENOEXEC, and finding out what Windows reports is the reason this file
-    // also runs on windows-latest. Only require that something specific was
-    // captured.
-    assert.notEqual(reason, "UNKNOWN", "the OS error was not captured");
+    if (IS_WINDOWS) {
+      // The errno is deliberately not pinned to a literal here: what Windows
+      // reports for a 0-byte .exe is still unverified, and finding out is
+      // the reason this file also runs on windows-latest. Only require that
+      // something specific was captured.
+      assert.notEqual(reason, "UNKNOWN", "the OS error was not captured");
 
-    // Endpoint protection can quarantine a zero-byte .exe, which would silently
-    // turn this into the missing-binary case.
-    assert.ok(fs.existsSync(sandbox.bin), "fixture binary vanished before launch");
-    assert.equal(
-      fs.statSync(sandbox.bin).size,
-      0,
-      "fixture binary is no longer zero-byte"
-    );
+      // Endpoint protection can quarantine a zero-byte .exe, which would
+      // silently turn this into the missing-binary case.
+      assert.ok(fs.existsSync(sandbox.bin), "fixture binary vanished before launch");
+      assert.equal(
+        fs.statSync(sandbox.bin).size,
+        0,
+        "fixture binary is no longer zero-byte"
+      );
+    } else {
+      // Measured with one identical directory fixture on both macOS (uid 501)
+      // and Linux (uid 0): EACCES both times, so this can be pinned exactly.
+      assert.equal(reason, "EACCES");
+    }
 
     if (process.env.GITHUB_STEP_SUMMARY) {
       fs.appendFileSync(
         process.env.GITHUB_STEP_SUMMARY,
-        `- \`run.js\` zero-byte binary on ${process.platform}: \`${reason}\`\n`
+        `- \`run.js\` unlaunchable binary on ${process.platform}: \`${reason}\`\n`
       );
     }
   });
 
   it(
     "reports a binary that cannot be executed",
-    { skip: IS_WINDOWS ? "POSIX execute bit" : false },
+    {
+      skip: IS_WINDOWS
+        ? "POSIX execute bit"
+        : IS_ROOT
+        ? "mode 0000 does not deny exec for uid 0, so this fixture cannot " +
+          "produce EACCES when running as root; the directory fixture above " +
+          "keeps EACCES covered"
+        : false,
+    },
     (t) => {
       const sandbox = makeSandbox(t);
       fs.writeFileSync(sandbox.bin, "#!/bin/sh\nexit 0\n");
