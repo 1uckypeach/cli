@@ -202,6 +202,7 @@ for full_job in \
   "$unit_test_section" \
   "$lint_section" \
   "$script_test_section" \
+  "$shim_test_windows_section" \
   "$deterministic_section" \
   "$coverage_job_section" \
   "$dry_run_section" \

@@ -22,8 +22,30 @@ const SENTINEL_TOKEN = "LEAKCANARY";
 // executable into a predictable user-writable directory changes Windows' DLL
 // search order.
 function makeSandbox(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "lark-cli-run-"));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  // fs.realpathSync canonicalises the temp root. assertLaunchFailure checks
+  // res.stderr.includes(sandbox.bin), but the path run.js prints comes from
+  // __dirname, and Node canonicalises a main module's path. On macOS the
+  // difference is /var -> /private/var, a prefix extension, so substring
+  // containment still holds and the tests pass unnoticed. On Windows it is
+  // NOT a prefix extension: libuv's realpath uses GetFinalPathNameByHandle
+  // with FILE_NAME_NORMALIZED, which expands 8.3 short names, and
+  // GitHub-hosted Windows runners set TEMP to
+  // C:\Users\RUNNER~1\AppData\Local\Temp while the profile directory is
+  // runneradmin. Short-name expansion is a substitution, not a prefix
+  // extension, so includes() returns false and every launch-failure case
+  // fails on the one platform the shim-test-windows job exists to cover. Do
+  // not "simplify" this back to the bare mkdtempSync result.
+  const root = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), "lark-cli-run-"))
+  );
+  t.after(() =>
+    fs.rmSync(root, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 100,
+    })
+  );
   fs.mkdirSync(path.join(root, "scripts"));
   fs.mkdirSync(path.join(root, "bin"));
   fs.copyFileSync(
@@ -80,6 +102,7 @@ function assertBinaryRan(res) {
 
 function assertLaunchFailure(res, sandbox) {
   assert.equal(res.status, 1);
+  assert.equal(res.stdout, "", `stdout should stay empty: ${res.stdout}`);
   assert.ok(
     res.stderr.includes(MARKER),
     `missing diagnostic, stderr was: ${res.stderr}`
@@ -92,6 +115,20 @@ function assertLaunchFailure(res, sandbox) {
   assert.ok(line, `diagnostic omits an error line: ${res.stderr}`);
   const reason = line[1].trim();
   assert.notEqual(reason, "", "error line is empty");
+  // Closure of a security review finding: a user facing EACCES with no
+  // pointer tends to reach for sudo / chmod 777 / disabling endpoint
+  // protection. Without this assertion, deleting the tracker line (and its
+  // follow-up sentence) from run.js leaves the suite fully green.
+  assert.ok(
+    res.stderr.includes(
+      "Report this error at https://github.com/larksuite/cli/issues"
+    ),
+    `diagnostic omits the issue tracker line: ${res.stderr}`
+  );
+  assert.ok(
+    res.stderr.includes("Please include the path and error shown above."),
+    `diagnostic omits the follow-up line: ${res.stderr}`
+  );
   return reason;
 }
 
@@ -177,14 +214,23 @@ describe("run.js pass-through when the binary runs", () => {
     }
   );
 
-  it("passes stdout through and exits 0", (t) => {
+  it("passes stdout and stderr through and exits 0", (t) => {
     const sandbox = makeSandbox(t);
     installRunnableBinary(sandbox);
 
-    const res = runRanBinary(sandbox, "console.log('shim-passthrough')");
+    const res = runRanBinary(
+      sandbox,
+      "console.log('shim-passthrough'); console.error('shim-stderr')"
+    );
 
     assert.equal(res.status, 0);
     assert.match(res.stdout, /shim-passthrough/);
+    // A shim that swallowed child stderr would be a variant of the very bug
+    // this branch repairs (issue #2053: launch failures with no evidence).
+    // This does not collide with assertBinaryRan's checks below: it asserts
+    // MARKER and the argv sentinel are absent from stderr, and "shim-stderr"
+    // is neither.
+    assert.match(res.stderr, /shim-stderr/);
     assertBinaryRan(res);
   });
 });

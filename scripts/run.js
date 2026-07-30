@@ -86,7 +86,8 @@ if (args[0] === "install") {
       `\nlark-cli: failed to launch the native binary.\n` +
       `  path:  ${bin}\n` +
       `  error: ${reason}\n\n` +
-      `Report this error at https://github.com/larksuite/cli/issues\n`
+      `Report this error at https://github.com/larksuite/cli/issues\n` +
+      `Please include the path and error shown above.\n`
     );
     process.exit(1);
   }
