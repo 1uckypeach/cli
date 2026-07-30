@@ -323,11 +323,11 @@ func TestBodyHelp_FactsSanitizeEnumText(t *testing.T) {
 	if !strings.Contains(got, "enum: ") {
 		t.Errorf("sanitizing must not drop the clause itself, got:\n%s", got)
 	}
-	// The skeleton cannot take the same route: a sanitized value is no longer the
-	// value the API accepts, so an unrenderable one yields the type marker rather
-	// than a mangled assertion.
+	// The skeleton never carries a string field's allowed value in the first
+	// place, so it has nothing to sanitize and nothing to leak — the reason this
+	// assertion holds is structural, not a cleaning step.
 	if !strings.Contains(got, `{"mode": "<string>"}`) {
-		t.Errorf("an unrenderable enum value must fall back to the type marker, got:\n%s", got)
+		t.Errorf("a string enum must not reach the skeleton at all, got:\n%s", got)
 	}
 }
 
@@ -353,9 +353,15 @@ func TestBodyHelp_SkeletonPlaceholdersAreLegalValues(t *testing.T) {
 		field meta.Field
 		want  string
 	}{
-		{"string enum takes its first allowed value",
+		// A string can advertise itself as a placeholder, so it does — filling in
+		// the first allowed value would make the skeleton read as ready to send,
+		// and the facts line already lists what is allowed.
+		{"string enum keeps its type marker",
 			meta.Field{Name: "visibility", Type: "string", Enum: []any{"default", "public"}},
-			`{"visibility": "default"}`},
+			`{"visibility": "<string>"}`},
+		{"numeric enum has no such marker, so it takes an allowed value",
+			meta.Field{Name: "mode", Type: "integer", Enum: []any{"1", "2"}},
+			`{"mode": 1}`},
 		{"integer floor beats zero",
 			meta.Field{Name: "agent_task_status", Type: "integer", Min: "1", Max: "4"},
 			`{"agent_task_status": 1}`},
@@ -368,6 +374,15 @@ func TestBodyHelp_SkeletonPlaceholdersAreLegalValues(t *testing.T) {
 		{"no enum and no floor keeps zero",
 			meta.Field{Name: "relative_fire_minute", Type: "integer"},
 			`{"relative_fire_minute": 0}`},
+		// A floor only displaces 0 when 0 is below it. Reaching for the floor
+		// regardless turns okr indicators patch's -99999999999 into the suggested
+		// value for a field whose upstream example is plain 0 — legal, and absurd.
+		{"a negative floor leaves zero alone",
+			meta.Field{Name: "current_value", Type: "number", Min: "-99999999999", Max: "99999999999"},
+			`{"current_value": 0}`},
+		{"a zero floor leaves zero alone",
+			meta.Field{Name: "offset", Type: "integer", Min: "0"},
+			`{"offset": 0}`},
 		{"a string with no enum keeps its type marker",
 			meta.Field{Name: "summary", Type: "string", Min: "1"},
 			`{"summary": "<string>"}`},
@@ -387,21 +402,21 @@ func TestBodyHelp_SkeletonPlaceholdersAreLegalValues(t *testing.T) {
 }
 
 // The skeleton's one hard promise is that it parses, and that promise must not
-// rest on upstream data happening to be benign. Both inputs below are reachable
-// through the metadata contract: a type meta.coerceLiteral does not recognize
-// leaves an enum value uncoerced (so a type-based guard would not see it), and
-// strconv.ParseFloat accepts "Inf"/"NaN" as a min.
+// rest on upstream data happening to be benign. Every input below is reachable
+// through the metadata contract: min/max and enum values arrive as strings, and
+// meta.coerceLiteral reaches "number" through strconv.ParseFloat, which accepts
+// "Inf" and "NaN" — strconv would render those `+Inf`, which is not JSON.
 func TestBodyHelp_SkeletonRejectsUnrenderablePlaceholders(t *testing.T) {
 	cases := []struct {
 		name, want string
 		field      meta.Field
 	}{
-		{"non-string enum value bypasses no guard", `{"t": "<string>"}`,
-			meta.Field{Name: "t", Enum: []any{map[string]any{"k": "a‮b"}}}},
 		{"non-finite floor is not a JSON number", `{"t": 0}`,
 			meta.Field{Name: "t", Type: "integer", Min: "Inf"}},
 		{"NaN floor likewise", `{"t": 0}`,
 			meta.Field{Name: "t", Type: "number", Min: "NaN"}},
+		{"a non-finite allowed value is refused the same way", `{"t": 0}`,
+			meta.Field{Name: "t", Type: "number", Enum: []any{"Inf"}}},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -417,7 +432,10 @@ func TestBodyHelp_SkeletonRejectsUnrenderablePlaceholders(t *testing.T) {
 }
 
 // An enum cannot stand in for a shape: substituting a scalar would tell the
-// caller to send a string where the API wants an object or a list.
+// caller to send a string where the API wants an object or a list. The numeric
+// branch is the only one that consults EnumOptions, so this holds structurally —
+// which is the point. It fails the moment someone hoists that lookup back above
+// the type switch, where it was and where it does reach objects and arrays.
 func TestBodyHelp_SkeletonKeepsShapeOverEnum(t *testing.T) {
 	got := bodySkeleton([]meta.Field{
 		{Name: "setting", Type: "object", Enum: []any{"x"},
