@@ -278,9 +278,9 @@ jobs:
               echo "Could not determine whether the Release already exists." >&2
               exit 1
             fi
-            args=("$TAG" --title "$TAG" --draft)
+            args=("$TAG" --target "$SOURCE_SHA" --title "$TAG" --draft)
             [[ "$PRERELEASE" != "true" ]] || args+=(--prerelease)
-            gh release create "${args[@]}" --notes-file "$release_notes"
+            gh release create "${args[@]}" --verify-tag --notes-file "$release_notes"
             verify_release_metadata "$(gh release view "$TAG" --json isDraft,isPrerelease,targetCommitish)"
           fi
           gh release edit "$TAG" --notes-file "$release_notes"
