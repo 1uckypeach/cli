@@ -267,3 +267,149 @@ func TestBodyHelp_NestedObjectArrayDoesNotClaimScalarElements(t *testing.T) {
 		}
 	}
 }
+
+// A facts line has to be enough to construct the call with. Naming the field and
+// its type is not: "参与人权限" does not say which four strings are accepted, and
+// "智能体任务状态" hides the 1-4 range entirely — both were invisible in body help
+// while the same facts already rendered on the param-flag side.
+func TestBodyHelp_FactsCarryEnumAndBounds(t *testing.T) {
+	fields := []meta.Field{
+		{Name: "attendee_ability", Type: "string", Description: "参与人权限",
+			Enum: []any{"none", "can_modify_event"},
+			Options: []meta.Option{
+				{Value: "none", Description: "无法编辑日程"},
+				{Value: "can_modify_event", Description: "可以编辑日程"},
+			}},
+		{Name: "agent_task_status", Type: "integer", Description: "智能体任务状态", Min: "1", Max: "4"},
+		{Name: "page_size", Type: "integer", Description: "每页数量", Max: "100"},
+		{Name: "offset", Type: "integer", Description: "偏移量", Min: "0"},
+		{Name: "summary", Type: "string", Description: "任务标题"},
+	}
+	got := bodyHelp(fields)
+	for _, want := range []string{
+		"enum: none=无法编辑日程|can_modify_event=可以编辑日程",
+		"min: 1, max: 4",
+		"max: 100",
+		"min: 0",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("facts must contain %q, got:\n%s", want, got)
+		}
+	}
+	// A field declaring neither gains nothing — the clauses are conditional.
+	summary := factsLineFor(t, got, "summary")
+	if strings.Contains(summary, "enum:") || strings.Contains(summary, "min:") {
+		t.Errorf("a field with no enum/bounds must gain no clause, got %q", summary)
+	}
+}
+
+// Enum values and their meanings are upstream text reaching a consumer's
+// context, exactly like the name/type/description already sanitized on this
+// line. Rendering them raw would let one field's row redraw or reorder the
+// listing around it.
+func TestBodyHelp_FactsSanitizeEnumText(t *testing.T) {
+	got := bodyHelp([]meta.Field{{
+		Name: "mode", Type: "string", Description: "模式",
+		Enum: []any{"a‮b"},
+		Options: []meta.Option{
+			{Value: "a‮b", Description: "\x1b[31mred\x1b[0m​ tail"},
+		},
+	}})
+	for _, bad := range []string{"\x1b", "‮", "​"} {
+		if strings.Contains(got, bad) {
+			t.Errorf("enum clause must not echo %q, got:\n%s", bad, got)
+		}
+	}
+	if !strings.Contains(got, "enum: ") {
+		t.Errorf("sanitizing must not drop the clause itself, got:\n%s", got)
+	}
+	// The skeleton cannot take the same route: a sanitized value is no longer the
+	// value the API accepts, so an unrenderable one yields the type marker rather
+	// than a mangled assertion.
+	if !strings.Contains(got, `{"mode": "<string>"}`) {
+		t.Errorf("an unrenderable enum value must fall back to the type marker, got:\n%s", got)
+	}
+}
+
+// The body line keeps FirstSentence, not the param side's sanitizeFieldDesc:
+// the latter cuts at `；`/`;`, which would truncate a description that spells its
+// alternatives out inline — mode's own values live after the semicolon.
+func TestBodyHelp_FactsKeepDescriptionPastSemicolon(t *testing.T) {
+	got := bodyHelp([]meta.Field{
+		{Name: "mode", Type: "integer", Description: "任务完成模式, 1 - 会签任务; 2 - 或签任务", Min: "1", Max: "2"},
+	})
+	if !strings.Contains(got, "2 - 或签任务") {
+		t.Errorf("description must survive past the semicolon, got:\n%s", got)
+	}
+}
+
+// The skeleton is copied verbatim and --dry-run does not validate the body, so a
+// placeholder must not assert a value the API rejects. `0` did: it is out of
+// range wherever min > 0, and outright illegal where the only allowed value is
+// something else.
+func TestBodyHelp_SkeletonPlaceholdersAreLegalValues(t *testing.T) {
+	cases := []struct {
+		name  string
+		field meta.Field
+		want  string
+	}{
+		{"string enum takes its first allowed value",
+			meta.Field{Name: "visibility", Type: "string", Enum: []any{"default", "public"}},
+			`{"visibility": "default"}`},
+		{"integer floor beats zero",
+			meta.Field{Name: "agent_task_status", Type: "integer", Min: "1", Max: "4"},
+			`{"agent_task_status": 1}`},
+		{"single-valued bound leaves no legal alternative",
+			meta.Field{Name: "event_type", Type: "integer", Min: "1", Max: "1"},
+			`{"event_type": 1}`},
+		{"required enum without a bound still resolves",
+			meta.Field{Name: "to_entity_type", Type: "integer", Required: true, Enum: []any{"2"}},
+			`{"to_entity_type": 2}`},
+		{"no enum and no floor keeps zero",
+			meta.Field{Name: "relative_fire_minute", Type: "integer"},
+			`{"relative_fire_minute": 0}`},
+		{"a string with no enum keeps its type marker",
+			meta.Field{Name: "summary", Type: "string", Min: "1"},
+			`{"summary": "<string>"}`},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			got := bodySkeleton([]meta.Field{tt.field})
+			if got != tt.want {
+				t.Errorf("skeleton = %s, want %s", got, tt.want)
+			}
+			var into map[string]any
+			if err := json.Unmarshal([]byte(got), &into); err != nil {
+				t.Fatalf("skeleton is not valid JSON: %v\n%s", err, got)
+			}
+		})
+	}
+}
+
+// An enum cannot stand in for a shape: substituting a scalar would tell the
+// caller to send a string where the API wants an object or a list.
+func TestBodyHelp_SkeletonKeepsShapeOverEnum(t *testing.T) {
+	got := bodySkeleton([]meta.Field{
+		{Name: "setting", Type: "object", Enum: []any{"x"},
+			Properties: map[string]meta.Field{"id": {Name: "id", Type: "string"}}},
+		{Name: "tags", Type: "array", Enum: []any{"y"}},
+	})
+	if !strings.Contains(got, `"setting": {"id": "<string>"}`) {
+		t.Errorf("an object must keep its shape, got %s", got)
+	}
+	if !strings.Contains(got, `"tags": ["<item>"]`) {
+		t.Errorf("an array must keep its shape, got %s", got)
+	}
+}
+
+// factsLineFor returns the Fields line for a top-level field name.
+func factsLineFor(t *testing.T, help, name string) string {
+	t.Helper()
+	for _, l := range strings.Split(help, "\n") {
+		if strings.HasPrefix(l, "    "+name+"  (") {
+			return l
+		}
+	}
+	t.Fatalf("no facts line for %q in:\n%s", name, help)
+	return ""
+}

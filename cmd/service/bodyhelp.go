@@ -53,6 +53,23 @@ func writeFieldLine(b *strings.Builder, f meta.Field, indent string) {
 	if d := schema.SanitizeIndexDesc(schema.FirstSentence(f.Description)); d != "" {
 		line += "  " + d
 	}
+	// Allowed values and bounds are what make the line enough to construct the
+	// call with: a description like "参与人权限" names the field but not its four
+	// legal values, and "智能体任务状态" hides the 1-4 range entirely. Only the two
+	// inline formatters are shared with the param-flag side — NOT fieldFacts,
+	// which also carries a cobra-specific bool clause and cuts descriptions at
+	// `；` (that would truncate body descriptions such as mode's "任务完成模式, 1 -
+	// 会签任务; 2 - 或签任务" to just the first alternative).
+	//
+	// The enum clause is sanitized because both the values and their meanings are
+	// upstream text, same as the name/type/description above; bounds come from
+	// strconv, so they carry nothing to sanitize.
+	if opts := f.EnumOptions(); len(opts) > 0 {
+		line += "  enum: " + schema.SanitizeIndexDesc(formatEnumInline(opts))
+	}
+	if bounds := formatBoundsInline(f); bounds != "" {
+		line += "  " + bounds
+	}
 	b.WriteString(line + "\n")
 }
 
@@ -82,8 +99,28 @@ func quoteJSONKey(name string) string {
 	return fmt.Sprintf("%q", name)
 }
 
+// skeletonValue renders one field's placeholder. The governing rule for the
+// whole skeleton — the array branch below is one instance of it, not a special
+// case: a placeholder must never positively assert something the API rejects.
+// The skeleton is meant to be copied verbatim, and --dry-run does not validate
+// the body, so a wrong assertion has nothing local to catch it. Concretely, a
+// field that declares its allowed values gets one of them, and a numeric field
+// with a floor gets that floor: `0` would be out of range for the 16 body fields
+// declaring min > 0, and illegal outright for the ones whose only allowed value
+// is 1 or 2. A type marker like "<string>" is the fallback for when no legal
+// value is knowable, not the goal.
 func skeletonValue(f meta.Field, depth int) string {
-	switch f.CanonicalType() {
+	ct := f.CanonicalType()
+	// Objects and arrays are structural: an enum could not substitute for the
+	// shape even if upstream declared one (none do today).
+	if ct != "object" && ct != "array" {
+		if opts := f.EnumOptions(); len(opts) > 0 {
+			if v, ok := enumLiteral(opts[0].Value); ok {
+				return v
+			}
+		}
+	}
+	switch ct {
 	case "object":
 		if depth <= 0 || len(f.Properties) == 0 {
 			return "{}"
@@ -95,11 +132,9 @@ func skeletonValue(f meta.Field, depth int) string {
 		// two reasons to stop recursing are not interchangeable here: with no
 		// element schema the array really is scalar, but running out of nesting
 		// budget says nothing about the element type. Collapsing both to
-		// ["<item>"] would assert "array of strings" for an array of objects,
-		// and a caller copying that builds a body the API rejects — with
-		// nothing local to catch it, since --dry-run does not validate body
-		// structure. So the budget case degrades to [{}], mirroring how an
-		// object degrades to {}.
+		// ["<item>"] would assert "array of strings" for an array of objects —
+		// the wrong assertion the rule above forbids. So the budget case
+		// degrades to [{}], mirroring how an object degrades to {}.
 		if len(f.Properties) == 0 {
 			return `["<item>"]`
 		}
@@ -110,10 +145,38 @@ func skeletonValue(f meta.Field, depth int) string {
 	case "boolean":
 		return "false"
 	case "integer", "number":
+		// min/max are type-agnostic upstream — they may bound a value or a
+		// string's length (see meta.Field.MinBound) — so the floor is only read
+		// as a value here, where a length reading is meaningless. String fields
+		// keep their type marker for exactly that reason.
+		if min := f.MinBound(); min != nil {
+			return formatBound(*min)
+		}
 		return "0"
 	default:
 		return `"<string>"`
 	}
+}
+
+// enumLiteral renders an allowed value as a JSON literal, reporting false when
+// it cannot be rendered both safely and faithfully. EnumOptions has already
+// coerced the literal to the field's type, so a number comes out unquoted and a
+// string quoted. The catch is the one quoteJSONKey covers for field names:
+// json.Marshal escapes quotes, backslashes and C0 but passes bidi controls, C1
+// and zero-width characters through. Sanitizing a *value* is not the fix it is
+// for a name — the sanitized text is no longer the value the API accepts, so it
+// would trade a rendering risk for the wrong-assertion risk skeletonValue exists
+// to avoid. A value carrying those characters therefore yields no usable
+// placeholder, and the caller falls back to the type marker.
+func enumLiteral(v any) (string, bool) {
+	if s, ok := v.(string); ok && schema.SanitizeIndexDesc(s) != s {
+		return "", false
+	}
+	q, err := json.Marshal(v)
+	if err != nil {
+		return "", false
+	}
+	return string(q), true
 }
 
 // joinProperties renders f's children as JSON members, one nesting level down.
