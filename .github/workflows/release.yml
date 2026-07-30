@@ -329,7 +329,7 @@ jobs:
           details="$(codesign -dv --verbose=4 "$binary" 2>&1)"
           grep -Eq '^Authority=Developer ID Application: .+' <<<"$details"
           grep -Fxq "TeamIdentifier=${MACOS_TEAM_ID}" <<<"$details"
-          grep -Eq '^flags=0x[0-9A-Fa-f]+\(.*runtime.*\)' <<<"$details"
+          grep -Eq '^CodeDirectory .*flags=0x[0-9A-Fa-f]+[(][^)]*runtime[^)]*[)]' <<<"$details"
           grep -Eq '^Timestamp=.+' <<<"$details"
           codesign --verify --strict --verbose=4 --check-notarization -R='notarized' "$binary"
           "$binary" --version | grep -Fq "$VERSION"

@@ -149,6 +149,7 @@ macos_download_step = macos.fetch("steps").find { |step| step["name"] == "Downlo
 fail("verify-macos must download the build candidate artifact") unless macos_download_step&.fetch("uses", nil)&.start_with?("actions/download-artifact@")
 fail("verify-macos must not download mutable Draft Release assets") if macos_verify_run&.include?("gh release download")
 fail("verify-macos must verify notarization through codesign") unless macos_verify_run&.include?("--check-notarization -R='notarized'")
+fail("verify-macos must detect hardened runtime in CodeDirectory metadata") unless macos_verify_run&.include?("^CodeDirectory .*flags=0x")
 
 draft_step = jobs.fetch("create-draft-release").fetch("steps").find { |step| step["name"] == "Create or reuse Draft Release" }
 draft_run = draft_step&.fetch("run", nil)
