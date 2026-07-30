@@ -232,8 +232,14 @@ func TestSchemaCmd_UnknownService(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for unknown service")
 	}
-	if !strings.Contains(err.Error(), "Unknown service") {
-		t.Errorf("expected 'Unknown service' error, got: %v", err)
+	// The message says what is missing (no API methods) rather than calling the
+	// name unknown: the same path is reached by shortcut-only domains, which do
+	// exist as commands.
+	if !strings.Contains(err.Error(), "No API methods for") {
+		t.Errorf("expected 'No API methods for' error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "nonexistent_service") {
+		t.Errorf("error must name the rejected service, got: %v", err)
 	}
 	var ve *errs.ValidationError
 	if !errors.As(err, &ve) {
@@ -347,5 +353,31 @@ func TestResolveError_SanitizesShortcutMessageToo(t *testing.T) {
 	}
 	if strings.ContainsRune(problem.Hint, '‮') {
 		t.Errorf("hint must not echo bidi controls, got %q", problem.Hint)
+	}
+}
+
+// A domain that only provides +shortcuts is absent from the API catalog but
+// exists as a command, so the rejection must not call it unknown and must point
+// back at the help tree.
+func TestResolveError_ShortcutOnlyDomainPointsAtHelp(t *testing.T) {
+	var buf bytes.Buffer
+	err := runSchema(&buf, []string{"docs"}, core.StrictModeOff, "")
+	if err == nil {
+		t.Fatal("a shortcut-only domain has no API methods and must not resolve")
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatal("error must carry a problem envelope")
+	}
+	if strings.Contains(problem.Message, "Unknown service") {
+		t.Errorf("message must not claim the domain is unknown, got %q", problem.Message)
+	}
+	if !strings.Contains(problem.Message, "docs") {
+		t.Errorf("message must name the rejected domain, got %q", problem.Message)
+	}
+	for _, want := range []string{"lark-cli docs --help", "lark-cli --help"} {
+		if !strings.Contains(problem.Hint, want) {
+			t.Errorf("hint must offer %q, got %q", want, problem.Hint)
+		}
 	}
 }

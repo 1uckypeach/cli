@@ -186,6 +186,15 @@ func safeSeg(seg string) string {
 	return "<name>"
 }
 
+// domainOrPlaceholder keeps a hint's example command runnable-looking even when
+// no domain segment was supplied.
+func domainOrPlaceholder(domain string) string {
+	if domain == "" {
+		return "<domain>"
+	}
+	return domain
+}
+
 // resolveError maps a catalog *ResolveError to a typed *errs.ValidationError
 // (CategoryValidation drives the exit code; Hint promotes to the envelope). The
 // hints route the caller back to a usable surface instead of dead-ending:
@@ -219,8 +228,13 @@ func resolveError(err error, parts []string) error {
 
 	switch re.Kind {
 	case apicatalog.ErrService:
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown service: %s", re.Subject).
-			WithHint("Available: %s", strings.Join(re.Candidates, ", "))
+		// Not "unknown": a domain that only provides +shortcuts is absent from
+		// the API catalog but very much exists as a command, so calling it
+		// unknown contradicts what `lark-cli --help` just showed and sends the
+		// caller looking for a naming mismatch that isn't there.
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "No API methods for: %s", safeSeg(re.Subject)).
+			WithHint("Available: %s; a domain that only provides +shortcuts has no API methods and is not listed here — run `lark-cli %s --help` to see its commands, or `lark-cli --help` to list all domains",
+				strings.Join(re.Candidates, ", "), domainOrPlaceholder(domain))
 	case apicatalog.ErrResource:
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown resource: %s", re.Subject).
 			WithHint("Available: %s%s", strings.Join(re.Candidates, ", "), indexHint)

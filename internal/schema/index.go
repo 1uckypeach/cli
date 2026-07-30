@@ -63,15 +63,22 @@ type MethodIndexItem struct {
 	AccessTokens []string `json:"access_tokens"`
 }
 
-// BuildServiceIndex renders the service listing. descFor supplies the service
+// BuildServiceIndex renders the service listing. descFor supplies the curated
 // description; the caller injects it so this package keeps no registry
-// dependency.
+// dependency. When there is no curated text the metadata's own description is
+// used — the same override-then-fall-back chain the command tree's own service
+// summaries use, so this machine-readable index never carries less than the
+// human-facing help.
 func BuildServiceIndex(services []meta.Service, descFor func(string) string) ServiceIndex {
 	items := make([]ServiceIndexItem, 0, len(services))
 	for _, svc := range services {
+		desc := descFor(svc.Name)
+		if desc == "" {
+			desc = svc.Description
+		}
 		items = append(items, ServiceIndexItem{
 			Name:        svc.Name,
-			Description: SanitizeIndexDesc(descFor(svc.Name)),
+			Description: SanitizeIndexDesc(desc),
 		})
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
@@ -105,11 +112,22 @@ func riskOf(m meta.Method) string {
 	return core.RiskRead
 }
 
-// FirstSentence keeps the leading summary of an upstream description. Upstream
-// shapes them as "<summary>。Identity: <notes>", and the identity notes are
-// already a separate field, so carrying the tail would only inflate the output.
-// Exported so the flattened domain-help listing renders descriptions the same
-// way.
+var (
+	// Upstream appends an identity note after the summary. Chinese descriptions
+	// delimit it with 。 (cut below), but English ones run it on with ASCII
+	// punctuation, so the marker itself is the only reliable cut point —
+	// truncating at the first ASCII "." instead would cut abbreviations like
+	// "e.g." mid-word.
+	identityTailRe = regexp.MustCompile(`\s*Identity:.*$`)
+	// Markdown links in upstream text target skill-internal paths, which mean
+	// nothing to someone reading CLI output: keep the text, drop the target.
+	markdownLinkRe = regexp.MustCompile(`\[([^\]]*)\]\([^)]*\)`)
+)
+
+// FirstSentence keeps the leading summary of an upstream description and drops
+// the identity note that follows it — identity is already a separate field, so
+// carrying the tail only inflates the line. Exported so the flattened
+// domain-help listing renders descriptions the same way.
 func FirstSentence(s string) string {
 	if i := strings.IndexRune(s, '。'); i >= 0 {
 		s = s[:i]
@@ -117,7 +135,9 @@ func FirstSentence(s string) string {
 	if i := strings.IndexAny(s, "\r\n"); i >= 0 {
 		s = s[:i]
 	}
-	return strings.TrimSpace(s)
+	s = identityTailRe.ReplaceAllString(s, "")
+	s = markdownLinkRe.ReplaceAllString(s, "$1")
+	return strings.TrimRight(strings.TrimSpace(s), " .;；,，、")
 }
 
 var (

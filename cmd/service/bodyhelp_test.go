@@ -185,3 +185,43 @@ func TestPrepareMethodHelp_KeepsBodyContract(t *testing.T) {
 		t.Error("rebuilt Long must keep the schema pointer")
 	}
 }
+
+// The metadata wraps an array's element schema in "properties", so an array of
+// objects must render as [{…}]. Emitting ["<item>"] shows a string array, and a
+// caller copying that builds a body the API rejects — with no local signal,
+// since --dry-run does not validate body structure.
+func TestBodyHelp_SkeletonRendersObjectArrays(t *testing.T) {
+	fields := []meta.Field{{
+		Name: "members", Type: "array", Description: "任务成员列表",
+		Properties: map[string]meta.Field{
+			"id":   {Name: "id", Type: "string", Required: true},
+			"role": {Name: "role", Type: "string", Required: true},
+		},
+	}}
+	skeleton := bodySkeleton(fields)
+	if strings.Contains(skeleton, `["<item>"]`) {
+		t.Errorf("an array of objects must not render as a string array: %s", skeleton)
+	}
+	for _, want := range []string{`"id"`, `"role"`} {
+		if !strings.Contains(skeleton, want) {
+			t.Errorf("skeleton must name the element field %s: %s", want, skeleton)
+		}
+	}
+	// Still has to be copyable into --data.
+	var into map[string][]map[string]any
+	if err := json.Unmarshal([]byte(skeleton), &into); err != nil {
+		t.Fatalf("object-array skeleton is not valid JSON: %v\n%s", err, skeleton)
+	}
+	if len(into["members"]) != 1 {
+		t.Errorf("members must render exactly one sample element: %s", skeleton)
+	}
+}
+
+// An array whose element shape the metadata does not describe keeps the neutral
+// placeholder rather than inventing a structure.
+func TestBodyHelp_SkeletonKeepsPlaceholderForUntypedArray(t *testing.T) {
+	skeleton := bodySkeleton([]meta.Field{{Name: "tags", Type: "array"}})
+	if !strings.Contains(skeleton, `["<item>"]`) {
+		t.Errorf("an array with no element schema keeps the placeholder, got %s", skeleton)
+	}
+}

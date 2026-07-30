@@ -57,10 +57,10 @@ func writeFieldLine(b *strings.Builder, f meta.Field, indent string) {
 }
 
 // bodySkeleton renders a single-line JSON object with type placeholders, e.g.
-// {"receive_id": "<string>", "filter": {"user_ids": ["<item>", "..."]}}. It is
-// meant to be copied straight into --data, so field names are JSON-quoted
-// rather than interpolated: a name carrying a quote or newline must not be able
-// to break the shape.
+// {"receive_id": "<string>", "members": [{"id": "<string>"}]}. It is meant to be
+// copied straight into --data, so field names are JSON-quoted rather than
+// interpolated: a name carrying a quote or newline must not be able to break the
+// shape.
 func bodySkeleton(fields []meta.Field) string {
 	parts := make([]string, 0, len(fields))
 	for _, f := range fields {
@@ -88,13 +88,18 @@ func skeletonValue(f meta.Field, depth int) string {
 		if depth <= 0 || len(f.Properties) == 0 {
 			return "{}"
 		}
-		inner := make([]string, 0, len(f.Properties))
-		for _, ch := range f.Children() {
-			inner = append(inner, quoteJSONKey(ch.Name)+": "+skeletonValue(ch, depth-1))
-		}
-		return "{" + strings.Join(inner, ", ") + "}"
+		return "{" + joinProperties(f, depth) + "}"
 	case "array":
-		return `["<item>"]`
+		// The metadata wraps an array's *element* schema in "properties", so
+		// these children describe one element rather than sibling fields. An
+		// array of objects therefore has to render as [{…}]: emitting
+		// ["<item>"] would show a string array, and a caller copying that
+		// builds a body the API rejects — with nothing local to catch it,
+		// since --dry-run does not validate body structure.
+		if depth <= 0 || len(f.Properties) == 0 {
+			return `["<item>"]`
+		}
+		return "[{" + joinProperties(f, depth) + "}]"
 	case "boolean":
 		return "false"
 	case "integer", "number":
@@ -102,4 +107,14 @@ func skeletonValue(f meta.Field, depth int) string {
 	default:
 		return `"<string>"`
 	}
+}
+
+// joinProperties renders f's children as JSON members, one nesting level down.
+func joinProperties(f meta.Field, depth int) string {
+	children := f.Children()
+	inner := make([]string, 0, len(children))
+	for _, ch := range children {
+		inner = append(inner, quoteJSONKey(ch.Name)+": "+skeletonValue(ch, depth-1))
+	}
+	return strings.Join(inner, ", ")
 }

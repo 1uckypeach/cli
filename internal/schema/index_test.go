@@ -3,7 +3,12 @@
 
 package schema
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/larksuite/cli/internal/meta"
+)
 
 func TestFirstSentence(t *testing.T) {
 	cases := []struct{ in, want string }{
@@ -63,5 +68,85 @@ func TestSanitizeIndexDesc_FoldsC1Controls(t *testing.T) {
 		if got := SanitizeIndexDesc(in); got != "a b" {
 			t.Errorf("SanitizeIndexDesc(U+%04X) = %q, want %q", r, got, "a b")
 		}
+	}
+}
+
+// The identity note is a separate field, so it must never reach a listing line.
+// English descriptions run it on with ASCII punctuation instead of 。, which an
+// earlier version only cut on.
+func TestFirstSentence_CutsIdentityTailInEnglishText(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{
+			"Create a feed group. Identity: `user` only (`user_access_token`).",
+			"Create a feed group",
+		},
+		{
+			"批量查询设置 (e.g. `is_muted` mutes messages); up to 10 chats per request. Identity: `user` only",
+			"批量查询设置 (e.g. `is_muted` mutes messages); up to 10 chats per request",
+		},
+		{"将用户移出群聊。Identity: supports `user`", "将用户移出群聊"},
+	}
+	for _, c := range cases {
+		if got := FirstSentence(c.in); got != c.want {
+			t.Errorf("FirstSentence(%q) =\n  %q\nwant\n  %q", c.in, got, c.want)
+		}
+	}
+}
+
+// An abbreviation's period must not be mistaken for a sentence end.
+func TestFirstSentence_KeepsAbbreviations(t *testing.T) {
+	const in = "Filter by type (e.g. group or p2p) and sort the result"
+	if got := FirstSentence(in); got != in {
+		t.Errorf("FirstSentence must not truncate at an abbreviation: got %q", got)
+	}
+}
+
+// Upstream appends skill-internal doc references like
+// "[Must-read](references/lark-im-reactions.md)" after the identity note. Those
+// paths cannot be resolved from CLI output, so none of them may reach a listing
+// line — whether they are cut with the identity tail (every current case) or,
+// should one ever appear earlier, stripped of its target.
+func TestFirstSentence_DropsSkillInternalDocRefs(t *testing.T) {
+	cases := []string{
+		"Update a feed group. Identity: `user` only (`user_access_token`).[Must-read](references/lark-im-feed-groups.md)",
+		"获取消息表情回复。Identity: supports `user` and `bot`.[Must-read](references/lark-im-reactions.md)",
+		"Create a group.[Must-read](references/lark-im-feed-groups.md)",
+	}
+	for _, in := range cases {
+		got := FirstSentence(in)
+		if strings.Contains(got, "references/") || strings.Contains(got, "](") {
+			t.Errorf("skill-internal doc path leaked: FirstSentence(%q) = %q", in, got)
+		}
+	}
+	// The summary itself must survive intact.
+	if got := FirstSentence(cases[0]); got != "Update a feed group" {
+		t.Errorf("got %q, want %q", got, "Update a feed group")
+	}
+}
+
+// The index must not carry less than the human-facing help: when there is no
+// curated description, the metadata's own description is used.
+func TestBuildServiceIndex_FallsBackToMetadataDescription(t *testing.T) {
+	idx := BuildServiceIndex(
+		[]meta.Service{
+			{Name: "curated", Description: "upstream text"},
+			{Name: "bare", Description: "attendance record query"},
+		},
+		func(name string) string {
+			if name == "curated" {
+				return "curated text"
+			}
+			return ""
+		},
+	)
+	got := map[string]string{}
+	for _, s := range idx.Services {
+		got[s.Name] = s.Description
+	}
+	if got["curated"] != "curated text" {
+		t.Errorf("curated description must win, got %q", got["curated"])
+	}
+	if got["bare"] != "attendance record query" {
+		t.Errorf("missing curated text must fall back to metadata, got %q", got["bare"])
 	}
 }
