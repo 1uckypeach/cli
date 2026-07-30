@@ -581,22 +581,10 @@ type seededLayeringEdge struct {
 func TestPackageLayering(t *testing.T) {
 	root := repoRoot(t)
 	packages := goListPackageGraph(t, root)
-	testPackages := testDependencyView(packages)
 	seeded := readLayeringEdges(t, filepath.Join(root, "internal/qualitygate/deptest/layering-edges.txt"))
 	seededByEdge := indexSeededLayeringEdges(t, seeded)
 
-	actualByRule := make(map[string][]layeringViolation, len(rules))
-	actualEdges := make(map[layeringEdge]struct{})
-	for _, rule := range rules {
-		violations := slices.Concat(
-			evaluateLayeringRule(packages, rule),
-			evaluateLayeringTestRule(testPackages, rule),
-		)
-		actualByRule[rule.Name] = violations
-		for _, violation := range violations {
-			actualEdges[violation.layeringEdge] = struct{}{}
-		}
-	}
+	actualByRule, actualEdges := layeringViolationsByRule(packages, rules)
 
 	for _, rule := range rules {
 		t.Run(rule.Name, func(t *testing.T) {
@@ -773,6 +761,152 @@ func TestMatchesPackagePrefix(t *testing.T) {
 			}
 		})
 	}
+}
+
+// layeringViolationsByRule is what the gate aggregates: every rule against the
+// production graph, and the same rule against the graph derived from the test
+// files. Both views live behind this one function so that removing either of them
+// is a change to code a test covers —
+// TestLayeringViolationsByRuleReportsTestOnlyEdges fails if the test view stops
+// being consulted, which a fixture handed straight to evaluateLayeringTestRule
+// could not detect.
+func layeringViolationsByRule(
+	packages []listedPackage,
+	ruleSet []Rule,
+) (map[string][]layeringViolation, map[layeringEdge]struct{}) {
+	testPackages := testDependencyView(packages)
+	byRule := make(map[string][]layeringViolation, len(ruleSet))
+	edges := make(map[layeringEdge]struct{})
+	for _, rule := range ruleSet {
+		violations := slices.Concat(
+			evaluateLayeringRule(packages, rule),
+			evaluateLayeringTestRule(testPackages, rule),
+		)
+		byRule[rule.Name] = violations
+		for _, violation := range violations {
+			edges[violation.layeringEdge] = struct{}{}
+		}
+	}
+	return byRule, edges
+}
+
+// TestLayeringViolationsByRuleReportsTestOnlyEdges runs the real rule set through
+// the gate's own aggregation, with a package whose production imports are clean and
+// whose denied dependencies exist only in its test files. Both have to come back.
+//
+// It also states which packages stay denied to tests: keychain and client are the
+// two the shortcuts TestExempt list leaves out, because constructing a
+// RuntimeContext needs neither, and reaching for them means the test is talking to
+// the real keyring or issuing real requests.
+func TestLayeringViolationsByRuleReportsTestOnlyEdges(t *testing.T) {
+	probe := listedPackage{
+		ImportPath:   modulePath + "/shortcuts/probe",
+		TestImports:  []string{modulePath + "/internal/keychain"},
+		XTestImports: []string{modulePath + "/internal/client"},
+	}
+
+	byRule, edges := layeringViolationsByRule([]listedPackage{probe}, rules)
+
+	for _, want := range []string{modulePath + "/internal/keychain", modulePath + "/internal/client"} {
+		edge := layeringEdge{From: probe.ImportPath, Denied: want}
+		if _, ok := edges[edge]; !ok {
+			t.Errorf("test-only dependency on %s was not reported; the gate is not consulting the test view", want)
+			continue
+		}
+		var found *layeringViolation
+		for i, violation := range byRule["shortcuts-runtime-gate"] {
+			if violation.layeringEdge == edge {
+				found = &byRule["shortcuts-runtime-gate"][i]
+				break
+			}
+		}
+		if found == nil {
+			t.Errorf("%s is missing from the shortcuts-runtime-gate group, so the rule report would not name it", want)
+			continue
+		}
+		if !found.TestOnly {
+			t.Errorf("%s is reported without TestOnly, so the failure would send the reader to the production files", want)
+		}
+	}
+}
+
+// TestGoListGraphCarriesBothTestImportKinds is the other half of the wiring: the
+// aggregation can only see what goListPackageGraph merges out of `go list -json`,
+// and TestImports and XTestImports are separate fields that have to be merged
+// separately. Dropping either one empties the test view for a whole class of files
+// while every other check still passes.
+//
+// The expectation is derived from the tree rather than pinned to a package that
+// happens to import something today: whichever kinds of test file exist in this
+// module must show up in the graph.
+func TestGoListGraphCarriesBothTestImportKinds(t *testing.T) {
+	root := repoRoot(t)
+	inPackage, external := testFilePackageKinds(t, root)
+	if !inPackage && !external {
+		t.Skip("no test files in the module")
+	}
+
+	packages := goListPackageGraph(t, root)
+	var withTestImports, withXTestImports int
+	for _, pkg := range packages {
+		if len(pkg.TestImports) > 0 {
+			withTestImports++
+		}
+		if len(pkg.XTestImports) > 0 {
+			withXTestImports++
+		}
+	}
+
+	if inPackage && withTestImports == 0 {
+		t.Error("the module has in-package test files but no package reports TestImports; goListPackageGraph is dropping the field")
+	}
+	if external && withXTestImports == 0 {
+		t.Error("the module has external test packages but no package reports XTestImports; goListPackageGraph is dropping the field")
+	}
+}
+
+// testFilePackageKinds reports which kinds of test file the module contains: files
+// in the package under test, and files in its external `_test` package.
+func testFilePackageKinds(t *testing.T, root string) (inPackage, external bool) {
+	t.Helper()
+	for _, file := range moduleGoFiles(t, root) {
+		if !strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		content, err := vfs.ReadFile(filepath.Join(root, filepath.FromSlash(file)))
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		name, ok := packageClause(string(content))
+		if !ok {
+			continue
+		}
+		if strings.HasSuffix(name, "_test") {
+			external = true
+		} else {
+			inPackage = true
+		}
+		if inPackage && external {
+			return inPackage, external
+		}
+	}
+	return inPackage, external
+}
+
+// packageClause returns the package name a Go file declares.
+func packageClause(content string) (string, bool) {
+	for _, raw := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(strings.TrimSuffix(raw, "\r"))
+		if !strings.HasPrefix(line, "package ") {
+			continue
+		}
+		name := strings.TrimSpace(strings.TrimPrefix(line, "package "))
+		if index := strings.Index(name, "//"); index >= 0 {
+			name = strings.TrimSpace(name[:index])
+		}
+		return name, name != ""
+	}
+	return "", false
 }
 
 // TestTestDependencyViewCarriesTestImports pins what the test view is built from:
