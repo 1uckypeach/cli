@@ -108,17 +108,21 @@ func TestRenderAffordanceForCmd(t *testing.T) {
 
 // PrepareMethodHelp composes the guidance into Long at the top: description,
 // then the affordance block, then the full-schema pointer — so an agent reads
-// when-to-use/examples before the flag list.
+// when-to-use/examples before the flag list. Risk and Tips are deliberately
+// absent from Long — they render at the bottom of help for every method
+// command, the same as shortcuts (see PrepareShortcutHelp) — so the overlay's
+// tips are handed to the command instead.
 func TestPrepareMethodHelp(t *testing.T) {
 	orig := affordanceLookup
 	t.Cleanup(func() { affordanceLookup = orig })
 	affordanceLookup = func(_, _ string) (json.RawMessage, bool) {
-		return json.RawMessage(`{"use_when":["发文本消息"],"examples":[{"description":"发一条","command":"lark-cli im messages create ..."}]}`), true
+		return json.RawMessage(`{"use_when":["发文本消息"],"tips":["富文本用 msg_type=post"],"examples":[{"description":"发一条","command":"lark-cli im messages create ..."}]}`), true
 	}
 
 	f, _, _, _ := cmdutil.TestFactory(t, testConfig)
 	m := map[string]interface{}{"id": "messages.create", "path": "messages", "httpMethod": "POST", "description": "发送消息"}
 	cmd := NewCmdServiceMethod(f, imSpec(), meta.FromMap(m), "create", "messages", nil)
+	cmdutil.SetRisk(cmd, "high-risk-write")
 
 	if !PrepareMethodHelp(cmd, nil) {
 		t.Fatal("PrepareMethodHelp returned false for a service-method command")
@@ -134,6 +138,14 @@ func TestPrepareMethodHelp(t *testing.T) {
 	}
 	if !(descAt < useAt && useAt < exAt && exAt < schemaAt) {
 		t.Errorf("order should be description < affordance < schema pointer; got desc=%d use=%d ex=%d schema=%d\n%s", descAt, useAt, exAt, schemaAt, long)
+	}
+	for _, unwanted := range []string{"Risk:", "Tips:", "富文本用 msg_type=post"} {
+		if strings.Contains(long, unwanted) {
+			t.Errorf("method Long must not carry %q (it renders at the bottom of help):\n%s", unwanted, long)
+		}
+	}
+	if got := cmdutil.GetTips(cmd); len(got) != 1 || got[0] != "富文本用 msg_type=post" {
+		t.Errorf("expected the overlay tips to move onto the command for the bottom append, got %v", got)
 	}
 
 	// A non-service command (no schema-path annotation) is left untouched.

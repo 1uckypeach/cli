@@ -130,12 +130,19 @@ func setMethodHelpData(cmd *cobra.Command, service, methodID, schemaPath, params
 }
 
 // PrepareMethodHelp rebuilds a generated method command's Long with the agent
-// guidance at the TOP (Risk, then the affordance block, then the schema
-// pointer), returning false for non-method commands. The overlay is parsed
-// here — only when help is rendered. skillFS (nil-safe) gates the related-skill
-// pointers: each is emitted only when it resolves in the skill tree (see
+// guidance at the TOP (the affordance block, then the schema pointer),
+// returning false for non-method commands. The overlay is parsed here — only
+// when help is rendered. skillFS (nil-safe) gates the related-skill pointers:
+// each is emitted only when it resolves in the skill tree (see
 // affordance.SkillStatPath), so a typo or a build without embedded skills never
 // prints a `skills read` that cannot be opened.
+//
+// Risk and Tips do not go into Long. They render at the bottom of help
+// (installTipsHelpFunc) for every method command, the same as shortcuts, so the
+// two paths cannot drift apart in wording or position. The overlay's ### Tips
+// win over the command's declarative tips (cmdutil.SetTips at build time from
+// m.Tips) when both are present — see PrepareShortcutHelp for the identical
+// precedence rule.
 func PrepareMethodHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 	ann := cmd.Annotations
 	if ann == nil {
@@ -148,11 +155,18 @@ func PrepareMethodHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 
 	var b strings.Builder
 	b.WriteString(cmd.Short)
-	writeRisk(&b, cmd)
 
 	var skills []string
 	if raw, ok := affordanceRaw(cmd); ok {
 		if a, ok := (meta.Method{Affordance: raw}).ParsedAffordance(); ok {
+			if len(a.Tips) == 0 {
+				a.Tips = cmdutil.GetTips(cmd)
+			}
+			// Hand the resolved tips to the command and keep them out of the
+			// affordance block: the bottom-of-help append is the one place tips
+			// render (see PrepareShortcutHelp).
+			cmdutil.SetTips(cmd, a.Tips)
+			a.Tips = nil
 			if block := renderAffordanceValue(a); block != "" {
 				b.WriteString("\n\n")
 				b.WriteString(block)
@@ -221,21 +235,6 @@ func PrepareShortcutHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 
 	cmd.Long = b.String()
 	return true
-}
-
-// writeRisk appends the "Risk: <level>" line, warning agents not to self-approve
-// high-risk-write commands. A no-op when the command has no risk annotation.
-// The wording lives in cmdutil.RiskLine so this method-help path and the
-// shortcut bottom-of-help append (installTipsHelpFunc) render identical text;
-// other --yes-related prompts (internal/cmdutil/confirm.go,
-// internal/schema/assembler.go) have their own independent wording.
-func writeRisk(b *strings.Builder, cmd *cobra.Command) {
-	line, ok := cmdutil.RiskLine(cmd)
-	if !ok {
-		return
-	}
-	b.WriteString("\n\n")
-	b.WriteString(line)
 }
 
 // writeRelatedSkills appends the "Related skills" block for the entries that
