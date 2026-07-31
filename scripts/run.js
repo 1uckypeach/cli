@@ -67,8 +67,40 @@ if (args[0] === "install") {
   try {
     execFileSync(bin, args, { stdio: "inherit" });
   } catch (e) {
+    // Every branch below that prints a diagnostic ends with
+    // `process.exitCode = 1` and a plain return/fallthrough, never
+    // `process.exit(1)`. On POSIX, writes to a piped stderr are asynchronous
+    // (unlike a TTY); `process.exit()` tears the process down immediately and
+    // can drop a write that has not finished flushing yet. That is exactly
+    // what happens when the child has just filled a piped stderr (the
+    // AI-agent/log-wrapper case this CLI is built for): `process.exit(1)`
+    // right after `console.error(...)` can lose the entire diagnostic.
+    // Leaving `process.exitCode` set and returning naturally lets the event
+    // loop drain pending writes before the process actually exits, so the
+    // diagnostic survives; the exit code is still 1 either way. The silent
+    // branches (numeric-status forward, quiet SIGINT/SIGTERM) print nothing,
+    // so they keep using `process.exit` directly.
     // The binary ran and chose its own status — forward it untouched.
     if (typeof e.status === "number") {
+      // Windows has no signals: a crashing native binary (access violation
+      // 0xC0000005, missing DLL 0xC0000135, killed by endpoint protection) shows
+      // up as an NTSTATUS number here, not via e.signal. Surface the error-severity
+      // range (0xC0000000+) as a crash instead of forwarding it silently. Exclude
+      // 0xC000013A (STATUS_CONTROL_C_EXIT), the Windows Ctrl+C code, to stay
+      // symmetric with the quiet SIGINT/SIGTERM allowlist. A Go binary never exits
+      // with a code in this range deliberately.
+      if (
+        process.platform === "win32" &&
+        e.status >= 0xc0000000 &&
+        e.status !== 0xc000013a
+      ) {
+        console.error(
+          `\nlark-cli: the native binary crashed (status 0x${(e.status >>> 0).toString(16)}).\n` +
+          `  path:  ${bin}`
+        );
+        process.exitCode = 1;
+        return;
+      }
       process.exit(e.status);
     }
     // SIGINT and SIGTERM are the explicit quiet allowlist for intentional
@@ -84,7 +116,8 @@ if (args[0] === "install") {
         `\nlark-cli: the native binary was terminated by signal ${e.signal}.\n` +
         `  path:  ${bin}`
       );
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
     // Neither: the launch itself failed. Report only what is actually known —
     // permissions, file format, CPU architecture and endpoint policy all land
@@ -97,6 +130,6 @@ if (args[0] === "install") {
       `  path:  ${bin}\n` +
       `  error: ${reason}`
     );
-    process.exit(1);
+    process.exitCode = 1;
   }
 }

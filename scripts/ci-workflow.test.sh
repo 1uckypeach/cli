@@ -188,6 +188,12 @@ if ! grep -Fq '"${{ needs.shim-test-windows.result }}"' <<<"$results_section"; t
   exit 1
 fi
 
+results_needs_line="$(grep -m1 '^    needs:' <<<"$results_section")"
+if ! grep -Fq "shim-test-windows" <<<"$results_needs_line"; then
+  echo "shim-test-windows must be listed in the results job's needs: array; GitHub returns an empty string for an undeclared dependency's result, so dropping it here would silently make it non-blocking even though the FAILED loop still references it"
+  exit 1
+fi
+
 if grep -Fq '${{ secrets.' <<<"$shim_test_windows_section"; then
   echo "shim-test-windows must not reference secrets"
   exit 1
