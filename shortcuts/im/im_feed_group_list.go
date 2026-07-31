@@ -74,24 +74,7 @@ func validateFeedGroupListPageOptions(rt *common.RuntimeContext) error {
 	return validateIMPagination(rt)
 }
 
-// feedGroupListGroupsQuery builds the query parameters. page_token is always
-// sent (empty string = first page) because the groups endpoint rejects requests
-// that omit it (HTTP 400 "Missing required parameter: page_token").
-func feedGroupListGroupsQuery(rt *common.RuntimeContext) larkcore.QueryParams {
-	params := larkcore.QueryParams{
-		"page_size":  []string{strconv.Itoa(rt.Int("page-size"))},
-		"page_token": []string{rt.Str("page-token")},
-	}
-	if start := rt.Str("start-time"); start != "" {
-		params["start_time"] = []string{start}
-	}
-	if end := rt.Str("end-time"); end != "" {
-		params["end_time"] = []string{end}
-	}
-	return params
-}
-
-// feedGroupListGroupsDryRunParams mirrors feedGroupListGroupsQuery for dry-run display.
+// feedGroupListGroupsDryRunParams builds query parameters for dry-run display.
 func feedGroupListGroupsDryRunParams(rt *common.RuntimeContext) map[string]any {
 	params := map[string]any{
 		"page_size":  strconv.Itoa(rt.Int("page-size")),

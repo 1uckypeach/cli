@@ -81,24 +81,7 @@ func feedGroupListItemPath(rt *common.RuntimeContext) string {
 	return "/open-apis/im/v1/groups/" + validate.EncodePathSegment(rt.Str("feed-group-id")) + "/list_item"
 }
 
-// feedGroupListQuery builds the query parameters, sending only non-empty values.
-func feedGroupListQuery(rt *common.RuntimeContext) larkcore.QueryParams {
-	params := larkcore.QueryParams{
-		"page_size": []string{strconv.Itoa(rt.Int("page-size"))},
-	}
-	if token := rt.Str("page-token"); token != "" {
-		params["page_token"] = []string{token}
-	}
-	if start := rt.Str("start-time"); start != "" {
-		params["start_time"] = []string{start}
-	}
-	if end := rt.Str("end-time"); end != "" {
-		params["end_time"] = []string{end}
-	}
-	return params
-}
-
-// feedGroupListDryRunParams mirrors feedGroupListQuery for dry-run display.
+// feedGroupListDryRunParams builds query parameters for dry-run display.
 func feedGroupListDryRunParams(rt *common.RuntimeContext) map[string]any {
 	params := map[string]any{
 		"page_size": strconv.Itoa(rt.Int("page-size")),
