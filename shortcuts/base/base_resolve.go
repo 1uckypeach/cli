@@ -195,7 +195,9 @@ func executeBaseURLResolve(runtime *common.RuntimeContext) error {
 	switch classifyBaseURL(parsed) {
 	case "base_url":
 		out := resolveBaseURL(parsed)
-		enrichBaseResolveHint(runtime, out, resolveBaseURLSelection(parsed))
+		if err := enrichBaseResolveHint(runtime, out, resolveBaseURLSelection(parsed)); err != nil {
+			return err
+		}
 		runtime.OutFormat(out, nil, nil)
 		return nil
 	case "wiki_url":
@@ -205,7 +207,9 @@ func executeBaseURLResolve(runtime *common.RuntimeContext) error {
 		}
 		selection := resolveBaseURLSelection(parsed)
 		applyBaseURLSelection(out, selection)
-		enrichBaseResolveHint(runtime, out, selection)
+		if err := enrichBaseResolveHint(runtime, out, selection); err != nil {
+			return err
+		}
 		runtime.OutFormat(out, nil, nil)
 		return nil
 	case "record_share_url":
@@ -422,15 +426,19 @@ func executeBaseTitleResolve(runtime *common.RuntimeContext) error {
 	}
 }
 
-func enrichBaseResolveHint(runtime *common.RuntimeContext, out map[string]interface{}, selection baseURLSelection) {
+func enrichBaseResolveHint(runtime *common.RuntimeContext, out map[string]interface{}, selection baseURLSelection) error {
 	baseToken := strings.TrimSpace(common.GetString(out, "base_token"))
 	selectedBlockID := strings.TrimSpace(common.GetString(out, "block_id"))
 	if baseToken == "" || selectedBlockID == "" {
 		out["hint"] = resolveHint("", nil)
-		return
+		return nil
 	}
 
-	if block, found, err := resolveSelectedBaseBlock(runtime, baseToken, selectedBlockID); err == nil && found {
+	block, found, err := resolveSelectedBaseBlock(runtime, baseToken, selectedBlockID)
+	if err != nil {
+		return err
+	}
+	if found {
 		out["block_type"] = block.Type
 		if block.Name != "" {
 			out["block_name"] = block.Name
@@ -467,10 +475,11 @@ func enrichBaseResolveHint(runtime *common.RuntimeContext, out map[string]interf
 		default:
 			out["hint"] = resolveUnknownBlockHint()
 		}
-		return
+		return nil
 	}
 
 	out["hint"] = resolveUnknownBlockHint()
+	return nil
 }
 
 type resolvedBaseBlock struct {
