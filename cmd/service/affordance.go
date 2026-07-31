@@ -91,8 +91,8 @@ func PrepareDomainHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 	return true
 }
 
-// flattenedAPIMethods renders one line per Meta API method under the domain:
-// "  <resource>.<method>  <first-sentence description>". The resource
+// flattenedAPIMethods renders one line per visible Meta API method under the
+// domain: "  <resource>.<method>  <first-sentence description>". The resource
 // intermediate commands are hidden from the listing (they stay invocable), so
 // this flattened block is the domain help's whole Meta API surface — a reader
 // picks a full command path in one hop instead of stopping at a resource row
@@ -114,7 +114,19 @@ func flattenedAPIMethods(domainCmd *cobra.Command) []string {
 				dotted = prefix + "." + name
 			}
 			if ch.Annotations[schemaPathAnnotation] != "" { // a method leaf
-				rows = append(rows, row{dotted, schema.SanitizeIndexDesc(schema.FirstSentence(ch.Short))})
+				// A hidden method leaf is one a policy layer took away, and it
+				// still carries method-schema-path: strict mode swaps in a stub
+				// that copies every annotation off the original
+				// (cmd/prune.go::strictModeStubFrom) and cmdpolicy hides its deny
+				// stub in place (internal/cmdpolicy/apply.go::installDenyStub).
+				// Listing on the annotation alone would advertise a path that
+				// rejects even --help. The check sits on this branch rather than
+				// at the top of the loop because resource groups are hidden by
+				// design (service.go) — skipping every hidden child would drop
+				// the whole API surface.
+				if !ch.Hidden {
+					rows = append(rows, row{dotted, schema.SanitizeIndexDesc(schema.FirstSentence(ch.Short))})
+				}
 				continue
 			}
 			walk(ch, dotted) // a (hidden) resource group

@@ -425,6 +425,34 @@ func TestPrepareDomainHelp_NoPointerWhenDomainHasNoShortcuts(t *testing.T) {
 	}
 }
 
+func TestPrepareDomainHelp_OmitsHiddenMethodLeaves(t *testing.T) {
+	// A method a policy layer took away is hidden but keeps its
+	// method-schema-path annotation (strict mode's stub copies every annotation
+	// off the original; cmdpolicy hides its deny stub in place). Listing it would
+	// advertise a path that rejects even --help.
+	imCmd := buildIMDomainForTest(t)
+	res, _, err := imCmd.Find([]string{"chat.members"})
+	if err != nil {
+		t.Fatalf("chat.members resource command not registered: %v", err)
+	}
+	for _, m := range res.Commands() {
+		if m.Name() == "delete" {
+			m.Hidden = true
+		}
+	}
+	if !PrepareDomainHelp(imCmd, nil) {
+		t.Fatal("PrepareDomainHelp must apply to a domain command")
+	}
+	if strings.Contains(imCmd.Long, "chat.members.delete") {
+		t.Errorf("a hidden method leaf must not be listed, got:\n%s", imCmd.Long)
+	}
+	// The hidden sibling must not take the whole resource down with it — the
+	// listing is per method, not per resource.
+	if !strings.Contains(imCmd.Long, "chat.members.get") {
+		t.Errorf("a visible sibling must stay listed, got:\n%s", imCmd.Long)
+	}
+}
+
 // listingHeaderLine returns the "API methods (…):" header line from a rendered
 // domain Long.
 func listingHeaderLine(t *testing.T, long string) string {

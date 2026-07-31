@@ -22,6 +22,7 @@ import (
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/meta"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/registry"
 	"github.com/larksuite/cli/internal/skillscheck"
 	"github.com/larksuite/cli/internal/update"
 	"github.com/larksuite/cli/shortcuts"
@@ -235,6 +236,105 @@ func TestIntegration_StrictModeBot_ProfileOverride_HidesCommandsInHelp(t *testin
 	if !strings.Contains(stdout.String(), "+chat-create") {
 		t.Fatalf("im --help should keep +chat-create in bot mode, got:\n%s", stdout.String())
 	}
+}
+
+// The flattened API listing in domain help walks the command tree itself, so
+// cobra's hiding of the strict-mode stubs never reaches it. A stub copies the
+// original's method-schema-path annotation (cmd/prune.go::strictModeStubFrom),
+// so selecting rows on that annotation alone would advertise methods that reject
+// even --help, and would leave the domain help at odds with `schema <domain>`,
+// which filters the same methods out. Both surfaces answer "what can I call
+// here" and must answer it identically.
+func TestIntegration_StrictModeBot_DomainHelpListingMatchesSchema(t *testing.T) {
+	f, _, _ := newStrictModeDefaultFactory(t, "target", core.StrictModeBot)
+	rootCmd := buildStrictModeIntegrationRootCmd(t, f)
+
+	im := findCmd(rootCmd, "im")
+	if im == nil {
+		t.Fatal("im domain not registered")
+	}
+	if !service.PrepareDomainHelp(im, nil) {
+		t.Fatal("PrepareDomainHelp returned false for the im domain")
+	}
+
+	listed := listedAPIMethodPaths(t, im.Long)
+	if len(listed) == 0 {
+		t.Fatal("im domain help listed no API methods")
+	}
+	hidden := hiddenMethodPaths(im)
+	if len(hidden) == 0 {
+		t.Fatal("bot mode hid no im method, so this fixture cannot detect the leak")
+	}
+	for _, path := range listed {
+		if hidden[path] {
+			t.Errorf("domain help lists %q, which strict mode hid", path)
+		}
+	}
+
+	catalog := registry.SchemaCatalog()
+	target, err := catalog.Resolve([]string{"im"})
+	if err != nil {
+		t.Fatalf("SchemaCatalog().Resolve(im) error = %v", err)
+	}
+	mode := f.ResolveStrictMode(context.Background())
+	refs := catalog.MethodRefs(target, registry.FilterForStrictMode(mode))
+	if len(listed) != len(refs) {
+		t.Errorf("im help lists %d methods, schema im lists %d; the two surfaces must agree",
+			len(listed), len(refs))
+	}
+}
+
+// listedAPIMethodPaths returns the dotted paths of the "API methods (…):" block
+// of a rendered domain Long. The block runs to the end of Long.
+func listedAPIMethodPaths(t *testing.T, long string) []string {
+	t.Helper()
+	lines := strings.Split(long, "\n")
+	start := -1
+	for i, line := range lines {
+		if strings.HasPrefix(line, "API methods (") {
+			start = i + 1
+			break
+		}
+	}
+	if start < 0 {
+		t.Fatalf("no API methods listing in domain help:\n%s", long)
+	}
+	var paths []string
+	for _, line := range lines[start:] {
+		if fields := strings.Fields(line); len(fields) > 0 {
+			paths = append(paths, fields[0])
+		}
+	}
+	return paths
+}
+
+// hiddenMethodPaths collects the dotted paths of the method leaves a policy layer
+// hid, walking the tree the way the listing does. The annotation key is
+// service.schemaPathAnnotation, unexported there.
+func hiddenMethodPaths(domain *cobra.Command) map[string]bool {
+	hidden := map[string]bool{}
+	var walk func(c *cobra.Command, prefix string)
+	walk = func(c *cobra.Command, prefix string) {
+		for _, ch := range c.Commands() {
+			name := ch.Name()
+			if strings.HasPrefix(name, "+") || name == "help" || name == "completion" {
+				continue
+			}
+			dotted := name
+			if prefix != "" {
+				dotted = prefix + "." + name
+			}
+			if ch.Annotations["method-schema-path"] != "" {
+				if ch.Hidden {
+					hidden[dotted] = true
+				}
+				continue
+			}
+			walk(ch, dotted)
+		}
+	}
+	walk(domain, "")
+	return hidden
 }
 
 func TestIntegration_StrictModeBot_ProfileOverride_DirectAuthLoginReturnsEnvelope(t *testing.T) {
