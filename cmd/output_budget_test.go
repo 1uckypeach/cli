@@ -20,12 +20,22 @@ import (
 // ceiling is the measured maximum plus headroom, so an accidental regression
 // (a listing that stops being a listing and starts rendering full contracts)
 // fails here instead of silently blowing past a consumer's context.
+//
+// Root help is the one surface whose growth is routine rather than accidental:
+// it carries one line per domain (~59 B measured), and onboarding a business
+// domain is ordinary work. A ceiling that ordinary work trips stops reporting
+// regressions and starts reporting the calendar. 4 KB left 323 B over the
+// measured 3,773 B — five domains — so it moves to 5 KB, which is the measured
+// max plus at least 15% rounded up to a whole KB (the rule the plan set for the
+// per-domain ceiling) and covers roughly twenty. A listing that began rendering
+// full contracts would still overshoot by an order of magnitude, so the check
+// keeps the failure it was built to catch.
 const (
 	maxDomainHelpMedian = 2560  // 2.5 KB — overall health, resistant to outliers
 	maxSingleDomainHelp = 12288 // 12 KB — measured max 9,965 B (sheets)
-	maxRootHelp         = 4096  // 4 KB — measured 3,673 B
-	maxServiceIndex     = 4096  // 4 KB — measured 1,705 B
-	maxMethodIndex      = 16384 // 16 KB — measured max 11,284 B (mail)
+	maxRootHelp         = 5120  // 5 KB — measured 3,773 B; see the sizing note above
+	maxServiceIndex     = 4096  // 4 KB — measured 1,780 B
+	maxMethodIndex      = 16384 // 16 KB — measured max 11,294 B (mail)
 )
 
 // buildCLI compiles the real binary once per test run. These budgets are about
