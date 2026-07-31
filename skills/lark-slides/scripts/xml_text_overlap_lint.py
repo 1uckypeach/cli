@@ -963,6 +963,27 @@ _FONT_CATEGORY_MULTIPLIERS: dict[str, dict[str, float]] = {
     "sans": {"upper": 0.57, "lower": 0.51, "digit": 0.58, "punct": 0.50},
     "serif": {"upper": 0.57, "lower": 0.53, "digit": 0.58, "punct": 0.50},
 }
+_SYMBOL_WIDTH_MULTIPLIERS = {"%": 0.89, "+": 0.60}
+_WRAP_SENSITIVE_METRIC_SYMBOLS = frozenset(_SYMBOL_WIDTH_MULTIPLIERS) | {"％"}
+# Renderer boundary samples show that Latin metric glyphs vary by font even when
+# their nominal size is identical. Keep this calibration in wrapping only; the
+# generic width estimator is also used by visual-bbox overlap checks.
+_DEFAULT_LATIN_GLYPH_WIDTH_SCALE = 0.982
+_LATIN_GLYPH_WIDTH_SCALE_OVERRIDES = {
+    "times new roman": 0.97,
+    "inter": 1.0,
+    "source han serif": 1.0,
+    "sourcehan-serif": 1.0,
+    "思源宋体": 1.0,
+}
+
+
+def latin_glyph_width_scale(font_family: str | None) -> float:
+    family_lower = (font_family or "").lower()
+    for marker, scale in _LATIN_GLYPH_WIDTH_SCALE_OVERRIDES.items():
+        if marker in family_lower:
+            return scale
+    return _DEFAULT_LATIN_GLYPH_WIDTH_SCALE
 
 
 def estimate_character_width(
@@ -985,6 +1006,8 @@ def estimate_character_width(
         return font_size * coeffs["lower"] * bold_multiplier
     if character.isdigit():
         return font_size * coeffs["digit"] * bold_multiplier
+    if character in _SYMBOL_WIDTH_MULTIPLIERS:
+        return font_size * _SYMBOL_WIDTH_MULTIPLIERS[character] * bold_multiplier
     return font_size * coeffs["punct"] * bold_multiplier
 
 
@@ -994,8 +1017,14 @@ def estimate_text_width(
     letter_spacing: int | float = 0,
     bold: bool = False,
     font_family: str | None = None,
+    calibrate_for_wrapping: bool = False,
 ) -> int | float:
-    base = sum(estimate_character_width(character, font_size, bold, font_family) for character in text)
+    width_scale = latin_glyph_width_scale(font_family) if calibrate_for_wrapping else 1.0
+    base = sum(
+        estimate_character_width(character, font_size, bold, font_family)
+        * (1.0 if character.isspace() or unicodedata.east_asian_width(character) in {"F", "W"} else width_scale)
+        for character in text
+    )
     return base + max(len(text) - 1, 0) * letter_spacing
 
 
@@ -1040,7 +1069,7 @@ def is_single_line_visual_candidate(
 ) -> bool:
     if "\n" in text or logical_width <= effective_width:
         return False
-    if is_short_metric_text(text):
+    if is_short_metric_text(text) and not _WRAP_SENSITIVE_METRIC_SYMBOLS.intersection(text):
         return logical_width <= effective_width * SINGLE_LINE_METRIC_WIDTH_RATIO
 
     text_align = (paragraph or {}).get("textAlign") or element.get("textAlign")
@@ -1092,7 +1121,17 @@ def estimate_text_line_count_for_text(
         if element.get("wrap") in {"false", "0"}:
             line_count += 1
             continue
-        logical_width = max(estimate_text_width(hard_line, font_size, letter_spacing, bold, font_family), 1)
+        logical_width = max(
+            estimate_text_width(
+                hard_line,
+                font_size,
+                letter_spacing,
+                bold,
+                font_family,
+                calibrate_for_wrapping=True,
+            ),
+            1,
+        )
         effective_width = available_width + text_wrap_width_tolerance()
         if is_single_line_visual_candidate(element, paragraph, hard_line, logical_width, effective_width):
             line_count += 1

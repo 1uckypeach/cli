@@ -1203,6 +1203,110 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
         ]
         self.assertEqual(overflow_issues, [])
 
+    def test_lint_xml_reports_wrapped_percent_metric_with_trailing_plus(self) -> None:
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0">
+              <data>
+                <shape id="narrow-metric" type="text" topLeftX="80" topLeftY="80" width="100" height="60">
+                  <content fontFamily="思源黑体" fontSize="44" lineSpacing="fixed:52" wrap="true" autoFit="no-auto-fit">
+                    <p>60%+</p>
+                  </content>
+                </shape>
+                <shape id="wide-metric" type="text" topLeftX="240" topLeftY="80" width="140" height="60">
+                  <content fontFamily="思源黑体" fontSize="44" lineSpacing="fixed:52" wrap="true" autoFit="no-auto-fit">
+                    <p>60%+</p>
+                  </content>
+                </shape>
+              </data>
+            </slide>
+            """
+        )
+        overflow_issues = {
+            issue["elements"][0]: issue
+            for issue in result["slides"][0]["issues"]
+            if issue["code"] == "text_may_overflow_shape"
+        }
+        self.assertEqual(overflow_issues["narrow-metric"]["line_count"], 2)
+        self.assertNotIn("wide-metric", overflow_issues)
+
+    def test_lint_xml_matches_renderer_font_boundaries_for_percent_metric(self) -> None:
+        cases = {
+            "思源黑体": {113: True, 114: False},
+            "Arial": {113: True, 114: False},
+            "Helvetica": {113: True, 114: False},
+            "Calibri": {113: True, 114: False},
+            "Inter": {113: True, 114: True},
+            "Verdana": {113: True, 114: False},
+            "Times New Roman": {113: False, 114: False},
+            "Georgia": {113: True, 114: False},
+            "Garamond": {113: True, 114: False},
+            "Cambria": {113: True, 114: False},
+            "宋体": {113: True, 114: False},
+            "思源宋体": {113: True, 114: True},
+        }
+
+        for font_family, widths in cases.items():
+            for width, should_overflow in widths.items():
+                with self.subTest(font_family=font_family, width=width):
+                    result = xml_text_overlap_lint.lint_xml(
+                        f"""
+                        <slide xmlns="http://www.larkoffice.com/sml/2.0">
+                          <data>
+                            <shape id="metric" type="text" topLeftX="80" topLeftY="80" width="{width}" height="60">
+                              <content fontFamily="{font_family}" fontSize="44" lineSpacing="fixed:52" wrap="true" autoFit="no-auto-fit">
+                                <p>60%+</p>
+                              </content>
+                            </shape>
+                          </data>
+                        </slide>
+                        """
+                    )
+                    overflow_issues = [
+                        issue
+                        for issue in result["slides"][0]["issues"]
+                        if issue["code"] == "text_may_overflow_shape"
+                    ]
+                    self.assertEqual(bool(overflow_issues), should_overflow)
+
+    def test_lint_xml_keeps_renderer_symbol_boundaries_for_short_metrics(self) -> None:
+        cases = {
+            "60%+": True,
+            "60%-": True,
+            "60%/": True,
+            "60%.": True,
+            "60%,": True,
+            "60%:": True,
+            "60％+": True,
+            "60％＋": True,
+            "60‰": False,
+            "60℃": False,
+            "￥60": False,
+            "60×": False,
+        }
+
+        for text, should_overflow in cases.items():
+            with self.subTest(text=text):
+                result = xml_text_overlap_lint.lint_xml(
+                    f"""
+                    <slide xmlns="http://www.larkoffice.com/sml/2.0">
+                      <data>
+                        <shape id="metric" type="text" topLeftX="80" topLeftY="80" width="100" height="60">
+                          <content fontFamily="思源黑体" fontSize="44" lineSpacing="fixed:52" wrap="true" autoFit="no-auto-fit">
+                            <p>{text}</p>
+                          </content>
+                        </shape>
+                      </data>
+                    </slide>
+                    """
+                )
+                overflow_issues = [
+                    issue
+                    for issue in result["slides"][0]["issues"]
+                    if issue["code"] == "text_may_overflow_shape"
+                ]
+                self.assertEqual(bool(overflow_issues), should_overflow)
+
     def test_lint_xml_reports_plain_short_metric_when_it_wraps(self) -> None:
         result = xml_text_overlap_lint.lint_xml(
             """
