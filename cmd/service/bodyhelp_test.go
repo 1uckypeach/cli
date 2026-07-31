@@ -427,6 +427,13 @@ func TestBodyHelp_SkeletonRejectsUnrenderablePlaceholders(t *testing.T) {
 		// and the field falls back to its marker.
 		{"an allowed value carrying a bidi override is refused", `{"t": "<string>"}`,
 			meta.Field{Name: "t", Type: "string", Required: true, Enum: []any{"a‮b"}}},
+		// meta.coerceLiteral passes a string-typed field's allowed values through
+		// untouched, so a composite can arrive where a scalar belongs. Rendering it
+		// would replace the field's shape instead of filling it in.
+		{"an object allowed value cannot stand in for a string", `{"t": "<string>"}`,
+			meta.Field{Name: "t", Type: "string", Required: true, Enum: []any{map[string]any{"k": "v"}}}},
+		{"a list allowed value likewise", `{"t": "<string>"}`,
+			meta.Field{Name: "t", Type: "string", Required: true, Enum: []any{[]any{"v"}}}},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {

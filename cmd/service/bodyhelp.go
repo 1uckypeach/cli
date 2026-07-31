@@ -110,35 +110,46 @@ func quoteJSONKey(name string) string {
 // nesting budget renders {} or [{}], which the API rejects when it has required
 // children, and an integer that upstream documents as a formatted value renders
 // 0 (attendance user_tasks query's required check_date_from is a yyyyMMdd date).
-// Both predate the enum and bounds work and neither is expressible in what the
-// metadata declares.
+// Both predate the enum and bounds work. The date one is not for want of data —
+// upstream declares example "20190817" — but for the reason `example` was left
+// out generally: it is not uniformly better than what renders today, and
+// reaching for it only where the current value is illegal would make a field's
+// placeholder depend on metadata the reader cannot see.
 //
 // Two: an OPTIONAL field keeps a bare type marker, even when a legal value is
 // known. Filling one in makes the skeleton read as ready to send while quietly
 // deciding something the caller never asked about: 56 of the enum-carrying body
-// fields sit on write or high-risk-write methods, and drive
-// permission.public.patch has six optional ones whose first allowed values
-// include share_entity's "anyone", the most permissive of its three. The first
-// allowed value tracks upstream field order, not caution — attendee_ability
-// starts at the strictest value and share_entity at the loosest. Nothing is lost
-// by leaving them alone: the facts line below the skeleton lists the allowed
-// values, so the skeleton is no longer the only place to learn them.
+// fields sit on write or high-risk-write methods, four of them on drive
+// permission.public.patch, where share_entity's first allowed value is "anyone",
+// the most permissive of its three. That first value tracks upstream field
+// order, not caution — attendee_ability starts at the strictest value and
+// share_entity at the loosest. Nothing is lost by leaving them alone: the facts
+// line below the skeleton lists the allowed values, so the skeleton is no longer
+// the only place to learn them.
 //
 // A REQUIRED field is the opposite case. The caller cannot omit it, so a legal
 // value is a head start rather than a decision taken on their behalf, and it is
 // mostly type discriminators that benefit (obj_type, image_type, event_type).
 //
 // The rules conflict only where an optional field's marker is itself illegal — a
-// numeric floor above 0. Rule two wins there: an out-of-range 0 draws a rejection,
-// which for a write is a better outcome than a silent, unintended one, and the
-// facts line states the range either way.
+// numeric floor above 0. Rule two wins there, and what carries it is uniformity
+// rather than the rejection: an optional number now always reads 0, where before
+// it read either 0 or a floor depending on metadata the reader cannot see. Do not
+// lean on "the API will reject it" — a page_size of 0 is as likely to be coerced
+// to unset, and on a read method there is no protective upside at all. The cost
+// is visible on approval tasks add_sign, which renders add_sign_type 1 beside
+// approval_method 0 with the same enum and the same bounds, purely because one is
+// required; that reads as a bug before it reads as a rule.
 //
-// Rule two is imperfectly served by the markers available. Only a string has one
-// that reads as a placeholder; an optional number renders 0 and an optional
-// boolean false, both concrete legal values. The saving grace is that neither is
-// chosen by position the way an enum's first value is — a false flag is the "do
-// not do this" side of every switch, and 0 the neutral quantity — so where they
-// are legal they are also the inert choice.
+// Rule two is also imperfectly served by the markers available. Only a string has
+// one that reads as a placeholder; an optional number renders 0 and an optional
+// boolean false, both concrete legal values, and there are 88 such fields. They
+// are at least not chosen by position the way an enum's first value is, and no
+// optional boolean in the catalog documents a true default — but false is only
+// the inert side of an IMPERATIVE flag. For a STATE flag it is a change: im chats
+// update's restricted_mode_setting.status is 保密模式是否开启, so a copied false
+// turns that control off. is_muted, is_mute_at_all and archive_tasklist are the
+// same shape. Those predate this work and are not addressed here.
 func skeletonValue(f meta.Field, depth int) string {
 	ct := f.CanonicalType()
 	switch ct {
@@ -231,10 +242,18 @@ func skeletonLiteral(v any) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	if s := string(q); schema.SanitizeIndexDesc(s) == s {
-		return s, true
+	s := string(q)
+	// A composite literal would replace the field's shape rather than fill it in,
+	// which is rule one's own failure mode. Only the scalar branches call this, but
+	// meta.coerceLiteral passes a string-typed field's allowed values through
+	// untouched, so an object or a list can arrive here from upstream.
+	if s == "" || s[0] == '{' || s[0] == '[' {
+		return "", false
 	}
-	return "", false
+	if schema.SanitizeIndexDesc(s) != s {
+		return "", false
+	}
+	return s, true
 }
 
 // joinProperties renders f's children as JSON members, one nesting level down.
