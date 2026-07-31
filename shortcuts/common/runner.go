@@ -1206,7 +1206,7 @@ func newRuntimeContext(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, conf
 
 func shortcutIdentityWasDefaulted(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut) bool {
 	if cmd == nil || f == nil || s == nil || cmd.Flags().Changed("as") ||
-		f.ResolveStrictMode(cmd.Context()).IsActive() {
+		!f.IdentityAutoDetected || f.ResolveStrictMode(cmd.Context()).IsActive() {
 		return false
 	}
 	return slices.Contains(s.AuthTypes, string(core.AsUser)) &&

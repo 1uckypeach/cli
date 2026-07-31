@@ -332,9 +332,11 @@ func TestServiceMethod_UnrestrictedIMWriteDryRunReportsDefaultedIdentity(t *test
 func TestServiceMethod_IMWriteDryRunIdentityNoticeBoundaries(t *testing.T) {
 	tests := []struct {
 		name         string
+		config       *core.CliConfig
 		service      meta.Service
 		accessTokens []interface{}
 		args         []string
+		wantIdentity core.Identity
 	}{
 		{
 			name:         "explicit identity",
@@ -355,6 +357,17 @@ func TestServiceMethod_IMWriteDryRunIdentityNoticeBoundaries(t *testing.T) {
 			args:         []string{"--data", `{}`, "--dry-run"},
 		},
 		{
+			name: "configured default identity",
+			config: &core.CliConfig{
+				AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+				DefaultAs: core.AsUser,
+			},
+			service:      imSpec(),
+			accessTokens: []interface{}{"user", "tenant"},
+			args:         []string{"--data", `{}`, "--dry-run"},
+			wantIdentity: core.AsUser,
+		},
+		{
 			name:         "non IM",
 			service:      meta.ServiceFromMap(map[string]interface{}{"name": "svc", "servicePath": "/open-apis/svc/v1"}),
 			accessTokens: []interface{}{"user", "tenant"},
@@ -363,7 +376,11 @@ func TestServiceMethod_IMWriteDryRunIdentityNoticeBoundaries(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f, stdout, stderr, _ := cmdutil.TestFactory(t, testConfig)
+			config := tt.config
+			if config == nil {
+				config = testConfig
+			}
+			f, stdout, stderr, _ := cmdutil.TestFactory(t, config)
 			method := meta.FromMap(map[string]interface{}{
 				"id":           "chats.create",
 				"path":         "chats",
@@ -380,6 +397,9 @@ func TestServiceMethod_IMWriteDryRunIdentityNoticeBoundaries(t *testing.T) {
 			var env output.Envelope
 			if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
 				t.Fatalf("dry-run stdout is not JSON: %v\n%s", err, stdout.String())
+			}
+			if tt.wantIdentity != "" && env.Identity != string(tt.wantIdentity) {
+				t.Fatalf("identity = %q, want configured default %q", env.Identity, tt.wantIdentity)
 			}
 			if _, ok := env.Notice[imcontract.IdentityDefaultedNoticeKey]; ok {
 				t.Fatalf("unexpected identity notice: %#v", env.Notice)

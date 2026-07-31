@@ -544,6 +544,19 @@ func TestRunShortcut_IdentityDefaultNoticeExcludesOutOfScopeCommands(t *testing.
 			},
 		},
 		{
+			name: "configured default identity",
+			config: &core.CliConfig{
+				AppID: "test", AppSecret: "test", Brand: core.BrandFeishu,
+				DefaultAs: core.AsUser,
+			},
+			s: &Shortcut{
+				Service:   "im",
+				Command:   "+messages-send",
+				Risk:      "write",
+				AuthTypes: []string{"user", "bot"},
+			},
+		},
+		{
 			name:   "strict mode",
 			config: &core.CliConfig{AppID: "test", AppSecret: "test", Brand: core.BrandFeishu, SupportedIdentities: 2},
 			s: &Shortcut{
@@ -573,6 +586,9 @@ func TestRunShortcut_IdentityDefaultNoticeExcludesOutOfScopeCommands(t *testing.
 			var env output.Envelope
 			if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
 				t.Fatalf("stdout is not JSON: %v\n%s", err, stdout.String())
+			}
+			if tt.name == "configured default identity" && env.Identity != string(core.AsUser) {
+				t.Fatalf("identity = %q, want configured default %q", env.Identity, core.AsUser)
 			}
 			if _, ok := env.Notice[imcontract.IdentityDefaultedNoticeKey]; ok {
 				t.Fatalf("unexpected identity notice: %#v", env.Notice)

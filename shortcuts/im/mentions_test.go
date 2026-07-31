@@ -163,6 +163,23 @@ func TestMentionStringSliceParsingDoesNotEchoUnsafeValue(t *testing.T) {
 	}
 }
 
+func TestMentionHelpOmitsEmptySliceDefault(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().StringSlice("mention", nil, "mention target")
+	installMentionFlagParser(cmd)
+
+	flag := cmd.Flags().Lookup("mention")
+	if flag == nil {
+		t.Fatal("mention flag is missing")
+	}
+	if flag.DefValue != "" {
+		t.Fatalf("mention DefValue = %q, want empty so help omits the synthetic default", flag.DefValue)
+	}
+	if usage := cmd.Flags().FlagUsages(); strings.Contains(usage, "(default [])") {
+		t.Fatalf("mention help exposes an implementation default: %q", usage)
+	}
+}
+
 func TestMentionApplyTextUsesCanonicalTags(t *testing.T) {
 	content := `{"text":"please review"}`
 	got, err := applyMentionRequest("text", content, "--text", mentionRequest{

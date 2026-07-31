@@ -409,6 +409,7 @@ func serviceMethodRun(opts *ServiceMethodOptions) error {
 	opts.identityDefaulted = contractManagedWrite &&
 		serviceMethodSupportsUserAndBot(opts.Method) &&
 		!serviceIdentityFlagChanged(opts.Cmd) &&
+		f.IdentityAutoDetected &&
 		!f.ResolveStrictMode(opts.Ctx).IsActive()
 
 	if opts.PageAll && opts.Output != "" {
