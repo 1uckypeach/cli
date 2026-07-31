@@ -35,7 +35,6 @@ func TestIMReadShortcutsExposeUniformPaginationFlags(t *testing.T) {
 		ImThreadsMessagesList,
 	}
 	for _, shortcut := range shortcuts {
-		shortcut := shortcut
 		t.Run(shortcut.Command, func(t *testing.T) {
 			t.Parallel()
 			flags := make(map[string]common.Flag, len(shortcut.Flags))
@@ -138,7 +137,6 @@ func TestPaginateIMStopReasons(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			rt := newIMPaginationTestRuntime(t, tt.pageAll, tt.pageLimit, tt.startToken, 0)
@@ -190,7 +188,6 @@ func TestPaginateIMRejectsMissingAndRepeatedTokensWithoutLeakingThem(t *testing.
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			rt := newIMPaginationTestRuntime(t, true, 0, "", 0)
@@ -417,7 +414,6 @@ func TestIMNewlyPaginatedShortcutsWalkAllPages(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var tokens []string
 			rt := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
