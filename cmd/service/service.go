@@ -147,6 +147,9 @@ type ServiceMethodOptions struct {
 	File       string   // --file flag value
 	FileFields []string // auto-detected file field names from metadata
 
+	identityDefaulted   bool
+	identityWarningSent bool
+
 	// binder owns the generated typed param flags — registration and the
 	// --params overlay — replacing the raw paramFlags side-channel.
 	binder *paramFlagBinder
@@ -403,6 +406,10 @@ func serviceMethodRun(opts *ServiceMethodOptions) error {
 			return err
 		}
 	}
+	opts.identityDefaulted = contractManagedWrite &&
+		serviceMethodSupportsUserAndBot(opts.Method) &&
+		!serviceIdentityFlagChanged(opts.Cmd) &&
+		!f.ResolveStrictMode(opts.Ctx).IsActive()
 
 	if opts.PageAll && opts.Output != "" {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--output and --page-all are mutually exclusive").WithParam("--output")
@@ -434,6 +441,7 @@ func serviceMethodRun(opts *ServiceMethodOptions) error {
 		return err
 	}
 	if opts.DryRun {
+		warnServiceIdentityDefaulted(opts)
 		if fileMeta != nil {
 			return cmdutil.PrintDryRunWithFile(request, config, serviceDryRunOutputOptions(f, opts), *fileMeta)
 		}
@@ -708,11 +716,17 @@ func writeIMReadResult(
 
 func newIMServiceEmitter(opts *ServiceMethodOptions) *output.Emitter {
 	return output.NewEmitter(output.EmitterConfig{
-		Out:            opts.Factory.IOStreams.Out,
-		ErrOut:         opts.Factory.IOStreams.ErrOut,
-		CommandPath:    opts.Cmd.CommandPath(),
-		Identity:       string(opts.As),
-		NoticeProvider: output.GetNotice,
+		Out:         opts.Factory.IOStreams.Out,
+		ErrOut:      opts.Factory.IOStreams.ErrOut,
+		CommandPath: opts.Cmd.CommandPath(),
+		Identity:    string(opts.As),
+		NoticeProvider: func() map[string]interface{} {
+			base := output.GetNotice()
+			if !opts.identityDefaulted {
+				return base
+			}
+			return imcontract.WithIdentityDefaultedNotice(base, string(opts.As))
+		},
 	})
 }
 
@@ -726,6 +740,7 @@ func emitIMServiceResult(
 	hint string,
 	projectedRead bool,
 ) error {
+	warnServiceIdentityDefaulted(opts)
 	var errorValue interface{}
 	if resultError != nil {
 		errorValue = resultError
@@ -745,6 +760,24 @@ func emitIMServiceResult(
 		return emitter.PartialFailure(data, emitOpts)
 	}
 	return emitter.Success(data, emitOpts)
+}
+
+func serviceMethodSupportsUserAndBot(method meta.Method) bool {
+	return method.SupportsToken(meta.TokenUser) && method.SupportsToken(meta.TokenTenant)
+}
+
+func serviceIdentityFlagChanged(cmd *cobra.Command) bool {
+	return cmd != nil && cmd.Flags().Changed("as")
+}
+
+func warnServiceIdentityDefaulted(opts *ServiceMethodOptions) {
+	if opts == nil || !opts.identityDefaulted || opts.identityWarningSent {
+		return
+	}
+	opts.identityWarningSent = true
+	fmt.Fprintf(opts.Factory.IOStreams.ErrOut, "warning: %s: %s\n",
+		imcontract.IdentityDefaultedNoticeKey,
+		imcontract.IdentityDefaultedMessage(string(opts.As)))
 }
 
 func readResultExit(result imcontract.ReadResult) error {
@@ -1128,6 +1161,13 @@ func serviceDryRunOutputOptions(f *cmdutil.Factory, opts *ServiceMethodOptions) 
 		Identity:    opts.As,
 		Out:         f.IOStreams.Out,
 		ErrOut:      f.IOStreams.ErrOut,
+		NoticeProvider: func() map[string]interface{} {
+			base := output.GetNotice()
+			if !opts.identityDefaulted {
+				return base
+			}
+			return imcontract.WithIdentityDefaultedNotice(base, string(opts.As))
+		},
 	}
 }
 

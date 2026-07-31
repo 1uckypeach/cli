@@ -274,6 +274,217 @@ func TestServiceMethod_DryRunWithJq(t *testing.T) {
 	}
 }
 
+func TestServiceMethod_IMWriteDryRunReportsDefaultedIdentity(t *testing.T) {
+	f, stdout, stderr, _ := cmdutil.TestFactory(t, testConfig)
+	method := meta.FromMap(map[string]interface{}{
+		"id":           "chats.create",
+		"path":         "chats",
+		"httpMethod":   "POST",
+		"risk":         "write",
+		"accessTokens": []interface{}{"user", "tenant"},
+	})
+	cmd := NewCmdServiceMethod(f, imSpec(), method, "create", "chats", nil)
+	cmd.SetArgs([]string{"--data", `{}`, "--dry-run"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("dry-run stdout is not JSON: %v\n%s", err, stdout.String())
+	}
+	notice, ok := env.Notice[imcontract.IdentityDefaultedNoticeKey].(map[string]interface{})
+	if !ok || notice["resolved"] != "bot" {
+		t.Fatalf("identity notice = %#v", env.Notice)
+	}
+	if got := stderr.String(); !strings.Contains(got, "warning: identity_defaulted:") {
+		t.Fatalf("stderr = %q, want identity_defaulted warning", got)
+	}
+}
+
+func TestServiceMethod_UnrestrictedIMWriteDryRunReportsDefaultedIdentity(t *testing.T) {
+	f, stdout, stderr, _ := cmdutil.TestFactory(t, testConfig)
+	method := meta.FromMap(map[string]interface{}{
+		"id":         "chats.create",
+		"path":       "chats",
+		"httpMethod": "POST",
+		"risk":       "write",
+	})
+	cmd := NewCmdServiceMethod(f, imSpec(), method, "create", "chats", nil)
+	cmd.SetArgs([]string{"--data", `{}`, "--dry-run"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("dry-run stdout is not JSON: %v\n%s", err, stdout.String())
+	}
+	notice, ok := env.Notice[imcontract.IdentityDefaultedNoticeKey].(map[string]interface{})
+	if !ok || notice["resolved"] != "bot" {
+		t.Fatalf("unrestricted IM write identity notice = %#v", env.Notice)
+	}
+	if !strings.Contains(stderr.String(), "warning: identity_defaulted:") {
+		t.Fatalf("stderr = %q, want identity_defaulted warning", stderr.String())
+	}
+}
+
+func TestServiceMethod_IMWriteDryRunIdentityNoticeBoundaries(t *testing.T) {
+	tests := []struct {
+		name         string
+		service      meta.Service
+		accessTokens []interface{}
+		args         []string
+	}{
+		{
+			name:         "explicit identity",
+			service:      imSpec(),
+			accessTokens: []interface{}{"user", "tenant"},
+			args:         []string{"--as", "bot", "--data", `{}`, "--dry-run"},
+		},
+		{
+			name:         "explicit auto",
+			service:      imSpec(),
+			accessTokens: []interface{}{"user", "tenant"},
+			args:         []string{"--as", "auto", "--data", `{}`, "--dry-run"},
+		},
+		{
+			name:         "single identity",
+			service:      imSpec(),
+			accessTokens: []interface{}{"tenant"},
+			args:         []string{"--data", `{}`, "--dry-run"},
+		},
+		{
+			name:         "non IM",
+			service:      meta.ServiceFromMap(map[string]interface{}{"name": "svc", "servicePath": "/open-apis/svc/v1"}),
+			accessTokens: []interface{}{"user", "tenant"},
+			args:         []string{"--data", `{}`, "--dry-run"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, stdout, stderr, _ := cmdutil.TestFactory(t, testConfig)
+			method := meta.FromMap(map[string]interface{}{
+				"id":           "chats.create",
+				"path":         "chats",
+				"httpMethod":   "POST",
+				"risk":         "write",
+				"accessTokens": tt.accessTokens,
+			})
+			cmd := NewCmdServiceMethod(f, tt.service, method, "create", "chats", nil)
+			cmd.SetArgs(tt.args)
+
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			var env output.Envelope
+			if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+				t.Fatalf("dry-run stdout is not JSON: %v\n%s", err, stdout.String())
+			}
+			if _, ok := env.Notice[imcontract.IdentityDefaultedNoticeKey]; ok {
+				t.Fatalf("unexpected identity notice: %#v", env.Notice)
+			}
+			if strings.Contains(stderr.String(), "identity_defaulted") {
+				t.Fatalf("unexpected identity warning: %q", stderr.String())
+			}
+		})
+	}
+}
+
+func TestServiceMethod_IMWriteSuccessReportsDefaultedIdentity(t *testing.T) {
+	f, stdout, stderr, reg := cmdutil.TestFactory(t, testConfig)
+	reg.Register(&httpmock.Stub{
+		URL: "/open-apis/im/v1/chats",
+		Body: map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{"chat_id": "oc_test"},
+		},
+	})
+	method := meta.FromMap(map[string]interface{}{
+		"id":           "chats.create",
+		"path":         "chats",
+		"httpMethod":   "POST",
+		"risk":         "write",
+		"accessTokens": []interface{}{"user", "tenant"},
+	})
+	cmd := NewCmdServiceMethod(f, imSpec(), method, "create", "chats", nil)
+	cmd.SetArgs([]string{"--data", `{}`})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("stdout is not JSON: %v\n%s", err, stdout.String())
+	}
+	notice, ok := env.Notice[imcontract.IdentityDefaultedNoticeKey].(map[string]interface{})
+	if !ok || notice["resolved"] != "bot" {
+		t.Fatalf("identity notice = %#v", env.Notice)
+	}
+	if got := strings.Count(stderr.String(), "warning: identity_defaulted:"); got != 1 {
+		t.Fatalf("identity warning count = %d, stderr=%q", got, stderr.String())
+	}
+}
+
+func TestServiceMethod_IMIdentityDefaultNoticeExcludesOutOfScopeCommands(t *testing.T) {
+	tests := []struct {
+		name   string
+		config *core.CliConfig
+		id     string
+		method string
+		risk   string
+	}{
+		{
+			name:   "read",
+			config: testConfig,
+			id:     "chats.get",
+			method: "GET",
+			risk:   "read",
+		},
+		{
+			name: "strict mode",
+			config: &core.CliConfig{
+				AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu, SupportedIdentities: 2,
+			},
+			id:     "chats.create",
+			method: "POST",
+			risk:   "write",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, stdout, stderr, _ := cmdutil.TestFactory(t, tt.config)
+			method := meta.FromMap(map[string]interface{}{
+				"id":           tt.id,
+				"path":         "chats",
+				"httpMethod":   tt.method,
+				"risk":         tt.risk,
+				"accessTokens": []interface{}{"user", "tenant"},
+			})
+			cmd := NewCmdServiceMethod(f, imSpec(), method, strings.TrimPrefix(tt.id, "chats."), "chats", nil)
+			args := []string{"--dry-run"}
+			if tt.method == "POST" {
+				args = append(args, "--data", `{}`)
+			}
+			cmd.SetArgs(args)
+
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			var env output.Envelope
+			if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+				t.Fatalf("stdout is not JSON: %v\n%s", err, stdout.String())
+			}
+			if _, ok := env.Notice[imcontract.IdentityDefaultedNoticeKey]; ok {
+				t.Fatalf("unexpected identity notice: %#v", env.Notice)
+			}
+			if strings.Contains(stderr.String(), "identity_defaulted") {
+				t.Fatalf("unexpected identity warning: %q", stderr.String())
+			}
+		})
+	}
+}
+
 func TestServiceMethod_PathParamRejectsTraversal(t *testing.T) {
 	tests := []struct {
 		name      string

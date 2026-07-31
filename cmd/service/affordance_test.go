@@ -208,10 +208,10 @@ func TestModerationGetHelpAdvertisesPaginationCompleteness(t *testing.T) {
 	}
 }
 
-// PrepareShortcutHelp composes a shortcut's Long from its overlay with the same
-// top layout as method help (no schema pointer), folding declarative tips when
-// the overlay declares none, and leaves shortcuts without an overlay entry (and
-// non-shortcut commands) for the default help path.
+// PrepareShortcutHelp composes a shortcut's Long from its overlay (without a
+// schema pointer), preserves the selected tips on the command for the root help
+// renderer, and leaves shortcuts without an overlay entry (and non-shortcut
+// commands) for the default help path.
 func TestPrepareShortcutHelp(t *testing.T) {
 	orig := affordanceLookup
 	t.Cleanup(func() { affordanceLookup = orig })
@@ -231,10 +231,18 @@ func TestPrepareShortcutHelp(t *testing.T) {
 	if !PrepareShortcutHelp(sc, nil) {
 		t.Fatal("PrepareShortcutHelp returned false for a shortcut with an overlay")
 	}
-	for _, want := range []string{"Create an event", "Risk: write", "When to use:", "高层创建日程", "Tips:", "start/end 收 ISO 8601"} {
+	for _, want := range []string{"Create an event", "When to use:", "高层创建日程"} {
 		if !strings.Contains(sc.Long, want) {
 			t.Errorf("shortcut Long missing %q:\n%s", want, sc.Long)
 		}
+	}
+	for _, unwanted := range []string{"Risk: write", "Tips:", "start/end 收 ISO 8601"} {
+		if strings.Contains(sc.Long, unwanted) {
+			t.Errorf("shortcut Long must leave %q for the root tail renderer:\n%s", unwanted, sc.Long)
+		}
+	}
+	if got := cmdutil.GetTips(sc); len(got) != 1 || got[0] != "start/end 收 ISO 8601" {
+		t.Fatalf("shortcut tips = %#v, want the declarative tip preserved for tail rendering", got)
 	}
 	if strings.Contains(sc.Long, "Full parameter schema:") {
 		t.Errorf("shortcut Long must not carry a schema pointer:\n%s", sc.Long)
@@ -253,6 +261,31 @@ func TestPrepareShortcutHelp(t *testing.T) {
 	cmdmeta.SetAffordanceRef(notSc, "calendar", "+create")
 	if PrepareShortcutHelp(notSc, nil) {
 		t.Error("PrepareShortcutHelp should return false for a non-shortcut command")
+	}
+}
+
+func TestPrepareShortcutHelpStoresOverlayTipsForTailOnce(t *testing.T) {
+	orig := affordanceLookup
+	t.Cleanup(func() { affordanceLookup = orig })
+	affordanceLookup = func(_, _ string) (json.RawMessage, bool) {
+		return json.RawMessage(`{"use_when":["create"],"tips":["overlay tip"]}`), true
+	}
+
+	sc := &cobra.Command{Use: "+create", Short: "Create"}
+	cmdmeta.SetSource(sc, cmdmeta.SourceShortcut, false)
+	cmdmeta.SetAffordanceRef(sc, "calendar", "+create")
+	cmdutil.SetTips(sc, []string{"declarative tip"})
+
+	for range 2 {
+		if !PrepareShortcutHelp(sc, nil) {
+			t.Fatal("PrepareShortcutHelp returned false")
+		}
+	}
+	if strings.Contains(sc.Long, "overlay tip") || strings.Contains(sc.Long, "Tips:") {
+		t.Fatalf("overlay tips must be left for the common tail renderer:\n%s", sc.Long)
+	}
+	if got := cmdutil.GetTips(sc); len(got) != 1 || got[0] != "overlay tip" {
+		t.Fatalf("tips = %#v, want overlay tip once", got)
 	}
 }
 
