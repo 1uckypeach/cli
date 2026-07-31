@@ -150,16 +150,19 @@ func TestChartCreateBasic_MergesMisalignedOrOverlappingRanges(t *testing.T) {
 	}
 }
 
-func TestChartCreateBasic_RejectsCrossSheetRanges(t *testing.T) {
+func TestChartCreateBasic_PreservesAlignedCrossSheetRanges(t *testing.T) {
 	t.Parallel()
-	_, _, err := runShortcutCapturingErr(t, ChartCreateBasic, []string{
+
+	body := parseDryRunBody(t, ChartCreateBasic, []string{
 		"--url", testURL,
 		"--sheet-id", testSheetID,
 		"--chart-type", "line",
-		"--data-range", "'A'!A1:A10,'B'!C1:D10",
+		"--data-range", "'A'!A1:A10,'B'!A1:B10",
 	})
-	if err == nil {
-		t.Fatal("expected cross-sheet ranges to fail")
+	input := decodeToolInput(t, body, "manage_chart_object")
+	basic := input["basic_chart"].(map[string]interface{})
+	if got, want := basic["data_range"], "'A'!A1:A10,'B'!A1:B10"; got != want {
+		t.Fatalf("basic_chart.data_range = %v, want %q", got, want)
 	}
 }
 
@@ -465,17 +468,23 @@ func TestChartDataUpdate_MapsToPartialProperties(t *testing.T) {
 
 func TestChartDataUpdate_ExplicitDirectionAndMultipleRanges(t *testing.T) {
 	t.Parallel()
+	dataRange := "'Sheet1'!A1:A10,'Sheet2'!A1:B10"
 	body := parseDryRunBody(t, ChartDataUpdate, []string{
 		"--url", testURL,
 		"--sheet-id", testSheetID,
 		"--chart-id", "chart-1",
-		"--data-range", "'Sheet1'!A1:A10,'Sheet1'!K1:L10",
+		"--data-range", dataRange,
 		"--data-direction", "column",
 	})
 	input := decodeToolInput(t, body, "manage_chart_object")
 	data := chartDryRunSnapshot(t, input)["data"].(map[string]interface{})
-	if data["direction"] != "column" || len(data["refs"].([]interface{})) != 2 {
+	refs := data["refs"].([]interface{})
+	if data["direction"] != "column" || len(refs) != 2 {
 		t.Errorf("data patch = %#v", data)
+	}
+	if refs[0].(map[string]interface{})["value"] != "'Sheet1'!A1:A10" ||
+		refs[1].(map[string]interface{})["value"] != "'Sheet2'!A1:B10" {
+		t.Errorf("cross-sheet refs = %#v, want %q", refs, dataRange)
 	}
 }
 
@@ -539,7 +548,7 @@ func TestChartSemanticShortcuts_Validation(t *testing.T) {
 		{name: "colors cannot be empty", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--colors", ""}},
 		{name: "palette and colors are exclusive", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--color-palette", "brandColorSeries@v2", "--colors", "#112233,#445566"}},
 		{name: "size must be paired", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--width", "640"}},
-		{name: "header range cannot cross sheets", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A2:C4", "--header-range", "'A'!A1,'B'!B1:C1"}},
+		{name: "misaligned cross-sheet ranges", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "'A'!A1:A4,'B'!B2:C4"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -548,6 +557,19 @@ func TestChartSemanticShortcuts_Validation(t *testing.T) {
 				t.Fatal("expected validation error")
 			}
 		})
+	}
+
+	body := parseDryRunBody(t, ChartCreateBasic, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-type", "line",
+		"--data-range", "A2:C4",
+		"--header-range", "'A'!A1,'B'!B1:C1",
+	})
+	input := decodeToolInput(t, body, "manage_chart_object")
+	basic := input["basic_chart"].(map[string]interface{})
+	if got, want := basic["header_range"], "'A'!A1,'B'!B1:C1"; got != want {
+		t.Fatalf("basic_chart.header_range = %v, want %q", got, want)
 	}
 
 	_, _, err := runShortcutCapturingErr(t, ChartConfigUpdate, []string{

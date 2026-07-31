@@ -3498,7 +3498,7 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "Data range; include headers unless --header-range is set, in which case pass data only; accepts comma-separated same-sheet ranges"
+        "desc": "Data range; include headers unless --header-range is set, in which case pass data only; accepts comma-separated ranges across one or more sheets"
       },
       {
         "name": "header-range",
@@ -3983,7 +3983,7 @@
         "kind": "own",
         "type": "string",
         "required": "required",
-        "desc": "New data range; include headers unless --header-range is set or the chart already uses detached headers; accepts comma-separated same-sheet ranges"
+        "desc": "New data range; include headers unless --header-range is set or the chart already uses detached headers; accepts comma-separated ranges across one or more sheets"
       },
       {
         "name": "header-range",

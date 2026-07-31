@@ -5,10 +5,22 @@ package sheets
 
 import (
 	"encoding/json"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 )
+
+func TestBatchUpdate_Scopes(t *testing.T) {
+	t.Parallel()
+
+	if got, want := BatchUpdate.Scopes, []string{"sheets:spreadsheet:write_only"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unconditional scopes = %v, want %v", got, want)
+	}
+	if got, want := BatchUpdate.ConditionalScopes, []string{"sheets:spreadsheet:read"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("conditional scopes = %v, want %v", got, want)
+	}
+}
 
 // TestBatchUpdate_TranslatesShortcutToToolName verifies +batch-update
 // translates each CLI-shape sub-op ({shortcut, input}) to the MCP-shape

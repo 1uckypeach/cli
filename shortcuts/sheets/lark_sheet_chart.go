@@ -424,17 +424,10 @@ func chartDataUpdateInput(rt flagView, token, sheetID, sheetName string) (map[st
 	if err != nil {
 		return nil, sheetsValidationForFlag("data-range", "invalid --data-range %q: %v", dataRange, err)
 	}
-	explicitSheet := ""
 	for _, value := range ranges {
-		item, parseErr := parseChartDataRange(value)
+		_, parseErr := parseChartDataRange(value)
 		if parseErr != nil {
 			return nil, sheetsValidationForFlag("data-range", "invalid --data-range item %q: %v", value, parseErr)
-		}
-		if item.sheet != "" {
-			if explicitSheet != "" && item.sheet != explicitSheet {
-				return nil, sheetsValidationForFlag("data-range", "all --data-range items must belong to the same sheet")
-			}
-			explicitSheet = item.sheet
 		}
 	}
 
@@ -1083,17 +1076,10 @@ func validateChartRangeListFlag(flagName, value string) error {
 	if err != nil {
 		return sheetsValidationForFlag(flagName, "invalid --%s %q: %v", flagName, value, err)
 	}
-	explicitSheet := ""
 	for _, rangeValue := range ranges {
-		item, parseErr := parseChartHeaderRange(rangeValue)
+		_, parseErr := parseChartHeaderRange(rangeValue)
 		if parseErr != nil {
 			return sheetsValidationForFlag(flagName, "invalid --%s item %q: %v", flagName, rangeValue, parseErr)
-		}
-		if item.sheet != "" {
-			if explicitSheet != "" && item.sheet != explicitSheet {
-				return sheetsValidationForFlag(flagName, "all --%s items must belong to the same sheet", flagName)
-			}
-			explicitSheet = item.sheet
 		}
 	}
 	return nil
@@ -1206,30 +1192,23 @@ func normalizeBasicChartDataRanges(dataRange, direction string) (normalized stri
 		parsed = append(parsed, item)
 	}
 	first := parsed[0]
-	explicitSheet := ""
-	spans := make([][2]int, 0, len(parsed))
+	spansBySheet := make(map[string][][2]int)
 	aligned := true
 	minRow, minCol := first.row, first.col
 	maxRow, maxCol := first.row+first.rowCount, first.col+first.colCount
 	for _, item := range parsed {
-		if item.sheet != "" {
-			if explicitSheet != "" && item.sheet != explicitSheet {
-				return "", 0, 0, sheetsValidationForFlag("data-range", "all --data-range items must belong to the same sheet")
-			}
-			explicitSheet = item.sheet
-		}
 		if direction == "row" {
 			if item.col != first.col || item.colCount != first.colCount {
 				aligned = false
 			}
 			dimensionCount += item.rowCount
-			spans = append(spans, [2]int{item.row, item.row + item.rowCount})
+			spansBySheet[item.sheet] = append(spansBySheet[item.sheet], [2]int{item.row, item.row + item.rowCount})
 		} else {
 			if item.row != first.row || item.rowCount != first.rowCount {
 				aligned = false
 			}
 			dimensionCount += item.colCount
-			spans = append(spans, [2]int{item.col, item.col + item.colCount})
+			spansBySheet[item.sheet] = append(spansBySheet[item.sheet], [2]int{item.col, item.col + item.colCount})
 		}
 		minRow = min(minRow, item.row)
 		minCol = min(minCol, item.col)
@@ -1237,18 +1216,26 @@ func normalizeBasicChartDataRanges(dataRange, direction string) (normalized stri
 		maxCol = max(maxCol, item.col+item.colCount)
 	}
 	overlapping := false
-	for i, current := range spans {
-		for j := 0; j < i; j++ {
-			if current[0] < spans[j][1] && spans[j][0] < current[1] {
-				overlapping = true
+	for _, spans := range spansBySheet {
+		for i, current := range spans {
+			for j := 0; j < i; j++ {
+				if current[0] < spans[j][1] && spans[j][0] < current[1] {
+					overlapping = true
+				}
 			}
 		}
 	}
 	normalized = strings.Join(ranges, ",")
 	if len(ranges) > 1 && (!aligned || overlapping) {
+		if len(spansBySheet) > 1 {
+			return "", 0, 0, sheetsValidationForFlag(
+				"data-range",
+				"cross-sheet --data-range items must align along the data-point axis and must not overlap within the same sheet",
+			)
+		}
 		prefix := ""
-		if explicitSheet != "" {
-			prefix = explicitSheet + "!"
+		if first.sheet != "" {
+			prefix = first.sheet + "!"
 		}
 		normalized = prefix + columnIndexToLetter(minCol) + strconv.Itoa(minRow+1) + ":" + columnIndexToLetter(maxCol-1) + strconv.Itoa(maxRow)
 		dimensionCount = maxCol - minCol

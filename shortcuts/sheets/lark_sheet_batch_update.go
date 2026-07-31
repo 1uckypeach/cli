@@ -46,14 +46,15 @@ import (
 // {tool_name, input(+operation)} form before calling the underlying
 // batch_update tool.
 var BatchUpdate = common.Shortcut{
-	Service:     "sheets",
-	Command:     "+batch-update",
-	Description: "Execute a batch of write shortcuts in one request; fail-fast on the first failing sub-op (already-applied sub-ops are NOT rolled back).",
-	Risk:        "high-risk-write",
-	Scopes:      []string{"sheets:spreadsheet:read", "sheets:spreadsheet:write_only"},
-	AuthTypes:   []string{"user", "bot"},
-	HasFormat:   true,
-	Flags:       flagsFor("+batch-update"),
+	Service:           "sheets",
+	Command:           "+batch-update",
+	Description:       "Execute a batch of write shortcuts in one request; fail-fast on the first failing sub-op (already-applied sub-ops are NOT rolled back).",
+	Risk:              "high-risk-write",
+	Scopes:            []string{"sheets:spreadsheet:write_only"},
+	ConditionalScopes: []string{"sheets:spreadsheet:read"},
+	AuthTypes:         []string{"user", "bot"},
+	HasFormat:         true,
+	Flags:             flagsFor("+batch-update"),
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		token, err := resolveSpreadsheetToken(runtime)
 		if err != nil {

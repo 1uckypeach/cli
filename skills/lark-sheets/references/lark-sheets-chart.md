@@ -152,7 +152,7 @@ _公共四件套 · 系统：`--dry-run`_
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `--chart-type` | string | required | 图表类型（可选值：`column` / `bar` / `line` / `area` / `pie` / `scatter` / `combo` / `radar`） |
-| `--data-range` | string | required | 数据范围；未传 --header-range 时须包含表头，传入时只传纯数据；支持逗号分隔的同表多范围 |
+| `--data-range` | string | required | 数据范围；未传 --header-range 时须包含表头，传入时只传纯数据；支持逗号分隔及跨子表多范围 |
 | `--header-range` | string | optional | 可选的分离表头范围；column 方向须为一行、row 方向须为一列，表头数须等于数据维度数 |
 | `--data-direction` | string | optional | 数据系列方向；column 表示首列为类别，row 表示首行为类别（可选值：`column` / `row`）（默认 `column`） |
 | `--dim1-index` | int | optional | 类别/X 轴维度在数据范围中的 1-based 索引；默认 1 |
@@ -206,7 +206,7 @@ _公共四件套 · 系统：`--dry-run`_
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `--chart-id` | string | required | 目标图表 reference_id |
-| `--data-range` | string | required | 新数据范围；未传 --header-range 时须包含表头，传入或原图已使用分离表头时只传纯数据；支持逗号分隔的同表多范围 |
+| `--data-range` | string | required | 新数据范围；未传 --header-range 时须包含表头，传入或原图已使用分离表头时只传纯数据；支持逗号分隔及跨子表多范围 |
 | `--header-range` | string | optional | 可选的分离表头范围；提供后自动使用 detached 表头映射，省略时保留原图已有的 detached 映射 |
 | `--data-direction` | string | optional | 数据系列方向；省略时沿用现有图表方向（可选值：`column` / `row`） |
 | `--dim1-index` | int | optional | 类别/X 轴维度在数据范围中的 1-based 索引；省略时使用第 1 个维度 |
@@ -262,7 +262,7 @@ _创建/更新的图表属性_
 
 ### `+chart-create-basic`
 
-默认使用第 1 个维度作为类别/X 轴，其余维度作为数值系列；可在创建时用 1-based 的 `--dim1-index` 和逗号分隔的 `--dim2-indexes` 精确选择。饼图只允许一个数值系列；组合图至少需要两个数值系列；所有图表最多选择 50 个数值系列。默认让 `--data-range` 包含真实表头；只有“维度/系列名称”与纯数据分离时，才让 `--data-range` 只传纯数据，并用 `--header-range` 传对应的一行（column）或一列（row）表头。类别维度与数值维度不连续时，范围参数可传逗号分隔的同表多范围。数据范围对齐且不重叠时保留独立引用，不会纳入中间间隔维度；错行、错列或重叠时合并为最小包围矩形。单独调用成功后返回完整 `snapshot`，可直接检查创建结果并继续修改。参数名使用 `--anchor-cell`（不是 `--position`）和 `--data-labels`（不是 `--show-labels`）。兼容调用中，`--type` / `--range` 会分别按 `--chart-type` / `--data-range` 处理，`--x-axis` / `--y-axis` 会按轴标题处理；新调用仍优先使用规范参数名。
+默认使用第 1 个维度作为类别/X 轴，其余维度作为数值系列；可在创建时用 1-based 的 `--dim1-index` 和逗号分隔的 `--dim2-indexes` 精确选择。饼图只允许一个数值系列；组合图至少需要两个数值系列；所有图表最多选择 50 个数值系列。默认让 `--data-range` 包含真实表头；只有“维度/系列名称”与纯数据分离时，才让 `--data-range` 只传纯数据，并用 `--header-range` 传对应的一行（column）或一列（row）表头。类别维度与数值维度不连续时，范围参数可传逗号分隔的多范围，也支持来自多个子表；沿数据点轴对齐的跨子表范围会保留独立引用，同一子表内错行、错列或重叠时合并为最小包围矩形，跨子表范围无法对齐时会报错。单独调用成功后返回完整 `snapshot`，可直接检查创建结果并继续修改。参数名使用 `--anchor-cell`（不是 `--position`）和 `--data-labels`（不是 `--show-labels`）。兼容调用中，`--type` / `--range` 会分别按 `--chart-type` / `--data-range` 处理，`--x-axis` / `--y-axis` 会按轴标题处理；新调用仍优先使用规范参数名。
 
 ```bash
 # 柱形图：默认放在数据范围右侧
