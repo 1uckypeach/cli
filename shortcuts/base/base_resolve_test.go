@@ -102,42 +102,11 @@ func TestBaseURLResolveBaseURL(t *testing.T) {
 
 	t.Run("block list error is returned", func(t *testing.T) {
 		factory, stdout, reg := newExecuteFactory(t)
-		reg.Register(&httpmock.Stub{
-			Method: "POST",
-			URL:    "/open-apis/base/v3/bases/bas123/blocks/list",
-			Body: map[string]interface{}{
-				"code": 99991672,
-				"msg":  "access denied",
-				"error": map[string]interface{}{
-					"permission_violations": []interface{}{
-						map[string]interface{}{"subject": "base:block:read"},
-					},
-				},
-			},
-		})
+		reg.Register(baseBlockListScopeErrorStub("bas123"))
 		err := runShortcutWithAuthTypes(t, BaseURLResolve, authTypes(), []string{
 			"+url-resolve", "--url", "https://example.larkoffice.com/base/bas123?table=tbl123&view=vew_stale", "--as", "bot",
 		}, factory, stdout)
-		if err == nil {
-			t.Fatal("expected block-list error to be returned")
-		}
-		p, ok := errs.ProblemOf(err)
-		if !ok {
-			t.Fatalf("expected typed problem, got %T %v", err, err)
-		}
-		if p.Category != errs.CategoryAuthorization || p.Subtype != errs.SubtypeAppScopeNotApplied || p.Code != 99991672 {
-			t.Fatalf("unexpected problem: %#v", p)
-		}
-		var permissionErr *errs.PermissionError
-		if !errors.As(err, &permissionErr) {
-			t.Fatalf("expected PermissionError, got %T %v", err, err)
-		}
-		if len(permissionErr.MissingScopes) != 1 || permissionErr.MissingScopes[0] != "base:block:read" {
-			t.Fatalf("missing scopes=%v", permissionErr.MissingScopes)
-		}
-		if stdout.Len() != 0 {
-			t.Fatalf("stdout should stay empty when block-list fails: %s", stdout.String())
-		}
+		assertBaseBlockReadPermissionError(t, err, stdout)
 	})
 
 	t.Run("field endpoint does not confirm untyped block", func(t *testing.T) {
@@ -313,6 +282,22 @@ func baseBlockListResolveStub(baseToken string, blocks ...map[string]interface{}
 	}
 }
 
+func baseBlockListScopeErrorStub(baseToken string) *httpmock.Stub {
+	return &httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/base/v3/bases/" + baseToken + "/blocks/list",
+		Body: map[string]interface{}{
+			"code": 99991672,
+			"msg":  "access denied",
+			"error": map[string]interface{}{
+				"permission_violations": []interface{}{
+					map[string]interface{}{"subject": "base:block:read"},
+				},
+			},
+		},
+	}
+}
+
 func TestBaseURLResolveWikiURL(t *testing.T) {
 	t.Run("bitable", func(t *testing.T) {
 		factory, stdout, reg := newExecuteFactory(t)
@@ -351,6 +336,19 @@ func TestBaseURLResolveWikiURL(t *testing.T) {
 		if data["input_type"] != "wiki_url" || data["base_token"] != "bas123" || data["block_id"] != "tbl123" || data["block_type"] != "table" || data["table_id"] != "tbl123" || data["view_id"] != "vew123" || data["record_id"] != "rec123" {
 			t.Fatalf("unexpected Wiki Base table coordinates: %#v", data)
 		}
+	})
+
+	t.Run("bitable table coordinates return block list error", func(t *testing.T) {
+		factory, stdout, reg := newExecuteFactory(t)
+		reg.Register(wikiBaseNodeStub("wik123", "bas123", "Demo Base"))
+		reg.Register(baseBlockListScopeErrorStub("bas123"))
+
+		err := runShortcutWithAuthTypes(t, BaseURLResolve, authTypes(), []string{
+			"+url-resolve",
+			"--url", "https://example.larkoffice.com/wiki/wik123?table=tbl123&view=vew_stale",
+			"--as", "bot",
+		}, factory, stdout)
+		assertBaseBlockReadPermissionError(t, err, stdout)
 	})
 
 	t.Run("bitable with dashboard selection", func(t *testing.T) {
@@ -417,6 +415,33 @@ func wikiBaseNodeStub(wikiToken, baseToken, title string) *httpmock.Stub {
 				},
 			},
 		},
+	}
+}
+
+func assertBaseBlockReadPermissionError(t *testing.T, err error, stdout interface {
+	Len() int
+	String() string
+}) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("expected block-list error to be returned")
+	}
+	p, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("expected typed problem, got %T %v", err, err)
+	}
+	if p.Category != errs.CategoryAuthorization || p.Subtype != errs.SubtypeAppScopeNotApplied || p.Code != 99991672 {
+		t.Fatalf("unexpected problem: %#v", p)
+	}
+	var permissionErr *errs.PermissionError
+	if !errors.As(err, &permissionErr) {
+		t.Fatalf("expected PermissionError, got %T %v", err, err)
+	}
+	if len(permissionErr.MissingScopes) != 1 || permissionErr.MissingScopes[0] != "base:block:read" {
+		t.Fatalf("missing scopes=%v", permissionErr.MissingScopes)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout should stay empty when block-list fails: %s", stdout.String())
 	}
 }
 
