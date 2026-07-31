@@ -9,8 +9,18 @@ Maps to `lark-cli im reactions <method>` (`create` / `list` / `delete` / `batch_
 ## Gotchas
 
 - **Reaction APIs return reaction *records*, not just aggregated counts.** `list` yields one entry per reaction event (who, when, which emoji); aggregate counts only appear in `batch_query`'s `success_msg_reaction_counts`. Do not expect a count-only response from `list`.
-- **`batch_query` returns fragments, not complete reaction sets.** It covers only the reaction fragment returned for each query. When the *complete* reaction list for one message is required, use `im reactions list` and exhaust its pagination — never treat an empty or partial batch fragment as complete.
 - **`operator.operator_id` is not always a user ID.** When `operator_type=app` the value is the **app ID**, not an `ou_xxx` open_id. Only when `operator_type=user` does it follow the request's `user_id_type`.
+
+## `batch_query` Pagination
+
+- **A batch fragment is never a complete reaction set.** `batch_query` pages *per message* — each
+  `queries[]` element has its own cursor and its own size ceiling, so one call returns a slice of each
+  message's reactions, not all of them. When the *complete* list for one message is required, switch to
+  `im reactions list` and exhaust its pagination. An empty or short fragment from `batch_query` does not
+  mean the message has no more reactions.
+- **Read the cursor and size limits off `queries[].page_token` and `page_size_per_message`** in
+  `lark-cli schema im.reactions.batch_query --format pretty`. Both live under `--data`, and the size
+  ceiling is narrower than typical list endpoints — do not carry over a conventional page-size default.
 
 ## `emoji_type` Field
 
