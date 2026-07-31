@@ -63,8 +63,9 @@ func newChatSearchTestRuntimeContext(t *testing.T, stringFlags map[string]string
 
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().Int("page-size", 20, "")
+	cmd.Flags().Int("page-limit", 10, "")
 	for name := range stringFlags {
-		if name == "page-size" {
+		if name == "page-size" || name == "page-limit" {
 			continue
 		}
 		cmd.Flags().String(name, "", "")
@@ -330,7 +331,7 @@ func TestShortcutValidateBranches(t *testing.T) {
 			"page-size": "0",
 		}, nil)
 		err := ImChatSearch.Validate(context.Background(), runtime)
-		if err == nil || !strings.Contains(err.Error(), "--page-size must be an integer between 1 and 100") {
+		if err == nil || !strings.Contains(err.Error(), "invalid --page-size 0: must be between 1 and 100") {
 			t.Fatalf("ImChatSearch.Validate() error = %v", err)
 		}
 	})
@@ -700,7 +701,7 @@ func TestShortcutValidateBranches(t *testing.T) {
 			"page-size": "0",
 		}, nil)
 		err := ImMessagesSearch.Validate(context.Background(), runtime)
-		if err == nil || !strings.Contains(err.Error(), "--page-size must be an integer between 1 and 50") {
+		if err == nil || !strings.Contains(err.Error(), "invalid --page-size 0: must be between 1 and 50") {
 			t.Fatalf("ImMessagesSearch.Validate() error = %v", err)
 		}
 	})
@@ -881,7 +882,7 @@ func TestShortcutDryRunShapes(t *testing.T) {
 	t.Run("ImMessagesSearch dry run uses messages search endpoint", func(t *testing.T) {
 		runtime := newMessagesSearchTestRuntimeContext(t, map[string]string{
 			"query":      "incident",
-			"page-size":  "51",
+			"page-size":  "50",
 			"page-token": "next_page",
 		}, nil)
 		got := mustMarshalDryRun(t, ImMessagesSearch.DryRun(context.Background(), runtime))

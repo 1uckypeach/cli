@@ -16,6 +16,11 @@ import (
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
+const (
+	chatSearchDefaultPageLimit = 10
+	chatSearchMaximumPageLimit = 1000
+)
+
 // ImChatSearch is the +chat-search shortcut: wraps POST /open-apis/im/v2/chats/search
 // to find visible group chats by keyword and/or member open_ids. Supports
 // member/type filters, sort order, pagination, and (user identity only) the
@@ -23,7 +28,7 @@ import (
 var ImChatSearch = common.Shortcut{
 	Service:     "im",
 	Command:     "+chat-search",
-	Description: "Search visible group chats by --query keyword and/or --member-ids; user/bot; e.g. look up chat_id by group name; supports type filters, sorting, pagination, and --exclude-muted (user identity only)",
+	Description: "Search visible group chats by --query keyword and/or --member-ids; user/bot; e.g. look up chat_id by group name; supports type filters, sorting, auto-pagination, and --exclude-muted (user identity only)",
 	Risk:        "read",
 	Scopes:      []string{"im:chat:read"},
 	AuthTypes:   []string{"user", "bot"},
@@ -37,15 +42,21 @@ var ImChatSearch = common.Shortcut{
 		{Name: "disable-search-by-user", Type: "bool", Desc: "disable search-by-member-name (default: search by member name first, then group name)"},
 		{Name: "sort", Desc: "sort field (always descending): create_time | update_time | member_count", Enum: []string{"create_time", "update_time", "member_count"}},
 		{Name: "sort-by", Hidden: true, Desc: "alias of --sort (hidden)", Enum: []string{"create_time_desc", "update_time_desc", "member_count_desc"}},
-		{Name: "page-size", Type: "int", Default: "20", Desc: "page size (1-100)"},
+		{Name: "page-size", Type: "int", Default: "20", Desc: imPageSizeDescription("+chat-search")},
 		{Name: "page-token", Desc: "pagination token for next page"},
+		{Name: "page-all", Type: "bool", Desc: "automatically paginate, capped by --page-limit"},
+		{Name: "page-limit", Type: "int", Default: "10", Desc: "max pages with --page-all (default 10; configurable range 1-1000)"},
 		{Name: "exclude-muted", Type: "bool", Desc: "(user identity only) drop chats the current user has muted (do-not-disturb); bot identity returns all chats unfiltered"},
 	},
 	// DryRun previews the POST /open-apis/im/v2/chats/search request without executing.
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
 		body := buildSearchChatBody(runtime)
 		params := buildSearchChatParams(runtime)
-		return common.NewDryRunAPI().
+		dry := common.NewDryRunAPI()
+		if chatSearchShouldAutoPaginate(runtime) {
+			dry.Desc("Auto-paginates through all pages (capped by --page-limit when > 0)")
+		}
+		return dry.
 			POST("/open-apis/im/v2/chats/search").
 			Params(params).
 			Body(body)
@@ -89,19 +100,28 @@ var ImChatSearch = common.Shortcut{
 				}
 			}
 		}
-		if n := runtime.Int("page-size"); n < 1 || n > 100 {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--page-size must be an integer between 1 and 100").WithParam("--page-size")
+		if _, err := validateIMPageSize(runtime, "+chat-search", 20); err != nil {
+			return err
+		}
+		if n := runtime.Int("page-limit"); n < 1 || n > chatSearchMaximumPageLimit {
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--page-limit must be an integer between 1 and 1000").WithParam("--page-limit")
 		}
 		return nil
 	},
-	// Execute fetches one page, extracts per-item meta_data, optionally applies
+	// Execute fetches one or more pages, extracts per-item meta_data, optionally applies
 	// the --exclude-muted client-side filter (with a PreSkipReason when
 	// --search-types is exactly public_not_joined), and renders the result.
 	// outData["filter"] is populated only when --exclude-muted is set.
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		body := buildSearchChatBody(runtime)
 		params := buildSearchChatParams(runtime)
-		resData, err := runtime.CallAPITyped("POST", "/open-apis/im/v2/chats/search", params, body)
+		var resData map[string]interface{}
+		var err error
+		if chatSearchShouldAutoPaginate(runtime) {
+			resData, err = fetchChatSearchAllPages(runtime, params, body)
+		} else {
+			resData, err = runtime.CallAPITyped("POST", "/open-apis/im/v2/chats/search", params, body)
+		}
 		if err != nil {
 			return err
 		}
@@ -205,6 +225,64 @@ var ImChatSearch = common.Shortcut{
 		})
 		return nil
 	},
+}
+
+func chatSearchShouldAutoPaginate(runtime *common.RuntimeContext) bool {
+	return runtime.Bool("page-all") && !runtime.Cmd.Flags().Changed("page-token")
+}
+
+func fetchChatSearchAllPages(runtime *common.RuntimeContext, params, body map[string]interface{}) (map[string]interface{}, error) {
+	maxPages := runtime.Int("page-limit")
+	if maxPages < 1 {
+		maxPages = chatSearchDefaultPageLimit
+	}
+	if maxPages > chatSearchMaximumPageLimit {
+		maxPages = chatSearchMaximumPageLimit
+	}
+
+	allItems := make([]interface{}, 0)
+	var lastData map[string]interface{}
+	var lastHasMore bool
+	var lastPageToken string
+	prevPageToken := "__START__"
+	delete(params, "page_token")
+
+	for page := 0; page < maxPages; page++ {
+		if page > 0 {
+			params["page_token"] = lastPageToken
+		}
+		data, err := runtime.CallAPITyped("POST", "/open-apis/im/v2/chats/search", params, body)
+		if err != nil {
+			return nil, err
+		}
+		lastData = data
+		if items, ok := data["items"].([]interface{}); ok {
+			allItems = append(allItems, items...)
+		}
+		lastHasMore, lastPageToken = common.PaginationMeta(data)
+		fmt.Fprintf(runtime.IO().ErrOut, "page %d: %d chats\n", page+1, len(allItems))
+
+		if !lastHasMore || lastPageToken == "" {
+			break
+		}
+		if lastPageToken == prevPageToken {
+			fmt.Fprintln(runtime.IO().ErrOut, "warning: page_token did not change, stopping pagination to avoid infinite loop")
+			break
+		}
+		if page+1 >= maxPages {
+			fmt.Fprintf(runtime.IO().ErrOut, "[pagination] reached page limit (%d) while has_more=true; result is incomplete. Increase --page-limit up to 1000 or resume with the page_token returned in stdout.\n", maxPages)
+			break
+		}
+		prevPageToken = lastPageToken
+	}
+
+	if lastData == nil {
+		lastData = map[string]interface{}{}
+	}
+	lastData["items"] = allItems
+	lastData["has_more"] = lastHasMore
+	lastData["page_token"] = lastPageToken
+	return lastData, nil
 }
 
 // buildSearchChatBody builds the JSON request body for POST /im/v2/chats/search

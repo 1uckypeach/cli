@@ -19,11 +19,12 @@ import (
 
 const (
 	messagesSearchDefaultPageSize  = 20
-	messagesSearchMaxPageSize      = 50
 	messagesSearchDefaultPageLimit = 20
 	messagesSearchMaxPageLimit     = 40
 	messagesSearchMGetBatchSize    = 50
 )
+
+var messagesSearchMaxPageSize = imPageSizeLimit("+messages-search")
 
 var ImMessagesSearch = common.Shortcut{
 	Service:     "im",
@@ -45,7 +46,7 @@ var ImMessagesSearch = common.Shortcut{
 		{Name: "at-chatter-ids", Desc: "filter by @mentioned user open_ids, comma-separated (also matches messages that @all)"},
 		{Name: "start", Desc: "start time(ISO 8601) with local timezone offset (e.g. 2026-03-24T00:00:00+08:00)"},
 		{Name: "end", Desc: "end time(ISO 8601) with local timezone offset (e.g. 2026-03-25T23:59:59+08:00)"},
-		{Name: "page-size", Type: "int", Default: "20", Desc: "page size (1-50)"},
+		{Name: "page-size", Type: "int", Default: "20", Desc: imPageSizeDescription("+messages-search")},
 		{Name: "page-token", Desc: "page token"},
 		{Name: "page-all", Type: "bool", Desc: "automatically paginate search results"},
 		{Name: "page-limit", Type: "int", Default: "20", Desc: "max search pages when auto-pagination is enabled (default 20, max 40)"},
@@ -365,12 +366,9 @@ func buildMessagesSearchRequest(runtime *common.RuntimeContext) (*messagesSearch
 		body["filter"] = filter
 	}
 
-	pageSize := runtime.Int("page-size")
-	if pageSize < 1 {
-		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--page-size must be an integer between 1 and 50").WithParam("--page-size")
-	}
-	if pageSize > messagesSearchMaxPageSize {
-		pageSize = messagesSearchMaxPageSize
+	pageSize, err := validateIMPageSize(runtime, "+messages-search", messagesSearchDefaultPageSize)
+	if err != nil {
+		return nil, err
 	}
 
 	params := larkcore.QueryParams{
