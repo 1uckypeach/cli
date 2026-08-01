@@ -6,6 +6,8 @@ Download image or file resources from a message. Supports **automatic chunked do
 
 > **Note:** read-only message commands render resource keys in message content, but they do not download binaries automatically. Use this command whenever you need to fetch the actual image/file bytes or save them to a specific path.
 
+There is no `--overwrite` flag. Saving to a path that already exists replaces that file atomically; use a different `--output` path to keep the existing file.
+
 This skill maps to the shortcut: `lark-cli im +messages-resources-download` (internally calls `GET /open-apis/im/v1/messages/{message_id}/resources/{file_key}`).
 
 ## Commands

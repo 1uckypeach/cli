@@ -12,9 +12,12 @@ import (
 const aliasFlagNoticeAnnotation = "lark-cli.im/alias-notice-emitted"
 
 // aliasFlagValue handles a renamed string flag whose old name is kept as a
-// hidden alias. It returns (oldValue, true) only when the old flag was
-// explicitly used and the new one was not. The canonical flag wins when both
-// are present. A note is emitted once per invocation when the alias is used.
+// hidden alias. It is only for flags with identical semantics and value
+// domains; value-aware compatibility such as +chat-search --types stays in
+// that command's validation. It returns (oldValue, true) only when the old
+// flag was explicitly used and the new one was not. The canonical flag wins
+// when both are present. A note is emitted once per invocation when the alias
+// is used.
 func aliasFlagValue(rt *common.RuntimeContext, oldName, newName string) (string, bool) {
 	if rt.Changed(oldName) && !rt.Changed(newName) {
 		emitAliasFlagNote(rt, oldName, newName)

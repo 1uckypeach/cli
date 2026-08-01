@@ -24,8 +24,6 @@ const (
 	messagesSearchMGetBatchSize    = 50
 )
 
-var messagesSearchMaxPageSize = imPageSizeLimit("+messages-search")
-
 var ImMessagesSearch = common.Shortcut{
 	Service:     "im",
 	Command:     "+messages-search",

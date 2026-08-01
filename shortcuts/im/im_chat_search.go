@@ -37,6 +37,7 @@ var ImChatSearch = common.Shortcut{
 		{Name: "query", Desc: "search keyword (server may return data.notice for overly long input)"},
 		{Name: "search-types", Desc: "chat types, comma-separated (private, external, public_joined, public_not_joined)"},
 		{Name: "chat-modes", Desc: "filter by chat mode, comma-separated (group, topic)"},
+		{Name: "types", Hidden: true, Desc: "compatibility input handled by +chat-search validation; use --chat-modes or --search-types"},
 		{Name: "member-ids", Desc: "filter by member open_ids, comma-separated"},
 		{Name: "is-manager", Type: "bool", Desc: "only show chats you created or manage"},
 		{Name: "disable-search-by-user", Type: "bool", Desc: "disable search-by-member-name (default: search by member name first, then group name)"},
@@ -68,6 +69,9 @@ var ImChatSearch = common.Shortcut{
 		memberIDs := runtime.Str("member-ids")
 		if query == "" && memberIDs == "" {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--query and --member-ids cannot both be empty; provide at least one (e.g. --query \"team-name\" or --member-ids \"ou_xxx\")")
+		}
+		if err := applyChatSearchTypesCompatibility(runtime); err != nil {
+			return err
 		}
 		if st := runtime.Str("search-types"); st != "" {
 			allowed := map[string]struct{}{
@@ -225,6 +229,51 @@ var ImChatSearch = common.Shortcut{
 		})
 		return nil
 	},
+}
+
+// applyChatSearchTypesCompatibility accepts the one observed cross-command
+// spelling without treating --types as a normal alias. +chat-list and
+// +chat-search use different value domains, so the value must be inspected
+// before it can be mapped safely. An explicit --chat-modes always wins.
+func applyChatSearchTypesCompatibility(runtime *common.RuntimeContext) error {
+	if !runtime.Changed("types") || runtime.Changed("chat-modes") {
+		return nil
+	}
+
+	typesValue := runtime.Str("types")
+	types := common.SplitCSV(typesValue)
+	for _, chatType := range types {
+		if chatType == "p2p" {
+			return errs.NewValidationError(
+				errs.SubtypeInvalidArgument,
+				"--types %q is invalid for im +chat-search: this command only searches group chats and the service does not support p2p; use im +chat-list --types p2p to list p2p chats",
+				typesValue,
+			).WithParam("--types")
+		}
+	}
+
+	onlyGroup := len(types) > 0
+	for _, chatType := range types {
+		if chatType != "group" {
+			onlyGroup = false
+			break
+		}
+	}
+	if !onlyGroup {
+		return errs.NewValidationError(
+			errs.SubtypeInvalidArgument,
+			"invalid --types value %q for im +chat-search; use --chat-modes (group|topic) or --search-types (private|external|public_joined|public_not_joined)",
+			typesValue,
+		).WithParam("--types")
+	}
+
+	if err := runtime.Cmd.Flags().Set("chat-modes", "group"); err != nil {
+		return errs.NewInternalError(errs.SubtypeUnknown, "failed to map --types to --chat-modes").WithCause(err)
+	}
+	if runtime.Factory != nil && runtime.Factory.IOStreams != nil && runtime.Factory.IOStreams.ErrOut != nil {
+		fmt.Fprintln(runtime.Factory.IOStreams.ErrOut, "note: --types on +chat-search maps to --chat-modes")
+	}
+	return nil
 }
 
 func chatSearchShouldAutoPaginate(runtime *common.RuntimeContext) bool {

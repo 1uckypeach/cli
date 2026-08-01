@@ -64,14 +64,24 @@ func newChatSearchTestRuntimeContext(t *testing.T, stringFlags map[string]string
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().Int("page-size", 20, "")
 	cmd.Flags().Int("page-limit", 10, "")
+	for _, name := range []string{"query", "search-types", "chat-modes", "types", "member-ids", "sort", "sort-by", "page-token"} {
+		cmd.Flags().String(name, "", "")
+	}
 	for name := range stringFlags {
 		if name == "page-size" || name == "page-limit" {
 			continue
 		}
-		cmd.Flags().String(name, "", "")
+		if cmd.Flags().Lookup(name) == nil {
+			cmd.Flags().String(name, "", "")
+		}
+	}
+	for _, name := range []string{"is-manager", "disable-search-by-user", "exclude-muted", "page-all", "dry-run"} {
+		cmd.Flags().Bool(name, false, "")
 	}
 	for name := range boolFlags {
-		cmd.Flags().Bool(name, false, "")
+		if cmd.Flags().Lookup(name) == nil {
+			cmd.Flags().Bool(name, false, "")
+		}
 	}
 	if err := cmd.ParseFlags(nil); err != nil {
 		t.Fatalf("ParseFlags() error = %v", err)
