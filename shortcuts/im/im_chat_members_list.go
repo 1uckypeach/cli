@@ -77,8 +77,12 @@ var ImChatMembersList = common.Shortcut{
 		if n := runtime.Int("page-delay"); n < 0 {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--page-delay must be a non-negative integer").WithParam("--page-delay")
 		}
-		_, err := normalizeMemberTypes(runtime.StrSlice("member-types"))
-		return err
+		memberTypes := runtime.StrSlice("member-types")
+		if _, err := normalizeMemberTypes(memberTypes); err != nil {
+			return err
+		}
+		writeMemberTypesCompatibilityNotes(runtime.IO().ErrOut, memberTypes)
+		return nil
 	},
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
 		chatID := strings.TrimSpace(runtime.Str("chat-id"))
@@ -303,16 +307,28 @@ func mergeChatMemberPages(pages []map[string]interface{}) *chatMembersResult {
 }
 
 // normalizeMemberTypes validates the --member-types slice (already CSV-split by
-// cobra) into a lowercased, deduped CSV string. Empty input is a no-op (return
-// the API's default of all types). Any element outside {user, bot} is rejected.
+// cobra) into a lowercased, deduped CSV string. Empty input or any occurrence of
+// all is a no-op (return the API's default of all types). Plural spellings are
+// normalized before validation; any other value is rejected.
 func normalizeMemberTypes(raw []string) (string, error) {
 	if len(raw) == 0 {
 		return "", nil
+	}
+	for _, p := range raw {
+		if strings.EqualFold(strings.TrimSpace(p), "all") {
+			return "", nil
+		}
 	}
 	seen := make(map[string]struct{}, len(raw))
 	out := make([]string, 0, len(raw))
 	for _, p := range raw {
 		p = strings.TrimSpace(strings.ToLower(p))
+		switch p {
+		case "users":
+			p = "user"
+		case "bots":
+			p = "bot"
+		}
 		if p != "user" && p != "bot" {
 			return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --member-types value %q: expected one of user, bot", p).WithParam("--member-types")
 		}
@@ -323,6 +339,36 @@ func normalizeMemberTypes(raw []string) (string, error) {
 		out = append(out, p)
 	}
 	return strings.Join(out, ","), nil
+}
+
+func writeMemberTypesCompatibilityNotes(w io.Writer, raw []string) {
+	for _, value := range raw {
+		value = strings.TrimSpace(value)
+		if strings.EqualFold(value, "all") {
+			fmt.Fprintf(w, "note: --member-types %q means no filter (same as omitting the flag)\n", value)
+			return
+		}
+	}
+
+	seen := make(map[string]struct{}, 2)
+	for _, value := range raw {
+		value = strings.TrimSpace(value)
+		canonical := ""
+		switch strings.ToLower(value) {
+		case "users":
+			canonical = "user"
+		case "bots":
+			canonical = "bot"
+		}
+		if canonical == "" {
+			continue
+		}
+		if _, ok := seen[canonical]; ok {
+			continue
+		}
+		seen[canonical] = struct{}{}
+		fmt.Fprintf(w, "note: --member-types %q is accepted as %q\n", value, canonical)
+	}
 }
 
 // warnIfConflictingPagingFlags mirrors the wiki list shortcuts: --page-token
