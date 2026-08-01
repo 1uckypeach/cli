@@ -67,7 +67,7 @@ func RiskLine(cmd *cobra.Command) (line string, ok bool) {
 		return "", false
 	}
 	if level == RiskHighRiskWrite && cmd.Flags().Lookup("yes") != nil {
-		return fmt.Sprintf("Risk: %s (requires explicit user confirmation to execute; the agent must NOT add --yes on its own — only pass --yes after the user has confirmed)", level), true
+		return fmt.Sprintf("Risk: %s (requires explicit user confirmation to execute; %s)", level, core.YesSelfApprovalBan), true
 	}
 	return fmt.Sprintf("Risk: %s", level), true
 }
