@@ -169,7 +169,8 @@ func TestNormalizeMemberTypes(t *testing.T) {
 		{[]string{"users", "bots"}, "user,bot", false},
 		{[]string{"Users", "user", "Bots", "bot"}, "user,bot", false},
 		{[]string{"user", "all"}, "", false},
-		{[]string{"admin", "ALL"}, "", false},
+		{[]string{"bots", "ALL"}, "", false},
+		{[]string{"admin", "ALL"}, "", true}, // invalid value is rejected even when all is present
 		{[]string{"admin"}, "", true},
 		{[]string{""}, "", true},
 	}

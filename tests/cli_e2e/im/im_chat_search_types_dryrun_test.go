@@ -46,7 +46,7 @@ func TestIMChatSearchCanonicalChatModesWinsOverTypes(t *testing.T) {
 	t.Cleanup(cancel)
 
 	result, err := clie2e.RunCmd(ctx, clie2e.Request{
-		Args:      []string{"im", "+chat-search", "--query", "team", "--types", "group", "--chat-modes", "topic", "--dry-run"},
+		Args:      []string{"im", "+chat-search", "--query", "team", "--types", "p2p", "--chat-modes", "topic", "--dry-run"},
 		DefaultAs: "bot",
 	})
 	require.NoError(t, err)
@@ -72,6 +72,9 @@ func TestIMChatSearchTypesValidationErrors(t *testing.T) {
 			message := gjson.Get(result.Stderr, "error.message").String()
 			require.Contains(t, message, "service does not support p2p")
 			require.Contains(t, message, "im +chat-list --types p2p")
+			require.Equal(t, "validation", gjson.Get(result.Stderr, "error.type").String())
+			require.Equal(t, "invalid_argument", gjson.Get(result.Stderr, "error.subtype").String())
+			require.Equal(t, "--types", gjson.Get(result.Stderr, "error.param").String())
 		})
 	}
 
@@ -85,6 +88,9 @@ func TestIMChatSearchTypesValidationErrors(t *testing.T) {
 	message := gjson.Get(result.Stderr, "error.message").String()
 	require.Contains(t, message, "--chat-modes (group|topic)")
 	require.Contains(t, message, "--search-types (private|external|public_joined|public_not_joined)")
+	require.Equal(t, "validation", gjson.Get(result.Stderr, "error.type").String())
+	require.Equal(t, "invalid_argument", gjson.Get(result.Stderr, "error.subtype").String())
+	require.Equal(t, "--types", gjson.Get(result.Stderr, "error.param").String())
 }
 
 func TestIMChatSearchTypesHiddenFromHelp(t *testing.T) {

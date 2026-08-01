@@ -307,20 +307,18 @@ func mergeChatMemberPages(pages []map[string]interface{}) *chatMembersResult {
 }
 
 // normalizeMemberTypes validates the --member-types slice (already CSV-split by
-// cobra) into a lowercased, deduped CSV string. Empty input or any occurrence of
-// all is a no-op (return the API's default of all types). Plural spellings are
-// normalized before validation; any other value is rejected.
+// cobra) into a lowercased, deduped CSV string. Empty input is a no-op (return
+// the API's default of all types). Plural spellings are normalized before
+// validation. Every value is validated first; only then does an occurrence of
+// all turn the whole filter into a no-op, so an invalid value alongside all
+// (e.g. "admin,all") is still rejected instead of silently ignored.
 func normalizeMemberTypes(raw []string) (string, error) {
 	if len(raw) == 0 {
 		return "", nil
 	}
-	for _, p := range raw {
-		if strings.EqualFold(strings.TrimSpace(p), "all") {
-			return "", nil
-		}
-	}
 	seen := make(map[string]struct{}, len(raw))
 	out := make([]string, 0, len(raw))
+	hasAll := false
 	for _, p := range raw {
 		p = strings.TrimSpace(strings.ToLower(p))
 		switch p {
@@ -328,15 +326,21 @@ func normalizeMemberTypes(raw []string) (string, error) {
 			p = "user"
 		case "bots":
 			p = "bot"
+		case "all":
+			hasAll = true
+			continue
 		}
 		if p != "user" && p != "bot" {
-			return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --member-types value %q: expected one of user, bot", p).WithParam("--member-types")
+			return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --member-types value %q: expected one of user, bot, all", p).WithParam("--member-types")
 		}
 		if _, dup := seen[p]; dup {
 			continue
 		}
 		seen[p] = struct{}{}
 		out = append(out, p)
+	}
+	if hasAll {
+		return "", nil
 	}
 	return strings.Join(out, ","), nil
 }

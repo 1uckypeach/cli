@@ -26,7 +26,7 @@ const (
 var ImChatMessageList = common.Shortcut{
 	Service:     "im",
 	Command:     "+chat-messages-list",
-	Description: "List messages in a chat or P2P conversation; user/bot; accepts --chat-id or --user-id, resolves P2P chat_id, supports time range/sort/auto-pagination",
+	Description: "List messages in a chat or P2P conversation; user/bot; accepts --chat-id or --user-id, resolves P2P chat_id, supports time range, --order asc|desc sorting, auto-pagination",
 	Risk:        "read",
 	Scopes:      []string{"im:message:readonly"},
 	UserScopes:  []string{"im:message.group_msg:get_as_user", "im:message.p2p_msg:get_as_user", "im:message.reactions:read"},

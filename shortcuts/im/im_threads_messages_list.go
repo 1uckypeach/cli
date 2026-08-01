@@ -27,7 +27,7 @@ var threadsMessagesMaxPageSize = imPageSizeLimit("+threads-messages-list")
 var ImThreadsMessagesList = common.Shortcut{
 	Service:     "im",
 	Command:     "+threads-messages-list",
-	Description: "List messages in a thread; user/bot; accepts om_/omt_ input, resolves message IDs to thread_id, supports sort/auto-pagination",
+	Description: "List messages in a thread; user/bot; accepts om_/omt_ input, resolves message IDs to thread_id, supports --order asc|desc sorting, auto-pagination",
 	Risk:        "read",
 	Scopes:      []string{"im:message:readonly"},
 	UserScopes:  []string{"im:message.group_msg:get_as_user", "im:message.p2p_msg:get_as_user", "im:message.reactions:read"},

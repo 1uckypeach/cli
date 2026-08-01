@@ -68,7 +68,10 @@ func TestIMChatMembersListMemberTypesCompatibilityDryRun(t *testing.T) {
 	require.NoError(t, err)
 	invalid.AssertExitCode(t, 2)
 	require.Empty(t, invalid.Stdout)
-	require.Equal(t, `invalid --member-types value "xxx": expected one of user, bot`, gjson.Get(invalid.Stderr, "error.message").String())
+	require.Equal(t, `invalid --member-types value "xxx": expected one of user, bot, all`, gjson.Get(invalid.Stderr, "error.message").String())
+	require.Equal(t, "validation", gjson.Get(invalid.Stderr, "error.type").String())
+	require.Equal(t, "invalid_argument", gjson.Get(invalid.Stderr, "error.subtype").String())
+	require.Equal(t, "--member-types", gjson.Get(invalid.Stderr, "error.param").String())
 }
 
 func TestIMMessagesResourcesDownloadRequiredFlagsDryRun(t *testing.T) {
@@ -88,6 +91,10 @@ func TestIMMessagesResourcesDownloadRequiredFlagsDryRun(t *testing.T) {
 	require.Contains(t, hint, "+messages-mget")
 	require.Contains(t, hint, "--download-resources")
 	require.Equal(t, int64(2), gjson.Get(missing.Stderr, "error.params.#").Int())
+	require.Equal(t, "validation", gjson.Get(missing.Stderr, "error.type").String())
+	require.Equal(t, "invalid_argument", gjson.Get(missing.Stderr, "error.subtype").String())
+	require.Equal(t, "--file-key", gjson.Get(missing.Stderr, "error.params.0.name").String())
+	require.Equal(t, "--type", gjson.Get(missing.Stderr, "error.params.1.name").String())
 
 	complete, err := clie2e.RunCmd(ctx, clie2e.Request{
 		Args: []string{
