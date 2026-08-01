@@ -35,7 +35,8 @@ var ImThreadsMessagesList = common.Shortcut{
 	AuthTypes:   []string{"user", "bot"},
 	HasFormat:   true,
 	Flags: []common.Flag{
-		{Name: "thread", Desc: "thread ID (om_xxx or omt_xxx)", Required: true},
+		{Name: "thread", Desc: "thread ID (om_xxx or omt_xxx)"},
+		{Name: "thread-id", Hidden: true, Desc: "alias of --thread (hidden)"},
 		{Name: "order", Default: "asc", Desc: "sort order: asc | desc", Enum: []string{"asc", "desc"}},
 		{Name: "sort", Hidden: true, Desc: "alias of --order (hidden)", Enum: []string{"asc", "desc"}},
 		{Name: "page-size", Default: "50", Desc: imPageSizeDescription("+threads-messages-list")},
@@ -46,7 +47,7 @@ var ImThreadsMessagesList = common.Shortcut{
 		downloadResourcesFlag,
 	},
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
-		threadFlag := runtime.Str("thread")
+		threadFlag := resolveThreadsInput(runtime)
 		dir := resolveThreadsOrder(runtime)
 		pageSizeStr := runtime.Str("page-size")
 		pageToken := runtime.Str("page-token")
@@ -81,7 +82,7 @@ var ImThreadsMessagesList = common.Shortcut{
 		return d
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		threadId := runtime.Str("thread")
+		threadId := resolveThreadsInput(runtime)
 		if threadId == "" {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--thread is required (om_xxx or omt_xxx)").WithParam("--thread")
 		}
@@ -101,7 +102,7 @@ var ImThreadsMessagesList = common.Shortcut{
 		if err != nil {
 			return err
 		}
-		threadId, err := resolveThreadID(runtime, runtime.Str("thread"))
+		threadId, err := resolveThreadID(runtime, resolveThreadsInput(runtime))
 		if err != nil {
 			return err
 		}
@@ -242,6 +243,14 @@ func fetchThreadsMessagesListAllPages(runtime *common.RuntimeContext, params map
 	lastData["has_more"] = lastHasMore
 	lastData["page_token"] = lastPageToken
 	return lastData, nil
+}
+
+func resolveThreadsInput(runtime *common.RuntimeContext) string {
+	threadID := runtime.Str("thread")
+	if old, ok := aliasFlagValue(runtime, "thread-id", "thread"); ok {
+		threadID = old
+	}
+	return threadID
 }
 
 // buildThreadsMessagesListParams builds the upstream query params shared by

@@ -37,10 +37,14 @@ var ImChatMessageList = common.Shortcut{
 		{Name: "chat-id", Desc: "(required, mutually exclusive with --user-id) chat ID (oc_xxx)"},
 		{Name: "user-id", Desc: "(required, mutually exclusive with --chat-id; user identity only) user open_id (ou_xxx)"},
 		{Name: "start", Desc: "start time (ISO 8601)"},
+		{Name: "start-time", Hidden: true, Desc: "alias of --start (hidden)"},
 		{Name: "end", Desc: "end time (ISO 8601)"},
+		{Name: "end-time", Hidden: true, Desc: "alias of --end (hidden)"},
 		{Name: "order", Default: "desc", Desc: "sort order: asc | desc", Enum: []string{"asc", "desc"}},
 		{Name: "sort", Hidden: true, Desc: "alias of --order (hidden)", Enum: []string{"asc", "desc"}},
+		{Name: "sort-order", Hidden: true, Desc: "alias of --order (hidden)", Enum: []string{"asc", "desc"}},
 		{Name: "page-size", Default: "50", Desc: imPageSizeDescription("+chat-messages-list")},
+		{Name: "limit", Hidden: true, Desc: "alias of --page-size (hidden)"},
 		{Name: "page-token", Desc: "pagination token for next page"},
 		{Name: "page-all", Type: "bool", Desc: "automatically paginate, capped by --page-limit"},
 		{Name: "page-limit", Type: "int", Default: "10", Desc: "max pages with --page-all (default 10; configurable range 1-1000)"},
@@ -293,20 +297,35 @@ func buildChatMessageListRequest(runtime *common.RuntimeContext, chatId string) 
 	if old, ok := aliasFlagValue(runtime, "sort", "order"); ok {
 		dir = old // old value is asc/desc -> must go through the same map, never pass through
 	}
-	pageSize, err := validateIMPageSize(runtime, "+chat-messages-list", chatMessagesListDefaultPageSize)
+	if old, ok := aliasFlagValue(runtime, "sort-order", "order"); ok {
+		dir = old
+	}
+	pageSizeFlag := "page-size"
+	if _, ok := aliasFlagValue(runtime, "limit", "page-size"); ok {
+		pageSizeFlag = "limit"
+	}
+	pageSize, err := validateIMPageSizeFlag(runtime, "+chat-messages-list", pageSizeFlag, chatMessagesListDefaultPageSize)
 	if err != nil {
 		return nil, err
 	}
 	params := buildChatMessageListParams(dir, pageSize, chatId)
 
-	if startFlag := runtime.Str("start"); startFlag != "" {
+	startFlag := runtime.Str("start")
+	if old, ok := aliasFlagValue(runtime, "start-time", "start"); ok {
+		startFlag = old
+	}
+	if startFlag != "" {
 		startTime, err := common.ParseTime(startFlag)
 		if err != nil {
 			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--start: %v", err).WithParam("--start")
 		}
 		params["start_time"] = []string{startTime}
 	}
-	if endFlag := runtime.Str("end"); endFlag != "" {
+	endFlag := runtime.Str("end")
+	if old, ok := aliasFlagValue(runtime, "end-time", "end"); ok {
+		endFlag = old
+	}
+	if endFlag != "" {
 		endTime, err := common.ParseTime(endFlag, "end")
 		if err != nil {
 			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--end: %v", err).WithParam("--end")

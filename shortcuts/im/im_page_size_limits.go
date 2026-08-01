@@ -51,9 +51,13 @@ func imPageSizeDescription(command string) string {
 }
 
 func validateIMPageSize(runtime *common.RuntimeContext, command string, defaultValue int) (int, error) {
+	return validateIMPageSizeFlag(runtime, command, "page-size", defaultValue)
+}
+
+func validateIMPageSizeFlag(runtime *common.RuntimeContext, command, flagName string, defaultValue int) (int, error) {
 	return common.ValidatePageSizeTyped(
 		runtime,
-		"page-size",
+		flagName,
 		defaultValue,
 		imPageSizeMinimum,
 		imPageSizeLimit(command),

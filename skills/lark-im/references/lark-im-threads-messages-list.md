@@ -42,7 +42,7 @@ lark-cli im +threads-messages-list --thread omt_xxx --dry-run
 
 | Parameter | Required | Description |
 |------|------|------|
-| `--thread <id>` | Yes | Thread ID (`om_xxx` or `omt_xxx` format) |
+| `--thread <id>` | Yes | Thread ID (`om_xxx` or `omt_xxx` format). `--thread-id` is an alias for `--thread`; prefer the canonical flag |
 | `--no-reactions` | No | Skip auto-fetching the `reactions` block |
 | `--download-resources` | No | Download message resources (image/file/audio/video/media + post-embedded, excluding stickers) into `./lark-im-resources/` and attach a `resources` block. Off by default |
 | `--order <order>` | No | Sort order: `asc` (default) / `desc` |

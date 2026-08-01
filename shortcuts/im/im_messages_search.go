@@ -36,6 +36,7 @@ var ImMessagesSearch = common.Shortcut{
 	HasFormat:   true,
 	Flags: []common.Flag{
 		{Name: "query", Desc: "search keyword"},
+		{Name: "keyword", Hidden: true, Desc: "alias of --query (hidden)"},
 		{Name: "chat-id", Desc: "limit to chat IDs, comma-separated"},
 		{Name: "sender", Desc: "sender open_ids, comma-separated"},
 		{Name: "include-attachment-type", Desc: "include attachment type filter", Enum: []string{"file", "image", "video", "link"}},
@@ -47,6 +48,7 @@ var ImMessagesSearch = common.Shortcut{
 		{Name: "start", Desc: "start time(ISO 8601) with local timezone offset (e.g. 2026-03-24T00:00:00+08:00)"},
 		{Name: "end", Desc: "end time(ISO 8601) with local timezone offset (e.g. 2026-03-25T23:59:59+08:00)"},
 		{Name: "page-size", Type: "int", Default: "20", Desc: imPageSizeDescription("+messages-search")},
+		{Name: "limit", Type: "int", Hidden: true, Desc: "alias of --page-size (hidden)"},
 		{Name: "page-token", Desc: "page token"},
 		{Name: "page-all", Type: "bool", Desc: "automatically paginate search results"},
 		{Name: "page-limit", Type: "int", Default: "20", Desc: "max search pages when auto-pagination is enabled (default 20, max 40)"},
@@ -265,6 +267,9 @@ type messagesSearchRequest struct {
 
 func buildMessagesSearchRequest(runtime *common.RuntimeContext) (*messagesSearchRequest, error) {
 	query := runtime.Str("query")
+	if old, ok := aliasFlagValue(runtime, "keyword", "query"); ok {
+		query = old
+	}
 	chatFlag := runtime.Str("chat-id")
 	senderFlag := runtime.Str("sender")
 	includeAttachmentTypeFlag := runtime.Str("include-attachment-type")
@@ -366,7 +371,11 @@ func buildMessagesSearchRequest(runtime *common.RuntimeContext) (*messagesSearch
 		body["filter"] = filter
 	}
 
-	pageSize, err := validateIMPageSize(runtime, "+messages-search", messagesSearchDefaultPageSize)
+	pageSizeFlag := "page-size"
+	if _, ok := aliasIntFlagValue(runtime, "limit", "page-size"); ok {
+		pageSizeFlag = "limit"
+	}
+	pageSize, err := validateIMPageSizeFlag(runtime, "+messages-search", pageSizeFlag, messagesSearchDefaultPageSize)
 	if err != nil {
 		return nil, err
 	}

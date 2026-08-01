@@ -95,9 +95,10 @@ func newMessagesSearchTestRuntimeContext(t *testing.T, stringFlags map[string]st
 
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().Int("page-size", 20, "")
+	cmd.Flags().Int("limit", 0, "")
 	cmd.Flags().Int("page-limit", 20, "")
 	for name := range stringFlags {
-		if name == "page-size" || name == "page-limit" {
+		if name == "page-size" || name == "limit" || name == "page-limit" {
 			continue
 		}
 		cmd.Flags().String(name, "", "")
