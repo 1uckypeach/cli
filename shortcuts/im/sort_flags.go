@@ -5,6 +5,7 @@ package im
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/larksuite/cli/shortcuts/common"
 )
@@ -51,4 +52,28 @@ func emitAliasFlagNote(rt *common.RuntimeContext, oldName, newName string) {
 	}
 	flag.Annotations[aliasFlagNoticeAnnotation] = []string{newName}
 	fmt.Fprintf(rt.Factory.IOStreams.ErrOut, "note: --%s is an alias for --%s\n", oldName, newName)
+}
+
+// validateAliasEnum enforces the fixed value set of a hidden alias flag, but
+// only when the alias is actually in effect (alias set, canonical flag not).
+// When the canonical flag is present the alias is ignored entirely — including
+// its value — so a stray invalid alias value must not fail the command. The
+// enum therefore cannot live on the Flag declaration (the framework validates
+// declared enums before canonical-wins resolution runs); each command calls
+// this from Validate instead.
+func validateAliasEnum(rt *common.RuntimeContext, oldName, newName string, allowed ...string) error {
+	if !rt.Changed(oldName) || rt.Changed(newName) {
+		return nil
+	}
+	val := rt.Str(oldName)
+	if val == "" {
+		return nil
+	}
+	for _, a := range allowed {
+		if val == a {
+			return nil
+		}
+	}
+	return common.ValidationErrorf("invalid value %q for --%s, allowed: %s", val, oldName, strings.Join(allowed, ", ")).
+		WithParam("--" + oldName)
 }

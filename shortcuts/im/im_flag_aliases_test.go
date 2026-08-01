@@ -100,8 +100,12 @@ func TestThreadsMessagesListCanonicalThreadWins(t *testing.T) {
 		"thread":    "omt_canonical",
 		"thread-id": "omt_alias",
 	})
-	if got := resolveThreadsInput(rt); got != "omt_canonical" {
+	got, param := resolveThreadsInput(rt)
+	if got != "omt_canonical" {
 		t.Fatalf("resolveThreadsInput() = %q, want omt_canonical", got)
+	}
+	if param != "--thread" {
+		t.Fatalf("resolveThreadsInput() param = %q, want --thread (canonical wins)", param)
 	}
 }
 
@@ -216,8 +220,12 @@ func TestIMFlagAliasesAreHiddenAndTypeCompatible(t *testing.T) {
 			if alias.Type != canonical.Type {
 				t.Fatalf("--%s type = %q, --%s type = %q", tt.alias, alias.Type, tt.canonical, canonical.Type)
 			}
-			if !reflect.DeepEqual(alias.Enum, canonical.Enum) {
-				t.Fatalf("--%s enum = %v, --%s enum = %v", tt.alias, alias.Enum, tt.canonical, canonical.Enum)
+			if len(alias.Enum) != 0 {
+				// Declared enums are framework-validated before canonical-wins
+				// resolution, so an inert alias value would fail the command
+				// even when the canonical flag is present. Value sets for
+				// aliases are enforced by validateAliasEnum in Validate.
+				t.Fatalf("--%s (hidden alias) must not declare an Enum, got %v", tt.alias, alias.Enum)
 			}
 			if alias.Default != "" {
 				t.Fatalf("--%s default = %q, want empty", tt.alias, alias.Default)
@@ -313,5 +321,57 @@ func assertAliasValidationError(t *testing.T, err error, wantParam, wantMessage 
 	}
 	if !strings.Contains(err.Error(), wantMessage) {
 		t.Fatalf("error = %q, want substring %q", err, wantMessage)
+	}
+}
+
+// --- review regressions: error attribution and inert-alias enum handling ---
+
+// Alias-supplied values must attribute failures to the flag the caller
+// actually typed, not to the canonical flag it maps to.
+func TestChatMessagesListAliasErrorsNameTypedFlag(t *testing.T) {
+	rt := newTestRuntimeContext(t, map[string]string{"start-time": "bad-time"}, nil)
+	_, err := buildChatMessageListRequest(rt, "oc_x")
+	assertAliasValidationError(t, err, "--start-time", "--start-time: cannot parse time")
+
+	rt = newTestRuntimeContext(t, map[string]string{"end-time": "also-bad"}, nil)
+	_, err = buildChatMessageListRequest(rt, "oc_x")
+	assertAliasValidationError(t, err, "--end-time", "--end-time: cannot parse time")
+}
+
+func TestThreadsMessagesListThreadIDAliasErrorNamesTypedFlag(t *testing.T) {
+	rt := newThreadsTestRT(t, map[string]string{"thread-id": "not-a-thread"})
+	err := ImThreadsMessagesList.Validate(context.Background(), rt)
+	assertAliasValidationError(t, err, "--thread-id", `invalid --thread-id "not-a-thread"`)
+}
+
+func TestMessagesMGetMessageIDAliasErrorNamesTypedFlag(t *testing.T) {
+	rt := newTestRuntimeContext(t, map[string]string{"message-id": "not-om"}, nil)
+	err := ImMessagesMGet.Validate(context.Background(), rt)
+	assertAliasValidationError(t, err, "--message-id", `invalid message ID "not-om"`)
+}
+
+// A hidden alias with an invalid value must be ignored entirely when the
+// canonical flag is present (canonical wins), and rejected under its own
+// name when it is the flag in effect.
+func TestValidateAliasEnum(t *testing.T) {
+	rt := newTestRuntimeContext(t, map[string]string{"order": "asc", "sort-order": "unexpected"}, nil)
+	if err := validateAliasEnum(rt, "sort-order", "order", "asc", "desc"); err != nil {
+		t.Fatalf("inert alias value must not fail the command: %v", err)
+	}
+	params, err := buildChatMessageListRequest(rt, "oc_x")
+	if err != nil {
+		t.Fatalf("buildChatMessageListRequest() error = %v", err)
+	}
+	if got := params["sort_type"][0]; got != "ByCreateTimeAsc" {
+		t.Fatalf("sort_type = %q, want ByCreateTimeAsc (canonical --order asc wins)", got)
+	}
+
+	rt = newTestRuntimeContext(t, map[string]string{"sort-order": "unexpected"}, nil)
+	err = validateAliasEnum(rt, "sort-order", "order", "asc", "desc")
+	assertAliasValidationError(t, err, "--sort-order", `invalid value "unexpected" for --sort-order, allowed: asc, desc`)
+
+	rt = newTestRuntimeContext(t, map[string]string{"sort-order": "desc"}, nil)
+	if err := validateAliasEnum(rt, "sort-order", "order", "asc", "desc"); err != nil {
+		t.Fatalf("valid alias value must pass: %v", err)
 	}
 }

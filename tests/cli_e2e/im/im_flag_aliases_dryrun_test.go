@@ -12,6 +12,7 @@ import (
 
 	clie2e "github.com/larksuite/cli/tests/cli_e2e"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestIMFlagAliasesDryRun(t *testing.T) {
@@ -132,4 +133,84 @@ func setFlagAliasDryRunEnv(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_BRAND", "feishu")
 	t.Setenv("LARKSUITE_CLI_NO_UPDATE_NOTIFIER", "1")
 	t.Setenv("LARKSUITE_CLI_NO_SKILLS_NOTIFIER", "1")
+}
+
+// A hidden alias with an invalid value must not fail the command when the
+// canonical flag is present — the canonical flag wins and the alias is
+// ignored entirely, including its value. This exercises the full runner path
+// (declared enums are framework-validated before command Validate runs, so
+// alias value sets must not be declared as enums).
+func TestIMChatMessagesListCanonicalOrderIgnoresInvalidAliasValue(t *testing.T) {
+	setFlagAliasDryRunEnv(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+
+	result, err := clie2e.RunCmd(ctx, clie2e.Request{
+		Args: []string{"im", "+chat-messages-list", "--chat-id", "oc_dryrun",
+			"--order", "asc", "--sort-order", "unexpected", "--dry-run"},
+		DefaultAs: "bot",
+	})
+	require.NoError(t, err)
+	result.AssertExitCode(t, 0)
+	require.Equal(t, "ByCreateTimeAsc", clie2e.DryRunGet(result.Stdout, "api.0.params.sort_type").String())
+	require.NotContains(t, result.Stderr, "alias")
+
+	// Alias in effect on its own: the value set is enforced and the error is
+	// attributed to the alias flag.
+	rejected, err := clie2e.RunCmd(ctx, clie2e.Request{
+		Args: []string{"im", "+chat-messages-list", "--chat-id", "oc_dryrun",
+			"--sort-order", "unexpected", "--dry-run"},
+		DefaultAs: "bot",
+	})
+	require.NoError(t, err)
+	rejected.AssertExitCode(t, 2)
+	require.Empty(t, rejected.Stdout)
+	require.Equal(t, `invalid value "unexpected" for --sort-order, allowed: asc, desc`, gjson.Get(rejected.Stderr, "error.message").String())
+	require.Equal(t, "--sort-order", gjson.Get(rejected.Stderr, "error.param").String())
+}
+
+// Alias-supplied invalid values must be attributed to the flag the caller
+// actually typed — never to the canonical flag it maps to.
+func TestIMAliasErrorsNameTheTypedFlag(t *testing.T) {
+	setFlagAliasDryRunEnv(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	t.Cleanup(cancel)
+
+	cases := []struct {
+		name      string
+		args      []string
+		wantParam string
+		wantMsg   string
+	}{
+		{
+			name:      "start-time",
+			args:      []string{"im", "+chat-messages-list", "--chat-id", "oc_dryrun", "--start-time", "bad-time", "--dry-run"},
+			wantParam: "--start-time",
+			wantMsg:   "--start-time: cannot parse time",
+		},
+		{
+			name:      "thread-id",
+			args:      []string{"im", "+threads-messages-list", "--thread-id", "not-a-thread", "--dry-run"},
+			wantParam: "--thread-id",
+			wantMsg:   `invalid --thread-id "not-a-thread"`,
+		},
+		{
+			name:      "message-id",
+			args:      []string{"im", "+messages-mget", "--message-id", "not-om", "--dry-run"},
+			wantParam: "--message-id",
+			wantMsg:   `invalid message ID "not-om"`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := clie2e.RunCmd(ctx, clie2e.Request{Args: tc.args, DefaultAs: "bot"})
+			require.NoError(t, err)
+			result.AssertExitCode(t, 2)
+			require.Empty(t, result.Stdout)
+			require.Contains(t, gjson.Get(result.Stderr, "error.message").String(), tc.wantMsg)
+			require.Equal(t, tc.wantParam, gjson.Get(result.Stderr, "error.param").String())
+			require.Equal(t, "validation", gjson.Get(result.Stderr, "error.type").String())
+			require.Equal(t, "invalid_argument", gjson.Get(result.Stderr, "error.subtype").String())
+		})
+	}
 }

@@ -41,8 +41,8 @@ var ImChatMessageList = common.Shortcut{
 		{Name: "end", Desc: "end time (ISO 8601)"},
 		{Name: "end-time", Hidden: true, Desc: "alias of --end (hidden)"},
 		{Name: "order", Default: "desc", Desc: "sort order: asc | desc", Enum: []string{"asc", "desc"}},
-		{Name: "sort", Hidden: true, Desc: "alias of --order (hidden)", Enum: []string{"asc", "desc"}},
-		{Name: "sort-order", Hidden: true, Desc: "alias of --order (hidden)", Enum: []string{"asc", "desc"}},
+		{Name: "sort", Hidden: true, Desc: "alias of --order (hidden)"},
+		{Name: "sort-order", Hidden: true, Desc: "alias of --order (hidden)"},
 		{Name: "page-size", Default: "50", Desc: imPageSizeDescription("+chat-messages-list")},
 		{Name: "limit", Hidden: true, Desc: "alias of --page-size (hidden)"},
 		{Name: "page-token", Desc: "pagination token for next page"},
@@ -114,6 +114,12 @@ var ImChatMessageList = common.Shortcut{
 		}
 		if n := runtime.Int("page-limit"); n < 1 || n > chatMessagesListMaxPageLimit {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--page-limit must be an integer between 1 and 1000").WithParam("--page-limit")
+		}
+		if err := validateAliasEnum(runtime, "sort", "order", "asc", "desc"); err != nil {
+			return err
+		}
+		if err := validateAliasEnum(runtime, "sort-order", "order", "asc", "desc"); err != nil {
+			return err
 		}
 
 		chatId := runtime.Str("chat-id")
@@ -311,24 +317,28 @@ func buildChatMessageListRequest(runtime *common.RuntimeContext, chatId string) 
 	params := buildChatMessageListParams(dir, pageSize, chatId)
 
 	startFlag := runtime.Str("start")
+	startParam := "--start"
 	if old, ok := aliasFlagValue(runtime, "start-time", "start"); ok {
 		startFlag = old
+		startParam = "--start-time" // attribute errors to the flag the caller actually typed
 	}
 	if startFlag != "" {
 		startTime, err := common.ParseTime(startFlag)
 		if err != nil {
-			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--start: %v", err).WithParam("--start")
+			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "%s: %v", startParam, err).WithParam(startParam)
 		}
 		params["start_time"] = []string{startTime}
 	}
 	endFlag := runtime.Str("end")
+	endParam := "--end"
 	if old, ok := aliasFlagValue(runtime, "end-time", "end"); ok {
 		endFlag = old
+		endParam = "--end-time"
 	}
 	if endFlag != "" {
 		endTime, err := common.ParseTime(endFlag, "end")
 		if err != nil {
-			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--end: %v", err).WithParam("--end")
+			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "%s: %v", endParam, err).WithParam(endParam)
 		}
 		params["end_time"] = []string{endTime}
 	}

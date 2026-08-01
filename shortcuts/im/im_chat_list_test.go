@@ -693,8 +693,12 @@ func TestChatList_SortFlagSurface(t *testing.T) {
 	if !aliasFlag.Hidden {
 		t.Errorf("--sort-type must be Hidden")
 	}
-	if got := strings.Join(aliasFlag.Enum, ","); got != "ByCreateTimeAsc,ByActiveTimeDesc" {
-		t.Errorf("--sort-type Enum = %q, want ByCreateTimeAsc,ByActiveTimeDesc", got)
+	if len(aliasFlag.Enum) != 0 {
+		// A declared enum is framework-validated before canonical-wins
+		// resolution, so an inert alias value would fail the command even
+		// when --sort is present. The value set is enforced by
+		// validateAliasEnum in Validate instead.
+		t.Errorf("--sort-type (hidden alias) must not declare an Enum, got %q", aliasFlag.Enum)
 	}
 	if aliasFlag.Default != "" {
 		t.Errorf("--sort-type (hidden alias) must not carry a Default, got %q", aliasFlag.Default)

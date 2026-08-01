@@ -53,7 +53,7 @@ var ImChatList = common.Shortcut{
 	Flags: []common.Flag{
 		{Name: "user-id-type", Default: "open_id", Desc: "ID type for owner_id in response", Enum: []string{"open_id", "union_id", "user_id"}},
 		{Name: "sort", Default: "create_time", Desc: "sort field: create_time (ascending) | active_time (descending)", Enum: []string{"create_time", "active_time"}},
-		{Name: "sort-type", Hidden: true, Desc: "alias of --sort (hidden)", Enum: []string{"ByCreateTimeAsc", "ByActiveTimeDesc"}},
+		{Name: "sort-type", Hidden: true, Desc: "alias of --sort (hidden)"},
 		{Name: "types", Type: "string_slice", Desc: "chat types to include (group, p2p); omit = groups only (backward compatible); p2p requires user identity"},
 		{Name: "page-size", Type: "int", Default: "20", Desc: imPageSizeDescription("+chat-list")},
 		{Name: "page-token", Desc: "pagination token for next page"},
@@ -87,6 +87,9 @@ var ImChatList = common.Shortcut{
 		}
 		if n := runtime.Int("page-limit"); n < 1 || n > chatListMaximumPageLimit {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--page-limit must be an integer between 1 and 1000").WithParam("--page-limit")
+		}
+		if err := validateAliasEnum(runtime, "sort-type", "sort", "ByCreateTimeAsc", "ByActiveTimeDesc"); err != nil {
+			return err
 		}
 		parts, err := normalizeTypes(runtime.StrSlice("types"))
 		if err != nil {

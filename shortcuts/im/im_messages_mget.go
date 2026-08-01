@@ -46,15 +46,16 @@ var ImMessagesMGet = common.Shortcut{
 		return d
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		ids := common.SplitCSV(resolveMessageIDsInput(runtime))
+		raw, param := resolveMessageIDsInputWithParam(runtime)
+		ids := common.SplitCSV(raw)
 		if len(ids) == 0 {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--message-ids is required (comma-separated om_xxx)").WithParam("--message-ids")
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "%s is required (comma-separated om_xxx)", param).WithParam(param)
 		}
 		if len(ids) > maxMGetMessageIDs {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--message-ids supports at most %d IDs per request (got %d)", maxMGetMessageIDs, len(ids)).WithParam("--message-ids")
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "%s supports at most %d IDs per request (got %d)", param, maxMGetMessageIDs, len(ids)).WithParam(param)
 		}
 		for _, id := range ids {
-			if _, err := validateMessageID(id); err != nil {
+			if _, err := validateMessageIDForParam(id, param); err != nil {
 				return err
 			}
 		}
@@ -130,9 +131,15 @@ var ImMessagesMGet = common.Shortcut{
 }
 
 func resolveMessageIDsInput(runtime *common.RuntimeContext) string {
-	messageIDs := runtime.Str("message-ids")
+	ids, _ := resolveMessageIDsInputWithParam(runtime)
+	return ids
+}
+
+// resolveMessageIDsInputWithParam also reports which flag supplied the value,
+// so validation errors are attributed to the flag the caller actually typed.
+func resolveMessageIDsInputWithParam(runtime *common.RuntimeContext) (string, string) {
 	if old, ok := aliasFlagValue(runtime, "message-id", "message-ids"); ok {
-		messageIDs = old
+		return old, "--message-id"
 	}
-	return messageIDs
+	return runtime.Str("message-ids"), "--message-ids"
 }

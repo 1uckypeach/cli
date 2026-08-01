@@ -42,7 +42,7 @@ var ImChatSearch = common.Shortcut{
 		{Name: "is-manager", Type: "bool", Desc: "only show chats you created or manage"},
 		{Name: "disable-search-by-user", Type: "bool", Desc: "disable search-by-member-name (default: search by member name first, then group name)"},
 		{Name: "sort", Desc: "sort field (always descending): create_time | update_time | member_count", Enum: []string{"create_time", "update_time", "member_count"}},
-		{Name: "sort-by", Hidden: true, Desc: "alias of --sort (hidden)", Enum: []string{"create_time_desc", "update_time_desc", "member_count_desc"}},
+		{Name: "sort-by", Hidden: true, Desc: "alias of --sort (hidden)"},
 		{Name: "page-size", Type: "int", Default: "20", Desc: imPageSizeDescription("+chat-search")},
 		{Name: "page-token", Desc: "pagination token for next page"},
 		{Name: "page-all", Type: "bool", Desc: "automatically paginate, capped by --page-limit"},
@@ -71,6 +71,9 @@ var ImChatSearch = common.Shortcut{
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--query and --member-ids cannot both be empty; provide at least one (e.g. --query \"team-name\" or --member-ids \"ou_xxx\")")
 		}
 		if err := applyChatSearchTypesCompatibility(runtime); err != nil {
+			return err
+		}
+		if err := validateAliasEnum(runtime, "sort-by", "sort", "create_time_desc", "update_time_desc", "member_count_desc"); err != nil {
 			return err
 		}
 		if st := runtime.Str("search-types"); st != "" {

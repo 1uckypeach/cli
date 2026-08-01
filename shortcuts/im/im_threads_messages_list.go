@@ -38,7 +38,7 @@ var ImThreadsMessagesList = common.Shortcut{
 		{Name: "thread", Desc: "thread ID (om_xxx or omt_xxx)"},
 		{Name: "thread-id", Hidden: true, Desc: "alias of --thread (hidden)"},
 		{Name: "order", Default: "asc", Desc: "sort order: asc | desc", Enum: []string{"asc", "desc"}},
-		{Name: "sort", Hidden: true, Desc: "alias of --order (hidden)", Enum: []string{"asc", "desc"}},
+		{Name: "sort", Hidden: true, Desc: "alias of --order (hidden)"},
 		{Name: "page-size", Default: "50", Desc: imPageSizeDescription("+threads-messages-list")},
 		{Name: "page-token", Desc: "page token"},
 		{Name: "page-all", Type: "bool", Desc: "automatically paginate, capped by --page-limit"},
@@ -47,7 +47,7 @@ var ImThreadsMessagesList = common.Shortcut{
 		downloadResourcesFlag,
 	},
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
-		threadFlag := resolveThreadsInput(runtime)
+		threadFlag, _ := resolveThreadsInput(runtime)
 		dir := resolveThreadsOrder(runtime)
 		pageSizeStr := runtime.Str("page-size")
 		pageToken := runtime.Str("page-token")
@@ -82,12 +82,15 @@ var ImThreadsMessagesList = common.Shortcut{
 		return d
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		threadId := resolveThreadsInput(runtime)
+		threadId, threadParam := resolveThreadsInput(runtime)
 		if threadId == "" {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--thread is required (om_xxx or omt_xxx)").WithParam("--thread")
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "%s is required (om_xxx or omt_xxx)", threadParam).WithParam(threadParam)
 		}
 		if !strings.HasPrefix(threadId, "om_") && !strings.HasPrefix(threadId, "omt_") {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid --thread %q: must start with om_ or omt_", threadId).WithParam("--thread")
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid %s %q: must start with om_ or omt_", threadParam, threadId).WithParam(threadParam)
+		}
+		if err := validateAliasEnum(runtime, "sort", "order", "asc", "desc"); err != nil {
+			return err
 		}
 		if _, err := validateIMPageSize(runtime, "+threads-messages-list", threadsMessagesMaxPageSize); err != nil {
 			return err
@@ -102,7 +105,8 @@ var ImThreadsMessagesList = common.Shortcut{
 		if err != nil {
 			return err
 		}
-		threadId, err := resolveThreadID(runtime, resolveThreadsInput(runtime))
+		threadInput, _ := resolveThreadsInput(runtime)
+		threadId, err := resolveThreadID(runtime, threadInput)
 		if err != nil {
 			return err
 		}
@@ -245,12 +249,11 @@ func fetchThreadsMessagesListAllPages(runtime *common.RuntimeContext, params map
 	return lastData, nil
 }
 
-func resolveThreadsInput(runtime *common.RuntimeContext) string {
-	threadID := runtime.Str("thread")
+func resolveThreadsInput(runtime *common.RuntimeContext) (string, string) {
 	if old, ok := aliasFlagValue(runtime, "thread-id", "thread"); ok {
-		threadID = old
+		return old, "--thread-id" // attribute errors to the flag the caller actually typed
 	}
-	return threadID
+	return runtime.Str("thread"), "--thread"
 }
 
 // buildThreadsMessagesListParams builds the upstream query params shared by
