@@ -264,6 +264,94 @@ func TestPrepareShortcutHelp_PreservesPostMountLong(t *testing.T) {
 	}
 }
 
+func TestPrepareShortcutHelp_SlidesReferenceWithoutAffordance(t *testing.T) {
+	sc := &cobra.Command{Use: "+xml-get", Short: "Fetch presentation XML"}
+	cmdmeta.SetSource(sc, cmdmeta.SourceShortcut, false)
+	cmdmeta.SetDomain(sc, "slides")
+	cmdmeta.SetAffordanceRef(sc, "slides", "+xml-get")
+	cmdutil.SetRisk(sc, "read")
+
+	skillFS := fstest.MapFS{
+		"lark-slides/references/lark-slides-xml-presentations-get.md": {
+			Data: []byte("# slides +xml-get\n\nRead the presentation XML."),
+		},
+	}
+	if !PrepareShortcutHelp(sc, skillFS) {
+		t.Fatal("PrepareShortcutHelp returned false for a Slides shortcut with an embedded reference")
+	}
+	for _, want := range []string{
+		"Fetch presentation XML",
+		"Risk: read",
+		"Embedded command reference: lark-slides/references/lark-slides-xml-presentations-get.md",
+		"Read the presentation XML.",
+	} {
+		if !strings.Contains(sc.Long, want) {
+			t.Errorf("Slides shortcut help missing %q:\n%s", want, sc.Long)
+		}
+	}
+	PrepareShortcutHelp(sc, skillFS)
+	if got := strings.Count(sc.Long, "Embedded command reference:"); got != 1 {
+		t.Fatalf("embedded reference appended %d times after re-render, want 1:\n%s", got, sc.Long)
+	}
+}
+
+func TestSlidesShortcutReferenceMapping(t *testing.T) {
+	want := map[string]string{
+		"+create":                "lark-slides/references/lark-slides-create.md",
+		"+xml-get":               "lark-slides/references/lark-slides-xml-presentations-get.md",
+		"+screenshot":            "lark-slides/references/lark-slides-screenshot.md",
+		"+media-upload":          "lark-slides/references/lark-slides-media-upload.md",
+		"+replace-slide":         "lark-slides/references/lark-slides-replace-slide.md",
+		"+replace-pages":         "lark-slides/references/lark-slides-replace-pages.md",
+		"+history-list":          "lark-slides/references/lark-slides-history.md",
+		"+history-revert":        "lark-slides/references/lark-slides-history.md",
+		"+history-revert-status": "lark-slides/references/lark-slides-history.md",
+	}
+
+	for command, path := range want {
+		t.Run(command, func(t *testing.T) {
+			sc := &cobra.Command{Use: command, Short: command}
+			cmdmeta.SetSource(sc, cmdmeta.SourceShortcut, false)
+			cmdmeta.SetDomain(sc, "slides")
+			skillFS := fstest.MapFS{
+				path: {Data: []byte("reference content")},
+			}
+			contents, ok := readSlidesShortcutReferences(sc, skillFS)
+			if !ok || len(contents) == 0 {
+				t.Fatalf("shortcut %q has no mapped reference", command)
+			}
+			if !strings.Contains(contents[0], "Embedded command reference: "+path) {
+				t.Fatalf("shortcut %q mapped content does not include %q:\n%s", command, path, contents[0])
+			}
+		})
+	}
+}
+
+func TestSlidesScreenshotHelpDoesNotIncludeXMLQuickReference(t *testing.T) {
+	sc := &cobra.Command{Use: "+screenshot", Short: "Save screenshots"}
+	cmdmeta.SetSource(sc, cmdmeta.SourceShortcut, false)
+	cmdmeta.SetDomain(sc, "slides")
+	skillFS := fstest.MapFS{
+		"lark-slides/references/lark-slides-screenshot.md": {
+			Data: []byte("# slides +screenshot\n\nSave screenshots."),
+		},
+		slidesXMLQuickReferencePath: {
+			Data: []byte("# XML Schema Quick Reference"),
+		},
+	}
+
+	contents, ok := readSlidesShortcutReferences(sc, skillFS)
+	if !ok {
+		t.Fatal("screenshot shortcut should have a primary reference")
+	}
+	if len(contents) != 1 {
+		t.Fatalf("screenshot reference count = %d, want 1: %#v", len(contents), contents)
+	}
+	if strings.Contains(contents[0], "XML Schema Quick Reference") {
+		t.Fatalf("screenshot help must not include the XML quick reference:\n%s", contents[0])
+	}
+}
+
 // domainCmd wires a domain-tagged command with a subcommand under a root, the
 // shape PrepareDomainHelp expects.
 func domainCmd(short, long string) *cobra.Command {
@@ -304,5 +392,53 @@ func TestPrepareDomainHelp_FallsBackToShort(t *testing.T) {
 	}
 	if !strings.HasPrefix(dom.Long, "Message and group chat management") {
 		t.Errorf("Short should seed Long when no hand-authored Long exists; got:\n%s", dom.Long)
+	}
+}
+
+func TestPrepareDomainHelp_SlidesIncludesEmbeddedXMLReference(t *testing.T) {
+	root := &cobra.Command{Use: "root"}
+	dom := &cobra.Command{Use: "slides", Short: "Slides"}
+	cmdmeta.SetDomain(dom, "slides")
+	dom.AddCommand(&cobra.Command{Use: "+create", Short: "Create", Run: func(*cobra.Command, []string) {}})
+	root.AddCommand(dom)
+
+	const quickReference = `# XML Schema Quick Reference
+
+<presentation xmlns="http://www.larkoffice.com/sml/2.0" width="960" height="540">
+  <slide>
+    <data>
+      <shape type="text" topLeftX="80" topLeftY="80" width="800" height="120">
+        <content textType="title"><p>Title</p></content>
+      </shape>
+    </data>
+  </slide>
+</presentation>
+
+<table><colgroup><col/></colgroup><tr><td><content><p>A</p></content></td></tr></table>
+<chart><chartPlotArea/><chartData/></chart>`
+	skillFS := fstest.MapFS{
+		"lark-slides/SKILL.md":                           {Data: []byte("# slides")},
+		"lark-slides/references/xml-schema-quick-ref.md": {Data: []byte(quickReference)},
+	}
+
+	if !PrepareDomainHelp(dom, skillFS) {
+		t.Fatal("PrepareDomainHelp returned false for slides domain")
+	}
+	for _, want := range []string{
+		"Embedded XML syntax quick reference:",
+		`<presentation xmlns="http://www.larkoffice.com/sml/2.0"`,
+		"<shape type=\"text\"",
+		"<content",
+		"topLeftX",
+		"<table>",
+		"<chart>",
+	} {
+		if !strings.Contains(dom.Long, want) {
+			t.Errorf("slides help missing XML reference marker %q:\n%s", want, dom.Long)
+		}
+	}
+	PrepareDomainHelp(dom, skillFS)
+	if got := strings.Count(dom.Long, "Embedded XML syntax quick reference:"); got != 1 {
+		t.Fatalf("slides XML reference appended %d times after re-render, want 1:\n%s", got, dom.Long)
 	}
 }

@@ -66,6 +66,7 @@ func PrepareDomainHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 			fmt.Fprintf(&b, "\n\nDomain guide (concepts, command choice, conventions): lark-cli skills read %s", skill)
 		}
 	}
+	appendSlidesXMLQuickReference(&b, cmd, skillFS)
 	cmd.Long = b.String()
 	return true
 }
@@ -115,6 +116,90 @@ const (
 	domainBaseAnnotation   = "affordance-domain-base"
 	shortcutBaseAnnotation = "affordance-shortcut-base"
 )
+
+const slidesXMLQuickReferencePath = "lark-slides/references/xml-schema-quick-ref.md"
+
+// slidesShortcutReferencePaths maps each Slides shortcut to its primary
+// command guide. XML-consuming shortcuts also include the shared schema
+// reference because their command guide accepts XML but does not repeat the
+// complete element grammar.
+var slidesShortcutReferencePaths = map[string][]string{
+	"+create": {
+		"lark-slides/references/lark-slides-create.md",
+		slidesXMLQuickReferencePath,
+	},
+	"+xml-get": {
+		"lark-slides/references/lark-slides-xml-presentations-get.md",
+	},
+	"+screenshot": {
+		"lark-slides/references/lark-slides-screenshot.md",
+	},
+	"+media-upload": {
+		"lark-slides/references/lark-slides-media-upload.md",
+	},
+	"+replace-slide": {
+		"lark-slides/references/lark-slides-replace-slide.md",
+		"lark-slides/references/lark-slides-edit-workflows.md",
+		slidesXMLQuickReferencePath,
+	},
+	"+replace-pages": {
+		"lark-slides/references/lark-slides-replace-pages.md",
+		"lark-slides/references/lark-slides-edit-workflows.md",
+		slidesXMLQuickReferencePath,
+	},
+	"+history-list": {
+		"lark-slides/references/lark-slides-history.md",
+	},
+	"+history-revert": {
+		"lark-slides/references/lark-slides-history.md",
+	},
+	"+history-revert-status": {
+		"lark-slides/references/lark-slides-history.md",
+	},
+}
+
+// appendSlidesXMLQuickReference adds the embedded XML schema summary to the
+// slides domain help. The reference file is already shipped in the skill
+// content tree, so help and the standalone skill reader share one source of
+// truth instead of maintaining a second, drifting copy in Go.
+func appendSlidesXMLQuickReference(b *strings.Builder, cmd *cobra.Command, skillFS fs.FS) {
+	if cmd.Name() != "slides" || skillFS == nil {
+		return
+	}
+	content, err := fs.ReadFile(skillFS, slidesXMLQuickReferencePath)
+	if err != nil || len(content) == 0 {
+		return
+	}
+	b.WriteString("\n\nEmbedded XML syntax quick reference:\n")
+	b.Write(content)
+}
+
+func readSlidesShortcutReferences(cmd *cobra.Command, skillFS fs.FS) ([]string, bool) {
+	if cmdmeta.Domain(cmd) != "slides" || skillFS == nil {
+		return nil, false
+	}
+	paths, ok := slidesShortcutReferencePaths[cmd.Name()]
+	if !ok {
+		return nil, false
+	}
+
+	var contents []string
+	for _, path := range paths {
+		content, err := fs.ReadFile(skillFS, path)
+		if err != nil || len(content) == 0 {
+			continue
+		}
+		contents = append(contents, fmt.Sprintf("Embedded command reference: %s\n%s", path, content))
+	}
+	return contents, len(contents) > 0
+}
+
+func appendSlidesShortcutReferences(b *strings.Builder, contents []string) {
+	for _, content := range contents {
+		b.WriteString("\n\n")
+		b.WriteString(content)
+	}
+}
 
 // setMethodHelpData records the coordinates PrepareMethodHelp needs (storing a
 // few strings is the only build-time cost; the overlay stays untouched).
@@ -171,11 +256,11 @@ func PrepareMethodHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 }
 
 // PrepareShortcutHelp composes a +-prefixed shortcut's Long from its affordance
-// overlay — the same top layout as method help (description, Risk, guidance
-// block, related skills) minus the schema pointer, which shortcuts have none
-// of. Returns false when the command is not a shortcut or carries no overlay
-// entry, so shortcuts without guidance keep the default help plus the bottom
-// risk/tips append.
+// overlay and any embedded command references — the same top layout as method
+// help (description, Risk, guidance block, related skills) minus the schema
+// pointer, which shortcuts have none of. Returns false when the command is not
+// a shortcut, or when it has neither an overlay nor an embedded reference, so
+// ordinary shortcuts keep the default help plus the bottom risk/tips append.
 //
 // The lead is the command's pristine base (captureHelpBase): a shortcut that
 // set a hand-authored Long in PostMount (e.g. the docs shortcuts' "agents MUST
@@ -191,12 +276,17 @@ func PrepareShortcutHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 	if src, _ := cmdmeta.SourceOf(cmd); src != cmdmeta.SourceShortcut {
 		return false
 	}
-	raw, ok := affordanceRaw(cmd)
-	if !ok {
-		return false
+	references, hasReferences := readSlidesShortcutReferences(cmd, skillFS)
+
+	var a meta.Affordance
+	hasAffordance := false
+	if raw, ok := affordanceRaw(cmd); ok {
+		if parsed, parsedOK := (meta.Method{Affordance: raw}).ParsedAffordance(); parsedOK {
+			a = parsed
+			hasAffordance = true
+		}
 	}
-	a, ok := (meta.Method{Affordance: raw}).ParsedAffordance()
-	if !ok {
+	if !hasAffordance && !hasReferences {
 		return false
 	}
 	if len(a.Tips) == 0 {
@@ -211,6 +301,7 @@ func PrepareShortcutHelp(cmd *cobra.Command, skillFS fs.FS) bool {
 		b.WriteString(block)
 	}
 	writeRelatedSkills(&b, a.Skills, skillFS)
+	appendSlidesShortcutReferences(&b, references)
 
 	cmd.Long = b.String()
 	return true
