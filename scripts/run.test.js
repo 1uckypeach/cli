@@ -6,7 +6,7 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { spawnSync, spawn, execSync } = require("child_process");
+const { spawnSync, spawn, execFileSync } = require("child_process");
 
 const MARKER = "failed to launch the native binary";
 const IS_WINDOWS = process.platform === "win32";
@@ -143,8 +143,8 @@ function assertLaunchFailure(res, sandbox) {
   // "Error: spawnSync <path> ENOENT" and e.path is just the bin path --
   // neither carries argv). However, the error object also carries
   // e.spawnargs, which holds the complete argument list even on launch
-  // failure. This assertion catches any future edit that prints
-  // e.spawnargs, String(e), or the whole error object.
+  // failure. This assertion catches any future edit that prints e.spawnargs
+  // or the whole error object.
   assert.ok(
     !res.stderr.includes(SENTINEL_TOKEN),
     `caller arguments leaked into stderr: ${res.stderr}`
@@ -421,8 +421,23 @@ describe("run.js flush safety under stderr backpressure", () => {
         const shim = spawn(
           process.execPath,
           [sandbox.runJs, "-e", childCode, "--", SENTINEL],
-          { stdio: ["ignore", "ignore", "pipe"] }
+          {
+            stdio: ["ignore", "ignore", "pipe"],
+            // The test is Linux-only. A separate process group lets the
+            // cleanup hook stop both the shim and its blocked child on every
+            // rejection or timeout path.
+            detached: true,
+          }
         );
+        t.after(() => {
+          try {
+            process.kill(-shim.pid, "SIGKILL");
+          } catch (err) {
+            if (err.code !== "ESRCH") {
+              throw err;
+            }
+          }
+        });
 
         // Attach the close listener up front. With the fixed shim, run.js's
         // own process stays alive until its diagnostic write actually
@@ -437,7 +452,9 @@ describe("run.js flush safety under stderr backpressure", () => {
           // child process instead.
           let fixturePid = null;
           try {
-            const out = execSync(`pgrep -P ${shim.pid}`).toString().trim();
+            const out = execFileSync("pgrep", ["-P", String(shim.pid)])
+              .toString()
+              .trim();
             fixturePid = out ? Number(out.split("\n")[0]) : null;
           } catch (err) {
             reject(

@@ -87,8 +87,8 @@ if (args[0] === "install") {
       // up as an NTSTATUS number here, not via e.signal. Surface the error-severity
       // range (0xC0000000+) as a crash instead of forwarding it silently. Exclude
       // 0xC000013A (STATUS_CONTROL_C_EXIT), the Windows Ctrl+C code, to stay
-      // symmetric with the quiet SIGINT/SIGTERM allowlist. A Go binary never exits
-      // with a code in this range deliberately.
+      // symmetric with the quiet SIGINT/SIGTERM allowlist. lark-cli's documented
+      // exit codes are small integers, so it does not deliberately use this range.
       if (
         process.platform === "win32" &&
         e.status >= 0xc0000000 &&
