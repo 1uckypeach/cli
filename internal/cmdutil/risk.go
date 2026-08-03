@@ -49,15 +49,28 @@ func GetRisk(cmd *cobra.Command) (level string, ok bool) {
 // RiskLine renders the "Risk: <level>" line shown in help. ok is false when the
 // command carries no risk annotation.
 //
-// The confirmation warning only applies when the command actually gates on
-// --yes: the sentence asserts that passing --yes means the USER confirmed, and
-// that assertion is only true where the flag exists and RunE checks it. Some
-// commands carry the high-risk-write annotation for documentation purposes
-// without wiring a --yes gate (e.g. `update`, which has no confirmation step at
-// all); warning those callers about --yes would describe a flag that doesn't
-// exist and a gate that isn't there. So the guardrail sentence is conditioned on
-// cmd.Flags().Lookup("yes") != nil — a command without that flag gets the bare
-// "Risk: <level>" line instead.
+// The self-approval ban is keyed on the presence of a --yes flag, not on the
+// risk level. The sentence asserts that passing --yes means the USER confirmed,
+// so it belongs wherever that flag exists and the command checks it — and
+// nowhere else. Both halves of that rule matter in practice:
+//
+//   - A command may carry a risk annotation without wiring a --yes gate (e.g.
+//     `update`, which has no confirmation step at all). Warning those callers
+//     about --yes would name a flag they cannot pass, so they get the bare
+//     "Risk: <level>" line.
+//   - A command may gate on --yes while declaring a level below
+//     high-risk-write. `drive +push` and `drive +pull` take --yes to authorize
+//     deleting remote or local files, and `apps +env-set` takes it to authorize
+//     writing the online environment, all at write level. An agent that
+//     self-approves --yes there destroys files just as surely as it would on a
+//     high-risk-write command, so the ban must reach them too.
+//
+// The parenthetical differs between the two gate shapes because they mean
+// different things: at high-risk-write the framework refuses the whole command
+// without --yes, whereas at lower levels --yes authorizes one destructive step
+// (a flag or an argument value) while the rest of the command runs unguarded.
+// Claiming the whole command needs confirmation in the latter case would be
+// false.
 //
 // The returned line has no surrounding whitespace; callers add their own
 // separators.
@@ -66,8 +79,11 @@ func RiskLine(cmd *cobra.Command) (line string, ok bool) {
 	if !ok {
 		return "", false
 	}
-	if level == RiskHighRiskWrite && cmd.Flags().Lookup("yes") != nil {
+	if cmd.Flags().Lookup("yes") == nil {
+		return fmt.Sprintf("Risk: %s", level), true
+	}
+	if level == RiskHighRiskWrite {
 		return fmt.Sprintf("Risk: %s (requires explicit user confirmation to execute; %s)", level, core.YesSelfApprovalBan), true
 	}
-	return fmt.Sprintf("Risk: %s", level), true
+	return fmt.Sprintf("Risk: %s (--yes authorizes a destructive step of this command; %s)", level, core.YesSelfApprovalBan), true
 }

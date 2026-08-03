@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -12,6 +13,7 @@ import (
 	"github.com/larksuite/cli/internal/affordance"
 	"github.com/larksuite/cli/internal/cmdmeta"
 	"github.com/larksuite/cli/internal/cmdutil"
+	"github.com/larksuite/cli/internal/core"
 	"github.com/spf13/cobra"
 )
 
@@ -191,6 +193,89 @@ func TestHelpFunc_OverlayShortcutRendersRiskAndTipsOnce(t *testing.T) {
 		t.Errorf("expected order When-to-use < Usage < Risk < Tips; got use=%d usage=%d risk=%d tips=%d\n%s",
 			useAt, usageAt, riskAt, tipsAt, out)
 	}
+}
+
+// walkCommands visits cmd and every descendant.
+func walkCommands(cmd *cobra.Command, visit func(*cobra.Command)) {
+	visit(cmd)
+	for _, child := range cmd.Commands() {
+		walkCommands(child, visit)
+	}
+}
+
+// TestRiskLine_EveryYesGateCarriesTheBan is a tree-wide invariant over the real
+// command tree, not a hand-built fixture: wherever a --yes flag is reachable,
+// the help text must carry the self-approval ban, and wherever it is not, the
+// ban must be absent.
+//
+// The per-command tests above can only prove the shapes they construct. This one
+// is what catches a gate the renderer's condition does not classify the way its
+// author assumed — the defect this test was added for: `drive +push`,
+// `drive +pull` and `apps +env-set` take --yes to authorize deleting remote
+// files, deleting local files, and writing the online environment, but declare
+// write rather than high-risk-write. A level-keyed condition silently skipped
+// all three, so an agent reading their help saw no reason not to self-approve.
+func TestRiskLine_EveryYesGateCarriesTheBan(t *testing.T) {
+	root := Build(context.Background(), cmdutil.InvocationContext{})
+	if root == nil {
+		t.Fatal("Build returned nil root command")
+	}
+
+	var gated, banned, unguarded, leaked int
+	var missing, spurious []string
+	var nonHighRiskGated []string
+
+	walkCommands(root, func(cmd *cobra.Command) {
+		line, ok := cmdutil.RiskLine(cmd)
+		hasBan := ok && strings.Contains(line, core.YesSelfApprovalBan)
+		if cmd.Flags().Lookup("yes") != nil {
+			gated++
+			if hasBan {
+				banned++
+			} else {
+				missing = append(missing, cmd.CommandPath())
+			}
+			if level, _ := cmdutil.GetRisk(cmd); level != cmdutil.RiskHighRiskWrite {
+				nonHighRiskGated = append(nonHighRiskGated, cmd.CommandPath()+" ("+level+")")
+			}
+			return
+		}
+		unguarded++
+		if hasBan {
+			leaked++
+			spurious = append(spurious, cmd.CommandPath())
+		}
+	})
+
+	// Guard against a vacuous pass: if the tree failed to build its commands,
+	// every count would be zero and both assertions below would hold trivially.
+	if gated == 0 {
+		t.Fatal("found no command registering --yes; the command tree did not build as expected")
+	}
+	if unguarded == 0 {
+		t.Fatal("found no command without --yes; the command tree did not build as expected")
+	}
+
+	if len(missing) > 0 {
+		t.Errorf("%d of %d commands registering --yes render no self-approval ban:\n  %s",
+			len(missing), gated, strings.Join(missing, "\n  "))
+	}
+	if len(spurious) > 0 {
+		t.Errorf("%d commands render the self-approval ban without registering --yes:\n  %s",
+			len(spurious), strings.Join(spurious, "\n  "))
+	}
+
+	// The regression that motivated this test lived entirely in gated commands
+	// below high-risk-write. If that set ever becomes empty the coverage is gone,
+	// and a level-keyed condition would pass this test again.
+	if len(nonHighRiskGated) == 0 {
+		t.Error("no --yes gate below high-risk-write remains in the tree; " +
+			"this test no longer covers the level-keyed-condition regression")
+	}
+
+	t.Logf("--yes gates: %d (ban rendered %d); of those %d are below high-risk-write: %s",
+		gated, banned, len(nonHighRiskGated), strings.Join(nonHighRiskGated, ", "))
+	t.Logf("commands without --yes: %d (ban leaked %d)", unguarded, leaked)
 }
 
 func TestHelpFunc_LowerRiskHasNoGuardrail(t *testing.T) {
