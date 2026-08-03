@@ -1326,8 +1326,6 @@ func TestDocumentContextChangedProjection_KnownItems(t *testing.T) {
 		name            string
 		item            map[string]interface{}
 		wantActorID     string
-		wantSummary     string
-		wantSectionPath string
 		wantDescription string
 		wantDetails     []string
 	}{
@@ -1351,7 +1349,6 @@ func TestDocumentContextChangedProjection_KnownItems(t *testing.T) {
 				},
 			},
 			wantActorID:     "u-comment",
-			wantSummary:     "comment focused: comment-1",
 			wantDescription: "聚焦评论 comment-1",
 			wantDetails:     []string{"文档：Design Doc"},
 		},
@@ -1367,8 +1364,6 @@ func TestDocumentContextChangedProjection_KnownItems(t *testing.T) {
 				},
 			},
 			wantActorID:     "u-section",
-			wantSummary:     "section located: Roadmap > Phase 1 > Milestone",
-			wantSectionPath: "Roadmap > Phase 1 > Milestone",
 			wantDescription: "定位到章节「Roadmap > Phase 1 > Milestone」",
 			wantDetails:     []string{"层级：7"},
 		},
@@ -1385,7 +1380,6 @@ func TestDocumentContextChangedProjection_KnownItems(t *testing.T) {
 				},
 			},
 			wantActorID:     "u-preview",
-			wantSummary:     "image preview opened: image-token",
 			wantDescription: "打开 image 预览 image-token",
 			wantDetails:     []string{"block_id：block-1"},
 		},
@@ -1394,7 +1388,6 @@ func TestDocumentContextChangedProjection_KnownItems(t *testing.T) {
 			item: map[string]interface{}{
 				"comment_focus": map[string]interface{}{"comment_id": "comment-no-actor", "focused": true},
 			},
-			wantSummary:     "comment focused: comment-no-actor",
 			wantDescription: "聚焦评论 comment-no-actor",
 		},
 	}
@@ -1403,19 +1396,12 @@ func TestDocumentContextChangedProjection_KnownItems(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			event := documentContextChangedEvent([]interface{}{tt.item})
 			got := meetingEventsEventFromPayload(event, meetingEventsIdentity{})
-			projection := projectDocumentContext(got.Payload)
 			if tt.wantActorID == "" {
 				if len(got.Actors) != 0 {
 					t.Fatalf("actors = %#v, want none", got.Actors)
 				}
 			} else if len(got.Actors) != 1 || got.Actors[0].ID != tt.wantActorID {
 				t.Fatalf("actors = %#v, want actor %q", got.Actors, tt.wantActorID)
-			}
-			if projection.summary != tt.wantSummary {
-				t.Fatalf("summary = %q, want %q", projection.summary, tt.wantSummary)
-			}
-			if projection.sectionPath != tt.wantSectionPath {
-				t.Fatalf("section_path = %q, want %q", projection.sectionPath, tt.wantSectionPath)
 			}
 			var sequence int
 			entries := buildTimelineEntriesForEvent(event, &sequence)
@@ -1563,7 +1549,7 @@ func TestDocumentContextChangedTimeline_InvalidItemTimeFallsBackToEventTime(t *t
 	}
 }
 
-func TestDocumentContextChangedProjection_MultipleItemsPreserveOrderAndLocalFallback(t *testing.T) {
+func TestDocumentContextChangedProjection_MultipleItemsPreserveOrderAndSkipUnknown(t *testing.T) {
 	event := documentContextChangedEvent([]interface{}{
 		map[string]interface{}{
 			"operator":      map[string]interface{}{"id": "u1", "user_name": "One"},
@@ -1587,13 +1573,6 @@ func TestDocumentContextChangedProjection_MultipleItemsPreserveOrderAndLocalFall
 	})
 
 	got := meetingEventsEventFromPayload(event, meetingEventsIdentity{})
-	projection := projectDocumentContext(got.Payload)
-	if projection.summary != "4 document context changes: comment_focus, section_location, element_preview, unknown" {
-		t.Fatalf("summary = %q", projection.summary)
-	}
-	if projection.sectionPath != "A > B" {
-		t.Fatalf("section_path = %q, want %q", projection.sectionPath, "A > B")
-	}
 	var actorIDs []string
 	for _, actor := range got.Actors {
 		actorIDs = append(actorIDs, actor.ID)
@@ -1604,51 +1583,18 @@ func TestDocumentContextChangedProjection_MultipleItemsPreserveOrderAndLocalFall
 
 	var sequence int
 	entries := buildTimelineEntriesForEvent(event, &sequence)
-	if len(entries) != 4 {
-		t.Fatalf("timeline entries = %d, want 4: %#v", len(entries), entries)
+	if len(entries) != 3 {
+		t.Fatalf("timeline entries = %d, want 3: %#v", len(entries), entries)
 	}
 	wantDescriptions := []string{
 		"取消聚焦评论 comment-1",
 		"定位到章节「A > B」",
 		"关闭 whiteboard 预览 wb-1",
-		"文档上下文发生变化",
 	}
 	for i, want := range wantDescriptions {
 		if entries[i].description != want {
 			t.Fatalf("timeline[%d] description = %q, want %q", i, entries[i].description, want)
 		}
-	}
-}
-
-func TestDocumentContextChangedProjection_SectionPathBoundaries(t *testing.T) {
-	tests := []struct {
-		name  string
-		items []interface{}
-		want  string
-	}{
-		{name: "parent only", items: []interface{}{map[string]interface{}{"section_location": map[string]interface{}{"parent_titles": []interface{}{"A", " B "}}}}, want: "A > B"},
-		{name: "title only", items: []interface{}{map[string]interface{}{"section_location": map[string]interface{}{"title": " Title "}}}, want: "Title"},
-		{name: "all empty", items: []interface{}{map[string]interface{}{"section_location": map[string]interface{}{"parent_titles": []interface{}{"", " "}, "title": " "}}}, want: ""},
-		{name: "multiple sections omit scalar", items: []interface{}{
-			map[string]interface{}{"section_location": map[string]interface{}{"title": "One"}},
-			map[string]interface{}{"section_location": map[string]interface{}{"title": "Two"}},
-		}, want: ""},
-		{name: "ambiguous raw section also omits scalar", items: []interface{}{
-			map[string]interface{}{"section_location": map[string]interface{}{"title": "One"}},
-			map[string]interface{}{
-				"section_location": map[string]interface{}{"title": "Ambiguous"},
-				"comment_focus":    map[string]interface{}{"comment_id": "comment-1", "focused": true},
-			},
-		}, want: ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			event := documentContextChangedEvent(tt.items)
-			got := projectDocumentContext(common.GetMap(event, "payload"))
-			if got.sectionPath != tt.want {
-				t.Fatalf("section_path = %q, want %q", got.sectionPath, tt.want)
-			}
-		})
 	}
 }
 
@@ -1688,33 +1634,28 @@ func TestCompactMeetingEvents_PreservesDocumentContextRawPayload(t *testing.T) {
 	}
 }
 
-func TestDocumentContextChangedProjection_EmptyAndUnknownFallback(t *testing.T) {
+func TestDocumentContextChangedProjection_EmptyAndUnknownDoNotSynthesizeTimeline(t *testing.T) {
 	tests := []struct {
 		name  string
 		items []interface{}
-		want  int
 	}{
-		{name: "empty", items: []interface{}{}, want: 1},
-		{name: "unknown", items: []interface{}{map[string]interface{}{"future_context": map[string]interface{}{"id": "future-1"}}}, want: 1},
-		{name: "non map", items: []interface{}{"bad-item"}, want: 1},
+		{name: "empty", items: []interface{}{}},
+		{name: "unknown", items: []interface{}{map[string]interface{}{"future_context": map[string]interface{}{"id": "future-1"}}}},
+		{name: "non map", items: []interface{}{"bad-item"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			event := documentContextChangedEvent(tt.items)
-			got := projectDocumentContext(common.GetMap(event, "payload"))
-			if got.summary != "document context changed" {
-				t.Fatalf("summary = %q, want generic fallback", got.summary)
-			}
 			var sequence int
 			entries := buildTimelineEntriesForEvent(event, &sequence)
-			if len(entries) != tt.want || entries[0].description != "文档上下文发生变化" {
+			if len(entries) != 0 {
 				t.Fatalf("timeline entries = %#v", entries)
 			}
 		})
 	}
 }
 
-func TestDocumentContextChangedProjection_MissingPayloadStillVisible(t *testing.T) {
+func TestDocumentContextChangedProjection_MissingPayloadDoesNotSynthesizeTimeline(t *testing.T) {
 	event := map[string]interface{}{
 		"event_id":   "event-without-payload",
 		"event_type": "document_context_changed",
@@ -1726,7 +1667,7 @@ func TestDocumentContextChangedProjection_MissingPayloadStillVisible(t *testing.
 	}
 	var sequence int
 	entries := buildTimelineEntriesForEvent(event, &sequence)
-	if len(entries) != 1 || entries[0].description != "文档上下文发生变化" {
+	if len(entries) != 0 {
 		t.Fatalf("timeline entries = %#v", entries)
 	}
 }
@@ -2021,15 +1962,6 @@ func TestMeetingEventSummary(t *testing.T) {
 				"payload":    map[string]interface{}{},
 			},
 			want: "mystery_event",
-		},
-		{
-			name: "document context section",
-			event: documentContextChangedEvent([]interface{}{
-				map[string]interface{}{
-					"section_location": map[string]interface{}{"parent_titles": []interface{}{"A"}, "title": "B"},
-				},
-			}),
-			want: "section located: A > B",
 		},
 	}
 	for _, tt := range tests {

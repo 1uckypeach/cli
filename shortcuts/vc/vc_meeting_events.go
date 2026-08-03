@@ -352,70 +352,37 @@ func eventActors(eventType string, payload map[string]interface{}, selfIdentity 
 }
 
 type documentContextItemProjection struct {
-	kind        string
 	time        string
 	operator    map[string]interface{}
-	summary     string
 	description string
 	details     []string
-	sectionPath string
 }
 
 type documentContextProjection struct {
-	items       []documentContextItemProjection
-	actors      []meetingEventsIdentity
-	summary     string
-	sectionPath string
+	items  []documentContextItemProjection
+	actors []meetingEventsIdentity
 }
 
 func projectDocumentContext(payload map[string]interface{}) documentContextProjection {
 	projection := documentContextProjection{}
-	rawItems := common.GetSlice(payload, "document_context_changed_items")
-	rawSectionCount := 0
-	for _, raw := range rawItems {
-		item, _ := raw.(map[string]interface{})
-		if _, exists := item["section_location"]; exists {
-			rawSectionCount++
+	for _, raw := range common.GetSlice(payload, "document_context_changed_items") {
+		item, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
 		}
 		projected := projectDocumentContextItem(item)
-		projection.items = append(projection.items, projected)
+		if projected.description != "" {
+			projection.items = append(projection.items, projected)
+		}
 		if documentContextOperatorAvailable(projected.operator) {
 			projection.actors = append(projection.actors, meetingEventsIdentityFromDocumentOperator(projected.operator))
 		}
-	}
-
-	if len(projection.items) == 1 {
-		projection.summary = projection.items[0].summary
-	} else if len(projection.items) > 1 {
-		kinds := make([]string, 0, len(projection.items))
-		for _, item := range projection.items {
-			kinds = append(kinds, item.kind)
-		}
-		projection.summary = fmt.Sprintf("%d document context changes: %s", len(projection.items), strings.Join(kinds, ", "))
-	}
-	if projection.summary == "" {
-		projection.summary = "document context changed"
-	}
-
-	if rawSectionCount == 1 {
-		for _, item := range projection.items {
-			if item.kind == "section_location" {
-				projection.sectionPath = item.sectionPath
-				break
-			}
-		}
-	} else {
-		projection.sectionPath = ""
 	}
 	return projection
 }
 
 func projectDocumentContextItem(item map[string]interface{}) documentContextItemProjection {
-	projection := documentContextItemProjection{
-		kind:        "unknown",
-		summary:     "document context changed",
-		description: "文档上下文发生变化",
-	}
+	projection := documentContextItemProjection{}
 	if item == nil {
 		return projection
 	}
@@ -443,7 +410,6 @@ func projectDocumentContextItem(item map[string]interface{}) documentContextItem
 	}
 
 	context := contexts[0]
-	projection.kind = context.kind
 	switch context.kind {
 	case "comment_focus":
 		projectCommentFocus(item, context.value, &projection)
@@ -460,19 +426,14 @@ func projectCommentFocus(item, comment map[string]interface{}, projection *docum
 	focused, hasFocused := comment["focused"].(bool)
 	switch {
 	case !hasFocused:
-		projection.summary = "comment focus changed"
 		projection.description = "评论焦点发生变化"
 	case focused && commentID != "":
-		projection.summary = "comment focused: " + commentID
 		projection.description = "聚焦评论 " + commentID
 	case focused:
-		projection.summary = "comment focused"
 		projection.description = "聚焦评论"
 	case commentID != "":
-		projection.summary = "comment focus cleared: " + commentID
 		projection.description = "取消聚焦评论 " + commentID
 	default:
-		projection.summary = "comment focus cleared"
 		projection.description = "取消评论聚焦"
 	}
 	if title := strings.TrimSpace(common.GetString(common.GetMap(item, "share_doc"), "title")); title != "" {
@@ -481,13 +442,11 @@ func projectCommentFocus(item, comment map[string]interface{}, projection *docum
 }
 
 func projectSectionLocation(section map[string]interface{}, projection *documentContextItemProjection) {
-	projection.sectionPath = documentSectionPath(section)
-	if projection.sectionPath == "" {
-		projection.summary = "section location changed"
+	sectionPath := documentSectionPath(section)
+	if sectionPath == "" {
 		projection.description = "章节位置发生变化"
 	} else {
-		projection.summary = "section located: " + projection.sectionPath
-		projection.description = "定位到章节「" + projection.sectionPath + "」"
+		projection.description = "定位到章节「" + sectionPath + "」"
 	}
 	if level := strings.TrimSpace(fieldValueString(section, "level")); level != "" {
 		projection.details = append(projection.details, "层级："+level)
@@ -518,17 +477,13 @@ func projectElementPreview(element map[string]interface{}, projection *documentC
 	}
 	switch action {
 	case "open":
-		projection.summary = subject + " preview opened"
 		projection.description = "打开 " + subject + " 预览"
 	case "close":
-		projection.summary = subject + " preview closed"
 		projection.description = "关闭 " + subject + " 预览"
 	default:
-		projection.summary = "element preview changed"
 		projection.description = "元素预览发生变化"
 	}
 	if token != "" && (action == "open" || action == "close") {
-		projection.summary += ": " + token
 		projection.description += " " + token
 	}
 	if blockID := strings.TrimSpace(common.GetString(element, "block_id")); blockID != "" {
@@ -975,7 +930,7 @@ func buildMeetingEventTimeline(events []interface{}) meetingTimeline {
 			continue
 		}
 		payload := common.GetMap(event, "payload")
-		if payload == nil && meetingEventType(event) != "document_context_changed" {
+		if payload == nil {
 			continue
 		}
 		if timeline.topic == "" || !timeline.hasStart || !timeline.hasEnd {
@@ -1056,10 +1011,10 @@ func populateMeetingHeader(timeline *meetingTimeline, meeting map[string]interfa
 
 func buildTimelineEntriesForEvent(event map[string]interface{}, sequence *int) []meetingTimelineEntry {
 	payload := common.GetMap(event, "payload")
-	eventType := meetingEventType(event)
-	if payload == nil && eventType != "document_context_changed" {
+	if payload == nil {
 		return nil
 	}
+	eventType := meetingEventType(event)
 	eventTime, eventTimeOK := parseFlexibleTime(common.GetString(event, "event_time"))
 	switch eventType {
 	case "participant_joined":
@@ -1083,9 +1038,6 @@ func buildTimelineEntriesForEvent(event map[string]interface{}, sequence *int) [
 
 func documentContextEntries(payload map[string]interface{}, fallbackTime time.Time, fallbackOK bool, sequence *int) []meetingTimelineEntry {
 	projection := projectDocumentContext(payload)
-	if len(projection.items) == 0 {
-		return []meetingTimelineEntry{newTimelineEntry(fallbackTime, fallbackOK, sequence, "", "文档上下文发生变化", nil)}
-	}
 	entries := make([]meetingTimelineEntry, 0, len(projection.items))
 	for _, item := range projection.items {
 		when, ok := parseDocumentContextItemTime(item.time)
@@ -1423,8 +1375,7 @@ func needsColon(description string) bool {
 			!strings.HasPrefix(description, "章节位置") &&
 			!strings.HasPrefix(description, "打开 ") &&
 			!strings.HasPrefix(description, "关闭 ") &&
-			!strings.HasPrefix(description, "元素预览") &&
-			!strings.HasPrefix(description, "文档上下文")
+			!strings.HasPrefix(description, "元素预览")
 	}
 }
 
@@ -1480,8 +1431,6 @@ func meetingEventSummary(event map[string]interface{}) string {
 		return magicShareStartedSummary(payload)
 	case "magic_share_ended":
 		return magicShareEndedSummary(payload)
-	case "document_context_changed":
-		return projectDocumentContext(payload).summary
 	default:
 		return fallbackMeetingEventSummary(payload, eventType)
 	}
