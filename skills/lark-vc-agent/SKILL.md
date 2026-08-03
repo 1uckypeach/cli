@@ -89,6 +89,18 @@ metadata:
 12. 用户直接问“这个会议讲了什么 / 现在讲到哪了”且上下文没有明确 `meeting_id` 时，先用用户身份发现当前会议；如果用户明确要求应用机器人视角，或上下文已经是应用机器人参会流程，再用应用身份发现。若返回多个会议，展示候选并让用户选择。
 13. 用户直接提供 **9 位会议号** 并询问会中事件/会议内容时，默认把它当作 active meeting 的筛选条件：先按当前身份查 active meetings，并在返回里匹配 `meeting_no == <9位会议号>`；匹配到唯一会议后取长数字 `meeting_id`，再用同一身份查事件。只有用户明确要求“入会 / 让应用机器人旁听 / 代我参会”时才改用 `+meeting-join`。
 
+#### 文档上下文事件
+
+`event_type == "document_context_changed"` 时，按 `payload.document_context_changed_items` 原序消费。每个 item 只接受一个 `comment_focus`、`section_location` 或 `element_preview`；零个、多个、字段缺失或未知值只降级当前 item，保留事件 `payload` 和原标识，不猜字段别名。
+
+| context | 消费规则 |
+| --- | --- |
+| `comment_focus` | 仅当 `focused=true` 且 `share_doc.url`、单个 `comment_id` 都存在时，从 `share_doc` 解析文档目标，并用 `drive +batch-query-comments --comment-ids <该单个ID>` 精确调用 `drive.file.comments.batch_query`。只接受整个响应 `items` 长度恰为 1 且 `items[0].comment_id` 与请求 ID 完全相等；0 个、多于 1 个或唯一项 ID 不匹配都停止，即使多项中存在匹配项也不能选择，禁止改用 `+list-comments` 扫描。评论正文位于 `item.reply_list.replies`，首项是根评论；仅当命中卡片的 `item.has_more=true` 时，才从第一页调用 `drive +list-replies` 并按返回的 `has_more/page_token` 拉到 `has_more=false`，用完整结果替换截断列表，不能重复拼接根评论。`focused=false` 表示清除焦点，零评论调用。 |
+| `section_location` | 直接使用事件顶层可用的 `section_path`；多章节 item 没有事件级标量时，按 pretty timeline/raw item 逐项消费。不得根据 `level` 反转、截断或补造路径，也不调用文档 API。 |
+| `element_preview` | 只有用户明确要求预览且 `action=open` 时路由：`element_type=image` 使用 `docs +media-preview --token <element_token> --output <用户选择路径>`；`element_type=whiteboard` 使用 `docs +media-download --type whiteboard --token <element_token> --output <用户选择路径>`。`close`、未知 type/action、缺 token 或无明确预览意图均零调用；禁止把未知 `element_type` 透传给 `--type`，禁止自动选择覆盖路径。 |
+
+`vc +meeting-events` 始终只读，不因评论或元素上下文自动调用 Drive/Docs，也不写文件。评论 API/权限失败、`share_doc` 不能解析或 reply 游标为空/重复时，明确标记结果为未解析或 partial，并保留 `share_doc`、`comment_id`、`element_token`、`block_id` 和 raw payload，给出可重试的精确命令；不要用全量评论扫描或自动下载兜底。完整命令与终止条件见 [`+meeting-events` reference](references/lark-vc-agent-meeting-events.md#文档上下文事件消费)。
+
 ### 3. 发送会中文本或会中表情（写操作）
 
 1. 用户明确要求在当前进行中的会议里发送提示、说明、会中表情，或反馈“听不到 / 看不到 / 声音清楚 / 效果不错”时，用 `+meeting-message-send`。
@@ -165,7 +177,7 @@ Shortcut 是对常用操作的高级封装（`lark-cli vc +<verb> [flags]`）。
 | --------------------------------------------------------------- | -- | -------------------------------------------------------------------------- |
 | [`+meeting-join`](references/lark-vc-agent-meeting-join.md)     | 写  | Join an in-progress meeting by 9-digit meeting number                      |
 | [`+meeting-list-active`](references/lark-vc-agent-meeting-list-active.md) | 读  | List active meetings and discover meeting_id for event reads               |
-| [`+meeting-events`](references/lark-vc-agent-meeting-events.md) | 读  | List meeting events visible to the app agent (participant joined/left, transcript, chat, share) |
+| [`+meeting-events`](references/lark-vc-agent-meeting-events.md) | 读  | List meeting events visible to the app agent (participant, transcript, chat, share, document context) |
 | [`+meeting-message-send`](references/lark-vc-agent-meeting-message-send.md) | 写  | Send an in-meeting text message or reaction emoji                          |
 | [`+meeting-leave`](references/lark-vc-agent-meeting-leave.md)   | 写  | Leave a meeting by meeting\_id                                             |
 

@@ -143,7 +143,96 @@ lark-cli vc +meeting-events --as user --meeting-id <id> --page-all --format pret
 - 若存在多个共享文档，优先读取**最近一次共享**的文档。
 - 若文档读取失败，必须明确说明“以下总结仅基于会中事件流，未成功读取共享文档内容”。
 
-### 7. 关于 `page_token` 的返回与续拉
+### 7. 文档上下文事件消费
+
+`document_context_changed` 是只读线索事件。`vc +meeting-events` 只负责保留 payload 并派生 actor、summary、timeline 和可确定的 `section_path`；它不会查询评论、下载素材或写文件。后续 Drive/Docs 命令只能由 Agent 按下表显式选择。
+
+#### 字段合同
+
+| 路径 | 含义与处理 |
+| --- | --- |
+| `payload.document_context_changed_items[]` | 按原序处理；每项恰有一个已知 context 才精确解析，未知/歧义项保留 raw 并局部降级。 |
+| `item.operator` | 当前 item 的 actor；缺 ID/name 时不猜共享发起人。 |
+| `item.share_doc.url/title` | 评论所属文档线索。URL 用于解析 `file_token/file_type`；无法解析时保留 URL/title 并停止评论查询。 |
+| `item.time` | Unix 毫秒字符串；缺失或非法时 timeline 回退到事件时间。 |
+| `item.comment_focus.comment_id/focused` | `focused=true` 才精确查询一个 comment ID；`false` 是清除焦点，零查询。 |
+| `item.section_location.parent_titles/title/level` | `section_path` 按 parent 原序再追加 title，trim 后丢弃空段，以 ` > ` 连接；`level` 仅作诊断，不参与截断或补层。 |
+| `item.element_preview.action/element_type/element_token/block_id` | 只有 `open + image + token`、`open + whiteboard + token` 可在明确预览意图下路由；其他组合零调用。 |
+| 事件顶层 `summary/section_path` | 只在 `document_context_changed` 上出现；多 section item 时省略单值 `section_path`，逐项信息仍在 timeline/raw。 |
+| 事件 `payload` | 原始恢复面，包含空数组和未知字段；派生字段不会写回 payload。 |
+
+#### 评论聚焦：只查一个 ID
+
+先从同一个 item 读取 `share_doc.url` 和 `comment_focus.comment_id`。优先把完整 URL 传给现有 shortcut，由它解析实际 `file_token/file_type`（含 Wiki 解包）；如果上游只留下裸 token，则必须同时提供已解析且受支持的 `file_type`。
+
+```bash
+# 推荐：share_doc.url 完整可用
+lark-cli drive +batch-query-comments \
+  --as <same_identity> \
+  --url "<share_doc.url>" \
+  --comment-ids "<comment_focus.comment_id>" \
+  --format json
+
+# 只有已经可靠解析出裸 token/type 时使用
+lark-cli drive +batch-query-comments \
+  --as <same_identity> \
+  --token "<file_token>" \
+  --type "<file_type>" \
+  --comment-ids "<comment_focus.comment_id>" \
+  --format json
+```
+
+该 shortcut 对应 `drive.file.comments.batch_query`，请求体必须只有 `comment_ids:["<当前comment_id>"]`。响应处理规则：
+
+1. 整个响应 `items` 长度必须恰为 1，且 `items[0].comment_id` 必须与请求 ID 完全相等。`items` 为空、多于 1 项或唯一项 ID 不同都停止；即使多项中恰有一项匹配，也不得挑选该项继续。失败时保留 `share_doc/comment_id`，禁止改用 `drive +list-comments` 扫描整篇文档。
+2. `item.quote` 是引用位置；评论正文和回复在 `item.reply_list.replies`，其中第一条是根评论。
+3. 完整性看命中评论卡片的 **`item.has_more`**，不是外层评论分页，也不是根据非空 `page_token` 猜测。`item.has_more=false` 时直接使用内嵌列表，零 `+list-replies` 调用。
+4. `item.has_more=true` 时忽略截断列表，从**不带 `--page-token` 的第一页**开始重建完整 replies：
+
+```bash
+lark-cli drive +list-replies \
+  --as <same_identity> \
+  --url "<share_doc.url>" \
+  --comment-id "<comment_focus.comment_id>" \
+  --page-size 100 \
+  --format json
+
+lark-cli drive +list-replies \
+  --as <same_identity> \
+  --url "<share_doc.url>" \
+  --comment-id "<comment_focus.comment_id>" \
+  --page-size 100 \
+  --page-token "<returned_page_token>" \
+  --format json
+```
+
+第一页 `items[0]` 才是根评论；后续页的 `items[0]` 是普通回复。按页原序累积，直到页级 `has_more=false`。如果 `has_more=true` 但 `page_token` 为空、与已用 token 重复、API/权限失败或 comment ID 改变，立即停止并标记为 `partial`；保留已经取得的内容和原始标识，不循环、不重复根评论、不声称完整。
+
+#### 章节定位
+
+事件顶层有 `section_path` 时直接消费。没有该字段时，查看该事件逐 item timeline/raw：多个 section item 不选择其中一个覆盖事件级标量；标题全空时只说明章节位置发生变化。`section_path` 是本地派生，不需要也不允许为它新增 API 查询。
+
+#### 元素预览：显式白名单
+
+只有用户或上层 Agent 明确要求预览，并且 item 命中下表时才执行。两个命令都会写入 `--output`，因此输出路径必须由本次调用显式选择；不得默认覆盖已有文件。
+
+| action | element_type | token 条件 | 精确命令 |
+| --- | --- | --- | --- |
+| `open` | `image` | `element_token` 非空 | `lark-cli docs +media-preview --token "<element_token>" --output "<explicit-path>"` |
+| `open` | `whiteboard` | `element_token` 非空 | `lark-cli docs +media-download --type whiteboard --token "<element_token>" --output "<explicit-path>"` |
+| `close` / 未知 | 任意 | 任意 | 零调用；只记录预览关闭或未知上下文 |
+| `open` | 未知/空 | 任意 | 零调用；禁止把原值透传到 `--type` |
+| `open` | `image`/`whiteboard` | token 为空 | 零调用；保留 `block_id/element_type/action` 并提示缺 token |
+
+#### 失败恢复
+
+- parser 遇到未知字段、歧义 one-of 或单 item 缺字段：保留整个事件 `payload`、`event_id/event_type/event_time` 和可用 sibling；只把失败 item 标成通用“文档上下文发生变化”。
+- `share_doc` 无法解析：回显 `share_doc.url/title` 与 `comment_id`，提示需要有效文档 URL 或已确认的 `file_token/file_type`；不要猜 type。
+- Drive API/权限失败：保留精确 batch-query 命令与 `comment_id`，根据 CLI 的 `missing_scopes/hint` 恢复权限后重试；不要扫描全部评论。
+- Docs 预览失败：保留 `action/element_type/element_token/block_id` 和用户选择的输出路径，修复权限或 token 后重试同一白名单命令；不要让 `meeting-events` 自动下载兜底。
+- 未知 context/type/action：保留 raw 并说明当前 CLI 没有安全路由；不得自动调用 overwrite、download 或任何猜测的 shortcut。
+
+### 8. 关于 `page_token` 的返回与续拉
 
 - 不管这次是只查 1 页，还是通过 `--page-all` 已经把当前可见事件都拿完，都应把最后拿到的 `page_token` 一并保留下来并返回给用户。
 - 只要响应里出现 `has_more=true`、pretty 里出现 `more available`，或返回了非空 `page_token`，就必须先判断当前结果是否完整；默认情况下，这意味着你还需要继续分页。
@@ -160,7 +249,7 @@ lark-cli vc +meeting-events --as user --meeting-id <id> --page-all --format pret
 |------|------|
 | `meeting` | 会议身份与时间状态，包含 `id/topic/meeting_no/start_time/end_time/status` |
 | `identity` | 当前读取身份，包含 `id/name/participant_type/label` |
-| `events` | 结构化事件列表；每条事件含参与者 `actors` 和事件细节 `payload` |
+| `events` | 结构化事件列表；每条事件含参与者 `actors` 和事件细节 `payload`；文档上下文事件还可含 `summary/section_path` |
 | `warnings` | 非阻断告警列表；事件列表本身仍可使用 |
 | `has_more` | 是否还有下一页 |
 | `page_token` | 下一页游标 |
@@ -175,6 +264,7 @@ lark-cli vc +meeting-events --as user --meeting-id <id> --page-all --format pret
 | `transcript_received` | 收到转写文本 |
 | `magic_share_started` | 开始共享内容 / 文档 |
 | `magic_share_ended` | 结束共享 |
+| `document_context_changed` | 评论聚焦、章节定位或元素预览上下文变化 |
 
 ### Forwarding meeting chat and reactions to IM
 

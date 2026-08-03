@@ -292,6 +292,18 @@ func magicShareStartedEvent() map[string]interface{} {
 	}
 }
 
+func documentContextChangedEvent(items []interface{}) map[string]interface{} {
+	return map[string]interface{}{
+		"event_id":   "event-document-context",
+		"event_type": "document_context_changed",
+		"event_time": "2026-04-17T08:08:00Z",
+		"payload": map[string]interface{}{
+			"activity_event_type":            "document_context_changed",
+			"document_context_changed_items": items,
+		},
+	}
+}
+
 func TestChatReceivedSummary_MultipleItems(t *testing.T) {
 	payload := map[string]interface{}{
 		"chat_received_items": []interface{}{
@@ -1309,6 +1321,543 @@ func TestCompactMeetingEvents_IgnoresNonMapsAndCompactsPayload(t *testing.T) {
 	}
 }
 
+func TestDocumentContextChangedProjection_KnownItems(t *testing.T) {
+	tests := []struct {
+		name            string
+		item            map[string]interface{}
+		wantActorID     string
+		wantSummary     string
+		wantSectionPath string
+		wantDescription string
+		wantDetails     []string
+	}{
+		{
+			name: "comment focus",
+			item: map[string]interface{}{
+				"time": "1776413281000",
+				"operator": map[string]interface{}{
+					"id":        "u-comment",
+					"user_name": "Commenter",
+					"user_type": 1,
+					"user_role": 1,
+				},
+				"share_doc": map[string]interface{}{
+					"title": "Design Doc",
+					"url":   "https://example.com/docx/doc-token",
+				},
+				"comment_focus": map[string]interface{}{
+					"comment_id": "comment-1",
+					"focused":    true,
+				},
+			},
+			wantActorID:     "u-comment",
+			wantSummary:     "comment focused: comment-1",
+			wantDescription: "聚焦评论 comment-1",
+			wantDetails:     []string{"文档：Design Doc"},
+		},
+		{
+			name: "section location",
+			item: map[string]interface{}{
+				"time":     "1776413282000",
+				"operator": map[string]interface{}{"id": "u-section", "user_name": "Navigator"},
+				"section_location": map[string]interface{}{
+					"parent_titles": []interface{}{" Roadmap ", "", "Phase 1"},
+					"title":         " Milestone ",
+					"level":         7,
+				},
+			},
+			wantActorID:     "u-section",
+			wantSummary:     "section located: Roadmap > Phase 1 > Milestone",
+			wantSectionPath: "Roadmap > Phase 1 > Milestone",
+			wantDescription: "定位到章节「Roadmap > Phase 1 > Milestone」",
+			wantDetails:     []string{"层级：7"},
+		},
+		{
+			name: "element preview",
+			item: map[string]interface{}{
+				"time":     "1776413283000",
+				"operator": map[string]interface{}{"id": "u-preview", "user_name": "Viewer"},
+				"element_preview": map[string]interface{}{
+					"action":        "open",
+					"element_type":  "image",
+					"element_token": "image-token",
+					"block_id":      "block-1",
+				},
+			},
+			wantActorID:     "u-preview",
+			wantSummary:     "image preview opened: image-token",
+			wantDescription: "打开 image 预览 image-token",
+			wantDetails:     []string{"block_id：block-1"},
+		},
+		{
+			name: "comment focus without actor",
+			item: map[string]interface{}{
+				"comment_focus": map[string]interface{}{"comment_id": "comment-no-actor", "focused": true},
+			},
+			wantSummary:     "comment focused: comment-no-actor",
+			wantDescription: "聚焦评论 comment-no-actor",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := documentContextChangedEvent([]interface{}{tt.item})
+			got := meetingEventsEventFromPayload(event, meetingEventsIdentity{})
+			if tt.wantActorID == "" {
+				if len(got.Actors) != 0 {
+					t.Fatalf("actors = %#v, want none", got.Actors)
+				}
+			} else if len(got.Actors) != 1 || got.Actors[0].ID != tt.wantActorID {
+				t.Fatalf("actors = %#v, want actor %q", got.Actors, tt.wantActorID)
+			}
+			if got.Summary != tt.wantSummary {
+				t.Fatalf("summary = %q, want %q", got.Summary, tt.wantSummary)
+			}
+			if got.SectionPath != tt.wantSectionPath {
+				t.Fatalf("section_path = %q, want %q", got.SectionPath, tt.wantSectionPath)
+			}
+			var sequence int
+			entries := buildTimelineEntriesForEvent(event, &sequence)
+			if len(entries) != 1 {
+				t.Fatalf("timeline entries = %#v, want one", entries)
+			}
+			if entries[0].description != tt.wantDescription {
+				t.Fatalf("timeline description = %q, want %q", entries[0].description, tt.wantDescription)
+			}
+			if !reflect.DeepEqual(entries[0].details, tt.wantDetails) {
+				t.Fatalf("timeline details = %#v, want %#v", entries[0].details, tt.wantDetails)
+			}
+			if !entries[0].hasWhen {
+				t.Fatal("timeline should use the item millisecond timestamp")
+			}
+		})
+	}
+}
+
+func TestDocumentContextChangedActors_DoNotInferMissingOperatorFields(t *testing.T) {
+	tests := []struct {
+		name     string
+		operator map[string]interface{}
+		self     meetingEventsIdentity
+		want     meetingEventsIdentity
+	}{
+		{
+			name:     "missing type and role stay empty",
+			operator: map[string]interface{}{"id": "u1", "user_name": "Alice"},
+			want:     meetingEventsIdentity{ID: "u1", Name: "Alice", Label: "Alice"},
+		},
+		{
+			name:     "self identity does not imply bot",
+			operator: map[string]interface{}{"id": "bot-self", "user_name": "Agent"},
+			self:     meetingEventsIdentity{ID: "bot-self", ParticipantType: "bot", Role: "bot"},
+			want:     meetingEventsIdentity{ID: "bot-self", Name: "Agent", Label: "Agent"},
+		},
+		{
+			name: "explicit type and role are mapped",
+			operator: map[string]interface{}{
+				"id": "bot-explicit", "user_name": "Explicit Agent", "user_type": 2, "user_role": 4,
+			},
+			want: meetingEventsIdentity{
+				ID: "bot-explicit", Name: "Explicit Agent", ParticipantType: "bot", Role: "bot", Label: "Explicit Agent [bot]",
+			},
+		},
+		{
+			name:     "unknown explicit type and role are not invented",
+			operator: map[string]interface{}{"id": "u-unknown", "user_name": "Unknown", "user_type": 999, "user_role": 99},
+			want:     meetingEventsIdentity{ID: "u-unknown", Name: "Unknown", Label: "Unknown"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := documentContextChangedEvent([]interface{}{
+				map[string]interface{}{
+					"operator":      tt.operator,
+					"comment_focus": map[string]interface{}{"comment_id": "comment-1", "focused": true},
+				},
+			})
+			got := meetingEventsEventFromPayload(event, tt.self)
+			if len(got.Actors) != 1 || !reflect.DeepEqual(got.Actors[0], tt.want) {
+				t.Fatalf("actors = %#v, want %#v", got.Actors, []meetingEventsIdentity{tt.want})
+			}
+		})
+	}
+}
+
+func TestDocumentContextChangedTimeline_PreservesItemOrder(t *testing.T) {
+	event := documentContextChangedEvent([]interface{}{
+		map[string]interface{}{
+			"time":          "1776413400000",
+			"comment_focus": map[string]interface{}{"comment_id": "first", "focused": true},
+		},
+		map[string]interface{}{
+			"time":          "1776412800000",
+			"comment_focus": map[string]interface{}{"comment_id": "second", "focused": true},
+		},
+	})
+	early := map[string]interface{}{
+		"event_type": "early_event", "event_time": "2026-04-17T08:07:00Z", "payload": map[string]interface{}{},
+	}
+	late := map[string]interface{}{
+		"event_type": "late_event", "event_time": "2026-04-17T08:09:00Z", "payload": map[string]interface{}{},
+	}
+	timeline := buildMeetingEventTimeline([]interface{}{late, event, early})
+	if len(timeline.entries) != 4 {
+		t.Fatalf("timeline entries = %#v", timeline.entries)
+	}
+	want := []string{"early_event", "聚焦评论 first", "聚焦评论 second", "late_event"}
+	for i := range want {
+		if timeline.entries[i].description != want[i] {
+			t.Fatalf("timeline order = %#v, want %#v", timeline.entries, want)
+		}
+	}
+	if timeline.entries[1].when.Before(timeline.entries[2].when) {
+		t.Fatalf("timeline item order changed: %#v", timeline.entries)
+	}
+}
+
+func TestParseDocumentContextItemTime_StrictMilliseconds(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		ok   bool
+	}{
+		{name: "unix milliseconds", raw: "1776413281000", ok: true},
+		{name: "unix seconds", raw: "1776413281", ok: false},
+		{name: "rfc3339", raw: "2026-04-17T08:08:01Z", ok: false},
+		{name: "negative", raw: "-1776413281000", ok: false},
+		{name: "decimal fraction", raw: "1776413281000.0", ok: false},
+		{name: "empty", raw: "", ok: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := parseDocumentContextItemTime(tt.raw)
+			if ok != tt.ok {
+				t.Fatalf("parseDocumentContextItemTime(%q) ok = %v, want %v", tt.raw, ok, tt.ok)
+			}
+			if tt.ok {
+				want := time.UnixMilli(1776413281000)
+				if !got.Equal(want) {
+					t.Fatalf("parseDocumentContextItemTime(%q) = %v, want %v", tt.raw, got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestDocumentContextChangedTimeline_InvalidItemTimeFallsBackToEventTime(t *testing.T) {
+	event := documentContextChangedEvent([]interface{}{
+		map[string]interface{}{
+			"time":          "1776413281",
+			"comment_focus": map[string]interface{}{"comment_id": "comment-1", "focused": true},
+		},
+	})
+	var sequence int
+	entries := buildTimelineEntriesForEvent(event, &sequence)
+	if len(entries) != 1 {
+		t.Fatalf("timeline entries = %#v", entries)
+	}
+	want, _ := time.Parse(time.RFC3339, "2026-04-17T08:08:00Z")
+	if !entries[0].hasWhen || !entries[0].when.Equal(want) {
+		t.Fatalf("timeline time = %v (has=%v), want event time %v", entries[0].when, entries[0].hasWhen, want)
+	}
+}
+
+func TestDocumentContextChangedProjection_MultipleItemsPreserveOrderAndLocalFallback(t *testing.T) {
+	event := documentContextChangedEvent([]interface{}{
+		map[string]interface{}{
+			"operator":      map[string]interface{}{"id": "u1", "user_name": "One"},
+			"comment_focus": map[string]interface{}{"comment_id": "comment-1", "focused": false},
+		},
+		map[string]interface{}{
+			"operator":         map[string]interface{}{"id": "u2", "user_name": "Two"},
+			"section_location": map[string]interface{}{"parent_titles": []interface{}{"A"}, "title": "B", "level": 2},
+		},
+		map[string]interface{}{
+			"operator":        map[string]interface{}{"id": "u3", "user_name": "Three"},
+			"element_preview": map[string]interface{}{"action": "close", "element_type": "whiteboard", "element_token": "wb-1"},
+		},
+		map[string]interface{}{
+			"operator":      map[string]interface{}{"id": "u4", "user_name": "Four"},
+			"comment_focus": map[string]interface{}{"comment_id": "ambiguous", "focused": true},
+			"element_preview": map[string]interface{}{
+				"action": "open", "element_type": "image", "element_token": "ambiguous-image",
+			},
+		},
+	})
+
+	got := meetingEventsEventFromPayload(event, meetingEventsIdentity{})
+	if got.Summary != "4 document context changes: comment_focus, section_location, element_preview, unknown" {
+		t.Fatalf("summary = %q", got.Summary)
+	}
+	if got.SectionPath != "A > B" {
+		t.Fatalf("section_path = %q, want %q", got.SectionPath, "A > B")
+	}
+	var actorIDs []string
+	for _, actor := range got.Actors {
+		actorIDs = append(actorIDs, actor.ID)
+	}
+	if want := []string{"u1", "u2", "u3", "u4"}; !reflect.DeepEqual(actorIDs, want) {
+		t.Fatalf("actor order = %#v, want %#v", actorIDs, want)
+	}
+
+	var sequence int
+	entries := buildTimelineEntriesForEvent(event, &sequence)
+	if len(entries) != 4 {
+		t.Fatalf("timeline entries = %d, want 4: %#v", len(entries), entries)
+	}
+	wantDescriptions := []string{
+		"取消聚焦评论 comment-1",
+		"定位到章节「A > B」",
+		"关闭 whiteboard 预览 wb-1",
+		"文档上下文发生变化",
+	}
+	for i, want := range wantDescriptions {
+		if entries[i].description != want {
+			t.Fatalf("timeline[%d] description = %q, want %q", i, entries[i].description, want)
+		}
+	}
+}
+
+func TestDocumentContextChangedProjection_SectionPathBoundaries(t *testing.T) {
+	tests := []struct {
+		name  string
+		items []interface{}
+		want  string
+	}{
+		{name: "parent only", items: []interface{}{map[string]interface{}{"section_location": map[string]interface{}{"parent_titles": []interface{}{"A", " B "}}}}, want: "A > B"},
+		{name: "title only", items: []interface{}{map[string]interface{}{"section_location": map[string]interface{}{"title": " Title "}}}, want: "Title"},
+		{name: "all empty", items: []interface{}{map[string]interface{}{"section_location": map[string]interface{}{"parent_titles": []interface{}{"", " "}, "title": " "}}}, want: ""},
+		{name: "multiple sections omit scalar", items: []interface{}{
+			map[string]interface{}{"section_location": map[string]interface{}{"title": "One"}},
+			map[string]interface{}{"section_location": map[string]interface{}{"title": "Two"}},
+		}, want: ""},
+		{name: "ambiguous raw section also omits scalar", items: []interface{}{
+			map[string]interface{}{"section_location": map[string]interface{}{"title": "One"}},
+			map[string]interface{}{
+				"section_location": map[string]interface{}{"title": "Ambiguous"},
+				"comment_focus":    map[string]interface{}{"comment_id": "comment-1", "focused": true},
+			},
+		}, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := meetingEventsEventFromPayload(documentContextChangedEvent(tt.items), meetingEventsIdentity{})
+			if got.SectionPath != tt.want {
+				t.Fatalf("section_path = %q, want %q", got.SectionPath, tt.want)
+			}
+		})
+	}
+}
+
+func TestCompactMeetingEvents_PreservesDocumentContextRawPayload(t *testing.T) {
+	payload := map[string]interface{}{
+		"activity_event_type": "document_context_changed",
+		"document_context_changed_items": []interface{}{
+			map[string]interface{}{
+				"comment_focus":  map[string]interface{}{"comment_id": "comment-1", "focused": true},
+				"unknown_nested": []interface{}{},
+			},
+		},
+		"empty_unknown_items": []interface{}{},
+		"future_field":        map[string]interface{}{"enabled": true},
+	}
+	want := map[string]interface{}{}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw, &want); err != nil {
+		t.Fatal(err)
+	}
+	event := map[string]interface{}{
+		"event_type": "document_context_changed",
+		"payload":    payload,
+	}
+
+	compacted := compactMeetingEvents([]interface{}{event})
+	gotEvent, _ := compacted[0].(map[string]interface{})
+	if got := common.GetMap(gotEvent, "payload"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("document context payload changed:\ngot  %#v\nwant %#v", got, want)
+	}
+	projected := meetingEventsEventFromPayload(gotEvent, meetingEventsIdentity{})
+	if !reflect.DeepEqual(projected.Payload, want) {
+		t.Fatalf("projected payload changed:\ngot  %#v\nwant %#v", projected.Payload, want)
+	}
+}
+
+func TestDocumentContextChangedProjection_EmptyAndUnknownFallback(t *testing.T) {
+	tests := []struct {
+		name  string
+		items []interface{}
+		want  int
+	}{
+		{name: "empty", items: []interface{}{}, want: 1},
+		{name: "unknown", items: []interface{}{map[string]interface{}{"future_context": map[string]interface{}{"id": "future-1"}}}, want: 1},
+		{name: "non map", items: []interface{}{"bad-item"}, want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := documentContextChangedEvent(tt.items)
+			got := meetingEventsEventFromPayload(event, meetingEventsIdentity{})
+			if got.Summary != "document context changed" {
+				t.Fatalf("summary = %q, want generic fallback", got.Summary)
+			}
+			var sequence int
+			entries := buildTimelineEntriesForEvent(event, &sequence)
+			if len(entries) != tt.want || entries[0].description != "文档上下文发生变化" {
+				t.Fatalf("timeline entries = %#v", entries)
+			}
+		})
+	}
+}
+
+func TestDocumentContextChangedProjection_MissingPayloadStillVisible(t *testing.T) {
+	event := map[string]interface{}{
+		"event_id":   "event-without-payload",
+		"event_type": "document_context_changed",
+		"event_time": "2026-04-17T08:08:00Z",
+	}
+	got := meetingEventsEventFromPayload(event, meetingEventsIdentity{})
+	if got.EventID != "event-without-payload" || got.Summary != "document context changed" || got.Payload != nil {
+		t.Fatalf("projection = %#v", got)
+	}
+	var sequence int
+	entries := buildTimelineEntriesForEvent(event, &sequence)
+	if len(entries) != 1 || entries[0].description != "文档上下文发生变化" {
+		t.Fatalf("timeline entries = %#v", entries)
+	}
+}
+
+func TestExistingMeetingEventProjection_OmitsDocumentContextFields(t *testing.T) {
+	got := meetingEventsEventFromPayload(participantJoinedEvent(), meetingEventsIdentity{})
+	if got.Summary != "" || got.SectionPath != "" {
+		t.Fatalf("existing event gained document context fields: %#v", got)
+	}
+	row := meetingEventsEventRow(got)
+	if _, ok := row["summary"]; ok {
+		t.Fatalf("existing event row exposes summary: %#v", row)
+	}
+	if _, ok := row["section_path"]; ok {
+		t.Fatalf("existing event row exposes section_path: %#v", row)
+	}
+}
+
+func TestVCMeetingEventsDocumentContextCLIBehavior(t *testing.T) {
+	newEvent := func() map[string]interface{} {
+		return documentContextChangedEvent([]interface{}{
+			map[string]interface{}{
+				"time":          "1776413281000",
+				"operator":      map[string]interface{}{"id": "u1", "user_name": "Alice"},
+				"share_doc":     map[string]interface{}{"title": "Design", "url": "https://example.com/docx/token"},
+				"comment_focus": map[string]interface{}{"comment_id": "comment-1", "focused": true},
+			},
+			map[string]interface{}{
+				"time":             "1776413282000",
+				"operator":         map[string]interface{}{"id": "u2", "user_name": "Bob"},
+				"section_location": map[string]interface{}{"parent_titles": []interface{}{"Roadmap"}, "title": "Milestone", "level": 2},
+			},
+			map[string]interface{}{
+				"time":            "1776413283000",
+				"operator":        map[string]interface{}{"id": "u3", "user_name": "Carol"},
+				"element_preview": map[string]interface{}{"action": "open", "element_type": "whiteboard", "element_token": "wb-1"},
+			},
+		})
+	}
+
+	t.Run("json", func(t *testing.T) {
+		f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
+		event := newEvent()
+		var wantPayload map[string]interface{}
+		payloadJSON, err := json.Marshal(common.GetMap(event, "payload"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(payloadJSON, &wantPayload); err != nil {
+			t.Fatal(err)
+		}
+		reg.Register(meetingEventsStub([]interface{}{event}, false, ""))
+		reg.Register(botInfoStub())
+		err = mountAndRun(t, VCMeetingEvents, []string{
+			"+meeting-events", "--meeting-id", "7628568141510692381", "--format", "json", "--as", "bot",
+		}, f, stdout)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		reg.Verify(t)
+		var envelope map[string]interface{}
+		if err := json.Unmarshal([]byte(stdout.String()), &envelope); err != nil {
+			t.Fatalf("unmarshal output: %v: %s", err, stdout.String())
+		}
+		gotEvent, _ := common.GetSlice(common.GetMap(envelope, "data"), "events")[0].(map[string]interface{})
+		if got := common.GetString(gotEvent, "summary"); got != "3 document context changes: comment_focus, section_location, element_preview" {
+			t.Fatalf("summary = %q", got)
+		}
+		if got := common.GetString(gotEvent, "section_path"); got != "Roadmap > Milestone" {
+			t.Fatalf("section_path = %q", got)
+		}
+		if got := len(common.GetSlice(gotEvent, "actors")); got != 3 {
+			t.Fatalf("actors = %d, want 3", got)
+		}
+		if got := common.GetMap(gotEvent, "payload"); !reflect.DeepEqual(got, wantPayload) {
+			t.Fatalf("payload changed:\ngot  %#v\nwant %#v", got, wantPayload)
+		}
+	})
+
+	t.Run("ndjson", func(t *testing.T) {
+		f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
+		reg.Register(meetingEventsStub([]interface{}{newEvent()}, false, ""))
+		reg.Register(botInfoStub())
+		err := mountAndRun(t, VCMeetingEvents, []string{
+			"+meeting-events", "--meeting-id", "7628568141510692381", "--format", "ndjson", "--as", "bot",
+		}, f, stdout)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		reg.Verify(t)
+		lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+		if len(lines) != 2 {
+			t.Fatalf("ndjson lines = %d, want event and metadata: %s", len(lines), stdout.String())
+		}
+		for _, want := range []string{
+			`"event_type":"document_context_changed"`,
+			`"summary":"3 document context changes: comment_focus, section_location, element_preview"`,
+			`"section_path":"Roadmap > Milestone"`,
+			`"document_context_changed_items"`,
+		} {
+			if !strings.Contains(lines[0], want) {
+				t.Fatalf("ndjson event missing %q: %s", want, lines[0])
+			}
+		}
+	})
+
+	t.Run("pretty", func(t *testing.T) {
+		f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
+		reg.Register(meetingEventsStub([]interface{}{newEvent()}, false, ""))
+		reg.Register(botInfoStub())
+		err := mountAndRun(t, VCMeetingEvents, []string{
+			"+meeting-events", "--meeting-id", "7628568141510692381", "--format", "pretty", "--as", "bot",
+		}, f, stdout)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		reg.Verify(t)
+		out := stdout.String()
+		wantOrdered := []string{
+			"Alice(u1) 聚焦评论 comment-1",
+			"Bob(u2) 定位到章节「Roadmap > Milestone」",
+			"Carol(u3) 打开 whiteboard 预览 wb-1",
+		}
+		last := -1
+		for _, want := range wantOrdered {
+			index := strings.Index(out, want)
+			if index <= last {
+				t.Fatalf("pretty output missing ordered %q: %s", want, out)
+			}
+			last = index
+		}
+	})
+}
+
 func TestVCShortcuts_RegistersMeetingAgentCommands(t *testing.T) {
 	got := Shortcuts()
 	var commands []string
@@ -1464,6 +2013,15 @@ func TestMeetingEventSummary(t *testing.T) {
 			},
 			want: "mystery_event",
 		},
+		{
+			name: "document context section",
+			event: documentContextChangedEvent([]interface{}{
+				map[string]interface{}{
+					"section_location": map[string]interface{}{"parent_titles": []interface{}{"A"}, "title": "B"},
+				},
+			}),
+			want: "section located: A > B",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1507,6 +2065,9 @@ func TestNeedsColon(t *testing.T) {
 		{description: "加入了会议", want: false},
 		{description: "离开了会议", want: false},
 		{description: "开始共享「文档」", want: false},
+		{description: "聚焦评论 comment-1", want: false},
+		{description: "定位到章节「A > B」", want: false},
+		{description: "打开 image 预览 token", want: false},
 		{description: "[text] hello", want: true},
 	}
 	for _, tt := range tests {

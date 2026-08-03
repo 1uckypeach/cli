@@ -30,6 +30,7 @@ const (
 	leaveReasonUserLeft        = 1
 	leaveReasonMeetingEnded    = 2
 	leaveReasonKicked          = 3
+	documentContextChangedType = "document_context_changed"
 )
 
 var meetingDisplayLocation = time.FixedZone("UTC+8", 8*60*60)
@@ -167,11 +168,13 @@ type meetingEventsIdentity struct {
 }
 
 type meetingEventsEvent struct {
-	EventID   string                  `json:"event_id,omitempty"`
-	EventType string                  `json:"event_type,omitempty"`
-	EventTime string                  `json:"event_time,omitempty"`
-	Actors    []meetingEventsIdentity `json:"actors,omitempty"`
-	Payload   map[string]interface{}  `json:"payload,omitempty"`
+	EventID     string                  `json:"event_id,omitempty"`
+	EventType   string                  `json:"event_type,omitempty"`
+	EventTime   string                  `json:"event_time,omitempty"`
+	Actors      []meetingEventsIdentity `json:"actors,omitempty"`
+	Summary     string                  `json:"summary,omitempty"`
+	SectionPath string                  `json:"section_path,omitempty"`
+	Payload     map[string]interface{}  `json:"payload,omitempty"`
 }
 
 type meetingEventsEndSignal struct {
@@ -316,6 +319,11 @@ func meetingEventsEventFromPayload(event map[string]interface{}, selfIdentity me
 		Payload:   payload,
 	}
 	out.Actors = eventActors(out.EventType, payload, selfIdentity)
+	if out.EventType == documentContextChangedType {
+		projection := projectDocumentContext(payload)
+		out.Summary = projection.summary
+		out.SectionPath = projection.sectionPath
+	}
 	return out
 }
 
@@ -345,8 +353,228 @@ func eventActors(eventType string, payload map[string]interface{}, selfIdentity 
 		addFromItems("magic_share_started_items", "operator")
 	case "magic_share_ended":
 		addFromItems("magic_share_ended_items", "operator")
+	case documentContextChangedType:
+		actors = projectDocumentContext(payload).actors
 	}
 	return actors
+}
+
+type documentContextItemProjection struct {
+	kind        string
+	time        string
+	operator    map[string]interface{}
+	summary     string
+	description string
+	details     []string
+	sectionPath string
+}
+
+type documentContextProjection struct {
+	items       []documentContextItemProjection
+	actors      []meetingEventsIdentity
+	summary     string
+	sectionPath string
+}
+
+func projectDocumentContext(payload map[string]interface{}) documentContextProjection {
+	projection := documentContextProjection{}
+	rawItems := common.GetSlice(payload, "document_context_changed_items")
+	rawSectionCount := 0
+	for _, raw := range rawItems {
+		item, _ := raw.(map[string]interface{})
+		if _, exists := item["section_location"]; exists {
+			rawSectionCount++
+		}
+		projected := projectDocumentContextItem(item)
+		projection.items = append(projection.items, projected)
+		if documentContextOperatorAvailable(projected.operator) {
+			projection.actors = append(projection.actors, meetingEventsIdentityFromDocumentOperator(projected.operator))
+		}
+	}
+
+	if len(projection.items) == 1 {
+		projection.summary = projection.items[0].summary
+	} else if len(projection.items) > 1 {
+		kinds := make([]string, 0, len(projection.items))
+		for _, item := range projection.items {
+			kinds = append(kinds, item.kind)
+		}
+		projection.summary = fmt.Sprintf("%d document context changes: %s", len(projection.items), strings.Join(kinds, ", "))
+	}
+	if projection.summary == "" {
+		projection.summary = "document context changed"
+	}
+
+	if rawSectionCount == 1 {
+		for _, item := range projection.items {
+			if item.kind == "section_location" {
+				projection.sectionPath = item.sectionPath
+				break
+			}
+		}
+	} else {
+		projection.sectionPath = ""
+	}
+	return projection
+}
+
+func projectDocumentContextItem(item map[string]interface{}) documentContextItemProjection {
+	projection := documentContextItemProjection{
+		kind:        "unknown",
+		summary:     "document context changed",
+		description: "文档上下文发生变化",
+	}
+	if item == nil {
+		return projection
+	}
+	projection.time = common.GetString(item, "time")
+	projection.operator = common.GetMap(item, "operator")
+
+	type contextValue struct {
+		kind  string
+		value map[string]interface{}
+	}
+	var contexts []contextValue
+	for _, kind := range []string{"comment_focus", "section_location", "element_preview"} {
+		value, exists := item[kind]
+		if !exists {
+			continue
+		}
+		context, ok := value.(map[string]interface{})
+		if !ok {
+			return projection
+		}
+		contexts = append(contexts, contextValue{kind: kind, value: context})
+	}
+	if len(contexts) != 1 {
+		return projection
+	}
+
+	context := contexts[0]
+	projection.kind = context.kind
+	switch context.kind {
+	case "comment_focus":
+		projectCommentFocus(item, context.value, &projection)
+	case "section_location":
+		projectSectionLocation(context.value, &projection)
+	case "element_preview":
+		projectElementPreview(context.value, &projection)
+	}
+	return projection
+}
+
+func projectCommentFocus(item, comment map[string]interface{}, projection *documentContextItemProjection) {
+	commentID := strings.TrimSpace(common.GetString(comment, "comment_id"))
+	focused, hasFocused := comment["focused"].(bool)
+	switch {
+	case !hasFocused:
+		projection.summary = "comment focus changed"
+		projection.description = "评论焦点发生变化"
+	case focused && commentID != "":
+		projection.summary = "comment focused: " + commentID
+		projection.description = "聚焦评论 " + commentID
+	case focused:
+		projection.summary = "comment focused"
+		projection.description = "聚焦评论"
+	case commentID != "":
+		projection.summary = "comment focus cleared: " + commentID
+		projection.description = "取消聚焦评论 " + commentID
+	default:
+		projection.summary = "comment focus cleared"
+		projection.description = "取消评论聚焦"
+	}
+	if title := strings.TrimSpace(common.GetString(common.GetMap(item, "share_doc"), "title")); title != "" {
+		projection.details = append(projection.details, "文档："+title)
+	}
+}
+
+func projectSectionLocation(section map[string]interface{}, projection *documentContextItemProjection) {
+	projection.sectionPath = documentSectionPath(section)
+	if projection.sectionPath == "" {
+		projection.summary = "section location changed"
+		projection.description = "章节位置发生变化"
+	} else {
+		projection.summary = "section located: " + projection.sectionPath
+		projection.description = "定位到章节「" + projection.sectionPath + "」"
+	}
+	if level := strings.TrimSpace(fieldValueString(section, "level")); level != "" {
+		projection.details = append(projection.details, "层级："+level)
+	}
+}
+
+func documentSectionPath(section map[string]interface{}) string {
+	parts := make([]string, 0, len(common.GetSlice(section, "parent_titles"))+1)
+	for _, raw := range common.GetSlice(section, "parent_titles") {
+		title, _ := raw.(string)
+		if title = strings.TrimSpace(title); title != "" {
+			parts = append(parts, title)
+		}
+	}
+	if title := strings.TrimSpace(common.GetString(section, "title")); title != "" {
+		parts = append(parts, title)
+	}
+	return strings.Join(parts, " > ")
+}
+
+func projectElementPreview(element map[string]interface{}, projection *documentContextItemProjection) {
+	action := strings.TrimSpace(common.GetString(element, "action"))
+	elementType := strings.TrimSpace(common.GetString(element, "element_type"))
+	token := strings.TrimSpace(common.GetString(element, "element_token"))
+	subject := "element"
+	if elementType != "" {
+		subject = elementType
+	}
+	switch action {
+	case "open":
+		projection.summary = subject + " preview opened"
+		projection.description = "打开 " + subject + " 预览"
+	case "close":
+		projection.summary = subject + " preview closed"
+		projection.description = "关闭 " + subject + " 预览"
+	default:
+		projection.summary = "element preview changed"
+		projection.description = "元素预览发生变化"
+	}
+	if token != "" && (action == "open" || action == "close") {
+		projection.summary += ": " + token
+		projection.description += " " + token
+	}
+	if blockID := strings.TrimSpace(common.GetString(element, "block_id")); blockID != "" {
+		projection.details = append(projection.details, "block_id："+blockID)
+	}
+}
+
+func documentContextOperatorAvailable(operator map[string]interface{}) bool {
+	return strings.TrimSpace(common.GetString(operator, "id")) != "" || strings.TrimSpace(common.GetString(operator, "user_name")) != ""
+}
+
+func meetingEventsIdentityFromDocumentOperator(operator map[string]interface{}) meetingEventsIdentity {
+	identity := meetingEventsIdentity{
+		ID:              common.GetString(operator, "id"),
+		Name:            common.GetString(operator, "user_name"),
+		ParticipantType: knownDocumentOperatorParticipantType(operator),
+		Role:            knownDocumentOperatorRole(operator),
+	}
+	identity.Label = identityLabel(identity)
+	return identity
+}
+
+func knownDocumentOperatorParticipantType(operator map[string]interface{}) string {
+	switch participantType := meetingEventsParticipantType(operator); participantType {
+	case "human", "bot":
+		return participantType
+	default:
+		return ""
+	}
+}
+
+func knownDocumentOperatorRole(operator map[string]interface{}) string {
+	switch role := meetingEventsParticipantRole(operator); role {
+	case "host", "co_host", "participant", "bot":
+		return role
+	default:
+		return ""
+	}
 }
 
 func meetingEventsIdentityFromParticipant(participant map[string]interface{}, selfIdentity meetingEventsIdentity) meetingEventsIdentity {
@@ -699,6 +927,10 @@ func compactMeetingEvents(events []interface{}) []interface{} {
 		if event == nil {
 			continue
 		}
+		if meetingEventType(event) == documentContextChangedType {
+			compacted = append(compacted, event)
+			continue
+		}
 		if payload := common.GetMap(event, "payload"); payload != nil {
 			event["payload"] = compactMeetingPayload(payload)
 		}
@@ -731,12 +963,15 @@ type meetingTimeline struct {
 }
 
 type meetingTimelineEntry struct {
-	when        time.Time
-	hasWhen     bool
-	sequence    int
-	subject     string
-	description string
-	details     []string
+	when         time.Time
+	hasWhen      bool
+	sortWhen     time.Time
+	hasSortWhen  bool
+	sortOverride bool
+	sequence     int
+	subject      string
+	description  string
+	details      []string
 }
 
 func buildMeetingEventTimeline(events []interface{}) meetingTimeline {
@@ -748,7 +983,7 @@ func buildMeetingEventTimeline(events []interface{}) meetingTimeline {
 			continue
 		}
 		payload := common.GetMap(event, "payload")
-		if payload == nil {
+		if payload == nil && meetingEventType(event) != documentContextChangedType {
 			continue
 		}
 		if timeline.topic == "" || !timeline.hasStart || !timeline.hasEnd {
@@ -762,21 +997,30 @@ func buildMeetingEventTimeline(events []interface{}) meetingTimeline {
 	sort.SliceStable(timeline.entries, func(i, j int) bool {
 		left := timeline.entries[i]
 		right := timeline.entries[j]
+		leftWhen, leftHasWhen := timelineEntrySortTime(left)
+		rightWhen, rightHasWhen := timelineEntrySortTime(right)
 		switch {
-		case left.hasWhen && right.hasWhen:
-			if left.when.Equal(right.when) {
+		case leftHasWhen && rightHasWhen:
+			if leftWhen.Equal(rightWhen) {
 				return left.sequence < right.sequence
 			}
-			return left.when.Before(right.when)
-		case left.hasWhen:
+			return leftWhen.Before(rightWhen)
+		case leftHasWhen:
 			return true
-		case right.hasWhen:
+		case rightHasWhen:
 			return false
 		default:
 			return left.sequence < right.sequence
 		}
 	})
 	return timeline
+}
+
+func timelineEntrySortTime(entry meetingTimelineEntry) (time.Time, bool) {
+	if entry.sortOverride {
+		return entry.sortWhen, entry.hasSortWhen
+	}
+	return entry.when, entry.hasWhen
 }
 
 func applyMeetingTimelineEndSignal(timeline *meetingTimeline, signal meetingEventsEndSignal) {
@@ -820,10 +1064,10 @@ func populateMeetingHeader(timeline *meetingTimeline, meeting map[string]interfa
 
 func buildTimelineEntriesForEvent(event map[string]interface{}, sequence *int) []meetingTimelineEntry {
 	payload := common.GetMap(event, "payload")
-	if payload == nil {
+	eventType := meetingEventType(event)
+	if payload == nil && eventType != documentContextChangedType {
 		return nil
 	}
-	eventType := meetingEventType(event)
 	eventTime, eventTimeOK := parseFlexibleTime(common.GetString(event, "event_time"))
 	switch eventType {
 	case "participant_joined":
@@ -838,9 +1082,54 @@ func buildTimelineEntriesForEvent(event map[string]interface{}, sequence *int) [
 		return magicShareStartedEntries(payload, eventTime, eventTimeOK, sequence)
 	case "magic_share_ended":
 		return magicShareEndedEntries(payload, eventTime, eventTimeOK, sequence)
+	case documentContextChangedType:
+		return documentContextEntries(payload, eventTime, eventTimeOK, sequence)
 	default:
 		return []meetingTimelineEntry{newTimelineEntry(eventTime, eventTimeOK, sequence, meetingEventUserDisplayName(nil), meetingEventSummary(event), nil)}
 	}
+}
+
+func documentContextEntries(payload map[string]interface{}, fallbackTime time.Time, fallbackOK bool, sequence *int) []meetingTimelineEntry {
+	projection := projectDocumentContext(payload)
+	if len(projection.items) == 0 {
+		return []meetingTimelineEntry{newTimelineEntry(fallbackTime, fallbackOK, sequence, "", "文档上下文发生变化", nil)}
+	}
+	entries := make([]meetingTimelineEntry, 0, len(projection.items))
+	for _, item := range projection.items {
+		when, ok := parseDocumentContextItemTime(item.time)
+		if !ok {
+			when, ok = fallbackTime, fallbackOK
+		}
+		subject := meetingEventUserWithID(item.operator)
+		if subject == "" {
+			subject = "未知用户"
+		}
+		entry := newTimelineEntry(when, ok, sequence, subject, item.description, item.details)
+		// Sort every item in one document event by the parent event time so the
+		// stable sequence tie-breaker preserves the payload's item order.
+		entry.sortWhen = fallbackTime
+		entry.hasSortWhen = fallbackOK
+		entry.sortOverride = true
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func parseDocumentContextItemTime(raw string) (time.Time, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}, false
+	}
+	for _, r := range raw {
+		if r < '0' || r > '9' {
+			return time.Time{}, false
+		}
+	}
+	timestamp, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || timestamp <= 1_000_000_000_000 {
+		return time.Time{}, false
+	}
+	return time.UnixMilli(timestamp), true
 }
 
 func participantJoinedEntries(payload map[string]interface{}, fallbackTime time.Time, fallbackOK bool, sequence *int) []meetingTimelineEntry {
@@ -1133,7 +1422,17 @@ func needsColon(description string) bool {
 			!strings.HasPrefix(description, "被移出") &&
 			!strings.HasPrefix(description, "会议结束") &&
 			!strings.HasPrefix(description, "开始共享") &&
-			!strings.HasPrefix(description, "结束共享")
+			!strings.HasPrefix(description, "结束共享") &&
+			!strings.HasPrefix(description, "聚焦评论") &&
+			!strings.HasPrefix(description, "取消聚焦") &&
+			!strings.HasPrefix(description, "取消评论聚焦") &&
+			!strings.HasPrefix(description, "评论焦点") &&
+			!strings.HasPrefix(description, "定位到章节") &&
+			!strings.HasPrefix(description, "章节位置") &&
+			!strings.HasPrefix(description, "打开 ") &&
+			!strings.HasPrefix(description, "关闭 ") &&
+			!strings.HasPrefix(description, "元素预览") &&
+			!strings.HasPrefix(description, "文档上下文")
 	}
 }
 
@@ -1189,6 +1488,8 @@ func meetingEventSummary(event map[string]interface{}) string {
 		return magicShareStartedSummary(payload)
 	case "magic_share_ended":
 		return magicShareEndedSummary(payload)
+	case documentContextChangedType:
+		return projectDocumentContext(payload).summary
 	default:
 		return fallbackMeetingEventSummary(payload, eventType)
 	}
