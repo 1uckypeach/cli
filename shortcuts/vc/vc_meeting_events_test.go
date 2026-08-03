@@ -1821,12 +1821,18 @@ func TestVCMeetingEventsDocumentContextCLIBehavior(t *testing.T) {
 		for _, want := range []string{
 			`"event_type":"document_context_changed"`,
 			`"summary":"3 document context changes: comment_focus, section_location, element_preview"`,
-			`"section_path":"Roadmap > Milestone"`,
 			`"document_context_changed_items"`,
 		} {
 			if !strings.Contains(lines[0], want) {
 				t.Fatalf("ndjson event missing %q: %s", want, lines[0])
 			}
+		}
+		var gotEvent map[string]interface{}
+		if err := json.Unmarshal([]byte(lines[0]), &gotEvent); err != nil {
+			t.Fatalf("decode ndjson event: %v", err)
+		}
+		if got := common.GetString(gotEvent, "section_path"); got != "Roadmap > Milestone" {
+			t.Fatalf("section_path = %q", got)
 		}
 	})
 
