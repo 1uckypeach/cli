@@ -346,7 +346,7 @@ func eventActors(eventType string, payload map[string]interface{}, selfIdentity 
 	case "magic_share_ended":
 		addFromItems("magic_share_ended_items", "operator")
 	case "document_context_changed":
-		actors = projectDocumentContext(payload).actors
+		addFromItems("document_context_changed_items", "operator")
 	}
 	return actors
 }
@@ -359,8 +359,7 @@ type documentContextItemProjection struct {
 }
 
 type documentContextProjection struct {
-	items  []documentContextItemProjection
-	actors []meetingEventsIdentity
+	items []documentContextItemProjection
 }
 
 func projectDocumentContext(payload map[string]interface{}) documentContextProjection {
@@ -373,9 +372,6 @@ func projectDocumentContext(payload map[string]interface{}) documentContextProje
 		projected := projectDocumentContextItem(item)
 		if projected.description != "" {
 			projection.items = append(projection.items, projected)
-		}
-		if documentContextOperatorAvailable(projected.operator) {
-			projection.actors = append(projection.actors, meetingEventsIdentityFromDocumentOperator(projected.operator))
 		}
 	}
 	return projection
@@ -488,39 +484,6 @@ func projectElementPreview(element map[string]interface{}, projection *documentC
 	}
 	if blockID := strings.TrimSpace(common.GetString(element, "block_id")); blockID != "" {
 		projection.details = append(projection.details, "block_id："+blockID)
-	}
-}
-
-func documentContextOperatorAvailable(operator map[string]interface{}) bool {
-	return strings.TrimSpace(common.GetString(operator, "id")) != "" || strings.TrimSpace(common.GetString(operator, "user_name")) != ""
-}
-
-func meetingEventsIdentityFromDocumentOperator(operator map[string]interface{}) meetingEventsIdentity {
-	identity := meetingEventsIdentity{
-		ID:              common.GetString(operator, "id"),
-		Name:            common.GetString(operator, "user_name"),
-		ParticipantType: knownDocumentOperatorParticipantType(operator),
-		Role:            knownDocumentOperatorRole(operator),
-	}
-	identity.Label = identityLabel(identity)
-	return identity
-}
-
-func knownDocumentOperatorParticipantType(operator map[string]interface{}) string {
-	switch participantType := meetingEventsParticipantType(operator); participantType {
-	case "human", "bot":
-		return participantType
-	default:
-		return ""
-	}
-}
-
-func knownDocumentOperatorRole(operator map[string]interface{}) string {
-	switch role := meetingEventsParticipantRole(operator); role {
-	case "host", "co_host", "participant", "bot":
-		return role
-	default:
-		return ""
 	}
 }
 

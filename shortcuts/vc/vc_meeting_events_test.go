@@ -1421,55 +1421,6 @@ func TestDocumentContextChangedProjection_KnownItems(t *testing.T) {
 	}
 }
 
-func TestDocumentContextChangedActors_DoNotInferMissingOperatorFields(t *testing.T) {
-	tests := []struct {
-		name     string
-		operator map[string]interface{}
-		self     meetingEventsIdentity
-		want     meetingEventsIdentity
-	}{
-		{
-			name:     "missing type and role stay empty",
-			operator: map[string]interface{}{"id": "u1", "user_name": "Alice"},
-			want:     meetingEventsIdentity{ID: "u1", Name: "Alice", Label: "Alice"},
-		},
-		{
-			name:     "self identity does not imply bot",
-			operator: map[string]interface{}{"id": "bot-self", "user_name": "Agent"},
-			self:     meetingEventsIdentity{ID: "bot-self", ParticipantType: "bot", Role: "bot"},
-			want:     meetingEventsIdentity{ID: "bot-self", Name: "Agent", Label: "Agent"},
-		},
-		{
-			name: "explicit type and role are mapped",
-			operator: map[string]interface{}{
-				"id": "bot-explicit", "user_name": "Explicit Agent", "user_type": 2, "user_role": 4,
-			},
-			want: meetingEventsIdentity{
-				ID: "bot-explicit", Name: "Explicit Agent", ParticipantType: "bot", Role: "bot", Label: "Explicit Agent [bot]",
-			},
-		},
-		{
-			name:     "unknown explicit type and role are not invented",
-			operator: map[string]interface{}{"id": "u-unknown", "user_name": "Unknown", "user_type": 999, "user_role": 99},
-			want:     meetingEventsIdentity{ID: "u-unknown", Name: "Unknown", Label: "Unknown"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			event := documentContextChangedEvent([]interface{}{
-				map[string]interface{}{
-					"operator":      tt.operator,
-					"comment_focus": map[string]interface{}{"comment_id": "comment-1", "focused": true},
-				},
-			})
-			got := meetingEventsEventFromPayload(event, tt.self)
-			if len(got.Actors) != 1 || !reflect.DeepEqual(got.Actors[0], tt.want) {
-				t.Fatalf("actors = %#v, want %#v", got.Actors, []meetingEventsIdentity{tt.want})
-			}
-		})
-	}
-}
-
 func TestDocumentContextChangedTimeline_PreservesItemOrder(t *testing.T) {
 	event := documentContextChangedEvent([]interface{}{
 		map[string]interface{}{
