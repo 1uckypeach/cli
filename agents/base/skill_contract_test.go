@@ -76,6 +76,8 @@ func TestBaseAgentHandoffUsesOnePublicAssistant(t *testing.T) {
 		"对外只暴露统一 Base Assistant",
 		"Card 只做能力与参数校验，不再次判断建设/分析类型",
 		"lark-cli agents card base:assistant --operation all --as user --format json",
+		"lark-cli base +url-resolve --url \"<url>\" --as user",
+		"输入已经是真实 `base_token` 时",
 		"结构化 `input_required` 回答",
 		"Card、身份、scope 或 Assistant 服务失败时不静默改走 Base CLI",
 		"`has_more` / `next_cursor` 分页 envelope",
