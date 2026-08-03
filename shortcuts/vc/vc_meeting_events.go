@@ -30,7 +30,6 @@ const (
 	leaveReasonUserLeft        = 1
 	leaveReasonMeetingEnded    = 2
 	leaveReasonKicked          = 3
-	documentContextChangedType = "document_context_changed"
 )
 
 var meetingDisplayLocation = time.FixedZone("UTC+8", 8*60*60)
@@ -168,13 +167,11 @@ type meetingEventsIdentity struct {
 }
 
 type meetingEventsEvent struct {
-	EventID     string                  `json:"event_id,omitempty"`
-	EventType   string                  `json:"event_type,omitempty"`
-	EventTime   string                  `json:"event_time,omitempty"`
-	Actors      []meetingEventsIdentity `json:"actors,omitempty"`
-	Summary     string                  `json:"summary,omitempty"`
-	SectionPath string                  `json:"section_path,omitempty"`
-	Payload     map[string]interface{}  `json:"payload,omitempty"`
+	EventID   string                  `json:"event_id,omitempty"`
+	EventType string                  `json:"event_type,omitempty"`
+	EventTime string                  `json:"event_time,omitempty"`
+	Actors    []meetingEventsIdentity `json:"actors,omitempty"`
+	Payload   map[string]interface{}  `json:"payload,omitempty"`
 }
 
 type meetingEventsEndSignal struct {
@@ -319,11 +316,6 @@ func meetingEventsEventFromPayload(event map[string]interface{}, selfIdentity me
 		Payload:   payload,
 	}
 	out.Actors = eventActors(out.EventType, payload, selfIdentity)
-	if out.EventType == documentContextChangedType {
-		projection := projectDocumentContext(payload)
-		out.Summary = projection.summary
-		out.SectionPath = projection.sectionPath
-	}
 	return out
 }
 
@@ -353,7 +345,7 @@ func eventActors(eventType string, payload map[string]interface{}, selfIdentity 
 		addFromItems("magic_share_started_items", "operator")
 	case "magic_share_ended":
 		addFromItems("magic_share_ended_items", "operator")
-	case documentContextChangedType:
+	case "document_context_changed":
 		actors = projectDocumentContext(payload).actors
 	}
 	return actors
@@ -927,7 +919,7 @@ func compactMeetingEvents(events []interface{}) []interface{} {
 		if event == nil {
 			continue
 		}
-		if meetingEventType(event) == documentContextChangedType {
+		if meetingEventType(event) == "document_context_changed" {
 			compacted = append(compacted, event)
 			continue
 		}
@@ -983,7 +975,7 @@ func buildMeetingEventTimeline(events []interface{}) meetingTimeline {
 			continue
 		}
 		payload := common.GetMap(event, "payload")
-		if payload == nil && meetingEventType(event) != documentContextChangedType {
+		if payload == nil && meetingEventType(event) != "document_context_changed" {
 			continue
 		}
 		if timeline.topic == "" || !timeline.hasStart || !timeline.hasEnd {
@@ -1065,7 +1057,7 @@ func populateMeetingHeader(timeline *meetingTimeline, meeting map[string]interfa
 func buildTimelineEntriesForEvent(event map[string]interface{}, sequence *int) []meetingTimelineEntry {
 	payload := common.GetMap(event, "payload")
 	eventType := meetingEventType(event)
-	if payload == nil && eventType != documentContextChangedType {
+	if payload == nil && eventType != "document_context_changed" {
 		return nil
 	}
 	eventTime, eventTimeOK := parseFlexibleTime(common.GetString(event, "event_time"))
@@ -1082,7 +1074,7 @@ func buildTimelineEntriesForEvent(event map[string]interface{}, sequence *int) [
 		return magicShareStartedEntries(payload, eventTime, eventTimeOK, sequence)
 	case "magic_share_ended":
 		return magicShareEndedEntries(payload, eventTime, eventTimeOK, sequence)
-	case documentContextChangedType:
+	case "document_context_changed":
 		return documentContextEntries(payload, eventTime, eventTimeOK, sequence)
 	default:
 		return []meetingTimelineEntry{newTimelineEntry(eventTime, eventTimeOK, sequence, meetingEventUserDisplayName(nil), meetingEventSummary(event), nil)}
@@ -1488,7 +1480,7 @@ func meetingEventSummary(event map[string]interface{}) string {
 		return magicShareStartedSummary(payload)
 	case "magic_share_ended":
 		return magicShareEndedSummary(payload)
-	case documentContextChangedType:
+	case "document_context_changed":
 		return projectDocumentContext(payload).summary
 	default:
 		return fallbackMeetingEventSummary(payload, eventType)

@@ -1403,6 +1403,7 @@ func TestDocumentContextChangedProjection_KnownItems(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			event := documentContextChangedEvent([]interface{}{tt.item})
 			got := meetingEventsEventFromPayload(event, meetingEventsIdentity{})
+			projection := projectDocumentContext(got.Payload)
 			if tt.wantActorID == "" {
 				if len(got.Actors) != 0 {
 					t.Fatalf("actors = %#v, want none", got.Actors)
@@ -1410,11 +1411,11 @@ func TestDocumentContextChangedProjection_KnownItems(t *testing.T) {
 			} else if len(got.Actors) != 1 || got.Actors[0].ID != tt.wantActorID {
 				t.Fatalf("actors = %#v, want actor %q", got.Actors, tt.wantActorID)
 			}
-			if got.Summary != tt.wantSummary {
-				t.Fatalf("summary = %q, want %q", got.Summary, tt.wantSummary)
+			if projection.summary != tt.wantSummary {
+				t.Fatalf("summary = %q, want %q", projection.summary, tt.wantSummary)
 			}
-			if got.SectionPath != tt.wantSectionPath {
-				t.Fatalf("section_path = %q, want %q", got.SectionPath, tt.wantSectionPath)
+			if projection.sectionPath != tt.wantSectionPath {
+				t.Fatalf("section_path = %q, want %q", projection.sectionPath, tt.wantSectionPath)
 			}
 			var sequence int
 			entries := buildTimelineEntriesForEvent(event, &sequence)
@@ -1586,11 +1587,12 @@ func TestDocumentContextChangedProjection_MultipleItemsPreserveOrderAndLocalFall
 	})
 
 	got := meetingEventsEventFromPayload(event, meetingEventsIdentity{})
-	if got.Summary != "4 document context changes: comment_focus, section_location, element_preview, unknown" {
-		t.Fatalf("summary = %q", got.Summary)
+	projection := projectDocumentContext(got.Payload)
+	if projection.summary != "4 document context changes: comment_focus, section_location, element_preview, unknown" {
+		t.Fatalf("summary = %q", projection.summary)
 	}
-	if got.SectionPath != "A > B" {
-		t.Fatalf("section_path = %q, want %q", got.SectionPath, "A > B")
+	if projection.sectionPath != "A > B" {
+		t.Fatalf("section_path = %q, want %q", projection.sectionPath, "A > B")
 	}
 	var actorIDs []string
 	for _, actor := range got.Actors {
@@ -1641,9 +1643,10 @@ func TestDocumentContextChangedProjection_SectionPathBoundaries(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := meetingEventsEventFromPayload(documentContextChangedEvent(tt.items), meetingEventsIdentity{})
-			if got.SectionPath != tt.want {
-				t.Fatalf("section_path = %q, want %q", got.SectionPath, tt.want)
+			event := documentContextChangedEvent(tt.items)
+			got := projectDocumentContext(common.GetMap(event, "payload"))
+			if got.sectionPath != tt.want {
+				t.Fatalf("section_path = %q, want %q", got.sectionPath, tt.want)
 			}
 		})
 	}
@@ -1698,9 +1701,9 @@ func TestDocumentContextChangedProjection_EmptyAndUnknownFallback(t *testing.T) 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			event := documentContextChangedEvent(tt.items)
-			got := meetingEventsEventFromPayload(event, meetingEventsIdentity{})
-			if got.Summary != "document context changed" {
-				t.Fatalf("summary = %q, want generic fallback", got.Summary)
+			got := projectDocumentContext(common.GetMap(event, "payload"))
+			if got.summary != "document context changed" {
+				t.Fatalf("summary = %q, want generic fallback", got.summary)
 			}
 			var sequence int
 			entries := buildTimelineEntriesForEvent(event, &sequence)
@@ -1718,7 +1721,7 @@ func TestDocumentContextChangedProjection_MissingPayloadStillVisible(t *testing.
 		"event_time": "2026-04-17T08:08:00Z",
 	}
 	got := meetingEventsEventFromPayload(event, meetingEventsIdentity{})
-	if got.EventID != "event-without-payload" || got.Summary != "document context changed" || got.Payload != nil {
+	if got.EventID != "event-without-payload" || got.Payload != nil {
 		t.Fatalf("projection = %#v", got)
 	}
 	var sequence int
@@ -1730,15 +1733,15 @@ func TestDocumentContextChangedProjection_MissingPayloadStillVisible(t *testing.
 
 func TestExistingMeetingEventProjection_OmitsDocumentContextFields(t *testing.T) {
 	got := meetingEventsEventFromPayload(participantJoinedEvent(), meetingEventsIdentity{})
-	if got.Summary != "" || got.SectionPath != "" {
-		t.Fatalf("existing event gained document context fields: %#v", got)
-	}
 	row := meetingEventsEventRow(got)
 	if _, ok := row["summary"]; ok {
 		t.Fatalf("existing event row exposes summary: %#v", row)
 	}
 	if _, ok := row["section_path"]; ok {
 		t.Fatalf("existing event row exposes section_path: %#v", row)
+	}
+	if _, ok := row["derived"]; ok {
+		t.Fatalf("existing event row exposes an invented derived envelope: %#v", row)
 	}
 }
 
@@ -1789,11 +1792,10 @@ func TestVCMeetingEventsDocumentContextCLIBehavior(t *testing.T) {
 			t.Fatalf("unmarshal output: %v: %s", err, stdout.String())
 		}
 		gotEvent, _ := common.GetSlice(common.GetMap(envelope, "data"), "events")[0].(map[string]interface{})
-		if got := common.GetString(gotEvent, "summary"); got != "3 document context changes: comment_focus, section_location, element_preview" {
-			t.Fatalf("summary = %q", got)
-		}
-		if got := common.GetString(gotEvent, "section_path"); got != "Roadmap > Milestone" {
-			t.Fatalf("section_path = %q", got)
+		for _, key := range []string{"summary", "section_path", "derived"} {
+			if _, exists := gotEvent[key]; exists {
+				t.Fatalf("document context event exposes non-envelope field %q: %#v", key, gotEvent)
+			}
 		}
 		if got := len(common.GetSlice(gotEvent, "actors")); got != 3 {
 			t.Fatalf("actors = %d, want 3", got)
@@ -1820,7 +1822,6 @@ func TestVCMeetingEventsDocumentContextCLIBehavior(t *testing.T) {
 		}
 		for _, want := range []string{
 			`"event_type":"document_context_changed"`,
-			`"summary":"3 document context changes: comment_focus, section_location, element_preview"`,
 			`"document_context_changed_items"`,
 		} {
 			if !strings.Contains(lines[0], want) {
@@ -1831,8 +1832,10 @@ func TestVCMeetingEventsDocumentContextCLIBehavior(t *testing.T) {
 		if err := json.Unmarshal([]byte(lines[0]), &gotEvent); err != nil {
 			t.Fatalf("decode ndjson event: %v", err)
 		}
-		if got := common.GetString(gotEvent, "section_path"); got != "Roadmap > Milestone" {
-			t.Fatalf("section_path = %q", got)
+		for _, key := range []string{"summary", "section_path", "derived"} {
+			if _, exists := gotEvent[key]; exists {
+				t.Fatalf("document context ndjson exposes non-envelope field %q: %#v", key, gotEvent)
+			}
 		}
 	})
 

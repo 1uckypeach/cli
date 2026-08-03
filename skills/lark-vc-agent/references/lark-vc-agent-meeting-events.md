@@ -145,7 +145,7 @@ lark-cli vc +meeting-events --as user --meeting-id <id> --page-all --format pret
 
 ### 7. 文档上下文事件消费
 
-`document_context_changed` 是只读线索事件。`vc +meeting-events` 只负责保留 payload 并派生 actor、summary、timeline 和可确定的 `section_path`；它不会查询评论、下载素材或写文件。后续 Drive/Docs 命令只能由 Agent 按下表显式选择。
+`document_context_changed` 是只读线索事件。`vc +meeting-events` 保留原始 payload，并派生 actor、pretty timeline 与事件专属的 `derived.document_context`；它不会把 `summary/section_path` 扩张为所有事件共享的顶层字段，也不会查询评论、下载素材或写文件。后续 Drive/Docs 命令只能由 Agent 按下表显式选择。
 
 #### 字段合同
 
@@ -158,7 +158,7 @@ lark-cli vc +meeting-events --as user --meeting-id <id> --page-all --format pret
 | `item.comment_focus.comment_id/focused` | `focused=true` 才精确查询一个 comment ID；`false` 是清除焦点，零查询。 |
 | `item.section_location.parent_titles/title/level` | `section_path` 按 parent 原序再追加 title，trim 后丢弃空段，以 ` > ` 连接；`level` 仅作诊断，不参与截断或补层。 |
 | `item.element_preview.action/element_type/element_token/block_id` | 只有 `open + image + token`、`open + whiteboard + token` 可在明确预览意图下路由；其他组合零调用。 |
-| 事件顶层 `summary/section_path` | 只在 `document_context_changed` 上出现；多 section item 时省略单值 `section_path`，逐项信息仍在 timeline/raw。 |
+| 事件公共 envelope | JSON/NDJSON 不新增顶层 `summary/section_path`；`document_context_changed` 的稳定派生值收敛在 `derived.document_context.summary/section_path`，其他事件不输出该嵌套结构。 |
 | 事件 `payload` | 原始恢复面，包含空数组和未知字段；派生字段不会写回 payload。 |
 
 #### 评论聚焦：只查一个 ID
@@ -210,7 +210,7 @@ lark-cli drive +list-replies \
 
 #### 章节定位
 
-事件顶层有 `section_path` 时直接消费。没有该字段时，查看该事件逐 item timeline/raw：多个 section item 不选择其中一个覆盖事件级标量；标题全空时只说明章节位置发生变化。`section_path` 是本地派生，不需要也不允许为它新增 API 查询。
+恰有一个可确定的章节 item 时，结构化消费可直接读取 `derived.document_context.section_path`。pretty timeline 会按 `parent_titles` 原序追加 `title`，trim 后丢弃空段，并以 ` > ` 连接；多个 section item 分别展示，嵌套派生中省略单值 `section_path`；标题全空时只说明章节位置发生变化。该路径是本地派生，不需要或允许为它新增 API 查询。
 
 #### 元素预览：显式白名单
 
@@ -249,7 +249,7 @@ lark-cli drive +list-replies \
 |------|------|
 | `meeting` | 会议身份与时间状态，包含 `id/topic/meeting_no/start_time/end_time/status` |
 | `identity` | 当前读取身份，包含 `id/name/participant_type/label` |
-| `events` | 结构化事件列表；每条事件含参与者 `actors` 和事件细节 `payload`；文档上下文事件还可含 `summary/section_path` |
+| `events` | 结构化事件列表；每条事件沿用 `event_id/event_type/event_time/actors/payload` 公共字段，`document_context_changed` 的稳定派生值另置于 `derived.document_context`，原始事件专属数据仍保留在 `payload` |
 | `warnings` | 非阻断告警列表；事件列表本身仍可使用 |
 | `has_more` | 是否还有下一页 |
 | `page_token` | 下一页游标 |
