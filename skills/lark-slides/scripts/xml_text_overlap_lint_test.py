@@ -693,13 +693,25 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
             </slide>
             """
         )
-        self.assertEqual(result["summary"]["error_count"], 1)
+        # The source's wrap="false" CJK line is far wider than its 160px box, so it both collides with
+        # the neighbor (bbox_overlap) and overflows its own content box on the width axis.
+        self.assertEqual(result["summary"]["error_count"], 2)
         self.assertEqual(result["summary"]["warning_count"], 0)
-        issue = result["slides"][0]["issues"][0]
-        self.assertEqual(issue["code"], "bbox_overlap")
-        self.assertEqual(issue["elements"], ["source", "target"])
-        self.assertGreater(issue["measurement"]["intersection_area"], 0)
-        self.assertIsNotNone(issue.get("hint"))
+        codes = {issue["code"] for issue in result["slides"][0]["issues"]}
+        self.assertEqual(codes, {"bbox_overlap", "text_may_overflow_shape"})
+        overlap_issue = next(
+            issue for issue in result["slides"][0]["issues"] if issue["code"] == "bbox_overlap"
+        )
+        self.assertEqual(overlap_issue["elements"], ["source", "target"])
+        self.assertGreater(overlap_issue["measurement"]["intersection_area"], 0)
+        self.assertIsNotNone(overlap_issue.get("hint"))
+        width_issue = next(
+            issue
+            for issue in result["slides"][0]["issues"]
+            if issue["code"] == "text_may_overflow_shape"
+        )
+        self.assertEqual(width_issue["overflow_axis"], "width")
+        self.assertEqual(width_issue["elements"], ["source"])
 
     def test_lint_xml_allows_horizontal_text_with_default_wrap(self) -> None:
         result = xml_text_overlap_lint.lint_xml(
@@ -1106,6 +1118,55 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
         self.assertEqual(result["summary"]["info_count"], 1)
         self.assertEqual(result["slides"][0]["infos"], [issues["bg-deco"]])
         self.assertIn("background decoration", issues["bg-deco"]["message"])
+
+    def test_lint_xml_reports_wrap_disabled_text_overflowing_width(self) -> None:
+        # wrap="false" pins the run to one line, so height never grows; an over-wide single line
+        # spills outside the box and must surface on the width axis (slides p3: bNQ).
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0">
+              <data>
+                <shape id="wide-line" type="text" topLeftX="32" topLeftY="400" width="176" height="79">
+                  <content textType="sub-headline" fontSize="32" bold="true" wrap="false">
+                    <p>WidthExceed 87% </p>
+                  </content>
+                </shape>
+              </data>
+            </slide>
+            """
+        )
+        overflow_issues = [
+            issue
+            for issue in result["slides"][0]["issues"]
+            if issue["code"] == "text_may_overflow_shape"
+        ]
+        self.assertEqual(len(overflow_issues), 1)
+        self.assertEqual(overflow_issues[0]["elements"], ["wide-line"])
+        self.assertEqual(overflow_issues[0]["overflow_axis"], "width")
+        self.assertEqual(overflow_issues[0]["level"], "error")
+        self.assertGreater(overflow_issues[0]["estimated_width"], overflow_issues[0]["available_width"])
+
+    def test_lint_xml_allows_wrap_disabled_text_fitting_width(self) -> None:
+        # A wrap="false" run that fits its box must not be flagged on the width axis.
+        result = xml_text_overlap_lint.lint_xml(
+            """
+            <slide xmlns="http://www.larkoffice.com/sml/2.0">
+              <data>
+                <shape id="fits" type="text" topLeftX="32" topLeftY="400" width="400" height="79">
+                  <content textType="sub-headline" fontSize="32" bold="true" wrap="false">
+                    <p>OK</p>
+                  </content>
+                </shape>
+              </data>
+            </slide>
+            """
+        )
+        width_issues = [
+            issue
+            for issue in result["slides"][0]["issues"]
+            if issue["code"] == "text_may_overflow_shape" and issue.get("overflow_axis") == "width"
+        ]
+        self.assertEqual(width_issues, [])
 
     def test_lint_xml_reports_shape_alpha_ghost_text_out_of_canvas_but_allows_overlap(self) -> None:
         result = xml_text_overlap_lint.lint_xml(

@@ -1251,6 +1251,77 @@ def detect_text_may_overflow_shapes(elements: list[dict[str, Any]]) -> list[dict
     return issues
 
 
+def is_element_out_of_canvas(
+    element: dict[str, Any], slide_width: int | float, slide_height: int | float
+) -> bool:
+    """Return True if the element's bbox spills past any canvas edge (see detect_elements_out_of_canvas)."""
+    bbox = element_canvas_bbox(element)
+    overflow = (
+        -bbox["x"],
+        -bbox["y"],
+        bbox["x"] + bbox["width"] - slide_width,
+        bbox["y"] + bbox["height"] - slide_height,
+    )
+    return any(amount > CANVAS_OVERFLOW_TOLERANCE for amount in overflow)
+
+
+def detect_wrap_disabled_width_overflows(
+    elements: list[dict[str, Any]],
+    slide_width: int | float = 960,
+    slide_height: int | float = 540,
+) -> list[dict[str, Any]]:
+    """Flag wrap="false" text whose single line is wider than its own content box.
+
+    detect_text_may_overflow_shapes only measures the height axis, and wrap="false" text is pinned to
+    exactly one line (see estimate_text_line_count_for_text), so its height never grows no matter how
+    long the run is -- an over-wide single line spills outside the box unnoticed (slides p3: bNQ).
+    Because wrap is off the renderer cannot break the line, so any width past the box is a real overflow;
+    autoFit only grows height, not width, so it does not exempt this check. Text already spilling off the
+    canvas is left to shape_out_of_canvas (the primary defect) so oversized decorative numbers bleeding
+    past the edge are not double-reported.
+    """
+    issues: list[dict[str, Any]] = []
+    for element in elements:
+        if not is_text_element(element) or not has_text_content(element):
+            continue
+        if element.get("wrap") not in {"false", "0"}:
+            continue
+        if is_element_out_of_canvas(element, slide_width, slide_height):
+            continue
+
+        available_width = max(
+            element["width"] - element.get("paddingLeft", 0) - element.get("paddingRight", 0), 1
+        )
+        estimated_width = max(1, estimate_text_max_line_width(element))
+        overflow = estimated_width - available_width
+        if overflow <= text_wrap_width_tolerance():
+            continue
+
+        issues.append(
+            {
+                "level": "error",
+                "code": "text_may_overflow_shape",
+                "overflow_axis": "width",
+                "elements": [element["id"]],
+                "estimated_width": estimated_width,
+                "available_width": available_width,
+                "width_ratio": estimated_width / available_width,
+                "overflow": overflow,
+                "message": (
+                    f'text shape {element["id"]} overflows its own content box on the width axis '
+                    f'(estimated line {estimated_width:g}px, available {available_width:g}px); '
+                    'wrap="false" keeps it on one line, so the excess spills outside the box'
+                ),
+                "hint": (
+                    "Increase shape.width, shorten the text, or reduce fontSize. With wrap=\"false\" the "
+                    "line cannot break, so any width past the box overflows. This is an estimate based on "
+                    "font size, weight, and glyph widths."
+                ),
+            }
+        )
+    return issues
+
+
 def is_background_decorative_text(
     element: dict[str, Any], elements: list[dict[str, Any]]
 ) -> bool:
@@ -1814,6 +1885,7 @@ def lint_slide(
         *detect_elements_out_of_canvas(elements, slide_width, slide_height),
         *detect_table_layout_size_mismatches(elements),
         *detect_text_may_overflow_shapes(elements),
+        *detect_wrap_disabled_width_overflows(elements, slide_width, slide_height),
         *detect_image_text_occlusions(elements),
         *detect_line_text_crossings(slide_xml, elements),
     ]
