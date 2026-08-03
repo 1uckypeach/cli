@@ -113,6 +113,7 @@ func TestRenderAffordanceForCmd(t *testing.T) {
 // command, the same as shortcuts (see PrepareShortcutHelp) — so the overlay's
 // tips are handed to the command instead.
 func TestPrepareMethodHelp(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	orig := affordanceLookup
 	t.Cleanup(func() { affordanceLookup = orig })
 	affordanceLookup = func(_, _ string) (json.RawMessage, bool) {
@@ -226,6 +227,11 @@ func TestPrepareShortcutHelp(t *testing.T) {
 	}
 	if got := cmdutil.GetTips(both); len(got) != 1 || got[0] != "overlay wins" {
 		t.Errorf("expected the overlay tips to replace the declarative tips, got %v", got)
+	}
+	// Asserting only that the tip is ON the command would still pass if it were
+	// ALSO left in Long — which is exactly the double-render this change removes.
+	if strings.Contains(both.Long, "overlay wins") {
+		t.Errorf("overlay tips must not remain in Long once handed to the command:\n%s", both.Long)
 	}
 }
 
