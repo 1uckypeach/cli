@@ -773,7 +773,7 @@ def parse_presentation(root: ET.Element) -> dict[str, Any]:
 def extract_elements(slide_xml: str) -> list[dict[str, Any]]:
     elements: list[dict[str, Any]] = []
 
-    for match in re.finditer(r"<(shape|img|table|chart|whiteboard)\b([^>]*)>", slide_xml):
+    for match in re.finditer(r"<(shape|img|table|chart|whiteboard|smartLayout)\b([^>]*)>", slide_xml):
         kind, attrs = match.group(1), match.group(2)
         is_self_closing = attrs.rstrip().endswith("/")
         content = ""
@@ -2074,7 +2074,7 @@ def slide_content_visual_bbox(
         # a straight horizontal/vertical line has zero width or height in one axis; clipped_bbox
         # treats zero-area rects as invisible, so pad to its rendered stroke thickness instead.
         return clipped_bbox(line_stroke_bbox(element), slide_bbox)
-    if element["kind"] in {"img", "chart", "table", "whiteboard", "icon", "polyline"}:
+    if element["kind"] in {"img", "chart", "table", "whiteboard", "smartLayout", "icon", "polyline"}:
         return clipped_bbox(element, slide_bbox)
     return None
 
@@ -2243,7 +2243,7 @@ def detect_blank_slide(
             },
             "elements": [element["id"] for element in elements],
             "message": "slide has no visible content beyond empty layout shapes",
-            "hint": "Add visible text, an image, a chart, a table, a whiteboard, or an icon before creating the slide.",
+            "hint": "Add visible text, an image, a chart, a table, a smart layout, a whiteboard, or an icon before creating the slide.",
         }
     ]
 

@@ -188,7 +188,10 @@ Text:
 
 Purpose: show operational steps, workflow, or cause-effect path.
 
-Implementation: use `<shape>` + `<line>`.
+Implementation:
+
+- 需要箭头、分支、回退、循环或条件判断时，使用 `<shape>` + `<line>`。
+- 如果核心语义只是单向累积、增强或节奏递进，可按 [diagram-layouts.md](diagram-layouts.md) 选择 `filled-up-step` 或 `linear-up-step`；不要因为外形相似就把任意流程改写成 smartLayout。
 
 Geometry:
 - Use numbered steps connected by arrows or lines.

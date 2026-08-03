@@ -31,7 +31,7 @@ metadata:
 - 文字行间距必须设置 `<content>` 的 `lineSpacing="multiple:xx"` 或 `lineSpacing="fixed:xx"` 而不是 `lineSpacing="xx"`。
 - 图片必须用 `<img>` 而不是 `<image>`。
 - IconPark 图标必须填充颜色（设置 `<fill><fillColor color="rgba(R,G,B,A)"/></fill>`）并和背景有足够对比。
-- 绘制图表时原生图表（柱状、条形、折线、面积、饼（环）、雷达、组合图）用 `<chart>`，其他（漏斗图、金字塔图、象限图、矩阵图等）用 `<shape>` + `<line>` 模拟。
+- 绘制图表时原生数据图表（柱状、条形、折线、面积、饼（环）、雷达、组合图）用 `<chart>`；层级、成熟度和单向递进关系优先按 [`diagram-layouts.md`](references/diagram-layouts.md) 判断是否使用 `<smartLayout>`；其余关系图再用 `<shape>` + `<line>`。
 - 隐藏 `<chart>` 的图例只能通过不写或删除 `<chartLegend>` 实现，`<chartLegend>` 不支持 `position="none"`。
 - 表格优先用 `rect` 和 `text` 模拟，其他用 `<table>`，没有 `<shape type="table">`。
 - 必须设置 `<table>` 的 `width` 和 `height` 固定表格大小，同时设置需要保留列宽或行高的 `<col>` 的 `width` 和 `<tr>` 的 `height`，其余自动分配。
@@ -86,7 +86,8 @@ metadata:
 | 查看或回滚历史版本 | 先用 `+history-list` 找 `history_version_id`，再 `+history-revert`，必要时 `+history-revert-status` 轮询 | [`lark-slides-history.md`](references/lark-slides-history.md) |
 | 获取幻灯片页面截图 | 用 `slide_id` 或页号指定页面，一次不超过 10 页 | `slides +screenshot`、`lark-slides-screenshot.md` |
 | 上传或使用图片 | 先上传为 `file_token`，禁止直接写 http(s) 外链 | `slides +media-upload`、`lark-slides-media-upload.md`，或 `+create --slides` 的 XML 里写 `<img src="@./path">` 占位符 |
-| 绘制图表 | 原生图表（柱状、条形、折线、面积、饼（环）、雷达、组合图）用 `<chart>`，其他（漏斗图、金字塔图、象限图、矩阵图等）用 `<shape>` + `<line>` 模拟 | `xml-schema-quick-ref.md`、`slides_chart_demo.xml` |
+| 绘制数据图表 | 原生图表（柱状、条形、折线、面积、饼（环）、雷达、组合图）用 `<chart>`；不支持的数据图表再选择合适的替代表达 | `xml-schema-quick-ref.md`、`slides_chart_demo.xml` |
+| 绘制关系图或使用 smartLayout | 先判断层级、成熟度、单向递进、循环、比较等内容关系；只有当前四种公开布局匹配时才使用 `<smartLayout>` | `diagram-layouts.md`、`xml-schema-quick-ref.md` |
 | 绘制表格 | 优先用 `rect` 和 `text` 模拟，其他用 `<table>` | `xml-schema-quick-ref.md` |
 | 使用图标 | 禁止盲猜 iconType，必须先检索 IconPark，再写 `<icon iconType="...">`，图标必须填充颜色并和背景有足够对比，禁止使用 emoji 图标 | `iconpark_tool.py search → resolve`、`iconpark.md` |
 | 创建失败、空白页、3350001、布局异常 | 先回读状态，再按排障清单修复，不假设原操作原子成功 | `troubleshooting.md`、`validation-checklist.md` |
@@ -96,6 +97,8 @@ metadata:
 **CRITICAL — 查看或回滚历史版本前，MUST 先读取 [`lark-slides-history.md`](references/lark-slides-history.md)。回滚接口只接受 `history_version_id`，不要把 `revision_id` 直接传给 `+history-revert`。**
 
 **CRITICAL — 生成任何 XML 之前，MUST 先用 Read 工具读取 [xml-schema-quick-ref.md](references/xml-schema-quick-ref.md)，禁止凭记忆猜测 XML 结构。**
+
+**CRITICAL — 页面包含层级、成熟度、阶段递进、循环、比较或其他关系图时，MUST 读取 [diagram-layouts.md](references/diagram-layouts.md) 再决定使用 `<smartLayout>`、`<shape>` + `<line>` 或普通图文布局。**
 
 **CRITICAL — 新建演示文稿或大幅改写页面时，MUST 先生成 `.lark-slides/plan/<deck-or-task-id>/slide_plan.json`，再生成 XML。先创建对应目录，规划层规则和中间产物生命周期见 [planning-layer.md](references/planning-layer.md)。仅替换一个标题、插入一个块等小型已有页编辑可豁免。**
 

@@ -293,6 +293,39 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
         self.assertEqual(issue["code"], "sxsd_missing_required_attr")
         self.assertEqual(issue["attr"], "height")
 
+    def test_lint_xml_accepts_all_smart_layout_types(self) -> None:
+        for layout_type in (
+            "solid-pyramid",
+            "step-pyramid",
+            "filled-up-step",
+            "linear-up-step",
+        ):
+            with self.subTest(layout_type=layout_type):
+                result = xml_text_overlap_lint.lint_xml(
+                    f"""
+                    <slide xmlns="http://www.larkoffice.com/sml/2.0">
+                      <data>
+                        <smartLayout layoutType="{layout_type}" topLeftX="80" topLeftY="120" width="800" height="300">
+                          <colorScheme preset="blue"/>
+                          <cells>
+                            <cell>
+                              <index><content fontSize="14"><p>A</p></content></index>
+                              <title><content fontSize="16"><p>Discover</p></content></title>
+                              <description><content fontSize="12"><p>Readback-compatible detail</p></content></description>
+                            </cell>
+                            <cell color="rgba(102, 84, 180, 1)">
+                              <title><content fontSize="16"><p>Deliver</p></content></title>
+                              <description/>
+                            </cell>
+                          </cells>
+                        </smartLayout>
+                      </data>
+                    </slide>
+                    """
+                )
+
+                self.assertNoXmlTextOverlapLintErrors(result, layout_type)
+
     def test_lint_xml_rejects_child_order_that_violates_xsd_sequence(self) -> None:
         result = xml_text_overlap_lint.lint_xml(
             """

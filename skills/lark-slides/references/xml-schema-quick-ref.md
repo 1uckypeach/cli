@@ -81,7 +81,7 @@ XSD 中的 `title`、`headline`、`sub-headline`、`body`、`caption` 主要出�
 **子元素：**
 
 - `<style>?` - 页面样式，目前可放 `<fill>`
-- `<data>?` - 页面元素容器，可放 `shape`、`line`、`polyline`、`img`、`table`、`icon`、`chart`、`undefined`
+- `<data>?` - 页面元素容器，可放 `shape`、`line`、`polyline`、`img`、`table`、`icon`、`chart`、`smartLayout`、`undefined`
 - `<note>?` - 演讲者备注，内部可放 `<content>`
 
 这意味着 `<title>`、`<headline>`、`<body>`、`<caption>` 不能直接放在 `<slide>` 下。
@@ -254,6 +254,47 @@ XSD 中的 `title`、`headline`、`sub-headline`、`body`、`caption` 主要出�
 图标必须填充颜色并和背景有足够对比。
 
 禁止盲猜 iconType，必须先检索 IconPark，再写 `<icon iconType="...">`。检索方式和更多规则见 [iconpark.md](iconpark.md)。
+
+### smartLayout
+
+`smartLayout` 是声明式智能布局容器：提供布局类型、配色和有序 cell，渲染器负责生成金字塔或阶梯几何。
+
+本节只说明协议语法。内容语义选型、与图片/外部文字的组合方式以及不适用时的降级规则见 [diagram-layouts.md](diagram-layouts.md)。
+
+```xml
+<smartLayout layoutType="filled-up-step" topLeftX="72" topLeftY="150" width="816" height="286">
+  <colorScheme preset="blue"/>
+  <cells>
+    <cell>
+      <title><content fontSize="15"><p>输入需求</p></content></title>
+    </cell>
+    <cell color="rgba(102, 84, 180, 1)">
+      <index><content fontSize="12"><p>B</p></content></index>
+      <title><content fontSize="15"><p>智能排版</p></content></title>
+    </cell>
+  </cells>
+</smartLayout>
+```
+
+布局类型：
+
+| `layoutType` | 视觉结构 | `index` 行为 | 建议 cell 数量 |
+|---|---|---|---|
+| `solid-pyramid` | 实心金字塔分层 | 支持，缺省自动生成 `01/02/...` | 2-8 |
+| `step-pyramid` | 自上而下逐层变宽的矩形 | 支持，缺省自动生成 `01/02/...` | 2-8 |
+| `filled-up-step` | 横向排列且高度递增的实心卡片 | 支持，缺省自动生成 `01/02/...` | 2-10 |
+| `linear-up-step` | 随基线抬升的轻量线性模块 | 不展示，即使传入也会忽略 | 2-10 |
+
+根属性：`layoutType`、`topLeftX`、`topLeftY`、`width`、`height` 必填；`id`、`rotation`、`flipX`、`flipY` 可选。
+
+配色支持两种方式：
+
+- 推荐色：`<colorScheme preset="purple|blue|green|yellow|orange|red"/>`
+- 自定义色板：在 `<colorScheme>` 下按 cell 顺序写 `<color value="..."/>`
+
+`<cells>` 至少包含一个 `<cell>`。每个 cell 必须有 `<title>`，可选 `<index>`、`<description>` 和 `color` 属性；顺序必须是 `index? -> title -> description?`。cell 的 `color` 优先于整体 `colorScheme`。服务端回读时会为未提供描述的 cell 自动补 `<description/>`，这是合法的规范化结果。
+
+这是渲染器生成内部几何的高层元素，静态 lint 只能检查外层边界和协议结构；创建后仍须截图检查内部文字、间距和最终视觉效果。
 
 
 ### table

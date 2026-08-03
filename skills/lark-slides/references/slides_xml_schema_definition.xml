@@ -1052,7 +1052,7 @@
                 单页幻灯片结构
                 子元素:
                 - style: 页面样式(背景色等), style的fill默认颜色为白色rgba(255, 255, 255, 1)
-                - data: 页面元素容器(shape/line/polyline/img/table/icon/chart/undefined)
+                - data: 页面元素容器(shape/line/polyline/img/table/icon/chart/smartLayout/undefined)
                 - note: 演讲者备注
             </xs:documentation>
         </xs:annotation>
@@ -1077,6 +1077,7 @@
                         <xs:element ref="sml:table"/>
                         <xs:element ref="sml:icon"/>
                         <xs:element ref="sml:chart"/>
+                        <xs:element ref="sml:smartLayout"/>
                         <xs:element ref="sml:undefined"/>
                     </xs:choice>
                 </xs:complexType>
@@ -3464,6 +3465,137 @@
             <xs:attribute name="flipX" type="xs:boolean" use="optional" default="false"/>
             <xs:attribute name="flipY" type="xs:boolean" use="optional" default="false"/>
             <xs:attribute name="alpha" type="sml:AlphaType" use="optional" default="1"/>
+        </xs:complexType>
+    </xs:element>
+
+    <!-- ==================== Smart Layout 类型 ==================== -->
+    <!-- Smart Layout 是一个高层声明式容器：用户只描述语义（布局类型、配色、cell 内容）-->
+
+    <xs:simpleType name="SmartLayoutType">
+        <xs:annotation>
+            <xs:documentation>
+                smartLayout 布局类型。每种类型消费 cell 的字段子集不同, 数量上下限也不同, 详见 smartLayout 元素文档.
+            </xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="solid-pyramid">
+                <xs:annotation><xs:documentation>实心金字塔: 单个三角形按层切分, 层内居中显示序号, 右侧对应文字. 序号位: 支持 (cell.index 可覆盖).</xs:documentation></xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="step-pyramid">
+                <xs:annotation><xs:documentation>阶梯金字塔: 宽度逐层递增的独立矩形自上而下堆叠, 每层左侧矩形显示序号, 右侧为文字. 序号位: 支持 (cell.index 可覆盖).</xs:documentation></xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="filled-up-step">
+                <xs:annotation><xs:documentation>填充阶梯图: 高度逐级抬升的实心矩形卡片横向排列, 卡片顶部为文字、底部显示序号. 序号位: 支持 (cell.index 可覆盖).</xs:documentation></xs:annotation>
+            </xs:enumeration>
+            <xs:enumeration value="linear-up-step">
+                <xs:annotation><xs:documentation>线性阶梯图: 仅顶部细线+文字的轻量模块横向排列, 基线自左向右抬升. 序号位: 不展示 (即使 cell.index 被设置也会被忽略).</xs:documentation></xs:annotation>
+            </xs:enumeration>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="SmartLayoutColorPreset">
+        <xs:annotation>
+            <xs:documentation>推荐配色方案名称. 使用时只需设置 preset 属性.</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="purple"/>
+            <xs:enumeration value="blue"/>
+            <xs:enumeration value="green"/>
+            <xs:enumeration value="yellow"/>
+            <xs:enumeration value="orange"/>
+            <xs:enumeration value="red"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:complexType name="SmartLayoutColorSchemeType">
+        <xs:annotation>
+            <xs:documentation>
+                smartLayout 配色方案, 支持两种模式:
+                1. 推荐配色: 设置 preset 属性 (purple/blue/green/yellow/orange/red), 此时忽略 color 子元素.
+                2. 自定义配色: 通过 color 子元素列表定义色板, 第 N 个 color 对应第 N 个 cell.
+
+                自定义 color 少于 cell 时, 多余 cell 使用默认颜色; color 多于 cell 时, 多余 color 被忽略.
+            </xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="color" minOccurs="0" maxOccurs="unbounded">
+                <xs:complexType>
+                    <xs:attribute name="value" type="sml:Color" use="required"/>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+        <xs:attribute name="preset" type="sml:SmartLayoutColorPreset" use="optional"/>
+    </xs:complexType>
+
+    <xs:complexType name="SmartLayoutTextType">
+        <xs:annotation>
+            <xs:documentation>smartLayout 文本包装节点, 内部引用 sml:content, 可独立设置文本样式.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element ref="sml:content" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="SmartLayoutCellType">
+        <xs:annotation>
+            <xs:documentation>
+                smartLayout 单元. cells 内的 XML 出现顺序即渲染顺序.
+                cell 可通过 color 属性覆盖 colorScheme 分配的颜色.
+                不提供 index 时, 支持序号的布局自动生成 01/02/03...; 提供 index 时原样显示.
+                linear-up-step 不展示 index.
+                服务端回读会为 cell 规范化补充 description 元素, 即使提交时没有提供.
+            </xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="index" type="sml:SmartLayoutTextType" minOccurs="0"/>
+            <xs:element name="title" type="sml:SmartLayoutTextType"/>
+            <xs:element name="description" type="sml:SmartLayoutTextType" minOccurs="0"/>
+        </xs:sequence>
+        <xs:attribute name="color" type="sml:Color" use="optional"/>
+    </xs:complexType>
+
+    <xs:element name="smartLayout">
+        <xs:annotation>
+            <xs:documentation>
+                Smart Layout 智能布局元素. 声明式容器.
+
+                属性:
+                - id: 元素唯一标识符 (可选)
+                - layoutType: 布局类型 (必需), 参见 SmartLayoutType
+                - topLeftX / topLeftY: 左上角坐标 (必需)
+                - width / height: 容器宽高 (必需)
+                - rotation: 旋转角度 [0,360), 默认 0
+                - flipX / flipY: 水平或垂直翻转, 默认 false
+
+                子元素:
+                - colorScheme: 配色方案 (可选), 各 cell 可通过 color 属性单独覆盖
+                - cells: 单元列表 (必需), 顺序即渲染顺序
+
+                建议 cell 数量:
+                - solid-pyramid / step-pyramid: 2..8
+                - filled-up-step / linear-up-step: 2..10
+            </xs:documentation>
+        </xs:annotation>
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="colorScheme" type="sml:SmartLayoutColorSchemeType" minOccurs="0"/>
+                <xs:element name="cells">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="cell" type="sml:SmartLayoutCellType" minOccurs="1" maxOccurs="unbounded"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+            </xs:sequence>
+            <xs:attribute name="id" type="xs:string" use="optional"/>
+            <xs:attribute name="layoutType" type="sml:SmartLayoutType" use="required"/>
+            <xs:attribute name="topLeftX" type="sml:XType" use="required"/>
+            <xs:attribute name="topLeftY" type="sml:YType" use="required"/>
+            <xs:attribute name="width" type="sml:PositiveSize" use="required"/>
+            <xs:attribute name="height" type="sml:PositiveSize" use="required"/>
+            <xs:attribute name="rotation" type="sml:RotationType" use="optional" default="0"/>
+            <xs:attribute name="flipX" type="xs:boolean" use="optional" default="false"/>
+            <xs:attribute name="flipY" type="xs:boolean" use="optional" default="false"/>
         </xs:complexType>
     </xs:element>
 
