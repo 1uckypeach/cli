@@ -36,7 +36,9 @@ lark-cli agents card base:assistant --operation all --as user --format json
 - 仅支持 `--as user`。`--as bot` 会在离线身份预检中拒绝，不发送请求。
 - Base Assistant 使用 `base:agent:execute` 做 provider 级预检。缺 scope 时按结构化 `missing_scope` hint 走 `lark-shared` 授权流程，然后重试同一 Agent；不要回退 Base CLI。
 - 7 个操作都要求 `base_token`，通过 `--param base_token=<base-token>` 传递；send 可额外传 `active_table_id`。
-- 已有 URL/title 时用 `lark-base +url-resolve` / `+title-resolve` 获取真实 token/ID。
+- 用户输入 Base/Wiki/record-share URL 等 Base 相关链接时，先运行 `lark-cli base +url-resolve --url "<url>" --as user`；用返回的 `base_token` 和相关 `table_id` / `view_id` / `record_id` 继续后续 Agent 命令，不要把完整 URL、wiki token 或 share token 当成 `base_token`。
+- 输入已经是真实 `base_token` 时，直接传 `--param base_token=<base-token>`，不要额外调用 `+url-resolve`。
+- 只有 Base 标题或关键词时，用 `lark-cli base +title-resolve --title "<keyword>" --as user` 获取真实 token/ID。
 - 建设请求没有现成 Base 时：先读取 Card并确认 scope，再以 user identity 创建最小 Base 容器；没有名称先询问。随后把用户原始意图、创建得到的 `base_token` 和可用的默认 `table_id` 交给 Assistant。
 - 数据查询/分析没有目标 Base 时必须让用户提供目标，不创建空 Base。
 - 创建容器后 Agent 调用失败时不自动删除 Base；返回新 Base token/URL 与失败原因。

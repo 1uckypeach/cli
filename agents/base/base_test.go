@@ -121,6 +121,24 @@ func TestProviderConformance(t *testing.T) {
 			t.Fatalf("public card exposes internal capability name %q: %+v", forbidden, spec)
 		}
 	}
+	for _, op := range spec.Ops() {
+		if !op.Wired {
+			continue
+		}
+		foundBaseToken := false
+		for _, param := range op.Params {
+			if param.Name != "base_token" {
+				continue
+			}
+			foundBaseToken = true
+			if param.Desc != baseTokenParamDescription {
+				t.Fatalf("operation %s base_token description=%q, want %q", op.Verb, param.Desc, baseTokenParamDescription)
+			}
+		}
+		if !foundBaseToken {
+			t.Fatalf("operation %s must declare base_token guidance", op.Verb)
+		}
+	}
 	for _, brand := range []core.LarkBrand{core.BrandFeishu, core.BrandLark} {
 		caps := iagents.DeriveCapabilities(&spec, brand)
 		if !caps.TaskGet || !caps.TaskList || !caps.TaskCancel || !caps.ContextList || !caps.ContextGet || !caps.ContextDelete {

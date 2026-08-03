@@ -17,6 +17,8 @@ import (
 // Platform app and the user token must grant it.
 const baseAgentExecuteScope = "base:agent:execute"
 
+const baseTokenParamDescription = "Base app token. If the input is a Base-related URL, first run `lark-cli base +url-resolve --url \"<url>\" --as user` and pass the returned `base_token`; if the input is already a Base token, pass it directly. Never pass a URL or Wiki token as `base_token`."
+
 // adapterAgentID is deliberately private: callers always use base:assistant,
 // and a future Adapter-side ID change is isolated to this mapping.
 const adapterAgentID = "assistant"
@@ -46,33 +48,33 @@ type listContextsParams struct {
 }
 
 func baseTokenParam() []iagents.CardParam {
-	return []iagents.CardParam{{Name: "base_token", Required: true, Desc: "Base app token"}}
+	return []iagents.CardParam{{Name: "base_token", Required: true, Desc: baseTokenParamDescription}}
 }
 
 func getTaskParamList() []iagents.CardParam {
 	return []iagents.CardParam{
-		{Name: "base_token", Required: true, Desc: "Base app token"},
+		{Name: "base_token", Required: true, Desc: baseTokenParamDescription},
 		{Name: "context_id", Desc: "Optional context override used to retrieve the task's message snapshot"},
 	}
 }
 
 func sendParamList() []iagents.CardParam {
 	return []iagents.CardParam{
-		{Name: "base_token", Required: true, Desc: "Base app token"},
+		{Name: "base_token", Required: true, Desc: baseTokenParamDescription},
 		{Name: "active_table_id", Desc: "Optional active table for automatic routing"},
 	}
 }
 
 func listTasksParamList() []iagents.CardParam {
 	return []iagents.CardParam{
-		{Name: "base_token", Required: true, Desc: "Base app token"},
+		{Name: "base_token", Required: true, Desc: baseTokenParamDescription},
 		{Name: "state", Enum: []string{"running", "done", "failed"}, Desc: "Adapter task state"},
 	}
 }
 
 func listContextsParamList() []iagents.CardParam {
 	return []iagents.CardParam{
-		{Name: "base_token", Required: true, Desc: "Base app token"},
+		{Name: "base_token", Required: true, Desc: baseTokenParamDescription},
 		{Name: "status", Desc: "Adapter context status"},
 	}
 }
