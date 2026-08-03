@@ -183,7 +183,7 @@ lark-cli 对高风险写操作（`risk: "high-risk-write"`）有强制确认门�
     "type": "confirmation",
     "subtype": "confirmation_required",
     "message": "drive +delete requires confirmation",
-    "hint": "add --yes to confirm",
+    "hint": "add --yes to confirm; the agent must NOT add --yes on its own — only pass --yes after the user has confirmed",
     "risk": "high-risk-write",
     "action": "drive +delete"
   }
