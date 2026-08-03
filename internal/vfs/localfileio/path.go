@@ -52,27 +52,6 @@ func isWindowsNonLocalNamespace(path string) bool {
 	return strings.HasPrefix(normalized, `\\`) || strings.HasPrefix(normalized, `\??\`)
 }
 
-// SafeTempAbsInputPath accepts an absolute READ path only when it resolves
-// under the canonical system temp dir. Agents stage generated payloads
-// (batch operations JSON, CSV) in /tmp as a matter of course, and rejecting
-// @/tmp/ops.json only pushed them through an extra python/stdin round trip
-// (recurring friction cluster in eval traces). Reads under os.TempDir()
-// carry no write risk and no project-escape risk. Errors for anything else
-// (relative paths included) — callers fall back to SafeInputPath semantics.
-func SafeTempAbsInputPath(path string) (string, error) {
-	if err := charcheck.RejectControlChars(path, "--file"); err != nil {
-		return "", err
-	}
-	if !isAbsolutePath(path) {
-		return "", fmt.Errorf("--file %q is not an absolute path", path)
-	}
-	resolved, ok := absPathUnderTempDir(path)
-	if !ok {
-		return "", fmt.Errorf("--file must be a relative path within the current directory, or an absolute path under the system temp dir (%s), got %q (hint: use ./filename or a %s path; flags that support stdin can read any file via '-' instead)", os.TempDir(), path, os.TempDir())
-	}
-	return resolved, nil
-}
-
 // SafeLocalFlagPath validates a flag value as a local file path.
 // Empty values and http/https URLs are returned unchanged without validation.
 func SafeLocalFlagPath(flagName, value string) (string, error) {
