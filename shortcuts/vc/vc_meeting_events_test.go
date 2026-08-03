@@ -1321,7 +1321,7 @@ func TestCompactMeetingEvents_IgnoresNonMapsAndCompactsPayload(t *testing.T) {
 	}
 }
 
-func TestDocumentContextChangedProjection_KnownItems(t *testing.T) {
+func TestDocumentContextChangedTimeline_KnownItems(t *testing.T) {
 	tests := []struct {
 		name            string
 		item            map[string]interface{}
@@ -1453,7 +1453,7 @@ func TestDocumentContextChangedTimeline_PreservesItemOrder(t *testing.T) {
 	}
 }
 
-func TestParseDocumentContextItemTime_StrictMilliseconds(t *testing.T) {
+func TestParseUnixMilliseconds(t *testing.T) {
 	tests := []struct {
 		name string
 		raw  string
@@ -1468,14 +1468,14 @@ func TestParseDocumentContextItemTime_StrictMilliseconds(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := parseDocumentContextItemTime(tt.raw)
+			got, ok := parseUnixMilliseconds(tt.raw)
 			if ok != tt.ok {
-				t.Fatalf("parseDocumentContextItemTime(%q) ok = %v, want %v", tt.raw, ok, tt.ok)
+				t.Fatalf("parseUnixMilliseconds(%q) ok = %v, want %v", tt.raw, ok, tt.ok)
 			}
 			if tt.ok {
 				want := time.UnixMilli(1776413281000)
 				if !got.Equal(want) {
-					t.Fatalf("parseDocumentContextItemTime(%q) = %v, want %v", tt.raw, got, want)
+					t.Fatalf("parseUnixMilliseconds(%q) = %v, want %v", tt.raw, got, want)
 				}
 			}
 		})
@@ -1500,7 +1500,7 @@ func TestDocumentContextChangedTimeline_InvalidItemTimeFallsBackToEventTime(t *t
 	}
 }
 
-func TestDocumentContextChangedProjection_MultipleItemsPreserveOrderAndSkipUnknown(t *testing.T) {
+func TestDocumentContextChangedTimeline_MultipleItemsPreserveOrderAndSkipUnknown(t *testing.T) {
 	event := documentContextChangedEvent([]interface{}{
 		map[string]interface{}{
 			"operator":      map[string]interface{}{"id": "u1", "user_name": "One"},
@@ -1585,13 +1585,18 @@ func TestCompactMeetingEvents_PreservesDocumentContextRawPayload(t *testing.T) {
 	}
 }
 
-func TestDocumentContextChangedProjection_EmptyAndUnknownDoNotSynthesizeTimeline(t *testing.T) {
+func TestDocumentContextChangedTimeline_EmptyAndUnknownDoNotSynthesizeEntry(t *testing.T) {
 	tests := []struct {
 		name  string
 		items []interface{}
 	}{
 		{name: "empty", items: []interface{}{}},
 		{name: "unknown", items: []interface{}{map[string]interface{}{"future_context": map[string]interface{}{"id": "future-1"}}}},
+		{name: "comment missing focused", items: []interface{}{map[string]interface{}{"comment_focus": map[string]interface{}{"comment_id": "comment-1"}}}},
+		{name: "section missing path", items: []interface{}{map[string]interface{}{"section_location": map[string]interface{}{"level": 2}}}},
+		{name: "preview missing type", items: []interface{}{map[string]interface{}{"element_preview": map[string]interface{}{"action": "open"}}}},
+		{name: "preview unknown type", items: []interface{}{map[string]interface{}{"element_preview": map[string]interface{}{"action": "open", "element_type": "video"}}}},
+		{name: "preview unknown action", items: []interface{}{map[string]interface{}{"element_preview": map[string]interface{}{"action": "zoom", "element_type": "image"}}}},
 		{name: "non map", items: []interface{}{"bad-item"}},
 	}
 	for _, tt := range tests {
@@ -1606,7 +1611,7 @@ func TestDocumentContextChangedProjection_EmptyAndUnknownDoNotSynthesizeTimeline
 	}
 }
 
-func TestDocumentContextChangedProjection_MissingPayloadDoesNotSynthesizeTimeline(t *testing.T) {
+func TestDocumentContextChangedTimeline_MissingPayloadDoesNotSynthesizeEntry(t *testing.T) {
 	event := map[string]interface{}{
 		"event_id":   "event-without-payload",
 		"event_type": "document_context_changed",
@@ -1614,7 +1619,7 @@ func TestDocumentContextChangedProjection_MissingPayloadDoesNotSynthesizeTimelin
 	}
 	got := meetingEventsEventFromPayload(event, meetingEventsIdentity{})
 	if got.EventID != "event-without-payload" || got.Payload != nil {
-		t.Fatalf("projection = %#v", got)
+		t.Fatalf("event = %#v", got)
 	}
 	var sequence int
 	entries := buildTimelineEntriesForEvent(event, &sequence)
@@ -1623,7 +1628,7 @@ func TestDocumentContextChangedProjection_MissingPayloadDoesNotSynthesizeTimelin
 	}
 }
 
-func TestExistingMeetingEventProjection_OmitsDocumentContextFields(t *testing.T) {
+func TestExistingMeetingEventEnvelope_OmitsDocumentContextFields(t *testing.T) {
 	got := meetingEventsEventFromPayload(participantJoinedEvent(), meetingEventsIdentity{})
 	row := meetingEventsEventRow(got)
 	if _, ok := row["summary"]; ok {

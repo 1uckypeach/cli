@@ -351,142 +351,6 @@ func eventActors(eventType string, payload map[string]interface{}, selfIdentity 
 	return actors
 }
 
-type documentContextItemProjection struct {
-	time        string
-	operator    map[string]interface{}
-	description string
-	details     []string
-}
-
-type documentContextProjection struct {
-	items []documentContextItemProjection
-}
-
-func projectDocumentContext(payload map[string]interface{}) documentContextProjection {
-	projection := documentContextProjection{}
-	for _, raw := range common.GetSlice(payload, "document_context_changed_items") {
-		item, ok := raw.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		projected := projectDocumentContextItem(item)
-		if projected.description != "" {
-			projection.items = append(projection.items, projected)
-		}
-	}
-	return projection
-}
-
-func projectDocumentContextItem(item map[string]interface{}) documentContextItemProjection {
-	projection := documentContextItemProjection{}
-	if item == nil {
-		return projection
-	}
-	projection.time = common.GetString(item, "time")
-	projection.operator = common.GetMap(item, "operator")
-
-	type contextValue struct {
-		kind  string
-		value map[string]interface{}
-	}
-	var contexts []contextValue
-	for _, kind := range []string{"comment_focus", "section_location", "element_preview"} {
-		value, exists := item[kind]
-		if !exists {
-			continue
-		}
-		context, ok := value.(map[string]interface{})
-		if !ok {
-			return projection
-		}
-		contexts = append(contexts, contextValue{kind: kind, value: context})
-	}
-	if len(contexts) != 1 {
-		return projection
-	}
-
-	context := contexts[0]
-	switch context.kind {
-	case "comment_focus":
-		projectCommentFocus(item, context.value, &projection)
-	case "section_location":
-		projectSectionLocation(context.value, &projection)
-	case "element_preview":
-		projectElementPreview(context.value, &projection)
-	}
-	return projection
-}
-
-func projectCommentFocus(item, comment map[string]interface{}, projection *documentContextItemProjection) {
-	commentID := strings.TrimSpace(common.GetString(comment, "comment_id"))
-	focused, hasFocused := comment["focused"].(bool)
-	switch {
-	case !hasFocused:
-		projection.description = "评论焦点发生变化"
-	case focused && commentID != "":
-		projection.description = "聚焦评论 " + commentID
-	case focused:
-		projection.description = "聚焦评论"
-	case commentID != "":
-		projection.description = "取消聚焦评论 " + commentID
-	default:
-		projection.description = "取消评论聚焦"
-	}
-	if title := strings.TrimSpace(common.GetString(common.GetMap(item, "share_doc"), "title")); title != "" {
-		projection.details = append(projection.details, "文档："+title)
-	}
-}
-
-func projectSectionLocation(section map[string]interface{}, projection *documentContextItemProjection) {
-	sectionPath := documentSectionPath(section)
-	if sectionPath == "" {
-		projection.description = "章节位置发生变化"
-	} else {
-		projection.description = "定位到章节「" + sectionPath + "」"
-	}
-	if level := strings.TrimSpace(fieldValueString(section, "level")); level != "" {
-		projection.details = append(projection.details, "层级："+level)
-	}
-}
-
-func documentSectionPath(section map[string]interface{}) string {
-	parts := make([]string, 0, len(common.GetSlice(section, "parent_titles"))+1)
-	for _, raw := range common.GetSlice(section, "parent_titles") {
-		title, _ := raw.(string)
-		if title = strings.TrimSpace(title); title != "" {
-			parts = append(parts, title)
-		}
-	}
-	if title := strings.TrimSpace(common.GetString(section, "title")); title != "" {
-		parts = append(parts, title)
-	}
-	return strings.Join(parts, " > ")
-}
-
-func projectElementPreview(element map[string]interface{}, projection *documentContextItemProjection) {
-	action := strings.TrimSpace(common.GetString(element, "action"))
-	elementType := strings.TrimSpace(common.GetString(element, "element_type"))
-	token := strings.TrimSpace(common.GetString(element, "element_token"))
-	subject := "element"
-	if elementType != "" {
-		subject = elementType
-	}
-	switch action {
-	case "open":
-		projection.description = "打开 " + subject + " 预览"
-	case "close":
-		projection.description = "关闭 " + subject + " 预览"
-	default:
-		projection.description = "元素预览发生变化"
-	}
-	if token != "" && (action == "open" || action == "close") {
-		projection.description += " " + token
-	}
-	if blockID := strings.TrimSpace(common.GetString(element, "block_id")); blockID != "" {
-		projection.details = append(projection.details, "block_id："+blockID)
-	}
-}
-
 func meetingEventsIdentityFromParticipant(participant map[string]interface{}, selfIdentity meetingEventsIdentity) meetingEventsIdentity {
 	identity := meetingEventsIdentity{
 		ID:              common.GetString(participant, "id"),
@@ -873,15 +737,14 @@ type meetingTimeline struct {
 }
 
 type meetingTimelineEntry struct {
-	when         time.Time
-	hasWhen      bool
-	sortWhen     time.Time
-	hasSortWhen  bool
-	sortOverride bool
-	sequence     int
-	subject      string
-	description  string
-	details      []string
+	when        time.Time
+	hasWhen     bool
+	sortWhen    time.Time
+	hasSortWhen bool
+	sequence    int
+	subject     string
+	description string
+	details     []string
 }
 
 func buildMeetingEventTimeline(events []interface{}) meetingTimeline {
@@ -907,30 +770,21 @@ func buildMeetingEventTimeline(events []interface{}) meetingTimeline {
 	sort.SliceStable(timeline.entries, func(i, j int) bool {
 		left := timeline.entries[i]
 		right := timeline.entries[j]
-		leftWhen, leftHasWhen := timelineEntrySortTime(left)
-		rightWhen, rightHasWhen := timelineEntrySortTime(right)
 		switch {
-		case leftHasWhen && rightHasWhen:
-			if leftWhen.Equal(rightWhen) {
+		case left.hasSortWhen && right.hasSortWhen:
+			if left.sortWhen.Equal(right.sortWhen) {
 				return left.sequence < right.sequence
 			}
-			return leftWhen.Before(rightWhen)
-		case leftHasWhen:
+			return left.sortWhen.Before(right.sortWhen)
+		case left.hasSortWhen:
 			return true
-		case rightHasWhen:
+		case right.hasSortWhen:
 			return false
 		default:
 			return left.sequence < right.sequence
 		}
 	})
 	return timeline
-}
-
-func timelineEntrySortTime(entry meetingTimelineEntry) (time.Time, bool) {
-	if entry.sortOverride {
-		return entry.sortWhen, entry.hasSortWhen
-	}
-	return entry.when, entry.hasWhen
 }
 
 func applyMeetingTimelineEndSignal(timeline *meetingTimeline, signal meetingEventsEndSignal) {
@@ -1000,43 +854,142 @@ func buildTimelineEntriesForEvent(event map[string]interface{}, sequence *int) [
 }
 
 func documentContextEntries(payload map[string]interface{}, fallbackTime time.Time, fallbackOK bool, sequence *int) []meetingTimelineEntry {
-	projection := projectDocumentContext(payload)
-	entries := make([]meetingTimelineEntry, 0, len(projection.items))
-	for _, item := range projection.items {
-		when, ok := parseDocumentContextItemTime(item.time)
+	items := common.GetSlice(payload, "document_context_changed_items")
+	entries := make([]meetingTimelineEntry, 0, len(items))
+	for _, raw := range items {
+		item, _ := raw.(map[string]interface{})
+		description, details, recognized := describeDocumentContextItem(item)
+		if !recognized {
+			continue
+		}
+		when, ok := parseUnixMilliseconds(common.GetString(item, "time"))
 		if !ok {
 			when, ok = fallbackTime, fallbackOK
 		}
-		subject := meetingEventUserWithID(item.operator)
+		subject := meetingEventUserWithID(common.GetMap(item, "operator"))
 		if subject == "" {
 			subject = "未知用户"
 		}
-		entry := newTimelineEntry(when, ok, sequence, subject, item.description, item.details)
+		entry := newTimelineEntry(when, ok, sequence, subject, description, details)
 		// Sort every item in one document event by the parent event time so the
 		// stable sequence tie-breaker preserves the payload's item order.
 		entry.sortWhen = fallbackTime
 		entry.hasSortWhen = fallbackOK
-		entry.sortOverride = true
 		entries = append(entries, entry)
 	}
 	return entries
 }
 
-func parseDocumentContextItemTime(raw string) (time.Time, bool) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return time.Time{}, false
+func describeDocumentContextItem(item map[string]interface{}) (string, []string, bool) {
+	if item == nil {
+		return "", nil, false
 	}
-	for _, r := range raw {
-		if r < '0' || r > '9' {
-			return time.Time{}, false
+
+	var contextKind string
+	var context map[string]interface{}
+	for _, kind := range []string{"comment_focus", "section_location", "element_preview"} {
+		value, exists := item[kind]
+		if !exists {
+			continue
+		}
+		parsed, ok := value.(map[string]interface{})
+		if !ok || contextKind != "" {
+			return "", nil, false
+		}
+		contextKind = kind
+		context = parsed
+	}
+	if contextKind == "" {
+		return "", nil, false
+	}
+
+	switch contextKind {
+	case "comment_focus":
+		return describeCommentFocus(item, context)
+	case "section_location":
+		return describeSectionLocation(context)
+	case "element_preview":
+		return describeElementPreview(context)
+	default:
+		return "", nil, false
+	}
+}
+
+func describeCommentFocus(item, comment map[string]interface{}) (string, []string, bool) {
+	commentID := strings.TrimSpace(common.GetString(comment, "comment_id"))
+	focused, hasFocused := comment["focused"].(bool)
+	if !hasFocused {
+		return "", nil, false
+	}
+	var description string
+	switch {
+	case focused && commentID != "":
+		description = "聚焦评论 " + commentID
+	case focused:
+		description = "聚焦评论"
+	case commentID != "":
+		description = "取消聚焦评论 " + commentID
+	default:
+		description = "取消评论聚焦"
+	}
+	var details []string
+	if title := strings.TrimSpace(common.GetString(common.GetMap(item, "share_doc"), "title")); title != "" {
+		details = append(details, "文档："+title)
+	}
+	return description, details, true
+}
+
+func describeSectionLocation(section map[string]interface{}) (string, []string, bool) {
+	sectionPath := documentSectionPath(section)
+	if sectionPath == "" {
+		return "", nil, false
+	}
+	description := "定位到章节「" + sectionPath + "」"
+	var details []string
+	if level := strings.TrimSpace(fieldValueString(section, "level")); level != "" {
+		details = append(details, "层级："+level)
+	}
+	return description, details, true
+}
+
+func documentSectionPath(section map[string]interface{}) string {
+	parts := make([]string, 0, len(common.GetSlice(section, "parent_titles"))+1)
+	for _, raw := range common.GetSlice(section, "parent_titles") {
+		title, _ := raw.(string)
+		if title = strings.TrimSpace(title); title != "" {
+			parts = append(parts, title)
 		}
 	}
-	timestamp, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || timestamp <= 1_000_000_000_000 {
-		return time.Time{}, false
+	if title := strings.TrimSpace(common.GetString(section, "title")); title != "" {
+		parts = append(parts, title)
 	}
-	return time.UnixMilli(timestamp), true
+	return strings.Join(parts, " > ")
+}
+
+func describeElementPreview(element map[string]interface{}) (string, []string, bool) {
+	action := strings.TrimSpace(common.GetString(element, "action"))
+	elementType := strings.TrimSpace(common.GetString(element, "element_type"))
+	if elementType != "image" && elementType != "whiteboard" {
+		return "", nil, false
+	}
+	token := strings.TrimSpace(common.GetString(element, "element_token"))
+	var description string
+	switch action {
+	case "open":
+		description = "打开 " + elementType + " 预览"
+	case "close":
+		description = "关闭 " + elementType + " 预览"
+	default:
+		return "", nil, false
+	}
+	if token != "" {
+		description += " " + token
+	}
+	var details []string
+	if blockID := strings.TrimSpace(common.GetString(element, "block_id")); blockID != "" {
+		details = append(details, "block_id："+blockID)
+	}
+	return description, details, true
 }
 
 func participantJoinedEntries(payload map[string]interface{}, fallbackTime time.Time, fallbackOK bool, sequence *int) []meetingTimelineEntry {
@@ -1191,6 +1144,8 @@ func newTimelineEntry(when time.Time, hasWhen bool, sequence *int, subject, desc
 	entry := meetingTimelineEntry{
 		when:        when,
 		hasWhen:     hasWhen,
+		sortWhen:    when,
+		hasSortWhen: hasWhen,
 		sequence:    *sequence,
 		subject:     subject,
 		description: description,
@@ -1217,6 +1172,23 @@ func parseFlexibleTime(raw string) (time.Time, bool) {
 		return parsed, true
 	}
 	return time.Time{}, false
+}
+
+func parseUnixMilliseconds(raw string) (time.Time, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}, false
+	}
+	for _, r := range raw {
+		if r < '0' || r > '9' {
+			return time.Time{}, false
+		}
+	}
+	timestamp, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || timestamp <= 1_000_000_000_000 {
+		return time.Time{}, false
+	}
+	return time.UnixMilli(timestamp), true
 }
 
 func renderMeetingEventsPretty(timeline meetingTimeline) string {
@@ -1333,12 +1305,9 @@ func needsColon(description string) bool {
 			!strings.HasPrefix(description, "聚焦评论") &&
 			!strings.HasPrefix(description, "取消聚焦") &&
 			!strings.HasPrefix(description, "取消评论聚焦") &&
-			!strings.HasPrefix(description, "评论焦点") &&
 			!strings.HasPrefix(description, "定位到章节") &&
-			!strings.HasPrefix(description, "章节位置") &&
 			!strings.HasPrefix(description, "打开 ") &&
-			!strings.HasPrefix(description, "关闭 ") &&
-			!strings.HasPrefix(description, "元素预览")
+			!strings.HasPrefix(description, "关闭 ")
 	}
 }
 

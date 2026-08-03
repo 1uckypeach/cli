@@ -151,7 +151,7 @@ lark-cli vc +meeting-events --as user --meeting-id <id> --page-all --format pret
 
 | 路径 | 含义与处理 |
 | --- | --- |
-| `payload.document_context_changed_items[]` | 按原序处理；每项恰有一个已知 context 才精确解析，未知/歧义项保留 raw 并局部降级。 |
+| `payload.document_context_changed_items[]` | 按原序处理；每项恰有一个已知 context 才生成 pretty 条目，未知/歧义项只保留 raw。 |
 | `item.operator` | 当前 item 的 actor；缺 ID/name 时不猜共享发起人。 |
 | `item.share_doc.url/title` | 评论所属文档线索。URL 用于解析 `file_token/file_type`；无法解析时保留 URL/title 并停止评论查询。 |
 | `item.time` | Unix 毫秒字符串；缺失或非法时 timeline 回退到事件时间。 |
@@ -210,7 +210,7 @@ lark-cli drive +list-replies \
 
 #### 章节定位
 
-结构化消费直接读取当前 `section_location` item。pretty timeline 会按 `parent_titles` 原序追加 `title`，trim 后丢弃空段，并以 ` > ` 连接；多个 section item 分别展示，不选择其中一个覆盖事件级标量；标题全空时只说明章节位置发生变化。该路径是本地展示派生，不写回 JSON/NDJSON，也不需要或允许为它新增 API 查询。
+结构化消费直接读取当前 `section_location` item。pretty timeline 会按 `parent_titles` 原序追加 `title`，trim 后丢弃空段，并以 ` > ` 连接；多个 section item 分别展示，不选择其中一个覆盖事件级标量；标题全空时不生成 pretty 条目，只保留 raw。该路径是本地展示派生，不写回 JSON/NDJSON，也不需要或允许为它新增 API 查询。
 
 #### 元素预览：显式白名单
 
@@ -220,13 +220,14 @@ lark-cli drive +list-replies \
 | --- | --- | --- | --- |
 | `open` | `image` | `element_token` 非空 | `lark-cli docs +media-preview --token "<element_token>" --output "<explicit-path>"` |
 | `open` | `whiteboard` | `element_token` 非空 | `lark-cli docs +media-download --type whiteboard --token "<element_token>" --output "<explicit-path>"` |
-| `close` / 未知 | 任意 | 任意 | 零调用；只记录预览关闭或未知上下文 |
+| `close` | `image`/`whiteboard` | 任意 | 零调用；pretty 只记录预览关闭 |
+| 未知 | 任意 | 任意 | 零调用；不生成 pretty 条目，只保留 raw |
 | `open` | 未知/空 | 任意 | 零调用；禁止把原值透传到 `--type` |
 | `open` | `image`/`whiteboard` | token 为空 | 零调用；保留 `block_id/element_type/action` 并提示缺 token |
 
 #### 失败恢复
 
-- parser 遇到未知字段、歧义 one-of 或单 item 缺字段：保留整个事件 `payload`、`event_id/event_type/event_time` 和可用 sibling；只把失败 item 标成通用“文档上下文发生变化”。
+- parser 遇到未知字段、歧义 one-of 或单 item 缺字段：保留整个事件 `payload`、`event_id/event_type/event_time` 和可用 sibling；该 item 不生成 pretty 条目，也不合成通用描述。
 - `share_doc` 无法解析：回显 `share_doc.url/title` 与 `comment_id`，提示需要有效文档 URL 或已确认的 `file_token/file_type`；不要猜 type。
 - Drive API/权限失败：保留精确 batch-query 命令与 `comment_id`，根据 CLI 的 `missing_scopes/hint` 恢复权限后重试；不要扫描全部评论。
 - Docs 预览失败：保留 `action/element_type/element_token/block_id` 和用户选择的输出路径，修复权限或 token 后重试同一白名单命令；不要让 `meeting-events` 自动下载兜底。
