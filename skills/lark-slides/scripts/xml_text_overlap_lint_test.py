@@ -47,6 +47,65 @@ class XmlTextOverlapLintGeometryTest(unittest.TestCase):
             f"xml-text-overlap-lint error: unexpected argument: {input_path}, need --input\n",
         )
 
+    def test_cli_preserves_requested_symlink_path_in_result(self) -> None:
+        script_path = Path(xml_text_overlap_lint.__file__).resolve()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            resolved_path = temp_path / "resolved.xml"
+            requested_path = temp_path / "requested.xml"
+            resolved_path.write_text(
+                '<presentation xmlns="http://www.larkoffice.com/sml/2.0" width="960" height="540">'
+                '<slide xmlns="http://www.larkoffice.com/sml/2.0"><data>'
+                '<shape type="text" topLeftX="10" topLeftY="10" width="100" height="30">'
+                '<content><p><span>Test</span></p></content>'
+                '</shape></data></slide>'
+                '</presentation>',
+                encoding="utf-8",
+            )
+            requested_path.symlink_to(resolved_path)
+
+            completed = subprocess.run(
+                [sys.executable, str(script_path), "--input", str(requested_path)],
+                capture_output=True,
+                check=False,
+                text=True,
+            )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertEqual(result["file"], str(requested_path))
+
+    def test_cli_reports_structured_slide_sxsd_error_outside_skill_directory(self) -> None:
+        script_path = Path(xml_text_overlap_lint.__file__).resolve()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "invalid-slide.xml"
+            input_path.write_text(
+                """
+                <slide xmlns="http://www.larkoffice.com/sml/2.0">
+                  <data><shape type="text" topLeftX="10" topLeftY="20" width="300"/></data>
+                </slide>
+                """,
+                encoding="utf-8",
+            )
+
+            completed = subprocess.run(
+                [sys.executable, str(script_path), "--input", str(input_path)],
+                cwd=temp_dir,
+                capture_output=True,
+                check=False,
+                text=True,
+            )
+
+        result = json.loads(completed.stdout)
+        issue = result["slides"][0]["errors"][0]
+        self.assertEqual(completed.returncode, 1)
+        self.assertEqual(completed.stderr, "")
+        self.assertEqual(issue["code"], "sxsd_missing_required_attr")
+        self.assertEqual(issue["path"], "slide/data/shape")
+        self.assertEqual(issue["attr"], "height")
+        self.assertEqual(issue["target"]["slide_number"], 1)
+        self.assertTrue(issue["hint"])
+
     def test_xml_text_overlap_lint_accepts_inline_fixture_xml_samples(self) -> None:
         samples = {
             "image-led-cover": """
