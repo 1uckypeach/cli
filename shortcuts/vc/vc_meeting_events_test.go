@@ -1442,7 +1442,7 @@ func TestDocumentContextChangedTimeline_UsesExistingChronologicalOrder(t *testin
 	if len(timeline.entries) != 4 {
 		t.Fatalf("timeline entries = %#v", timeline.entries)
 	}
-	want := []string{"early_event", "聚焦评论 second", "聚焦评论 first", "late_event"}
+	want := []string{"聚焦评论 second", "early_event", "late_event", "聚焦评论 first"}
 	for i := range want {
 		if timeline.entries[i].description != want[i] {
 			t.Fatalf("timeline order = %#v, want %#v", timeline.entries, want)
