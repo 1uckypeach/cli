@@ -739,8 +739,6 @@ type meetingTimeline struct {
 type meetingTimelineEntry struct {
 	when        time.Time
 	hasWhen     bool
-	sortWhen    time.Time
-	hasSortWhen bool
 	sequence    int
 	subject     string
 	description string
@@ -771,14 +769,14 @@ func buildMeetingEventTimeline(events []interface{}) meetingTimeline {
 		left := timeline.entries[i]
 		right := timeline.entries[j]
 		switch {
-		case left.hasSortWhen && right.hasSortWhen:
-			if left.sortWhen.Equal(right.sortWhen) {
+		case left.hasWhen && right.hasWhen:
+			if left.when.Equal(right.when) {
 				return left.sequence < right.sequence
 			}
-			return left.sortWhen.Before(right.sortWhen)
-		case left.hasSortWhen:
+			return left.when.Before(right.when)
+		case left.hasWhen:
 			return true
-		case right.hasSortWhen:
+		case right.hasWhen:
 			return false
 		default:
 			return left.sequence < right.sequence
@@ -862,7 +860,7 @@ func documentContextEntries(payload map[string]interface{}, fallbackTime time.Ti
 		if !recognized {
 			continue
 		}
-		when, ok := parseUnixMilliseconds(common.GetString(item, "time"))
+		when, ok := parseFlexibleTime(common.GetString(item, "time"))
 		if !ok {
 			when, ok = fallbackTime, fallbackOK
 		}
@@ -870,12 +868,7 @@ func documentContextEntries(payload map[string]interface{}, fallbackTime time.Ti
 		if subject == "" {
 			subject = "未知用户"
 		}
-		entry := newTimelineEntry(when, ok, sequence, subject, description, details)
-		// Sort every item in one document event by the parent event time so the
-		// stable sequence tie-breaker preserves the payload's item order.
-		entry.sortWhen = fallbackTime
-		entry.hasSortWhen = fallbackOK
-		entries = append(entries, entry)
+		entries = append(entries, newTimelineEntry(when, ok, sequence, subject, description, details))
 	}
 	return entries
 }
@@ -1144,8 +1137,6 @@ func newTimelineEntry(when time.Time, hasWhen bool, sequence *int, subject, desc
 	entry := meetingTimelineEntry{
 		when:        when,
 		hasWhen:     hasWhen,
-		sortWhen:    when,
-		hasSortWhen: hasWhen,
 		sequence:    *sequence,
 		subject:     subject,
 		description: description,
@@ -1172,23 +1163,6 @@ func parseFlexibleTime(raw string) (time.Time, bool) {
 		return parsed, true
 	}
 	return time.Time{}, false
-}
-
-func parseUnixMilliseconds(raw string) (time.Time, bool) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return time.Time{}, false
-	}
-	for _, r := range raw {
-		if r < '0' || r > '9' {
-			return time.Time{}, false
-		}
-	}
-	timestamp, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || timestamp <= 1_000_000_000_000 {
-		return time.Time{}, false
-	}
-	return time.UnixMilli(timestamp), true
 }
 
 func renderMeetingEventsPretty(timeline meetingTimeline) string {

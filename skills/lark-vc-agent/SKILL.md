@@ -91,7 +91,7 @@ metadata:
 
 #### 文档上下文事件
 
-`event_type == "document_context_changed"` 时，按 `payload.document_context_changed_items` 原序消费。每个 item 只接受一个 `comment_focus`、`section_location` 或 `element_preview`；零个、多个、字段缺失或未知值不生成 pretty 条目，但保留事件 `payload` 和原标识，不猜字段别名。
+`event_type == "document_context_changed"` 时，结构化消费按 `payload.document_context_changed_items` 原序读取；CLI pretty timeline 与其他事件一致，按 item `time` 排序。每个 item 只接受一个 `comment_focus`、`section_location` 或 `element_preview`；零个、多个、字段缺失或未知值不生成 pretty 条目，但保留事件 `payload` 和原标识，不猜字段别名。
 
 | context | 消费规则 |
 | --- | --- |

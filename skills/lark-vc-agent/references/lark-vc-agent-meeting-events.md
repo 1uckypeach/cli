@@ -151,7 +151,7 @@ lark-cli vc +meeting-events --as user --meeting-id <id> --page-all --format pret
 
 | 路径 | 含义与处理 |
 | --- | --- |
-| `payload.document_context_changed_items[]` | 按原序处理；每项恰有一个已知 context 才生成 pretty 条目，未知/歧义项只保留 raw。 |
+| `payload.document_context_changed_items[]` | 结构化消费按原序读取；pretty timeline 沿用统一时间排序。每项恰有一个已知 context 才生成 pretty 条目，未知/歧义项只保留 raw。 |
 | `item.operator` | 当前 item 的 actor；缺 ID/name 时不猜共享发起人。 |
 | `item.share_doc.url/title` | 评论所属文档线索。URL 用于解析 `file_token/file_type`；无法解析时保留 URL/title 并停止评论查询。 |
 | `item.time` | Unix 毫秒字符串；缺失或非法时 timeline 回退到事件时间。 |

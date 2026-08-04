@@ -1421,7 +1421,7 @@ func TestDocumentContextChangedTimeline_KnownItems(t *testing.T) {
 	}
 }
 
-func TestDocumentContextChangedTimeline_PreservesItemOrder(t *testing.T) {
+func TestDocumentContextChangedTimeline_UsesExistingChronologicalOrder(t *testing.T) {
 	event := documentContextChangedEvent([]interface{}{
 		map[string]interface{}{
 			"time":          "1776413400000",
@@ -1442,50 +1442,21 @@ func TestDocumentContextChangedTimeline_PreservesItemOrder(t *testing.T) {
 	if len(timeline.entries) != 4 {
 		t.Fatalf("timeline entries = %#v", timeline.entries)
 	}
-	want := []string{"early_event", "聚焦评论 first", "聚焦评论 second", "late_event"}
+	want := []string{"early_event", "聚焦评论 second", "聚焦评论 first", "late_event"}
 	for i := range want {
 		if timeline.entries[i].description != want[i] {
 			t.Fatalf("timeline order = %#v, want %#v", timeline.entries, want)
 		}
 	}
-	if timeline.entries[1].when.Before(timeline.entries[2].when) {
-		t.Fatalf("timeline item order changed: %#v", timeline.entries)
-	}
-}
-
-func TestParseUnixMilliseconds(t *testing.T) {
-	tests := []struct {
-		name string
-		raw  string
-		ok   bool
-	}{
-		{name: "unix milliseconds", raw: "1776413281000", ok: true},
-		{name: "unix seconds", raw: "1776413281", ok: false},
-		{name: "rfc3339", raw: "2026-04-17T08:08:01Z", ok: false},
-		{name: "negative", raw: "-1776413281000", ok: false},
-		{name: "decimal fraction", raw: "1776413281000.0", ok: false},
-		{name: "empty", raw: "", ok: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, ok := parseUnixMilliseconds(tt.raw)
-			if ok != tt.ok {
-				t.Fatalf("parseUnixMilliseconds(%q) ok = %v, want %v", tt.raw, ok, tt.ok)
-			}
-			if tt.ok {
-				want := time.UnixMilli(1776413281000)
-				if !got.Equal(want) {
-					t.Fatalf("parseUnixMilliseconds(%q) = %v, want %v", tt.raw, got, want)
-				}
-			}
-		})
+	if !timeline.entries[1].when.Before(timeline.entries[2].when) {
+		t.Fatalf("timeline is not chronological: %#v", timeline.entries)
 	}
 }
 
 func TestDocumentContextChangedTimeline_InvalidItemTimeFallsBackToEventTime(t *testing.T) {
 	event := documentContextChangedEvent([]interface{}{
 		map[string]interface{}{
-			"time":          "1776413281",
+			"time":          "not-a-time",
 			"comment_focus": map[string]interface{}{"comment_id": "comment-1", "focused": true},
 		},
 	})
