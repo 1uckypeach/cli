@@ -25,4 +25,9 @@ const (
 	CliProxyEnable  = "LARKSUITE_CLI_PROXY_ENABLE"
 	CliProxyAddress = "LARKSUITE_CLI_PROXY_ADDRESS"
 	CliCAPath       = "LARKSUITE_CLI_CA_PATH"
+
+	// Internal testing overrides for non-default gateways and lanes.
+	CliOpenBaseURL     = "LARKSUITE_CLI_OPEN_BASE_URL"
+	CliAccountsBaseURL = "LARKSUITE_CLI_ACCOUNTS_BASE_URL"
+	CliXTtEnv          = "LARK_X_TT_ENV"
 )
