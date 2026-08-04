@@ -589,9 +589,12 @@ func TestRangeValidator(t *testing.T) {
 		header http.Header
 		want   string
 	}{
-		{name: "strong etag preferred", header: http.Header{"Etag": {`"abc"`}, "Last-Modified": {"Wed, 21 Oct 2015 07:28:00 GMT"}}, want: `"abc"`},
-		{name: "weak etag falls back to last-modified", header: http.Header{"Etag": {`W/"abc"`}, "Last-Modified": {"Wed, 21 Oct 2015 07:28:00 GMT"}}, want: "Wed, 21 Oct 2015 07:28:00 GMT"},
-		{name: "weak etag without last-modified is unusable", header: http.Header{"Etag": {`W/"abc"`}}, want: ""},
+		{name: "strong etag", header: http.Header{"Etag": {`"abc"`}, "Last-Modified": {"Wed, 21 Oct 2015 07:28:00 GMT"}}, want: `"abc"`},
+		// RFC 9110 13.1.5: a weak entity-tag must not be sent in If-Range, and
+		// holding any entity-tag rules out sending a date instead.
+		{name: "weak etag is unusable", header: http.Header{"Etag": {`W/"abc"`}, "Last-Modified": {"Wed, 21 Oct 2015 07:28:00 GMT"}}, want: ""},
+		// A date alone cannot be shown to be a strong validator from the response.
+		{name: "last-modified alone is unusable", header: http.Header{"Last-Modified": {"Wed, 21 Oct 2015 07:28:00 GMT"}}, want: ""},
 		{name: "no validator", header: http.Header{}, want: ""},
 	}
 

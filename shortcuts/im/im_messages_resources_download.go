@@ -164,13 +164,17 @@ type rangeChunkReader struct {
 	fileType  string
 	// validator pins later requests to the representation the probe read, via
 	// If-Range. Empty when the server offered no usable validator.
-	validator  string
-	totalSize  int64
-	delivered  int64
-	current    io.ReadCloser
-	chunkWant  int64
-	chunkRead  int64
-	nextOffset int64
+	validator string
+	totalSize int64
+	delivered int64
+	current   io.ReadCloser
+	chunkWant int64
+	chunkRead int64
+	// responses counts the 206 responses consumed so far, probe included, and is
+	// bounded by maxResponses.
+	responses    int
+	maxResponses int
+	nextOffset   int64
 }
 
 func newRangeChunkReader(
@@ -182,16 +186,18 @@ func newRangeChunkReader(
 	validator string,
 ) *rangeChunkReader {
 	return &rangeChunkReader{
-		ctx:        ctx,
-		runtime:    runtime,
-		messageID:  messageID,
-		fileKey:    fileKey,
-		fileType:   fileType,
-		validator:  validator,
-		totalSize:  probeRange.total,
-		current:    probeBody,
-		chunkWant:  probeRange.length(),
-		nextOffset: probeRange.end + 1,
+		ctx:          ctx,
+		runtime:      runtime,
+		messageID:    messageID,
+		fileKey:      fileKey,
+		fileType:     fileType,
+		validator:    validator,
+		totalSize:    probeRange.total,
+		current:      probeBody,
+		chunkWant:    probeRange.length(),
+		responses:    1,
+		maxResponses: maxRangeResponses(probeRange.total),
+		nextOffset:   probeRange.end + 1,
 	}
 }
 
@@ -202,22 +208,28 @@ func (r *rangeChunkReader) Read(p []byte) (int, error) {
 			r.delivered += int64(n)
 			r.chunkRead += int64(n)
 
+			// An integrity failure always outranks an error from closing the
+			// connection: the close error would be classified as local file I/O
+			// and lose the reason the transfer was abandoned.
 			if r.delivered > r.totalSize {
+				overflow := errs.NewNetworkError(errs.SubtypeNetworkProtocol, "chunk overflow: delivered %d, expected %d", r.delivered, r.totalSize)
 				if err == io.EOF {
-					closeErr := r.current.Close()
-					r.current = nil
-					if closeErr != nil {
-						return 0, closeErr
+					if closeErr := r.current.Close(); closeErr != nil {
+						overflow = overflow.WithCause(closeErr)
 					}
+					r.current = nil
 				}
-				return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "chunk overflow: delivered %d, expected %d", r.delivered, r.totalSize)
+				return 0, overflow
 			}
 			// The body outran the Content-Range it came with, so the response
 			// contradicts itself and we cannot place these bytes.
 			if r.chunkRead > r.chunkWant {
-				_ = r.current.Close()
+				tooLong := errs.NewNetworkError(errs.SubtypeNetworkProtocol, "range response delivered more than the %d bytes its Content-Range declared", r.chunkWant)
+				if closeErr := r.current.Close(); closeErr != nil {
+					tooLong = tooLong.WithCause(closeErr)
+				}
 				r.current = nil
-				return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "range response delivered more than the %d bytes its Content-Range declared", r.chunkWant)
+				return 0, tooLong
 			}
 
 			switch err {
@@ -226,10 +238,12 @@ func (r *rangeChunkReader) Read(p []byte) (int, error) {
 			case io.EOF:
 				closeErr := r.current.Close()
 				r.current = nil
-				// A short body is an integrity failure, so it outranks any
-				// error from closing the connection.
 				if r.chunkRead != r.chunkWant {
-					return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "range response delivered %d bytes, want the %d bytes its Content-Range declared", r.chunkRead, r.chunkWant)
+					short := errs.NewNetworkError(errs.SubtypeNetworkProtocol, "range response delivered %d bytes, want the %d bytes its Content-Range declared", r.chunkRead, r.chunkWant)
+					if closeErr != nil {
+						short = short.WithCause(closeErr)
+					}
+					return 0, short
 				}
 				if closeErr != nil {
 					return n, closeErr
@@ -257,6 +271,15 @@ func (r *rangeChunkReader) Read(p []byte) (int, error) {
 			return 0, errs.NewNetworkError(errs.SubtypeNetworkTransport, "file size mismatch: expected %d, got %d", r.totalSize, r.delivered)
 		}
 
+		// A server may serve less than asked for, so the number of responses is
+		// not fixed by normalChunkSize. Without a ceiling, a server answering one
+		// byte at a time turns a single download into one request per byte.
+		if r.responses >= r.maxResponses {
+			return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol,
+				"server split the resource into more than %d range responses; giving up after %d of %d bytes",
+				r.maxResponses, r.delivered, r.totalSize)
+		}
+
 		end := min(r.nextOffset+normalChunkSize-1, r.totalSize-1)
 		headers := map[string]string{
 			"Range": fmt.Sprintf("bytes=%d-%d", r.nextOffset, end),
@@ -278,7 +301,9 @@ func (r *rangeChunkReader) Read(p []byte) (int, error) {
 		// versions of the file, so stop instead.
 		if resp.StatusCode == http.StatusOK {
 			resp.Body.Close()
-			return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "resource changed while downloading; run the command again to download the current version")
+			return 0, errs.NewNetworkError(errs.SubtypeRepresentationChanged, "resource changed while downloading").
+				WithRetryable().
+				WithHint("run the command again to download the current version")
 		}
 		if resp.StatusCode != http.StatusPartialContent {
 			resp.Body.Close()
@@ -302,11 +327,21 @@ func (r *rangeChunkReader) Read(p []byte) (int, error) {
 			resp.Body.Close()
 			return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "resource size changed while downloading: range response is %s, want total %d", got, r.totalSize)
 		}
+		// If-Range is the server's job; comparing the validator ourselves is what
+		// catches a server that ignores it. Absence is treated as a failure too:
+		// a 206 with no validator gives us nothing to tie this part to the rest.
+		if got := strings.TrimSpace(resp.Header.Get("ETag")); got != r.validator {
+			resp.Body.Close()
+			return 0, errs.NewNetworkError(errs.SubtypeRepresentationChanged, "range response carries validator %q, want %q", got, r.validator).
+				WithRetryable().
+				WithHint("run the command again to download the current version")
+		}
 
 		r.current = resp.Body
 		r.chunkWant = got.length()
 		r.chunkRead = 0
 		r.nextOffset = got.end + 1
+		r.responses++
 	}
 }
 
@@ -326,6 +361,31 @@ func initialIMResourceDownloadHeaders(fileType string) map[string]string {
 	return map[string]string{
 		"Range": fmt.Sprintf("bytes=0-%d", probeChunkSize-1),
 	}
+}
+
+// downloadIMResourceAsSingleStream re-requests the resource without a Range
+// header so it arrives as one body. It is the fallback for a server that serves
+// ranges but offers no strong validator to tie them together.
+func downloadIMResourceAsSingleStream(ctx context.Context, runtime *common.RuntimeContext, messageID, fileKey, fileType string) (*http.Response, error) {
+	resp, err := doIMResourceDownloadRequest(ctx, runtime, messageID, fileKey, fileType, nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport, "download failed: empty response")
+	}
+	if resp.StatusCode >= 400 {
+		defer resp.Body.Close()
+		return nil, downloadResponseError(resp)
+	}
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		return nil, errs.NewNetworkError(errs.SubtypeNetworkProtocol,
+			"the server serves this resource in ranges but offers no strong validator to tie them together, and it answered a rangeless request with HTTP %d instead of the whole resource",
+			resp.StatusCode).
+			WithHint("the resource cannot be downloaded without risking a file assembled from two different versions")
+	}
+	return resp, nil
 }
 
 func downloadIMResourceToPath(ctx context.Context, runtime *common.RuntimeContext, messageID, fileKey, fileType, outputPath string, preserveBasename bool) (string, int64, error) {
@@ -362,7 +422,22 @@ func downloadIMResourceToPath(ctx context.Context, runtime *common.RuntimeContex
 			downloadResp.Body.Close()
 			return "", 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "range response is %s, want it to start at byte 0", firstRange)
 		}
-		body = newRangeChunkReader(ctx, runtime, messageID, fileKey, fileType, downloadResp.Body, firstRange, rangeValidator(downloadResp.Header))
+		validator := rangeValidator(downloadResp.Header)
+		if firstRange.end < firstRange.total-1 && validator == "" {
+			// More ranges are needed but nothing ties them to this one, so no
+			// amount of per-response checking can prove the parts belong to the
+			// same file. Drop the probe and read the resource as a single stream
+			// instead — a whole body needs no combining.
+			downloadResp.Body.Close()
+			full, fullErr := downloadIMResourceAsSingleStream(ctx, runtime, messageID, fileKey, fileType)
+			if fullErr != nil {
+				return "", 0, fullErr
+			}
+			body = full.Body
+			sizeBytes = full.ContentLength
+			break
+		}
+		body = newRangeChunkReader(ctx, runtime, messageID, fileKey, fileType, downloadResp.Body, firstRange, validator)
 		sizeBytes = firstRange.total
 
 	case http.StatusOK:
@@ -535,14 +610,33 @@ func (cr contentRange) length() int64 {
 	return cr.end - cr.start + 1
 }
 
-// rangeValidator returns the validator to pin later range requests to with
-// If-Range, or "" when the server offers none usable. A weak entity-tag must
-// not be sent in If-Range (RFC 9110 13.1.5), so it falls back to Last-Modified.
-func rangeValidator(header http.Header) string {
-	if etag := strings.TrimSpace(header.Get("ETag")); etag != "" && !strings.HasPrefix(etag, "W/") {
-		return etag
+// maxRangeResponses bounds how many 206 responses a single download may consume.
+// The floor keeps small files workable when a server slices them finely; the
+// multiple leaves room for a server that serves less than requested without
+// letting the request count grow with the file's byte count.
+func maxRangeResponses(totalSize int64) int {
+	expected := totalSize/normalChunkSize + 1
+	if generous := 4 * expected; generous > 64 {
+		return int(generous)
 	}
-	return strings.TrimSpace(header.Get("Last-Modified"))
+	return 64
+}
+
+// rangeValidator returns the strong validator that later range requests must be
+// pinned to with If-Range, or "" when the server offers none.
+//
+// Only a strong entity-tag qualifies. RFC 9110 13.1.5 forbids sending a weak
+// entity-tag in If-Range, and forbids sending a date whenever the client holds
+// an entity-tag for the representation at all; a Last-Modified date is itself
+// only a strong validator under conditions (RFC 9110 8.8.2.2) that a client
+// cannot confirm from the response alone. Combining parts that are not tied
+// together by one strong validator is exactly what RFC 9110 15.3.7.3 rules out.
+func rangeValidator(header http.Header) string {
+	etag := strings.TrimSpace(header.Get("ETag"))
+	if etag == "" || strings.HasPrefix(etag, "W/") {
+		return ""
+	}
+	return etag
 }
 
 func parseContentRange(header string) (contentRange, error) {

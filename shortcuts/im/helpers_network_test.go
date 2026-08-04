@@ -546,6 +546,7 @@ func TestDownloadIMResourceToPathRangeDownload(t *testing.T) {
 					return shortcutRawResponse(http.StatusPartialContent, payload[start:end+1], http.Header{
 						"Content-Type":  []string{"application/octet-stream"},
 						"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end, len(payload))},
+						"Etag":          []string{`"v1"`},
 					}), nil
 				default:
 					return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
@@ -614,6 +615,7 @@ func TestDownloadIMResourceToPathRangeChunkFailureCleansOutput(t *testing.T) {
 				return shortcutRawResponse(http.StatusPartialContent, payload[:probeChunkSize], http.Header{
 					"Content-Type":  []string{"application/octet-stream"},
 					"Content-Range": []string{fmt.Sprintf("bytes 0-%d/%d", probeChunkSize-1, len(payload))},
+					"Etag":          []string{`"v1"`},
 				}), nil
 			}
 			return shortcutRawResponse(http.StatusInternalServerError, []byte("chunk failed"), http.Header{"Content-Type": []string{"text/plain"}}), nil
@@ -687,6 +689,7 @@ func TestDownloadIMResourceToPathRangeShortChunkSizeMismatch(t *testing.T) {
 			return shortcutRawResponse(http.StatusPartialContent, body, http.Header{
 				"Content-Type":  []string{"application/octet-stream"},
 				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end, len(payload))},
+				"Etag":          []string{`"v1"`},
 			}), nil
 		default:
 			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
@@ -696,9 +699,7 @@ func TestDownloadIMResourceToPathRangeShortChunkSizeMismatch(t *testing.T) {
 	cmdutil.TestChdir(t, t.TempDir())
 
 	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_short", "file_short", "file", "out.bin", true)
-	if err == nil || !strings.Contains(err.Error(), "range response delivered") {
-		t.Fatalf("downloadIMResourceToPath() error = %v", err)
-	}
+	requireDownloadProblem(t, err, "range response delivered", errs.SubtypeNetworkProtocol, false)
 }
 
 // imRangeServer is a fake resource endpoint whose range behaviour each test
@@ -869,16 +870,7 @@ func TestDownloadIMResourceToPathRejectsChunkAtWrongOffset(t *testing.T) {
 
 	cmdutil.TestChdir(t, t.TempDir())
 	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_wrong", "file_wrong", "file", "out.bin", true)
-	if err == nil || !strings.Contains(err.Error(), "want it to resume at byte") {
-		t.Fatalf("downloadIMResourceToPath() error = %v, want a wrong-offset rejection", err)
-	}
-	p, ok := errs.ProblemOf(err)
-	if !ok || p.Category != errs.CategoryNetwork || p.Subtype != errs.SubtypeNetworkProtocol {
-		t.Fatalf("problem = %+v, want network/%s", p, errs.SubtypeNetworkProtocol)
-	}
-	if p.Retryable {
-		t.Fatalf("problem is marked retryable; replaying the same request cannot fix a protocol violation")
-	}
+	requireDownloadProblem(t, err, "want it to resume at byte", errs.SubtypeNetworkProtocol, false)
 	if _, statErr := os.Stat("out.bin"); !os.IsNotExist(statErr) {
 		t.Fatalf("output file exists after a rejected download, stat error = %v", statErr)
 	}
@@ -922,9 +914,7 @@ func TestDownloadIMResourceToPathRejectsResourceChangedMidDownload(t *testing.T)
 
 	cmdutil.TestChdir(t, t.TempDir())
 	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_changed", "file_changed", "file", "out.bin", true)
-	if err == nil || !strings.Contains(err.Error(), "resource changed while downloading") {
-		t.Fatalf("downloadIMResourceToPath() error = %v, want a changed-resource rejection", err)
-	}
+	requireDownloadProblem(t, err, "resource changed while downloading", errs.SubtypeRepresentationChanged, true)
 	if _, statErr := os.Stat("out.bin"); !os.IsNotExist(statErr) {
 		t.Fatalf("output file exists after a rejected download, stat error = %v", statErr)
 	}
@@ -948,6 +938,7 @@ func TestDownloadIMResourceToPathRejectsTotalSizeChangeMidDownload(t *testing.T)
 			return shortcutRawResponse(http.StatusPartialContent, payload[start:end+1], http.Header{
 				"Content-Type":  []string{"application/octet-stream"},
 				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end, total)},
+				"Etag":          []string{`"v1"`},
 			}), nil
 		default:
 			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
@@ -956,9 +947,7 @@ func TestDownloadIMResourceToPathRejectsTotalSizeChangeMidDownload(t *testing.T)
 
 	cmdutil.TestChdir(t, t.TempDir())
 	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_grew", "file_grew", "file", "out.bin", true)
-	if err == nil || !strings.Contains(err.Error(), "resource size changed while downloading") {
-		t.Fatalf("downloadIMResourceToPath() error = %v, want a size-change rejection", err)
-	}
+	requireDownloadProblem(t, err, "resource size changed while downloading", errs.SubtypeNetworkProtocol, false)
 }
 
 // A response whose body is longer than the Content-Range it came with
@@ -976,6 +965,7 @@ func TestDownloadIMResourceToPathRejectsChunkLongerThanContentRange(t *testing.T
 			header := http.Header{
 				"Content-Type":  []string{"application/octet-stream"},
 				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end-1, len(payload))},
+				"Etag":          []string{`"v1"`},
 			}
 			return shortcutRawResponse(http.StatusPartialContent, body, header), nil
 		default:
@@ -985,8 +975,276 @@ func TestDownloadIMResourceToPathRejectsChunkLongerThanContentRange(t *testing.T
 
 	cmdutil.TestChdir(t, t.TempDir())
 	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_long", "file_long", "file", "out.bin", true)
-	if err == nil || !strings.Contains(err.Error(), "range response delivered") {
-		t.Fatalf("downloadIMResourceToPath() error = %v, want a declared-length rejection", err)
+	requireDownloadProblem(t, err, "range response delivered", errs.SubtypeNetworkProtocol, false)
+}
+
+// requireDownloadProblem asserts the message and the structured fields agents
+// branch on. Checking only the message text lets a regression to
+// network/transport pass unnoticed.
+func requireDownloadProblem(t *testing.T, err error, wantMsg string, wantSubtype errs.Subtype, wantRetryable bool) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), wantMsg) {
+		t.Fatalf("error = %v, want a message containing %q", err, wantMsg)
+	}
+	p, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("error = %T, want a typed problem", err)
+	}
+	if p.Category != errs.CategoryNetwork || p.Subtype != wantSubtype {
+		t.Fatalf("problem = %s/%s, want %s/%s", p.Category, p.Subtype, errs.CategoryNetwork, wantSubtype)
+	}
+	if p.Retryable != wantRetryable {
+		t.Fatalf("problem retryable = %v, want %v", p.Retryable, wantRetryable)
+	}
+}
+
+// Without a strong validator there is nothing tying one range response to the
+// next, so ranges must not be combined at all: the resource is re-read as a
+// single stream instead.
+func TestDownloadIMResourceToPathFallsBackToSingleStreamWithoutStrongValidator(t *testing.T) {
+	payload := imRangePayload(probeChunkSize + 4096)
+	var ranges []string
+	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_noval/resources/file_noval"):
+			rangeHeader := req.Header.Get("Range")
+			ranges = append(ranges, rangeHeader)
+			if rangeHeader == "" {
+				return shortcutRawResponse(http.StatusOK, payload, http.Header{
+					"Content-Type": []string{"application/octet-stream"},
+				}), nil
+			}
+			start, end, err := parseRangeHeader(rangeHeader, int64(len(payload)))
+			if err != nil {
+				return nil, err
+			}
+			// Serves ranges, but offers only a weak entity-tag and a date.
+			return shortcutRawResponse(http.StatusPartialContent, payload[start:end+1], http.Header{
+				"Content-Type":  []string{"application/octet-stream"},
+				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end, len(payload))},
+				"Etag":          []string{`W/"weak"`},
+				"Last-Modified": []string{"Wed, 21 Oct 2015 07:28:00 GMT"},
+			}), nil
+		default:
+			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
+		}
+	}))
+
+	cmdutil.TestChdir(t, t.TempDir())
+	_, size, err := downloadIMResourceToPath(context.Background(), runtime, "om_noval", "file_noval", "file", "out.bin", true)
+	if err != nil {
+		t.Fatalf("downloadIMResourceToPath() error = %v", err)
+	}
+	if size != int64(len(payload)) {
+		t.Fatalf("size = %d, want %d", size, len(payload))
+	}
+	if len(ranges) != 2 || ranges[0] == "" || ranges[1] != "" {
+		t.Fatalf("requests = %#v, want a probe followed by one rangeless request", ranges)
+	}
+	got, err := os.ReadFile("out.bin")
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if md5.Sum(got) != md5.Sum(payload) {
+		t.Fatalf("payload MD5 = %x, want %x", md5.Sum(got), md5.Sum(payload))
+	}
+}
+
+// The adversarial case the fallback exists for: no validator at all, and the
+// resource is replaced by a same-length version between requests. The download
+// must not deliver a file assembled from both.
+func TestDownloadIMResourceToPathNeverMixesVersionsWithoutValidator(t *testing.T) {
+	total := probeChunkSize + 512
+	versionA := bytes.Repeat([]byte("A"), int(total))
+	versionB := bytes.Repeat([]byte("B"), int(total))
+
+	var requests int
+	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_mix/resources/file_mix"):
+			requests++
+			current := versionA
+			if requests > 1 {
+				current = versionB
+			}
+			rangeHeader := req.Header.Get("Range")
+			if rangeHeader == "" {
+				return shortcutRawResponse(http.StatusOK, current, http.Header{
+					"Content-Type": []string{"application/octet-stream"},
+				}), nil
+			}
+			start, end, err := parseRangeHeader(rangeHeader, total)
+			if err != nil {
+				return nil, err
+			}
+			return shortcutRawResponse(http.StatusPartialContent, current[start:end+1], http.Header{
+				"Content-Type":  []string{"application/octet-stream"},
+				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end, total)},
+			}), nil
+		default:
+			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
+		}
+	}))
+
+	cmdutil.TestChdir(t, t.TempDir())
+	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_mix", "file_mix", "file", "out.bin", true)
+	if err != nil {
+		t.Fatalf("downloadIMResourceToPath() error = %v", err)
+	}
+	got, readErr := os.ReadFile("out.bin")
+	if readErr != nil {
+		t.Fatalf("ReadFile() error = %v", readErr)
+	}
+	if bytes.Contains(got, []byte("A")) && bytes.Contains(got, []byte("B")) {
+		t.Fatalf("file mixes both versions: first=%q last=%q", got[0:1], got[len(got)-1:])
+	}
+}
+
+// No strong validator, and the server will not serve the whole resource either.
+// There is no safe way to assemble it, so the download must fail rather than
+// guess.
+func TestDownloadIMResourceToPathFailsWhenNoValidatorAndNoWholeResource(t *testing.T) {
+	payload := imRangePayload(probeChunkSize + 4096)
+	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_stubborn/resources/file_stubborn"):
+			start := int64(0)
+			end := probeChunkSize - 1
+			if rangeHeader := req.Header.Get("Range"); rangeHeader != "" {
+				var err error
+				start, end, err = parseRangeHeader(rangeHeader, int64(len(payload)))
+				if err != nil {
+					return nil, err
+				}
+			}
+			return shortcutRawResponse(http.StatusPartialContent, payload[start:end+1], http.Header{
+				"Content-Type":  []string{"application/octet-stream"},
+				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end, len(payload))},
+			}), nil
+		default:
+			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
+		}
+	}))
+
+	cmdutil.TestChdir(t, t.TempDir())
+	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_stubborn", "file_stubborn", "file", "out.bin", true)
+	requireDownloadProblem(t, err, "no strong validator", errs.SubtypeNetworkProtocol, false)
+	if _, statErr := os.Stat("out.bin"); !os.IsNotExist(statErr) {
+		t.Fatalf("output file exists after a rejected download, stat error = %v", statErr)
+	}
+}
+
+func TestDownloadIMResourceToPathRejectsValidatorChangeOnLaterChunk(t *testing.T) {
+	payload := imRangePayload(probeChunkSize + 2048)
+	var requests int
+	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_etag/resources/file_etag"):
+			requests++
+			start, end, err := parseRangeHeader(req.Header.Get("Range"), int64(len(payload)))
+			if err != nil {
+				return nil, err
+			}
+			header := http.Header{
+				"Content-Type":  []string{"application/octet-stream"},
+				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end, len(payload))},
+			}
+			// The server ignores If-Range and serves a different version anyway.
+			if requests > 1 {
+				header.Set("ETag", `"v2"`)
+			} else {
+				header.Set("ETag", `"v1"`)
+			}
+			return shortcutRawResponse(http.StatusPartialContent, payload[start:end+1], header), nil
+		default:
+			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
+		}
+	}))
+
+	cmdutil.TestChdir(t, t.TempDir())
+	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_etag", "file_etag", "file", "out.bin", true)
+	requireDownloadProblem(t, err, `carries validator "\"v2\"", want "\"v1\""`, errs.SubtypeRepresentationChanged, true)
+}
+
+func TestDownloadIMResourceToPathRejectsMissingValidatorOnLaterChunk(t *testing.T) {
+	payload := imRangePayload(probeChunkSize + 2048)
+	var requests int
+	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_noetag/resources/file_noetag"):
+			requests++
+			start, end, err := parseRangeHeader(req.Header.Get("Range"), int64(len(payload)))
+			if err != nil {
+				return nil, err
+			}
+			header := http.Header{
+				"Content-Type":  []string{"application/octet-stream"},
+				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end, len(payload))},
+			}
+			if requests == 1 {
+				header.Set("ETag", `"v1"`)
+			}
+			return shortcutRawResponse(http.StatusPartialContent, payload[start:end+1], header), nil
+		default:
+			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
+		}
+	}))
+
+	cmdutil.TestChdir(t, t.TempDir())
+	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_noetag", "file_noetag", "file", "out.bin", true)
+	requireDownloadProblem(t, err, "carries validator \"\"", errs.SubtypeRepresentationChanged, true)
+}
+
+// One byte per response must not turn a download into one request per byte.
+func TestDownloadIMResourceToPathCapsRangeResponseCount(t *testing.T) {
+	total := int64(2048)
+	payload := imRangePayload(total)
+	var requests int
+	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_cap/resources/file_cap"):
+			requests++
+			start, _, err := parseRangeHeader(req.Header.Get("Range"), total)
+			if err != nil {
+				return nil, err
+			}
+			return shortcutRawResponse(http.StatusPartialContent, payload[start:start+1], http.Header{
+				"Content-Type":  []string{"application/octet-stream"},
+				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, start, total)},
+				"Etag":          []string{`"v1"`},
+			}), nil
+		default:
+			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
+		}
+	}))
+
+	cmdutil.TestChdir(t, t.TempDir())
+	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_cap", "file_cap", "file", "out.bin", true)
+	requireDownloadProblem(t, err, "range responses; giving up", errs.SubtypeNetworkProtocol, false)
+	if want := maxRangeResponses(total); requests > want+1 {
+		t.Fatalf("resource requests = %d, want no more than %d", requests, want+1)
+	}
+	if _, statErr := os.Stat("out.bin"); !os.IsNotExist(statErr) {
+		t.Fatalf("output file exists after a capped download, stat error = %v", statErr)
+	}
+}
+
+func TestMaxRangeResponses(t *testing.T) {
+	tests := []struct {
+		name  string
+		total int64
+		want  int
+	}{
+		{name: "small file uses the floor", total: 1024, want: 64},
+		{name: "exactly one chunk uses the floor", total: normalChunkSize, want: 64},
+		{name: "large file scales with chunk count", total: 400 * normalChunkSize, want: 4 * 401},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := maxRangeResponses(tt.total); got != tt.want {
+				t.Fatalf("maxRangeResponses(%d) = %d, want %d", tt.total, got, tt.want)
+			}
+		})
 	}
 }
 
