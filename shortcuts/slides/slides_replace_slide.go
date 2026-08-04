@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/larksuite/cli/errs"
-	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -48,7 +47,7 @@ var SlidesReplaceSlide = common.Shortcut{
 	ConditionalScopes: []string{"wiki:node:read"},
 	AuthTypes:         []string{"user", "bot"},
 	Flags: []common.Flag{
-		{Name: "presentation", Desc: "xml_presentation_id, slides URL, or wiki URL that resolves to slides", Required: true},
+		requiredPresentationRefFlag(),
 		{Name: "slide-id", Desc: "slide page identifier (slide_id)", Required: true},
 		{Name: "parts", Desc: "JSON array of replace parts (each: {action: block_replace|block_insert, ...}); max 200", Required: true, Input: []string{common.File, common.Stdin}},
 		{Name: "revision-id", Type: "int", Default: "-1", Desc: "presentation revision (-1 = latest; pass a specific number for optimistic locking)"},
@@ -116,10 +115,7 @@ var SlidesReplaceSlide = common.Shortcut{
 		} else {
 			dry.Desc(fmt.Sprintf("Replace %d part(s) on slide %s", len(parts), slideID))
 		}
-		dry.POST(fmt.Sprintf(
-			"/open-apis/slides_ai/v1/xml_presentations/%s/slide/replace",
-			validate.EncodePathSegment(presentationID),
-		)).
+		dry.POST(slideReplaceAPIPath(presentationID)).
 			Params(query).
 			Body(body)
 		return dry.Set("parts_count", len(parts))
@@ -156,11 +152,7 @@ var SlidesReplaceSlide = common.Shortcut{
 		}
 		body := map[string]interface{}{"parts": injected}
 
-		url := fmt.Sprintf(
-			"/open-apis/slides_ai/v1/xml_presentations/%s/slide/replace",
-			validate.EncodePathSegment(presentationID),
-		)
-		data, err := runtime.CallAPITyped("POST", url, query, body)
+		data, err := runtime.CallAPITyped("POST", slideReplaceAPIPath(presentationID), query, body)
 		if err != nil {
 			return enrichSlidesReplaceError(err)
 		}
