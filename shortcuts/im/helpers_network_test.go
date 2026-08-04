@@ -869,7 +869,7 @@ func TestDownloadIMResourceToPathRejectsChunkAtWrongOffset(t *testing.T) {
 
 	cmdutil.TestChdir(t, t.TempDir())
 	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_wrong", "file_wrong", "file", "out.bin", true)
-	if err == nil || !strings.Contains(err.Error(), "range response starts at byte 0") {
+	if err == nil || !strings.Contains(err.Error(), "want it to resume at byte") {
 		t.Fatalf("downloadIMResourceToPath() error = %v, want a wrong-offset rejection", err)
 	}
 	p, ok := errs.ProblemOf(err)

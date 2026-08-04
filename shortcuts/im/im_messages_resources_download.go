@@ -296,11 +296,11 @@ func (r *rangeChunkReader) Read(p []byte) (int, error) {
 		// no longer the same file.
 		if got.start != r.nextOffset {
 			resp.Body.Close()
-			return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "range response starts at byte %d, want %d", got.start, r.nextOffset)
+			return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "range response is %s, want it to resume at byte %d", got, r.nextOffset)
 		}
 		if got.total != r.totalSize {
 			resp.Body.Close()
-			return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "resource size changed while downloading: %d, want %d", got.total, r.totalSize)
+			return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "resource size changed while downloading: range response is %s, want total %d", got, r.totalSize)
 		}
 
 		r.current = resp.Body
@@ -360,7 +360,7 @@ func downloadIMResourceToPath(ctx context.Context, runtime *common.RuntimeContex
 		// is up to the server.
 		if firstRange.start != 0 {
 			downloadResp.Body.Close()
-			return "", 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "range response starts at byte %d, want 0", firstRange.start)
+			return "", 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "range response is %s, want it to start at byte 0", firstRange)
 		}
 		body = newRangeChunkReader(ctx, runtime, messageID, fileKey, fileType, downloadResp.Body, firstRange, rangeValidator(downloadResp.Header))
 		sizeBytes = firstRange.total
