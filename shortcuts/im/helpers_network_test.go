@@ -1100,6 +1100,53 @@ func TestDownloadIMResourceToPathNeverMixesVersionsWithoutValidator(t *testing.T
 	}
 }
 
+// A value that is not a well-formed entity-tag is not a validator: two responses
+// carrying the same malformed string must not be treated as the same version.
+func TestDownloadIMResourceToPathNeverMixesVersionsWithMalformedValidator(t *testing.T) {
+	total := probeChunkSize + 512
+	versionA := bytes.Repeat([]byte("A"), int(total))
+	versionB := bytes.Repeat([]byte("B"), int(total))
+
+	var requests int
+	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_badetag/resources/file_badetag"):
+			requests++
+			current := versionA
+			if requests > 1 {
+				current = versionB
+			}
+			header := http.Header{"Content-Type": []string{"application/octet-stream"}}
+			header.Set("ETag", "not-a-valid-entity-tag")
+			rangeHeader := req.Header.Get("Range")
+			if rangeHeader == "" {
+				return shortcutRawResponse(http.StatusOK, current, header), nil
+			}
+			start, end, err := parseRangeHeader(rangeHeader, total)
+			if err != nil {
+				return nil, err
+			}
+			header.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, total))
+			return shortcutRawResponse(http.StatusPartialContent, current[start:end+1], header), nil
+		default:
+			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
+		}
+	}))
+
+	cmdutil.TestChdir(t, t.TempDir())
+	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_badetag", "file_badetag", "file", "out.bin", true)
+	if err != nil {
+		t.Fatalf("downloadIMResourceToPath() error = %v", err)
+	}
+	got, readErr := os.ReadFile("out.bin")
+	if readErr != nil {
+		t.Fatalf("ReadFile() error = %v", readErr)
+	}
+	if bytes.Contains(got, []byte("A")) && bytes.Contains(got, []byte("B")) {
+		t.Fatalf("file mixes both versions: first=%q last=%q", got[0:1], got[len(got)-1:])
+	}
+}
+
 // No strong validator, and the server will not serve the whole resource either.
 // There is no safe way to assemble it, so the download must fail rather than
 // guess.

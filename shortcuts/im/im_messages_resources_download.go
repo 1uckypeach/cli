@@ -330,7 +330,7 @@ func (r *rangeChunkReader) Read(p []byte) (int, error) {
 		// If-Range is the server's job; comparing the validator ourselves is what
 		// catches a server that ignores it. Absence is treated as a failure too:
 		// a 206 with no validator gives us nothing to tie this part to the rest.
-		if got := strings.TrimSpace(resp.Header.Get("ETag")); got != r.validator {
+		if got := rangeValidator(resp.Header); got != r.validator {
 			resp.Body.Close()
 			return 0, errs.NewNetworkError(errs.SubtypeRepresentationChanged, "range response carries validator %q, want %q", got, r.validator).
 				WithRetryable().
@@ -627,18 +627,38 @@ func maxRangeResponses(totalSize int64) int {
 // rangeValidator returns the strong validator that later range requests must be
 // pinned to with If-Range, or "" when the server offers none.
 //
-// Only a strong entity-tag qualifies. RFC 9110 13.1.5 forbids sending a weak
-// entity-tag in If-Range, and forbids sending a date whenever the client holds
-// an entity-tag for the representation at all; a Last-Modified date is itself
-// only a strong validator under conditions (RFC 9110 8.8.2.2) that a client
-// cannot confirm from the response alone. Combining parts that are not tied
-// together by one strong validator is exactly what RFC 9110 15.3.7.3 rules out.
+// Only a well-formed strong entity-tag qualifies. RFC 9110 8.8.3 defines
+//
+//	entity-tag = [ "W/" ] opaque-tag
+//	opaque-tag = DQUOTE *etagc DQUOTE
+//	etagc      = %x21 / %x23-7E / obs-text
+//
+// so a bare string, an unterminated quote, or a field carrying several values is
+// not a validator at all. Accepting one would let two responses "match" on a
+// value that identifies nothing — the same silent version mixing this check
+// exists to prevent. RFC 9110 13.1.5 rules out weak tags in If-Range, and rules
+// out sending a date whenever an entity-tag is present at all; a Last-Modified
+// date is only a strong validator under conditions (8.8.2.2) a client cannot
+// confirm from the response, so dates are never used here. Combining parts that
+// are not tied together by one strong validator is what RFC 9110 15.3.7.3
+// forbids.
 func rangeValidator(header http.Header) string {
-	etag := strings.TrimSpace(header.Get("ETag"))
-	if etag == "" || strings.HasPrefix(etag, "W/") {
+	values := header.Values("ETag")
+	if len(values) != 1 {
 		return ""
 	}
-	return etag
+	tag := strings.TrimSpace(values[0])
+	// A weak tag, and anything not DQUOTE-delimited, is out. An empty opaque-tag
+	// parses but distinguishes nothing, so it counts as absent.
+	if len(tag) <= 2 || tag[0] != '"' || tag[len(tag)-1] != '"' {
+		return ""
+	}
+	for i := 1; i < len(tag)-1; i++ {
+		if c := tag[i]; c != 0x21 && !(c >= 0x23 && c <= 0x7E) && c < 0x80 {
+			return ""
+		}
+	}
+	return tag
 }
 
 func parseContentRange(header string) (contentRange, error) {

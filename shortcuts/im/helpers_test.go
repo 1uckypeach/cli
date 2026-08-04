@@ -590,6 +590,18 @@ func TestRangeValidator(t *testing.T) {
 		want   string
 	}{
 		{name: "strong etag", header: http.Header{"Etag": {`"abc"`}, "Last-Modified": {"Wed, 21 Oct 2015 07:28:00 GMT"}}, want: `"abc"`},
+		{name: "surrounding whitespace tolerated", header: http.Header{"Etag": {`  "abc"  `}}, want: `"abc"`},
+		// RFC 9110 8.8.3: opaque-tag = DQUOTE *etagc DQUOTE. A value that is not
+		// a well-formed entity-tag identifies nothing, so it must not be used to
+		// tie two range responses together.
+		{name: "bare string is not an entity-tag", header: http.Header{"Etag": {"not-a-valid-entity-tag"}}, want: ""},
+		{name: "unterminated quote", header: http.Header{"Etag": {`"abc`}}, want: ""},
+		{name: "missing opening quote", header: http.Header{"Etag": {`abc"`}}, want: ""},
+		{name: "empty opaque-tag distinguishes nothing", header: http.Header{"Etag": {`""`}}, want: ""},
+		{name: "embedded quote", header: http.Header{"Etag": {`"ab"c"`}}, want: ""},
+		{name: "control character", header: http.Header{"Etag": {"\"a\tb\""}}, want: ""},
+		{name: "several values", header: http.Header{"Etag": {`"abc"`, `"def"`}}, want: ""},
+		{name: "obs-text is allowed", header: http.Header{"Etag": {"\"a\xc3\xa9\""}}, want: "\"a\xc3\xa9\""},
 		// RFC 9110 13.1.5: a weak entity-tag must not be sent in If-Range, and
 		// holding any entity-tag rules out sending a date instead.
 		{name: "weak etag is unusable", header: http.Header{"Etag": {`W/"abc"`}, "Last-Modified": {"Wed, 21 Oct 2015 07:28:00 GMT"}}, want: ""},
