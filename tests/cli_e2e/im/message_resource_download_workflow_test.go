@@ -67,9 +67,7 @@ func TestIM_MessageResourceDownloadWorkflowAsBot(t *testing.T) {
 			WorkDir:   downloadDir,
 			DefaultAs: "bot",
 		})
-		require.NoError(t, err)
-		result.AssertExitCode(t, 0)
-		result.AssertStdoutStatus(t, true)
+		requireCLISuccess(t, "resource download", result, err)
 
 		require.Equal(t, int64(len(payload)), gjson.Get(result.Stdout, "data.size_bytes").Int(),
 			"downloaded size should match the fixture")
@@ -103,14 +101,11 @@ func sendFileMessageOrSkipPermission(t *testing.T, ctx context.Context, chatID, 
 		if strings.Contains(combined, "app scope not enabled") ||
 			strings.Contains(combined, "im:resource") ||
 			strings.Contains(combined, "99991672") {
-			// Only the classification is logged; the envelope carries live tenant
-			// and chat identifiers and this job's logs are public.
 			t.Skipf("skip IM resource download workflow due to missing bot scope (exit %d, error.subtype=%q)",
 				result.ExitCode, gjson.Get(result.Stderr, "error.subtype").String())
 		}
 	}
-	result.AssertExitCode(t, 0)
-	result.AssertStdoutStatus(t, true)
+	requireCLISuccess(t, "send file message", result, nil)
 
 	messageID := gjson.Get(result.Stdout, "data.message_id").String()
 	require.NotEmpty(t, messageID, "message_id should not be empty")
@@ -131,9 +126,7 @@ func fileKeyOfMessage(t *testing.T, ctx context.Context, messageID string) strin
 		Args:      []string{"im", "+messages-mget", "--message-ids", messageID},
 		DefaultAs: "bot",
 	})
-	require.NoError(t, err)
-	result.AssertExitCode(t, 0)
-	result.AssertStdoutStatus(t, true)
+	requireCLISuccess(t, "messages-mget", result, err)
 
 	msgType := gjson.Get(result.Stdout, "data.messages.0.msg_type").String()
 	require.Equal(t, "file", msgType, "message should be a file message")
@@ -182,6 +175,40 @@ func recallMessageOnCleanup(parentT *testing.T, messageID string) {
 			DefaultAs: "bot",
 			Yes:       true,
 		}, clie2e.RetryOptions{})
-		clie2e.ReportCleanupFailure(parentT, "recall IM file message", result, err)
+		// clie2e.ReportCleanupFailure would print the whole envelope; see
+		// requireCLISuccess for why that is not an option in this suite.
+		if err != nil {
+			parentT.Errorf("recall IM file message: runner error: %v", err)
+			return
+		}
+		if result == nil {
+			parentT.Errorf("recall IM file message: nil result")
+			return
+		}
+		if result.ExitCode != 0 {
+			parentT.Errorf("recall IM file message failed: exit=%d error.type=%q error.subtype=%q",
+				result.ExitCode,
+				gjson.Get(result.Stderr, "error.type").String(),
+				gjson.Get(result.Stderr, "error.subtype").String())
+		}
 	})
+}
+
+// requireCLISuccess asserts a command succeeded without echoing what it returned.
+//
+// The shared clie2e.Result assertions print the full stdout and stderr on
+// failure, and this suite's envelopes carry live chat ids, message ids, resource
+// keys, app links, sender profiles and tenant identifiers. e2e-live runs on a
+// public repository, so a failing assertion would publish all of it; only the
+// exit code and the error classification are logged here.
+func requireCLISuccess(t *testing.T, what string, result *clie2e.Result, err error) {
+	t.Helper()
+	require.NoError(t, err, "%s: runner error", what)
+	require.NotNil(t, result, "%s: nil result", what)
+	require.Equal(t, 0, result.ExitCode, "%s failed: exit=%d error.type=%q error.subtype=%q",
+		what, result.ExitCode,
+		gjson.Get(result.Stderr, "error.type").String(),
+		gjson.Get(result.Stderr, "error.subtype").String())
+	ok := gjson.Get(result.Stdout, "ok")
+	require.True(t, ok.Exists() && ok.Bool(), "%s returned an unsuccessful envelope", what)
 }
