@@ -14,6 +14,7 @@ const {
   verifyChecksum,
   assertAllowedHost,
   resolveMirrorUrls,
+  resolveReleaseAsset,
   isCurlVersionSupported,
   replaceBinaryAtomically,
 } = require("./install.js");
@@ -104,6 +105,28 @@ describe("replaceBinaryAtomically", () => {
       fs.readdirSync(fixture.dir).sort(),
       ["lark-cli", "source"],
       "failed staged file should be removed"
+    );
+  });
+});
+
+describe("resolveReleaseAsset", () => {
+  it("preserves a beta package version in tag and archive paths", () => {
+    const asset = resolveReleaseAsset(
+      "1.2.0-beta.1",
+      "linux",
+      "amd64"
+    );
+
+    assert.deepEqual(asset, {
+      archiveName: "lark-cli-1.2.0-beta.1-linux-amd64.tar.gz",
+      githubUrl:
+        "https://github.com/larksuite/cli/releases/download/v1.2.0-beta.1/lark-cli-1.2.0-beta.1-linux-amd64.tar.gz",
+    });
+    assert.deepEqual(
+      resolveMirrorUrls({}, asset.archiveName, "1.2.0-beta.1"),
+      [
+        "https://registry.npmmirror.com/-/binary/lark-cli/v1.2.0-beta.1/lark-cli-1.2.0-beta.1-linux-amd64.tar.gz",
+      ]
     );
   });
 });
