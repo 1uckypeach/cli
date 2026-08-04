@@ -23,7 +23,7 @@ import sxsd_validator
 XS_NS = "{http://www.w3.org/2001/XMLSchema}"
 XML_NS = "{http://www.w3.org/XML/1998/namespace}"
 SVG_NS = "{http://www.w3.org/2000/svg}"
-SML_NAMESPACE = "http://www.larkoffice.com/sml/2.0"
+SML_NAMESPACE = "https://www.larkoffice.com/sml/2.0"
 SXSD_SCHEMA_PATH = Path(__file__).resolve().parents[1] / "references" / "slides_xml_schema_definition.xml"
 ICONPARK_INDEX_PATH = Path(__file__).resolve().parents[1] / "references" / "iconpark-index.json"
 SXSD_TAG_ALIASES = {
@@ -683,7 +683,8 @@ def validate_sml_tag_prefixes(xml: str) -> list[dict[str, Any]]:
         if not prefix:
             return
 
-        if namespace_map.get(prefix) != SML_NAMESPACE:
+        actual_namespace = namespace_map.get(prefix)
+        if actual_namespace not in sxsd_validator.ACCEPTED_SML_NAMESPACES:
             return
         path = "/".join(element_stack)
         issues.append(
@@ -691,7 +692,7 @@ def validate_sml_tag_prefixes(xml: str) -> list[dict[str, Any]]:
                 "level": "error",
                 "code": "sml_prefixed_tag",
                 "tag": element_name,
-                "namespace": SML_NAMESPACE,
+                "namespace": actual_namespace,
                 "path": path,
                 "line": parser.CurrentLineNumber,
                 "column": parser.CurrentColumnNumber,
@@ -2690,8 +2691,9 @@ def run_cli(argv: list[str] | None = None) -> None:
     if not options.get("input"):
         print_usage()
         fail("--input is required")
-    input_path = Path(options["input"]).resolve()
-    result = lint_xml(read_file(input_path), str(input_path))
+    requested_path = options["input"]
+    resolved_path = Path(requested_path).resolve()
+    result = lint_xml(read_file(resolved_path), requested_path)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if result["summary"]["error_count"] > 0:
         raise SystemExit(1)
