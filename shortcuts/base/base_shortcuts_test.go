@@ -282,7 +282,10 @@ func TestBaseHighRiskShortcutsTipsDoNotAuthorizeSelfApproval(t *testing.T) {
 		"This is a high-risk write command",
 	}
 	for _, shortcut := range Shortcuts() {
-		if shortcut.Risk != "high-risk-write" {
+		// Compare against the shared constant, not a literal: if the label is
+		// ever renamed, a literal would quietly match nothing and this test
+		// would pass while checking zero shortcuts.
+		if shortcut.Risk != cmdutil.RiskHighRiskWrite {
 			continue
 		}
 		for _, tip := range shortcut.Tips {
