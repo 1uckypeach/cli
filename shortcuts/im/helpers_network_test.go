@@ -944,7 +944,44 @@ func TestDownloadIMResourceToPathRejectsTotalSizeChangeMidDownload(t *testing.T)
 
 	cmdutil.TestChdir(t, t.TempDir())
 	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_grew", "file_grew", "file", "out.bin", true)
-	requireDownloadProblem(t, err, "resource size changed while downloading", errs.SubtypeNetworkProtocol, false)
+	requireDownloadProblem(t, err, "resource size changed while downloading", errs.SubtypeRepresentationChanged, true)
+}
+
+// With If-Range on the wire a changed resource has to come back as 200, so a 206
+// describing a different total means the server ignored the condition. Asking
+// again the same way gets the same answer, so this one is not retryable.
+func TestDownloadIMResourceToPathRejectsTotalSizeChangeDespiteIfRange(t *testing.T) {
+	payload := imRangePayload(probeChunkSize + 2048)
+	var requests int
+	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_ignored/resources/file_ignored"):
+			requests++
+			start, end, err := parseRangeHeader(req.Header.Get("Range"), int64(len(payload)))
+			if err != nil {
+				return nil, err
+			}
+			total := int64(len(payload))
+			if requests > 1 {
+				if got := req.Header.Get("If-Range"); got != `"v1"` {
+					return nil, fmt.Errorf("If-Range = %q, want %q", got, `"v1"`)
+				}
+				total += 4096
+			}
+			header := http.Header{
+				"Content-Type":  []string{"application/octet-stream"},
+				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end, total)},
+			}
+			header.Set("ETag", `"v1"`)
+			return shortcutRawResponse(http.StatusPartialContent, payload[start:end+1], header), nil
+		default:
+			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
+		}
+	}))
+
+	cmdutil.TestChdir(t, t.TempDir())
+	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_ignored", "file_ignored", "file", "out.bin", true)
+	requireDownloadProblem(t, err, "server ignored If-Range", errs.SubtypeNetworkProtocol, false)
 }
 
 // A response whose body is longer than the Content-Range it came with

@@ -340,7 +340,20 @@ func (r *rangeChunkReader) Read(p []byte) (int, error) {
 		}
 		if got.total != r.totalSize {
 			resp.Body.Close()
-			return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "resource size changed while downloading: range response is %s, want total %d", got, r.totalSize)
+			if r.validator == "" {
+				// Nothing was pinning this transfer, so a new total is the server
+				// correctly reporting a resource that changed under us. Starting over
+				// reads the current version.
+				return 0, errs.NewNetworkError(errs.SubtypeRepresentationChanged,
+					"resource size changed while downloading: range response is %s, want total %d", got, r.totalSize).
+					WithRetryable().
+					WithHint("run the command again to download the current version")
+			}
+			// If-Range went out with this request, so a changed resource had to come
+			// back as 200. A 206 describing a different total means the condition was
+			// ignored, and asking again the same way gets the same answer.
+			return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol,
+				"server ignored If-Range: range response is %s, want total %d", got, r.totalSize)
 		}
 		// Only checkable once the probe gave us something to compare against.
 		// If-Range is the server's job; comparing the validator ourselves is what
@@ -644,8 +657,9 @@ func rangeValidator(header http.Header) string {
 	}
 	tag := strings.TrimSpace(values[0])
 	// A weak tag, and anything not DQUOTE-delimited, is out. An empty opaque-tag
-	// parses but distinguishes nothing, so it counts as absent.
-	if len(tag) <= 2 || tag[0] != '"' || tag[len(tag)-1] != '"' {
+	// is not: RFC 9110 8.8.3 lists `ETag: ""` among its valid examples, and a
+	// server that uses it is still making a strong-comparison promise.
+	if len(tag) < 2 || tag[0] != '"' || tag[len(tag)-1] != '"' {
 		return ""
 	}
 	for i := 1; i < len(tag)-1; i++ {

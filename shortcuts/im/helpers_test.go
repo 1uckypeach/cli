@@ -602,7 +602,8 @@ func TestRangeValidator(t *testing.T) {
 		{name: "bare string is not an entity-tag", header: http.Header{"Etag": {"not-a-valid-entity-tag"}}, want: ""},
 		{name: "unterminated quote", header: http.Header{"Etag": {`"abc`}}, want: ""},
 		{name: "missing opening quote", header: http.Header{"Etag": {`abc"`}}, want: ""},
-		{name: "empty opaque-tag distinguishes nothing", header: http.Header{"Etag": {`""`}}, want: ""},
+		// RFC 9110 8.8.3 lists `ETag: ""` among its valid examples.
+		{name: "empty opaque-tag is valid", header: http.Header{"Etag": {`""`}}, want: `""`},
 		{name: "embedded quote", header: http.Header{"Etag": {`"ab"c"`}}, want: ""},
 		{name: "control character", header: http.Header{"Etag": {"\"a\tb\""}}, want: ""},
 		{name: "several values", header: http.Header{"Etag": {`"abc"`, `"def"`}}, want: ""},
