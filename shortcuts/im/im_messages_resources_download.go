@@ -342,22 +342,25 @@ func (r *rangeChunkReader) Read(p []byte) (int, error) {
 			resp.Body.Close()
 			return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "resource size changed while downloading: range response is %s, want total %d", got, r.totalSize)
 		}
+		// Only checkable once the probe gave us something to compare against.
 		// If-Range is the server's job; comparing the validator ourselves is what
 		// catches a server that ignores it. The two ways it can go wrong need
 		// different answers. A different strong validator means the resource was
-		// replaced, which starting over resolves. No usable validator at all means
-		// the server cannot support safe combining, and asking again gets the same
-		// answer, so that is a protocol failure and not retryable.
-		switch got := rangeValidator(resp.Header); {
-		case got == "":
-			resp.Body.Close()
-			return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol,
-				"range response carries no usable validator, so it cannot be tied to the %q the transfer started from", r.validator)
-		case got != r.validator:
-			resp.Body.Close()
-			return 0, errs.NewNetworkError(errs.SubtypeRepresentationChanged, "range response carries validator %q, want %q", got, r.validator).
-				WithRetryable().
-				WithHint("run the command again to download the current version")
+		// replaced, which starting over resolves. Losing the validator mid-transfer
+		// means the server stopped identifying what it is sending, and asking again
+		// gets the same answer, so that is a protocol failure and not retryable.
+		if r.validator != "" {
+			switch got := rangeValidator(resp.Header); {
+			case got == "":
+				resp.Body.Close()
+				return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol,
+					"range response carries no usable validator, so it cannot be tied to the %q the transfer started from", r.validator)
+			case got != r.validator:
+				resp.Body.Close()
+				return 0, errs.NewNetworkError(errs.SubtypeRepresentationChanged, "range response carries validator %q, want %q", got, r.validator).
+					WithRetryable().
+					WithHint("run the command again to download the current version")
+			}
 		}
 
 		r.current = resp.Body
@@ -386,52 +389,6 @@ func initialIMResourceDownloadHeaders(fileType string) map[string]string {
 	}
 }
 
-// resourceStream is the download the caller decided to keep: the bytes, how many
-// to expect, and the headers those bytes came with. Naming the three together
-// keeps the file name, the MIME type and the body from being read off different
-// responses — the fallback below abandons its first response, and taking the
-// name from the abandoned one would label the file after a version we did not
-// download. Header may be nil when there is nothing to read from it.
-type resourceStream struct {
-	body   io.ReadCloser
-	size   int64
-	header http.Header
-}
-
-func (s resourceStream) headerValue(key string) string {
-	if s.header == nil {
-		return ""
-	}
-	return s.header.Get(key)
-}
-
-// downloadIMResourceAsSingleStream re-requests the resource without a Range
-// header so it arrives as one body. It is the fallback for a server that serves
-// ranges but offers no strong validator to tie them together. It hands back the
-// body rather than the response so ownership of the close is unambiguous at the
-// call site.
-func downloadIMResourceAsSingleStream(ctx context.Context, runtime *common.RuntimeContext, messageID, fileKey, fileType string) (resourceStream, error) {
-	resp, err := doIMResourceDownloadRequest(ctx, runtime, messageID, fileKey, fileType, nil)
-	if err != nil {
-		return resourceStream{}, err
-	}
-	if resp == nil {
-		return resourceStream{}, errs.NewNetworkError(errs.SubtypeNetworkTransport, "download failed: empty response")
-	}
-	if resp.StatusCode >= 400 {
-		defer resp.Body.Close()
-		return resourceStream{}, downloadResponseError(resp)
-	}
-	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
-		return resourceStream{}, errs.NewNetworkError(errs.SubtypeNetworkProtocol,
-			"the server serves this resource in ranges but offers no strong validator to tie them together, and it answered a rangeless request with HTTP %d instead of the whole resource",
-			resp.StatusCode).
-			WithHint("the resource cannot be downloaded without risking a file assembled from two different versions")
-	}
-	return resourceStream{body: resp.Body, size: resp.ContentLength, header: resp.Header}, nil
-}
-
 func downloadIMResourceToPath(ctx context.Context, runtime *common.RuntimeContext, messageID, fileKey, fileType, outputPath string, preserveBasename bool) (string, int64, error) {
 	downloadResp, err := doIMResourceDownloadRequest(ctx, runtime, messageID, fileKey, fileType, initialIMResourceDownloadHeaders(fileType))
 	if err != nil {
@@ -446,7 +403,12 @@ func downloadIMResourceToPath(ctx context.Context, runtime *common.RuntimeContex
 		return "", 0, downloadResponseError(downloadResp)
 	}
 
-	var stream resourceStream
+	finalPath := resolveIMResourceDownloadPath(outputPath, downloadResp.Header.Get("Content-Type"), downloadResp.Header.Get("Content-Disposition"), preserveBasename)
+
+	var (
+		body      io.ReadCloser
+		sizeBytes int64
+	)
 	switch downloadResp.StatusCode {
 	case http.StatusPartialContent:
 		firstRange, err := parseContentRange(downloadResp.Header.Get("Content-Range"))
@@ -461,44 +423,34 @@ func downloadIMResourceToPath(ctx context.Context, runtime *common.RuntimeContex
 			downloadResp.Body.Close()
 			return "", 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol, "range response is %s, want it to start at byte 0", firstRange)
 		}
-		validator := rangeValidator(downloadResp.Header)
-		if firstRange.end < firstRange.total-1 && validator == "" {
-			// More ranges are needed but nothing ties them to this one, so no
-			// amount of per-response checking can prove the parts belong to the
-			// same file. Drop the probe and read the resource as a single stream
-			// instead — a whole body needs no combining.
-			downloadResp.Body.Close()
-			full, fullErr := downloadIMResourceAsSingleStream(ctx, runtime, messageID, fileKey, fileType)
-			if fullErr != nil {
-				return "", 0, fullErr
-			}
-			stream = full
-			break
-		}
-		stream = resourceStream{
-			body:   newRangeChunkReader(ctx, runtime, messageID, fileKey, fileType, downloadResp.Body, firstRange, validator),
-			size:   firstRange.total,
-			header: downloadResp.Header,
-		}
+		// A strong validator, when the server offers one, pins every later request
+		// to this exact representation. This endpoint offers none: a real probe
+		// answers 206 with no ETag at all, so requiring one would disable ranged
+		// downloads entirely and put every file behind a single request — and one
+		// request means one timeout budget for the whole body instead of one per
+		// chunk, which is what would actually break a large file on a slow link.
+		// Ranges therefore continue without a validator. The residual risk is
+		// narrow: an IM attachment is fixed once its message is sent, and a
+		// resource that changed size is still caught by the total-size check on
+		// every chunk. What cannot be detected without a validator is a
+		// replacement of exactly the same length.
+		body = newRangeChunkReader(ctx, runtime, messageID, fileKey, fileType, downloadResp.Body, firstRange, rangeValidator(downloadResp.Header))
+		sizeBytes = firstRange.total
 
 	case http.StatusOK:
-		stream = resourceStream{body: downloadResp.Body, size: downloadResp.ContentLength, header: downloadResp.Header}
+		body = downloadResp.Body
+		sizeBytes = downloadResp.ContentLength
 
 	default:
 		downloadResp.Body.Close()
 		return "", 0, errs.NewNetworkError(errs.SubtypeNetworkTransport, "unexpected status code: %d", downloadResp.StatusCode)
 	}
-	defer stream.body.Close()
-
-	// Name and type come from the response these bytes came from, which is not
-	// always the probe: the no-validator branch above throws its response away.
-	finalPath := resolveIMResourceDownloadPath(outputPath, stream.headerValue("Content-Type"), stream.headerValue("Content-Disposition"), preserveBasename)
-	sizeBytes := stream.size
+	defer body.Close()
 
 	result, err := runtime.FileIO().Save(finalPath, fileio.SaveOptions{
-		ContentType:   stream.headerValue("Content-Type"),
+		ContentType:   downloadResp.Header.Get("Content-Type"),
 		ContentLength: sizeBytes,
-	}, stream.body)
+	}, body)
 	if err != nil {
 		return "", 0, common.WrapSaveErrorTyped(err)
 	}

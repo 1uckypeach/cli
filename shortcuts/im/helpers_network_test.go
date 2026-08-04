@@ -931,10 +931,11 @@ func TestDownloadIMResourceToPathRejectsTotalSizeChangeMidDownload(t *testing.T)
 			if requests > 1 {
 				total += 4096
 			}
+			// No validator on purpose: the total-size check is the guarantee that
+			// still holds when the server offers nothing to pin the transfer to.
 			return shortcutRawResponse(http.StatusPartialContent, payload[start:end+1], http.Header{
 				"Content-Type":  []string{"application/octet-stream"},
 				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end, total)},
-				"Etag":          []string{`"v1"`},
 			}), nil
 		default:
 			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
@@ -994,27 +995,25 @@ func requireDownloadProblem(t *testing.T, err error, wantMsg string, wantSubtype
 	}
 }
 
-// Without a strong validator there is nothing tying one range response to the
-// next, so ranges must not be combined at all: the resource is re-read as a
-// single stream instead.
-func TestDownloadIMResourceToPathFallsBackToSingleStreamWithoutStrongValidator(t *testing.T) {
+// This endpoint answers 206 with no ETag at all, so requiring a strong validator
+// before combining ranges would disable ranged downloads outright and put every
+// file behind a single request with one shared timeout. Ranges continue without
+// one; what is lost is only the ability to notice a replacement of exactly the
+// same length, and an IM attachment is fixed once its message is sent.
+func TestDownloadIMResourceToPathChunksWithoutStrongValidator(t *testing.T) {
 	payload := imRangePayload(probeChunkSize + 4096)
-	var ranges []string
+	var ranges, ifRanges []string
 	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		switch {
 		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_noval/resources/file_noval"):
-			rangeHeader := req.Header.Get("Range")
-			ranges = append(ranges, rangeHeader)
-			if rangeHeader == "" {
-				return shortcutRawResponse(http.StatusOK, payload, http.Header{
-					"Content-Type": []string{"application/octet-stream"},
-				}), nil
-			}
-			start, end, err := parseRangeHeader(rangeHeader, int64(len(payload)))
+			ranges = append(ranges, req.Header.Get("Range"))
+			ifRanges = append(ifRanges, req.Header.Get("If-Range"))
+			start, end, err := parseRangeHeader(req.Header.Get("Range"), int64(len(payload)))
 			if err != nil {
 				return nil, err
 			}
-			// Serves ranges, but offers only a weak entity-tag and a date.
+			// Serves ranges, but offers only a weak entity-tag and a date — neither
+			// may be sent in If-Range.
 			return shortcutRawResponse(http.StatusPartialContent, payload[start:end+1], http.Header{
 				"Content-Type":  []string{"application/octet-stream"},
 				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end, len(payload))},
@@ -1034,8 +1033,18 @@ func TestDownloadIMResourceToPathFallsBackToSingleStreamWithoutStrongValidator(t
 	if size != int64(len(payload)) {
 		t.Fatalf("size = %d, want %d", size, len(payload))
 	}
-	if len(ranges) != 2 || ranges[0] == "" || ranges[1] != "" {
-		t.Fatalf("requests = %#v, want a probe followed by one rangeless request", ranges)
+	if len(ranges) != 2 {
+		t.Fatalf("requests = %#v, want the probe plus one more range", ranges)
+	}
+	for i, r := range ranges {
+		if r == "" {
+			t.Fatalf("request %d went out without a Range header, so ranges were abandoned", i)
+		}
+	}
+	for i, r := range ifRanges {
+		if r != "" {
+			t.Fatalf("request %d sent If-Range %q; neither a weak tag nor a date may be sent there", i, r)
+		}
 	}
 	got, err := os.ReadFile("out.bin")
 	if err != nil {
@@ -1043,178 +1052,6 @@ func TestDownloadIMResourceToPathFallsBackToSingleStreamWithoutStrongValidator(t
 	}
 	if md5.Sum(got) != md5.Sum(payload) {
 		t.Fatalf("payload MD5 = %x, want %x", md5.Sum(got), md5.Sum(payload))
-	}
-}
-
-// The name and MIME type must come from the response the bytes came from. The
-// no-validator branch abandons its probe response, so a stale Content-Disposition
-// on that probe must not name the file that the second response delivered.
-func TestDownloadIMResourceToPathNamesFileFromTheStreamItKept(t *testing.T) {
-	payload := imRangePayload(probeChunkSize + 4096)
-	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		switch {
-		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_name/resources/file_name"):
-			rangeHeader := req.Header.Get("Range")
-			if rangeHeader == "" {
-				return shortcutRawResponse(http.StatusOK, payload, http.Header{
-					"Content-Type":        []string{"application/octet-stream"},
-					"Content-Disposition": []string{`attachment; filename="current.bin"`},
-				}), nil
-			}
-			start, end, err := parseRangeHeader(rangeHeader, int64(len(payload)))
-			if err != nil {
-				return nil, err
-			}
-			// The probe names a different file and offers no usable validator.
-			return shortcutRawResponse(http.StatusPartialContent, payload[start:end+1], http.Header{
-				"Content-Type":        []string{"text/plain"},
-				"Content-Disposition": []string{`attachment; filename="stale.txt"`},
-				"Content-Range":       []string{fmt.Sprintf("bytes %d-%d/%d", start, end, len(payload))},
-			}), nil
-		default:
-			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
-		}
-	}))
-
-	cmdutil.TestChdir(t, t.TempDir())
-	// No --output, so the server's filename decides the name.
-	savedPath, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_name", "file_name", "file", "file_name", false)
-	if err != nil {
-		t.Fatalf("downloadIMResourceToPath() error = %v", err)
-	}
-	if got := filepath.Base(savedPath); got != "current.bin" {
-		t.Fatalf("saved file = %q, want it named after the response that delivered the bytes (current.bin)", got)
-	}
-}
-
-// The adversarial case the fallback exists for: no validator at all, and the
-// resource is replaced by a same-length version between requests. The download
-// must not deliver a file assembled from both.
-func TestDownloadIMResourceToPathNeverMixesVersionsWithoutValidator(t *testing.T) {
-	total := probeChunkSize + 512
-	versionA := bytes.Repeat([]byte("A"), int(total))
-	versionB := bytes.Repeat([]byte("B"), int(total))
-
-	var requests int
-	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		switch {
-		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_mix/resources/file_mix"):
-			requests++
-			current := versionA
-			if requests > 1 {
-				current = versionB
-			}
-			rangeHeader := req.Header.Get("Range")
-			if rangeHeader == "" {
-				return shortcutRawResponse(http.StatusOK, current, http.Header{
-					"Content-Type": []string{"application/octet-stream"},
-				}), nil
-			}
-			start, end, err := parseRangeHeader(rangeHeader, total)
-			if err != nil {
-				return nil, err
-			}
-			return shortcutRawResponse(http.StatusPartialContent, current[start:end+1], http.Header{
-				"Content-Type":  []string{"application/octet-stream"},
-				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end, total)},
-			}), nil
-		default:
-			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
-		}
-	}))
-
-	cmdutil.TestChdir(t, t.TempDir())
-	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_mix", "file_mix", "file", "out.bin", true)
-	if err != nil {
-		t.Fatalf("downloadIMResourceToPath() error = %v", err)
-	}
-	got, readErr := os.ReadFile("out.bin")
-	if readErr != nil {
-		t.Fatalf("ReadFile() error = %v", readErr)
-	}
-	if bytes.Contains(got, []byte("A")) && bytes.Contains(got, []byte("B")) {
-		t.Fatalf("file mixes both versions: first=%q last=%q", got[0:1], got[len(got)-1:])
-	}
-}
-
-// A value that is not a well-formed entity-tag is not a validator: two responses
-// carrying the same malformed string must not be treated as the same version.
-func TestDownloadIMResourceToPathNeverMixesVersionsWithMalformedValidator(t *testing.T) {
-	total := probeChunkSize + 512
-	versionA := bytes.Repeat([]byte("A"), int(total))
-	versionB := bytes.Repeat([]byte("B"), int(total))
-
-	var requests int
-	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		switch {
-		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_badetag/resources/file_badetag"):
-			requests++
-			current := versionA
-			if requests > 1 {
-				current = versionB
-			}
-			header := http.Header{"Content-Type": []string{"application/octet-stream"}}
-			header.Set("ETag", "not-a-valid-entity-tag")
-			rangeHeader := req.Header.Get("Range")
-			if rangeHeader == "" {
-				return shortcutRawResponse(http.StatusOK, current, header), nil
-			}
-			start, end, err := parseRangeHeader(rangeHeader, total)
-			if err != nil {
-				return nil, err
-			}
-			header.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, total))
-			return shortcutRawResponse(http.StatusPartialContent, current[start:end+1], header), nil
-		default:
-			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
-		}
-	}))
-
-	cmdutil.TestChdir(t, t.TempDir())
-	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_badetag", "file_badetag", "file", "out.bin", true)
-	if err != nil {
-		t.Fatalf("downloadIMResourceToPath() error = %v", err)
-	}
-	got, readErr := os.ReadFile("out.bin")
-	if readErr != nil {
-		t.Fatalf("ReadFile() error = %v", readErr)
-	}
-	if bytes.Contains(got, []byte("A")) && bytes.Contains(got, []byte("B")) {
-		t.Fatalf("file mixes both versions: first=%q last=%q", got[0:1], got[len(got)-1:])
-	}
-}
-
-// No strong validator, and the server will not serve the whole resource either.
-// There is no safe way to assemble it, so the download must fail rather than
-// guess.
-func TestDownloadIMResourceToPathFailsWhenNoValidatorAndNoWholeResource(t *testing.T) {
-	payload := imRangePayload(probeChunkSize + 4096)
-	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		switch {
-		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_stubborn/resources/file_stubborn"):
-			start := int64(0)
-			end := probeChunkSize - 1
-			if rangeHeader := req.Header.Get("Range"); rangeHeader != "" {
-				var err error
-				start, end, err = parseRangeHeader(rangeHeader, int64(len(payload)))
-				if err != nil {
-					return nil, err
-				}
-			}
-			return shortcutRawResponse(http.StatusPartialContent, payload[start:end+1], http.Header{
-				"Content-Type":  []string{"application/octet-stream"},
-				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end, len(payload))},
-			}), nil
-		default:
-			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
-		}
-	}))
-
-	cmdutil.TestChdir(t, t.TempDir())
-	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_stubborn", "file_stubborn", "file", "out.bin", true)
-	requireDownloadProblem(t, err, "no strong validator", errs.SubtypeNetworkProtocol, false)
-	if _, statErr := os.Stat("out.bin"); !os.IsNotExist(statErr) {
-		t.Fatalf("output file exists after a rejected download, stat error = %v", statErr)
 	}
 }
 
