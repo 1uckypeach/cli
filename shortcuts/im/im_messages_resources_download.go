@@ -5,6 +5,7 @@ package im
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -260,7 +261,21 @@ func (r *rangeChunkReader) Read(p []byte) (int, error) {
 					return n, nil
 				}
 			default:
-				return n, err
+				// A read error is a transfer failure, but returned raw it reaches the
+				// save wrapper and comes back out as internal/file_io, which points at
+				// the local disk instead of the network. Truncation is the case worth
+				// naming: the short-body check above only sees a clean io.EOF, so a
+				// body that stops short of its own framing would otherwise slip past
+				// every integrity check in this reader.
+				if errors.Is(err, io.ErrUnexpectedEOF) {
+					return 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol,
+						"range response body ended after %d of the %d bytes its Content-Range declared", r.chunkRead, r.chunkWant).
+						WithCause(err)
+				}
+				if _, typed := errs.ProblemOf(err); typed {
+					return n, err
+				}
+				return 0, errs.NewNetworkError(errs.SubtypeNetworkTransport, "reading the resource failed: %s", err).WithCause(err)
 			}
 		}
 

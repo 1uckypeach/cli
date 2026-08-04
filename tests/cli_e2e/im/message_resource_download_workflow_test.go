@@ -52,6 +52,7 @@ func TestIM_MessageResourceDownloadWorkflowAsBot(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(workDir, fixtureRelPath), payload, 0o600))
 
 	messageID := sendFileMessageOrSkipPermission(t, ctx, chatID, workDir, fixtureRelPath)
+	recallMessageOnCleanup(parentT, messageID)
 	fileKey := fileKeyOfMessage(t, ctx, messageID)
 
 	t.Run("download file resource larger than the probe chunk", func(t *testing.T) {
@@ -160,4 +161,27 @@ func fileKeyFromMessageContent(content string) (string, bool) {
 		return "", false
 	}
 	return rest[:end], true
+}
+
+// recallMessageOnCleanup recalls the fixture message once the test is done, so a
+// live run does not leave a file message sitting in the test account on every
+// CI cycle.
+//
+// The chat itself stays: lark-cli exposes no chat-delete command, which is why
+// createChatAs registers an empty cleanup. Recalling the message is the part of
+// create -> use -> cleanup this suite can actually honour; a cleanup failure is
+// reported rather than failing the run, matching the other suites.
+func recallMessageOnCleanup(parentT *testing.T, messageID string) {
+	parentT.Cleanup(func() {
+		cleanupCtx, cancel := clie2e.CleanupContext()
+		defer cancel()
+
+		result, err := clie2e.RunCmdWithRetry(cleanupCtx, clie2e.Request{
+			Args:      []string{"im", "messages", "delete"},
+			Params:    map[string]any{"message_id": messageID},
+			DefaultAs: "bot",
+			Yes:       true,
+		}, clie2e.RetryOptions{})
+		clie2e.ReportCleanupFailure(parentT, "recall IM file message", result, err)
+	})
 }

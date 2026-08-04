@@ -1352,6 +1352,59 @@ func (b *eofWithBytesBody) Read(p []byte) (int, error) {
 
 func (b *eofWithBytesBody) Close() error { return b.closeErr }
 
+// A body that stops short of the length it framed reports io.ErrUnexpectedEOF
+// rather than a clean io.EOF, so it never reaches the short-body check. Returned
+// raw it used to surface as `internal/file_io: cannot create file: unexpected
+// EOF`, blaming the local disk for a truncated response.
+func TestDownloadIMResourceToPathClassifiesTruncatedBody(t *testing.T) {
+	payload := imRangePayload(probeChunkSize + 1024)
+	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_trunc/resources/file_trunc"):
+			start, end, err := parseRangeHeader(req.Header.Get("Range"), int64(len(payload)))
+			if err != nil {
+				return nil, err
+			}
+			header := http.Header{
+				"Content-Type":  []string{"application/octet-stream"},
+				"Content-Range": []string{fmt.Sprintf("bytes %d-%d/%d", start, end, len(payload))},
+			}
+			header.Set("ETag", `"v1"`)
+			// ContentLength promises the full slice; the body delivers less, which
+			// is what net/http reports as io.ErrUnexpectedEOF.
+			body := payload[start : end+1]
+			resp := shortcutRawResponse(http.StatusPartialContent, body[:len(body)-16], header)
+			resp.Body = io.NopCloser(&truncatedReader{remaining: body[:len(body)-16]})
+			resp.ContentLength = int64(len(body))
+			return resp, nil
+		default:
+			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
+		}
+	}))
+
+	cmdutil.TestChdir(t, t.TempDir())
+	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_trunc", "file_trunc", "file", "out.bin", true)
+	requireDownloadProblem(t, err, "ended after", errs.SubtypeNetworkProtocol, false)
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("truncation should be preserved as the cause, got %v", err)
+	}
+}
+
+// truncatedReader hands back its bytes and then reports the framing violation
+// net/http reports when a body is shorter than its Content-Length.
+type truncatedReader struct {
+	remaining []byte
+}
+
+func (r *truncatedReader) Read(p []byte) (int, error) {
+	if len(r.remaining) == 0 {
+		return 0, io.ErrUnexpectedEOF
+	}
+	n := copy(p, r.remaining)
+	r.remaining = r.remaining[n:]
+	return n, nil
+}
+
 // A failing Close must not replace the protocol error that ended the transfer.
 // It used to: the close error propagated instead and the outer save wrapper
 // re-classified it as internal/file_io, so the envelope no longer said why the
