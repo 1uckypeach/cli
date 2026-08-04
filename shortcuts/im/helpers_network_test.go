@@ -598,9 +598,7 @@ func TestDownloadIMResourceToPathInvalidContentRange(t *testing.T) {
 
 	cmdutil.TestChdir(t, t.TempDir())
 	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_bad", "file_bad", "file", "out.bin", true)
-	if err == nil || !strings.Contains(err.Error(), "invalid Content-Range header") {
-		t.Fatalf("downloadIMResourceToPath() error = %v", err)
-	}
+	requireDownloadProblem(t, err, "invalid Content-Range header", errs.SubtypeNetworkProtocol, false)
 }
 
 func TestDownloadIMResourceToPathRangeChunkFailureCleansOutput(t *testing.T) {
@@ -662,9 +660,7 @@ func TestDownloadIMResourceToPathRangeOverflowCleansOutput(t *testing.T) {
 
 	target := "out.bin"
 	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_overflow", "file_overflow", "file", target, true)
-	if err == nil || !strings.Contains(err.Error(), "chunk overflow") {
-		t.Fatalf("downloadIMResourceToPath() error = %v", err)
-	}
+	requireDownloadProblem(t, err, "chunk overflow", errs.SubtypeNetworkProtocol, false)
 	if _, statErr := os.Stat(target); !os.IsNotExist(statErr) {
 		t.Fatalf("output file exists after overflow, stat error = %v", statErr)
 	}
@@ -1050,6 +1046,47 @@ func TestDownloadIMResourceToPathFallsBackToSingleStreamWithoutStrongValidator(t
 	}
 }
 
+// The name and MIME type must come from the response the bytes came from. The
+// no-validator branch abandons its probe response, so a stale Content-Disposition
+// on that probe must not name the file that the second response delivered.
+func TestDownloadIMResourceToPathNamesFileFromTheStreamItKept(t *testing.T) {
+	payload := imRangePayload(probeChunkSize + 4096)
+	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_name/resources/file_name"):
+			rangeHeader := req.Header.Get("Range")
+			if rangeHeader == "" {
+				return shortcutRawResponse(http.StatusOK, payload, http.Header{
+					"Content-Type":        []string{"application/octet-stream"},
+					"Content-Disposition": []string{`attachment; filename="current.bin"`},
+				}), nil
+			}
+			start, end, err := parseRangeHeader(rangeHeader, int64(len(payload)))
+			if err != nil {
+				return nil, err
+			}
+			// The probe names a different file and offers no usable validator.
+			return shortcutRawResponse(http.StatusPartialContent, payload[start:end+1], http.Header{
+				"Content-Type":        []string{"text/plain"},
+				"Content-Disposition": []string{`attachment; filename="stale.txt"`},
+				"Content-Range":       []string{fmt.Sprintf("bytes %d-%d/%d", start, end, len(payload))},
+			}), nil
+		default:
+			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
+		}
+	}))
+
+	cmdutil.TestChdir(t, t.TempDir())
+	// No --output, so the server's filename decides the name.
+	savedPath, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_name", "file_name", "file", "file_name", false)
+	if err != nil {
+		t.Fatalf("downloadIMResourceToPath() error = %v", err)
+	}
+	if got := filepath.Base(savedPath); got != "current.bin" {
+		t.Fatalf("saved file = %q, want it named after the response that delivered the bytes (current.bin)", got)
+	}
+}
+
 // The adversarial case the fallback exists for: no validator at all, and the
 // resource is replaced by a same-length version between requests. The download
 // must not deliver a file assembled from both.
@@ -1239,7 +1276,7 @@ func TestDownloadIMResourceToPathRejectsMissingValidatorOnLaterChunk(t *testing.
 
 	cmdutil.TestChdir(t, t.TempDir())
 	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_noetag", "file_noetag", "file", "out.bin", true)
-	requireDownloadProblem(t, err, "carries validator \"\"", errs.SubtypeRepresentationChanged, true)
+	requireDownloadProblem(t, err, "carries no usable validator", errs.SubtypeNetworkProtocol, false)
 }
 
 // One byte per response must not turn a download into one request per byte.
@@ -1268,8 +1305,8 @@ func TestDownloadIMResourceToPathCapsRangeResponseCount(t *testing.T) {
 	cmdutil.TestChdir(t, t.TempDir())
 	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_cap", "file_cap", "file", "out.bin", true)
 	requireDownloadProblem(t, err, "range responses; giving up", errs.SubtypeNetworkProtocol, false)
-	if want := maxRangeResponses(total); requests > want+1 {
-		t.Fatalf("resource requests = %d, want no more than %d", requests, want+1)
+	if want := maxRangeResponses(total); requests != want {
+		t.Fatalf("resource requests = %d, want exactly the ceiling %d", requests, want)
 	}
 	if _, statErr := os.Stat("out.bin"); !os.IsNotExist(statErr) {
 		t.Fatalf("output file exists after a capped download, stat error = %v", statErr)
@@ -1292,6 +1329,58 @@ func TestMaxRangeResponses(t *testing.T) {
 				t.Fatalf("maxRangeResponses(%d) = %d, want %d", tt.total, got, tt.want)
 			}
 		})
+	}
+}
+
+// eofWithBytesBody hands back its payload together with io.EOF in one Read,
+// which io.Reader permits and net/http bodies do when Content-Length is known,
+// and fails on Close. It is the only shape that reaches the branch where a
+// close error could mask the integrity error that ended the transfer.
+type eofWithBytesBody struct {
+	payload   []byte
+	delivered bool
+	closeErr  error
+}
+
+func (b *eofWithBytesBody) Read(p []byte) (int, error) {
+	if b.delivered {
+		return 0, io.EOF
+	}
+	b.delivered = true
+	return copy(p, b.payload), io.EOF
+}
+
+func (b *eofWithBytesBody) Close() error { return b.closeErr }
+
+// A failing Close must not replace the protocol error that ended the transfer.
+// It used to: the close error propagated instead and the outer save wrapper
+// re-classified it as internal/file_io, so the envelope no longer said why the
+// download stopped.
+func TestDownloadIMResourceToPathKeepsProtocolErrorWhenCloseFails(t *testing.T) {
+	closeErr := errors.New("close failed")
+	runtime := newBotShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case strings.Contains(req.URL.Path, "/open-apis/im/v1/messages/om_close/resources/file_close"):
+			// Content-Range promises 4 bytes; the body carries 16.
+			return &http.Response{
+				StatusCode: http.StatusPartialContent,
+				Header: http.Header{
+					"Content-Type":  []string{"application/octet-stream"},
+					"Content-Range": []string{"bytes 0-3/4"},
+				},
+				Body:          &eofWithBytesBody{payload: []byte("overflow-payload"), closeErr: closeErr},
+				ContentLength: 16,
+			}, nil
+		default:
+			return nil, fmt.Errorf("unexpected request: %s", req.URL.String())
+		}
+	}))
+
+	cmdutil.TestChdir(t, t.TempDir())
+	_, _, err := downloadIMResourceToPath(context.Background(), runtime, "om_close", "file_close", "file", "out.bin", true)
+	requireDownloadProblem(t, err, "chunk overflow", errs.SubtypeNetworkProtocol, false)
+	if !errors.Is(err, closeErr) {
+		t.Fatalf("close error should be preserved as the cause, got %v", err)
 	}
 }
 

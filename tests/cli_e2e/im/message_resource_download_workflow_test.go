@@ -17,18 +17,22 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// resourceDownloadFixtureSize is deliberately larger than the 128 KiB probe
-// chunk the downloader uses, so a live run exercises the ranged path — the
-// probe, the follow-up range requests, and the Content-Range and validator
-// checks that hold them together — rather than the single-stream path.
+// resourceDownloadFixtureSize is larger than the 128 KiB probe chunk, so the
+// download sends a Range header and the ranged path runs whenever the endpoint
+// honours it.
+//
+// What this test can prove is that a real upload/download round trip returns the
+// exact bytes. It cannot prove which path ran: nothing in the command output
+// says whether the endpoint answered 206 or ignored the Range and answered 200,
+// so a green run is not evidence that the Content-Range and validator checks
+// executed. Those are pinned by the unit tests in shortcuts/im.
 const resourceDownloadFixtureSize = 320 * 1024
 
 // TestIM_MessageResourceDownloadWorkflowAsBot uploads a file through
 // `im +messages-send`, reads its file_key back off the message, downloads it
-// with `im +messages-resources-download`, and compares the bytes. It is the
-// only coverage that exercises the real endpoint's Content-Range, ETag and
-// Content-Disposition behaviour; unit tests can only assert what a fake server
-// was told to send.
+// with `im +messages-resources-download`, and compares the bytes. It is the only
+// coverage that runs the shortcut against the real endpoint rather than a fake
+// server told what to send.
 func TestIM_MessageResourceDownloadWorkflowAsBot(t *testing.T) {
 	clie2e.SkipWithoutTenantAccessToken(t)
 	parentT := t

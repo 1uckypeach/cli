@@ -544,6 +544,11 @@ func TestParseContentRange(t *testing.T) {
 		wantErr      string
 	}{
 		{name: "normal", contentRange: "bytes 0-131071/104857600", want: contentRange{start: 0, end: 131071, total: 104857600}},
+		// RFC 9110 14.1 spells bytes-unit as a plain ABNF string, so the unit
+		// matches either case.
+		{name: "uppercase unit", contentRange: "Bytes 0-9/10", want: contentRange{start: 0, end: 9, total: 10}},
+		{name: "mixed case unit", contentRange: "BYTES 0-9/10", want: contentRange{start: 0, end: 9, total: 10}},
+		{name: "unknown unit", contentRange: "pages 0-9/10", wantErr: `unsupported content-range: "pages 0-9/10"`},
 		{name: "mid file slice", contentRange: "bytes 131072-262143/104857600", want: contentRange{start: 131072, end: 262143, total: 104857600}},
 		{name: "single small chunk", contentRange: "bytes 0-15/16", want: contentRange{start: 0, end: 15, total: 16}},
 		{name: "empty", contentRange: "", wantErr: "content-range is empty"},
