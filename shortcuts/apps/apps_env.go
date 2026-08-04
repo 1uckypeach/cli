@@ -161,7 +161,7 @@ var AppsEnvVarDelete = common.Shortcut{
 	Description: "Delete app environment variables",
 	Risk:        "high-risk-write",
 	Tips: []string{
-		"Example: lark-cli apps +env-delete --app-id <app_id> --key FOO --yes",
+		"Example: lark-cli apps +env-delete --app-id <app_id> --key FOO --yes   # only after the user has confirmed",
 	},
 	Scopes:    []string{"spark:app:write"},
 	AuthTypes: []string{"user"},
