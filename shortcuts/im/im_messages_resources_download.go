@@ -364,28 +364,30 @@ func initialIMResourceDownloadHeaders(fileType string) map[string]string {
 }
 
 // downloadIMResourceAsSingleStream re-requests the resource without a Range
-// header so it arrives as one body. It is the fallback for a server that serves
-// ranges but offers no strong validator to tie them together.
-func downloadIMResourceAsSingleStream(ctx context.Context, runtime *common.RuntimeContext, messageID, fileKey, fileType string) (*http.Response, error) {
+// header so it arrives as one body, and returns that body with its length. It
+// is the fallback for a server that serves ranges but offers no strong
+// validator to tie them together. It hands back the body rather than the
+// response so ownership of the close is unambiguous at the call site.
+func downloadIMResourceAsSingleStream(ctx context.Context, runtime *common.RuntimeContext, messageID, fileKey, fileType string) (io.ReadCloser, int64, error) {
 	resp, err := doIMResourceDownloadRequest(ctx, runtime, messageID, fileKey, fileType, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if resp == nil {
-		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport, "download failed: empty response")
+		return nil, 0, errs.NewNetworkError(errs.SubtypeNetworkTransport, "download failed: empty response")
 	}
 	if resp.StatusCode >= 400 {
 		defer resp.Body.Close()
-		return nil, downloadResponseError(resp)
+		return nil, 0, downloadResponseError(resp)
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		return nil, errs.NewNetworkError(errs.SubtypeNetworkProtocol,
+		return nil, 0, errs.NewNetworkError(errs.SubtypeNetworkProtocol,
 			"the server serves this resource in ranges but offers no strong validator to tie them together, and it answered a rangeless request with HTTP %d instead of the whole resource",
 			resp.StatusCode).
 			WithHint("the resource cannot be downloaded without risking a file assembled from two different versions")
 	}
-	return resp, nil
+	return resp.Body, resp.ContentLength, nil
 }
 
 func downloadIMResourceToPath(ctx context.Context, runtime *common.RuntimeContext, messageID, fileKey, fileType, outputPath string, preserveBasename bool) (string, int64, error) {
@@ -429,12 +431,12 @@ func downloadIMResourceToPath(ctx context.Context, runtime *common.RuntimeContex
 			// same file. Drop the probe and read the resource as a single stream
 			// instead — a whole body needs no combining.
 			downloadResp.Body.Close()
-			full, fullErr := downloadIMResourceAsSingleStream(ctx, runtime, messageID, fileKey, fileType)
+			fullBody, fullSize, fullErr := downloadIMResourceAsSingleStream(ctx, runtime, messageID, fileKey, fileType)
 			if fullErr != nil {
 				return "", 0, fullErr
 			}
-			body = full.Body
-			sizeBytes = full.ContentLength
+			body = fullBody
+			sizeBytes = fullSize
 			break
 		}
 		body = newRangeChunkReader(ctx, runtime, messageID, fileKey, fileType, downloadResp.Body, firstRange, validator)
