@@ -146,6 +146,7 @@ jobs:
   shim-test-windows:
     needs: fast-gate
     runs-on: windows-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
@@ -154,7 +155,7 @@ jobs:
         with:
           node-version: '22'
       - name: Run npm shim tests on Windows
-        run: node --test scripts/run.test.js
+        run: node --test scripts/run.test.js scripts/install.test.js
 
   deterministic-gate:
     needs: fast-gate

@@ -15,13 +15,13 @@ const IS_ROOT =
 const BIN_NAME = "lark-cli" + (IS_WINDOWS ? ".exe" : "");
 const SENTINEL = "--sentinel=LEAKCANARY";
 const SENTINEL_TOKEN = "LEAKCANARY";
-// Single-line, easily-flippable platform gate for the win32 NTSTATUS crash
-// test below (spec 6.2 row 1b). To confirm its assertions are real (not a
+// Single-line, easily-flippable platform gate for the win32 NTSTATUS tests
+// below (spec 6.2 row 1b). To confirm their assertions are real (not a
 // vacuous skip), temporarily hardcode `true` here on a non-Windows host and
 // run the suite: the test then executes for real, and it MUST fail, because
 // run.js still checks the real process.platform (so its crash branch stays
 // dark) and this OS truncates process.exit() codes to 8 bits before Node
-// ever sees them (0xC0000005 -> 5). Restore this line to
+// ever sees them (for example, 0xC0000005 -> 5). Restore this line to
 // `IS_WINDOWS` before committing.
 const IS_WIN32_CRASH_TESTABLE = IS_WINDOWS;
 
@@ -66,13 +66,12 @@ function makeSandbox(t) {
   // run.js runs install.js when the binary is missing. A stub that exits 0
   // without producing one lets the "installer succeeded but produced nothing"
   // path reach the launch attempt instead of stopping earlier.
-  fs.writeFileSync(
-    path.join(root, "scripts", "install.js"),
-    "process.exit(0);\n"
-  );
+  const installJs = path.join(root, "scripts", "install.js");
+  fs.writeFileSync(installJs, "process.exit(0);\n");
   return {
     root,
     bin: path.join(root, "bin", BIN_NAME),
+    installJs,
     runJs: path.join(root, "scripts", "run.js"),
   };
 }
@@ -153,60 +152,30 @@ function assertLaunchFailure(res, sandbox) {
 }
 
 describe("run.js launch-failure diagnostics", () => {
-  it("reports a binary that fails to launch instead of exiting silently", (t) => {
-    const sandbox = makeSandbox(t);
+  for (const [name, content] of [
+    ["zero-byte", Buffer.alloc(0)],
+    ["whitespace-only", Buffer.from("    \n")],
+  ]) {
+    it(`rejects a ${name} binary instead of silently succeeding`, (t) => {
+      const sandbox = makeSandbox(t);
+      fs.writeFileSync(sandbox.bin, content);
+      if (!IS_WINDOWS) {
+        fs.chmodSync(sandbox.bin, 0o755);
+      }
 
-    if (IS_WINDOWS) {
-      // On win32 a zero-byte file is not a valid PE image, so CreateProcess
-      // genuinely fails to start it: this really is a launch failure there.
-      fs.writeFileSync(sandbox.bin, "");
-    } else {
-      // A 0-byte + executable file is NOT a launch failure on Linux/glibc.
-      // libuv uses execvp, and glibc's execvp falls back to running the file
-      // through /bin/sh whenever execve returns ENOEXEC. /bin/sh then
-      // executes the empty file as an empty script and exits 0 --
-      // execFileSync never throws, so this branch would never fire (measured
-      // as uid 0 in the Linux sandbox container: no throw, child exited 0).
-      // This is NOT true of POSIX generally: measured on macOS (posix_spawn,
-      // no shell fallback), the identical 0-byte 0755 file makes
-      // execFileSync THROW ENOEXEC instead. Do NOT "simplify" this back to a
-      // 0-byte file. A directory at the bin path passes the shim's existence
-      // check and then fails at exec with EACCES on both platforms, and
-      // unlike chmod 0o000 that holds for uid 0 too, so this still proves the
-      // branch when CI runs as root.
-      fs.mkdirSync(sandbox.bin);
-    }
+      const res = runShim(sandbox, ["--version", SENTINEL]);
+
+      assert.equal(assertLaunchFailure(res, sandbox), "INVALID_BINARY");
+    });
+  }
+
+  it("rejects a non-file binary path", (t) => {
+    const sandbox = makeSandbox(t);
+    fs.mkdirSync(sandbox.bin);
 
     const res = runShim(sandbox, ["--version", SENTINEL]);
-    const reason = assertLaunchFailure(res, sandbox);
 
-    if (IS_WINDOWS) {
-      // The errno is deliberately not pinned to a literal here: what Windows
-      // reports for a 0-byte .exe is still unverified, and finding out is
-      // the reason this file also runs on windows-latest. Only require that
-      // something specific was captured.
-      assert.notEqual(reason, "UNKNOWN", "the OS error was not captured");
-
-      // Endpoint protection can quarantine a zero-byte .exe, which would
-      // silently turn this into the missing-binary case.
-      assert.ok(fs.existsSync(sandbox.bin), "fixture binary vanished before launch");
-      assert.equal(
-        fs.statSync(sandbox.bin).size,
-        0,
-        "fixture binary is no longer zero-byte"
-      );
-    } else {
-      // Measured with one identical directory fixture on both macOS (uid 501)
-      // and Linux (uid 0): EACCES both times, so this can be pinned exactly.
-      assert.equal(reason, "EACCES");
-    }
-
-    if (process.env.GITHUB_STEP_SUMMARY) {
-      fs.appendFileSync(
-        process.env.GITHUB_STEP_SUMMARY,
-        `- \`run.js\` unlaunchable binary on ${process.platform}: \`${reason}\`\n`
-      );
-    }
+    assert.equal(assertLaunchFailure(res, sandbox), "INVALID_BINARY");
   });
 
   it(
@@ -216,8 +185,7 @@ describe("run.js launch-failure diagnostics", () => {
         ? "POSIX execute bit"
         : IS_ROOT
         ? "mode 0000 does not deny exec for uid 0, so this fixture cannot " +
-          "produce EACCES when running as root; the directory fixture above " +
-          "keeps EACCES covered"
+          "produce EACCES when running as root"
         : false,
     },
     (t) => {
@@ -237,6 +205,28 @@ describe("run.js launch-failure diagnostics", () => {
     const res = runShim(sandbox, ["--version", SENTINEL]);
 
     assert.equal(assertLaunchFailure(res, sandbox), "ENOENT");
+  });
+
+  it("reports an auto-install process failure", (t) => {
+    const sandbox = makeSandbox(t);
+    fs.writeFileSync(sandbox.installJs, "process.exit(7);\n");
+
+    const res = runShim(sandbox, ["--version", SENTINEL]);
+
+    assert.equal(res.status, 1);
+    assert.equal(res.stdout, "", `stdout should stay empty: ${res.stdout}`);
+    assert.ok(
+      res.stderr.includes("Failed to auto-install lark-cli binary"),
+      `missing auto-install diagnostic: ${res.stderr}`
+    );
+    assert.ok(
+      res.stderr.includes(sandbox.installJs),
+      `auto-install diagnostic omits the install path: ${res.stderr}`
+    );
+    assert.ok(
+      !res.stderr.includes(SENTINEL_TOKEN),
+      `caller arguments leaked into stderr: ${res.stderr}`
+    );
   });
 });
 
@@ -298,39 +288,62 @@ describe("run.js pass-through when the binary runs", () => {
     }
   );
 
+  for (const [name, status] of [
+    ["STATUS_FATAL_APP_EXIT", 0x40000015],
+    ["STATUS_BREAKPOINT", 0x80000003],
+    ["STATUS_ACCESS_VIOLATION", 0xc0000005],
+  ]) {
+    it(
+      `reports ${name} and preserves its win32 NTSTATUS`,
+      {
+        skip: IS_WIN32_CRASH_TESTABLE
+          ? false
+          : "win32-only: POSIX truncates process exit codes to 8 bits, " +
+            "so NTSTATUS passthrough cannot be reproduced outside win32",
+      },
+      (t) => {
+        const sandbox = makeSandbox(t);
+        installRunnableBinary(sandbox);
+
+        const res = runRanBinary(sandbox, `process.exit(${status})`);
+
+        assert.equal(res.status, status, "the raw NTSTATUS must be preserved");
+        assert.equal(res.stdout, "", `stdout should stay empty: ${res.stdout}`);
+        assert.equal(
+          res.stderr,
+          `\nlark-cli: the native binary crashed (status 0x${status.toString(16)}).\n` +
+            `  path:  ${sandbox.bin}\n`
+        );
+        assert.ok(
+          !res.stderr.includes(MARKER),
+          `win32 crash was misreported as a launch failure: ${res.stderr}`
+        );
+        assert.ok(
+          !res.stderr.includes(SENTINEL_TOKEN),
+          `caller arguments leaked into stderr: ${res.stderr}`
+        );
+      }
+    );
+  }
+
   it(
-    "reports a win32 NTSTATUS crash instead of forwarding the status silently",
+    "keeps STATUS_CONTROL_C_EXIT quiet and preserves its win32 NTSTATUS",
     {
       skip: IS_WIN32_CRASH_TESTABLE
         ? false
-        : "win32-only: POSIX truncates process.exit() codes to 8 bits " +
-          "(0xC0000005 -> 5), so the NTSTATUS crash range this branch " +
-          "detects cannot be reproduced outside win32 (spec 6.2 row 1b)",
+        : "win32-only: POSIX truncates NTSTATUS values to 8 bits",
     },
     (t) => {
       const sandbox = makeSandbox(t);
       installRunnableBinary(sandbox);
 
-      const res = runRanBinary(sandbox, "process.exit(0xC0000005)");
+      const status = 0xc000013a;
+      const res = runRanBinary(sandbox, `process.exit(${status})`);
 
-      assert.equal(res.status, 1);
+      assert.equal(res.status, status, "the raw NTSTATUS must be preserved");
       assert.equal(res.stdout, "", `stdout should stay empty: ${res.stdout}`);
-      assert.ok(
-        res.stderr.includes("crashed (status 0xc0000005"),
-        `missing win32 crash diagnostic: ${res.stderr}`
-      );
-      assert.ok(
-        res.stderr.includes(sandbox.bin),
-        `diagnostic omits the binary path: ${res.stderr}`
-      );
-      assert.ok(
-        !res.stderr.includes(MARKER),
-        `win32 crash was misreported as a launch failure: ${res.stderr}`
-      );
-      assert.ok(
-        !res.stderr.includes(SENTINEL_TOKEN),
-        `caller arguments leaked into stderr: ${res.stderr}`
-      );
+      assert.equal(res.stderr, "", `stderr should stay empty: ${res.stderr}`);
+      assertBinaryRan(res);
     }
   );
 
@@ -387,122 +400,135 @@ describe("run.js pass-through when the binary runs", () => {
 // child_process "close" event interacts with unread pipe backlog once the
 // writer has exited (epoll vs kqueue), not evidence about run.js's
 // correctness, so it is not treated as a platform for this regression test.
+const BACKPRESSURE_TEST_OPTIONS = {
+  skip:
+    process.platform === "linux"
+      ? false
+      : "Linux-only: this harness's determinism relies on Linux pipe/close semantics",
+  timeout: 15000,
+};
+
+// Bigger than any realistic OS pipe buffer (measured ~256KB on the Linux CI
+// container). The child is killed while blocked in this write, before it can
+// return and create room for the shim's diagnostic.
+const BLOCKING_CHILD_CODE =
+  "const fs = require('fs');" +
+  "const buf = Buffer.alloc(5000000, 0x78);" +
+  "let off = 0;" +
+  "while (off < buf.length) { off += fs.writeSync(2, buf, off, buf.length - off); }" +
+  "console.error('unreachable: should have been killed first');";
+
+function expectDiagnosticUnderBackpressure(
+  t,
+  sandbox,
+  shimArgs,
+  expectedDiagnostic,
+  expectedPath
+) {
+  return new Promise((resolve, reject) => {
+    const shim = spawn(process.execPath, [sandbox.runJs, ...shimArgs], {
+      stdio: ["ignore", "ignore", "pipe"],
+      // A separate process group lets the cleanup hook stop both the shim and
+      // its blocked child on every rejection or timeout path.
+      detached: true,
+    });
+    t.after(() => {
+      try {
+        process.kill(-shim.pid, "SIGKILL");
+      } catch (err) {
+        if (err.code !== "ESRCH") {
+          throw err;
+        }
+      }
+    });
+
+    // Attach up front: a broken implementation may exit before the reader is
+    // attached, which is precisely the failure this helper must observe.
+    const closed = new Promise((res) => shim.on("close", res));
+    shim.on("error", reject);
+
+    setTimeout(() => {
+      let fixturePid = null;
+      try {
+        const out = execFileSync("pgrep", ["-P", String(shim.pid)])
+          .toString()
+          .trim();
+        fixturePid = out ? Number(out.split("\n")[0]) : null;
+      } catch (err) {
+        reject(new Error(`could not discover the fixture pid: ${err.message}`));
+        return;
+      }
+      if (!fixturePid) {
+        reject(new Error("fixture pid not found under the shim"));
+        return;
+      }
+      process.kill(fixturePid, "SIGKILL");
+
+      // Keep the pipe unread while run.js queues its diagnostic, then drain it.
+      setTimeout(() => {
+        let stderr = "";
+        shim.stderr.on("data", (chunk) => {
+          stderr += chunk;
+        });
+        closed.then((code) => {
+          try {
+            assert.equal(code, 1);
+            assert.ok(
+              stderr.includes(expectedDiagnostic),
+              `diagnostic dropped under stderr backpressure ` +
+                `(captured ${stderr.length} bytes): ` +
+                JSON.stringify(stderr.slice(-300))
+            );
+            assert.ok(
+              stderr.includes(expectedPath),
+              `diagnostic omits its relevant path: ${stderr.slice(-300)}`
+            );
+            assert.ok(
+              !stderr.includes(SENTINEL_TOKEN),
+              "caller arguments leaked into stderr under backpressure"
+            );
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        }, reject);
+      }, 300);
+    }, 300);
+  });
+}
+
 describe("run.js flush safety under stderr backpressure", () => {
   it(
     "keeps the crash-signal diagnostic when stderr is a slow-draining pipe",
-    {
-      skip:
-        process.platform === "linux"
-          ? false
-          : "Linux-only: this harness's determinism relies on Linux's " +
-            "pipe/close semantics (see comment above); not evidence about " +
-            "run.js itself, which is exercised on this platform by the " +
-            "other POSIX signal tests in this file",
-      timeout: 15000,
-    },
+    BACKPRESSURE_TEST_OPTIONS,
     (t) => {
       const sandbox = makeSandbox(t);
       installRunnableBinary(sandbox);
 
-      // Bigger than any realistic OS pipe buffer (measured ~256KB on the
-      // Linux CI container), so the fixture's blocking fs.writeSync loop
-      // genuinely fills the pipe and blocks in the kernel until a reader
-      // drains it -- real backpressure, not a simulation. It never gets to
-      // write all of this; it is killed mid-loop.
-      const fillBytes = 5000000;
-      const childCode =
-        "const fs = require('fs');" +
-        `const buf = Buffer.alloc(${fillBytes}, 0x78);` +
-        "let off = 0;" +
-        "while (off < buf.length) { off += fs.writeSync(2, buf, off, buf.length - off); }" +
-        "console.error('unreachable: should have been killed first');";
+      return expectDiagnosticUnderBackpressure(
+        t,
+        sandbox,
+        ["-e", BLOCKING_CHILD_CODE, "--", SENTINEL],
+        "the native binary was terminated by signal SIGKILL",
+        sandbox.bin
+      );
+    }
+  );
 
-      return new Promise((resolve, reject) => {
-        const shim = spawn(
-          process.execPath,
-          [sandbox.runJs, "-e", childCode, "--", SENTINEL],
-          {
-            stdio: ["ignore", "ignore", "pipe"],
-            // The test is Linux-only. A separate process group lets the
-            // cleanup hook stop both the shim and its blocked child on every
-            // rejection or timeout path.
-            detached: true,
-          }
-        );
-        t.after(() => {
-          try {
-            process.kill(-shim.pid, "SIGKILL");
-          } catch (err) {
-            if (err.code !== "ESRCH") {
-              throw err;
-            }
-          }
-        });
+  it(
+    "keeps the auto-install diagnostic when stderr is a slow-draining pipe",
+    BACKPRESSURE_TEST_OPTIONS,
+    (t) => {
+      const sandbox = makeSandbox(t);
+      fs.writeFileSync(sandbox.installJs, BLOCKING_CHILD_CODE);
 
-        // Attach the close listener up front. With the fixed shim, run.js's
-        // own process stays alive until its diagnostic write actually
-        // flushes, but that is exactly what this test must not assume --
-        // attaching this late could miss an early "close".
-        const closed = new Promise((res) => shim.on("close", res));
-        shim.on("error", reject);
-
-        setTimeout(() => {
-          // run.js's execFileSync gives the fixture no pid of its own to
-          // the caller (it is a grandchild); discover it as the shim's
-          // child process instead.
-          let fixturePid = null;
-          try {
-            const out = execFileSync("pgrep", ["-P", String(shim.pid)])
-              .toString()
-              .trim();
-            fixturePid = out ? Number(out.split("\n")[0]) : null;
-          } catch (err) {
-            reject(
-              new Error(`could not discover the fixture pid: ${err.message}`)
-            );
-            return;
-          }
-          if (!fixturePid) {
-            reject(new Error("fixture pid not found under the shim"));
-            return;
-          }
-          process.kill(fixturePid, "SIGKILL");
-
-          // Leave the pipe completely unread for a further stretch so that
-          // whatever run.js attempts to write next lands on a pipe that is
-          // still genuinely full, not one this test has started draining.
-          setTimeout(() => {
-            let stderr = "";
-            shim.stderr.on("data", (chunk) => {
-              stderr += chunk;
-            });
-            closed.then((code) => {
-              try {
-                assert.equal(code, 1);
-                assert.ok(
-                  stderr.includes(
-                    "the native binary was terminated by signal SIGKILL"
-                  ),
-                  `diagnostic dropped under stderr backpressure ` +
-                    `(captured ${stderr.length} bytes): ` +
-                    JSON.stringify(stderr.slice(-300))
-                );
-                assert.ok(
-                  stderr.includes(sandbox.bin),
-                  `diagnostic omits the binary path: ${stderr.slice(-300)}`
-                );
-                assert.ok(
-                  !stderr.includes(SENTINEL_TOKEN),
-                  `caller arguments leaked into stderr under backpressure`
-                );
-                resolve();
-              } catch (err) {
-                reject(err);
-              }
-            }, reject);
-          }, 300);
-        }, 300);
-      });
+      return expectDiagnosticUnderBackpressure(
+        t,
+        sandbox,
+        ["--version", SENTINEL],
+        "Failed to auto-install lark-cli binary",
+        sandbox.installJs
+      );
     }
   );
 });

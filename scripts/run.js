@@ -9,6 +9,74 @@ const path = require("path");
 const ext = process.platform === "win32" ? ".exe" : "";
 const bin = path.join(__dirname, "..", "bin", "lark-cli" + ext);
 
+const MACHO_MAGICS = new Set([
+  0xfeedface,
+  0xfeedfacf,
+  0xcefaedfe,
+  0xcffaedfe,
+  0xcafebabe,
+  0xbebafeca,
+  0xcafebabf,
+  0xbfbafeca,
+]);
+
+// Return null only for a non-empty native executable for this platform.
+// In particular, Linux/glibc treats an empty or shell-like executable as an
+// empty /bin/sh script after ENOEXEC, which would otherwise make the shim
+// silently exit 0 even though the native binary never ran.
+function binaryProblem(filePath) {
+  let stat;
+  try {
+    stat = fs.statSync(filePath);
+  } catch (err) {
+    return typeof err.code === "string" ? err.code : "UNKNOWN";
+  }
+  if (!stat.isFile() || stat.size === 0) {
+    return "INVALID_BINARY";
+  }
+
+  const header = Buffer.alloc(4);
+  let fd;
+  let bytesRead;
+  try {
+    fd = fs.openSync(filePath, "r");
+    bytesRead = fs.readSync(fd, header, 0, header.length, 0);
+  } catch (err) {
+    return typeof err.code === "string" ? err.code : "UNKNOWN";
+  } finally {
+    if (fd !== undefined) {
+      fs.closeSync(fd);
+    }
+  }
+
+  if (process.platform === "win32") {
+    return bytesRead >= 2 && header[0] === 0x4d && header[1] === 0x5a
+      ? null
+      : "INVALID_BINARY";
+  }
+  if (process.platform === "linux") {
+    const isELF =
+      bytesRead === 4 &&
+      header.equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46]));
+    return isELF ? null : "INVALID_BINARY";
+  }
+  if (process.platform === "darwin") {
+    return bytesRead === 4 && MACHO_MAGICS.has(header.readUInt32BE(0))
+      ? null
+      : "INVALID_BINARY";
+  }
+  return "INVALID_BINARY";
+}
+
+function reportLaunchFailure(reason) {
+  console.error(
+    `\nlark-cli: failed to launch the native binary.\n` +
+    `  path:  ${bin}\n` +
+    `  error: ${reason}`
+  );
+  process.exitCode = 1;
+}
+
 // On Windows, a crashed self-update may have left the binary renamed to .old.
 // Recover it before proceeding so the CLI remains functional.
 const oldBin = bin + ".old";
@@ -47,8 +115,10 @@ const args = process.argv.slice(2);
 if (args[0] === "install") {
   require("./install-wizard.js");
 } else {
-  // Auto-download binary if missing (e.g. npx skipped postinstall).
-  if (!fs.existsSync(bin)) {
+  // Auto-download a missing or invalid binary (e.g. npx skipped postinstall,
+  // or an interrupted install left a partial destination behind).
+  let problem = binaryProblem(bin);
+  if (problem === "ENOENT" || problem === "INVALID_BINARY") {
     try {
       execFileSync(process.execPath, [path.join(__dirname, "install.js")], {
         stdio: "inherit",
@@ -60,16 +130,22 @@ if (args[0] === "install") {
         `To fix, run the install script manually:\n` +
         `  node "${path.join(__dirname, "install.js")}"\n`
       );
-      process.exit(1);
+      process.exitCode = 1;
+      return;
+    }
+
+    problem = binaryProblem(bin);
+    if (problem !== null) {
+      reportLaunchFailure(problem);
+      return;
     }
   }
 
   try {
     execFileSync(bin, args, { stdio: "inherit" });
   } catch (e) {
-    // Every branch below that prints a diagnostic ends with
-    // `process.exitCode = 1` and a plain return/fallthrough, never
-    // `process.exit(1)`. On POSIX, writes to a piped stderr are asynchronous
+    // Every branch below that prints a diagnostic returns naturally instead
+    // of calling `process.exit(1)`. On POSIX, writes to a piped stderr are asynchronous
     // (unlike a TTY); `process.exit()` tears the process down immediately and
     // can drop a write that has not finished flushing yet. That is exactly
     // what happens when the child has just filled a piped stderr (the
@@ -77,28 +153,29 @@ if (args[0] === "install") {
     // right after `console.error(...)` can lose the entire diagnostic.
     // Leaving `process.exitCode` set and returning naturally lets the event
     // loop drain pending writes before the process actually exits, so the
-    // diagnostic survives; the exit code is still 1 either way. The silent
-    // branches (numeric-status forward, quiet SIGINT/SIGTERM) print nothing,
-    // so they keep using `process.exit` directly.
-    // The binary ran and chose its own status — forward it untouched.
+    // diagnostic survives. The silent branches print nothing, so they keep
+    // using `process.exit` directly. Numeric statuses can be normal exits or,
+    // on Windows, an NTSTATUS; diagnose exceptional NTSTATUS values and
+    // preserve every numeric status unchanged.
     if (typeof e.status === "number") {
-      // Windows has no signals: a crashing native binary (access violation
-      // 0xC0000005, missing DLL 0xC0000135, killed by endpoint protection) shows
-      // up as an NTSTATUS number here, not via e.signal. Surface the error-severity
-      // range (0xC0000000+) as a crash instead of forwarding it silently. Exclude
-      // 0xC000013A (STATUS_CONTROL_C_EXIT), the Windows Ctrl+C code, to stay
-      // symmetric with the quiet SIGINT/SIGTERM allowlist. lark-cli's documented
-      // exit codes are small integers, so it does not deliberately use this range.
+      // Windows has no signals: native process termination surfaces as an
+      // NTSTATUS number here. Any non-zero severity bits (0x40000000+) identify
+      // an informational/warning/error termination status outside lark-cli's
+      // documented small exit-code range. Exclude STATUS_CONTROL_C_EXIT to stay
+      // symmetric with the quiet SIGINT/SIGTERM allowlist.
+      const windowsStatus = e.status >>> 0;
       if (
         process.platform === "win32" &&
-        e.status >= 0xc0000000 &&
-        e.status !== 0xc000013a
+        windowsStatus >= 0x40000000 &&
+        windowsStatus !== 0xc000013a
       ) {
         console.error(
-          `\nlark-cli: the native binary crashed (status 0x${(e.status >>> 0).toString(16)}).\n` +
+          `\nlark-cli: the native binary crashed (status 0x${windowsStatus.toString(16)}).\n` +
           `  path:  ${bin}`
         );
-        process.exitCode = 1;
+        // Preserve the raw NTSTATUS for wrappers that use %ERRORLEVEL% to
+        // distinguish crash types, while returning naturally to flush stderr.
+        process.exitCode = e.status;
         return;
       }
       process.exit(e.status);
@@ -124,12 +201,6 @@ if (args[0] === "install") {
     // here, and the errno is the only evidence. Print e.code and never
     // e.message: when the child does run, e.message carries the full argv,
     // which can contain values the caller passed on the command line.
-    const reason = typeof e.code === "string" ? e.code : "UNKNOWN";
-    console.error(
-      `\nlark-cli: failed to launch the native binary.\n` +
-      `  path:  ${bin}\n` +
-      `  error: ${reason}`
-    );
-    process.exitCode = 1;
+    reportLaunchFailure(typeof e.code === "string" ? e.code : "UNKNOWN");
   }
 }

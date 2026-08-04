@@ -175,12 +175,16 @@ if ! grep -Fq "runs-on: windows-latest" <<<"$shim_test_windows_section"; then
   echo "shim-test-windows must run on windows-latest so the npm shim is exercised on the platform it broke on"
   exit 1
 fi
-if ! grep -Fq "node --test scripts/run.test.js" <<<"$shim_test_windows_section"; then
-  echo "shim-test-windows must run the npm shim tests"
+if ! grep -Fq "node --test scripts/run.test.js scripts/install.test.js" <<<"$shim_test_windows_section"; then
+  echo "shim-test-windows must run the npm shim and atomic installer tests"
   exit 1
 fi
 if ! grep -Fq "node-version: '22'" <<<"$shim_test_windows_section"; then
   echo "shim-test-windows must pin node-version so process.execPath fixtures stay reproducible"
+  exit 1
+fi
+if ! grep -Fq "timeout-minutes: 15" <<<"$shim_test_windows_section"; then
+  echo "shim-test-windows must have a bounded timeout because its fixtures launch synchronous child processes"
   exit 1
 fi
 if ! grep -Fq '"${{ needs.shim-test-windows.result }}"' <<<"$results_section"; then
