@@ -65,7 +65,11 @@ func TestConfigBindRun_BotOnlyIdentity_NoImpersonationWarning(t *testing.T) {
 
 func TestUserDefaultBindMessageProjectsConcealedLogin(t *testing.T) {
 	visible := userDefaultBindMessage(bindMsgEn, "cli_test", "Hermes", nil)
-	if !strings.Contains(visible, "lark-cli auth login --recommend") {
+	// --wait is part of the action, not decoration: Agent runtimes capture
+	// stdout, where auth login otherwise returns a device code and exits 0
+	// before the user has authorized. Dropping it would have the Agent report a
+	// completed login and continue with the user's request.
+	if !strings.Contains(visible, "lark-cli auth login --recommend --wait") {
 		t.Fatalf("default message lost established login action: %q", visible)
 	}
 

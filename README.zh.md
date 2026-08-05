@@ -112,10 +112,10 @@ lark-cli config init --new
 
 **第 3 步 — 登录**
 
-> 同上，后台运行，提取授权链接发给用户。
+> 同上，提取授权链接发给用户。`--wait` 让命令阻塞到用户完成授权；不加时，stdout 非终端会立即返回 device code 并以 0 退出，此时用户尚未授权。
 
 ```bash
-lark-cli auth login --recommend
+lark-cli auth login --recommend --wait
 ```
 
 **第 4 步 — 验证**
@@ -179,6 +179,7 @@ lark-cli auth login --recommend
 lark-cli auth login --scope "calendar:calendar:read"
 
 # Agent 模式：立即返回验证 URL，不阻塞
+# （stdout 非终端时已是默认行为；--no-wait 让终端下也这样）
 lark-cli auth login --domain calendar --no-wait
 # 稍后恢复轮询
 lark-cli auth login --device-code <DEVICE_CODE>
