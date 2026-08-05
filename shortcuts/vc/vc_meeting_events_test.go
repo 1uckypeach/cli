@@ -1520,7 +1520,7 @@ func TestDocumentContextChangedTimeline_MultipleItemsPreserveOrderAndSkipUnknown
 	}
 }
 
-func TestCompactMeetingEvents_PreservesDocumentContextRawPayload(t *testing.T) {
+func TestCompactMeetingEvents_UsesSharedPayloadCompactionForDocumentContext(t *testing.T) {
 	payload := map[string]interface{}{
 		"activity_event_type": "document_context_changed",
 		"document_context_changed_items": []interface{}{
@@ -1540,6 +1540,7 @@ func TestCompactMeetingEvents_PreservesDocumentContextRawPayload(t *testing.T) {
 	if err := json.Unmarshal(raw, &want); err != nil {
 		t.Fatal(err)
 	}
+	delete(want, "empty_unknown_items")
 	event := map[string]interface{}{
 		"event_type": "document_context_changed",
 		"payload":    payload,
@@ -1619,17 +1620,19 @@ func TestVCMeetingEventsDocumentContextCLIBehavior(t *testing.T) {
 			map[string]interface{}{
 				"time":          "1776413281000",
 				"operator":      map[string]interface{}{"id": "u1", "user_name": "Alice"},
-				"share_doc":     map[string]interface{}{"title": "Design", "url": "https://example.com/docx/token"},
+				"share_id":      "share-session-1",
 				"comment_focus": map[string]interface{}{"comment_id": "comment-1", "focused": true},
 			},
 			map[string]interface{}{
 				"time":             "1776413282000",
 				"operator":         map[string]interface{}{"id": "u2", "user_name": "Bob"},
+				"share_id":         "share-session-1",
 				"section_location": map[string]interface{}{"parent_titles": []interface{}{"Roadmap"}, "title": "Milestone", "level": 2},
 			},
 			map[string]interface{}{
 				"time":            "1776413283000",
 				"operator":        map[string]interface{}{"id": "u3", "user_name": "Carol"},
+				"share_id":        "share-session-1",
 				"element_preview": map[string]interface{}{"action": "open", "element_type": "whiteboard", "element_token": "wb-1"},
 			},
 		})

@@ -701,10 +701,6 @@ func compactMeetingEvents(events []interface{}) []interface{} {
 		if event == nil {
 			continue
 		}
-		if meetingEventType(event) == "document_context_changed" {
-			compacted = append(compacted, event)
-			continue
-		}
 		if payload := common.GetMap(event, "payload"); payload != nil {
 			event["payload"] = compactMeetingPayload(payload)
 		}
