@@ -526,7 +526,7 @@ func TestTaskListPrettyFormat(t *testing.T) {
 		t.Fatalf("task list --format pretty should not error: %v", err)
 	}
 	text := string(out.Bytes())
-	if !strings.HasPrefix(text, "TASK_ID\tCONTEXT_ID\tSTATE\tIS_TERMINAL\tUPDATED_AT\tSUMMARY\n") {
+	if !strings.HasPrefix(text, "TASK_ID\tCONTEXT_ID\tSTATE\tIS_TERMINAL\tUPDATED_AT\tSUMMARY\tBIZ_ERR_CODE\tBIZ_ERR_MESSAGE\n") {
 		t.Errorf("pretty output should start with a header row, got %q", text)
 	}
 	if !strings.Contains(text, "chat_1\tsess_1\tcompleted\ttrue\t2026-07-05T12:00:00Z\tanalysis complete") {

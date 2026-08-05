@@ -4,6 +4,7 @@
 package base
 
 import (
+	"bytes"
 	"encoding/json"
 	"strconv"
 	"strings"
@@ -105,6 +106,7 @@ func mapVersionedTask(in adapterTask) (*iagents.AgentTask, error) {
 		IsTerminal:    state.IsTerminal(),
 		CreatedAt:     createdAt,
 		UpdatedAt:     updatedAt,
+		BizError:      mapBizError(in.adapterBizErr),
 		Messages:      messages,
 		Artifacts:     artifacts,
 		InputRequired: inputRequired,
@@ -143,6 +145,7 @@ func mapLegacyTask(in adapterTask, allowEmptyState bool) (*iagents.AgentTask, er
 		IsTerminal: state.IsTerminal(),
 		CreatedAt:  createdAt,
 		UpdatedAt:  updatedAt,
+		BizError:   mapBizError(in.adapterBizErr),
 		Messages:   messages,
 		Artifacts:  artifacts,
 	}, nil
@@ -404,6 +407,7 @@ func mapTaskSummary(in adapterTask) (iagents.TaskSummary, error) {
 		IsTerminal: state.IsTerminal(),
 		UpdatedAt:  updatedAt,
 		Summary:    summary,
+		BizError:   mapBizError(in.adapterBizErr),
 	}, nil
 }
 
@@ -421,6 +425,7 @@ func mapContextSummary(in adapterContext) (iagents.ContextSummary, error) {
 		CreatedAt: createdAt,
 		UpdatedAt: updatedAt,
 		Title:     in.Title,
+		BizError:  mapBizError(in.adapterBizErr),
 	}, nil
 }
 
@@ -434,6 +439,7 @@ func mapContextDetail(in adapterContext) (*iagents.ContextDetail, error) {
 		CreatedAt: summary.CreatedAt,
 		UpdatedAt: summary.UpdatedAt,
 		Title:     summary.Title,
+		BizError:  mapBizError(in.adapterBizErr),
 		TaskCount: iagents.Int(len(in.Tasks)),
 	}
 	if len(in.Tasks) > 0 {
@@ -606,6 +612,9 @@ func lastText(messages []iagents.Message) string {
 }
 
 func mapResult(result adapterResult, action string) error {
+	if err := bizErrAsAPIError(result.adapterBizErr, action); err != nil {
+		return err
+	}
 	if result.Result {
 		return nil
 	}
@@ -633,4 +642,76 @@ func mapResult(result adapterResult, action string) error {
 		return errs.NewInternalError(errs.SubtypeInvalidResponse,
 			"Base Adapter returned an unknown business error category %q for %s", result.Error.Category, action)
 	}
+}
+
+func bizErrAsAPIError(in adapterBizErr, action string) error {
+	biz := mapBizError(in)
+	if biz == nil {
+		return nil
+	}
+	message := biz.Message
+	if message == "" {
+		message = action + " failed"
+	}
+	err := errs.NewAPIError(errs.SubtypeUnknown, "%s: %s", action, message)
+	if code, ok := bizErrCodeInt(biz.Code); ok {
+		err.WithCode(code)
+	}
+	if isBizRateLimit(biz.Code, biz.Message) {
+		err.Subtype = errs.SubtypeRateLimit
+		err.WithRetryable()
+	}
+	return err
+}
+
+func mapBizError(in adapterBizErr) *iagents.BizError {
+	code := bizErrCodeString(in.BizErrCode)
+	message := strings.TrimSpace(in.BizErrMessage)
+	if isZeroBizErr(code, message) {
+		return nil
+	}
+	return &iagents.BizError{Code: code, Message: message}
+}
+
+func bizErrCodeString(raw json.RawMessage) string {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(trimmed, &s); err == nil {
+		return strings.TrimSpace(s)
+	}
+	var n json.Number
+	dec := json.NewDecoder(bytes.NewReader(trimmed))
+	dec.UseNumber()
+	if err := dec.Decode(&n); err == nil {
+		return n.String()
+	}
+	return strings.TrimSpace(string(trimmed))
+}
+
+func isZeroBizErr(code, message string) bool {
+	code = strings.TrimSpace(code)
+	message = strings.TrimSpace(message)
+	return (code == "" || code == "0") && message == ""
+}
+
+func bizErrCodeInt(code string) (int, bool) {
+	if code == "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(code)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+func isBizRateLimit(code, message string) bool {
+	if code == "800004907" {
+		return true
+	}
+	lower := strings.ToLower(message)
+	return strings.Contains(lower, "rate limit") || strings.Contains(lower, "rate_limit")
 }

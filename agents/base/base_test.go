@@ -214,6 +214,73 @@ func TestSendBuildsAdapterRequest(t *testing.T) {
 	}
 }
 
+func TestAgentBizErrPayloads(t *testing.T) {
+	t.Run("send and get task carry biz error", func(t *testing.T) {
+		rt := &fakeRuntime{
+			agentID: "assistant",
+			params:  map[string]string{"base_token": "b1"},
+			responses: []json.RawMessage{
+				dataResponse(t, `{"schema_version":1,"task_id":"1001","context_id":"c1","status":"failed","BizErrCode":800004907,"BizErrMessage":"[MOCK] create job rate limit","outputs":[]}`),
+				dataResponse(t, `{"schema_version":1,"task_id":"1001","context_id":"c1","status":"failed","BizErrCode":"800004907","BizErrMessage":"[MOCK] create job rate limit","outputs":[]}`),
+			},
+		}
+		task, err := assistantSpec.Send.Handler(context.Background(), rt, iagents.SendInput{Text: "x"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task.BizError == nil || task.BizError.Code != "800004907" || task.BizError.Message != "[MOCK] create job rate limit" {
+			t.Fatalf("send task biz_error=%+v", task.BizError)
+		}
+		task, err = assistantSpec.GetTask.Handler(context.Background(), rt, "1001")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task.BizError == nil || task.BizError.Code != "800004907" || task.BizError.Message != "[MOCK] create job rate limit" {
+			t.Fatalf("get task biz_error=%+v", task.BizError)
+		}
+	})
+
+	t.Run("list task item carries biz error", func(t *testing.T) {
+		rt := &fakeRuntime{
+			params: map[string]string{"base_token": "b1"},
+			responses: []json.RawMessage{
+				dataResponse(t, `{"tasks":[{"task_id":"1001","context_id":"c1","state":"failed","BizErrCode":800004907,"BizErrMessage":"rate limited"}],"has_more":false}`),
+			},
+		}
+		tasks, _, err := assistantSpec.ListTasks.Handler(context.Background(), rt, "c1", iagents.PageParams{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(tasks) != 1 || tasks[0].BizError == nil || tasks[0].BizError.Code != "800004907" || tasks[0].BizError.Message != "rate limited" {
+			t.Fatalf("tasks=%+v", tasks)
+		}
+	})
+
+	t.Run("context list and get carry biz error", func(t *testing.T) {
+		rt := &fakeRuntime{
+			params: map[string]string{"base_token": "b1"},
+			responses: []json.RawMessage{
+				dataResponse(t, `{"contexts":[{"context_id":"c1","title":"ctx","BizErrCode":800004907,"BizErrMessage":"context rate limited"}],"has_more":false}`),
+				dataResponse(t, `{"context_id":"c1","BizErrCode":800004907,"BizErrMessage":"context get rate limited","tasks":[]}`),
+			},
+		}
+		contexts, _, err := assistantSpec.ListContexts.Handler(context.Background(), rt, iagents.PageParams{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(contexts) != 1 || contexts[0].BizError == nil || contexts[0].BizError.Code != "800004907" || contexts[0].BizError.Message != "context rate limited" {
+			t.Fatalf("contexts=%+v", contexts)
+		}
+		detail, err := assistantSpec.GetContext.Handler(context.Background(), rt, "c1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if detail.BizError == nil || detail.BizError.Code != "800004907" || detail.BizError.Message != "context get rate limited" {
+			t.Fatalf("detail=%+v", detail)
+		}
+	})
+}
+
 func TestSendRejectsJSONStringData(t *testing.T) {
 	encoded, err := json.Marshal(`{"schema_version":1,"task_id":"task-1","context_id":"ctx-1","status":"pending","outputs":[]}`)
 	if err != nil {
@@ -990,6 +1057,54 @@ func TestResultFalseUsesTypedCategory(t *testing.T) {
 	}
 	err := assistantSpec.CancelTask.Handler(context.Background(), rt, "t1")
 	problem(t, err, errs.CategoryValidation, errs.SubtypeFailedPrecondition)
+}
+
+func TestTopLevelBizErrReturnsTypedError(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(*fakeRuntime) error
+	}{
+		{
+			name: "task list",
+			run: func(rt *fakeRuntime) error {
+				_, _, err := assistantSpec.ListTasks.Handler(context.Background(), rt, "c1", iagents.PageParams{})
+				return err
+			},
+		},
+		{
+			name: "context list",
+			run: func(rt *fakeRuntime) error {
+				_, _, err := assistantSpec.ListContexts.Handler(context.Background(), rt, iagents.PageParams{})
+				return err
+			},
+		},
+		{
+			name: "cancel task",
+			run: func(rt *fakeRuntime) error {
+				return assistantSpec.CancelTask.Handler(context.Background(), rt, "t1")
+			},
+		},
+		{
+			name: "delete context",
+			run: func(rt *fakeRuntime) error {
+				return assistantSpec.DeleteContext.Handler(context.Background(), rt, "c1")
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rt := &fakeRuntime{
+				params:    map[string]string{"base_token": "b1"},
+				responses: []json.RawMessage{dataResponse(t, `{"BizErrCode":800004907,"BizErrMessage":"[MOCK] create job rate limit","result":true,"tasks":[],"contexts":[],"has_more":false}`)},
+			}
+			err := test.run(rt)
+			problem(t, err, errs.CategoryAPI, errs.SubtypeRateLimit)
+			p, _ := errs.ProblemOf(err)
+			if p.Code != 800004907 || !p.Retryable || !strings.Contains(p.Message, "[MOCK] create job rate limit") {
+				t.Fatalf("problem=%+v", p)
+			}
+		})
+	}
 }
 
 // TestMapInputRequiredExpandsFullGroup covers atomic-group mapping: multiple

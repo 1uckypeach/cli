@@ -426,7 +426,7 @@ func TestContextListPretty(t *testing.T) {
 		t.Fatalf("context list --format pretty should not error: %v", err)
 	}
 	s := string(out.Bytes())
-	if !strings.HasPrefix(s, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tAWAITING_INPUT\n") {
+	if !strings.HasPrefix(s, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tAWAITING_INPUT\tBIZ_ERR_CODE\tBIZ_ERR_MESSAGE\n") {
 		t.Errorf("pretty output should start with a header row, got %q", s)
 	}
 	if !strings.Contains(s, "sess_1") || !strings.Contains(s, "sales analysis") {

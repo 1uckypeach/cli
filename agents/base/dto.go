@@ -65,6 +65,8 @@ type adapterArtifact struct {
 }
 
 type adapterTask struct {
+	adapterBizErr
+
 	// SchemaVersion/Status/Outputs are the v1 detail contract returned by
 	// SendMessage and GetTask. The remaining fields are retained while task-list
 	// and context endpoints still return the legacy summary shape.
@@ -86,17 +88,19 @@ type adapterTask struct {
 }
 
 type adapterTaskList struct {
+	adapterBizErr
+
 	Tasks      []adapterTask `json:"tasks"`
 	HasMore    bool          `json:"has_more"`
 	NextCursor string        `json:"next_cursor,omitempty"`
 }
 
 func (l *adapterTaskList) UnmarshalJSON(data []byte) error {
-	tasks, hasMore, nextCursor, err := decodeAdapterList[adapterTask](data, "tasks")
+	tasks, hasMore, nextCursor, bizErr, err := decodeAdapterList[adapterTask](data, "tasks")
 	if err != nil {
 		return err
 	}
-	*l = adapterTaskList{Tasks: tasks, HasMore: hasMore, NextCursor: nextCursor}
+	*l = adapterTaskList{adapterBizErr: bizErr, Tasks: tasks, HasMore: hasMore, NextCursor: nextCursor}
 	return nil
 }
 
@@ -197,6 +201,8 @@ type adapterOutputArtifact struct {
 }
 
 type adapterContext struct {
+	adapterBizErr
+
 	ID        string          `json:"id,omitempty"`
 	ContextID string          `json:"context_id,omitempty"`
 	Title     string          `json:"title,omitempty"`
@@ -207,71 +213,87 @@ type adapterContext struct {
 }
 
 type adapterContextList struct {
+	adapterBizErr
+
 	Contexts   []adapterContext `json:"contexts"`
 	HasMore    bool             `json:"has_more"`
 	NextCursor string           `json:"next_cursor,omitempty"`
 }
 
 func (l *adapterContextList) UnmarshalJSON(data []byte) error {
-	contexts, hasMore, nextCursor, err := decodeAdapterList[adapterContext](data, "contexts")
+	contexts, hasMore, nextCursor, bizErr, err := decodeAdapterList[adapterContext](data, "contexts")
 	if err != nil {
 		return err
 	}
-	*l = adapterContextList{Contexts: contexts, HasMore: hasMore, NextCursor: nextCursor}
+	*l = adapterContextList{adapterBizErr: bizErr, Contexts: contexts, HasMore: hasMore, NextCursor: nextCursor}
 	return nil
 }
 
-func decodeAdapterList[T any](data []byte, itemsField string) ([]T, bool, string, error) {
+func decodeAdapterList[T any](data []byte, itemsField string) ([]T, bool, string, adapterBizErr, error) {
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 {
-		return nil, false, "", fmt.Errorf("Base Agent list response is empty")
+		return nil, false, "", adapterBizErr{}, fmt.Errorf("Base Agent list response is empty")
 	}
 	if trimmed[0] == '[' {
 		var items []T
 		if err := json.Unmarshal(trimmed, &items); err != nil {
-			return nil, false, "", err
+			return nil, false, "", adapterBizErr{}, err
 		}
-		return items, false, "", nil
+		return items, false, "", adapterBizErr{}, nil
 	}
 	if trimmed[0] != '{' {
-		return nil, false, "", fmt.Errorf("Base Agent list response must be an object")
+		return nil, false, "", adapterBizErr{}, fmt.Errorf("Base Agent list response must be an object")
 	}
 
 	var envelope map[string]json.RawMessage
 	if err := json.Unmarshal(trimmed, &envelope); err != nil {
-		return nil, false, "", err
+		return nil, false, "", adapterBizErr{}, err
+	}
+	var bizErr adapterBizErr
+	if raw, ok := envelope["BizErrCode"]; ok {
+		bizErr.BizErrCode = append(json.RawMessage(nil), raw...)
+	}
+	if raw, ok := envelope["BizErrMessage"]; ok {
+		if err := json.Unmarshal(raw, &bizErr.BizErrMessage); err != nil {
+			return nil, false, "", adapterBizErr{}, fmt.Errorf("decode Base Agent list response %q: %w", "BizErrMessage", err)
+		}
 	}
 	itemsRaw, ok := envelope[itemsField]
 	if !ok || bytes.Equal(bytes.TrimSpace(itemsRaw), []byte("null")) {
-		return nil, false, "", fmt.Errorf("Base Agent list response is missing %q", itemsField)
+		return nil, false, "", adapterBizErr{}, fmt.Errorf("Base Agent list response is missing %q", itemsField)
 	}
 	var items []T
 	if err := json.Unmarshal(itemsRaw, &items); err != nil {
-		return nil, false, "", fmt.Errorf("decode Base Agent list response %q: %w", itemsField, err)
+		return nil, false, "", adapterBizErr{}, fmt.Errorf("decode Base Agent list response %q: %w", itemsField, err)
 	}
 
 	hasMoreRaw, ok := envelope["has_more"]
 	if !ok || bytes.Equal(bytes.TrimSpace(hasMoreRaw), []byte("null")) {
-		return nil, false, "", fmt.Errorf("Base Agent list response is missing %q", "has_more")
+		return nil, false, "", adapterBizErr{}, fmt.Errorf("Base Agent list response is missing %q", "has_more")
 	}
 	var hasMore bool
 	if err := json.Unmarshal(hasMoreRaw, &hasMore); err != nil {
-		return nil, false, "", fmt.Errorf("decode Base Agent list response %q: %w", "has_more", err)
+		return nil, false, "", adapterBizErr{}, fmt.Errorf("decode Base Agent list response %q: %w", "has_more", err)
 	}
 
 	var nextCursor string
 	if nextCursorRaw, ok := envelope["next_cursor"]; ok {
 		if bytes.Equal(bytes.TrimSpace(nextCursorRaw), []byte("null")) {
-			return nil, false, "", fmt.Errorf("Base Agent list response %q must be a string", "next_cursor")
+			return nil, false, "", adapterBizErr{}, fmt.Errorf("Base Agent list response %q must be a string", "next_cursor")
 		}
 		if err := json.Unmarshal(nextCursorRaw, &nextCursor); err != nil {
-			return nil, false, "", fmt.Errorf("decode Base Agent list response %q: %w", "next_cursor", err)
+			return nil, false, "", adapterBizErr{}, fmt.Errorf("decode Base Agent list response %q: %w", "next_cursor", err)
 		}
 	}
 	if hasMore != (nextCursor != "") {
-		return nil, false, "", fmt.Errorf("Base Agent list response has inconsistent pagination fields")
+		return nil, false, "", adapterBizErr{}, fmt.Errorf("Base Agent list response has inconsistent pagination fields")
 	}
-	return items, hasMore, nextCursor, nil
+	return items, hasMore, nextCursor, bizErr, nil
+}
+
+type adapterBizErr struct {
+	BizErrCode    json.RawMessage `json:"BizErrCode,omitempty"`
+	BizErrMessage string          `json:"BizErrMessage,omitempty"`
 }
 
 type adapterBusinessError struct {
@@ -281,6 +303,8 @@ type adapterBusinessError struct {
 }
 
 type adapterResult struct {
+	adapterBizErr
+
 	Result bool                 `json:"result"`
 	Reason string               `json:"reason,omitempty"`
 	Error  adapterBusinessError `json:"error,omitempty"`

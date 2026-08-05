@@ -210,6 +210,9 @@ func listTasks(ctx context.Context, rt iagents.Runtime, contextID string, page i
 	if err != nil {
 		return nil, iagents.PageInfo{}, err
 	}
+	if err := bizErrAsAPIError(got.adapterBizErr, "list tasks"); err != nil {
+		return nil, iagents.PageInfo{}, err
+	}
 	out := make([]iagents.TaskSummary, 0, len(got.Tasks))
 	for _, item := range got.Tasks {
 		summary, err := mapTaskSummary(item)
@@ -249,6 +252,9 @@ func listContexts(ctx context.Context, rt iagents.Runtime, page iagents.PagePara
 	putQuery(query, "status", p.Status)
 	got, err := callPayload[adapterContextList](ctx, rt, "GET", agentRoot(p.BaseToken)+"/contexts", query, nil)
 	if err != nil {
+		return nil, iagents.PageInfo{}, err
+	}
+	if err := bizErrAsAPIError(got.adapterBizErr, "list contexts"); err != nil {
 		return nil, iagents.PageInfo{}, err
 	}
 	out := make([]iagents.ContextSummary, 0, len(got.Contexts))

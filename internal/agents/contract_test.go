@@ -137,6 +137,33 @@ func TestAgentTaskTimestampsJSON(t *testing.T) {
 	}
 }
 
+func TestAgentBizErrorJSON(t *testing.T) {
+	b, _ := json.Marshal(AgentTask{TaskID: "chat_1", State: StateFailed,
+		BizError: &BizError{Code: "800004907", Message: "create job rate limit"}})
+	var task map[string]interface{}
+	_ = json.Unmarshal(b, &task)
+	biz, ok := task["biz_error"].(map[string]interface{})
+	if !ok || biz["code"] != "800004907" || biz["message"] != "create job rate limit" {
+		t.Fatalf("task biz_error should be carried, got %v", task["biz_error"])
+	}
+
+	b, _ = json.Marshal(TaskSummary{TaskID: "chat_1", State: StateFailed,
+		BizError: &BizError{Code: "800004907", Message: "rate limit"}})
+	var summary map[string]interface{}
+	_ = json.Unmarshal(b, &summary)
+	if _, ok := summary["biz_error"]; !ok {
+		t.Fatalf("task summary biz_error should be carried, got %v", summary)
+	}
+
+	b, _ = json.Marshal(ContextSummary{ContextID: "ctx_1",
+		BizError: &BizError{Code: "800004907", Message: "rate limit"}})
+	var context map[string]interface{}
+	_ = json.Unmarshal(b, &context)
+	if _, ok := context["biz_error"]; !ok {
+		t.Fatalf("context summary biz_error should be carried, got %v", context)
+	}
+}
+
 // TestTaskSummaryJSON pins the enriched task-summary shape: updated_at + summary
 // are emitted when set and omitted via omitempty when empty.
 func TestTaskSummaryJSON(t *testing.T) {

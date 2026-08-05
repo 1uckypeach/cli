@@ -251,6 +251,7 @@ func TestPrintTaskPretty(t *testing.T) {
 		TaskID:    "chat_1",
 		ContextID: "sess_1",
 		State:     iagents.StateCompleted,
+		BizError:  &iagents.BizError{Code: "800004907", Message: "\x1b[31mrate\nlimited\x1b[0m"},
 		Messages: []iagents.Message{{
 			Role:  "agent",
 			Parts: []iagents.Part{{Type: "text", Text: "\x1b[31m" + long + "\x1b[0m"}},
@@ -265,6 +266,9 @@ func TestPrintTaskPretty(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("pretty output should contain %q, got:\n%s", want, text)
 		}
+	}
+	if !strings.Contains(text, "biz_error: 800004907 rate limited") {
+		t.Errorf("pretty output should contain sanitized biz_error, got:\n%s", text)
 	}
 	if strings.Contains(text, "\x1b") {
 		t.Errorf("ANSI sequences in agent body text must be stripped: %q", text)
@@ -343,8 +347,8 @@ func TestPrintTaskPretty_NilTask(t *testing.T) {
 }
 
 // TestPrintTaskSummariesTSV pins the list-class pretty spec: a header row
-// naming the json fields (now including UPDATED_AT + SUMMARY), then one
-// tab-separated row per task. Summary is agent-controlled, so it is
+// naming the json fields (now including UPDATED_AT + SUMMARY + BIZ_ERR), then
+// one tab-separated row per task. Summary is agent-controlled, so it is
 // ANSI-stripped AND newline/tab-flattened via kvValue.
 func TestPrintTaskSummariesTSV(t *testing.T) {
 	out := &bytes.Buffer{}
@@ -352,15 +356,15 @@ func TestPrintTaskSummariesTSV(t *testing.T) {
 		{TaskID: "chat_1", ContextID: "sess_1", State: iagents.StateCompleted, IsTerminal: true,
 			UpdatedAt: "2026-07-05T12:00:00Z", Summary: "analysis\ncomplete\x1b[0m"},
 	})
-	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	lines := strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n")
 	if len(lines) != 2 {
 		t.Fatalf("should have a header + 1 data row, got %q", out.String())
 	}
-	if lines[0] != "TASK_ID\tCONTEXT_ID\tSTATE\tIS_TERMINAL\tUPDATED_AT\tSUMMARY" {
+	if lines[0] != "TASK_ID\tCONTEXT_ID\tSTATE\tIS_TERMINAL\tUPDATED_AT\tSUMMARY\tBIZ_ERR_CODE\tBIZ_ERR_MESSAGE" {
 		t.Errorf("header columns should match the json field names, got %q", lines[0])
 	}
 	// Summary: ANSI escape stripped, newline flattened to a space.
-	if lines[1] != "chat_1\tsess_1\tcompleted\ttrue\t2026-07-05T12:00:00Z\tanalysis complete" {
+	if lines[1] != "chat_1\tsess_1\tcompleted\ttrue\t2026-07-05T12:00:00Z\tanalysis complete\t\t" {
 		t.Errorf("data row mismatch, got %q", lines[1])
 	}
 }
@@ -376,7 +380,7 @@ func TestPrintContextsTSV(t *testing.T) {
 			Title: "\x1b[2Jsales analysis", AwaitingInput: true},
 	})
 	text := out.String()
-	if !strings.HasPrefix(text, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tAWAITING_INPUT\n") {
+	if !strings.HasPrefix(text, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tAWAITING_INPUT\tBIZ_ERR_CODE\tBIZ_ERR_MESSAGE\n") {
 		t.Errorf("should have a header row with the rollup columns, got %q", text)
 	}
 	if !strings.Contains(text, "sales analysis") {
@@ -387,7 +391,7 @@ func TestPrintContextsTSV(t *testing.T) {
 	}
 	// The awaiting_input rollup directly trails the title — no TASK_COUNT column
 	// in between.
-	if !strings.Contains(text, "sales analysis\ttrue\n") {
+	if !strings.Contains(text, "sales analysis\ttrue\t\t\n") {
 		t.Errorf("should carry the awaiting_input rollup right after the title, got %q", text)
 	}
 }
@@ -404,6 +408,7 @@ func TestPrintContextDetailPretty(t *testing.T) {
 		CreatedAt:     "2026-07-05T10:00:00+08:00",
 		UpdatedAt:     "2026-07-05T12:00:00+08:00",
 		Title:         "\x1b[31manalysis\x1b[0m",
+		BizError:      &iagents.BizError{Code: "800004907", Message: "\x1b[31mrate\nlimited\x1b[0m"},
 		TaskCount:     iagents.Int(2),
 		AwaitingInput: true,
 		ActiveTask: &iagents.TaskSummary{
@@ -414,7 +419,7 @@ func TestPrintContextDetailPretty(t *testing.T) {
 	text := out.String()
 	for _, want := range []string{
 		"context_id: sess_1", "updated_at: 2026-07-05T12:00:00+08:00", "title: analysis",
-		"task_count: 2", "awaiting_input: true", "active_task: input_required",
+		"biz_error: 800004907 rate limited", "task_count: 2", "awaiting_input: true", "active_task: input_required",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("pretty output should contain %q, got:\n%s", want, text)

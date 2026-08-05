@@ -13,9 +13,17 @@ type AgentTask struct {
 	IsTerminal    bool           `json:"is_terminal"`
 	CreatedAt     string         `json:"created_at,omitempty"` // ISO 8601; when the task was created (empty if the provider does not supply it)
 	UpdatedAt     string         `json:"updated_at,omitempty"` // ISO 8601; when the current status was recorded (aligns with A2A TaskStatus.timestamp)
+	BizError      *BizError      `json:"biz_error,omitempty"`
 	Messages      []Message      `json:"messages,omitempty"`
 	Artifacts     []Artifact     `json:"artifacts,omitempty"`
 	InputRequired *InputRequired `json:"input_required,omitempty"`
+}
+
+// BizError carries provider business-failure detail returned inside an agent
+// payload, distinct from the CLI's outer transport/API error envelope.
+type BizError struct {
+	Code    string `json:"code,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 // Message is one turn of an agent or user message, composed of several Parts.
@@ -135,6 +143,7 @@ type TaskSummary struct {
 	IsTerminal bool      `json:"is_terminal"`
 	UpdatedAt  string    `json:"updated_at,omitempty"` // ISO 8601; when the status was last recorded — the key for "most recent"
 	Summary    string    `json:"summary,omitempty"`    // last agent message, ANSI-stripped + flattened + truncated; for input_required it is InputRequired.SummaryText (group label, else first question)
+	BizError   *BizError `json:"biz_error,omitempty"`
 }
 
 // ContextSummary is a single context summary in the context list output. It is
@@ -144,11 +153,12 @@ type TaskSummary struct {
 // per-context total in a list call would force real providers into N+1 counting.
 // The count lives on ContextDetail (`context get`).
 type ContextSummary struct {
-	ContextID     string `json:"context_id"`
-	CreatedAt     string `json:"created_at,omitempty"`
-	UpdatedAt     string `json:"updated_at,omitempty"` // ISO 8601; last activity across the context's tasks
-	Title         string `json:"title,omitempty"`
-	AwaitingInput bool   `json:"awaiting_input,omitempty"` // a task is paused in input_required/auth_required (needs the caller)
+	ContextID     string    `json:"context_id"`
+	CreatedAt     string    `json:"created_at,omitempty"`
+	UpdatedAt     string    `json:"updated_at,omitempty"` // ISO 8601; last activity across the context's tasks
+	Title         string    `json:"title,omitempty"`
+	AwaitingInput bool      `json:"awaiting_input,omitempty"` // a task is paused in input_required/auth_required (needs the caller)
+	BizError      *BizError `json:"biz_error,omitempty"`
 }
 
 // ContextDetail is the context detail in the context get output. It is the
@@ -156,10 +166,11 @@ type ContextSummary struct {
 // most likely act on. The full task enumeration lives in `agents task list
 // --context-id`, so ContextDetail deliberately does NOT embed the whole tasks[].
 type ContextDetail struct {
-	ContextID string `json:"context_id"`
-	CreatedAt string `json:"created_at,omitempty"`
-	UpdatedAt string `json:"updated_at,omitempty"`
-	Title     string `json:"title,omitempty"`
+	ContextID string    `json:"context_id"`
+	CreatedAt string    `json:"created_at,omitempty"`
+	UpdatedAt string    `json:"updated_at,omitempty"`
+	Title     string    `json:"title,omitempty"`
+	BizError  *BizError `json:"biz_error,omitempty"`
 	// TaskCount is the number of tasks in the context. A pointer so the three
 	// states stay distinct on the wire: nil = the provider cannot supply the
 	// count (field omitted), &0 = a genuinely empty context, &n = n tasks. A

@@ -120,6 +120,9 @@ func printTaskPretty(w io.Writer, task *iagents.AgentTask) {
 	if task.ContextID != "" {
 		fmt.Fprintf(w, "context_id: %s\n", kvValue(task.ContextID))
 	}
+	if task.BizError != nil {
+		fmt.Fprintf(w, "biz_error: %s %s\n", kvValue(task.BizError.Code), kvValue(task.BizError.Message))
+	}
 	if req := firstTextOf(task); req != "" {
 		fmt.Fprintf(w, "request: %s\n", truncateRunes(kvValue(req), 120))
 	}
@@ -233,10 +236,15 @@ func dataPartsOf(task *iagents.AgentTask) (int, []string) {
 // unflattened tab/newline would otherwise break the column layout; the ids keep
 // plain stripANSI under the TSV no-escape exemption.
 func printTaskSummariesTSV(w io.Writer, tasks []iagents.TaskSummary) {
-	fmt.Fprintf(w, "TASK_ID\tCONTEXT_ID\tSTATE\tIS_TERMINAL\tUPDATED_AT\tSUMMARY\n")
+	fmt.Fprintf(w, "TASK_ID\tCONTEXT_ID\tSTATE\tIS_TERMINAL\tUPDATED_AT\tSUMMARY\tBIZ_ERR_CODE\tBIZ_ERR_MESSAGE\n")
 	for _, t := range tasks {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%t\t%s\t%s\n",
-			stripANSI(t.TaskID), stripANSI(t.ContextID), stripANSI(string(t.State)), t.IsTerminal, stripANSI(t.UpdatedAt), kvValue(t.Summary))
+		var code, message string
+		if t.BizError != nil {
+			code = t.BizError.Code
+			message = t.BizError.Message
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%t\t%s\t%s\t%s\t%s\n",
+			stripANSI(t.TaskID), stripANSI(t.ContextID), stripANSI(string(t.State)), t.IsTerminal, stripANSI(t.UpdatedAt), kvValue(t.Summary), stripANSI(code), kvValue(message))
 	}
 }
 
@@ -244,10 +252,15 @@ func printTaskSummariesTSV(w io.Writer, tasks []iagents.TaskSummary) {
 // agent-controlled and ANSI-stripped; AwaitingInput is the conversation-layer
 // rollup used to spot which session needs attention.
 func printContextsTSV(w io.Writer, contexts []iagents.ContextSummary) {
-	fmt.Fprintf(w, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tAWAITING_INPUT\n")
+	fmt.Fprintf(w, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tAWAITING_INPUT\tBIZ_ERR_CODE\tBIZ_ERR_MESSAGE\n")
 	for _, c := range contexts {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%t\n",
-			stripANSI(c.ContextID), stripANSI(c.CreatedAt), stripANSI(c.UpdatedAt), stripANSI(c.Title), c.AwaitingInput)
+		var code, message string
+		if c.BizError != nil {
+			code = c.BizError.Code
+			message = c.BizError.Message
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%t\t%s\t%s\n",
+			stripANSI(c.ContextID), stripANSI(c.CreatedAt), stripANSI(c.UpdatedAt), stripANSI(c.Title), c.AwaitingInput, stripANSI(code), kvValue(message))
 	}
 }
 
@@ -272,6 +285,9 @@ func printContextDetailPretty(w io.Writer, detail *iagents.ContextDetail) {
 	}
 	if detail.Title != "" {
 		fmt.Fprintf(w, "title: %s\n", kvValue(detail.Title))
+	}
+	if detail.BizError != nil {
+		fmt.Fprintf(w, "biz_error: %s %s\n", kvValue(detail.BizError.Code), kvValue(detail.BizError.Message))
 	}
 	// nil TaskCount = the provider cannot supply the count; omit the line
 	// rather than printing a misleading 0.
