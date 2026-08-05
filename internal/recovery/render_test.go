@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/larksuite/cli/errs"
@@ -232,6 +233,30 @@ func TestRenderProjectsPaginationCauseAndRebuildsSnapshot(t *testing.T) {
 	originalProblem, _ := errs.ProblemOf(original)
 	if originalProblem.Hint != hint.String() {
 		t.Fatalf("Render mutated producer hint to %q", originalProblem.Hint)
+	}
+}
+
+func TestProjectorPreservesRenderContextInsidePaginationError(t *testing.T) {
+	hint := UserAuthorization()
+	inner := Annotate(
+		errs.NewAuthenticationError(errs.SubtypeTokenMissing, "authorization required").WithHint("%s", hint.String()),
+		hint,
+	)
+	original := errs.NewPaginationError(inner, 1, "resume-page-2")
+	projector := NewProjectorWithContext(nil, RenderContext{Profile: "team-beta"})
+
+	rendered := projector.Render(original)
+	encoded, err := json.Marshal(rendered)
+	if err != nil {
+		t.Fatalf("json.Marshal(rendered): %v", err)
+	}
+	var wire map[string]interface{}
+	if err := json.Unmarshal(encoded, &wire); err != nil {
+		t.Fatalf("json.Unmarshal(rendered): %v", err)
+	}
+	hintText, _ := wire["hint"].(string)
+	if !strings.Contains(hintText, "--profile='team-beta'") {
+		t.Fatalf("pagination hint lost render context: %#v", wire)
 	}
 }
 

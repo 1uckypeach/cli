@@ -6,6 +6,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/recovery"
 	"github.com/larksuite/cli/internal/registry"
+	"github.com/larksuite/cli/internal/surface"
 )
 
 // TestPersistentPreRunE_AuthCheckDisabledAnnotations verifies that
@@ -507,8 +509,8 @@ func TestHandleRootError_TypedAuthErrorWithLegacyCausePreserved(t *testing.T) {
 }
 
 // TestApplyNeedAuthorizationHint_ServiceMethodUsesLocalScopesWhenNoUAT pins
-// that a typed AuthenticationError carrying the need_user_authorization marker gets a
-// declared-scopes Hint appended when the current command is a registered
+// that a typed AuthenticationError carrying the need_user_authorization marker
+// gets executable scoped recovery when the current command is a registered
 // service method.
 func TestApplyNeedAuthorizationHint_ServiceMethodUsesLocalScopesWhenNoUAT(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
@@ -542,17 +544,53 @@ func TestApplyNeedAuthorizationHint_ServiceMethodUsesLocalScopesWhenNoUAT(t *tes
 	resourceCmd.AddCommand(methodCmd)
 	f.CurrentCommand = methodCmd
 
-	authErr := newAuthErrorWithNeedAuthMarker()
-	applyNeedAuthorizationHint(f, authErr)
+	source := internalauth.NewNeedUserAuthorizationError("u_service")
+	var authErr *errs.AuthenticationError
+	if !errors.As(source, &authErr) {
+		t.Fatalf("source = %T, want *errs.AuthenticationError", source)
+	}
+	originalHint := authErr.Hint
+	rendered := presentRootError(f, source, recovery.NewProjector(nil))
+	problem, ok := errs.ProblemOf(rendered)
+	if !ok {
+		t.Fatalf("rendered error = %T, want typed error", rendered)
+	}
 
-	if authErr.Category != errs.CategoryAuthentication {
-		t.Errorf("Category = %q, want authentication", authErr.Category)
+	if problem.Category != errs.CategoryAuthentication {
+		t.Errorf("Category = %q, want authentication", problem.Category)
 	}
-	if !strings.Contains(authErr.Message, "need_user_authorization") {
-		t.Errorf("Message should preserve need_user_authorization marker; got %q", authErr.Message)
+	if problem.Subtype != errs.SubtypeTokenMissing {
+		t.Errorf("Subtype = %q, want %q", problem.Subtype, errs.SubtypeTokenMissing)
 	}
-	if !strings.Contains(authErr.Hint, "current command requires scope(s): calendar:calendar.event:create") {
-		t.Errorf("expected declared-scope hint, got %q", authErr.Hint)
+	if !errors.Is(rendered, authErr.Cause) {
+		t.Errorf("rendered error lost need-authorization cause %v: %v", authErr.Cause, rendered)
+	}
+	if !strings.Contains(problem.Message, "need_user_authorization") {
+		t.Errorf("Message should preserve need_user_authorization marker; got %q", problem.Message)
+	}
+	if !strings.Contains(problem.Hint, `auth login --scope "calendar:calendar.event:create" --no-wait --json`) {
+		t.Errorf("expected scoped two-turn recovery, got %q", problem.Hint)
+	}
+	if authErr.Hint != originalHint || !strings.Contains(authErr.Hint, "--recommend --no-wait --json") {
+		t.Errorf("presenter mutated producer's generic recovery: before %q, after %q", originalHint, authErr.Hint)
+	}
+
+	concealedPlan := surface.NewPlan(map[surface.CommandID]surface.CommandState{
+		surface.CommandAuthLogin: surface.CommandConcealed,
+	})
+	concealed := presentRootError(f, internalauth.NewNeedUserAuthorizationError("u_service"), recovery.NewProjector(func() *surface.Plan {
+		return concealedPlan
+	}))
+	concealedProblem, ok := errs.ProblemOf(concealed)
+	if !ok {
+		t.Fatalf("concealed rendered error = %T, want typed error", concealed)
+	}
+	wantFallback := recovery.UserAuthorization("calendar:calendar.event:create").Render(concealedPlan)
+	if concealedProblem.Hint != wantFallback {
+		t.Errorf("concealed recovery = %q, want fallback %q", concealedProblem.Hint, wantFallback)
+	}
+	if strings.Contains(concealedProblem.Hint, "auth login") {
+		t.Errorf("concealed recovery leaked auth command: %q", concealedProblem.Hint)
 	}
 }
 
@@ -574,10 +612,20 @@ func TestApplyNeedAuthorizationHint_ShortcutUsesDeclaredScopesWhenNoUAT(t *testi
 	f.CurrentCommand = shortcutCmd
 
 	authErr := newAuthErrorWithNeedAuthMarker()
-	applyNeedAuthorizationHint(f, authErr)
+	rendered := presentRootError(f, authErr, recovery.NewProjector(nil))
+	problem, ok := errs.ProblemOf(rendered)
+	if !ok {
+		t.Fatalf("rendered error = %T, want typed error", rendered)
+	}
+	if problem.Category != errs.CategoryAuthentication {
+		t.Errorf("Category = %q, want %q", problem.Category, errs.CategoryAuthentication)
+	}
+	if problem.Subtype != errs.SubtypeUnknown {
+		t.Errorf("Subtype = %q, want %q", problem.Subtype, errs.SubtypeUnknown)
+	}
 
-	if !strings.Contains(authErr.Hint, "current command requires scope(s): docx:document:create") {
-		t.Errorf("expected shortcut scope hint, got %q", authErr.Hint)
+	if !strings.Contains(problem.Hint, `auth login --scope "docx:document:create" --no-wait --json`) {
+		t.Errorf("expected shortcut scoped recovery, got %q", problem.Hint)
 	}
 }
 
@@ -599,15 +647,25 @@ func TestApplyNeedAuthorizationHint_ShortcutIncludesConditionalScopes(t *testing
 	f.CurrentCommand = shortcutCmd
 
 	authErr := newAuthErrorWithNeedAuthMarker()
-	applyNeedAuthorizationHint(f, authErr)
+	rendered := presentRootError(f, authErr, recovery.NewProjector(nil))
+	problem, ok := errs.ProblemOf(rendered)
+	if !ok {
+		t.Fatalf("rendered error = %T, want typed error", rendered)
+	}
+	if problem.Category != errs.CategoryAuthentication {
+		t.Errorf("Category = %q, want %q", problem.Category, errs.CategoryAuthentication)
+	}
+	if problem.Subtype != errs.SubtypeUnknown {
+		t.Errorf("Subtype = %q, want %q", problem.Subtype, errs.SubtypeUnknown)
+	}
 
-	if !strings.Contains(authErr.Hint, "current command requires scope(s): drive:drive.metadata:readonly, drive:file:download") {
-		t.Errorf("expected conditional scope hint for drive +status, got %q", authErr.Hint)
+	if !strings.Contains(problem.Hint, `auth login --scope "drive:drive.metadata:readonly drive:file:download" --no-wait --json`) {
+		t.Errorf("expected conditional scoped recovery for drive +status, got %q", problem.Hint)
 	}
 }
 
 // TestApplyNeedAuthorizationHint_AppendsExistingHint pins that the
-// declared-scopes guidance is appended (separated by newline) when the typed
+// declared-scope recovery is appended (separated by newline) when the typed
 // AuthenticationError already carries a Hint from elsewhere.
 func TestApplyNeedAuthorizationHint_AppendsExistingHint(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
@@ -626,11 +684,27 @@ func TestApplyNeedAuthorizationHint_AppendsExistingHint(t *testing.T) {
 
 	authErr := newAuthErrorWithNeedAuthMarker()
 	authErr.Hint = "existing hint"
-	applyNeedAuthorizationHint(f, authErr)
+	rendered := presentRootError(f, authErr, recovery.NewProjector(nil))
+	problem, ok := errs.ProblemOf(rendered)
+	if !ok {
+		t.Fatalf("rendered error = %T, want typed error", rendered)
+	}
+	if problem.Category != errs.CategoryAuthentication {
+		t.Errorf("Category = %q, want %q", problem.Category, errs.CategoryAuthentication)
+	}
+	if problem.Subtype != errs.SubtypeUnknown {
+		t.Errorf("Subtype = %q, want %q", problem.Subtype, errs.SubtypeUnknown)
+	}
+	if !errors.Is(rendered, authErr.Cause) {
+		t.Errorf("rendered error lost need-authorization cause %v: %v", authErr.Cause, rendered)
+	}
 
-	want := "existing hint\ncurrent command requires scope(s): docx:document:create"
-	if authErr.Hint != want {
-		t.Errorf("expected appended hint %q, got %q", want, authErr.Hint)
+	want := "existing hint\n" + recovery.UserAuthorization("docx:document:create").String()
+	if problem.Hint != want {
+		t.Errorf("expected appended hint %q, got %q", want, problem.Hint)
+	}
+	if authErr.Hint != "existing hint" {
+		t.Errorf("presenter mutated producer hint: %q", authErr.Hint)
 	}
 }
 
@@ -648,8 +722,7 @@ func TestRootErrorPresenter_EnrichesPaginationCauseAndRebuildsSnapshot(t *testin
 	f.CurrentCommand = shortcutCmd
 
 	original := errs.NewPaginationError(newAuthErrorWithNeedAuthMarker(), 1, "resume-page-2")
-	presenter := newRootErrorPresenter(f, recovery.NewProjector(nil))
-	rendered := presenter.Present(original)
+	rendered := presentRootError(f, original, recovery.NewProjector(nil))
 	encoded, err := json.Marshal(rendered)
 	if err != nil {
 		t.Fatalf("json.Marshal(rendered): %v", err)
@@ -658,7 +731,7 @@ func TestRootErrorPresenter_EnrichesPaginationCauseAndRebuildsSnapshot(t *testin
 	if err := json.Unmarshal(encoded, &wire); err != nil {
 		t.Fatalf("json.Unmarshal(rendered): %v", err)
 	}
-	if hint, _ := wire["hint"].(string); !strings.Contains(hint, "current command requires scope(s): docx:document:create") {
+	if hint, _ := wire["hint"].(string); !strings.Contains(hint, recovery.UserAuthorization("docx:document:create").String()) {
 		t.Fatalf("pagination error lost authorization hint enhancement: %#v", wire)
 	}
 	if wire["completed_pages"] != float64(1) || wire["next_page_token"] != "resume-page-2" {

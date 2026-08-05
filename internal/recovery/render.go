@@ -18,6 +18,12 @@ import (
 // Untyped errors and raw-passthrough errors are returned unchanged. Raw errors
 // intentionally bypass local presentation rewriting.
 func Render(err error, plan *surface.Plan) error {
+	return renderWithContext(err, plan, RenderContext{})
+}
+
+// renderWithContext is Render with build-local invocation facts used only
+// while materializing structured recovery commands.
+func renderWithContext(err error, plan *surface.Plan, context RenderContext) error {
 	if err == nil || errs.IsRaw(err) {
 		return err
 	}
@@ -26,7 +32,7 @@ func Render(err error, plan *surface.Plan) error {
 		return err
 	}
 	if paginationErr, ok := typed.(*errs.PaginationError); ok { //nolint:errorlint
-		renderedCause := Render(paginationErr.Cause, plan)
+		renderedCause := renderWithContext(paginationErr.Cause, plan, context)
 		return errs.NewPaginationError(renderedCause, paginationErr.CompletedPages, paginationErr.NextPageToken)
 	}
 	sourceProblem, ok := errs.ProblemOf(typed)
@@ -39,12 +45,12 @@ func Render(err error, plan *surface.Plan) error {
 	}
 	if hint, ok := hintOf(err, sourceProblem); ok {
 		if problem, ok := errs.ProblemOf(rendered); ok {
-			problem.Hint = projectAnnotatedText(problem.Hint, hint, plan)
+			problem.Hint = projectAnnotatedText(problem.Hint, hint, plan, context)
 		}
 	}
 	if message, ok := messageOf(err, sourceProblem); ok {
 		if problem, ok := errs.ProblemOf(rendered); ok {
-			problem.Message = projectAnnotatedText(problem.Message, message, plan)
+			problem.Message = projectAnnotatedText(problem.Message, message, plan, context)
 		}
 	}
 	return rendered
@@ -53,9 +59,9 @@ func Render(err error, plan *surface.Plan) error {
 // projectAnnotatedText replaces only the exact annotated recovery fragment.
 // Producers may enrich a typed error after annotation (for example with
 // rollback IDs); text around that owned fragment must survive filtering.
-func projectAnnotatedText(current string, annotation Hint, plan *surface.Plan) string {
+func projectAnnotatedText(current string, annotation Hint, plan *surface.Plan, context RenderContext) string {
 	original := annotation.String()
-	projected := annotation.Render(plan)
+	projected := annotation.render(plan, context)
 	if projected == original {
 		return current
 	}
