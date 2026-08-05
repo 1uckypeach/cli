@@ -58,6 +58,8 @@ func ClassifyHTTPRateLimit(status int, header http.Header, result any, classifie
 		apiErr = errs.NewAPIError(errs.SubtypeRateLimit, RateLimitMessage).WithCode(code)
 	}
 	if businessRateLimit {
+		apiErr.Subtype = errs.SubtypeRateLimit
+		apiErr.Code = code
 		apiErr.Message = RateLimitMessage
 	}
 

@@ -4,6 +4,7 @@
 package client
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -156,12 +157,31 @@ func TestClassifyRateLimitResponse_BusinessCodeUsesCanonicalMessageAcrossHTTPSta
 func TestClassifyRateLimitResponse_MalformedBusinessCandidateFailsClosed(t *testing.T) {
 	projected := map[string]interface{}{"code": float64(99991400)}
 	classified := errs.NewAPIError(errs.SubtypeRateLimit, "projected").WithCode(99991400)
+	resp := &larkcore.ApiResp{StatusCode: http.StatusBadRequest, RawBody: []byte(`{"code":99991400,]`)}
+
+	err := ClassifyRateLimitResponse(resp, projected, classified)
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryInternal || problem.Subtype != errs.SubtypeInvalidResponse {
+		t.Fatalf("problem = %#v, want internal/invalid_response", problem)
+	}
+	var syntaxErr *json.SyntaxError
+	if !errors.As(err, &syntaxErr) {
+		t.Fatalf("error chain does not preserve JSON syntax error: %v", err)
+	}
+}
+
+func TestClassifyRateLimitResponse_TrailingBusinessCandidateFailsClosed(t *testing.T) {
+	projected := map[string]interface{}{"code": float64(99991400)}
+	classified := errs.NewAPIError(errs.SubtypeRateLimit, "projected").WithCode(99991400)
 	resp := &larkcore.ApiResp{StatusCode: http.StatusBadRequest, RawBody: []byte(`{"code":99991400}trailing`)}
 
 	err := ClassifyRateLimitResponse(resp, projected, classified)
 	problem, ok := errs.ProblemOf(err)
 	if !ok || problem.Category != errs.CategoryInternal || problem.Subtype != errs.SubtypeInvalidResponse {
 		t.Fatalf("problem = %#v, want internal/invalid_response", problem)
+	}
+	if errors.Unwrap(err) == nil {
+		t.Fatalf("error chain does not preserve trailing-content cause: %v", err)
 	}
 }
 

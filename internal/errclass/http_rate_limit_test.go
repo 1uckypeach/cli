@@ -159,6 +159,20 @@ func TestClassifyHTTPRateLimit_FixedSafeMessageAndBusinessCode(t *testing.T) {
 	}
 }
 
+func TestClassifyHTTPRateLimit_ReclassifiesExistingAPIErrorAsBusinessRateLimit(t *testing.T) {
+	original := errs.NewAPIError(errs.SubtypeUnknown, "original classification").WithCode(12345)
+	err := ClassifyHTTPRateLimit(http.StatusTooManyRequests, nil, map[string]any{
+		"code": 99991400,
+	}, original, time.Now())
+
+	if err != original {
+		t.Fatalf("classification = %T (%v), want original APIError pointer", err, err)
+	}
+	if original.Subtype != errs.SubtypeRateLimit || original.Code != 99991400 || original.Message != RateLimitMessage {
+		t.Fatalf("reclassified API error = %#v, want api/rate_limit code 99991400", original)
+	}
+}
+
 func TestClassifyHTTPRateLimit_PreservedClassificationStillSanitizesLogID(t *testing.T) {
 	original := errs.NewAPIError(errs.SubtypeRateLimit, "daily quota").WithCode(1063006).WithLogID("unsafe/log")
 	got := ClassifyHTTPRateLimit(429, http.Header{"X-Request-Id": []string{"request-id"}}, map[string]any{"code": 1063006}, original, time.Now())

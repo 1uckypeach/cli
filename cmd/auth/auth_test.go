@@ -13,9 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	lark "github.com/larksuite/oapi-sdk-go/v3"
-	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
-
 	"github.com/larksuite/cli/errs"
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -556,7 +553,10 @@ func TestGetUserInfo_RateLimitRecoveryMetadata(t *testing.T) {
 		{name: "business rate limit", status: http.StatusOK, body: map[string]interface{}{"code": 99991400, "msg": "slow"}, wantCode: 99991400},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			reg := &httpmock.Registry{}
+			t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+			f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+				AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+			})
 			reg.Register(&httpmock.Stub{
 				Method:  http.MethodGet,
 				URL:     "/open-apis/authen/v1/user_info",
@@ -564,13 +564,12 @@ func TestGetUserInfo_RateLimitRecoveryMetadata(t *testing.T) {
 				Headers: http.Header{"Content-Type": []string{"application/json"}, "Retry-After": []string{"23"}},
 				Body:    tt.body,
 			})
-			sdk := lark.NewClient("test-app", "test-secret",
-				lark.WithEnableTokenCache(false),
-				lark.WithLogLevel(larkcore.LogLevelError),
-				lark.WithHttpClient(&http.Client{Transport: reg}),
-			)
+			sdk, err := f.LarkClient()
+			if err != nil {
+				t.Fatalf("LarkClient() error = %v", err)
+			}
 
-			_, _, err := getUserInfo(context.Background(), sdk, "user-token")
+			_, _, err = getUserInfo(context.Background(), sdk, "user-token")
 			var apiErr *errs.APIError
 			if !errors.As(err, &apiErr) {
 				t.Fatalf("getUserInfo() error = %T (%v), want *errs.APIError", err, err)
@@ -603,7 +602,10 @@ func TestGetUserInfo_RateLimitLogIDUsesCompleteStrictBody(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reg := &httpmock.Registry{}
+			t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+			f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+				AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+			})
 			reg.Register(&httpmock.Stub{
 				Method:  http.MethodGet,
 				URL:     "/open-apis/authen/v1/user_info",
@@ -611,12 +613,11 @@ func TestGetUserInfo_RateLimitLogIDUsesCompleteStrictBody(t *testing.T) {
 				RawBody: []byte(tt.body),
 				Headers: http.Header{"Content-Type": []string{"application/json"}, "X-Tt-Logid": []string{"header-log"}, "X-Request-Id": []string{"request-log"}},
 			})
-			sdk := lark.NewClient("test-app", "test-secret",
-				lark.WithEnableTokenCache(false),
-				lark.WithLogLevel(larkcore.LogLevelError),
-				lark.WithHttpClient(&http.Client{Transport: reg}),
-			)
-			_, _, err := getUserInfo(context.Background(), sdk, "user-token")
+			sdk, err := f.LarkClient()
+			if err != nil {
+				t.Fatalf("LarkClient() error = %v", err)
+			}
+			_, _, err = getUserInfo(context.Background(), sdk, "user-token")
 			var apiErr *errs.APIError
 			if !errors.As(err, &apiErr) {
 				t.Fatalf("getUserInfo() error = %T (%v), want APIError", err, err)

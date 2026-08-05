@@ -304,10 +304,14 @@ func TestDefaultTokenProvider_FollowerObservesOwnContextCancellation(t *testing.
 		return &TokenResult{Token: "leader-token"}, nil
 	}
 
-	leaderDone := make(chan error, 1)
+	type outcome struct {
+		result *TokenResult
+		err    error
+	}
+	leaderDone := make(chan outcome, 1)
 	go func() {
-		_, err := p.resolveTAT(context.Background())
-		leaderDone <- err
+		result, err := p.resolveTAT(context.Background())
+		leaderDone <- outcome{result: result, err: err}
 	}()
 	select {
 	case <-started:
@@ -345,8 +349,13 @@ func TestDefaultTokenProvider_FollowerObservesOwnContextCancellation(t *testing.
 		t.Fatal("follower did not observe its context cancellation")
 	}
 	close(release)
-	if err := <-leaderDone; err != nil {
-		t.Fatalf("leader resolution error = %v", err)
+	select {
+	case got := <-leaderDone:
+		if got.err != nil || got.result == nil || got.result.Token != "leader-token" {
+			t.Fatalf("leader resolution = (%v, %v), want leader-token", got.result, got.err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for leader resolution")
 	}
 }
 
