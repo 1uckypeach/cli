@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -38,13 +39,36 @@ func TestVCDetailSupportsBotIdentity(t *testing.T) {
 	}
 }
 
+// inlineCodeSpan matches the contents of a markdown inline-code span.
+var inlineCodeSpan = regexp.MustCompile("`([^`]*)`")
+
+// commandSpans returns the parts of a markdown line a reader would copy as a
+// command: the whole line inside a fenced code block, otherwise the contents of
+// each inline-code span.
+//
+// Checking the whole line instead is not enough. Prose that merely mentions
+// --as would mask a command that omits it, which is exactly how SKILL.md line
+// 79 kept a bare `vc +detail` while satisfying an earlier version of this
+// check — the surrounding sentence said "must pass --as bot", the command did
+// not, and a line-level match saw only that both strings were present.
+func commandSpans(line string, inFence bool) []string {
+	if inFence {
+		return []string{line}
+	}
+	var spans []string
+	for _, m := range inlineCodeSpan.FindAllStringSubmatch(line, -1) {
+		spans = append(spans, m[1])
+	}
+	return spans
+}
+
 // TestVCAgentSkillKeepsIdentityOnDetail guards a doc-level contract that already
-// broke once: the lark-vc-agent skill requires the identity that produced a
+// broke twice: the lark-vc-agent skill requires the identity that produced a
 // meeting_id to be carried forward, because meeting.get only returns meetings
-// that identity joined. SKILL.md was fixed while three reference files kept the
-// bare command, so the check walks the whole skill directory rather than the
-// entry file. Only full `lark-cli vc +detail` invocations are checked; prose
-// that merely names the command is left alone.
+// that identity joined. First SKILL.md was fixed while three reference files
+// kept the bare command, so this walks the whole skill directory; then the
+// entry file's own command stayed bare behind a sentence that named --as, so
+// this inspects copyable command spans rather than whole lines.
 func TestVCAgentSkillKeepsIdentityOnDetail(t *testing.T) {
 	root := filepath.Join("..", "..", "skills", "lark-vc-agent")
 	if _, err := os.Stat(root); err != nil {
@@ -63,14 +87,21 @@ func TestVCAgentSkillKeepsIdentityOnDetail(t *testing.T) {
 		if readErr != nil {
 			return readErr
 		}
+		inFence := false
 		for i, line := range strings.Split(string(b), "\n") {
-			if !strings.Contains(line, "lark-cli vc +detail") {
+			if strings.HasPrefix(strings.TrimSpace(line), "```") {
+				inFence = !inFence
 				continue
 			}
-			checked++
-			if !strings.Contains(line, "--as") {
-				t.Errorf("%s:%d runs `lark-cli vc +detail` without --as, so a bot-joined meeting_id falls back to the user identity:\n  %s",
-					path, i+1, strings.TrimSpace(line))
+			for _, span := range commandSpans(line, inFence) {
+				if !strings.Contains(span, "lark-cli vc +detail") {
+					continue
+				}
+				checked++
+				if !strings.Contains(span, "--as") {
+					t.Errorf("%s:%d has a copyable `vc +detail` command without --as, so a bot-joined meeting_id falls back to the default identity:\n  %s",
+						path, i+1, strings.TrimSpace(span))
+				}
 			}
 		}
 		return nil
@@ -79,7 +110,7 @@ func TestVCAgentSkillKeepsIdentityOnDetail(t *testing.T) {
 		t.Fatalf("walking %s: %v", root, err)
 	}
 	if checked == 0 {
-		t.Fatalf("found no `lark-cli vc +detail` invocation under %s; the check would silently pass forever", root)
+		t.Fatalf("found no `lark-cli vc +detail` command under %s; the check would silently pass forever", root)
 	}
 }
 
