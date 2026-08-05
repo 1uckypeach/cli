@@ -483,3 +483,56 @@ func TestDiagnose_External_VerifyUserTokenUnavailable(t *testing.T) {
 	}
 	assertExternalHint(t, got.User.Hint)
 }
+
+// TestDiagnose_CorruptedUserTokenReportsMissing pins the reported failure: a
+// stored record whose accessToken is empty must never be presented as ready.
+// The status stays "missing" (an existing value consumers already branch on) and
+// the distinguishing detail rides in tokenStatus plus the message.
+func TestDiagnose_CorruptedUserTokenReportsMissing(t *testing.T) {
+	keyring.MockInit()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("LARKSUITE_CLI_DATA_DIR", t.TempDir())
+
+	cfg := &core.CliConfig{
+		AppID:      "test-app-corrupt",
+		AppSecret:  "secret",
+		Brand:      core.BrandFeishu,
+		UserOpenId: "ou_corrupt",
+		UserName:   "tester",
+	}
+	now := time.Now()
+	if err := larkauth.SetStoredToken(&larkauth.StoredUAToken{
+		AppId:            cfg.AppID,
+		UserOpenId:       cfg.UserOpenId,
+		AccessToken:      "",
+		RefreshToken:     "refresh-token",
+		ExpiresAt:        now.Add(time.Hour).UnixMilli(),
+		RefreshExpiresAt: now.Add(24 * time.Hour).UnixMilli(),
+		GrantedAt:        now.Add(-time.Hour).UnixMilli(),
+		Scope:            "im:message",
+	}); err != nil {
+		t.Fatalf("SetStoredToken() error = %v", err)
+	}
+
+	f, _, _, _ := cmdutil.TestFactory(t, cfg)
+
+	got := Diagnose(context.Background(), f, cfg, false)
+
+	if got.User.Status != StatusMissing {
+		t.Fatalf("user status = %q, want %q", got.User.Status, StatusMissing)
+	}
+	if got.User.Available {
+		t.Fatal("user available = true, want false for a token that cannot serve a call")
+	}
+	if got.User.TokenStatus != larkauth.TokenStatusCorrupted {
+		t.Fatalf("tokenStatus = %q, want %q", got.User.TokenStatus, larkauth.TokenStatusCorrupted)
+	}
+	for _, want := range []string{"corrupted", "accessToken is empty", "userAccessToken"} {
+		if !strings.Contains(got.User.Message, want) {
+			t.Fatalf("message %q missing %q", got.User.Message, want)
+		}
+	}
+	if got.User.Hint == "" {
+		t.Fatal("hint is empty, want the auth login recovery command")
+	}
+}

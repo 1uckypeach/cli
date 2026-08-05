@@ -76,11 +76,20 @@ func GetValidAccessToken(httpClient *http.Client, opts UATCallOptions) (string, 
 
 	status := TokenStatus(stored)
 
-	if status == "valid" {
+	if status == TokenStatusValid {
 		return stored.AccessToken, nil
 	}
 
-	if status == "needs_refresh" {
+	// A corrupted record is not refreshed and not deleted: the refresh token
+	// sitting next to an empty access token is just as suspect, and keeping the
+	// file lets whoever wrote it see what landed on disk. Callers get the same
+	// re-authorization error they would get for a missing token, with the cause
+	// named so the fix is not a guess.
+	if status == TokenStatusCorrupted {
+		return "", NewCorruptedUserTokenError(opts.UserOpenId)
+	}
+
+	if status == TokenStatusNeedsRefresh {
 		refreshed, err := refreshWithLock(httpClient, opts, stored)
 		if err != nil {
 			return "", err
@@ -157,7 +166,7 @@ func refreshWithLock(httpClient *http.Client, opts UATCallOptions, stored *Store
 	freshStored := GetStoredToken(opts.AppId, opts.UserOpenId)
 	if freshStored != nil {
 		status := TokenStatus(freshStored)
-		if status == "valid" {
+		if status == TokenStatusValid {
 			// Another process refreshed it, we can just use the new token
 			if opts.ErrOut != nil {
 				fmt.Fprintf(opts.ErrOut, "[lark-cli] uat-client: token already refreshed by another process\n")

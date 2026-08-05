@@ -49,6 +49,25 @@ func NewNeedUserAuthorizationError(userOpenID string) error {
 	return recovery.Attach(e, recovery.UserAuthorization())
 }
 
+// NewCorruptedUserTokenError builds the typed error returned when a stored UAT
+// parses but carries no usable access token (TokenStatusCorrupted). The subtype
+// is token_invalid rather than token_missing because the record exists and its
+// content is wrong — an agent that retries the same call unchanged would fail
+// identically, so the message names the field and the likely cause.
+//
+// The legacy *NeedAuthorizationError sentinel stays in the Cause chain: every
+// existing IsNeedUserAuthorizationError consumer (root error rendering, scope
+// hint folding) must keep treating this as a re-authorization signal.
+func NewCorruptedUserTokenError(userOpenID string) error {
+	e := errs.NewAuthenticationError(errs.SubtypeTokenInvalid,
+		"%s: stored user token is corrupted — accessToken is empty (user: %s); "+
+			"if the token file is written by another process, check for a misspelled field name such as \"userAccessToken\"",
+		needUserAuthorizationMarker, userOpenID).
+		WithUserOpenID(userOpenID).
+		WithCause(&NeedAuthorizationError{UserOpenId: userOpenID})
+	return recovery.Attach(e, recovery.UserAuthorization())
+}
+
 // IsNeedUserAuthorizationError reports whether err represents a missing-UAT
 // failure. It matches the legacy *NeedAuthorizationError sentinel, which is
 // preserved in the Cause chain of the typed missing-UAT error, so errors.As

@@ -491,3 +491,40 @@ func TestActiveExtensionProviderName_SkipsNilProvider(t *testing.T) {
 		t.Errorf("got %q, want empty string", name)
 	}
 }
+
+// TestCredentialProvider_ResolveIdentityHint_CorruptedTokenFallsBackToBot pins
+// that `--as auto` does not resolve to a user identity whose token is unusable.
+// Only "expired" used to fall back, so a corrupted record would have selected the
+// user identity and failed on the first call.
+func TestCredentialProvider_ResolveIdentityHint_CorruptedTokenFallsBackToBot(t *testing.T) {
+	for _, status := range []string{auth.TokenStatusExpired, auth.TokenStatusCorrupted} {
+		t.Run(status, func(t *testing.T) {
+			origGetStoredToken := getStoredToken
+			origTokenStatus := getStoredTokenStatus
+			t.Cleanup(func() {
+				getStoredToken = origGetStoredToken
+				getStoredTokenStatus = origTokenStatus
+			})
+
+			getStoredToken = func(appID, userOpenID string) *auth.StoredUAToken {
+				return &auth.StoredUAToken{AppId: appID, UserOpenId: userOpenID}
+			}
+			getStoredTokenStatus = func(token *auth.StoredUAToken) string { return status }
+
+			cp := NewCredentialProvider(
+				nil,
+				&mockDefaultAcct{account: &Account{AppID: "default_app", Brand: core.BrandFeishu, UserOpenId: "ou_default"}},
+				&mockDefaultToken{result: &TokenResult{Token: "default_tok"}},
+				nil,
+			)
+
+			hint, err := cp.ResolveIdentityHint(context.Background())
+			if err != nil {
+				t.Fatalf("ResolveIdentityHint() error = %v", err)
+			}
+			if hint.AutoAs != core.AsBot {
+				t.Fatalf("ResolveIdentityHint() autoAs = %q, want %q for a %s token", hint.AutoAs, core.AsBot, status)
+			}
+		})
+	}
+}

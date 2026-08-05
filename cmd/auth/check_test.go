@@ -232,3 +232,58 @@ func TestAuthCheckRun_ConcealedLoginOmitsSuggestion(t *testing.T) {
 		t.Fatalf("projection removed missing-scope facts: %#v", payload["missing"])
 	}
 }
+
+// TestAuthCheckRun_CorruptedTokenFailsInsteadOfReportingScopes pins that the
+// predicate does not answer "granted" from a record that cannot make a call. The
+// scope list of a corrupted token still looks complete, so checking scopes first
+// would produce a confident wrong answer.
+func TestAuthCheckRun_CorruptedTokenFailsInsteadOfReportingScopes(t *testing.T) {
+	keyring.MockInit()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("LARKSUITE_CLI_DATA_DIR", t.TempDir())
+
+	cfg := &core.CliConfig{
+		AppID:      "test-app",
+		AppSecret:  "test-secret",
+		Brand:      core.BrandFeishu,
+		UserOpenId: "ou_user",
+		UserName:   "tester",
+	}
+	now := time.Now()
+	if err := larkauth.SetStoredToken(&larkauth.StoredUAToken{
+		AppId:            cfg.AppID,
+		UserOpenId:       cfg.UserOpenId,
+		AccessToken:      "",
+		RefreshToken:     "refresh-token",
+		ExpiresAt:        now.Add(time.Hour).UnixMilli(),
+		RefreshExpiresAt: now.Add(24 * time.Hour).UnixMilli(),
+		Scope:            "im:message docx:document",
+	}); err != nil {
+		t.Fatalf("SetStoredToken() error = %v", err)
+	}
+
+	f, stdout, _, _ := cmdutil.TestFactory(t, cfg)
+
+	err := authCheckRun(&CheckOptions{Factory: f, Scope: "im:message"})
+
+	if err == nil {
+		t.Fatal("expected a non-zero exit for a corrupted token")
+	}
+	if got := output.ExitCodeOf(err); got != 1 {
+		t.Errorf("exit code = %d, want 1", got)
+	}
+
+	var got map[string]interface{}
+	if jsonErr := json.Unmarshal(stdout.Bytes(), &got); jsonErr != nil {
+		t.Fatalf("json.Unmarshal(stdout) error = %v, stdout:\n%s", jsonErr, stdout.String())
+	}
+	if ok, _ := got["ok"].(bool); ok {
+		t.Fatalf("ok = true, want false; stdout:\n%s", stdout.String())
+	}
+	if got["error"] != "corrupted_token" {
+		t.Fatalf("error = %v, want corrupted_token; stdout:\n%s", got["error"], stdout.String())
+	}
+	if _, present := got["granted"]; present {
+		t.Fatalf("granted must be absent for a corrupted token, stdout:\n%s", stdout.String())
+	}
+}

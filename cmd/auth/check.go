@@ -80,6 +80,13 @@ func authCheckRunWithRecovery(opts *CheckOptions, projector *recovery.Projector)
 		output.PrintJson(f.IOStreams.Out, map[string]interface{}{"ok": false, "error": "no_token", "missing": required})
 		return output.ErrBare(1)
 	}
+	// The scope list of a corrupted record still looks complete, so reporting
+	// scopes here would answer "granted" for a credential that cannot make a
+	// single call. Fail with the cause instead.
+	if larkauth.TokenStatus(stored) == larkauth.TokenStatusCorrupted {
+		output.PrintJson(f.IOStreams.Out, map[string]interface{}{"ok": false, "error": "corrupted_token", "missing": required})
+		return output.ErrBare(1)
+	}
 
 	missing := larkauth.MissingScopes(stored.Scope, required)
 	missingSet := make(map[string]bool, len(missing))

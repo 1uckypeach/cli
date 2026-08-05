@@ -304,14 +304,23 @@ func diagnoseUser(ctx context.Context, f *cmdutil.Factory, cfg *core.CliConfig, 
 
 	fillTokenFields(&id, stored)
 	switch larkauth.TokenStatus(stored) {
-	case "valid":
+	case larkauth.TokenStatusValid:
 		id.Status = StatusReady
 		id.Available = true
 		id.Message = "User identity: ready"
-	case "needs_refresh":
+	case larkauth.TokenStatusNeedsRefresh:
 		id.Status = StatusNeedsRefresh
 		id.Available = true
 		id.Message = "User identity: needs refresh (will auto-refresh on next user API call)"
+	case larkauth.TokenStatusCorrupted:
+		// Reported as missing rather than a new status value: consumers already
+		// branch on missing and its recovery action (re-authorize) is exactly
+		// right here. The distinguishing detail rides in tokenStatus and the
+		// message so a corrupted record is never mistaken for a healthy one.
+		id.Status = StatusMissing
+		id.Message = "User identity: missing (stored token is corrupted — accessToken is empty; " +
+			"if the token file is written by another process, check for a misspelled field name such as \"userAccessToken\")"
+		return withCommandRecovery(id, recovery.TargetAuthLogin, "run: lark-cli auth login --help")
 	default:
 		id.Status = StatusMissing
 		id.Message = "User identity: missing (refresh token expired)"

@@ -6,6 +6,7 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/larksuite/cli/internal/keychain"
@@ -24,6 +25,24 @@ type StoredUAToken struct {
 }
 
 const refreshAheadMs = 5 * 60 * 1000 // 5 minutes
+
+// Token freshness values reported by TokenStatus. Callers must compare against
+// these constants rather than bare string literals: a status added later (as
+// TokenStatusCorrupted was) is otherwise silently treated as "not expired" by
+// every `!= "expired"` check in the tree.
+const (
+	TokenStatusValid        = "valid"
+	TokenStatusNeedsRefresh = "needs_refresh"
+	TokenStatusExpired      = "expired"
+	// TokenStatusCorrupted means the stored JSON parsed but carries no usable
+	// access token. The common cause is a writer that misspelled the field
+	// name (e.g. "userAccessToken" instead of "accessToken"): encoding/json
+	// silently drops unknown fields, leaving AccessToken empty while the
+	// expiry timestamps still look healthy. Reporting such a record as valid
+	// makes `auth status` contradict every business command, so it gets its
+	// own status instead.
+	TokenStatusCorrupted = "corrupted"
+)
 
 // accountKey generates a unique key for an account based on its AppID and UserOpenID.
 func accountKey(appId, userOpenId string) string {
@@ -67,13 +86,21 @@ func RemoveStoredToken(appId, userOpenId string) error {
 }
 
 // TokenStatus determines the freshness of a stored token.
+//
+// The access token is checked before the timestamps: a record whose
+// accessToken is empty cannot be used no matter how far in the future its
+// expiry sits, and calling it valid would hand an empty bearer token to the
+// next API call.
 func TokenStatus(token *StoredUAToken) string {
+	if token == nil || strings.TrimSpace(token.AccessToken) == "" {
+		return TokenStatusCorrupted
+	}
 	now := time.Now().UnixMilli()
 	if now < token.ExpiresAt-refreshAheadMs {
-		return "valid"
+		return TokenStatusValid
 	}
 	if now < token.RefreshExpiresAt {
-		return "needs_refresh"
+		return TokenStatusNeedsRefresh
 	}
-	return "expired"
+	return TokenStatusExpired
 }

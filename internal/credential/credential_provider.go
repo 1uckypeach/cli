@@ -120,7 +120,11 @@ func (s defaultTokenSource) ResolveIdentityHint(ctx context.Context, acct *Accou
 		hint.AutoAs = core.AsBot
 		return hint, nil
 	}
-	if getStoredTokenStatus(stored) == "expired" {
+	// Both an expired and a corrupted record mean the user credential cannot
+	// serve a call, so `--as auto` must fall back to bot rather than resolve to
+	// a user identity whose token will be rejected downstream.
+	switch getStoredTokenStatus(stored) {
+	case auth.TokenStatusExpired, auth.TokenStatusCorrupted:
 		hint.AutoAs = core.AsBot
 		return hint, nil
 	}
