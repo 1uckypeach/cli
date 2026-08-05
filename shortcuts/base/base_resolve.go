@@ -104,7 +104,7 @@ var BaseTitleResolve = common.Shortcut{
 	Description: "Resolve a Base title or keyword through Drive search",
 	Risk:        "read",
 	Scopes:      []string{"search:docs:read"},
-	AuthTypes:   []string{"user"},
+	AuthTypes:   []string{"user", "bot"},
 	HasFormat:   true,
 	Flags: []common.Flag{
 		{Name: "title", Aliases: []string{"query", "url"}, Desc: "Base title keyword to search via Drive (30 characters or fewer)"},

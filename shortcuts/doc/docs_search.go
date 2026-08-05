@@ -25,7 +25,7 @@ var DocsSearch = common.Shortcut{
 	Description: "Search Lark docs, Wiki, and spreadsheet files (Search v2: doc_wiki/search)",
 	Risk:        "read",
 	Scopes:      []string{"search:docs:read"},
-	AuthTypes:   []string{"user"},
+	AuthTypes:   []string{"user", "bot"},
 	HasFormat:   true,
 	Flags: []common.Flag{
 		{Name: "query", Desc: "search keyword"},
