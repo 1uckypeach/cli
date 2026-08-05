@@ -168,7 +168,11 @@ func TestClassifyHTTPRateLimit_ReclassifiesExistingAPIErrorAsBusinessRateLimit(t
 	if err != original {
 		t.Fatalf("classification = %T (%v), want original APIError pointer", err, err)
 	}
-	if original.Subtype != errs.SubtypeRateLimit || original.Code != 99991400 || original.Message != RateLimitMessage {
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryAPI || problem.Subtype != errs.SubtypeRateLimit {
+		t.Fatalf("problem = %#v, want api/rate_limit", problem)
+	}
+	if original.Code != 99991400 || original.Message != RateLimitMessage {
 		t.Fatalf("reclassified API error = %#v, want api/rate_limit code 99991400", original)
 	}
 }
