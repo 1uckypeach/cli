@@ -12,6 +12,17 @@ import (
 	"github.com/larksuite/cli/internal/httpmock"
 )
 
+// TestDocsSearchSupportsBotIdentity pins the identity contract so reverting to
+// user-only fails here. docs +search calls
+// POST /open-apis/search/v2/doc_wiki/search, which accepts a tenant token
+// (verified by a live bot call with the search:docs:read bot scope granted),
+// and drive +search already declared both identities for the same endpoint.
+func TestDocsSearchSupportsBotIdentity(t *testing.T) {
+	if len(DocsSearch.AuthTypes) != 2 || DocsSearch.AuthTypes[0] != "user" || DocsSearch.AuthTypes[1] != "bot" {
+		t.Errorf("DocsSearch.AuthTypes = %v, want [user bot]", DocsSearch.AuthTypes)
+	}
+}
+
 // TestDocsSearchExecutePassesThroughNotice verifies docs +search preserves notices.
 func TestDocsSearchExecutePassesThroughNotice(t *testing.T) {
 	const notice = "The query is too long and has been truncated to the first 50 characters for search."

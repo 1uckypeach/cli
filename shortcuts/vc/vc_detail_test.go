@@ -13,9 +13,69 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
+	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/shortcuts/common"
 )
+
+// ---------------------------------------------------------------------------
+// Identity contract
+// ---------------------------------------------------------------------------
+
+// TestVCDetailSupportsBotIdentity pins the identity contract so reverting to
+// user-only fails here. meeting.get accepts a tenant token: the raw
+// `vc meeting get` command has always declared both identities for the same
+// endpoint, and a live bot call returns the meeting once the app has joined
+// it. Declaring user-only silently broke the lark-vc-agent flow that reads
+// note_id / minute_token after a bot joins a meeting.
+func TestVCDetailSupportsBotIdentity(t *testing.T) {
+	if len(VCDetail.AuthTypes) != 2 || VCDetail.AuthTypes[0] != "user" || VCDetail.AuthTypes[1] != "bot" {
+		t.Errorf("VCDetail.AuthTypes = %v, want [user bot]", VCDetail.AuthTypes)
+	}
+}
+
+// TestMeetingDetailPermissionError covers the 121005 rewrite. Upstream reports
+// "user lacks permission" whatever identity made the call, which under a bot
+// sends the caller to auth login even though only joining the meeting can fix
+// it. Only that exact combination is rewritten.
+func TestMeetingDetailPermissionError(t *testing.T) {
+	const upstream = "user lacks permission for the requested resource"
+
+	t.Run("bot 121005 is rewritten", func(t *testing.T) {
+		err := errs.NewPermissionError(errs.SubtypePermissionDenied, upstream).
+			WithCode(recordingNoPermissionCode)
+		p, ok := errs.ProblemOf(meetingDetailPermissionError(bareMeetingQueryRuntime(core.AsBot), err))
+		if !ok {
+			t.Fatalf("ProblemOf failed for %v", err)
+		}
+		if strings.Contains(p.Message, "user lacks permission") {
+			t.Errorf("Message = %q, want the bot-participant wording instead", p.Message)
+		}
+		if !strings.Contains(p.Hint, "vc +meeting-join") {
+			t.Errorf("Hint = %q, want it to point at vc +meeting-join", p.Hint)
+		}
+	})
+
+	t.Run("user identity keeps the upstream wording", func(t *testing.T) {
+		err := errs.NewPermissionError(errs.SubtypePermissionDenied, upstream).
+			WithCode(recordingNoPermissionCode)
+		p, _ := errs.ProblemOf(meetingDetailPermissionError(bareMeetingQueryRuntime(core.AsUser), err))
+		if p.Message != upstream {
+			t.Errorf("Message = %q, want it left unchanged", p.Message)
+		}
+	})
+
+	t.Run("other codes keep the upstream wording", func(t *testing.T) {
+		const scopeMsg = "app scope not applied"
+		err := errs.NewPermissionError(errs.SubtypeAppScopeNotApplied, scopeMsg).
+			WithCode(output.LarkErrAppScopeNotEnabled)
+		p, _ := errs.ProblemOf(meetingDetailPermissionError(bareMeetingQueryRuntime(core.AsBot), err))
+		if p.Message != scopeMsg {
+			t.Errorf("Message = %q, want it left unchanged", p.Message)
+		}
+	})
+}
 
 // ---------------------------------------------------------------------------
 // Validation tests

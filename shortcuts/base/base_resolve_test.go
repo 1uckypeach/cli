@@ -15,6 +15,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// TestBaseTitleResolveSupportsBotIdentity pins the identity contract so
+// reverting to user-only fails here. base +title-resolve calls the same
+// POST /open-apis/search/v2/doc_wiki/search endpoint as docs +search and
+// drive +search, which accepts a tenant token.
+func TestBaseTitleResolveSupportsBotIdentity(t *testing.T) {
+	if len(BaseTitleResolve.AuthTypes) != 2 || BaseTitleResolve.AuthTypes[0] != "user" || BaseTitleResolve.AuthTypes[1] != "bot" {
+		t.Errorf("BaseTitleResolve.AuthTypes = %v, want [user bot]", BaseTitleResolve.AuthTypes)
+	}
+}
+
 func TestBaseURLResolveBaseURL(t *testing.T) {
 	t.Run("with coordinates", func(t *testing.T) {
 		factory, stdout, reg := newExecuteFactory(t)

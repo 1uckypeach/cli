@@ -76,7 +76,7 @@ metadata:
 2. 输入是 **`meeting_id`**（长数字 ID），不是 9 位会议号。
 3. 不依赖默认身份。`meeting_id` 来自用户身份发现时，继续用 `--as user`；来自应用身份发现或 `+meeting-join` 时，继续用 `--as bot`。身份不一致会导致空结果或权限错误。
 4. **不能做会后复盘**，**不能替代参会人快照查询**。如果会议已结束：
-   - 先用 `lark-cli vc +detail --meeting-ids <meeting.id>` 获取会议产物信息。
+   - 先用 `lark-cli vc +detail --meeting-ids <meeting.id>` 获取会议产物信息，身份沿用上一条规则（应用机器人入会拿到的 `meeting_id` 必须带 `--as bot`）。
    - 再根据 `note_id`、`minute_token` 和用户意图，按 [`lark-vc`](../lark-vc/SKILL.md) 的产物决策读取正文、逐字稿或妙记。
    - 想看参会人快照：用 `vc meeting get --with-participants`（见 [`lark-vc`](../lark-vc/SKILL.md)）
 5. **默认必须使用** **`--page-all`**，除非用户明确要求“只查一页”，或确实需要控制返回体大小。
@@ -138,7 +138,8 @@ MID=$(echo "$JOIN" | jq -r '.data.meeting.id')
 lark-cli vc +meeting-events --as "$AS" --meeting-id "$MID" --page-all --format pretty
 
 # 3. 会后可选：进入 lark-vc 获取会议产物信息，再按 note_id / minute_token 决策读取
-lark-cli vc +detail --meeting-ids "$MID"
+#    仍沿用入会身份：meeting.get 只返回当前身份参与过的会议
+lark-cli vc +detail --as "$AS" --meeting-ids "$MID"
 ```
 
 如果用户随后明确要求退出 / 离开 / 结束参会，再单独调用 `lark-cli vc +meeting-leave --as bot --meeting-id "$MID"`。

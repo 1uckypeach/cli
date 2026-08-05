@@ -15,6 +15,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/auth"
+	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/validate"
@@ -41,6 +42,21 @@ type meetingDetailItem struct {
 	Hint        string `json:"hint,omitempty"`
 }
 
+// meetingDetailPermissionError rewrites the upstream 121005 wording, which is
+// "user lacks permission for the requested resource" no matter which identity
+// made the call. Under a bot that phrasing sends the caller to `auth login`,
+// but no user authorization can fix it: meeting.get only serves participants,
+// and the app simply never joined this meeting.
+func meetingDetailPermissionError(runtime *common.RuntimeContext, err error) error {
+	p, ok := errs.ProblemOf(err)
+	if !ok || p.Code != recordingNoPermissionCode || runtime.As() != core.AsBot {
+		return err
+	}
+	p.Message = "bot identity is not a participant of this meeting; meeting.get only returns meetings the app joined"
+	p.Hint = "have the app join the meeting first (vc +meeting-join --as bot), or query as the user with --as user"
+	return err
+}
+
 // fetchMeetingDetail queries meeting.get and recording API to return a
 // consolidated view of meeting metadata, note_id, and minute_token.
 // Error is only set when an API call actually fails; note_id and minute_token
@@ -53,7 +69,7 @@ func fetchMeetingDetail(ctx context.Context, runtime *common.RuntimeContext, mee
 		fmt.Sprintf("/open-apis/vc/v1/meetings/%s", validate.EncodePathSegment(meetingID)),
 		map[string]interface{}{"with_participants": "false", "query_mode": "0"}, nil)
 	if err != nil {
-		result.Error = fmt.Sprintf("failed to query meeting detail: %v", err)
+		result.Error = fmt.Sprintf("failed to query meeting detail: %v", meetingDetailPermissionError(runtime, err))
 		return result
 	}
 
