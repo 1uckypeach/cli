@@ -112,10 +112,10 @@ lark-cli config init --new
 
 **Step 3 — Login**
 
-> Same as above: extract the authorization URL and send it to the user. `--wait` keeps the command blocking until the user authorizes; without it, a non-terminal stdout gets the device code back immediately and the command exits 0 before authorization happens.
+> Same as above: run in the background, extract the authorization URL and send it to the user.
 
 ```bash
-lark-cli auth login --recommend --wait
+lark-cli auth login --recommend
 ```
 
 **Step 4 — Verify**
@@ -178,7 +178,6 @@ lark-cli auth login --recommend
 lark-cli auth login --scope "calendar:calendar:read"
 
 # Agent mode: return verification URL immediately, non-blocking
-# (already the default when stdout is not a terminal; --no-wait forces it on a terminal too)
 lark-cli auth login --domain calendar --no-wait
 # Resume polling later
 lark-cli auth login --device-code <DEVICE_CODE>

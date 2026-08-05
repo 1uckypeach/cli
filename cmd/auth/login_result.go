@@ -14,15 +14,6 @@ import (
 	"github.com/larksuite/cli/internal/output"
 )
 
-// Outcome names carried in the `event` field of auth login's JSON output. Both
-// outcomes exit 0, so this field is what distinguishes "authorization was
-// requested, no token stored" from "authorization completed and the token is on
-// disk". They are a machine-readable contract — renaming one breaks callers.
-const (
-	eventAuthorizationRequested = "authorization_requested"
-	eventAuthorizationComplete  = "authorization_complete"
-)
-
 type loginScopeSummary struct {
 	Requested      []string
 	NewlyGranted   []string
@@ -212,7 +203,7 @@ func authorizationCompletePayload(openId, userName string, summary *loginScopeSu
 		summary = &loginScopeSummary{}
 	}
 	payload := map[string]interface{}{
-		"event":           eventAuthorizationComplete,
+		"event":           "authorization_complete",
 		"user_open_id":    openId,
 		"user_name":       userName,
 		"scope":           strings.Join(summary.Granted, " "),

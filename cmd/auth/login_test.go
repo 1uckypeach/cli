@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/larksuite/cli/errs"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -325,7 +324,7 @@ func TestAuthLoginRun_NonTerminal_NoFlags_RejectsWithHint(t *testing.T) {
 	}
 	// Stderr should explain the split-flow path for non-streaming agents.
 	stderrStr := stderr.String()
-	for _, want := range []string{"returns the device code immediately", "final message of the turn", "--device-code", "--wait to block"} {
+	for _, want := range []string{"--no-wait --json", "final message of the turn", "--device-code"} {
 		if !strings.Contains(stderrStr, want) {
 			t.Errorf("expected stderr to mention %q, got: %s", want, stderrStr)
 		}
@@ -617,10 +616,6 @@ func TestAuthLoginRun_MissingRequestedScopeAlignsWithLoginSuccess(t *testing.T) 
 		AppSecret:   "secret",
 		Brand:       core.BrandFeishu,
 	})
-	// This case exercises the blocking poll, which is the terminal default;
-	// TestFactory reports a non-terminal stdout, where login now returns the
-	// device code instead of polling.
-	f.IOStreams.OutIsTerminal = true
 
 	reg.Register(&httpmock.Stub{
 		Method: "POST",
@@ -895,15 +890,12 @@ func TestAuthLoginRun_JSONAbort_StdoutEventOnly_StderrEmpty(t *testing.T) {
 		return &larkauth.DeviceFlowResult{OK: false, Message: "user denied"}
 	}
 
-	// Asserting on the poll's abort output requires the blocking path, i.e. the
-	// interactive-terminal default.
 	f, stdout, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
 		Brand:       core.BrandFeishu,
 	})
-	f.IOStreams.OutIsTerminal = true
 
 	reg.Register(&httpmock.Stub{
 		Method: "POST",
@@ -1119,9 +1111,6 @@ func TestAuthLoginRun_JSONDeviceAuthorizationAgentHintIncludesRawURLGuidance(t *
 		AppSecret:   "secret",
 		Brand:       core.BrandFeishu,
 	})
-	// The device_authorization event this asserts on belongs to the blocking
-	// path, i.e. the interactive-terminal default.
-	f.IOStreams.OutIsTerminal = true
 
 	reg.Register(&httpmock.Stub{
 		Method: "POST",
@@ -1218,300 +1207,5 @@ func TestGetDomainMetadata_ExcludesAuthDomainChildren(t *testing.T) {
 		if dm.Name == "whiteboard" {
 			t.Error("whiteboard should not appear in interactive domain list (has auth_domain=docs)")
 		}
-	}
-}
-
-// TestResolveWaitIntent pins how the two flags fold into one intent. Both carry
-// a preference even when set to false: --wait=false and an absent --wait are the
-// same boolean but opposite requests, and reading only the value silently
-// ignored the explicit one.
-func TestResolveWaitIntent(t *testing.T) {
-	tests := []struct {
-		name   string
-		noWait flagState
-		wait   flagState
-		want   waitIntent
-	}{
-		{name: "neither flag", want: waitIntentAuto},
-		{name: "--no-wait", noWait: flagState{set: true, value: true}, want: waitIntentReturn},
-		{name: "--no-wait=false asks to block", noWait: flagState{set: true, value: false}, want: waitIntentBlock},
-		{name: "--wait", wait: flagState{set: true, value: true}, want: waitIntentBlock},
-		{name: "--wait=false asks to return", wait: flagState{set: true, value: false}, want: waitIntentReturn},
-		{
-			name:   "both set is a conflict regardless of value",
-			noWait: flagState{set: true, value: true},
-			wait:   flagState{set: true, value: false},
-			want:   waitIntentConflict,
-		},
-		{
-			name:   "both set to the same meaning is still a conflict",
-			noWait: flagState{set: true, value: false},
-			wait:   flagState{set: true, value: true},
-			want:   waitIntentConflict,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := resolveWaitIntent(tc.noWait, tc.wait); got != tc.want {
-				t.Fatalf("resolveWaitIntent() = %v, want %v", got, tc.want)
-			}
-		})
-	}
-}
-
-// TestResolveNoWait pins the wait/no-wait decision table. The unattended default
-// is the point of the contract: without it, an agent sandbox blocks for the whole
-// device-code lifetime waiting for a scan that cannot happen.
-func TestResolveNoWait(t *testing.T) {
-	tests := []struct {
-		name             string
-		intent           waitIntent
-		stdoutIsTerminal bool
-		want             bool
-		wantErr          bool
-	}{
-		{name: "auto on a terminal blocks", intent: waitIntentAuto, stdoutIsTerminal: true, want: false},
-		{name: "auto without a terminal returns immediately", intent: waitIntentAuto, stdoutIsTerminal: false, want: true},
-		{name: "return forces immediate return on a terminal", intent: waitIntentReturn, stdoutIsTerminal: true, want: true},
-		{name: "return without a terminal returns immediately", intent: waitIntentReturn, stdoutIsTerminal: false, want: true},
-		{name: "block blocks without a terminal", intent: waitIntentBlock, stdoutIsTerminal: false, want: false},
-		{name: "block blocks on a terminal", intent: waitIntentBlock, stdoutIsTerminal: true, want: false},
-		{name: "conflict is a caller bug", intent: waitIntentConflict, stdoutIsTerminal: false, wantErr: true},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := resolveNoWait(tc.intent, tc.stdoutIsTerminal)
-			if tc.wantErr {
-				if err == nil {
-					t.Fatal("resolveNoWait() error = nil, want a validation error")
-				}
-				problem, ok := errs.ProblemOf(err)
-				if !ok {
-					t.Fatalf("ProblemOf() ok = false, want a typed error; got %v", err)
-				}
-				if problem.Category != errs.CategoryValidation {
-					t.Fatalf("category = %q, want %q", problem.Category, errs.CategoryValidation)
-				}
-				if problem.Subtype != errs.SubtypeInvalidArgument {
-					t.Fatalf("subtype = %q, want %q", problem.Subtype, errs.SubtypeInvalidArgument)
-				}
-				// param lives on *errs.ValidationError, not on the shared Problem.
-				var verr *errs.ValidationError
-				if !errors.As(err, &verr) {
-					t.Fatalf("error is not a *errs.ValidationError: %v", err)
-				}
-				if verr.Param != "--wait" {
-					t.Fatalf("param = %q, want --wait", verr.Param)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("resolveNoWait() error = %v", err)
-			}
-			if got != tc.want {
-				t.Fatalf("resolveNoWait() = %v, want %v", got, tc.want)
-			}
-		})
-	}
-}
-
-// TestAuthLoginRun_NonTerminalReturnsDeviceCodeWithoutPolling is the regression
-// for the reported hang: with stdout piped and neither flag passed, login must
-// emit the device code and return instead of polling. The httpmock registry has
-// no token stub, so any poll attempt fails the test.
-func TestAuthLoginRun_NonTerminalReturnsDeviceCodeWithoutPolling(t *testing.T) {
-	keyring.MockInit()
-	setupLoginConfigDir(t)
-
-	pollCalled := false
-	original := pollDeviceToken
-	t.Cleanup(func() { pollDeviceToken = original })
-	pollDeviceToken = func(ctx context.Context, httpClient *http.Client, appId, appSecret string, brand core.LarkBrand, deviceCode string, interval, expiresIn int, errOut io.Writer) *larkauth.DeviceFlowResult {
-		pollCalled = true
-		return &larkauth.DeviceFlowResult{OK: false, Message: "should not be reached"}
-	}
-
-	f, stdout, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		ProfileName: "default",
-		AppID:       "cli_test",
-		AppSecret:   "secret",
-		Brand:       core.BrandFeishu,
-	})
-	// TestFactory writes to buffers, so OutIsTerminal is already false — the
-	// unattended shape this contract is about.
-	f.IOStreams.OutIsTerminal = false
-
-	reg.Register(&httpmock.Stub{
-		Method: "POST",
-		URL:    larkauth.PathDeviceAuthorization,
-		Body: map[string]interface{}{
-			"device_code":               "device-code",
-			"user_code":                 "user-code",
-			"verification_uri":          "https://example.com/verify",
-			"verification_uri_complete": "https://example.com/verify?code=123",
-			"expires_in":                240,
-			"interval":                  0,
-		},
-	})
-
-	if err := authLoginRun(&LoginOptions{
-		Factory: f,
-		Ctx:     context.Background(),
-		Scope:   "im:message:send",
-	}); err != nil {
-		t.Fatalf("authLoginRun() error = %v, want nil", err)
-	}
-
-	if pollCalled {
-		t.Fatal("pollDeviceToken was called; an unattended run must not block on authorization")
-	}
-
-	var got map[string]interface{}
-	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
-		t.Fatalf("json.Unmarshal(stdout) error = %v, stdout:\n%s", err, stdout.String())
-	}
-	if got["device_code"] != "device-code" {
-		t.Fatalf("device_code = %v, want device-code; stdout:\n%s", got["device_code"], stdout.String())
-	}
-	if got["verification_url"] != "https://example.com/verify?code=123" {
-		t.Fatalf("verification_url = %v; stdout:\n%s", got["verification_url"], stdout.String())
-	}
-
-	// Both outcomes exit 0, so `event` is the only machine-readable signal that
-	// tells a caller no token was stored. Asserted as a literal on purpose: it is
-	// an output contract, and following the constant here would let a rename pass.
-	if got["event"] != "authorization_requested" {
-		t.Fatalf("event = %v, want authorization_requested; stdout:\n%s", got["event"], stdout.String())
-	}
-	if got["event"] == "authorization_complete" {
-		t.Fatal("event must not claim authorization completed: no token has been stored at this point")
-	}
-
-	// The switch is announced, and the announcement names the way back.
-	for _, want := range []string{"stdout is not a terminal", "--wait"} {
-		if !strings.Contains(stderr.String(), want) {
-			t.Fatalf("stderr missing %q, got:\n%s", want, stderr.String())
-		}
-	}
-}
-
-// TestAuthLoginRun_WaitFlagBlocksWithoutTerminal pins the escape hatch: a caller
-// that genuinely wants to wait on a pipe keeps the polling behaviour.
-func TestAuthLoginRun_WaitFlagBlocksWithoutTerminal(t *testing.T) {
-	keyring.MockInit()
-	setupLoginConfigDir(t)
-
-	pollCalled := false
-	original := pollDeviceToken
-	t.Cleanup(func() { pollDeviceToken = original })
-	pollDeviceToken = func(ctx context.Context, httpClient *http.Client, appId, appSecret string, brand core.LarkBrand, deviceCode string, interval, expiresIn int, errOut io.Writer) *larkauth.DeviceFlowResult {
-		pollCalled = true
-		return &larkauth.DeviceFlowResult{OK: false, Message: "user denied"}
-	}
-
-	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
-		ProfileName: "default",
-		AppID:       "cli_test",
-		AppSecret:   "secret",
-		Brand:       core.BrandFeishu,
-	})
-	f.IOStreams.OutIsTerminal = false
-
-	reg.Register(&httpmock.Stub{
-		Method: "POST",
-		URL:    larkauth.PathDeviceAuthorization,
-		Body: map[string]interface{}{
-			"device_code":               "device-code",
-			"user_code":                 "user-code",
-			"verification_uri":          "https://example.com/verify",
-			"verification_uri_complete": "https://example.com/verify?code=123",
-			"expires_in":                240,
-			"interval":                  0,
-		},
-	})
-
-	err := authLoginRun(&LoginOptions{
-		Factory: f,
-		Ctx:     context.Background(),
-		Scope:   "im:message:send",
-		Wait:    true,
-	})
-	if err == nil {
-		t.Fatal("expected the denied-authorization error from the poll")
-	}
-	if !pollCalled {
-		t.Fatal("pollDeviceToken was not called; --wait must keep blocking on a pipe")
-	}
-}
-
-// TestAuthLoginCmd_ExplicitFlagsReachIntent pins the cobra wiring: an explicitly
-// negated flag means the opposite of its name, and reading only the bool value
-// would silently drop that. Goes through real flag parsing because the bug this
-// guards against lives in the Changed() plumbing, not in resolveWaitIntent.
-func TestAuthLoginCmd_ExplicitFlagsReachIntent(t *testing.T) {
-	tests := []struct {
-		name string
-		args []string
-		want waitIntent
-	}{
-		{name: "no flag", args: nil, want: waitIntentAuto},
-		{name: "--no-wait", args: []string{"--no-wait"}, want: waitIntentReturn},
-		{name: "--no-wait=false", args: []string{"--no-wait=false"}, want: waitIntentBlock},
-		{name: "--wait", args: []string{"--wait"}, want: waitIntentBlock},
-		{name: "--wait=false", args: []string{"--wait=false"}, want: waitIntentReturn},
-		{name: "both flags", args: []string{"--wait", "--no-wait"}, want: waitIntentConflict},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-				AppID: "cli_test", AppSecret: "secret", Brand: core.BrandFeishu,
-			})
-
-			var captured *LoginOptions
-			cmd := NewCmdAuthLogin(f, func(opts *LoginOptions) error {
-				captured = opts
-				return nil
-			})
-			cmd.SetOut(io.Discard)
-			cmd.SetErr(io.Discard)
-			cmd.SetArgs(append([]string{"--scope", "im:message:send"}, tc.args...))
-			if err := cmd.Execute(); err != nil {
-				t.Fatalf("Execute() error = %v", err)
-			}
-			if captured == nil {
-				t.Fatal("run function was not invoked")
-			}
-			if captured.waitIntent != tc.want {
-				t.Fatalf("waitIntent = %v, want %v", captured.waitIntent, tc.want)
-			}
-
-			// The intent must survive into the actual decision. Pin it against a
-			// terminal stdout, where the default disagrees with both explicit
-			// requests and a dropped flag would go unnoticed.
-			noWait, err := resolveNoWait(captured.waitIntent, true)
-			switch tc.want {
-			case waitIntentConflict:
-				if err == nil {
-					t.Fatal("resolveNoWait() error = nil, want the mutually-exclusive error")
-				}
-			case waitIntentReturn:
-				if err != nil {
-					t.Fatalf("resolveNoWait() error = %v", err)
-				}
-				if !noWait {
-					t.Fatal("resolveNoWait() = false on a terminal, want true for an explicit return request")
-				}
-			default:
-				if err != nil {
-					t.Fatalf("resolveNoWait() error = %v", err)
-				}
-				if noWait {
-					t.Fatal("resolveNoWait() = true, want false")
-				}
-			}
-		})
 	}
 }
