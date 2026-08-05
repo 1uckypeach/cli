@@ -23,6 +23,8 @@ const (
 	maxRetryAfterSeconds     = 24 * 60 * 60
 	retryAfterSourceHeader   = "retry-after"
 	retryAfterSourceDefault  = "default"
+	// RateLimitMessage is the stable user-facing message for short-term limits.
+	RateLimitMessage = "request rate limit exceeded"
 )
 
 // ClassifyHTTPRateLimit classifies only HTTP 429 responses. Business-code
@@ -32,7 +34,7 @@ func ClassifyHTTPRateLimit(status int, header http.Header, result any, classifie
 		return nil
 	}
 
-	businessRateLimit := resultCode(result) == 99991400
+	businessRateLimit := IsBusinessRateLimit(result)
 	if !businessRateLimit && classified != nil {
 		if problem, ok := errs.ProblemOf(classified); ok {
 			problem.LogID = RateLimitLogID(result, header)
@@ -53,15 +55,17 @@ func ClassifyHTTPRateLimit(status int, header http.Header, result any, classifie
 		}
 	}
 	if apiErr == nil {
-		apiErr = errs.NewAPIError(errs.SubtypeRateLimit, "request rate limit exceeded").WithCode(code)
+		apiErr = errs.NewAPIError(errs.SubtypeRateLimit, RateLimitMessage).WithCode(code)
+	}
+	if businessRateLimit {
+		apiErr.Message = RateLimitMessage
 	}
 
 	// Derive the identifier exclusively from validated structured/header
 	// sources. This also clears an unsafe value set by an earlier classifier.
 	apiErr.LogID = RateLimitLogID(result, header)
 	seconds, source := ParseRetryAfter(header, now)
-	guidance := fmt.Sprintf("wait %d seconds before reevaluating; retryable does not mean a write request is safe to replay—verify the operation result or idempotency before retrying", seconds)
-	apiErr.Hint = mergeRateLimitHint(apiErr.Hint, guidance)
+	apiErr.Hint = MergeRateLimitHint(apiErr.Hint, RateLimitGuidance(seconds))
 	return apiErr.WithRetryable().WithRetryAfter(seconds, source)
 }
 
@@ -185,21 +189,14 @@ func validRateLimitLogID(value any) string {
 	return logID
 }
 
-func resultCode(result any) int {
-	resultMap, ok := result.(map[string]any)
-	if !ok {
-		return 0
-	}
-	if exactBusinessRateLimitCode(resultMap["code"]) {
-		return 99991400
-	}
-	return 0
-}
-
 // IsBusinessRateLimit reports whether result carries the exact integer Lark
 // short-term rate-limit code.
 func IsBusinessRateLimit(result any) bool {
-	return resultCode(result) == 99991400
+	resultMap, ok := result.(map[string]any)
+	if !ok {
+		return false
+	}
+	return exactBusinessRateLimitCode(resultMap["code"])
 }
 
 func exactBusinessRateLimitCode(value any) bool {
@@ -238,7 +235,13 @@ func exactBusinessRateLimitCode(value any) bool {
 	}
 }
 
-func mergeRateLimitHint(existing, guidance string) string {
+// RateLimitGuidance returns the canonical retry scheduling and replay-safety hint.
+func RateLimitGuidance(seconds int) string {
+	return fmt.Sprintf("wait %d seconds before reevaluating; retryable does not mean a write request is safe to replay—verify the operation result or idempotency before retrying", seconds)
+}
+
+// MergeRateLimitHint appends the canonical guidance without duplicating it.
+func MergeRateLimitHint(existing, guidance string) string {
 	if existing == "" || existing == guidance {
 		return guidance
 	}

@@ -24,6 +24,14 @@ func TestDefaultAccountProvider_Implements(t *testing.T) {
 	var _ DefaultAccountResolver = &DefaultAccountProvider{}
 }
 
+func requireTATProblem(t *testing.T, err error, category errs.Category, subtype errs.Subtype, retryable bool) {
+	t.Helper()
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != category || problem.Subtype != subtype || problem.Retryable != retryable {
+		t.Fatalf("problem = %#v, want category=%q subtype=%q retryable=%v", problem, category, subtype, retryable)
+	}
+}
+
 func TestDefaultTokenProvider_RetryableTATErrorIsNotCached(t *testing.T) {
 	retryableErr := errs.NewAPIError(errs.SubtypeRateLimit, "rate limited").WithRetryable()
 	var calls atomic.Int32
@@ -37,6 +45,8 @@ func TestDefaultTokenProvider_RetryableTATErrorIsNotCached(t *testing.T) {
 
 	if result, err := p.resolveTAT(context.Background()); result != nil || !errors.Is(err, retryableErr) {
 		t.Fatalf("first resolution = (%v, %v), want retryable error", result, err)
+	} else {
+		requireTATProblem(t, err, errs.CategoryAPI, errs.SubtypeRateLimit, true)
 	}
 	result, err := p.resolveTAT(context.Background())
 	if err != nil {
@@ -108,6 +118,7 @@ func TestDefaultTokenProvider_ConcurrentRetryableTATFlightIsSharedThenRetried(t 
 			if got.result != nil || !errors.Is(got.err, retryableErr) {
 				t.Fatalf("shared retryable resolution = (%v, %v), want retryable error", got.result, got.err)
 			}
+			requireTATProblem(t, got.err, errs.CategoryAPI, errs.SubtypeRateLimit, true)
 		case <-time.After(2 * time.Second):
 			t.Fatal("timed out waiting for shared retryable resolution")
 		}
@@ -230,9 +241,112 @@ func TestDefaultTokenProvider_NonRetryableTATErrorIsCached(t *testing.T) {
 		if result != nil || !errors.Is(err, wantErr) {
 			t.Fatalf("resolution %d = (%v, %v), want cached error", i+1, result, err)
 		}
+		requireTATProblem(t, err, errs.CategoryConfig, errs.SubtypeInvalidClient, false)
 	}
 	if got := calls.Load(); got != 1 {
 		t.Fatalf("resolver calls = %d, want 1", got)
+	}
+}
+
+func TestDefaultTokenProvider_ContextCancellationIsNotCached(t *testing.T) {
+	var calls atomic.Int32
+	p := NewDefaultTokenProvider(nil, nil, nil)
+	p.tatResolver = func(ctx context.Context) (*TokenResult, error) {
+		if calls.Add(1) == 1 {
+			return nil, ctx.Err()
+		}
+		return &TokenResult{Token: "recovered-token"}, nil
+	}
+
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if result, err := p.resolveTAT(canceledCtx); result != nil || !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled resolution = (%v, %v), want context.Canceled", result, err)
+	}
+	result, err := p.resolveTAT(context.Background())
+	if err != nil || result == nil || result.Token != "recovered-token" {
+		t.Fatalf("resolution after cancellation = (%v, %v), want recovered token", result, err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("resolver calls = %d, want 2", got)
+	}
+}
+
+func TestDefaultTokenProvider_ContextDeadlineIsNotCached(t *testing.T) {
+	var calls atomic.Int32
+	p := NewDefaultTokenProvider(nil, nil, nil)
+	p.tatResolver = func(context.Context) (*TokenResult, error) {
+		if calls.Add(1) == 1 {
+			return nil, context.DeadlineExceeded
+		}
+		return &TokenResult{Token: "recovered-token"}, nil
+	}
+
+	if result, err := p.resolveTAT(context.Background()); result != nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("deadline resolution = (%v, %v), want context.DeadlineExceeded", result, err)
+	}
+	result, err := p.resolveTAT(context.Background())
+	if err != nil || result == nil || result.Token != "recovered-token" {
+		t.Fatalf("resolution after deadline = (%v, %v), want recovered token", result, err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("resolver calls = %d, want 2", got)
+	}
+}
+
+func TestDefaultTokenProvider_FollowerObservesOwnContextCancellation(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	p := NewDefaultTokenProvider(nil, nil, nil)
+	p.tatResolver = func(context.Context) (*TokenResult, error) {
+		close(started)
+		<-release
+		return &TokenResult{Token: "leader-token"}, nil
+	}
+
+	leaderDone := make(chan error, 1)
+	go func() {
+		_, err := p.resolveTAT(context.Background())
+		leaderDone <- err
+	}()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for leader resolution")
+	}
+
+	followerCtx, cancel := context.WithCancel(context.Background())
+	followerDone := make(chan error, 1)
+	go func() {
+		_, err := p.resolveTAT(followerCtx)
+		followerDone <- err
+	}()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		p.tatMu.Lock()
+		followers := p.tatFlight.followers
+		p.tatMu.Unlock()
+		if followers == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("in-flight followers = %d, want 1", followers)
+		}
+		runtime.Gosched()
+	}
+
+	cancel()
+	select {
+	case err := <-followerDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("follower error = %v, want context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("follower did not observe its context cancellation")
+	}
+	close(release)
+	if err := <-leaderDone; err != nil {
+		t.Fatalf("leader resolution error = %v", err)
 	}
 }
 
@@ -272,6 +386,19 @@ func TestDefaultTokenProvider_ConcurrentTATSuccessCoalesces(t *testing.T) {
 	case <-started:
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for TAT resolution to start")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		p.tatMu.Lock()
+		followers := p.tatFlight.followers
+		p.tatMu.Unlock()
+		if followers == callers-1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("in-flight followers = %d, want %d", followers, callers-1)
+		}
+		runtime.Gosched()
 	}
 	close(release)
 

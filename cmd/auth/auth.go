@@ -6,7 +6,6 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"slices"
 
@@ -14,6 +13,7 @@ import (
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/errs"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -86,26 +86,27 @@ func getUserInfo(ctx context.Context, sdk *lark.Client, accessToken string) (ope
 		if rateErr := client.ClassifyRateLimitResponse(apiResp, nil, nil); rateErr != nil {
 			return "", "", rateErr
 		}
-		return "", "", fmt.Errorf("failed to parse user info: %w", err)
+		return "", "", errs.NewInternalError(errs.SubtypeInvalidResponse,
+			"failed to parse user info: %v", err).WithCause(err)
 	}
-	result := map[string]interface{}{"code": resp.Code, "msg": resp.Msg}
 	var classified error
 	if resp.Code != 0 {
 		var raw map[string]interface{}
 		_ = json.Unmarshal(apiResp.RawBody, &raw)
 		if raw == nil {
-			raw = result
+			raw = map[string]interface{}{"code": resp.Code, "msg": resp.Msg}
 		}
 		classified = errclass.BuildAPIError(raw, errclass.ClassifyContext{Identity: string(core.AsUser)})
 	}
-	if rateErr := client.ClassifyRateLimitResponse(apiResp, result, classified); rateErr != nil {
+	if rateErr := client.ClassifyRateLimitResponse(apiResp, nil, classified); rateErr != nil {
 		return "", "", rateErr
 	}
 	if classified != nil {
 		return "", "", classified
 	}
 	if resp.Data.OpenID == "" {
-		return "", "", fmt.Errorf("failed to get user info: missing open_id in response")
+		return "", "", errs.NewInternalError(errs.SubtypeInvalidResponse,
+			"failed to get user info: missing open_id in response")
 	}
 
 	name = resp.Data.Name
@@ -168,14 +169,14 @@ func getAppInfo(ctx context.Context, f *cmdutil.Factory, appId string) (*appInfo
 		if rateErr := client.ClassifyRateLimitResponse(apiResp, nil, nil); rateErr != nil {
 			return nil, rateErr
 		}
-		return nil, fmt.Errorf("failed to parse response: %w", err)
+		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
+			"failed to parse response: %v", err).WithCause(err)
 	}
-	result := map[string]interface{}{"code": resp.Code, "msg": resp.Msg}
 	var classified error
 	if resp.Code != 0 {
 		classified = classifyAppInfoErr(apiResp.RawBody, resp.Code, resp.Msg, f, appId)
 	}
-	if rateErr := client.ClassifyRateLimitResponse(apiResp, result, classified); rateErr != nil {
+	if rateErr := client.ClassifyRateLimitResponse(apiResp, nil, classified); rateErr != nil {
 		return nil, rateErr
 	}
 	if classified != nil {

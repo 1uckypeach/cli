@@ -121,13 +121,47 @@ func TestClassifyRateLimitResponse_BareHTTP429LogIDPrecedence(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resp := &larkcore.ApiResp{StatusCode: http.StatusTooManyRequests, Header: http.Header{"X-Tt-Logid": []string{"header"}}, RawBody: tt.raw}
 			var apiErr *errs.APIError
-			if !errors.As(ClassifyRateLimitResponse(resp, tt.result, nil), &apiErr) {
+			err := ClassifyRateLimitResponse(resp, tt.result, nil)
+			if !errors.As(err, &apiErr) {
 				t.Fatal("expected APIError")
+			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != errs.CategoryAPI || problem.Subtype != errs.SubtypeRateLimit {
+				t.Fatalf("problem = %#v, want api/rate_limit", problem)
 			}
 			if apiErr.LogID != tt.want {
 				t.Fatalf("LogID = %q, want %q", apiErr.LogID, tt.want)
 			}
 		})
+	}
+}
+
+func TestClassifyRateLimitResponse_BusinessCodeUsesCanonicalMessageAcrossHTTPStatuses(t *testing.T) {
+	for _, status := range []int{http.StatusBadRequest, http.StatusTooManyRequests} {
+		body := []byte(`{"code":99991400,"msg":"status-specific upstream text"}`)
+		result := map[string]interface{}{"code": float64(99991400), "msg": "status-specific upstream text"}
+		classified := errs.NewAPIError(errs.SubtypeRateLimit, "status-specific upstream text").WithCode(99991400)
+		resp := &larkcore.ApiResp{StatusCode: status, Header: http.Header{}, RawBody: body}
+
+		var apiErr *errs.APIError
+		if !errors.As(ClassifyRateLimitResponse(resp, result, classified), &apiErr) {
+			t.Fatalf("status %d: expected APIError", status)
+		}
+		if apiErr.Message != "request rate limit exceeded" {
+			t.Fatalf("status %d: message = %q, want canonical rate-limit message", status, apiErr.Message)
+		}
+	}
+}
+
+func TestClassifyRateLimitResponse_MalformedBusinessCandidateFailsClosed(t *testing.T) {
+	projected := map[string]interface{}{"code": float64(99991400)}
+	classified := errs.NewAPIError(errs.SubtypeRateLimit, "projected").WithCode(99991400)
+	resp := &larkcore.ApiResp{StatusCode: http.StatusBadRequest, RawBody: []byte(`{"code":99991400}trailing`)}
+
+	err := ClassifyRateLimitResponse(resp, projected, classified)
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryInternal || problem.Subtype != errs.SubtypeInvalidResponse {
+		t.Fatalf("problem = %#v, want internal/invalid_response", problem)
 	}
 }
 

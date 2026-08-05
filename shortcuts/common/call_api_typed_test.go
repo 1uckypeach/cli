@@ -119,6 +119,10 @@ func TestCallAPITyped_RateLimitMetadataFromResponseHeader(t *testing.T) {
 			if !errors.As(err, &apiErr) {
 				t.Fatalf("CallAPITyped() error = %T (%v), want *errs.APIError", err, err)
 			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != errs.CategoryAPI || problem.Subtype != errs.SubtypeRateLimit {
+				t.Fatalf("problem = %#v, want api/rate_limit", problem)
+			}
 			if apiErr.Subtype != errs.SubtypeRateLimit || apiErr.Code != 99991400 || !apiErr.Retryable {
 				t.Fatalf("rate limit problem = %#v", apiErr.Problem)
 			}

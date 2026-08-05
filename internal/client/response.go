@@ -5,6 +5,7 @@ package client
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,7 +17,6 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/core"
-	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/util"
 )
@@ -204,8 +204,10 @@ func IsJSONContentType(ct string) bool {
 // ParseJSONResponse decodes a raw SDK response body as JSON.
 // CallAPI and HandleResponse both delegate to this function.
 func ParseJSONResponse(resp *larkcore.ApiResp) (interface{}, error) {
-	result, err := errclass.DecodeSingleJSON(resp.RawBody)
-	if err != nil {
+	var result interface{}
+	dec := json.NewDecoder(bytes.NewReader(resp.RawBody))
+	dec.UseNumber()
+	if err := dec.Decode(&result); err != nil {
 		return nil, fmt.Errorf("response parse error: %w (body: %s)", err, jsonResponseBodySummary(resp.RawBody))
 	}
 	return result, nil

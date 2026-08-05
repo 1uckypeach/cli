@@ -175,7 +175,7 @@ func TestFetchBotInfo_APICodeNonZero(t *testing.T) {
 		t.Fatal("expected error for non-zero code")
 	}
 	problem, ok := errs.ProblemOf(err)
-	if !ok || problem.Code != 99991 {
+	if !ok || problem.Category != errs.CategoryAPI || problem.Subtype == "" || problem.Code != 99991 {
 		t.Fatalf("problem = %#v, %v; want typed code 99991", problem, ok)
 	}
 }
@@ -206,6 +206,10 @@ func TestFetchBotInfo_RateLimitRecoveryMetadata(t *testing.T) {
 			var apiErr *errs.APIError
 			if !errors.As(err, &apiErr) {
 				t.Fatalf("fetchBotInfo error = %T (%v), want *errs.APIError", err, err)
+			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != errs.CategoryAPI || problem.Subtype != errs.SubtypeRateLimit {
+				t.Fatalf("problem = %#v, want api/rate_limit", problem)
 			}
 			if apiErr.Code != tt.wantCode || apiErr.Subtype != errs.SubtypeRateLimit {
 				t.Fatalf("rate limit problem = %#v, want code %d", apiErr.Problem, tt.wantCode)
@@ -261,7 +265,7 @@ func TestFetchBotInfo_HTTP4xx(t *testing.T) {
 		t.Fatal("expected error for HTTP 403")
 	}
 	problem, ok := errs.ProblemOf(err)
-	if !ok || problem.Code != 403 {
+	if !ok || problem.Category != errs.CategoryAPI || problem.Subtype == "" || problem.Code != 403 {
 		t.Fatalf("problem = %#v, %v; want typed code 403", problem, ok)
 	}
 }

@@ -43,7 +43,7 @@ type Factory struct {
 	IdentityAutoDetected bool                    // set by ResolveAs when identity was auto-detected
 	ResolvedIdentity     core.Identity           // identity resolved by the last ResolveAs call
 	CurrentCommand       *cobra.Command          // last matched command being executed; set during PersistentPreRun
-	identityExplicit     bool                    // set only when the user explicitly selected --as user or --as bot
+	identityExplicit     bool                    // set for any explicit non-auto --as value, including invalid values, so errors can attribute the flag
 
 	Credential *credential.CredentialProvider
 

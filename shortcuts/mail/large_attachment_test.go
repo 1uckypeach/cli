@@ -1226,6 +1226,10 @@ func TestMailRequireUserOpenIDChecksIdentityBeforeConfiguredUser(t *testing.T) {
 	botRuntime := common.TestNewRuntimeContextWithIdentity(&cobra.Command{}, &core.CliConfig{UserOpenId: "ou_stale_user"}, core.AsBot)
 	_, err := mailRequireUserOpenID(botRuntime, "user identity required")
 	assertMailIdentityProblem(t, err, "")
+	problem, _ := errs.ProblemOf(err)
+	if problem.Hint != "use --as user only when user authorization is configured" {
+		t.Fatalf("hint = %q, want user-authorization recovery hint", problem.Hint)
+	}
 
 	userRuntime := common.TestNewRuntimeContextWithIdentity(&cobra.Command{}, &core.CliConfig{}, core.AsUser)
 	_, err = mailRequireUserOpenID(userRuntime, "user identity required")

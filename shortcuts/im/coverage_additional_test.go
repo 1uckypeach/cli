@@ -6,6 +6,7 @@ package im
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -327,8 +328,16 @@ func TestResolveChatIDForMessagesList(t *testing.T) {
 			t.Fatalf("resolveChatIDForMessagesList() error = %v, want requires user identity", err)
 		}
 		problem, ok := errs.ProblemOf(err)
-		if !ok || problem.Subtype != errs.SubtypeIdentityNotSupported {
-			t.Fatalf("problem = %#v, want identity_not_supported", problem)
+		if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeIdentityNotSupported {
+			t.Fatalf("problem = %#v, want validation/identity_not_supported", problem)
+		}
+		var validationErr *errs.ValidationError
+		if !errors.As(err, &validationErr) || validationErr.Param != "--user-id" {
+			gotParam := ""
+			if validationErr != nil {
+				gotParam = validationErr.Param
+			}
+			t.Fatalf("validation param = %q, want --user-id", gotParam)
 		}
 	})
 }

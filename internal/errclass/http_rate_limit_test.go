@@ -51,6 +51,10 @@ func TestClassifyHTTPRateLimit_RetryAfterSafety(t *testing.T) {
 			if !errors.As(err, &apiErr) {
 				t.Fatalf("error = %T (%v), want APIError", err, err)
 			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != errs.CategoryAPI || problem.Subtype != errs.SubtypeRateLimit {
+				t.Fatalf("problem = %#v, want api/rate_limit", problem)
+			}
 			if apiErr.RetryAfterSeconds == nil || *apiErr.RetryAfterSeconds != tt.want || apiErr.RetryAfterSource != tt.source {
 				t.Fatalf("retry metadata = (%v, %q), want (%d, %q)", apiErr.RetryAfterSeconds, apiErr.RetryAfterSource, tt.want, tt.source)
 			}

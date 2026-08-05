@@ -131,8 +131,15 @@ func TestPaginationError_FieldCollisionFailsClosed(t *testing.T) {
 	}}
 	wrapped := errs.NewPaginationError(inner, 1, "next")
 	problem, ok := errs.ProblemOf(wrapped)
-	if !ok || problem.Category != errs.CategoryInternal {
-		t.Fatalf("ProblemOf = %#v, %v; want internal collision error", problem, ok)
+	if !ok || problem.Category != errs.CategoryInternal || problem.Subtype != errs.SubtypeInvalidResponse {
+		t.Fatalf("ProblemOf = %#v, %v; want internal/invalid_response collision error", problem, ok)
+	}
+	if !errors.Is(wrapped, inner) {
+		t.Fatal("collision fallback did not preserve the original typed cause")
+	}
+	var recovered *collidingPaginationError
+	if !errors.As(wrapped, &recovered) || recovered != inner {
+		t.Fatalf("errors.As = %#v, want original colliding error", recovered)
 	}
 	encoded, err := json.Marshal(wrapped)
 	if err != nil {

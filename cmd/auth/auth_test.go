@@ -5,6 +5,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -510,6 +511,10 @@ func TestGetAppInfo_RateLimitRecoveryMetadata(t *testing.T) {
 			if !errors.As(err, &apiErr) {
 				t.Fatalf("getAppInfo() error = %T (%v), want *errs.APIError", err, err)
 			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != errs.CategoryAPI || problem.Subtype != errs.SubtypeRateLimit {
+				t.Fatalf("problem = %#v, want api/rate_limit", problem)
+			}
 			if apiErr.Subtype != errs.SubtypeRateLimit || apiErr.Code != tt.wantCode {
 				t.Fatalf("rate limit problem = %#v, want code %d", apiErr.Problem, tt.wantCode)
 			}
@@ -517,6 +522,26 @@ func TestGetAppInfo_RateLimitRecoveryMetadata(t *testing.T) {
 				t.Fatalf("retry metadata = (%v, %q), want (17, retry-after)", apiErr.RetryAfterSeconds, apiErr.RetryAfterSource)
 			}
 		})
+	}
+}
+
+func TestGetAppInfo_InvalidJSONReturnsTypedInvalidResponse(t *testing.T) {
+	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu})
+	f.Credential = credential.NewCredentialProvider(nil, nil, &authScopesTokenResolver{}, nil)
+	reg.Register(&httpmock.Stub{
+		Method:  http.MethodGet,
+		URL:     "/open-apis/application/v6/applications/test-app",
+		RawBody: []byte("not-json"),
+	})
+
+	_, err := getAppInfo(context.Background(), f, "test-app")
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryInternal || problem.Subtype != errs.SubtypeInvalidResponse {
+		t.Fatalf("error = %T (%v), problem = %#v; want internal/invalid_response", err, err, problem)
+	}
+	var syntaxErr *json.SyntaxError
+	if !errors.As(err, &syntaxErr) {
+		t.Fatalf("error chain does not preserve JSON syntax error: %v", err)
 	}
 }
 
@@ -549,6 +574,10 @@ func TestGetUserInfo_RateLimitRecoveryMetadata(t *testing.T) {
 			var apiErr *errs.APIError
 			if !errors.As(err, &apiErr) {
 				t.Fatalf("getUserInfo() error = %T (%v), want *errs.APIError", err, err)
+			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != errs.CategoryAPI || problem.Subtype != errs.SubtypeRateLimit {
+				t.Fatalf("problem = %#v, want api/rate_limit", problem)
 			}
 			if apiErr.Code != tt.wantCode || apiErr.Subtype != errs.SubtypeRateLimit {
 				t.Fatalf("rate limit problem = %#v, want code %d", apiErr.Problem, tt.wantCode)

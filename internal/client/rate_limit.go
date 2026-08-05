@@ -5,9 +5,7 @@ package client
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
@@ -28,15 +26,41 @@ func isBusinessRateLimit(result interface{}) bool {
 	return errclass.IsBusinessRateLimit(result)
 }
 
+func isClassifiedBusinessRateLimit(classified error) bool {
+	problem, ok := errs.ProblemOf(classified)
+	return ok && problem.Code == 99991400
+}
+
 func rateLimitError(status int, header http.Header, result interface{}, rawBody []byte, classified error) error {
 	businessRateLimit := isBusinessRateLimit(result)
-	if status != http.StatusTooManyRequests && !businessRateLimit {
+	classifiedRateLimit := isClassifiedBusinessRateLimit(classified)
+	if status != http.StatusTooManyRequests && !businessRateLimit && !classifiedRateLimit {
 		return nil
 	}
-	if status == http.StatusTooManyRequests {
-		if result == nil && len(rawBody) > 0 {
-			result = parseRateLimitResult(rawBody)
+
+	// Only candidate rate-limit responses pay for a strict raw-body reparse.
+	// This prevents malformed JSON prefixes from forging a business code or log
+	// ID without decoding every successful API response a second time.
+	if len(rawBody) > 0 {
+		parsed, parseErr := errclass.DecodeSingleJSON(rawBody)
+		if parseErr != nil {
+			result = nil
+			classified = nil
+			if status != http.StatusTooManyRequests {
+				return errs.NewInternalError(errs.SubtypeInvalidResponse,
+					"failed to validate candidate rate-limit response: %v", parseErr).WithCause(parseErr)
+			}
+		} else {
+			result = parsed
+			businessRateLimit = isBusinessRateLimit(result)
+			if status != http.StatusTooManyRequests && !businessRateLimit {
+				return errs.NewInternalError(errs.SubtypeInvalidResponse,
+					"candidate rate-limit classification does not match the response body")
+			}
 		}
+	}
+
+	if status == http.StatusTooManyRequests {
 		return errclass.ClassifyHTTPRateLimit(status, header, result, classified, time.Now())
 	}
 
@@ -46,48 +70,24 @@ func rateLimitError(status int, header http.Header, result interface{}, rawBody 
 		apiErr = existing
 	}
 	if apiErr == nil {
-		message := "request rate limit exceeded"
-		if resultMap, ok := result.(map[string]interface{}); ok {
-			if msg, _ := resultMap["msg"].(string); strings.TrimSpace(msg) != "" {
-				message = msg
-			}
-		}
-		apiErr = errs.NewAPIError(errs.SubtypeRateLimit, "%s", message).WithCode(99991400)
+		apiErr = errs.NewAPIError(errs.SubtypeRateLimit, errclass.RateLimitMessage).WithCode(99991400)
 	}
+	apiErr.Message = errclass.RateLimitMessage
 	apiErr.LogID = errclass.RateLimitLogID(result, header)
 
 	seconds, source := errclass.ParseRetryAfter(header, time.Now())
-	guidance := fmt.Sprintf("wait %d seconds before reevaluating; retryable does not mean a write request is safe to replay—verify the operation result or idempotency before retrying", seconds)
-	apiErr.Hint = mergeRateLimitHint(apiErr.Hint, guidance)
+	apiErr.Hint = errclass.MergeRateLimitHint(apiErr.Hint, errclass.RateLimitGuidance(seconds))
 	return apiErr.WithRetryable().WithRetryAfter(seconds, source)
 }
 
-func mergeRateLimitHint(existing, guidance string) string {
-	if existing == "" || existing == guidance {
-		return guidance
-	}
-	if strings.Contains(existing, guidance) {
-		return existing
-	}
-	return existing + "; " + guidance
-}
-
 // ClassifyRateLimitResponse returns an api/rate_limit error for a bare HTTP
-// 429 or business code 99991400. An existing classification for another
-// business code is returned unchanged. Callers that already parsed and
-// classified the body pass both values so this helper can add header-derived
-// recovery metadata without decoding the response a second time.
+// 429 or business code 99991400. Non-rate-limit responses return nil so callers
+// can retain their existing classification. Ordinary success responses are not
+// decoded again; only candidate limits receive strict raw-body validation before
+// header-derived recovery metadata is added.
 func ClassifyRateLimitResponse(resp *larkcore.ApiResp, result interface{}, classified error) error {
 	if resp == nil {
 		return nil
-	}
-	if parsed := errclass.ParseRateLimitJSON(resp.RawBody); parsed != nil {
-		result = parsed
-	} else if len(resp.RawBody) > 0 {
-		// Do not let a caller projection revive code or log_id fields from a
-		// malformed raw response.
-		result = nil
-		classified = nil
 	}
 	return rateLimitError(resp.StatusCode, resp.Header, result, resp.RawBody, classified)
 }

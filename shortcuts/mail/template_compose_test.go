@@ -7,11 +7,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/vfs"
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/spf13/cobra"
 )
@@ -344,7 +344,7 @@ func TestEncodeTemplateLargeAttachmentHeader(t *testing.T) {
 
 func TestUploadToDriveForTemplate_BotIdentity(t *testing.T) {
 	chdirTemp(t)
-	if err := os.WriteFile("attachment.txt", []byte("hello"), 0o644); err != nil {
+	if err := vfs.WriteFile("attachment.txt", []byte("hello"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	runtime := common.TestNewRuntimeContextWithIdentity(&cobra.Command{}, &core.CliConfig{UserOpenId: "ou_stale_user"}, core.AsBot)

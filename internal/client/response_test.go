@@ -81,6 +81,18 @@ func TestParseJSONResponse_Invalid(t *testing.T) {
 	}
 }
 
+func TestParseJSONResponse_LeavesTrailingContentValidationToSpecializedClassifiers(t *testing.T) {
+	resp := newApiResp([]byte(`{"code":0} trailing-gateway-content`), map[string]string{"Content-Type": "application/json"})
+	result, err := ParseJSONResponse(resp)
+	if err != nil {
+		t.Fatalf("ParseJSONResponse() error = %v; generic parsing must retain its existing compatibility", err)
+	}
+	resultMap, ok := result.(map[string]interface{})
+	if !ok || resultMap["code"] != json.Number("0") {
+		t.Fatalf("ParseJSONResponse() = %#v, want decoded first JSON value", result)
+	}
+}
+
 func TestParseJSONResponse_EmptyBody_WrapsEOF(t *testing.T) {
 	resp := newApiResp([]byte{}, map[string]string{"Content-Type": "application/json"})
 	_, err := ParseJSONResponse(resp)
@@ -387,6 +399,10 @@ func TestHandleResponse_RateLimitMetadata(t *testing.T) {
 			if !errors.As(err, &apiErr) {
 				t.Fatalf("HandleResponse() error = %T (%v), want *errs.APIError", err, err)
 			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != errs.CategoryAPI || problem.Subtype != errs.SubtypeRateLimit {
+				t.Fatalf("problem = %#v, want api/rate_limit", problem)
+			}
 			if apiErr.Subtype != errs.SubtypeRateLimit || apiErr.Code != tt.wantCode || !apiErr.Retryable {
 				t.Fatalf("rate limit problem = %#v, want subtype rate_limit, code %d, retryable", apiErr.Problem, tt.wantCode)
 			}
@@ -430,11 +446,11 @@ func TestHandleResponse_HTTP429MalformedJSONCannotForgeMetadata(t *testing.T) {
 	}
 }
 
-func TestParseJSONResponse_LargeUnicodeTrailingValueHasBoundedSummary(t *testing.T) {
-	body := []byte(`{"code":0}{"blob":"` + strings.Repeat("界", 1<<20) + `tail-secret"}`)
+func TestParseJSONResponse_LargeInvalidBodyHasBoundedSummary(t *testing.T) {
+	body := []byte(`not-json{"blob":"` + strings.Repeat("界", 1<<20) + `tail-secret"}`)
 	_, err := ParseJSONResponse(newApiResp(body, map[string]string{"Content-Type": "application/json"}))
 	if err == nil {
-		t.Fatal("expected trailing JSON error")
+		t.Fatal("expected invalid JSON error")
 	}
 	message := err.Error()
 	if strings.Contains(message, "tail-secret") {

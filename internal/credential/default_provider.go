@@ -5,6 +5,7 @@ package credential
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -185,11 +186,15 @@ func (p *DefaultTokenProvider) resolveTAT(ctx context.Context) (*TokenResult, er
 	if flight := p.tatFlight; flight != nil {
 		flight.followers++
 		p.tatMu.Unlock()
-		<-flight.done
-		if flight.panicked {
-			panic(flight.panicVal)
+		select {
+		case <-flight.done:
+			if flight.panicked {
+				panic(flight.panicVal)
+			}
+			return flight.result, flight.err
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		}
-		return flight.result, flight.err
 	}
 
 	var result *TokenResult
@@ -222,7 +227,7 @@ func (p *DefaultTokenProvider) resolveTAT(ctx context.Context) (*TokenResult, er
 	}()
 
 	result, err = p.tatResolver(ctx)
-	cacheResult = err == nil || !errs.IsRetryable(err)
+	cacheResult = err == nil || (!errs.IsRetryable(err) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded))
 	completed = true
 	return result, err
 }

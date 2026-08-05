@@ -6,7 +6,6 @@ package errs
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 )
 
 const (
@@ -99,34 +98,42 @@ func (e *PaginationError) buildJSON() ([]byte, error) {
 	encoded, err := json.Marshal(typed)
 	if err != nil {
 		return nil, NewInternalError(SubtypeInvalidResponse,
-			"failed to serialize underlying pagination error: %v", err).WithCause(err)
+			"failed to serialize underlying pagination error: %v", err).WithCause(e.Cause)
 	}
 	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(encoded, &fields); err != nil || fields == nil {
+	if err := json.Unmarshal(encoded, &fields); err != nil {
 		return nil, NewInternalError(SubtypeInvalidResponse,
-			"underlying pagination error did not serialize as a JSON object").WithCause(err)
+			"underlying pagination error did not serialize as a JSON object: %v", err).WithCause(e.Cause)
+	}
+	if fields == nil {
+		return nil, NewInternalError(SubtypeInvalidResponse,
+			"underlying pagination error did not serialize as a JSON object").WithCause(e.Cause)
 	}
 	for _, reserved := range []string{paginationCompletedPagesField, paginationNextPageTokenField} {
 		if _, exists := fields[reserved]; exists {
-			collision := fmt.Errorf("underlying error already contains reserved field %q", reserved)
 			return nil, NewInternalError(SubtypeInvalidResponse,
-				"cannot add pagination progress: reserved field collision").WithCause(collision)
+				"cannot add pagination progress: underlying error already contains reserved field %q", reserved).WithCause(e.Cause)
 		}
 	}
 
 	completed, err := json.Marshal(e.CompletedPages)
 	if err != nil {
 		return nil, NewInternalError(SubtypeInvalidResponse,
-			"failed to serialize completed pagination page count").WithCause(err)
+			"failed to serialize completed pagination page count: %v", err).WithCause(e.Cause)
 	}
 	fields[paginationCompletedPagesField] = completed
 	if e.NextPageToken != "" {
 		next, err := json.Marshal(e.NextPageToken)
 		if err != nil {
 			return nil, NewInternalError(SubtypeInvalidResponse,
-				"failed to serialize pagination resume token").WithCause(err)
+				"failed to serialize pagination resume token: %v", err).WithCause(e.Cause)
 		}
 		fields[paginationNextPageTokenField] = next
 	}
-	return json.Marshal(fields)
+	encoded, err = json.Marshal(fields)
+	if err != nil {
+		return nil, NewInternalError(SubtypeInvalidResponse,
+			"failed to serialize pagination progress: %v", err).WithCause(e.Cause)
+	}
+	return encoded, nil
 }
