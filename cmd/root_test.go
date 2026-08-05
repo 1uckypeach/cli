@@ -23,6 +23,7 @@ import (
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/deprecation"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/recovery"
 	"github.com/larksuite/cli/internal/registry"
 )
 
@@ -630,5 +631,37 @@ func TestApplyNeedAuthorizationHint_AppendsExistingHint(t *testing.T) {
 	want := "existing hint\ncurrent command requires scope(s): docx:document:create"
 	if authErr.Hint != want {
 		t.Errorf("expected appended hint %q, got %q", want, authErr.Hint)
+	}
+}
+
+func TestRootErrorPresenter_EnrichesPaginationCauseAndRebuildsSnapshot(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu,
+	})
+	f.ResolvedIdentity = core.AsUser
+	root := &cobra.Command{Use: "lark-cli"}
+	serviceCmd := &cobra.Command{Use: "docs"}
+	shortcutCmd := &cobra.Command{Use: "+create"}
+	root.AddCommand(serviceCmd)
+	serviceCmd.AddCommand(shortcutCmd)
+	f.CurrentCommand = shortcutCmd
+
+	original := errs.NewPaginationError(newAuthErrorWithNeedAuthMarker(), 1, "resume-page-2")
+	presenter := newRootErrorPresenter(f, recovery.NewProjector(nil))
+	rendered := presenter.Present(original)
+	encoded, err := json.Marshal(rendered)
+	if err != nil {
+		t.Fatalf("json.Marshal(rendered): %v", err)
+	}
+	var wire map[string]interface{}
+	if err := json.Unmarshal(encoded, &wire); err != nil {
+		t.Fatalf("json.Unmarshal(rendered): %v", err)
+	}
+	if hint, _ := wire["hint"].(string); !strings.Contains(hint, "current command requires scope(s): docx:document:create") {
+		t.Fatalf("pagination error lost authorization hint enhancement: %#v", wire)
+	}
+	if wire["completed_pages"] != float64(1) || wire["next_page_token"] != "resume-page-2" {
+		t.Fatalf("pagination progress = %#v", wire)
 	}
 }

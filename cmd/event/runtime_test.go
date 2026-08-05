@@ -101,8 +101,22 @@ func TestConsumeRuntimeCallAPI_NonJSONHTTPErrorTruncatesLongBody(t *testing.T) {
 
 func TestConsumeRuntimeCallAPI_UnparsableJSONBody(t *testing.T) {
 	r := newTestConsumeRuntime(stubRoundTripper{respond: stubResponse(http.StatusOK, "application/json", "{not json")})
-	_, err := r.CallAPI(context.Background(), "GET", "/open-apis/event/v1/connection", nil)
+	const path = "/open-apis/event/v1/connection"
+	_, err := r.CallAPI(context.Background(), "GET", path, nil)
 	requireCallAPIProblem(t, err, errs.CategoryInternal, errs.SubtypeInvalidResponse)
+	if !strings.Contains(err.Error(), "api GET "+path) {
+		t.Fatalf("parse error lost method/path context: %v", err)
+	}
+}
+
+func TestConsumeRuntimeCallAPI_JSON5xxMatchesEventRetryabilityContract(t *testing.T) {
+	r := newTestConsumeRuntime(stubRoundTripper{respond: stubResponse(http.StatusBadGateway, "application/json", `{"code":0}`)})
+	_, err := r.CallAPI(context.Background(), "GET", "/open-apis/event/v1/connection", nil)
+	requireCallAPIProblem(t, err, errs.CategoryNetwork, errs.SubtypeNetworkServer)
+	problem, _ := errs.ProblemOf(err)
+	if !problem.Retryable {
+		t.Fatal("event JSON 5xx must match the existing retryable non-JSON 5xx contract")
+	}
 }
 
 func TestConsumeRuntimeCallAPI_TransportFailure(t *testing.T) {

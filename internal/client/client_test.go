@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -501,6 +502,36 @@ func TestPaginateAll_FirstPageFailureReportsStartingCursor(t *testing.T) {
 	}
 	if strings.Contains(errBuf.String(), "starting-secret") {
 		t.Fatalf("stderr leaked starting cursor: %q", errBuf.String())
+	}
+}
+
+func TestPaginateAll_RejectsNonStringStartingCursor(t *testing.T) {
+	var calls atomic.Int32
+	rt := roundTripFunc(func(*http.Request) (*http.Response, error) {
+		calls.Add(1)
+		return jsonResponse(map[string]interface{}{"code": 0}), nil
+	})
+	ac, _ := newTestAPIClient(t, rt)
+
+	result, err := ac.PaginateAll(context.Background(), RawApiRequest{
+		Method: http.MethodGet,
+		URL:    "/open-apis/test",
+		Params: map[string]interface{}{"page_token": float64(42)},
+		As:     core.AsUser,
+	}, PaginationOptions{PageDelay: -1})
+	if result != nil {
+		t.Fatalf("result = %#v, want nil", result)
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeInvalidArgument {
+		t.Fatalf("problem = %#v, want validation/invalid_argument", problem)
+	}
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) || validationErr.Param != "--params" {
+		t.Fatalf("error = %#v, want --params validation error", err)
+	}
+	if got := calls.Load(); got != 0 {
+		t.Fatalf("HTTP calls = %d, want 0", got)
 	}
 }
 

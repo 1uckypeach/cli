@@ -174,8 +174,8 @@ func (p *DefaultTokenProvider) resolveUAT(ctx context.Context) (*TokenResult, er
 }
 
 // resolveTAT resolves a tenant access token. Concurrent callers share an in-flight
-// resolution. Successful and non-retryable results are cached; retryable typed
-// errors are returned to the current callers but allow a later call to try again.
+// resolution. Successful and explicitly non-retryable typed results are cached;
+// retryable or untyped errors allow a later call to try again.
 func (p *DefaultTokenProvider) resolveTAT(ctx context.Context) (*TokenResult, error) {
 	p.tatMu.Lock()
 	if p.tatCached {
@@ -227,7 +227,8 @@ func (p *DefaultTokenProvider) resolveTAT(ctx context.Context) (*TokenResult, er
 	}()
 
 	result, err = p.tatResolver(ctx)
-	cacheResult = err == nil || (!errs.IsRetryable(err) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded))
+	_, typed := errs.ProblemOf(err)
+	cacheResult = err == nil || (typed && !errs.IsRetryable(err) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded))
 	completed = true
 	return result, err
 }

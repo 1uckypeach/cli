@@ -354,7 +354,7 @@ func authLoginRun(opts *LoginOptions) error {
 	}
 	openId, userName, err := getUserInfo(opts.Ctx, sdk, result.Token.AccessToken)
 	if err != nil {
-		return errs.NewAuthenticationError(errs.SubtypeUnknown, "failed to get user info: %v", err).WithCause(err)
+		return wrapLoginUserInfoError(err)
 	}
 
 	scopeSummary := loadLoginScopeSummary(config.AppID, openId, finalScope, result.Token.Scope)
@@ -437,7 +437,7 @@ func authLoginPollDeviceCode(opts *LoginOptions, config *core.CliConfig, msg *lo
 	}
 	openId, userName, err := getUserInfo(opts.Ctx, sdk, result.Token.AccessToken)
 	if err != nil {
-		return errs.NewAuthenticationError(errs.SubtypeUnknown, "failed to get user info: %v", err).WithCause(err)
+		return wrapLoginUserInfoError(err)
 	}
 
 	scopeSummary := loadLoginScopeSummary(config.AppID, openId, requestedScope, result.Token.Scope)
@@ -470,6 +470,13 @@ func authLoginPollDeviceCode(opts *LoginOptions, config *core.CliConfig, msg *lo
 
 	writeLoginSuccess(opts, msg, f, openId, userName, scopeSummary)
 	return nil
+}
+
+func wrapLoginUserInfoError(err error) error {
+	if _, ok := errs.ProblemOf(err); ok {
+		return err
+	}
+	return errs.NewAuthenticationError(errs.SubtypeUnknown, "failed to get user info: %v", err).WithCause(err)
 }
 
 // syncLoginUserToProfile persists the logged-in user info into the named profile.

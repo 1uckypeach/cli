@@ -39,6 +39,13 @@ func (p *rootErrorPresenter) Present(err error) error {
 		return err
 	}
 	rendered := p.projector.Render(err)
+	if typed, ok := errs.UnwrapTypedError(rendered); ok {
+		if paginationErr, ok := typed.(*errs.PaginationError); ok { //nolint:errorlint
+			p.completePermissionRecovery(paginationErr.Cause)
+			applyNeedAuthorizationHint(p.f, paginationErr.Cause)
+			return errs.NewPaginationError(paginationErr.Cause, paginationErr.CompletedPages, paginationErr.NextPageToken)
+		}
+	}
 	p.completePermissionRecovery(rendered)
 	applyNeedAuthorizationHint(p.f, rendered)
 	return rendered

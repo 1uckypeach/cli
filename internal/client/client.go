@@ -398,6 +398,14 @@ func normalizePaginationFailure(err error, operation string) error {
 func (c *APIClient) paginateLoop(ctx context.Context, request RawApiRequest, opts PaginationOptions, onResult func(interface{}) error) ([]interface{}, error) {
 	var allResults []interface{}
 	var pageToken string
+	if rawPageToken, ok := request.Params["page_token"]; ok {
+		var valid bool
+		pageToken, valid = rawPageToken.(string)
+		if !valid {
+			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
+				"page_token in --params must be a string").WithParam("--params")
+		}
+	}
 	page := 0
 	classificationIdentity := opts.Identity
 	if classificationIdentity == "" {
@@ -420,7 +428,7 @@ func (c *APIClient) paginateLoop(ctx context.Context, request RawApiRequest, opt
 		if pageToken != "" {
 			params["page_token"] = pageToken
 		}
-		failedPageToken, _ := params["page_token"].(string)
+		failedPageToken := pageToken
 
 		fmt.Fprintf(c.ErrOut, "[page %d] fetching...\n", page)
 		resp, err := c.DoAPI(ctx, RawApiRequest{

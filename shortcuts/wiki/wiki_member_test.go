@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/shortcuts/common"
@@ -231,6 +232,10 @@ func TestWikiMemberAddRejectsBotWithDepartment(t *testing.T) {
 	}, factory, nil)
 	if err == nil || !strings.Contains(err.Error(), "--as bot does not support --member-type opendepartmentid") {
 		t.Fatalf("expected bot+opendepartmentid rejection, got %v", err)
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeIdentityNotSupported {
+		t.Fatalf("problem = %#v, want validation/identity_not_supported", problem)
 	}
 }
 

@@ -14,6 +14,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zalando/go-keyring"
+
+	"github.com/larksuite/cli/errs"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -21,10 +24,35 @@ import (
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/registry"
 	"github.com/larksuite/cli/shortcuts/common"
-	"github.com/zalando/go-keyring"
 )
 
 type failWriter struct{}
+
+func TestWrapLoginUserInfoErrorPassesTypedErrorsThrough(t *testing.T) {
+	typed := errs.NewAPIError(errs.SubtypeRateLimit, "rate limited").
+		WithCode(99991400).
+		WithRetryable().
+		WithRetryAfter(7, "header")
+	if got := wrapLoginUserInfoError(typed); got != typed {
+		t.Fatalf("wrapLoginUserInfoError() = %T (%v), want original typed error", got, got)
+	}
+	problem, _ := errs.ProblemOf(typed)
+	if !problem.Retryable || typed.RetryAfterSeconds == nil || *typed.RetryAfterSeconds != 7 {
+		t.Fatalf("typed recovery metadata changed: %#v", typed)
+	}
+}
+
+func TestWrapLoginUserInfoErrorWrapsUntypedErrors(t *testing.T) {
+	cause := errors.New("transport failed")
+	got := wrapLoginUserInfoError(cause)
+	problem, ok := errs.ProblemOf(got)
+	if !ok || problem.Category != errs.CategoryAuthentication || problem.Subtype != errs.SubtypeUnknown {
+		t.Fatalf("problem = %#v, want authentication/unknown", problem)
+	}
+	if !errors.Is(got, cause) {
+		t.Fatal("wrapped error lost its cause")
+	}
+}
 
 func (failWriter) Write([]byte) (int, error) {
 	return 0, errors.New("write failed")

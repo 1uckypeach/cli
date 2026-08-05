@@ -60,6 +60,29 @@ func TestDefaultTokenProvider_RetryableTATErrorIsNotCached(t *testing.T) {
 	}
 }
 
+func TestDefaultTokenProvider_UntypedTATErrorIsNotCached(t *testing.T) {
+	transientErr := errors.New("TAT endpoint transient failure")
+	var calls atomic.Int32
+	p := NewDefaultTokenProvider(nil, nil, nil)
+	p.tatResolver = func(context.Context) (*TokenResult, error) {
+		if calls.Add(1) == 1 {
+			return nil, transientErr
+		}
+		return &TokenResult{Token: "recovered-token"}, nil
+	}
+
+	if result, err := p.resolveTAT(context.Background()); result != nil || !errors.Is(err, transientErr) {
+		t.Fatalf("first resolution = (%v, %v), want transient error", result, err)
+	}
+	result, err := p.resolveTAT(context.Background())
+	if err != nil || result == nil || result.Token != "recovered-token" {
+		t.Fatalf("second resolution = (%v, %v), want recovered token", result, err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("resolver calls = %d, want 2", got)
+	}
+}
+
 func TestDefaultTokenProvider_ConcurrentRetryableTATFlightIsSharedThenRetried(t *testing.T) {
 	const callers = 16
 	retryableErr := errs.NewAPIError(errs.SubtypeRateLimit, "rate limited").WithRetryable()

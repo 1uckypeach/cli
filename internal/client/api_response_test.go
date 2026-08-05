@@ -56,6 +56,22 @@ func TestClassifyAPIResponse_BareHTTP429PrecedesJSONParseFailure(t *testing.T) {
 	}
 }
 
+func TestClassifyAPIResponse_BareHTTP5xxDoesNotChangeRetryabilityContract(t *testing.T) {
+	resp := &larkcore.ApiResp{
+		StatusCode: http.StatusBadGateway,
+		RawBody:    []byte("bad gateway"),
+	}
+
+	_, err := ClassifyAPIResponse(resp, nil)
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryNetwork || problem.Subtype != errs.SubtypeNetworkServer {
+		t.Fatalf("problem = %#v, want network/server_error", problem)
+	}
+	if problem.Retryable {
+		t.Fatal("shared buffered 5xx classification must preserve the existing non-retryable contract")
+	}
+}
+
 func TestClassifyAPIResponseError_HTTP429PreservesExplicitLongTermQuota(t *testing.T) {
 	original := errs.NewAPIError(errs.SubtypeRateLimit, "daily quota exceeded").
 		WithCode(1063006).

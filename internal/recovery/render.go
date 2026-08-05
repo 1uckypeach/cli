@@ -25,6 +25,10 @@ func Render(err error, plan *surface.Plan) error {
 	if !ok {
 		return err
 	}
+	if paginationErr, ok := typed.(*errs.PaginationError); ok { //nolint:errorlint
+		renderedCause := Render(paginationErr.Cause, plan)
+		return errs.NewPaginationError(renderedCause, paginationErr.CompletedPages, paginationErr.NextPageToken)
+	}
 	sourceProblem, ok := errs.ProblemOf(typed)
 	if !ok {
 		return err
@@ -78,6 +82,15 @@ func CloneTyped(err error) (error, bool) {
 	// producer. This switch must inspect that exact concrete value rather than
 	// search through its Cause and accidentally clone a nested typed error.
 	switch original := typed.(type) { //nolint:errorlint
+	case *errs.PaginationError:
+		if original == nil {
+			return nil, false
+		}
+		cause, ok := CloneTyped(original.Cause)
+		if !ok {
+			return nil, false
+		}
+		return errs.NewPaginationError(cause, original.CompletedPages, original.NextPageToken), true
 	case *errs.Problem:
 		if original == nil {
 			return nil, false

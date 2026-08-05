@@ -199,6 +199,42 @@ func TestRenderProjectsStructuredMessageWithoutMutatingSource(t *testing.T) {
 	}
 }
 
+func TestRenderProjectsPaginationCauseAndRebuildsSnapshot(t *testing.T) {
+	hint := Join("; ",
+		Command(TargetConfigInit, "run `lark-cli config init`"),
+		Text("inspect logs"),
+	)
+	inner := Annotate(
+		errs.NewAPIError(errs.SubtypeRateLimit, "limited").WithHint("%s", hint.String()),
+		hint,
+	)
+	original := errs.NewPaginationError(inner, 2, "resume-page-3")
+	plan := surface.NewPlan(map[surface.CommandID]surface.CommandState{
+		surface.CommandConfigInit: surface.CommandConcealed,
+	})
+
+	rendered := Render(original, plan)
+	var paginationErr *errs.PaginationError
+	if !errors.As(rendered, &paginationErr) {
+		t.Fatalf("Render() = %T, want PaginationError", rendered)
+	}
+	encoded, err := json.Marshal(rendered)
+	if err != nil {
+		t.Fatalf("json.Marshal(rendered): %v", err)
+	}
+	var wire map[string]interface{}
+	if err := json.Unmarshal(encoded, &wire); err != nil {
+		t.Fatalf("json.Unmarshal(rendered): %v", err)
+	}
+	if wire["hint"] != "inspect logs" || wire["completed_pages"] != float64(2) || wire["next_page_token"] != "resume-page-3" {
+		t.Fatalf("rendered wire = %#v, want projected hint and pagination progress", wire)
+	}
+	originalProblem, _ := errs.ProblemOf(original)
+	if originalProblem.Hint != hint.String() {
+		t.Fatalf("Render mutated producer hint to %q", originalProblem.Hint)
+	}
+}
+
 func TestRenderPreservesProducerEnrichmentAddedAfterAnnotation(t *testing.T) {
 	hint := Join("; ",
 		Command(TargetConfigInit, "run `lark-cli config init`"),

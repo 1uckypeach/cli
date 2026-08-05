@@ -329,6 +329,12 @@ func ClassifyAPIResponseWith(resp *larkcore.ApiResp, cc errclass.ClassifyContext
 		}
 		return errclass.BuildAPIError(resultMap, cc)
 	})
+	if resp != nil && resp.StatusCode >= http.StatusInternalServerError {
+		var networkErr *errs.NetworkError
+		if errors.As(classified, &networkErr) && networkErr.Subtype == errs.SubtypeNetworkServer {
+			networkErr.Retryable = true
+		}
+	}
 	resultMap, ok := result.(map[string]interface{})
 	if !ok {
 		if classified != nil {

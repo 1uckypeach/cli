@@ -127,8 +127,7 @@ func httpStatusError(status int, rawBody []byte, header http.Header) error {
 	if status >= http.StatusInternalServerError {
 		err := errs.NewNetworkError(errs.SubtypeNetworkServer,
 			"HTTP %d: %s", status, body).
-			WithCode(status).
-			WithRetryable()
+			WithCode(status)
 		if logID != "" {
 			err = err.WithLogID(logID)
 		}

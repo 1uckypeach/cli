@@ -138,7 +138,7 @@ func readWikiMemberAddSpec(runtime *common.RuntimeContext) (wikiMemberAddSpec, e
 	// not waste a network round-trip on a server-side 403. The escape hatch is
 	// --as user, which is the only identity the API accepts for departments.
 	if runtime.As().IsBot() && spec.MemberType == "opendepartmentid" {
-		return wikiMemberAddSpec{}, errs.NewValidationError(errs.SubtypeInvalidArgument,
+		return wikiMemberAddSpec{}, errs.NewValidationError(errs.SubtypeIdentityNotSupported,
 			"--as bot does not support --member-type opendepartmentid; rerun with --as user",
 		).WithParam("--member-type")
 	}

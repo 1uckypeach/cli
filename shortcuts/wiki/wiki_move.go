@@ -64,7 +64,7 @@ var WikiMove = common.Shortcut{
 		// for a tenant_access_token (--as bot), so reject early with a clear
 		// hint instead of letting the API return a confusing error.
 		if runtime.As().IsBot() && spec.TargetSpaceID == wikiMyLibrarySpaceID {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--target-space-id my_library is a per-user personal library alias and cannot be used with --as bot; resolve it to a real space_id first via `lark-cli wiki spaces get --params '{\"space_id\":\"my_library\"}' --as user`").WithParam("--target-space-id")
+			return errs.NewValidationError(errs.SubtypeIdentityNotSupported, "--target-space-id my_library is a per-user personal library alias and cannot be used with --as bot; resolve it to a real space_id first via `lark-cli wiki spaces get --params '{\"space_id\":\"my_library\"}' --as user`").WithParam("--target-space-id")
 		}
 		return validateWikiMoveSpec(spec)
 	},

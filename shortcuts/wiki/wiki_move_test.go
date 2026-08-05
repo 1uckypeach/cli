@@ -361,6 +361,10 @@ func TestWikiMoveValidateRejectsBotMyLibrary(t *testing.T) {
 	if !strings.Contains(err.Error(), "my_library") || !strings.Contains(err.Error(), "--as bot") {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeIdentityNotSupported {
+		t.Fatalf("problem = %#v, want validation/identity_not_supported", problem)
+	}
 }
 
 func TestWikiMoveValidateAllowsUserMyLibrary(t *testing.T) {

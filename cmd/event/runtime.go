@@ -6,6 +6,7 @@ package event
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/larksuite/cli/errs"
@@ -28,7 +29,7 @@ func (r *consumeRuntime) CallAPI(ctx context.Context, method, path string, body 
 	})
 	if err != nil {
 		if _, ok := errs.ProblemOf(err); ok {
-			return nil, err
+			return nil, withEventAPIContext(err, method, path)
 		}
 		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport,
 			"api %s %s: %s", method, path, err).WithCause(err)
@@ -58,7 +59,19 @@ func (r *consumeRuntime) CallAPI(ctx context.Context, method, path string, body 
 		return r.client.CheckResponse(result, r.accessIdentity)
 	})
 	if classified != nil {
-		return json.RawMessage(resp.RawBody), classified
+		return json.RawMessage(resp.RawBody), withEventAPIContext(classified, method, path)
 	}
 	return json.RawMessage(resp.RawBody), nil
+}
+
+func withEventAPIContext(err error, method, path string) error {
+	if problem, ok := errs.ProblemOf(err); ok {
+		if problem.Category == errs.CategoryInternal && problem.Subtype == errs.SubtypeInvalidResponse {
+			problem.Message = fmt.Sprintf("api %s %s: %s", method, path, problem.Message)
+		}
+		if problem.Category == errs.CategoryNetwork && problem.Subtype == errs.SubtypeNetworkServer {
+			problem.Retryable = true
+		}
+	}
+	return err
 }
