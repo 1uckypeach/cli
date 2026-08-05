@@ -95,11 +95,11 @@ metadata:
 
 | context | 消费规则 |
 | --- | --- |
-| `comment_focus` | 仅当 `focused=true` 且 `share_doc.url`、单个 `comment_id` 都存在时，从 `share_doc` 解析文档目标，并用 `drive +batch-query-comments --comment-ids <该单个ID>` 精确调用 `drive.file.comments.batch_query`。只接受整个响应 `items` 长度恰为 1 且 `items[0].comment_id` 与请求 ID 完全相等；0 个、多于 1 个或唯一项 ID 不匹配都停止，即使多项中存在匹配项也不能选择，禁止改用 `+list-comments` 扫描。评论正文位于 `item.reply_list.replies`，首项是根评论；仅当命中卡片的 `item.has_more=true` 时，才从第一页调用 `drive +list-replies` 并按返回的 `has_more/page_token` 拉到 `has_more=false`，用完整结果替换截断列表，不能重复拼接根评论。`focused=false` 表示清除焦点，零评论调用。 |
+| `comment_focus` | 先按完整事件流中的 `magic_share_started/ended` 维护 `share_id -> share_doc` 共享会话映射，再用当前 item 的 `share_id` 精确关联文档；禁止退化为“最近一次共享”猜测。`document_context_changed` item 自带的 `share_doc` 当前不提供文档信息，只保留在 raw payload，不作为解析来源。仅当 `focused=true`、单个 `comment_id` 和由开始共享事件解析出的有效文档 URL 均存在时，用 `drive +batch-query-comments` 精确查询该 ID；严格匹配、回复分页与失败终止条件见 reference。`focused=false` 表示清除焦点，零评论调用。 |
 | `section_location` | 从当前 item 的 `parent_titles/title` 按原序派生 pretty timeline 中的章节路径；JSON/NDJSON 继续只保留原始 payload，不新增事件顶层 `section_path`。不得根据 `level` 反转、截断或补造路径，也不调用文档 API。 |
 | `element_preview` | 只有用户明确要求预览且 `action=open` 时路由：`element_type=image` 使用 `docs +media-preview --token <element_token> --output <用户选择路径>`；`element_type=whiteboard` 使用 `docs +media-download --type whiteboard --token <element_token> --output <用户选择路径>`。`close`、未知 type/action、缺 token 或无明确预览意图均零调用；禁止把未知 `element_type` 透传给 `--type`，禁止自动选择覆盖路径。 |
 
-`vc +meeting-events` 始终只读，不因评论或元素上下文自动调用 Drive/Docs，也不写文件。评论 API/权限失败、`share_doc` 不能解析或 reply 游标为空/重复时，明确标记结果为未解析或 partial，并保留 `share_doc`、`comment_id`、`element_token`、`block_id` 和 raw payload，给出可重试的精确命令；不要用全量评论扫描或自动下载兜底。完整命令与终止条件见 [`+meeting-events` reference](references/lark-vc-agent-meeting-events.md#文档上下文事件消费)。
+`vc +meeting-events` 始终只读，不因评论或元素上下文自动调用 Drive/Docs，也不写文件。`share_id` 无法关联、评论 API/权限失败或 reply 游标为空/重复时，明确标记结果为未解析或 partial，并保留 `share_id`、`share_doc`、`comment_id`、`element_token`、`block_id` 和 raw payload，给出可重试的精确命令；不要用“最近一次共享”、全量评论扫描或自动下载兜底。完整命令与终止条件见 [`+meeting-events` reference](references/lark-vc-agent-meeting-events.md#文档上下文事件消费)。
 
 JSON/NDJSON 的单事件 envelope 始终只使用既有 `event_id/event_type/event_time/actors/payload` 字段；不得为 `document_context_changed` 单独增加顶层 `summary/section_path` 或新的 `derived` 层。结构化消费从 `payload.document_context_changed_items[]` 读取，pretty 仅作可读派生展示。
 

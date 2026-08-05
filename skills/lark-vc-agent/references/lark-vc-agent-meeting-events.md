@@ -140,30 +140,42 @@ lark-cli vc +meeting-events --as user --meeting-id <id> --page-all --format pret
   - `share_doc.title`
   - `share_doc.url`
 - 必须继续读取共享文档内容，再生成总结，不能只根据“开始共享了某文档”这条事件和文档标题来概括会议内容。
-- 若存在多个共享文档，优先读取**最近一次共享**的文档。
+- 若存在多个共享文档，按用户问题读取相关文档；处理某条文档上下文事件时必须按该 item 的 `share_id` 精确关联，不能用“最近一次共享”替代。
 - 若文档读取失败，必须明确说明“以下总结仅基于会中事件流，未成功读取共享文档内容”。
 
 ### 7. 文档上下文事件消费
 
 `document_context_changed` 是只读线索事件。`vc +meeting-events` 保留原始 payload，并按既有事件输出约定派生 actor 与 pretty timeline；它不会为单个事件类型扩张 JSON/NDJSON 公共 envelope，也不会查询评论、下载素材或写文件。后续 Drive/Docs 命令只能由 Agent 按下表显式选择。
 
+#### 共享会话关联
+
+`share_id` 标识一次共享会话。Agent 按事件时间顺序消费完整事件流，并维护共享会话状态：
+
+1. 从 `payload.magic_share_started_items[]` 读取 `share_id` 和 `share_doc`，建立 `share_id -> share_doc` 映射并标记会话开始。同一 `share_id` 重复携带相同文档时按幂等事件处理；若指向不同文档则停止解析，不覆盖旧映射。
+2. `document_context_changed_items[]` 通过自己的 `share_id` 精确查找该映射。当前契约中 item 自带的 `share_doc` 不提供文档信息；只保留它的原始值，不作为 URL/title 来源，也不做冲突判定。
+3. `payload.magic_share_ended_items[]` 使用相同 `share_id` 标记该会话结束。历史映射可保留用于解释本批次中结束前已发生的上下文事件，但不能再作为新的活动共享会话。
+4. 增量拉取从会话中途开始且本地没有对应映射时，重新拉取包含 `magic_share_started` 的完整事件流；仍无法命中则标记未解析。禁止回退到当前文档、最近一次共享或其他 `share_id`。
+
 #### 字段合同
 
 | 路径 | 含义与处理 |
 | --- | --- |
+| `payload.magic_share_started_items[].share_id/share_doc` | 建立一次共享会话与文档 URL/title 的映射。缺 `share_id` 时不建立映射。 |
+| `payload.magic_share_ended_items[].share_id` | 结束同一 `share_id` 的共享会话；不得结束其他映射。 |
 | `payload.document_context_changed_items[]` | 结构化消费按原序读取；pretty timeline 沿用统一时间排序。每项恰有一个已知 context 才生成 pretty 条目，未知/歧义项只保留 raw。 |
 | `item.operator` | 当前 item 的 actor；缺 ID/name 时不猜共享发起人。 |
-| `item.share_doc.url/title` | 评论所属文档线索。URL 用于解析 `file_token/file_type`；无法解析时保留 URL/title 并停止评论查询。 |
+| `item.share_id` | 当前上下文所属共享会话；用它精确查找 `magic_share_started` 建立的 `share_doc` 映射。 |
+| `item.share_doc.url/title` | 当前不作为文档元信息来源；保留在 raw payload 以兼容未来扩展。文档 URL/title 只从同 `share_id` 的 `magic_share_started` 映射取得。 |
 | `item.time` | Unix 毫秒字符串；缺失或非法时 timeline 回退到事件时间。 |
 | `item.comment_focus.comment_id/focused` | `focused=true` 才精确查询一个 comment ID；`false` 是清除焦点，零查询。 |
 | `item.section_location.parent_titles/title/level` | `section_path` 按 parent 原序再追加 title，trim 后丢弃空段，以 ` > ` 连接；`level` 仅作诊断，不参与截断或补层。 |
 | `item.element_preview.action/element_type/element_token/block_id` | 只有 `open + image + token`、`open + whiteboard + token` 可在明确预览意图下路由；其他组合零调用。 |
 | 事件公共 envelope | JSON/NDJSON 只使用既有 `event_id/event_type/event_time/actors/payload`；不新增顶层 `summary/section_path`，也不发明 `derived.document_context`。 |
-| 事件 `payload` | 原始恢复面，包含空数组和未知字段；派生字段不会写回 payload。 |
+| 事件 `payload` | 原始恢复面；未知字段保留，顶层空数组沿用所有会议事件共用的压缩规则，派生字段不会写回 payload。 |
 
 #### 评论聚焦：只查一个 ID
 
-先从同一个 item 读取 `share_doc.url` 和 `comment_focus.comment_id`。优先把完整 URL 传给现有 shortcut，由它解析实际 `file_token/file_type`（含 Wiki 解包）；如果上游只留下裸 token，则必须同时提供已解析且受支持的 `file_type`。
+先读取当前 item 的 `share_id` 和 `comment_focus.comment_id`，再按“共享会话关联”取得 `share_doc.url`。优先把完整 URL 传给现有 shortcut，由它解析实际 `file_token/file_type`（含 Wiki 解包）；如果上游只留下裸 token，则必须同时提供已解析且受支持的 `file_type`。
 
 ```bash
 # 推荐：share_doc.url 完整可用
@@ -228,7 +240,8 @@ lark-cli drive +list-replies \
 #### 失败恢复
 
 - parser 遇到未知字段、歧义 one-of 或单 item 缺字段：保留整个事件 `payload`、`event_id/event_type/event_time` 和可用 sibling；该 item 不生成 pretty 条目，也不合成通用描述。
-- `share_doc` 无法解析：回显 `share_doc.url/title` 与 `comment_id`，提示需要有效文档 URL 或已确认的 `file_token/file_type`；不要猜 type。
+- `share_id` 缺失、映射未命中或 `share_doc` 冲突：回显 `share_id`、可用的 `share_doc.url/title` 与 `comment_id`；必要时重新拉取完整事件流，仍无法关联则停止，不用最近一次共享兜底。
+- `share_doc` 无法解析：回显 `share_id`、`share_doc.url/title` 与 `comment_id`，提示需要有效文档 URL 或已确认的 `file_token/file_type`；不要猜 type。
 - Drive API/权限失败：保留精确 batch-query 命令与 `comment_id`，根据 CLI 的 `missing_scopes/hint` 恢复权限后重试；不要扫描全部评论。
 - Docs 预览失败：保留 `action/element_type/element_token/block_id` 和用户选择的输出路径，修复权限或 token 后重试同一白名单命令；不要让 `meeting-events` 自动下载兜底。
 - 未知 context/type/action：保留 raw 并说明当前 CLI 没有安全路由；不得自动调用 overwrite、download 或任何猜测的 shortcut。
