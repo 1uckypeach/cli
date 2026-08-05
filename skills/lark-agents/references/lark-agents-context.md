@@ -15,9 +15,9 @@ lark-cli agents context list <provider>:<agent_id> --page-size 20     # 每页�
 lark-cli agents context list <provider>:<agent_id> --page-token <token>  # 取下一页
 ```
 
-输出 `{ contexts: [ { context_id, created_at?, updated_at?, title?, awaiting_input? } ] }`，`meta.count`（**空列表时整个 `meta` 省略**，用 `.meta.count // 0` 消费）。只读。按 `updated_at` 降序（最近活动在前；无时间戳排最后）。`awaiting_input=true` 表示有任务停在 `input_required`/`auth_required` 等你续答——挑"哪个会话要先处理"就看它。会话的任务数不在 list 里，在 `context get` 的 `task_count?`。
+输出 `{ contexts: [ { context_id, created_at?, updated_at?, title?, awaiting_input? } ] }`，条数在 `meta.pagination.items`（**空列表且无下一页时整个 `meta` 省略**，用 `.meta.pagination.items // 0` 消费）。只读。按 `updated_at` 降序（最近活动在前；无时间戳排最后）。`awaiting_input=true` 表示有任务停在 `input_required`/`auth_required` 等你续答——挑"哪个会话要先处理"就看它。会话的任务数不在 list 里，在 `context get` 的 `task_count?`。
 
-**分页**：`--page-size N`（1-100，默认 20）+ `--page-token <token>` 游标翻页。`meta.has_more=true` 表示还有下一页，`meta.page_token` 是下一页游标，`meta.next` 里直接给出翻页命令——**照 `meta.next` 执行即可**。末页 `has_more`/`page_token` 省略。所以「会话很多」不再静默截断：`has_more=true` 时继续翻页，翻到 `has_more` 省略为止，才可断言某 context 不存在。
+**分页**：`--page-size N`（1-100，默认 20）+ `--page-token <token>` 游标翻页。分页信息在 `meta.pagination` 下：`complete=false` 表示还有下一页，`next_token` 是下一页游标（末页省略），`items` 是本页条数，`pages` 恒为 1（agents 一次调用只取一页）；`meta.next` 里直接给出翻页命令——**照 `meta.next` 执行即可**。所以「会话很多」不再静默截断：`complete=false` 时继续翻页，翻到 `complete=true` 为止，才可断言某 context 不存在。
 
 ## context get — 查会话详情
 

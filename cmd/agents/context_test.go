@@ -155,8 +155,8 @@ func TestContextListEmitsContexts(t *testing.T) {
 	if !ok || len(contexts) != 2 {
 		t.Fatalf("data.contexts should have 2 entries, got %v", data["contexts"])
 	}
-	if env.Meta == nil || env.Meta.Count != 2 {
-		t.Errorf("meta.count should be 2, got %+v", env.Meta)
+	if env.Meta == nil || env.Meta.Pagination == nil || env.Meta.Pagination.Items != 2 {
+		t.Errorf("meta.pagination.items should be 2, got %+v", env.Meta)
 	}
 }
 
@@ -236,11 +236,14 @@ func TestContextListPaginationMeta(t *testing.T) {
 	if env.Meta == nil {
 		t.Fatal("a paged list should carry meta")
 	}
-	if !env.Meta.HasMore {
-		t.Error("meta.has_more should be true")
+	if env.Meta.Pagination == nil {
+		t.Fatal("a paged list should carry meta.pagination")
 	}
-	if env.Meta.PageToken != "2" {
-		t.Errorf("meta.page_token should be the next cursor \"2\", got %q", env.Meta.PageToken)
+	if env.Meta.Pagination.Complete {
+		t.Error("meta.pagination.complete should be false while a next page exists")
+	}
+	if env.Meta.Pagination.NextToken != "2" {
+		t.Errorf("meta.pagination.next_token should be the next cursor \"2\", got %q", env.Meta.Pagination.NextToken)
 	}
 	found := false
 	for _, n := range env.Meta.Next {

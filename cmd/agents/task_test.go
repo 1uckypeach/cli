@@ -275,8 +275,8 @@ func TestTaskListEmitsCount(t *testing.T) {
 	if !ok || len(tasks) != 2 {
 		t.Fatalf("data.tasks should have 2, got %v", data["tasks"])
 	}
-	if env.Meta == nil || env.Meta.Count != 2 {
-		t.Errorf("meta.count should be 2, got %+v", env.Meta)
+	if env.Meta == nil || env.Meta.Pagination == nil || env.Meta.Pagination.Items != 2 {
+		t.Errorf("meta.pagination.items should be 2, got %+v", env.Meta)
 	}
 }
 
@@ -1171,14 +1171,14 @@ func TestTaskListPaginationMeta(t *testing.T) {
 	if env.Meta == nil {
 		t.Fatal("a paged list should carry meta")
 	}
-	if env.Meta.Count != 2 {
-		t.Errorf("meta.count should be 2, got %d", env.Meta.Count)
+	if env.Meta.Pagination == nil {
+		t.Fatal("a paged list should carry meta.pagination")
 	}
-	if !env.Meta.HasMore {
-		t.Error("meta.has_more should be true")
+	if env.Meta.Pagination.Complete {
+		t.Error("meta.pagination.complete should be false while a next page exists")
 	}
-	if env.Meta.PageToken != "2" {
-		t.Errorf("meta.page_token should be the next cursor \"2\", got %q", env.Meta.PageToken)
+	if env.Meta.Pagination.NextToken != "2" {
+		t.Errorf("meta.pagination.next_token should be the next cursor \"2\", got %q", env.Meta.Pagination.NextToken)
 	}
 	found := false
 	for _, n := range env.Meta.Next {
@@ -1192,8 +1192,8 @@ func TestTaskListPaginationMeta(t *testing.T) {
 }
 
 // TestTaskListPaginationUnsafeCursorDropsNextKeepsToken pins the injection-drop
-// branch: an unsafe server cursor still rides meta.page_token verbatim (it is
-// DATA the caller can inspect), but it fails the safeNextID whitelist so no
+// branch: an unsafe server cursor still rides meta.pagination.next_token verbatim
+// (it is DATA the caller can inspect), but it fails the safeNextID whitelist so no
 // executable "next page" command is emitted with it interpolated.
 func TestTaskListPaginationUnsafeCursorDropsNextKeepsToken(t *testing.T) {
 	opts, _ := taskTestOpts(t, "list")
@@ -1216,8 +1216,11 @@ func TestTaskListPaginationUnsafeCursorDropsNextKeepsToken(t *testing.T) {
 	if env.Meta == nil {
 		t.Fatal("a paged list should carry meta")
 	}
-	if env.Meta.PageToken != "2 && evil" {
-		t.Errorf("meta.page_token should preserve the raw cursor as data, got %q", env.Meta.PageToken)
+	if env.Meta.Pagination == nil {
+		t.Fatal("a paged list should carry meta.pagination")
+	}
+	if env.Meta.Pagination.NextToken != "2 && evil" {
+		t.Errorf("meta.pagination.next_token should preserve the raw cursor as data, got %q", env.Meta.Pagination.NextToken)
 	}
 	for _, n := range env.Meta.Next {
 		if n.Label == "next page" {

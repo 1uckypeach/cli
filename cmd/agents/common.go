@@ -466,20 +466,30 @@ func validatePageSize(n int) error {
 	return nil
 }
 
-// listMetaPage builds the page-aware list meta: count (when >0), has_more,
-// page_token (the next-page cursor), and the next-page action(s). It preserves
-// listMeta's "no empty {}" rule — nil is returned ONLY when the page is empty AND
-// there is no next page AND there is no next action, so an otherwise-absent meta
-// never degrades to the ambiguous "meta": {} shape.
+// listMetaPage builds the page-aware list meta: the shared pagination block plus
+// the next-page action(s). It preserves listMeta's "no empty {}" rule — nil is
+// returned ONLY when the page is empty AND there is no next page AND there is no
+// next action, so an otherwise-absent meta never degrades to the ambiguous
+// "meta": {} shape.
+//
+// The agents verbs are a single-page cursor API: one command call fetches exactly
+// one page and hands the caller a cursor, rather than walking pages internally
+// like the --page-all shortcuts. Mapping onto the shared PaginationMeta therefore
+// fixes Pages at 1 (one page consumed per call) and reads Complete as "this page
+// is the last one". Count is left unset so Items is the single source for the
+// record count.
 func listMetaPage(count int, info iagents.PageInfo, next []output.NextAction) *output.Meta {
 	if count == 0 && !info.HasMore && len(next) == 0 {
 		return nil
 	}
 	return &output.Meta{
-		Count:     count, // omitempty drops 0
-		HasMore:   info.HasMore,
-		PageToken: info.NextToken,
-		Next:      next,
+		Pagination: &output.PaginationMeta{
+			Complete:  !info.HasMore,
+			Pages:     1,
+			Items:     count,
+			NextToken: info.NextToken,
+		},
+		Next: next,
 	}
 }
 
@@ -510,8 +520,8 @@ func carryAsIntoNext(cmd *cobra.Command, f *cmdutil.Factory, next []output.NextA
 // is responsible for whitelisting the ref / scheme / context-id interpolated into
 // base. The cursor is server-controlled and interpolated verbatim into a command
 // the AI runs, so it must pass the safeNextID whitelist first — a failing cursor
-// drops the command (the cursor still rides meta.page_token as data, so the caller
-// can page manually). Returns nil when there is no next page.
+// drops the command (the cursor still rides meta.pagination.next_token as data, so
+// the caller can page manually). Returns nil when there is no next page.
 func nextPageAction(base string, size int, info iagents.PageInfo) []output.NextAction {
 	if !info.HasMore || info.NextToken == "" || !safeNextID(info.NextToken) {
 		return nil

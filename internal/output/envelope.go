@@ -17,8 +17,6 @@ type Envelope struct {
 // Meta carries optional metadata in envelope responses.
 type Meta struct {
 	Count      int             `json:"count,omitempty"`
-	HasMore    bool            `json:"has_more,omitempty"`
-	PageToken  string          `json:"page_token,omitempty"` // next-page cursor
 	Rollback   string          `json:"rollback,omitempty"`
 	Pagination *PaginationMeta `json:"pagination,omitempty"`
 	Next       []NextAction    `json:"next,omitempty"`

@@ -55,7 +55,7 @@ lark-cli agents list --format pretty
 
 ## 二级发现（`agents list <scheme>`）
 
-- provider 支持枚举（catalog 型必支持）→ 返回 `{"agents": [{agent_ref, name, description?}]}`，`meta.count`（空列表时整个 `meta` 省略，用 `.meta.count // 0` 消费）。示例（base，真实输出）：
+- provider 支持枚举（catalog 型必支持）→ 返回 `{"agents": [{agent_ref, name, description?}]}`。**catalog 型**（离线有限集，不分页）条数在 `meta.count`，用 `.meta.count // 0` 消费；**instance 型**走服务端分页，条数在 `meta.pagination.items`（见下方「分页」）。空列表且无下一页时整个 `meta` 省略。示例（base，catalog 型，真实输出）：
 
 ```json
 {
@@ -75,7 +75,7 @@ lark-cli agents list --format pretty
 
 - provider 不支持枚举（部分 instance 型）→ 本地报错 `unsupported_capability`（exit 2），message 为 `provider '<scheme>' does not support listing agents`，hint 直接给出该 provider 的 agent_id 获取路径（即 `agent_id_source` 文案）——别编清单、别重试，把 hint 原样转达用户。
 
-**分页（仅 instance 型枚举）**：instance 型的 `agents list <scheme>` 走服务端 List API，支持 `--page-size N`（1-100，默认 20）+ `--page-token <token>`；响应带 `meta.has_more` / `meta.page_token` 和 `meta.next` 翻页命令（照 `meta.next` 执行即可）。**catalog 型（如 base）是离线有限集，不分页**，`--page-size` / `--page-token` 在该路径被忽略。
+**分页（仅 instance 型枚举）**：instance 型的 `agents list <scheme>` 走服务端 List API，支持 `--page-size N`（1-100，默认 20）+ `--page-token <token>`；响应带 `meta.pagination`（`complete` / `next_token` / `items`）和 `meta.next` 翻页命令（照 `meta.next` 执行即可）。**catalog 型（如 base）是离线有限集，不分页**，`--page-size` / `--page-token` 在该路径被忽略。
 
 ## 错误目录
 
