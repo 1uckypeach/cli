@@ -26,19 +26,19 @@ import (
 // TestCapabilityError_UnsafeRefDegradesHint pins the same whitelist on the
 // capability-gate hint: an unsafe ref degrades the hint to plain guidance.
 func TestCapabilityError_UnsafeRefDegradesHint(t *testing.T) {
-	err := capabilityError("example:agt x", "task cancel", iagents.CapTaskCancel)
+	err := capabilityError("fakeflow:agt x", "task cancel", iagents.CapTaskCancel)
 	p, ok := errs.ProblemOf(err)
 	if !ok || p.Hint == "" {
 		t.Fatalf("hint should degrade to plain-text guidance rather than be emptied, got %+v", p)
 	}
-	if strings.Contains(p.Hint, "example:agt x") {
+	if strings.Contains(p.Hint, "fakeflow:agt x") {
 		t.Fatalf("an unsafe ref must not be interpolated into the hint, got %q", p.Hint)
 	}
 }
 
 // TestCapabilityError pins the unsupported_capability contract.
 func TestCapabilityError(t *testing.T) {
-	err := capabilityError("example:agt_xxx", "task cancel", iagents.CapTaskCancel)
+	err := capabilityError("fakeflow:agt_xxx", "task cancel", iagents.CapTaskCancel)
 	if err == nil {
 		t.Fatal("should return an error")
 	}
@@ -313,7 +313,7 @@ func TestEmitTask_PlainSuccess(t *testing.T) {
 	cmd := newEmitCmd("task", "")
 	task := &iagents.AgentTask{TaskID: "chat_1", State: iagents.StateCompleted, IsTerminal: true}
 
-	next := []output.NextAction{{Label: "poll", Command: "lark-cli agents task get example:x chat_1"}}
+	next := []output.NextAction{{Label: "poll", Command: "lark-cli agents task get fakeflow:x chat_1"}}
 	if err := emitTask(f, cmd, task, next, "json"); err != nil {
 		t.Fatalf("emit should not error: %v", err)
 	}
@@ -602,20 +602,20 @@ func resolveCmd(t *testing.T, asChanged bool, asVal string) *cobra.Command {
 	return leaf
 }
 
-// TestResolveSpec_Success resolves a valid example ref under an explicit bot
+// TestResolveSpec_Success resolves a valid catalog ref under an explicit bot
 // identity and returns a non-nil spec offline (no client).
 func TestResolveSpec_Success(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
 	cmd := resolveCmd(t, true, "bot")
 
-	prov, spec, agentID, id, err := resolveSpec(f, cmd, "example:echo", "bot")
+	prov, spec, agentID, id, err := resolveSpec(f, cmd, "fakecat:min", "bot")
 	if err != nil {
 		t.Fatalf("a valid ref + bot should succeed: %v", err)
 	}
 	if spec == nil || spec.Send.Handler == nil {
 		t.Fatal("should return a non-nil spec with core hooks")
 	}
-	if prov.Scheme != "example" || agentID != "echo" {
+	if prov.Scheme != "fakecat" || agentID != "min" {
 		t.Errorf("provider/agent id: scheme=%q agentID=%q", prov.Scheme, agentID)
 	}
 	if id != core.AsBot {
@@ -670,7 +670,7 @@ func TestResolveSpec_UnknownCatalogID(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
 	cmd := resolveCmd(t, true, "bot")
 
-	_, spec, _, _, err := resolveSpec(f, cmd, "example:nope", "bot")
+	_, spec, _, _, err := resolveSpec(f, cmd, "fakecat:nope", "bot")
 	if err == nil || spec != nil {
 		t.Fatal("an unknown catalog id should error with a nil spec")
 	}
@@ -685,7 +685,7 @@ func TestResolveSpec_IdentityRejected(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
 	cmd := resolveCmd(t, true, "admin")
 
-	_, spec, _, _, err := resolveSpec(f, cmd, "example:echo", "admin")
+	_, spec, _, _, err := resolveSpec(f, cmd, "fakecat:min", "admin")
 	if err == nil {
 		t.Fatal("an unsupported identity should error")
 	}
@@ -730,7 +730,7 @@ func TestRuntimeFor_APIClientError(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
 	f.Config = func() (*core.CliConfig, error) { return nil, errors.New("config boom") }
 
-	if _, err := runtimeFor(f, core.AsBot, "echo", nil); err == nil {
+	if _, err := runtimeFor(f, core.AsBot, "min", nil); err == nil {
 		t.Fatal("a Config error should propagate")
 	}
 }
@@ -752,14 +752,14 @@ func TestResolveSpec_WorksWhenUnconfigured(t *testing.T) {
 	f := unconfiguredFactory(t)
 	cmd := resolveCmd(t, true, "bot")
 
-	_, spec, _, id, err := resolveSpec(f, cmd, "example:echo", "bot")
+	_, spec, _, id, err := resolveSpec(f, cmd, "fakecat:min", "bot")
 	if err != nil {
 		t.Fatalf("offline resolution should succeed when unconfigured: %v", err)
 	}
 	if spec == nil || id != core.AsBot {
 		t.Fatalf("should return spec + bot identity, got spec=%v id=%s", spec, id)
 	}
-	if _, err := runtimeFor(f, id, "echo", nil); err == nil {
+	if _, err := runtimeFor(f, id, "min", nil); err == nil {
 		t.Fatal("the client path (runtimeFor) should error when unconfigured (config gate)")
 	}
 }
@@ -789,21 +789,21 @@ func TestAgentCardRun_WorksUnconfigured(t *testing.T) {
 	f := unconfiguredFactory(t)
 	cmd := resolveCmd(t, true, "bot")
 
-	if err := agentCardRun(&cardOptions{Factory: f, Cmd: cmd, Ref: "example:echo", As: "bot", Format: "json"}); err != nil {
+	if err := agentCardRun(&cardOptions{Factory: f, Cmd: cmd, Ref: "fakecat:min", As: "bot", Format: "json"}); err != nil {
 		t.Fatalf("agents card should succeed when unconfigured (API-free): %v", err)
 	}
 }
 
 // TestAgentSendRun_DryRunWorksUnconfigured guards the acceptance regression:
 // `agents send --dry-run` is a client-side preview and must succeed
-// unconfigured — the example echo card declares no parameters, so no --param is
+// unconfigured — the fakecat:min card declares no parameters, so no --param is
 // needed. A malformed --param must still surface as validation, unconfigured.
 func TestAgentSendRun_DryRunWorksUnconfigured(t *testing.T) {
 	f := unconfiguredFactory(t)
 	cmd := resolveCmd(t, true, "bot")
 
 	err := agentSendRun(&sendOptions{
-		Factory: f, Cmd: cmd, Ref: "example:echo", Text: "hi", DryRun: true, As: "bot",
+		Factory: f, Cmd: cmd, Ref: "fakecat:min", Text: "hi", DryRun: true, As: "bot",
 	})
 	if err != nil {
 		t.Fatalf("send --dry-run should succeed when unconfigured: %v", err)
@@ -811,7 +811,7 @@ func TestAgentSendRun_DryRunWorksUnconfigured(t *testing.T) {
 
 	// A malformed --param (no '=') is still a validation error, unconfigured.
 	err = agentSendRun(&sendOptions{
-		Factory: f, Cmd: cmd, Ref: "example:echo", Text: "hi",
+		Factory: f, Cmd: cmd, Ref: "fakecat:min", Text: "hi",
 		Params: []string{"noequals"}, DryRun: true, As: "bot",
 	})
 	if err == nil || !errs.IsValidation(err) {

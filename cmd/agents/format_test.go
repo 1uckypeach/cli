@@ -19,7 +19,7 @@ import (
 
 // TestPrintTaskPrettyRendersQuestionGroup pins that printTaskPretty surfaces an
 // input_required question group: group headline (label — description), numbered
-// questions with their answer-form annotation (自由文本 / 可多选), and
+// questions with their answer-form annotation (free text / multi-select), and
 // id: label — description option rows — with all agent-controlled fields
 // ANSI-stripped.
 func TestPrintTaskPrettyRendersQuestionGroup(t *testing.T) {
@@ -27,29 +27,29 @@ func TestPrintTaskPrettyRendersQuestionGroup(t *testing.T) {
 	printTaskPretty(out, &iagents.AgentTask{
 		TaskID: "task_1", State: iagents.StateInputRequired,
 		InputRequired: &iagents.InputRequired{
-			Label:       "报表生成确认",
-			Description: "生成前需确认\x1b[2J口径",
+			Label:       "report confirmation",
+			Description: "confirm the metrics\x1b[2J first",
 			Questions: []iagents.Question{
-				{QuestionID: "q1_a8", Question: "按什么维度拆分？", Options: []iagents.Option{
-					{OptionID: "by_region", Label: "按大区", Description: "华东/华北/华南汇总"},
-					{OptionID: "by_category", Label: "按品类"},
+				{QuestionID: "q1_a8", Question: "Split by which dimension?", Options: []iagents.Option{
+					{OptionID: "by_region", Label: "by region", Description: "east/north/south rollup"},
+					{OptionID: "by_category", Label: "by category"},
 				}},
-				{QuestionID: "q2_a8", Question: "时间范围？"},
-				{QuestionID: "q3_a8", Question: "包含哪些区域？", MultiSelect: true, Options: []iagents.Option{
-					{OptionID: "east", Label: "华东"},
+				{QuestionID: "q2_a8", Question: "Time range?"},
+				{QuestionID: "q3_a8", Question: "Which regions?", MultiSelect: true, Options: []iagents.Option{
+					{OptionID: "east", Label: "east"},
 				}},
 			},
 		},
 	})
 	text := out.String()
 	for _, want := range []string{
-		"input_required: 报表生成确认 — 生成前需确认",
-		"[1] 按什么维度拆分？",
-		"by_region: 按大区 — 华东/华北/华南汇总",
-		"by_category: 按品类",
-		"[2] 时间范围？（自由文本）",
-		"[3] 包含哪些区域？（可多选）",
-		"east: 华东",
+		"input_required: report confirmation — confirm the metrics",
+		"[1] Split by which dimension?",
+		"by_region: by region — east/north/south rollup",
+		"by_category: by category",
+		"[2] Time range? (free text)",
+		"[3] Which regions? (multi-select)",
+		"east: east",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("pretty task should render question-group part %q, got:\n%s", want, text)
@@ -64,11 +64,11 @@ func TestPrintTaskPrettyRendersQuestionGroup(t *testing.T) {
 	printTaskPretty(out, &iagents.AgentTask{
 		TaskID: "task_2", State: iagents.StateInputRequired,
 		InputRequired: &iagents.InputRequired{Questions: []iagents.Question{
-			{QuestionID: "q1_b2", Question: "请补充时间范围"},
+			{QuestionID: "q1_b2", Question: "Please give a time range"},
 		}},
 	})
 	single := out.String()
-	if !strings.Contains(single, "input_required: 请补充时间范围（自由文本）") {
+	if !strings.Contains(single, "input_required: Please give a time range (free text)") {
 		t.Errorf("single untitled question should be the headline, got:\n%s", single)
 	}
 	if strings.Contains(single, "[1]") {
@@ -81,18 +81,18 @@ func TestPrintTaskPrettyRendersOutputOnlyTask(t *testing.T) {
 	printTaskPretty(out, &iagents.AgentTask{
 		TaskID: "task_1", State: iagents.StateCompleted,
 		Messages: []iagents.Message{{Role: "agent", Parts: []iagents.Part{
-			{Type: "text", Text: "执行完成"},
+			{Type: "text", Text: "run complete"},
 			{Type: "data", Data: map[string]interface{}{"kind": "qa_chart"}},
 		}}},
-		Artifacts: []iagents.Artifact{{ID: "artifact_1", Kind: "table", Name: "销售表", Status: "ready"}},
+		Artifacts: []iagents.Artifact{{ID: "artifact_1", Kind: "table", Name: "sales table", Status: "ready"}},
 	})
 	text := out.String()
-	for _, want := range []string{"reply: 执行完成", "data_parts: 1 (qa_chart)", "artifact artifact_1: table 销售表 [ready]"} {
+	for _, want := range []string{"reply: run complete", "data_parts: 1 (qa_chart)", "artifact artifact_1: table sales table [ready]"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("pretty task should render %q, got:\n%s", want, text)
 		}
 	}
-	if strings.Contains(text, "request: 执行完成") {
+	if strings.Contains(text, "request: run complete") {
 		t.Errorf("output-only task must not duplicate the first agent reply as request, got:\n%s", text)
 	}
 }
@@ -102,12 +102,12 @@ func TestPrintTaskPrettyUsesLastTextPartAsReply(t *testing.T) {
 	printTaskPretty(out, &iagents.AgentTask{
 		TaskID: "task_1", State: iagents.StateCompleted,
 		Messages: []iagents.Message{{Role: "agent", Parts: []iagents.Part{
-			{Type: "text", Text: "开始处理"},
+			{Type: "text", Text: "starting"},
 			{Type: "data", Data: map[string]interface{}{"kind": "qa_table"}},
-			{Type: "text", Text: "执行完成"},
+			{Type: "text", Text: "run complete"},
 		}}},
 	})
-	if text := out.String(); !strings.Contains(text, "reply: 执行完成") || strings.Contains(text, "reply: 开始处理") {
+	if text := out.String(); !strings.Contains(text, "reply: run complete") || strings.Contains(text, "reply: starting") {
 		t.Fatalf("pretty should use the last text part, got:\n%s", text)
 	}
 }
@@ -164,14 +164,14 @@ func agentRootTree() *cobra.Command {
 func TestFormatYamlRejectedAcrossLeaves(t *testing.T) {
 	leaves := [][]string{
 		{"agents", "list", "--format", "yaml"},
-		{"agents", "card", "example:x", "--format", "yaml"},
-		{"agents", "send", "example:x", "--text", "hi", "--format", "yaml"},
-		{"agents", "task", "get", "example:x", "t1", "--format", "yaml"},
-		{"agents", "task", "list", "example:x", "--format", "yaml"},
-		{"agents", "task", "cancel", "example:x", "t1", "--format", "yaml"},
-		{"agents", "context", "list", "example:x", "--format", "yaml"},
-		{"agents", "context", "get", "example:x", "c1", "--format", "yaml"},
-		{"agents", "context", "delete", "example:x", "c1", "--yes", "--format", "yaml"},
+		{"agents", "card", "fakeflow:x", "--format", "yaml"},
+		{"agents", "send", "fakeflow:x", "--text", "hi", "--format", "yaml"},
+		{"agents", "task", "get", "fakeflow:x", "t1", "--format", "yaml"},
+		{"agents", "task", "list", "fakeflow:x", "--format", "yaml"},
+		{"agents", "task", "cancel", "fakeflow:x", "t1", "--format", "yaml"},
+		{"agents", "context", "list", "fakeflow:x", "--format", "yaml"},
+		{"agents", "context", "get", "fakeflow:x", "c1", "--format", "yaml"},
+		{"agents", "context", "delete", "fakeflow:x", "c1", "--yes", "--format", "yaml"},
 	}
 	for _, argv := range leaves {
 		t.Run(strings.Join(argv[:len(argv)-2], " "), func(t *testing.T) {
@@ -233,7 +233,7 @@ func TestStripANSI(t *testing.T) {
 		{"before\x1b[31mred\x1b[0mafter", "beforeredafter"},
 		{"a\x1bb", "ab"}, // bare ESC
 		{"t\x1b]0;evil\x07x", "tx"},
-		{"clean 文本", "clean 文本"},
+		{"clean text", "clean text"},
 	} {
 		if got := stripANSI(tt.in); got != tt.want {
 			t.Errorf("stripANSI(%q) = %q, want %q", tt.in, got, tt.want)
@@ -246,7 +246,7 @@ func TestStripANSI(t *testing.T) {
 // to 120 runes / artifacts count — and the agent-controlled text stripped of
 // ANSI escapes.
 func TestPrintTaskPretty(t *testing.T) {
-	long := strings.Repeat("字", 130)
+	long := strings.Repeat("x", 130)
 	task := &iagents.AgentTask{
 		TaskID:    "chat_1",
 		ContextID: "sess_1",
@@ -272,7 +272,7 @@ func TestPrintTaskPretty(t *testing.T) {
 	if strings.Contains(text, long) {
 		t.Errorf("body should be truncated to 120 chars, the full 130-char body should not appear")
 	}
-	if !strings.Contains(text, strings.Repeat("字", 120)) {
+	if !strings.Contains(text, strings.Repeat("x", 120)) {
 		t.Errorf("body should keep the first 120 chars, got:\n%s", text)
 	}
 	var env output.Envelope
@@ -320,7 +320,7 @@ func TestPrintContextDetailPretty_NewlineForgeryNeutralized(t *testing.T) {
 	out := &bytes.Buffer{}
 	printContextDetailPretty(out, &iagents.ContextDetail{
 		ContextID: "sess_1",
-		Title:     "标题\ncontext_id: forged",
+		Title:     "title\ncontext_id: forged",
 	})
 	var idLines int
 	for _, line := range strings.Split(out.String(), "\n") {
@@ -350,7 +350,7 @@ func TestPrintTaskSummariesTSV(t *testing.T) {
 	out := &bytes.Buffer{}
 	printTaskSummariesTSV(out, []iagents.TaskSummary{
 		{TaskID: "chat_1", ContextID: "sess_1", State: iagents.StateCompleted, IsTerminal: true,
-			UpdatedAt: "2026-07-05T12:00:00Z", Summary: "分析\n完成\x1b[0m"},
+			UpdatedAt: "2026-07-05T12:00:00Z", Summary: "analysis\ncomplete\x1b[0m"},
 	})
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
 	if len(lines) != 2 {
@@ -360,7 +360,7 @@ func TestPrintTaskSummariesTSV(t *testing.T) {
 		t.Errorf("header columns should match the json field names, got %q", lines[0])
 	}
 	// Summary: ANSI escape stripped, newline flattened to a space.
-	if lines[1] != "chat_1\tsess_1\tcompleted\ttrue\t2026-07-05T12:00:00Z\t分析 完成" {
+	if lines[1] != "chat_1\tsess_1\tcompleted\ttrue\t2026-07-05T12:00:00Z\tanalysis complete" {
 		t.Errorf("data row mismatch, got %q", lines[1])
 	}
 }
@@ -373,13 +373,13 @@ func TestPrintContextsTSV(t *testing.T) {
 	out := &bytes.Buffer{}
 	printContextsTSV(out, []iagents.ContextSummary{
 		{ContextID: "sess_1", CreatedAt: "2026-07-05T10:00:00+08:00", UpdatedAt: "2026-07-05T12:00:00+08:00",
-			Title: "\x1b[2J销售分析", AwaitingInput: true},
+			Title: "\x1b[2Jsales analysis", AwaitingInput: true},
 	})
 	text := out.String()
 	if !strings.HasPrefix(text, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tAWAITING_INPUT\n") {
 		t.Errorf("should have a header row with the rollup columns, got %q", text)
 	}
-	if !strings.Contains(text, "销售分析") {
+	if !strings.Contains(text, "sales analysis") {
 		t.Errorf("should contain the title text, got %q", text)
 	}
 	if strings.Contains(text, "\x1b") {
@@ -387,7 +387,7 @@ func TestPrintContextsTSV(t *testing.T) {
 	}
 	// The awaiting_input rollup directly trails the title — no TASK_COUNT column
 	// in between.
-	if !strings.Contains(text, "销售分析\ttrue\n") {
+	if !strings.Contains(text, "sales analysis\ttrue\n") {
 		t.Errorf("should carry the awaiting_input rollup right after the title, got %q", text)
 	}
 }
@@ -403,17 +403,17 @@ func TestPrintContextDetailPretty(t *testing.T) {
 		ContextID:     "sess_1",
 		CreatedAt:     "2026-07-05T10:00:00+08:00",
 		UpdatedAt:     "2026-07-05T12:00:00+08:00",
-		Title:         "\x1b[31m分析\x1b[0m",
+		Title:         "\x1b[31manalysis\x1b[0m",
 		TaskCount:     iagents.Int(2),
 		AwaitingInput: true,
 		ActiveTask: &iagents.TaskSummary{
 			TaskID: "chat_2", State: iagents.StateInputRequired,
-			UpdatedAt: "2026-07-05T12:00:00+08:00", Summary: "请提供\n季度\x1b[0m",
+			UpdatedAt: "2026-07-05T12:00:00+08:00", Summary: "give the\nquarter\x1b[0m",
 		},
 	})
 	text := out.String()
 	for _, want := range []string{
-		"context_id: sess_1", "updated_at: 2026-07-05T12:00:00+08:00", "title: 分析",
+		"context_id: sess_1", "updated_at: 2026-07-05T12:00:00+08:00", "title: analysis",
 		"task_count: 2", "awaiting_input: true", "active_task: input_required",
 	} {
 		if !strings.Contains(text, want) {
@@ -421,7 +421,7 @@ func TestPrintContextDetailPretty(t *testing.T) {
 		}
 	}
 	// active-task Summary: newline flattened to a space.
-	if !strings.Contains(text, "请提供 季度") {
+	if !strings.Contains(text, "give the quarter") {
 		t.Errorf("active_task summary should be ANSI-stripped + newline-flattened, got:\n%s", text)
 	}
 	if strings.Contains(text, "\x1b") {
@@ -448,7 +448,7 @@ func TestExactArgsUsageHint(t *testing.T) {
 	root := agentRootTree()
 	root.SetOut(&bytes.Buffer{})
 	root.SetErr(&bytes.Buffer{})
-	root.SetArgs([]string{"agents", "task", "get", "example:x"}) // missing task-id
+	root.SetArgs([]string{"agents", "task", "get", "fakeflow:x"}) // missing task-id
 	err := root.Execute()
 	if err == nil {
 		t.Fatal("task get with a single argument should error")
@@ -457,7 +457,7 @@ func TestExactArgsUsageHint(t *testing.T) {
 		t.Fatalf("an arg-count error should be a validation type, got %T: %v", err, err)
 	}
 	p, ok := errs.ProblemOf(err)
-	if !ok || !strings.Contains(p.Hint, "用法: lark-cli agents task get <agent_ref> <task-id>") {
+	if !ok || !strings.Contains(p.Hint, "usage: lark-cli agents task get <agent_ref> <task-id>") {
 		t.Fatalf("hint should contain the usage string, got %+v", p)
 	}
 	if output.ExitCodeOf(err) != output.ExitValidation {
@@ -471,7 +471,7 @@ func TestMaximumArgsUsageHint(t *testing.T) {
 	root := agentRootTree()
 	root.SetOut(&bytes.Buffer{})
 	root.SetErr(&bytes.Buffer{})
-	root.SetArgs([]string{"agents", "list", "example", "extra"})
+	root.SetArgs([]string{"agents", "list", "base", "extra"})
 	err := root.Execute()
 	if err == nil {
 		t.Fatal("list with more than 1 positional argument should error")
@@ -480,7 +480,7 @@ func TestMaximumArgsUsageHint(t *testing.T) {
 		t.Fatalf("an arg-count error should be a validation type, got %T: %v", err, err)
 	}
 	p, ok := errs.ProblemOf(err)
-	if !ok || !strings.Contains(p.Hint, "用法: lark-cli agents list [scheme]") {
+	if !ok || !strings.Contains(p.Hint, "usage: lark-cli agents list [scheme]") {
 		t.Fatalf("hint should contain the usage string, got %+v", p)
 	}
 }

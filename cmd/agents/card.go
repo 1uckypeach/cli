@@ -35,7 +35,7 @@ type cardOptions struct {
 // executable verbatim.
 var verbCommandTemplate = map[string]string{
 	iagents.VerbSend:             "lark-cli agents send <agent_ref> --text <text> [--param k=v ...]",
-	iagents.VerbTaskGet:          "lark-cli agents task get <agent_ref> <task-id> [--watch --timeout 30s] [--param k=v ...]",
+	iagents.VerbTaskGet:          "lark-cli agents task get <agent_ref> <task-id> [--watch --timeout 90s] [--param k=v ...]",
 	iagents.VerbTaskList:         "lark-cli agents task list <agent_ref> [--context-id <ctx-id>] [--param k=v ...]",
 	iagents.VerbTaskCancel:       "lark-cli agents task cancel <agent_ref> <task-id> [--param k=v ...]",
 	iagents.VerbContextList:      "lark-cli agents context list <agent_ref> [--param k=v ...]",
@@ -67,15 +67,15 @@ func NewCmdAgentCard(f *cmdutil.Factory) *cobra.Command {
 			return agentCardRun(opts)
 		},
 	}
-	cmd.Flags().StringVar(&opts.Operation, "operation", "", "查询某操作的参数契约：动词（capabilities 键名 + send），或 all 一次拿全")
+	cmd.Flags().StringVar(&opts.Operation, "operation", "", "query one operation's parameter contract: a verb (a capabilities key, or send), or all to fetch every one at once")
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
-	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
+	cmd.Flags().String("jq", "", "filter the JSON output with a jq expression")
 	if f != nil {
 		cmdutil.AddAPIIdentityFlag(cmd.Context(), cmd, f, &opts.As)
 	} else {
 		// f is nil only in construction-time unit tests; register a bare --as so
 		// the flag surface is still assertable without a Factory.
-		cmd.Flags().StringVar(&opts.As, "as", "", "identity type: user | bot")
+		cmd.Flags().StringVar(&opts.As, "as", "", "identity type: user | bot (the identities an agent actually supports are listed by agents card)")
 	}
 	cmdutil.SetRisk(cmd, cmdutil.RiskRead)
 	return cmd
@@ -195,13 +195,13 @@ func agentCardOperationRun(opts *cardOptions, prov iagents.Provider, spec *iagen
 		o, ok := spec.Op(verb)
 		if !ok {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument,
-				"未知操作 %q，合法值: %s, all", verb, strings.Join(iagents.Verbs(), ", ")).
+				"unknown operation %q, valid values: %s, all", verb, strings.Join(iagents.Verbs(), ", ")).
 				WithParam("--operation").
-				WithHint("--operation 的合法动词见 message 列表（即 8 个操作名；capabilities 里的 file_input/input_required 是行为位、不是动词）；all 一次拿全")
+				WithHint("the valid --operation verbs are the ones listed in the message (the 8 operation names; file_input/input_required in capabilities are behavior flags, not verbs); all fetches every one at once")
 		}
 		c := contractFor(o)
 		if prov.Kind() == iagents.KindInstance {
-			c.ParametersSource = "template" // struct 复用：不为 unwired 操作凭空造出 command:"" 键
+			c.ParametersSource = "template" // struct reuse: never invent a command:"" key for an unwired operation
 		}
 		data = c
 		prettyFn = func(w io.Writer) { printOperationPretty(w, c) }
@@ -227,7 +227,7 @@ func agentCardOperationRun(opts *cardOptions, prov iagents.Provider, spec *iagen
 // printOperationPretty renders one operation contract as a human block.
 func printOperationPretty(w io.Writer, c operationContract) {
 	if !c.Supported {
-		fmt.Fprintf(w, "operation: %s (不支持)\n", c.Operation)
+		fmt.Fprintf(w, "operation: %s (unsupported)\n", c.Operation)
 		return
 	}
 	fmt.Fprintf(w, "operation: %s\n", c.Operation)
@@ -235,7 +235,7 @@ func printOperationPretty(w io.Writer, c operationContract) {
 		fmt.Fprintf(w, "  command: %s\n", c.Command)
 	}
 	if len(c.Parameters) == 0 {
-		fmt.Fprintln(w, "  parameters: （无业务参数）")
+		fmt.Fprintln(w, "  parameters: (none)")
 		return
 	}
 	fmt.Fprintln(w, "  parameters:")
@@ -259,21 +259,21 @@ func printParamPretty(w io.Writer, p iagents.CardParam) {
 	fmt.Fprintln(w)
 	var attrs []string
 	if len(p.Enum) > 0 {
-		attrs = append(attrs, "取值: "+stripANSI(strings.Join(p.Enum, " | ")))
+		attrs = append(attrs, "values: "+stripANSI(strings.Join(p.Enum, " | ")))
 	}
 	if p.Min != nil || p.Max != nil {
-		attrs = append(attrs, "范围: "+rangePretty(p))
+		attrs = append(attrs, "range: "+rangePretty(p))
 	}
 	if p.Default != "" {
-		attrs = append(attrs, "默认: "+stripANSI(p.Default))
+		attrs = append(attrs, "default: "+stripANSI(p.Default))
 	}
 	if p.NoCarry {
-		attrs = append(attrs, "不入链传（每次调用给新值）")
+		attrs = append(attrs, "not carried in meta.next (give a fresh value per call)")
 	}
 	if len(attrs) > 0 {
 		fmt.Fprintf(w, "        %s\n", strings.Join(attrs, " · "))
 	}
-	// object：叶子逐个缩进渲染（点路径写法直接可见）
+	// object: render each leaf indented so the dotted-path form is visible
 	for _, f := range p.Fields {
 		leaf := f
 		leaf.Name = p.Name + "." + f.Name
@@ -320,7 +320,7 @@ func printCardPretty(w io.Writer, card *iagents.AgentCard) {
 		for _, spec := range card.Identity {
 			id := string(spec.Type)
 			if spec.Precondition != "" {
-				id += "（前置: " + stripANSI(spec.Precondition) + "）"
+				id += " (precondition: " + stripANSI(spec.Precondition) + ")"
 			}
 			ids = append(ids, id)
 		}
@@ -351,11 +351,11 @@ func printCardPretty(w io.Writer, card *iagents.AgentCard) {
 
 	if len(card.HasParameters) > 0 {
 		fmt.Fprintf(w, "  parameters: %s\n", strings.Join(card.HasParameters, ", "))
-		fmt.Fprintf(w, "    （用 --operation <verb> 查看详情，如: lark-cli agents card %s --operation %s）\n",
+		fmt.Fprintf(w, "    (use --operation <verb> for details, e.g. lark-cli agents card %s --operation %s)\n",
 			safeRefOrPlaceholder(card), card.HasParameters[0])
 	}
 	if card.ParametersSource != "" {
-		fmt.Fprintf(w, "  parameters_source: %s（模板级声明，具体 agent 以平台为准）\n", card.ParametersSource)
+		fmt.Fprintf(w, "  parameters_source: %s (template-level declaration; the platform is authoritative per agent)\n", card.ParametersSource)
 	}
 
 	if len(card.Skills) > 0 {

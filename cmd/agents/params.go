@@ -24,8 +24,8 @@ import (
 
 // flatParams expands declarations to value-bearing leaves: scalars keep their
 // name, an object contributes one leaf per Field under "obj.field" dotted
-// names (leaf attributes rule). The object entry itself is NOT value-bearing
-// and is excluded. Order is declaration order (meta.next determinism).
+// names. The object entry itself is NOT value-bearing and is excluded. Order is
+// declaration order (meta.next determinism).
 func flatParams(declared []iagents.CardParam) []iagents.CardParam {
 	out := make([]iagents.CardParam, 0, len(declared))
 	for _, cp := range declared {
@@ -62,17 +62,16 @@ type validatedParams struct {
 	Given    map[string]string
 }
 
-// addParamFlag registers the shared --param flag on a leaf (two-line helper,
-// same style as addAsFlag).
+// addParamFlag registers the shared --param flag on a leaf.
 func addParamFlag(cmd *cobra.Command, params *[]string) {
-	cmd.Flags().StringArrayVar(params, "param", nil, "业务参数 key=value，可重复（各命令所需参数见 lark-cli agents card <agent_ref> --operation <verb>）")
+	cmd.Flags().StringArrayVar(params, "param", nil, "business parameter key=value, repeatable (run lark-cli agents card <agent_ref> --operation <verb> to see what a verb accepts)")
 }
 
 // validateParams parses --param pairs and validates them against ONE
 // operation's declared parameter set, collecting ALL violations into a single
 // typed invalid_argument error (exit 2). spec is used for the cross-operation
-// reverse lookup on unknown keys ("它声明在: send") and may be nil (agents list
-// path). Passing validation backfills declaration defaults into Resolved.
+// reverse lookup on unknown keys ("declared on: send") and may be nil (agents
+// list path). Passing validation backfills declaration defaults into Resolved.
 func validateParams(kvs []string, declared []iagents.CardParam, verb string, spec *iagents.AgentSpec, ref string) (validatedParams, error) {
 	// decl indexes the value-bearing leaves: scalars by name, object fields by
 	// dotted "obj.field" names — the canonical flat form every downstream
@@ -84,12 +83,12 @@ func validateParams(kvs []string, declared []iagents.CardParam, verb string, spe
 	}
 	objects := objectDecls(declared)
 
-	// seen 记录“这个 key 在 argv 里出现过”（重复检测 + 抑制误报的 missing-
-	// required 都看它）；given 只收录通过校验的值（Resolved/meta.next 都看它）。
-	// 两张表必须分开：值校验失败的 key 若不进 seen，重复提供会漏报、缺必填会误报
-	// （参数明明给了、只是值不对，再报一条“缺少必填”是自相矛盾的指令）。
-	// objChannel 记录每个对象走的通道（dotted|json），同一对象混用两通道报错，
-	// 不做静默合并。
+	// seen records "this key appeared in argv" (both the duplicate check and the
+	// missing-required suppression read it); given only collects values that
+	// passed validation. The two must stay separate: a key whose VALUE failed is
+	// still "provided", so reporting it as missing would contradict the more
+	// precise violation already recorded. objChannel records which channel each
+	// object used (dotted|json) so mixing the two errors instead of merging.
 	seen := map[string]bool{}
 	given := map[string]string{}
 	objChannel := map[string]string{}
@@ -103,23 +102,23 @@ func validateParams(kvs []string, declared []iagents.CardParam, verb string, spe
 		viols = append(viols, v)
 	}
 
-	// ── parse + per-key checks（一次收集全部）──
+	// ── parse + per-key checks (collect every violation) ──
 	for _, kv := range kvs {
 		k, val, ok := strings.Cut(kv, "=")
 		if !ok || k == "" {
-			addViol(kv, fmt.Sprintf("--param 格式应为 key=value，得到 %q", kv), nil)
+			addViol(kv, fmt.Sprintf("--param must be key=value, got %q", kv), nil)
 			continue
 		}
 		if seen[k] {
-			addViol(k, fmt.Sprintf("参数 %s 重复提供（该参数不可重复）", k), nil)
+			addViol(k, fmt.Sprintf("parameter %s given more than once (it is not repeatable)", k), nil)
 			continue
 		}
 		seen[k] = true
 
-		// ── 对象的 JSON 整值通道：key 恰是对象名 ──
+		// Object via whole-value JSON: the key is exactly the object name.
 		if obj, isObj := objects[k]; isObj {
 			if objChannel[k] == "dotted" {
-				addViol(k, fmt.Sprintf("参数 %s 以 JSON 与点路径混合提供（同一对象只能选一种通道）", k), nil)
+				addViol(k, fmt.Sprintf("parameter %s mixes the JSON and dotted-path forms (pick one per object)", k), nil)
 				continue
 			}
 			objChannel[k] = "json"
@@ -127,7 +126,7 @@ func validateParams(kvs []string, declared []iagents.CardParam, verb string, spe
 			continue
 		}
 
-		// ── 点路径通道：key 带 "."，指向对象的某个叶子 ──
+		// Dotted path: the key carries a ".", addressing one leaf of an object.
 		if top, leaf, dotted := strings.Cut(k, "."); dotted {
 			obj, isObj := objects[top]
 			if !isObj {
@@ -136,24 +135,24 @@ func validateParams(kvs []string, declared []iagents.CardParam, verb string, spe
 				continue
 			}
 			if objChannel[top] == "json" {
-				addViol(k, fmt.Sprintf("参数 %s 以 JSON 与点路径混合提供（同一对象只能选一种通道）", top), nil)
+				addViol(k, fmt.Sprintf("parameter %s mixes the JSON and dotted-path forms (pick one per object)", top), nil)
 				continue
 			}
 			objChannel[top] = "dotted"
 			cp, known := decl[k]
 			if !known {
-				addViol(k, fmt.Sprintf("未知参数 %s（%s 可用字段: %s）", k, top, fieldNames(obj)), nil, dottedFieldNames(obj)...)
+				addViol(k, fmt.Sprintf("unknown parameter %s (%s accepts: %s)", k, top, fieldNames(obj)), nil, dottedFieldNames(obj)...)
 				continue
 			}
 			_ = leaf
 			if val == "" {
 				if cp.Required {
-					addViol(k, fmt.Sprintf("必填参数 %s 不能为空值（%s 必填）", k, verb), &cp)
+					addViol(k, fmt.Sprintf("required parameter %s must not be empty (%s requires it)", k, verb), &cp)
 				}
 				continue
 			}
 			if err := iagents.ValidateValue(cp, val); err != nil {
-				addViol(k, fmt.Sprintf("参数 %s %s", k, err.Error()), &cp, cp.Enum...)
+				addViol(k, fmt.Sprintf("parameter %s %s", k, err.Error()), &cp, cp.Enum...)
 				continue
 			}
 			given[k] = canonicalValue(cp, val)
@@ -167,36 +166,38 @@ func validateParams(kvs []string, declared []iagents.CardParam, verb string, spe
 			continue
 		}
 		if val == "" {
-			// `k=` 空值统一按“未提供”处理（不进 given ⇒ 不遮蔽 Default 回填、
-			// 不把未过 Type/Enum/Range 校验的 "" 交给 hook——rt.Params() 契约）。
-			// 必填参数额外报专属违规；可选参数省略即得默认值，无需报错。
+			// `k=` is treated as "not provided": it stays out of given so it
+			// neither masks the Default backfill nor hands an unvalidated "" to
+			// the hook. Required keys get their own violation; optional ones just
+			// fall through to the default.
 			if cp.Required {
-				addViol(k, fmt.Sprintf("必填参数 %s 不能为空值（%s 必填）", k, verb), &cp)
+				addViol(k, fmt.Sprintf("required parameter %s must not be empty (%s requires it)", k, verb), &cp)
 			}
 			continue
 		}
 		if err := iagents.ValidateValue(cp, val); err != nil {
-			addViol(k, fmt.Sprintf("参数 %s %s", k, err.Error()), &cp, cp.Enum...)
+			addViol(k, fmt.Sprintf("parameter %s %s", k, err.Error()), &cp, cp.Enum...)
 			continue
 		}
 		given[k] = canonicalValue(cp, val)
 	}
 
-	// ── missing required（对着平铺声明反查；argv 里出现过的 key 不再重复报——
-	// 它要么已通过、要么已带着更精确的违规）──
+	// missing required, checked against the flat declaration. A key that showed
+	// up in argv is skipped: it either passed or already carries a sharper
+	// violation.
 	for _, cp := range leaves {
 		if !cp.Required || seen[cp.Name] {
 			continue
 		}
 		c := cp
-		addViol(cp.Name, fmt.Sprintf("缺少必填参数 %s（%s 必填）", cp.Name, verb), &c)
+		addViol(cp.Name, fmt.Sprintf("missing required parameter %s (%s requires it)", cp.Name, verb), &c)
 	}
 
 	if len(viols) > 0 {
 		return validatedParams{}, paramsError(viols, verb, ref)
 	}
 
-	// ── default 回填（只作用于完全缺席的键）──
+	// Default backfill, for wholly absent keys only.
 	resolved := make(map[string]string, len(given))
 	for k, v := range given {
 		resolved[k] = v
@@ -219,20 +220,20 @@ func validateParams(kvs []string, declared []iagents.CardParam, verb string, spe
 // via json.Number so "100" stays "100" (no float re-rendering).
 func validateObjectJSON(name, val string, obj iagents.CardParam, verb string, seen map[string]bool, given map[string]string, addViol func(string, string, *iagents.CardParam, ...string)) {
 	if val == "" {
-		return // `obj=` 空值 = 未提供（与标量语义一致）
+		return // `obj=` means not provided, same as a scalar
 	}
 	dec := json.NewDecoder(strings.NewReader(val))
 	dec.UseNumber()
 	var anyVal any
 	if err := dec.Decode(&anyVal); err != nil {
-		addViol(name, fmt.Sprintf("参数 %s 的 JSON 无法解析（%v）；也可用点路径逐字段传：--param %s.<field>=<value>", name, err, name), nil)
+		addViol(name, fmt.Sprintf("parameter %s is not valid JSON (%v); you can also pass fields one by one: --param %s.<field>=<value>", name, err, name), nil)
 		return
 	}
 	raw, isObj := anyVal.(map[string]any)
 	if !isObj {
-		// 语法合法但不是对象（数组/字符串/数字/布尔/null）——用调用方词汇描述，
-		// 不泄漏 Go 反序列化的内部类型文案。
-		addViol(name, fmt.Sprintf(`参数 %s 需为 JSON 对象（如 {"k":"v"}），得到 %s；也可用点路径逐字段传：--param %s.<field>=<value>`, name, jsonKindName(anyVal), name), nil)
+		// Syntactically valid but not an object. Described in caller vocabulary
+		// so no Go deserialization type names leak out.
+		addViol(name, fmt.Sprintf(`parameter %s must be a JSON object (e.g. {"k":"v"}), got %s; you can also pass fields one by one: --param %s.<field>=<value>`, name, jsonKindName(anyVal), name), nil)
 		return
 	}
 	fields := map[string]iagents.CardParam{}
@@ -244,7 +245,7 @@ func validateObjectJSON(name, val string, obj iagents.CardParam, verb string, se
 		seen[full] = true
 		cp, ok := fields[fk]
 		if !ok {
-			addViol(full, fmt.Sprintf("未知参数 %s（%s 可用字段: %s）", full, name, fieldNames(obj)), nil, obj.FieldNamesList()...)
+			addViol(full, fmt.Sprintf("unknown parameter %s (%s accepts: %s)", full, name, fieldNames(obj)), nil, obj.FieldNamesList()...)
 			continue
 		}
 		var sval string
@@ -256,22 +257,22 @@ func validateObjectJSON(name, val string, obj iagents.CardParam, verb string, se
 		case bool:
 			sval = strconv.FormatBool(tv)
 		case nil:
-			continue // null = 未提供
+			continue // null means not provided
 		default:
-			addViol(full, fmt.Sprintf("参数 %s 不支持嵌套结构（对象字段只能是标量）", full), &cp)
+			addViol(full, fmt.Sprintf("parameter %s does not accept a nested structure (object fields must be scalars)", full), &cp)
 			continue
 		}
 		if sval == "" {
 			if cp.Required {
 				c := cp
 				c.Name = fk
-				addViol(full, fmt.Sprintf("必填参数 %s 不能为空值（%s 必填）", full, verb), &c)
+				addViol(full, fmt.Sprintf("required parameter %s must not be empty (%s requires it)", full, verb), &c)
 			}
 			continue
 		}
 		if err := iagents.ValidateValue(cp, sval); err != nil {
 			c := cp
-			addViol(full, fmt.Sprintf("参数 %s %s", full, err.Error()), &c, cp.Enum...)
+			addViol(full, fmt.Sprintf("parameter %s %s", full, err.Error()), &c, cp.Enum...)
 			continue
 		}
 		given[full] = canonicalValue(cp, sval)
@@ -284,8 +285,8 @@ func fieldNames(obj iagents.CardParam) string {
 }
 
 // unknownParamReason builds the teaching sentence for an undeclared key: if
-// another operation of the same spec declares it, name those operations（改动
-// 词就能修）；otherwise list this operation's own parameter set（改拼写就能修）.
+// another operation of the same spec declares it, name those operations (fix by
+// changing the verb); otherwise list this operation's own set (fix the spelling).
 func unknownParamReason(key, verb string, declared []iagents.CardParam, spec *iagents.AgentSpec) (string, []string) {
 	if spec != nil {
 		var elsewhere []string
@@ -302,9 +303,10 @@ func unknownParamReason(key, verb string, declared []iagents.CardParam, spec *ia
 		}
 		if len(elsewhere) > 0 {
 			sort.Strings(elsewhere)
-			// suggestions 保持单一语义（可直接替换的参数名候选）：动词名不是参数，
-			// 不进 suggestions——「声明在: X」的教学已在 reason 里。
-			return fmt.Sprintf("参数 %s 不适用于 %s（它声明在: %s）", key, verb, strings.Join(elsewhere, ", ")), nil
+			// suggestions stays single-purpose (directly substitutable parameter
+			// names), so verb names do not go in there — the "declared on: X"
+			// teaching already lives in reason.
+			return fmt.Sprintf("parameter %s does not apply to %s (declared on: %s)", key, verb, strings.Join(elsewhere, ", ")), nil
 		}
 	}
 	known := make([]string, 0, len(declared))
@@ -312,15 +314,16 @@ func unknownParamReason(key, verb string, declared []iagents.CardParam, spec *ia
 		known = append(known, p.Name)
 	}
 	if len(known) == 0 {
-		return fmt.Sprintf("未知参数 %s（%s 不接受任何业务参数）", key, verb), nil
+		return fmt.Sprintf("unknown parameter %s (%s accepts no business parameters)", key, verb), nil
 	}
-	// suggestions 按编辑距离给「可直接替换」的近似候选（typo 一步可修）；
-	// 没有近似命中时退回声明序全集。message 始终列全集（发现面完整）。
+	// suggestions offers edit-distance near misses (a typo is one step from
+	// fixed), falling back to the full declaration order when nothing is close.
+	// The message always lists the full set.
 	sugg := nearestNames(key, known, 2)
 	if len(sugg) == 0 {
 		sugg = known
 	}
-	return fmt.Sprintf("未知参数 %s（%s 可用参数: %s）", key, verb, strings.Join(known, ", ")), sugg
+	return fmt.Sprintf("unknown parameter %s (%s accepts: %s)", key, verb, strings.Join(known, ", ")), sugg
 }
 
 // nearestNames returns the candidates within maxDist Levenshtein distance of
@@ -377,17 +380,17 @@ func min(a, b int) int {
 func jsonKindName(v any) string {
 	switch v.(type) {
 	case []any:
-		return "数组"
+		return "an array"
 	case string:
-		return "字符串"
+		return "a string"
 	case json.Number:
-		return "数字"
+		return "a number"
 	case bool:
-		return "布尔值"
+		return "a boolean"
 	case nil:
 		return "null"
 	default:
-		return "非对象值"
+		return "a non-object value"
 	}
 }
 
@@ -433,7 +436,7 @@ func dottedFieldNames(obj iagents.CardParam) []string {
 func paramsError(viols []errs.InvalidParam, verb, ref string) error {
 	msg := viols[0].Reason
 	if len(viols) > 1 {
-		msg = fmt.Sprintf("%s 参数校验失败：%d 处问题（详见 params）", verb, len(viols))
+		msg = fmt.Sprintf("%s parameter validation failed: %d problems (see params)", verb, len(viols))
 	}
 	e := errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", msg).
 		WithParam("param:" + viols[0].Name).
@@ -450,29 +453,30 @@ func validateListParams(kvs []string, declared []iagents.CardParam, scheme strin
 	if err != nil {
 		var verr *errs.ValidationError
 		if errors.As(err, &verr) {
-			verr.Hint = fmt.Sprintf("按 params 逐条修正后重发；agents list %s 的可用参数见 lark-cli agents list 输出的 providers[].list_parameters", scheme)
+			verr.Hint = fmt.Sprintf("fix each entry in params and resend; the parameters agents list %s accepts are listed in providers[].list_parameters of lark-cli agents list", scheme)
 		}
 		return validatedParams{}, err
 	}
 	return vp, nil
 }
 
-// opHint is the operation-scoped discovery hint（ref 过白名单才内插命令）.
+// opHint is the operation-scoped discovery hint (the ref is interpolated only
+// once it passes the whitelist).
 func opHint(ref, verb string) string {
 	if safeNextRef(ref) {
-		return fmt.Sprintf("按 params 逐条修正后重发；或运行 lark-cli agents card %s --operation %s 查看参数声明", ref, verb)
+		return fmt.Sprintf("fix each entry in params and resend; or run lark-cli agents card %s --operation %s to see the parameter declarations", ref, verb)
 	}
-	return "按 params 逐条修正后重发；或用 agents card 的 --operation 子查询查看参数声明"
+	return "fix each entry in params and resend; or use the --operation subquery of agents card to see the parameter declarations"
 }
 
 // paramArgsFor renders the meta.next carry for target verb V per the
 // three-way rule, in declaration order:
 //  1. given + value passes the whitelist → carry literally;
 //  2. given + value fails the whitelist → required degrades to a placeholder
-//     (template), optional is dropped（宁缺毋歧义）;
+//     (template), optional is dropped (better absent than ambiguous);
 //  3. absent but required on V → placeholder (template) — the cross-verb hole:
-//     without this, "链上不丢必填" only holds when the previous verb happened
-//     to share the parameter.
+//     without this, "a required parameter never falls off the chain" would only
+//     hold when the previous verb happened to share the parameter.
 //
 // Defaults are NOT carried (the next hop deterministically re-backfills).
 func paramArgsFor(spec *iagents.AgentSpec, verb string, given map[string]string) (args string, templated bool) {
@@ -488,8 +492,9 @@ func paramArgsFor(spec *iagents.AgentSpec, verb string, given map[string]string)
 		v, has := given[p.Name]
 		switch {
 		case p.NoCarry:
-			// 每次调用应给新值的参数：给过也不字面上链；必填的降级占位，提醒
-			// 调用方填一个新值（而不是复用上一次的）。
+			// Parameters that want a fresh value per call are never carried
+			// literally; a required one degrades to a placeholder so the caller
+			// fills in something new instead of reusing the last value.
 			if p.Required {
 				fmt.Fprintf(&b, " --param %s=<%s>", p.Name, p.Name)
 				templated = true

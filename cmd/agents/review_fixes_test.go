@@ -138,7 +138,7 @@ func TestUnknownParamSuggestionsNearest(t *testing.T) {
 			if len(p.Suggestions) != 0 {
 				t.Errorf("cross-verb suggestions must not carry verb names, got %v", p.Suggestions)
 			}
-			if !strings.Contains(p.Reason, "声明在") {
+			if !strings.Contains(p.Reason, "declared on") {
 				t.Errorf("cross-verb reason should teach where it is declared, got %q", p.Reason)
 			}
 		}
@@ -173,15 +173,15 @@ func TestNextForTaskNoSelfLoop(t *testing.T) {
 	}
 
 	// Viewed from send: the detail suggestion IS the increment — keep it.
-	fromSend := nextForTask("example:x", task, spec, nil, iagents.VerbSend)
-	if len(fromSend) < 1 || !strings.Contains(fromSend[0].Command, "task get example:x task_1") {
+	fromSend := nextForTask("fakeflow:x", task, spec, nil, iagents.VerbSend)
+	if len(fromSend) < 1 || !strings.Contains(fromSend[0].Command, "task get fakeflow:x task_1") {
 		t.Fatalf("send caller should keep the detail suggestion, got %+v", fromSend)
 	}
 
 	// Viewed from task get: the detail suggestion is a self-loop — drop it.
-	fromGet := nextForTask("example:x", task, spec, nil, iagents.VerbTaskGet)
+	fromGet := nextForTask("fakeflow:x", task, spec, nil, iagents.VerbTaskGet)
 	for _, n := range fromGet {
-		if !n.Template && strings.Contains(n.Command, "task get example:x task_1") && !strings.Contains(n.Command, "--artifact") {
+		if !n.Template && strings.Contains(n.Command, "task get fakeflow:x task_1") && !strings.Contains(n.Command, "--artifact") {
 			t.Errorf("task get caller must not re-suggest itself, got %+v", fromGet)
 		}
 	}
@@ -197,7 +197,7 @@ func TestNextForTaskNoSelfLoop(t *testing.T) {
 
 	// No artifacts + task get caller → genuinely nothing to add.
 	bare := &iagents.AgentTask{TaskID: "task_2", State: iagents.StateCompleted, IsTerminal: true}
-	if next := nextForTask("example:x", bare, spec, nil, iagents.VerbTaskGet); len(next) != 0 {
+	if next := nextForTask("fakeflow:x", bare, spec, nil, iagents.VerbTaskGet); len(next) != 0 {
 		t.Errorf("no increment should yield no next, got %+v", next)
 	}
 }

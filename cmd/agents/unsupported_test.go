@@ -141,7 +141,7 @@ func TestArtifactDownloadUnsupportedGated(t *testing.T) {
 	assertUnsupportedCapability(t, agentTaskGetRun(opts), "fakeunsup:a1")
 }
 
-// TestSendFileUnsupportedGated pins the --file capability gate: example:echo
+// TestSendFileUnsupportedGated pins the --file capability gate: fakecat:min
 // declares file_input=false, so `send --file` returns unsupported_capability
 // (exit 2) — this gate answers BEFORE the --yes confirmation and before any
 // network, so no file is opened and no request is issued.
@@ -149,10 +149,10 @@ func TestSendFileUnsupportedGated(t *testing.T) {
 	mkSendFile(t, "whatever.txt")
 	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu})
 	err := agentSendRun(&sendOptions{
-		Factory: f, Cmd: sendCmdCtx(t), Ref: "example:echo", Text: "hi",
+		Factory: f, Cmd: sendCmdCtx(t), Ref: "fakecat:min", Text: "hi",
 		Files: []string{"whatever.txt"}, As: "bot", Format: "json",
 	})
-	assertUnsupportedCapability(t, err, "example:echo")
+	assertUnsupportedCapability(t, err, "fakecat:min")
 }
 
 // TestTaskGetDerivesIsTerminalFromState pins the normalizeTask wiring: a

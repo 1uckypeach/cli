@@ -20,7 +20,7 @@ import (
 // priority + ranged integer) and a task_list declaration sharing ws — the
 // cross-operation reverse-lookup and three-way-carry test bed.
 func paramSpec() *iagents.AgentSpec {
-	ws := iagents.CardParam{Name: "workspace_id", Type: "string", Required: true, Desc: "目标工作区"}
+	ws := iagents.CardParam{Name: "workspace_id", Type: "string", Required: true, Desc: "target workspace"}
 	return &iagents.AgentSpec{
 		Send: iagents.SendOp{
 			Params: []iagents.CardParam{
@@ -74,14 +74,14 @@ func TestValidateParams_CollectAll(t *testing.T) {
 	// missing required embeds the full declaration so the caller can fix without
 	// a discovery round-trip
 	v := byName["workspace_id"]
-	if !strings.Contains(v.Reason, "缺少必填参数") || v.Spec == nil {
+	if !strings.Contains(v.Reason, "missing required parameter") || v.Spec == nil {
 		t.Fatalf("missing-required violation should embed spec, got %+v", v)
 	}
-	if sp, ok := v.Spec.(iagents.CardParam); !ok || sp.Desc != "目标工作区" {
+	if sp, ok := v.Spec.(iagents.CardParam); !ok || sp.Desc != "target workspace" {
 		t.Errorf("embedded spec should be the full CardParam, got %+v", v.Spec)
 	}
 	// multi-violation message is a count summary; hint points at --operation
-	if !strings.Contains(verr.Message, "3 处问题") {
+	if !strings.Contains(verr.Message, "3 problems") {
 		t.Errorf("multi-violation message should carry the count, got %q", verr.Message)
 	}
 	if !strings.Contains(verr.Hint, "--operation send") {
@@ -111,12 +111,12 @@ func TestBaseTaskGetAcceptsContextID(t *testing.T) {
 	}
 }
 
-// TestValidateParams_CrossOpReverseLookup pins the "它声明在" teaching error: a
+// TestValidateParams_CrossOpReverseLookup pins the "declared on" teaching error: a
 // param declared on send but passed to task_get names where it lives.
 func TestValidateParams_CrossOpReverseLookup(t *testing.T) {
 	spec := paramSpec()
 	_, err := validateParams([]string{"priority=high"}, spec.GetTask.Params, iagents.VerbTaskGet, spec, "acme:reporter")
-	if err == nil || !strings.Contains(err.Error(), "不适用于 task_get") || !strings.Contains(err.Error(), "它声明在: send") {
+	if err == nil || !strings.Contains(err.Error(), "does not apply to task_get") || !strings.Contains(err.Error(), "declared on: send") {
 		t.Fatalf("cross-op teaching error expected, got %v", err)
 	}
 }
@@ -130,8 +130,8 @@ func TestValidateParams_RulesTable(t *testing.T) {
 		kvs  []string
 		want string
 	}{
-		{"duplicate", append(base, "workspace_id=ws_43"), "重复提供"},
-		{"empty required", []string{"workspace_id="}, "不能为空值"},
+		{"duplicate", append(base, "workspace_id=ws_43"), "given more than once"},
+		{"empty required", []string{"workspace_id="}, "must not be empty"},
 		{"malformed", append(base, "noequals"), "key=value"},
 		{"type mismatch", append(base, "max_results=abc"), "integer"},
 		{"range violation", append(base, "max_results=500"), "1..100"},
@@ -178,14 +178,14 @@ func TestValidateParams_EmptyOptionalTreatedAsAbsent(t *testing.T) {
 	}
 	// duplicate detection still sees the empty occurrence
 	_, err = validateParams([]string{"workspace_id=ws_42", "priority=", "priority=high"}, spec.Send.Params, iagents.VerbSend, spec, "acme:reporter")
-	if err == nil || !strings.Contains(err.Error()+errHint(err), "重复提供") {
+	if err == nil || !strings.Contains(err.Error()+errHint(err), "given more than once") {
 		t.Fatalf("duplicate after empty occurrence must be reported, got %v", err)
 	}
 }
 
 // TestValidateParams_NoFalseMissingOnInvalidValue pins the review fix: a
 // required param given an INVALID value reports exactly the value violation —
-// never an additional contradictory "缺少必填参数"; and a duplicate after an
+// never an additional contradictory "missing required parameter"; and a duplicate after an
 // invalid first value is reported as duplicate, not as the same violation twice.
 func TestValidateParams_NoFalseMissingOnInvalidValue(t *testing.T) {
 	spec := paramSpec()
@@ -211,7 +211,7 @@ func TestValidateParams_NoFalseMissingOnInvalidValue(t *testing.T) {
 		t.Fatalf("want enum violation + duplicate violation, got %d: %+v", len(verr.Params), verr.Params)
 	}
 	kinds := verr.Params[0].Reason + verr.Params[1].Reason
-	if !strings.Contains(kinds, "a|b") || !strings.Contains(kinds, "重复提供") {
+	if !strings.Contains(kinds, "a|b") || !strings.Contains(kinds, "given more than once") {
 		t.Errorf("want one enum + one duplicate violation, got %+v", verr.Params)
 	}
 }
@@ -220,12 +220,12 @@ func TestValidateParams_NoFalseMissingOnInvalidValue(t *testing.T) {
 // (required enum leaf + optional ranged leaf + defaulted bool leaf) and a
 // NoCarry trace param shared with task_get.
 func objSpec() *iagents.AgentSpec {
-	trace := iagents.CardParam{Name: "trace_tag", NoCarry: true, Required: true, Desc: "调用链标记（每次新值）"}
+	trace := iagents.CardParam{Name: "trace_tag", NoCarry: true, Required: true, Desc: "call-chain tag (fresh value per call)"}
 	return &iagents.AgentSpec{
 		Send: iagents.SendOp{
 			Params: []iagents.CardParam{
 				trace,
-				{Name: "filter", Type: "object", Desc: "过滤条件", Fields: []iagents.CardParam{
+				{Name: "filter", Type: "object", Desc: "filter conditions", Fields: []iagents.CardParam{
 					{Name: "region", Enum: []string{"east", "west"}, Required: true},
 					{Name: "min_amount", Type: "number", Min: iagents.Float(0)},
 					{Name: "active", Type: "boolean", Default: "true"},
@@ -265,7 +265,7 @@ func TestValidateParams_ObjectDottedChannel(t *testing.T) {
 	}
 	// unknown leaf lists the object's field set
 	_, err = validateParams([]string{"trace_tag=t1", "filter.region=east", "filter.regoin=east"}, spec.Send.Params, iagents.VerbSend, spec, "acme:reporter")
-	if err == nil || !strings.Contains(err.Error()+errHint(err), "filter 可用字段") {
+	if err == nil || !strings.Contains(err.Error()+errHint(err), "filter accepts") {
 		t.Fatalf("unknown leaf should list the field set, got %v", err)
 	}
 	// missing required leaf reported with dotted name
@@ -294,13 +294,14 @@ func TestValidateParams_ObjectJSONChannel(t *testing.T) {
 		t.Errorf("leaf default should backfill on the JSON channel too, got %v", vp.Resolved)
 	}
 
-	// invalid JSON → teaching error pointing at the dotted alternative（多违规时
-	// 摘要在 message、明细在 params[]，用 listReasons 断言）
+	// invalid JSON → teaching error pointing at the dotted alternative. With
+	// several violations the summary is in message and the detail in params[], so
+	// assert via listReasons.
 	_, err = validateParams([]string{"trace_tag=t1", "filter={not json"}, spec.Send.Params, iagents.VerbSend, spec, "acme:reporter")
-	if err == nil || !strings.Contains(listReasons(err), "JSON 无法解析") {
+	if err == nil || !strings.Contains(listReasons(err), "is not valid JSON") {
 		t.Fatalf("bad JSON should teach, got %v", err)
 	}
-	if !strings.Contains(listReasons(err), "点路径") {
+	if !strings.Contains(listReasons(err), "pass fields one by one") {
 		t.Fatalf("bad JSON error should point at the dotted alternative, got %v", listReasons(err))
 	}
 	// member enum violation carries the dotted path
@@ -310,12 +311,12 @@ func TestValidateParams_ObjectJSONChannel(t *testing.T) {
 	}
 	// unknown member listed against the field set
 	_, err = validateParams([]string{"trace_tag=t1", `filter={"region":"east","foo":1}`}, spec.Send.Params, iagents.VerbSend, spec, "acme:reporter")
-	if err == nil || !strings.Contains(err.Error()+errHint(err), "filter 可用字段") {
+	if err == nil || !strings.Contains(err.Error()+errHint(err), "filter accepts") {
 		t.Fatalf("unknown JSON member should list fields, got %v", err)
 	}
 	// channel mixing rejected
 	_, err = validateParams([]string{"trace_tag=t1", `filter={"region":"east"}`, "filter.active=false"}, spec.Send.Params, iagents.VerbSend, spec, "acme:reporter")
-	if err == nil || !strings.Contains(err.Error()+listReasons(err), "混合提供") {
+	if err == nil || !strings.Contains(err.Error()+listReasons(err), "mixes the JSON and dotted-path forms") {
 		t.Fatalf("channel mixing should be rejected, got %v", err)
 	}
 }
@@ -394,7 +395,7 @@ func TestParamArgsFor(t *testing.T) {
 	}
 	// 2) given but whitelist-failing → required degrades to placeholder,
 	//    optional drops
-	args, tpl = paramArgsFor(spec, iagents.VerbSend, map[string]string{"workspace_id": "ws 42; rm", "priority": "值 带 空格"})
+	args, tpl = paramArgsFor(spec, iagents.VerbSend, map[string]string{"workspace_id": "ws 42; rm", "priority": "value with spaces"})
 	if !strings.Contains(args, "--param workspace_id=<workspace_id>") || strings.Contains(args, "priority") || !tpl {
 		t.Errorf("degrade rule wrong: %q tpl=%v", args, tpl)
 	}
@@ -459,7 +460,7 @@ func TestArtifactNext(t *testing.T) {
 		t.Fatalf("want 2 download hints (bad;id skipped), got %d: %v", len(downloads), downloads)
 	}
 	for _, c := range downloads {
-		if !strings.Contains(c, "--param workspace_id=ws_42") || !strings.Contains(c, "-o <保存路径>") {
+		if !strings.Contains(c, "--param workspace_id=ws_42") || !strings.Contains(c, "-o <save_path>") {
 			t.Errorf("download hint should carry params and the -o placeholder: %q", c)
 		}
 		if strings.Contains(c, "bad;id") {
@@ -474,7 +475,7 @@ func TestArtifactNext(t *testing.T) {
 }
 
 // TestCardOperationSubquery pins `card --operation <verb>` against the real
-// example provider: reporter's send contract carries command + parameters;
+// catalog provider: fakecat:full's send contract carries command + parameters;
 // unknown verb lists the vocabulary; unwired verb answers supported:false; a
 // wired zero-param verb answers parameters:[].
 func TestCardOperationSubquery(t *testing.T) {
@@ -493,7 +494,7 @@ func TestCardOperationSubquery(t *testing.T) {
 		return env.Data
 	}
 
-	opts, _ := cardTestOpts(t, "example:reporter")
+	opts, _ := cardTestOpts(t, "fakecat:full")
 	opts.Operation = "send"
 	data := decode(t, opts)
 	if data["operation"] != "send" || data["supported"] != true {
@@ -504,7 +505,7 @@ func TestCardOperationSubquery(t *testing.T) {
 	}
 	params, _ := data["parameters"].([]any)
 	if len(params) != 3 {
-		t.Fatalf("reporter send declares 3 demo params (2 scalars + render object), got %v", data["parameters"])
+		t.Fatalf("fakecat:full send declares 3 demo params (2 scalars + render object), got %v", data["parameters"])
 	}
 	first, _ := params[0].(map[string]any)
 	if first["name"] != "report_format" || first["default"] != "csv" {
@@ -512,26 +513,26 @@ func TestCardOperationSubquery(t *testing.T) {
 	}
 
 	// unwired verb → supported:false
-	opts2, _ := cardTestOpts(t, "example:echo")
+	opts2, _ := cardTestOpts(t, "fakecat:min")
 	opts2.Operation = "task_cancel"
 	data = decode(t, opts2)
 	if data["supported"] != false {
-		t.Errorf("echo task_cancel should be supported:false, got %v", data)
+		t.Errorf("fakecat:min task_cancel should be supported:false, got %v", data)
 	}
 
 	// wired zero-param verb → parameters []
-	opts3, _ := cardTestOpts(t, "example:echo")
+	opts3, _ := cardTestOpts(t, "fakecat:min")
 	opts3.Operation = "context_delete"
 	data = decode(t, opts3)
 	if data["supported"] != true {
-		t.Fatalf("echo context_delete should be supported, got %v", data)
+		t.Fatalf("fakecat:min context_delete should be supported, got %v", data)
 	}
 	if ps, ok := data["parameters"].([]any); !ok || len(ps) != 0 {
 		t.Errorf("zero-param op should answer parameters:[], got %v", data["parameters"])
 	}
 
 	// unknown verb → invalid_argument listing the vocabulary
-	opts4, _ := cardTestOpts(t, "example:echo")
+	opts4, _ := cardTestOpts(t, "fakecat:min")
 	opts4.Operation = "sennd"
 	err := agentCardRun(opts4)
 	if err == nil || !strings.Contains(err.Error(), "task_get") || !strings.Contains(err.Error(), "all") {
@@ -574,7 +575,7 @@ func TestCardOperationInstanceShape(t *testing.T) {
 // TestCardOperationAll pins the one-shot full map: every verb present, wired
 // ones carrying command+parameters.
 func TestCardOperationAll(t *testing.T) {
-	opts, _ := cardTestOpts(t, "example:reporter")
+	opts, _ := cardTestOpts(t, "fakecat:full")
 	opts.Operation = "all"
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 	if err := agentCardRun(opts); err != nil {
@@ -593,17 +594,17 @@ func TestCardOperationAll(t *testing.T) {
 	}
 	send := env.Data.Operations["send"]
 	if send["supported"] != true {
-		t.Errorf("reporter send should be supported, got %v", send)
+		t.Errorf("fakecat:full send should be supported, got %v", send)
 	}
 	if ps, _ := send["parameters"].([]any); len(ps) != 3 {
-		t.Errorf("reporter send should carry its 3 demo params, got %v", send["parameters"])
+		t.Errorf("fakecat:full send should carry its 3 demo params, got %v", send["parameters"])
 	}
 }
 
-// TestCardLeanHasParameters pins the lean card cue on the real reporter: send
+// TestCardLeanHasParameters pins the lean card cue on fakecat:full: send
 // appears in has_parameters (it declares demo params), context_delete does not.
 func TestCardLeanHasParameters(t *testing.T) {
-	opts, _ := cardTestOpts(t, "example:reporter")
+	opts, _ := cardTestOpts(t, "fakecat:full")
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 	if err := agentCardRun(opts); err != nil {
 		t.Fatalf("card should not error: %v", err)
@@ -617,17 +618,17 @@ func TestCardLeanHasParameters(t *testing.T) {
 		t.Fatalf("invalid envelope: %v", err)
 	}
 	if len(env.Data.HasParameters) != 1 || env.Data.HasParameters[0] != "send" {
-		t.Fatalf("reporter has_parameters should be [send], got %v", env.Data.HasParameters)
+		t.Fatalf("fakecat:full has_parameters should be [send], got %v", env.Data.HasParameters)
 	}
 }
 
-// TestSendValidatesDeclaredParams drives the full send path against the real
-// reporter declaration: enum violation fails offline; a valid --param passes
+// TestSendValidatesDeclaredParams drives the full send path against the
+// fakecat:full declaration: enum violation fails offline; a valid --param passes
 // through to dry-run with defaults backfilled.
 func TestSendValidatesDeclaredParams(t *testing.T) {
 	opts := sendTestOpts(t)
-	opts.Ref = "example:reporter"
-	opts.Text = "报表"
+	opts.Ref = "fakecat:full"
+	opts.Text = "report"
 	opts.Params = []string{"report_format=pdf"}
 	err := agentSendRun(opts)
 	if err == nil || !strings.Contains(err.Error(), "csv|xlsx") {
@@ -635,8 +636,8 @@ func TestSendValidatesDeclaredParams(t *testing.T) {
 	}
 
 	opts2 := sendTestOpts(t)
-	opts2.Ref = "example:reporter"
-	opts2.Text = "报表"
+	opts2.Ref = "fakecat:full"
+	opts2.Text = "report"
 	opts2.Params = []string{"report_format=xlsx"}
 	opts2.DryRun = true
 	out := opts2.Factory.IOStreams.Out.(interface{ Bytes() []byte })
@@ -665,12 +666,12 @@ func TestListRejectsParams(t *testing.T) {
 	opts, _ := listFactory()
 	opts.Params = []string{"env=boe"}
 	err := agentListRun(opts)
-	if err == nil || !strings.Contains(err.Error(), "仅在 agents list <scheme>") {
+	if err == nil || !strings.Contains(err.Error(), "only means something with agents list <scheme>") {
 		t.Fatalf("no-scheme --param should be rejected, got %v", err)
 	}
 
 	opts2, _ := listFactory()
-	opts2.Scheme = "example"
+	opts2.Scheme = "base"
 	opts2.Params = []string{"env=boe"}
 	err = agentListRun(opts2)
 	if err == nil {

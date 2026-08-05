@@ -115,15 +115,15 @@ func checkSpec(scheme string, s *AgentSpec, catalog bool) {
 	// An agent that can pause on a question group MUST also let the user walk
 	// away from it: with no TTL in the contract, question-asking without
 	// task_cancel leaves an abandoned group holding awaiting_input forever
-	// (design doc §6.8) — a registration-time coding error, not a runtime one.
+	// a registration-time coding error, not a runtime one.
 	// The check includes brand coverage: a CancelTask scoped narrower than the
 	// agent's own visibility recreates the dead end on the uncovered brand.
 	if s.InputRequired {
 		if !s.CancelTask.wired() {
-			panic("agent: spec declares InputRequired but wires no CancelTask (提问型 agent 必须可取消): " + scheme + ":" + s.ID)
+			panic("agent: spec declares InputRequired but wires no CancelTask: " + scheme + ":" + s.ID)
 		}
 		if len(s.CancelTask.Brands) > 0 && !brandsCover(s.CancelTask.Brands, s.Brands) {
-			panic("agent: spec declares InputRequired but CancelTask is brand-scoped narrower than the agent (提问型 agent 的取消不得窄于其可见品牌): " + scheme + ":" + s.ID)
+			panic("agent: spec declares InputRequired but CancelTask is brand-scoped narrower than the agent: " + scheme + ":" + s.ID)
 		}
 	}
 	if catalog && s.ID == "" {
@@ -301,39 +301,40 @@ func ValidateValue(cp CardParam, val string) error {
 	case "integer":
 		n, err := strconv.ParseInt(val, 10, 64)
 		if err != nil {
-			// 超出 int64 是"范围"问题不是"类型"问题——消息必须与事实一致，
-			// 否则调用方会误改类型而不是改数值。
+			// Overflowing int64 is a RANGE problem, not a TYPE problem: the
+			// message must match the fact, or the caller edits the type
+			// instead of the value.
 			if errors.Is(err, strconv.ErrRange) {
 				if cp.Min != nil || cp.Max != nil {
-					return fmt.Errorf("须在 %s 范围内，得到 %s", rangeText(cp), val)
+					return fmt.Errorf("must be within %s, got %s", rangeText(cp), val)
 				}
-				return fmt.Errorf("超出 integer 可表示范围（int64），得到 %q", val)
+				return fmt.Errorf("exceeds the representable integer range (int64), got %q", val)
 			}
-			return fmt.Errorf("需为 integer，得到 %q", val)
+			return fmt.Errorf("must be an integer, got %q", val)
 		}
 		if cp.Min != nil && float64(n) < *cp.Min {
-			return fmt.Errorf("须在 %s 范围内，得到 %s", rangeText(cp), val)
+			return fmt.Errorf("must be within %s, got %s", rangeText(cp), val)
 		}
 		if cp.Max != nil && float64(n) > *cp.Max {
-			return fmt.Errorf("须在 %s 范围内，得到 %s", rangeText(cp), val)
+			return fmt.Errorf("must be within %s, got %s", rangeText(cp), val)
 		}
 	case "number":
 		f, err := strconv.ParseFloat(val, 64)
 		if err != nil {
-			return fmt.Errorf("需为 number，得到 %q", val)
+			return fmt.Errorf("must be a number, got %q", val)
 		}
 		if math.IsNaN(f) || math.IsInf(f, 0) {
-			return fmt.Errorf("需为有限 number，得到 %q", val)
+			return fmt.Errorf("must be a finite number, got %q", val)
 		}
 		if cp.Min != nil && f < *cp.Min {
-			return fmt.Errorf("须在 %s 范围内，得到 %s", rangeText(cp), val)
+			return fmt.Errorf("must be within %s, got %s", rangeText(cp), val)
 		}
 		if cp.Max != nil && f > *cp.Max {
-			return fmt.Errorf("须在 %s 范围内，得到 %s", rangeText(cp), val)
+			return fmt.Errorf("must be within %s, got %s", rangeText(cp), val)
 		}
 	case "boolean":
 		if _, err := strconv.ParseBool(val); err != nil {
-			return fmt.Errorf("需为 boolean，得到 %q", val)
+			return fmt.Errorf("must be a boolean, got %q", val)
 		}
 	}
 	if len(cp.Enum) > 0 {
@@ -342,7 +343,7 @@ func ValidateValue(cp CardParam, val string) error {
 				return nil
 			}
 		}
-		return fmt.Errorf("取值须为 %s，得到 %q", strings.Join(cp.Enum, "|"), val)
+		return fmt.Errorf("must be one of %s, got %q", strings.Join(cp.Enum, "|"), val)
 	}
 	return nil
 }
@@ -405,7 +406,7 @@ func LookupSpec(ref string) (Provider, *AgentSpec, string, error) {
 	}
 	p, ok := providerRegistry[r.Scheme]
 	if !ok {
-		return Provider{}, nil, "", fmt.Errorf("未知的 agent provider '%s'，当前支持: %s", r.Scheme, KnownSchemes())
+		return Provider{}, nil, "", fmt.Errorf("unknown agent provider '%s', currently registered: %s", r.Scheme, KnownSchemes())
 	}
 	if p.Instance != nil {
 		return p, p.Instance, r.AgentID, nil
@@ -416,8 +417,8 @@ func LookupSpec(ref string) (Provider, *AgentSpec, string, error) {
 		}
 	}
 	return p, nil, "", errs.NewValidationError(errs.SubtypeInvalidArgument,
-		"未知的 %s agent '%s'", r.Scheme, r.AgentID).
-		WithHint("运行 lark-cli agents list %s 查看可用 agent", r.Scheme)
+		"unknown %s agent '%s'", r.Scheme, r.AgentID).
+		WithHint("run lark-cli agents list %s to see the available agents", r.Scheme)
 }
 
 // Kind reports the provider form derived from Catalog vs Instance.

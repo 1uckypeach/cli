@@ -26,7 +26,7 @@ func brandFactory(t *testing.T, brand core.LarkBrand) *cmdutil.Factory {
 	return f
 }
 
-// TestCardBrandScoped pins that `agents card example:reporter` renders a
+// TestCardBrandScoped pins that `agents card fakecat:full` renders a
 // brand-scoped card: under feishu task_cancel is true and data.brand=="feishu";
 // under lark the feishu-only task_cancel op flips to false and
 // data.brand=="lark". The agent itself stays visible under both brands (only the
@@ -41,7 +41,7 @@ func TestCardBrandScoped(t *testing.T) {
 	} {
 		t.Run(string(tc.brand), func(t *testing.T) {
 			f := brandFactory(t, tc.brand)
-			opts := &cardOptions{Factory: f, Cmd: resolveCmd(t, true, "bot"), Ref: "example:reporter", As: "bot", Format: "json"}
+			opts := &cardOptions{Factory: f, Cmd: resolveCmd(t, true, "bot"), Ref: "fakecat:full", As: "bot", Format: "json"}
 			out := f.IOStreams.Out.(interface{ Bytes() []byte })
 
 			if err := agentCardRun(opts); err != nil {
@@ -70,14 +70,14 @@ func TestCardBrandScoped(t *testing.T) {
 }
 
 // TestTaskCancelBrandGatedUnderLark pins the per-capability brand gate: under
-// lark, `agents task cancel example:reporter` (task_cancel is feishu-only) is
+// lark, `agents task cancel fakecat:full` (task_cancel is feishu-only) is
 // rejected offline with the unavailable_for_brand validation error (exit 2)
 // before any request — the CancelTask handler IS wired, so this is a brand gate,
 // not an unsupported_capability gate.
 func TestTaskCancelBrandGatedUnderLark(t *testing.T) {
 	f := brandFactory(t, core.BrandLark)
 	err := agentTaskCancelRun(&taskOptions{
-		Factory: f, Cmd: taskCmdCtx(t, "cancel"), Ref: "example:reporter", TaskID: "t1", As: "bot",
+		Factory: f, Cmd: taskCmdCtx(t, "cancel"), Ref: "fakecat:full", TaskID: "t1", As: "bot",
 	})
 	if err == nil {
 		t.Fatal("task cancel under lark should be gated (unavailable_for_brand)")
@@ -96,12 +96,12 @@ func TestTaskCancelBrandGatedUnderLark(t *testing.T) {
 
 // TestTaskCancelReachesHandlerUnderFeishu pins the sibling of the gate: under
 // feishu the feishu-scoped task_cancel is live, so the command passes both brand
-// gates and reaches the provider handler — for an unknown task the example store
+// gates and reaches the provider handler — for an unknown task the fake handler
 // returns invalid_argument (unknown task id), never unavailable_for_brand.
 func TestTaskCancelReachesHandlerUnderFeishu(t *testing.T) {
 	f := brandFactory(t, core.BrandFeishu)
 	err := agentTaskCancelRun(&taskOptions{
-		Factory: f, Cmd: taskCmdCtx(t, "cancel"), Ref: "example:reporter", TaskID: "nope_task", As: "bot",
+		Factory: f, Cmd: taskCmdCtx(t, "cancel"), Ref: "fakecat:full", TaskID: "nope_task", As: "bot",
 	})
 	if err == nil {
 		t.Fatal("cancel of an unknown task should error from the handler")
@@ -119,22 +119,22 @@ func TestTaskCancelReachesHandlerUnderFeishu(t *testing.T) {
 }
 
 // TestListCatalogIncludesReporterBothBrands pins that an op-level brand tag does
-// NOT hide the whole agent: example:reporter appears in the catalog listing under
+// NOT hide the whole agent: fakecat:full appears in the catalog listing under
 // both feishu and lark (only its task_cancel capability differs by brand).
 func TestListCatalogIncludesReporterBothBrands(t *testing.T) {
-	prov, ok := iagents.Info("example")
+	prov, ok := iagents.Info("fakecat")
 	if !ok {
-		t.Fatal("example provider should be registered")
+		t.Fatal("fakecat provider should be registered")
 	}
 	for _, brand := range []core.LarkBrand{core.BrandFeishu, core.BrandLark} {
 		found := false
 		for _, a := range prov.ListCatalog(brand) {
-			if a.AgentRef == "example:reporter" {
+			if a.AgentRef == "fakecat:full" {
 				found = true
 			}
 		}
 		if !found {
-			t.Errorf("example:reporter should be listed under %s (op-level tag must not hide the agent)", brand)
+			t.Errorf("fakecat:full should be listed under %s (op-level tag must not hide the agent)", brand)
 		}
 	}
 }
@@ -157,7 +157,7 @@ func registerBrandHidden() {
 			Identities:    []iagents.IdentitySpec{{Type: iagents.IdentityUser}, {Type: iagents.IdentityBot}},
 			Catalog: []iagents.AgentSpec{{
 				ID:     "x",
-				Name:   "隐藏演示",
+				Name:   "hidden demo",
 				Brands: []core.LarkBrand{core.BrandFeishu},
 				Send: iagents.SendOp{Handler: func(_ context.Context, _ iagents.Runtime, _ iagents.SendInput) (*iagents.AgentTask, error) {
 					return &iagents.AgentTask{TaskID: "t", State: iagents.StateCompleted}, nil
@@ -201,7 +201,7 @@ func TestWholeAgentBrandGatedUnderLark(t *testing.T) {
 
 // assertUnavailableWholeAgent checks err is the WHOLE-AGENT unavailable_for_brand
 // form: subtype unavailable_for_brand, naming the lark brand, and with NO verb
-// named (the op form is "agent '...' 的 '<verb>' 在 ..."; the whole-agent form
+// named (the op form reads "does not offer '<verb>'"; the whole-agent form
 // omits the verb since the entire agent is hidden).
 func assertUnavailableWholeAgent(t *testing.T, err error, where string) {
 	t.Helper()
@@ -212,10 +212,10 @@ func assertUnavailableWholeAgent(t *testing.T, err error, where string) {
 	if !ok || p.Subtype != errs.SubtypeUnavailableForBrand {
 		t.Fatalf("%s: subtype should be unavailable_for_brand, got %+v", where, p)
 	}
-	if strings.Contains(p.Message, "的 '") {
+	if strings.Contains(p.Message, "does not offer") {
 		t.Errorf("%s: expected the whole-agent message (no verb named), got %q", where, p.Message)
 	}
-	if !strings.Contains(p.Message, "在 lark 品牌下不可用") {
+	if !strings.Contains(p.Message, "is unavailable under the lark brand") {
 		t.Errorf("%s: message should name the lark brand, got %q", where, p.Message)
 	}
 }

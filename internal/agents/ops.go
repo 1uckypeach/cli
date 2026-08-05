@@ -203,7 +203,7 @@ func BindParams[T any](rt Runtime) (T, error) {
 	var out T
 	v := reflect.ValueOf(&out).Elem()
 	if v.Kind() != reflect.Struct {
-		return out, errs.NewInternalError(errs.SubtypeUnknown, "BindParams: %s 不是 struct", v.Type())
+		return out, errs.NewInternalError(errs.SubtypeUnknown, "BindParams: %s is not a struct", v.Type())
 	}
 	if err := bindStruct(v, rt.Params(), ""); err != nil {
 		return out, err
@@ -221,7 +221,7 @@ func ParamObject[T any](rt Runtime, name string) (T, bool, error) {
 	var out T
 	v := reflect.ValueOf(&out).Elem()
 	if v.Kind() != reflect.Struct {
-		return out, false, errs.NewInternalError(errs.SubtypeUnknown, "ParamObject: %s 不是 struct", v.Type())
+		return out, false, errs.NewInternalError(errs.SubtypeUnknown, "ParamObject: %s is not a struct", v.Type())
 	}
 	prefix := name + "."
 	sub := map[string]string{}
@@ -256,7 +256,7 @@ func bindStruct(v reflect.Value, params map[string]string, where string) error {
 			// a typed error instead of a runtime panic (CheckParamsBinding flags
 			// the same mistake in CI).
 			return errs.NewInternalError(errs.SubtypeUnknown,
-				"BindParams: 字段 %s 未导出但带 param tag（无法赋值）", f.Name)
+				"BindParams: field %s carries a param tag but is unexported (cannot be set)", f.Name)
 		}
 		// Nested struct = object param: bind its leaves from the "tag." prefix.
 		if f.Type.Kind() == reflect.Struct {
@@ -286,26 +286,26 @@ func bindStruct(v reflect.Value, params map[string]string, where string) error {
 			n, err := strconv.ParseInt(raw, 10, 64)
 			if err != nil {
 				return errs.NewInternalError(errs.SubtypeUnknown,
-					"BindParams: 参数 %s 的值 %q 无法解析为 %s（声明与消费漂移）", full, raw, f.Type.Kind()).WithCause(err)
+					"BindParams: parameter %s value %q cannot be parsed as %s (declaration and consumption drifted)", full, raw, f.Type.Kind()).WithCause(err)
 			}
 			v.Field(i).SetInt(n)
 		case reflect.Float64:
 			fl, err := strconv.ParseFloat(raw, 64)
 			if err != nil {
 				return errs.NewInternalError(errs.SubtypeUnknown,
-					"BindParams: 参数 %s 的值 %q 无法解析为 float64（声明与消费漂移）", full, raw).WithCause(err)
+					"BindParams: parameter %s value %q cannot be parsed as float64 (declaration and consumption drifted)", full, raw).WithCause(err)
 			}
 			v.Field(i).SetFloat(fl)
 		case reflect.Bool:
 			b, err := strconv.ParseBool(raw)
 			if err != nil {
 				return errs.NewInternalError(errs.SubtypeUnknown,
-					"BindParams: 参数 %s 的值 %q 无法解析为 bool（声明与消费漂移）", full, raw).WithCause(err)
+					"BindParams: parameter %s value %q cannot be parsed as bool (declaration and consumption drifted)", full, raw).WithCause(err)
 			}
 			v.Field(i).SetBool(b)
 		default:
 			return errs.NewInternalError(errs.SubtypeUnknown,
-				"BindParams: 字段 %s 的类型 %s 不受支持（支持 string/int/int64/float64/bool 或嵌套 struct）", f.Name, f.Type.Kind())
+				"BindParams: field %s has unsupported type %s (supported: string/int/int64/float64/bool or a nested struct)", f.Name, f.Type.Kind())
 		}
 	}
 	return nil

@@ -76,7 +76,7 @@ func NewCmdAgentList(f *cmdutil.Factory) *cobra.Command {
 	addPageFlags(cmd, &opts.PageSize, &opts.PageToken)
 	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
-	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
+	cmd.Flags().String("jq", "", "filter the JSON output with a jq expression")
 	// --as only matters for the online `list <scheme>` enumeration (an instance
 	// provider's ListAgents call); the no-scheme provider listing is offline and
 	// identity-independent, so it ignores --as.
@@ -97,9 +97,9 @@ func agentListRun(opts *listOptions) error {
 	// ignoring what the caller thought they were passing.
 	if len(opts.Params) > 0 {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"--param 仅在 agents list <scheme> 时有意义（无 scheme 的列表是纯本地枚举）").
+			"--param only means something with agents list <scheme> (the bare listing is a purely local enumeration)").
 			WithParam("--param").
-			WithHint("补充 scheme 重发，如 lark-cli agents list <scheme> --param k=v；各 provider 的 list 参数见本命令输出的 list_parameters")
+			WithHint("add a scheme and resend, e.g. lark-cli agents list <scheme> --param k=v; each provider's list parameters are in the list_parameters field of this command's output")
 	}
 
 	f := opts.Factory
@@ -117,7 +117,7 @@ func agentListRun(opts *listOptions) error {
 		// and must not vanish in the human-readable view.
 		fmt.Fprintln(f.IOStreams.Out)
 		for _, p := range providers {
-			fmt.Fprintf(f.IOStreams.Out, "agent_id 获取（%s）: %s\n", p.Scheme, p.AgentIDSource)
+			fmt.Fprintf(f.IOStreams.Out, "agent_id source (%s): %s\n", p.Scheme, p.AgentIDSource)
 		}
 		return nil
 	}
@@ -146,9 +146,9 @@ func agentListSchemeRun(opts *listOptions) error {
 	prov, ok := iagents.Info(opts.Scheme)
 	if !ok {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"未知的 agent provider '%s'，当前支持: %s",
+			"unknown agent provider '%s', currently registered: %s",
 			opts.Scheme, iagents.KnownSchemes()).
-			WithHint("用 lark-cli agents list 查看可用 provider")
+			WithHint("run lark-cli agents list to see the available providers")
 	}
 
 	var agents []iagents.AgentSummary
@@ -169,7 +169,7 @@ func agentListSchemeRun(opts *listOptions) error {
 		// instance: needs the online ListAgents hook. Absent ⇒ not enumerable.
 		if prov.ListAgents == nil {
 			return errs.NewValidationError(errs.SubtypeUnsupportedCapability,
-				"provider '%s' 暂不支持列举 agent", opts.Scheme).
+				"provider '%s' does not support listing agents", opts.Scheme).
 				WithHint("%s", prov.AgentIDSource)
 		}
 		// --page-size is validated uniformly in RunE (alongside validateFormat), so

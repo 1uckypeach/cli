@@ -142,14 +142,14 @@ func NewCmdAgentTaskGet(f *cmdutil.Factory) *cobra.Command {
 			return agentTaskGetRun(opts)
 		},
 	}
-	cmd.Flags().BoolVar(&opts.Watch, "watch", false, "轮询任务直到进入停轮询条件（终态 / 需补输入 / 需补鉴权）再打印最终状态")
-	cmd.Flags().DurationVar(&opts.Timeout, "timeout", 0, "--watch 的最长轮询时长，如 30s；0=无界（阻塞到终态）；到点未终止则返回当前状态+续 watch 命令")
-	cmd.Flags().StringVar(&opts.ArtifactID, "artifact", "", "下载指定产物 id（须配合 -o 指定落盘路径），不打印任务详情")
-	cmd.Flags().StringVarP(&opts.Output, "output", "o", "", "产物落盘路径（仅 --artifact 时使用）")
-	cmd.Flags().BoolVar(&opts.Force, "force", false, "允许覆盖已存在的 -o 目标文件（默认拒绝覆盖，防止误毁本地文件）")
+	cmd.Flags().BoolVar(&opts.Watch, "watch", false, "poll the task until a stop condition (terminal / input required / authorization required), then print the final state")
+	cmd.Flags().DurationVar(&opts.Timeout, "timeout", 0, "maximum poll duration for --watch, e.g. 90s; 0 = unbounded (block until terminal); on expiry it returns the current state plus a follow-up watch command")
+	cmd.Flags().StringVar(&opts.ArtifactID, "artifact", "", "download the artifact with this id (requires -o for the save path); does not print the task detail")
+	cmd.Flags().StringVarP(&opts.Output, "output", "o", "", "save path for the artifact (used only with --artifact)")
+	cmd.Flags().BoolVar(&opts.Force, "force", false, "allow overwriting an existing -o target (refused by default to protect local files)")
 	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
-	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
+	cmd.Flags().String("jq", "", "filter the JSON output with a jq expression")
 	addAsFlag(cmd, f, &opts.As)
 	cmdutil.SetRisk(cmd, cmdutil.RiskRead)
 	return cmd
@@ -177,11 +177,11 @@ func NewCmdAgentTaskList(f *cmdutil.Factory) *cobra.Command {
 			return agentTaskListRun(opts)
 		},
 	}
-	cmd.Flags().StringVar(&opts.ContextID, "context-id", "", "按多轮上下文 id 过滤任务")
+	cmd.Flags().StringVar(&opts.ContextID, "context-id", "", "filter tasks by multi-turn context id")
 	addPageFlags(cmd, &opts.PageSize, &opts.PageToken)
 	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
-	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
+	cmd.Flags().String("jq", "", "filter the JSON output with a jq expression")
 	addAsFlag(cmd, f, &opts.As)
 	cmdutil.SetRisk(cmd, cmdutil.RiskRead)
 	return cmd
@@ -189,7 +189,7 @@ func NewCmdAgentTaskList(f *cmdutil.Factory) *cobra.Command {
 
 // NewCmdAgentTaskCancel builds `agents task cancel <ref> <task-id>`: cancel
 // (interrupt) a task. Cancel is capability-gated on the Card's task_cancel: for
-// an agent that does not support it (task_cancel=false, e.g. example:echo) the
+// an agent that does not support it (task_cancel=false) the
 // command returns unsupported_capability without contacting the API.
 // Risk=write.
 func NewCmdAgentTaskCancel(f *cmdutil.Factory) *cobra.Command {
@@ -211,7 +211,7 @@ func NewCmdAgentTaskCancel(f *cmdutil.Factory) *cobra.Command {
 	}
 	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
-	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
+	cmd.Flags().String("jq", "", "filter the JSON output with a jq expression")
 	addAsFlag(cmd, f, &opts.As)
 	cmdutil.SetRisk(cmd, cmdutil.RiskWrite)
 	return cmd
@@ -224,7 +224,7 @@ func addAsFlag(cmd *cobra.Command, f *cmdutil.Factory, as *string) {
 		cmdutil.AddAPIIdentityFlag(cmd.Context(), cmd, f, as)
 		return
 	}
-	cmd.Flags().StringVar(as, "as", "", "identity type: user | bot")
+	cmd.Flags().StringVar(as, "as", "", "identity type: user | bot (the identities an agent actually supports are listed by agents card)")
 }
 
 // agentTaskGetRun runs `task get`. The `--artifact` client-side guard (requires
@@ -236,9 +236,9 @@ func agentTaskGetRun(opts *taskOptions) error {
 	if opts.ArtifactID != "" {
 		if opts.Output == "" {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument,
-				"--artifact 需配合 -o/--output 指定落盘路径").
+				"--artifact requires -o/--output to name the save path").
 				WithParam("--output").
-				WithHint("补充 -o <落盘路径> 后重发")
+				WithHint("add -o <save_path> and resend")
 		}
 		return downloadArtifact(opts)
 	}
@@ -248,9 +248,9 @@ func agentTaskGetRun(opts *taskOptions) error {
 	// so it never touches the network and holds under a nil Factory.
 	if opts.Timeout > 0 && !opts.Watch {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"--timeout 需与 --watch 一起使用").
+			"--timeout must be used together with --watch").
 			WithParam("--timeout").
-			WithHint("加上 --watch（如 --watch --timeout 30s）做有界轮询；或去掉 --timeout 做单次查询")
+			WithHint("add --watch (e.g. --watch --timeout 90s) for a bounded poll, or drop --timeout for a single query")
 	}
 
 	f := opts.Factory
@@ -290,15 +290,14 @@ func agentTaskGetRun(opts *taskOptions) error {
 	// otherwise panic; the sibling consumers all nil-guard).
 	if task == nil {
 		return errs.NewInternalError(errs.SubtypeInvalidResponse,
-			"provider 未返回任务数据（响应无 data）")
+			"the provider returned no task data (no data in the response)")
 	}
 
 	if opts.Watch && !task.State.ShouldStopPolling() {
-		// A positive --timeout bounds the poll: pollToStop returns the most recent
-		// task with a nil error when the deadline fires (a timeout is an
-		// observation-window close, not a failure), so a long task degrades to
-		// "current state + a fresh watch hint" instead of blocking forever. 0 =
-		// unbounded (the backward-compatible default). pollToStop is unchanged.
+		// A positive --timeout bounds the poll: pollToStop returns the latest task
+		// with a nil error when the deadline fires (closing the observation window
+		// is not a failure), so a long task degrades to "current state + a fresh
+		// watch hint" instead of blocking forever. 0 = unbounded.
 		pollCtx := ctx
 		if opts.Timeout > 0 {
 			var cancel context.CancelFunc
@@ -407,7 +406,7 @@ func taskListNext(opts *taskOptions, f *cmdutil.Factory, info iagents.PageInfo) 
 
 // agentTaskCancelRun runs `task cancel`. Cancel is capability-gated offline
 // (right after resolveSpec, before the client is built): a spec that does not
-// wire CancelTask (card task_cancel=false, e.g. example:echo) returns
+// wire CancelTask (card task_cancel=false) returns
 // unsupported_capability without any API access. Only a supporting spec reaches
 // runtimeFor + CancelTask.
 func agentTaskCancelRun(opts *taskOptions) error {
@@ -474,7 +473,7 @@ func agentTaskCancelRun(opts *taskOptions) error {
 func downloadArtifact(opts *taskOptions) error {
 	safePath, err := validate.SafeOutputPath(opts.Output)
 	if err != nil {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "非法的 -o 路径: %v", err).
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid -o path: %v", err).
 			WithParam("--output").WithCause(err)
 	}
 
@@ -486,8 +485,8 @@ func downloadArtifact(opts *taskOptions) error {
 	if !opts.Force {
 		if _, statErr := vfs.Lstat(safePath); statErr == nil {
 			return errs.NewConfirmationRequiredError(errs.RiskHighRiskWrite, "agents task get --artifact -o",
-				"目标文件已存在，覆盖会不可逆地毁掉本地内容: %s", safePath).
-				WithHint("确认要覆盖后加 --force 重跑，或换一个 -o 路径")
+				"the target file already exists; overwriting would irreversibly destroy local content: %s", safePath).
+				WithHint("add --force to confirm overwriting, or choose a different -o path")
 		}
 	}
 
@@ -503,11 +502,11 @@ func downloadArtifact(opts *taskOptions) error {
 	// (which under --force would clobber an existing local file with emptiness).
 	if art == nil {
 		return errs.NewInternalError(errs.SubtypeInvalidResponse,
-			"provider 未返回产物数据（响应无 data）")
+			"the provider returned no artifact data (no data in the response)")
 	}
 	if len(art.Bytes) == 0 && art.URL == "" {
 		return errs.NewInternalError(errs.SubtypeInvalidResponse,
-			"产物 '%s' 无可下载内容（provider 既未提供内联字节也未提供下载 URL）", opts.ArtifactID)
+			"artifact '%s' has nothing to download (the provider supplied neither inline bytes nor a download URL)", opts.ArtifactID)
 	}
 
 	data := art.Bytes
@@ -519,7 +518,7 @@ func downloadArtifact(opts *taskOptions) error {
 	}
 
 	if err := vfs.WriteFile(safePath, data, 0o600); err != nil {
-		return errs.NewInternalError(errs.SubtypeFileIO, "写产物到 %s 失败: %v", safePath, err).WithCause(err)
+		return errs.NewInternalError(errs.SubtypeFileIO, "failed to write the artifact to %s: %v", safePath, err).WithCause(err)
 	}
 
 	f := opts.Factory
@@ -564,7 +563,7 @@ func downloadArtifact(opts *taskOptions) error {
 // external content, so both the URL and the redirect chain are guarded.
 func fetchArtifactURL(ctx context.Context, f *cmdutil.Factory, rawURL string) ([]byte, error) {
 	if err := validate.ValidateDownloadSourceURL(ctx, rawURL); err != nil {
-		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "被拦截的产物 URL: %v", err).
+		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "blocked artifact URL: %v", err).
 			WithCause(err)
 	}
 	// Artifact bytes come from an untrusted host over the network; require https
@@ -572,25 +571,25 @@ func fetchArtifactURL(ctx context.Context, f *cmdutil.Factory, rawURL string) ([
 	// above already rejects private/loopback hosts and non-http(s) schemes, so a
 	// surviving non-https URL is plain-text http.
 	if !strings.HasPrefix(strings.ToLower(rawURL), "https://") {
-		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "产物 URL 必须为 https（拒绝明文下载）")
+		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "the artifact URL must be https (cleartext downloads are refused)")
 	}
 	base, err := f.HttpClient()
 	if err != nil {
-		return nil, errs.NewInternalError(errs.SubtypeSDKError, "构造 http client 失败: %v", err).WithCause(err)
+		return nil, errs.NewInternalError(errs.SubtypeSDKError, "failed to build the http client: %v", err).WithCause(err)
 	}
 	client := hardenDownloadClient(base)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "非法的产物 URL: %v", err).WithCause(err)
+		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid artifact URL: %v", err).WithCause(err)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport, "下载产物失败: %v", err).WithCause(err)
+		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport, "failed to download the artifact: %v", err).WithCause(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, errs.NewNetworkError(errs.SubtypeNetworkServer, "下载产物失败: HTTP %d", resp.StatusCode)
+		return nil, errs.NewNetworkError(errs.SubtypeNetworkServer, "failed to download the artifact: HTTP %d", resp.StatusCode)
 	}
 	// Read ONE byte past the cap so an oversized body is detected rather than
 	// silently truncated: io.LimitReader returns EOF (not an error) at the cap, so
@@ -599,11 +598,11 @@ func fetchArtifactURL(ctx context.Context, f *cmdutil.Factory, rawURL string) ([
 	// corrupt, partial file that would otherwise report success.
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxArtifactBytes+1))
 	if err != nil {
-		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport, "读取产物响应失败: %v", err).WithCause(err)
+		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport, "failed to read the artifact response: %v", err).WithCause(err)
 	}
 	if int64(len(data)) > maxArtifactBytes {
 		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"产物超过大小上限 %d 字节，拒绝下载（避免写入被截断的残缺文件）", int64(maxArtifactBytes))
+			"the artifact exceeds the %d byte limit and was not downloaded (avoids writing a truncated file)", int64(maxArtifactBytes))
 	}
 	return data, nil
 }

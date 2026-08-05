@@ -77,15 +77,11 @@ type AgentCard struct {
 }
 
 // DeriveCapabilities computes the capability matrix from which AgentSpec
-// operations are wired AND available for `brand` — the single source of truth
-// ("implement it = support it"), enumerated through Ops() so the verb↔capability
-// mapping lives in one table. An op-backed capability is true iff its hook is
-// wired and the op is not brand-excluded (OpAvailableForBrand); the matrix is
-// therefore brand-scoped and the same agent may show different capabilities
-// under feishu vs lark. file_input / input_required are behavioral flags with
-// no backing operation and stay brand-independent (read straight from the spec).
-// Send/GetTask are mandatory (Register enforces), so task_get is true unless its
-// Op.Brands excludes the brand (normally empty ⇒ always true).
+// operations are wired AND available for brand — the single source of truth
+// ("implement it = support it"). An op-backed capability is true iff its hook is
+// wired and the op is not brand-excluded, so the same agent may show different
+// capabilities under feishu vs lark. file_input / input_required are behavioral
+// flags with no backing operation and stay brand-independent.
 func DeriveCapabilities(s *AgentSpec, brand core.LarkBrand) Capabilities {
 	w := make(map[string]bool, 8)
 	for _, o := range s.Ops() {
@@ -117,16 +113,12 @@ func HasParameters(s *AgentSpec) []string {
 	return out
 }
 
-// BuildCard synthesizes an agent's lean Card: registration metadata from the
-// Provider, the capability matrix from DeriveCapabilities (wired operations),
-// the has_parameters cue, and the static per-agent metadata from the spec.
-// When rt != nil AND the spec wires Describe, it best-effort enriches
-// Name/Description/Skills from the remote — a Describe error is swallowed so
-// the card degrades to the offline (caps + static) version rather than
-// hard-failing (the caps matrix is the primary value). Pass rt=nil for the
-// guaranteed-offline path (card before config init, dry-run). A provider never
-// assembles its own card or declares its own capability bools. brand scopes the
-// capability matrix (DeriveCapabilities) and is echoed as card.Brand.
+// BuildCard synthesizes an agent's lean Card: Provider registration metadata, the
+// brand-scoped capability matrix, the has_parameters cue, and the spec's static
+// metadata. When rt != nil and the spec wires Describe it best-effort enriches
+// Name/Description/Skills from the remote, swallowing a Describe error so the card
+// degrades to the offline version rather than hard-failing. Pass rt=nil for the
+// guaranteed-offline path. A provider never assembles its own card.
 func BuildCard(ctx context.Context, p Provider, s *AgentSpec, agentID string, brand core.LarkBrand, rt Runtime) *AgentCard {
 	card := &AgentCard{
 		Provider:      p.Scheme,

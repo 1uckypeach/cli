@@ -59,7 +59,7 @@ func MintQuestionIDs(qs []Question, suffix string) {
 		if qs[i].QuestionID == "" {
 			// A minted id must never collide with a provider-supplied one in the
 			// same group (a duplicate would degrade the whole group at
-			// normalization, §3.2) — extend the suffix until free.
+			// normalization) — extend the suffix until free.
 			id := fmt.Sprintf("q%d_%s", i+1, suffix)
 			for seen[id] {
 				id += "x"
@@ -110,30 +110,22 @@ func groupAnchor(t *AgentTask) string {
 	return t.TaskID
 }
 
-// NormalizeInputRequired applies the design doc §3.2 rules to a
-// provider-supplied task projection, centrally, so every read path (send
-// result, task get, watch) sees one canonical shape and no provider ships its
-// own interpretation. Rules:
+// NormalizeInputRequired canonicalizes a provider-supplied task projection so
+// every read path (send result, task get, watch) sees one shape. Rules:
 //
-//   - state ≠ input_required carrying a group → the group is dropped (a paused
-//     group is only meaningful while the task waits).
-//   - options: [] → normalized to absent (a zero-option choice question is not
-//     a distinct type — it is a free-text question).
-//   - questions empty/absent but the group carries prompt text
-//     (Label/Description) → the bare A2A shape: the text becomes one ordinary
-//     free-text question with a deterministically derived id. No special
-//     "unstructured" answer channel exists.
-//   - questions empty and no text at all → the group is dropped (nothing to
-//     ask), with a notice.
-//   - any key (question_id/option_id) violating KeyPattern, or duplicate
-//     question ids in the group / option ids in a question → the whole group
-//     DEGRADES to one free-text question preserving the question texts, with a
-//     notice naming the provider defect — never a placeholder key the CLI's own
-//     guard would reject.
+//   - state ≠ input_required with a group → drop the group (a paused group only
+//     means something while the task waits).
+//   - options: [] → absent (a zero-option choice question is just free text).
+//   - no questions but the group carries prompt text (Label/Description) → the
+//     bare A2A shape: that text becomes one free-text question with a derived id.
+//   - no questions and no text → drop the group, with a notice.
+//   - a key violating KeyPattern, or duplicate question/option ids → DEGRADE the
+//     whole group to one free-text question preserving the question texts, with
+//     a notice naming the provider defect. Never mint a placeholder key that the
+//     CLI's own guard would then reject.
 //
-// The returned notice is "" when nothing noteworthy happened; a non-empty
-// notice is surfaced to the caller (envelope _notice) so provider defects are
-// observable instead of silently smoothed over.
+// The returned notice is "" when nothing noteworthy happened; otherwise it
+// reaches the caller as envelope _notice, so provider defects stay observable.
 func NormalizeInputRequired(t *AgentTask) (notice string) {
 	if t == nil || t.InputRequired == nil {
 		return ""
@@ -144,7 +136,7 @@ func NormalizeInputRequired(t *AgentTask) (notice string) {
 	}
 	ir := t.InputRequired
 
-	// Size caps (§11 central bounds): a hostile or buggy provider must not be
+	// Central size caps: a hostile or buggy provider must not be
 	// able to flood the JSON surface, the per-question meta.next expansion, or
 	// the terminal through an unbounded group.
 	var truncated bool
@@ -172,7 +164,7 @@ func NormalizeInputRequired(t *AgentTask) (notice string) {
 		}
 	}
 	if truncated {
-		notice = "provider 问题组超出规模上限，已截断；"
+		notice = "the provider question group exceeded the size cap and was truncated; "
 	}
 
 	if len(ir.Questions) == 0 {
@@ -182,7 +174,7 @@ func NormalizeInputRequired(t *AgentTask) (notice string) {
 		}
 		if text == "" {
 			t.InputRequired = nil
-			return notice + "provider 返回了空问题组，已忽略"
+			return notice + "the provider returned an empty question group; it was ignored"
 		}
 		ir.Questions = []Question{{
 			QuestionID: "q1_" + DeriveGroupSuffix(groupAnchor(t)),
@@ -206,13 +198,13 @@ func NormalizeInputRequired(t *AgentTask) (notice string) {
 			QuestionID: "q1_" + DeriveGroupSuffix(groupAnchor(t)),
 			Question:   text,
 		}}
-		return notice + "provider 问题键不合规（" + defect + "），该组已降级为自由文本作答"
+		return notice + "the provider question keys are invalid (" + defect + "); the group was degraded to free-text answering"
 	}
 	return notice
 }
 
-// Central size bounds for a question group (§11): generous multiples of the
-// §6.9 SHOULD (groups of 4-5), hard enough to stop output flooding.
+// Central size bounds for a question group: generous multiples of the
+// recommended group size (4-5), hard enough to stop output flooding.
 const (
 	maxGroupQuestions  = 32
 	maxQuestionOptions = 64
@@ -238,19 +230,19 @@ func groupKeyDefect(qs []Question) string {
 	seenQ := make(map[string]bool, len(qs))
 	for _, q := range qs {
 		if !KeyPattern.MatchString(q.QuestionID) || len(q.QuestionID) > maxKeyRunes {
-			return fmt.Sprintf("question_id %q 非法", capRunes(q.QuestionID, 40))
+			return fmt.Sprintf("question_id %q is invalid", capRunes(q.QuestionID, 40))
 		}
 		if seenQ[q.QuestionID] {
-			return fmt.Sprintf("question_id %q 重复", q.QuestionID)
+			return fmt.Sprintf("question_id %q is duplicated", q.QuestionID)
 		}
 		seenQ[q.QuestionID] = true
 		seenO := make(map[string]bool, len(q.Options))
 		for _, o := range q.Options {
 			if !KeyPattern.MatchString(o.OptionID) || len(o.OptionID) > maxKeyRunes {
-				return fmt.Sprintf("option_id %q 非法", capRunes(o.OptionID, 40))
+				return fmt.Sprintf("option_id %q is invalid", capRunes(o.OptionID, 40))
 			}
 			if seenO[o.OptionID] {
-				return fmt.Sprintf("option_id %q 重复", o.OptionID)
+				return fmt.Sprintf("option_id %q is duplicated", o.OptionID)
 			}
 			seenO[o.OptionID] = true
 		}

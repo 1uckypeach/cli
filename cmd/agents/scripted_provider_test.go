@@ -8,7 +8,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/larksuite/cli/errs"
 	iagents "github.com/larksuite/cli/internal/agents"
+	"github.com/larksuite/cli/internal/core"
 )
 
 // scriptedHooks scripts a fake provider's behavior per test. Each hook maps to
@@ -47,7 +49,7 @@ func setScripted(t *testing.T, h scriptedHooks) {
 
 // scriptedSpec is the instance template whose capability surface is fixed by
 // which hooks are wired: everything the command tests drive is wired (the
-// task_cancel unsupported gate is exercised via example:echo, whose spec leaves
+// task_cancel unsupported gate is exercised via fakecat:min, whose spec leaves
 // it unwired), FileInput=true so the --file gate/confirm path is reachable, and
 // InputRequired=true so the --answer capability gate passes (Register requires
 // a question-asking spec to wire CancelTask, hence the cancel hook). Each wired
@@ -130,7 +132,7 @@ var fakescopedAllScopes = []string{
 
 // fakeflowAgentIDSource is the AgentIDSource text of the fakeflow provider —
 // the non-enumerable `agents list <scheme>` error surfaces it as the hint.
-const fakeflowAgentIDSource = "在 fakeflow 测试控制台获取 agent_id（形如 agt_xxx）"
+const fakeflowAgentIDSource = "get an agent_id from the fakeflow test console (shaped like agt_xxx)"
 
 // minimalSpec is the least-capable legal instance template: only the two core
 // verbs are wired (with tripwire handlers — these tests never reach them), so
@@ -147,10 +149,101 @@ func minimalSpec() *iagents.AgentSpec {
 	}
 }
 
+// fakecatTask is the canned task every fakecat handler answers with.
+func fakecatTask(id string) *iagents.AgentTask {
+	return &iagents.AgentTask{TaskID: id, State: iagents.StateCompleted, IsTerminal: true}
+}
+
+// fakecatMinSpec is the catalog fake's least-capable agent: the core verbs plus
+// the read/delete verbs, and nothing else — so task_cancel, artifact_download,
+// file_input and input_required are all honestly false. It is the vehicle for the
+// capability-gate tests on a CATALOG provider (the fakemin instance provider
+// covers the same ground for instance-type).
+func fakecatMinSpec() iagents.AgentSpec {
+	return iagents.AgentSpec{
+		ID:          "min",
+		Name:        "minimal catalog agent",
+		Description: "Echoes the request back. Minimal capability set.",
+		Send: iagents.SendOp{Handler: func(_ context.Context, _ iagents.Runtime, in iagents.SendInput) (*iagents.AgentTask, error) {
+			return fakecatTask("task_min"), nil
+		}},
+		GetTask: iagents.TaskGetOp{Handler: func(_ context.Context, _ iagents.Runtime, taskID string) (*iagents.AgentTask, error) {
+			return fakecatTask(taskID), nil
+		}},
+		ListTasks: iagents.TaskListOp{Handler: func(_ context.Context, _ iagents.Runtime, _ string, _ iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
+			return nil, iagents.PageInfo{}, nil
+		}},
+		ListContexts: iagents.ContextListOp{Handler: func(_ context.Context, _ iagents.Runtime, _ iagents.PageParams) ([]iagents.ContextSummary, iagents.PageInfo, error) {
+			return nil, iagents.PageInfo{}, nil
+		}},
+		GetContext: iagents.ContextGetOp{Handler: func(_ context.Context, _ iagents.Runtime, ctxID string) (*iagents.ContextDetail, error) {
+			return &iagents.ContextDetail{ContextID: ctxID}, nil
+		}},
+		DeleteContext: iagents.ContextDeleteOp{Handler: func(_ context.Context, _ iagents.Runtime, _ string) error {
+			return nil
+		}},
+	}
+}
+
+// fakecatFullSpec is the catalog fake's fully-capable agent: it additionally
+// wires CancelTask + DownloadArtifact, declares FileInput, and declares business
+// params on send only (2 scalars + 1 object) — the vehicle for the card
+// --operation / declared-param / has_parameters contracts. Its CancelTask is
+// scoped to feishu, which is what the per-op brand gate is tested against: the
+// agent stays visible under both brands, only this op is scoped.
+func fakecatFullSpec() iagents.AgentSpec {
+	return iagents.AgentSpec{
+		ID:          "full",
+		Name:        "full catalog agent",
+		Description: "Produces a report artifact. Full capability set.",
+		FileInput:   true,
+		Send: iagents.SendOp{
+			Params: []iagents.CardParam{
+				{Name: "report_format", Enum: []string{"csv", "xlsx"}, Default: "csv", Desc: "report output format"},
+				{Name: "quarters", Type: "integer", Min: iagents.Float(1), Max: iagents.Float(12), Default: "4", Desc: "quarters to look back"},
+				{Name: "render", Type: "object", Desc: "render options", Fields: []iagents.CardParam{
+					{Name: "theme", Enum: []string{"light", "dark"}, Default: "light", Desc: "color theme"},
+					{Name: "watermark", Type: "boolean", Default: "false", Desc: "add a watermark"},
+				}},
+			},
+			Handler: func(_ context.Context, _ iagents.Runtime, _ iagents.SendInput) (*iagents.AgentTask, error) {
+				return fakecatTask("task_full"), nil
+			},
+		},
+		GetTask: iagents.TaskGetOp{Handler: func(_ context.Context, _ iagents.Runtime, taskID string) (*iagents.AgentTask, error) {
+			return fakecatTask(taskID), nil
+		}},
+		ListTasks: iagents.TaskListOp{Handler: func(_ context.Context, _ iagents.Runtime, _ string, _ iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
+			return nil, iagents.PageInfo{}, nil
+		}},
+		ListContexts: iagents.ContextListOp{Handler: func(_ context.Context, _ iagents.Runtime, _ iagents.PageParams) ([]iagents.ContextSummary, iagents.PageInfo, error) {
+			return nil, iagents.PageInfo{}, nil
+		}},
+		GetContext: iagents.ContextGetOp{Handler: func(_ context.Context, _ iagents.Runtime, ctxID string) (*iagents.ContextDetail, error) {
+			return &iagents.ContextDetail{ContextID: ctxID}, nil
+		}},
+		DeleteContext: iagents.ContextDeleteOp{Handler: func(_ context.Context, _ iagents.Runtime, _ string) error {
+			return nil
+		}},
+		CancelTask: iagents.TaskCancelOp{
+			Brands: []core.LarkBrand{core.BrandFeishu},
+			Handler: func(_ context.Context, _ iagents.Runtime, taskID string) error {
+				if taskID != "t1" {
+					return errs.NewValidationError(errs.SubtypeInvalidArgument, "unknown task id: "+taskID)
+				}
+				return nil
+			},
+		},
+		DownloadArtifact: iagents.ArtifactDownloadOp{Handler: func(_ context.Context, _ iagents.Runtime, _, artifactID string) (*iagents.ArtifactData, error) {
+			return &iagents.ArtifactData{Name: artifactID + ".csv", Mime: "text/csv", Bytes: []byte("a,b\n1,2\n")}, nil
+		}},
+	}
+}
+
 // registerScripted registers the scripted schemes exactly once (Register panics
-// on duplicates). All are instance-type (agent_id is arbitrary), and not
-// enumerable (no ListAgents hook). They leak into the package-level registry for
-// the rest of this package run — so no test may assert an exact provider set.
+// on duplicates). All but fakecat are instance-type (agent_id is arbitrary) and
+// not enumerable (no ListAgents hook). They leak into the package-level registry
+// for the rest of this package run — so no test may assert an exact provider set.
 //
 //   - fakeflow: no scopes on either identity (preflight always passes) — the
 //     workhorse.
@@ -162,6 +255,10 @@ func minimalSpec() *iagents.AgentSpec {
 //   - fakesplit: asymmetric per-identity scopes — user declares one scope, bot
 //     declares none — pinning that the preflight resolves the required set from
 //     the RESOLVED identity's declaration.
+//   - fakecat: the only CATALOG-type fake (agents are enumerable data), carrying
+//     a minimal and a fully-capable agent so the catalog-specific paths
+//     (unknown-agent-id, per-agent capability differences, declared params,
+//     per-op brand scoping) are exercisable offline.
 var registerScriptedOnce sync.Once
 
 func registerScripted() {
@@ -209,6 +306,13 @@ func registerScripted() {
 				{Type: iagents.IdentityBot}, // no scopes: the bot preflight (and its tenant-scope fetch) must be skipped
 			},
 			Instance: scriptedSpec(),
+		})
+		iagents.Register(iagents.Provider{
+			Scheme:        "fakecat",
+			Label:         "test fake (catalog)",
+			AgentIDSource: "test only",
+			Identities:    []iagents.IdentitySpec{{Type: iagents.IdentityUser}, {Type: iagents.IdentityBot}},
+			Catalog:       []iagents.AgentSpec{fakecatMinSpec(), fakecatFullSpec()},
 		})
 	})
 }

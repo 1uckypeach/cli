@@ -27,7 +27,7 @@ lark-cli agents list --format pretty
 
 ## 输出（`agents list`）
 
-`data.providers[]` 每个已注册 provider 一条。示例（example，真实输出；完整 provider 清单见 [SKILL.md「Provider 目录」](../SKILL.md)）：
+`data.providers[]` 每个已注册 provider 一条。示例（base，真实输出；完整 provider 清单见 [SKILL.md「Provider 目录」](../SKILL.md)）：
 
 ```json
 {
@@ -35,11 +35,11 @@ lark-cli agents list --format pretty
   "data": {
     "providers": [
       {
-        "scheme": "example",
-        "label": "Example 演示 agent（内存 mock，零网络）",
-        "agent_ref_format": "example:<agent_id>",
+        "scheme": "base",
+        "label": "Base Assistant",
+        "agent_ref_format": "base:<agent_id>",
         "kind": "catalog",
-        "agent_id_source": "运行 lark-cli agents list example 查看内置演示 agent 及其 agent_ref（无需任何平台配置）"
+        "agent_id_source": "Use the fixed agent reference base:assistant"
       }
     ]
   },
@@ -55,7 +55,7 @@ lark-cli agents list --format pretty
 
 ## 二级发现（`agents list <scheme>`）
 
-- provider 支持枚举（catalog 型必支持）→ 返回 `{"agents": [{agent_ref, name, description?}]}`，`meta.count`（空列表时整个 `meta` 省略，用 `.meta.count // 0` 消费）。示例（example，真实输出）：
+- provider 支持枚举（catalog 型必支持）→ 返回 `{"agents": [{agent_ref, name, description?}]}`，`meta.count`（空列表时整个 `meta` 省略，用 `.meta.count // 0` 消费）。示例（base，真实输出）：
 
 ```json
 {
@@ -63,43 +63,32 @@ lark-cli agents list --format pretty
   "data": {
     "agents": [
       {
-        "agent_ref": "example:echo",
-        "name": "复读机",
-        "description": "把你发的话原样复读一遍（同一会话续发时带轮次，证明上下文记忆）。最小能力集示范。"
-      },
-      {
-        "agent_ref": "example:planner",
-        "name": "报表规划器",
-        "description": "先弹一组确认问题（单选/自由文本/多选，input_required），你用 --answer 一次答清后再出报表。示范 HITL 问题组链路。"
-      },
-      {
-        "agent_ref": "example:reporter",
-        "name": "报表生成器",
-        "description": "对任意请求产出一份内联 CSV 报表 artifact，示范 artifact 下载与任务取消链路。"
+        "agent_ref": "base:assistant",
+        "name": "Base Assistant",
+        "description": "Handles multi-component Base construction and restructuring, plus user-facing data retrieval and analysis. Use Base CLI shortcuts for a single atomic edit or record create, update, or delete."
       }
     ]
   },
-  "meta": { "count": 3 }
+  "meta": { "count": 1 }
 }
 ```
 
-- provider 不支持枚举（部分 instance 型）→ 本地报错 `unsupported_capability`（exit 2），message 为 `provider '<scheme>' 暂不支持列举 agent`，hint 直接给出该 provider 的 agent_id 获取路径（即 `agent_id_source` 文案）——别编清单、别重试，把 hint 原样转达用户。
+- provider 不支持枚举（部分 instance 型）→ 本地报错 `unsupported_capability`（exit 2），message 为 `provider '<scheme>' does not support listing agents`，hint 直接给出该 provider 的 agent_id 获取路径（即 `agent_id_source` 文案）——别编清单、别重试，把 hint 原样转达用户。
 
-**分页（仅 instance 型枚举）**：instance 型的 `agents list <scheme>` 走服务端 List API，支持 `--page-size N`（1-100，默认 20）+ `--page-token <token>`；响应带 `meta.has_more` / `meta.page_token` 和 `meta.next` 翻页命令（照 `meta.next` 执行即可）。**catalog 型（如 example）是离线有限集，不分页**，`--page-size` / `--page-token` 在该路径被忽略。
+**分页（仅 instance 型枚举）**：instance 型的 `agents list <scheme>` 走服务端 List API，支持 `--page-size N`（1-100，默认 20）+ `--page-token <token>`；响应带 `meta.has_more` / `meta.page_token` 和 `meta.next` 翻页命令（照 `meta.next` 执行即可）。**catalog 型（如 base）是离线有限集，不分页**，`--page-size` / `--page-token` 在该路径被忽略。
 
 ## 错误目录
 
 | 触发 | subtype | exit | message / hint（真实输出） |
 |---|---|---|---|
-| 未知 scheme（如 `agents list nosuch`） | invalid_argument | 2 | message 形如 `未知的 agent provider 'nosuch'，当前支持: <已注册 scheme 全集>`（列表随注册变化，勿硬编码断言）；hint `用 lark-cli agents list 查看可用 provider` |
+| 未知 scheme（如 `agents list nosuch`） | invalid_argument | 2 | message 形如 `unknown agent provider 'nosuch', currently registered: <已注册 scheme 全集>`（列表随注册变化，勿硬编码断言）；hint `run lark-cli agents list to see the available providers` |
 | `agents list <scheme>`（该 provider 不支持枚举） | unsupported_capability | 2 | 见上方「二级发现」说明 |
 
 ## `agents list <scheme>` 的业务参数
 
-- `--param key=value`（可重复）：**仅在带 scheme 时有意义**；按该 provider 声明的 `list_parameters` 校验（在无 scheme 的 `agents list` 输出 `providers[]` 里查看——list 时你手上还没有 agent_ref，参数发现面就在这里；`list_parameters` 是 omitempty 字段，只有声明了 list 参数的 provider 才带，上方示例里 example 没有该字段即零参数）。无 scheme 带 `--param` 报 `invalid_argument`；catalog 型 provider 的枚举是纯离线操作、不接受任何 `--param`。
+- `--param key=value`（可重复）：**仅在带 scheme 时有意义**；按该 provider 声明的 `list_parameters` 校验（在无 scheme 的 `agents list` 输出 `providers[]` 里查看——list 时你手上还没有 agent_ref，参数发现面就在这里；`list_parameters` 是 omitempty 字段，只有声明了 list 参数的 provider 才带，上方示例里 base 没有该字段即零参数）。无 scheme 带 `--param` 报 `invalid_argument`；catalog 型 provider 的枚举是纯离线操作、不接受任何 `--param`。
 - 参数错误一次报全（`params[]` 每条带原因），hint 指向 `providers[].list_parameters`。
 
 ## 参考
 
 - [lark-agents](../SKILL.md) — agent 全部动词
-- [provider-example](providers/lark-agents-example.md) — provider 业务事实

@@ -8,21 +8,21 @@ import (
 	"testing"
 )
 
-// TestAgentTaskJSON pins the question-group wire shape (design doc §3): group
+// TestAgentTaskJSON pins the question-group wire shape: group
 // label/description, questions[] with question_id/question/options/multi_select,
 // option description, and the deleted decision-era fields staying deleted.
 func TestAgentTaskJSON(t *testing.T) {
 	at := AgentTask{TaskID: "chat_1", ContextID: "sess_1", State: StateInputRequired,
 		IsTerminal: false,
 		InputRequired: &InputRequired{
-			Label:       "报表生成确认",
-			Description: "生成前需确认以下口径",
+			Label:       "report confirmation",
+			Description: "confirm the following metrics first",
 			Questions: []Question{
-				{QuestionID: "q1_a8", Question: "按什么维度拆分？",
-					Options: []Option{{OptionID: "by_region", Label: "按大区", Description: "华东/华北/华南汇总"}, {OptionID: "by_category", Label: "按品类"}}},
-				{QuestionID: "q2_a8", Question: "时间范围？"},
-				{QuestionID: "q3_a8", Question: "包含哪些区域？", MultiSelect: true,
-					Options: []Option{{OptionID: "east", Label: "华东"}, {OptionID: "north", Label: "华北"}}},
+				{QuestionID: "q1_a8", Question: "Split by which dimension?",
+					Options: []Option{{OptionID: "by_region", Label: "by region", Description: "east/north/south rollup"}, {OptionID: "by_category", Label: "by category"}}},
+				{QuestionID: "q2_a8", Question: "Time range?"},
+				{QuestionID: "q3_a8", Question: "Which regions?", MultiSelect: true,
+					Options: []Option{{OptionID: "east", Label: "east"}, {OptionID: "north", Label: "north"}}},
 			}}}
 	b, _ := json.Marshal(at)
 	var m map[string]interface{}
@@ -34,7 +34,7 @@ func TestAgentTaskJSON(t *testing.T) {
 	if !ok {
 		t.Fatal("input_required should appear as an object in the input_required state")
 	}
-	if ir["label"] != "报表生成确认" || ir["description"] != "生成前需确认以下口径" {
+	if ir["label"] != "report confirmation" || ir["description"] != "confirm the following metrics first" {
 		t.Errorf("group label/description should serialize, got %v", ir)
 	}
 	qs, ok := ir["questions"].([]interface{})
@@ -42,7 +42,7 @@ func TestAgentTaskJSON(t *testing.T) {
 		t.Fatalf("questions should serialize as a 3-element array, got %v", ir["questions"])
 	}
 	q1, _ := qs[0].(map[string]interface{})
-	if q1["question_id"] != "q1_a8" || q1["question"] != "按什么维度拆分？" {
+	if q1["question_id"] != "q1_a8" || q1["question"] != "Split by which dimension?" {
 		t.Errorf("questions[0] should carry question_id/question, got %v", q1)
 	}
 	if _, present := q1["multi_select"]; present {
@@ -52,7 +52,7 @@ func TestAgentTaskJSON(t *testing.T) {
 	if len(opts) != 2 {
 		t.Fatalf("questions[0].options should be 2 elements, got %v", q1["options"])
 	}
-	if o0, _ := opts[0].(map[string]interface{}); o0["option_id"] != "by_region" || o0["label"] != "按大区" || o0["description"] != "华东/华北/华南汇总" {
+	if o0, _ := opts[0].(map[string]interface{}); o0["option_id"] != "by_region" || o0["label"] != "by region" || o0["description"] != "east/north/south rollup" {
 		t.Errorf("options[0] should be {option_id,label,description}, got %v", opts[0])
 	}
 	q2, _ := qs[1].(map[string]interface{})
@@ -81,15 +81,15 @@ func TestStructuredArtifactAndInputDetailsJSON(t *testing.T) {
 		State:  StateInputRequired,
 		Artifacts: []Artifact{{
 			ID: "artifact_1", OutputID: "103:artifact:1", Source: "table_agent", GroupID: "grp_2",
-			Kind: "table", Name: "销售表", Status: "ready",
+			Kind: "table", Name: "sales table", Status: "ready",
 			Data: map[string]interface{}{"resource": map[string]string{"block_id": "block_1"}},
 		}},
 		InputRequired: &InputRequired{
-			Label: "请选择",
+			Label: "pick one",
 			Questions: []Question{{
 				QuestionID: "q_1",
-				Question:   "选择操作",
-				Options:    []Option{{OptionID: "opt_1", Label: "新建", Description: "创建新表"}},
+				Question:   "pick an action",
+				Options:    []Option{{OptionID: "opt_1", Label: "create", Description: "create a new table"}},
 			}},
 		},
 	}
@@ -110,7 +110,7 @@ func TestStructuredArtifactAndInputDetailsJSON(t *testing.T) {
 	questions := input["questions"].([]interface{})
 	question := questions[0].(map[string]interface{})
 	options := question["options"].([]interface{})
-	if input["label"] != "请选择" || question["question_id"] != "q_1" || options[0].(map[string]interface{})["description"] != "创建新表" {
+	if input["label"] != "pick one" || question["question_id"] != "q_1" || options[0].(map[string]interface{})["description"] != "create a new table" {
 		t.Fatalf("input_required=%v", input)
 	}
 }
@@ -142,13 +142,13 @@ func TestAgentTaskTimestampsJSON(t *testing.T) {
 func TestTaskSummaryJSON(t *testing.T) {
 	b, _ := json.Marshal(TaskSummary{TaskID: "chat_1", ContextID: "sess_1",
 		State: StateCompleted, IsTerminal: true,
-		UpdatedAt: "2026-07-07T00:01:00Z", Summary: "报表已生成"})
+		UpdatedAt: "2026-07-07T00:01:00Z", Summary: "report generated"})
 	var m map[string]interface{}
 	_ = json.Unmarshal(b, &m)
 	if m["updated_at"] != "2026-07-07T00:01:00Z" {
 		t.Errorf("updated_at should be emitted, got %v", m["updated_at"])
 	}
-	if m["summary"] != "报表已生成" {
+	if m["summary"] != "report generated" {
 		t.Errorf("summary should be emitted, got %v", m["summary"])
 	}
 
@@ -195,7 +195,7 @@ func TestContextSummaryJSON(t *testing.T) {
 // empty, &n = n tasks.
 func TestContextDetailJSON(t *testing.T) {
 	b, _ := json.Marshal(ContextDetail{ContextID: "sess_1", TaskCount: Int(2), AwaitingInput: true,
-		ActiveTask: &TaskSummary{TaskID: "chat_1", State: StateInputRequired, Summary: "按大区还是品类拆?"}})
+		ActiveTask: &TaskSummary{TaskID: "chat_1", State: StateInputRequired, Summary: "split by region or category?"}})
 	var m map[string]interface{}
 	_ = json.Unmarshal(b, &m)
 	if _, ok := m["tasks"]; ok {
@@ -211,7 +211,7 @@ func TestContextDetailJSON(t *testing.T) {
 	if !ok {
 		t.Fatalf("active_task should be a nested object, got %v", m["active_task"])
 	}
-	if at["summary"] != "按大区还是品类拆?" {
+	if at["summary"] != "split by region or category?" {
 		t.Errorf("active_task.summary should be carried, got %v", at["summary"])
 	}
 

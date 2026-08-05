@@ -20,19 +20,14 @@ import (
 	"github.com/larksuite/cli/internal/core"
 )
 
-// This file implements the scope preflight: after the provider is resolved and
-// before the real API call, the session's available scopes are checked against
-// the scope set the provider declares FOR THE RESOLVED IDENTITY
-// (IdentitySpec.Scopes — user and bot each declare their own set). The check is
-// all-or-nothing — any real API verb requires that identity's entire scope set.
-// For USER identity the granted list is read locally from the credential cache
-// (no network); for BOT identity it is the app's published TenantScopes,
-// fetched best-effort (a fetch failure downgrades the check to a no-op, like
-// event's console precheck); an identity that declares no scopes skips the
-// check — and the fetch — entirely. A missing scope surfaces as a missing_scope
-// permission error (exit 3) with an identity-appropriate remediation hint
-// instead of a round-trip API 99991679. `--dry-run` never reaches it (dry-run
-// returns before the provider is resolved).
+// This file implements the scope preflight: between provider resolution and the
+// real API call, the session's scopes are checked against what the provider
+// declares for the RESOLVED identity (IdentitySpec.Scopes). It is all-or-nothing.
+// User scopes are read locally from the credential cache; bot scopes are the
+// app's published TenantScopes, fetched best-effort (a failed fetch downgrades to
+// a no-op). An identity declaring no scopes skips the check entirely. A miss is a
+// missing_scope permission error (exit 3) with a remediation hint, instead of a
+// round-trip API 99991679. --dry-run never reaches here.
 
 // storedUserScopes is the token-scope read seam: it returns the granted scope
 // list of the stored user token from the LOCAL credential cache (keychain via
@@ -63,18 +58,14 @@ type preflightInput struct {
 	Required    []string
 }
 
-// preflightScopes runs the local scope check. It returns nil when the check
-// does not apply — an unreadable/empty local scope list (the downstream
-// not_configured / need-authorization logic owns that). The check is
-// all-or-nothing: when any scope in the identity's Required set is not granted
-// it returns the missing_scope permission error (exit 3, mirroring the
-// event-consume scope preflight) carrying every missing scope, with a re-auth
-// hint listing ONLY the missing scopes.
+// preflightScopes runs the local scope check, returning nil when it does not
+// apply (an unreadable/empty scope list is the downstream not_configured logic's
+// business). On any missing scope it returns missing_scope (exit 3) carrying all
+// of them.
 //
-// The hint lists just the missing scopes (not a merge with existing grants):
-// the open platform authorizes INCREMENTALLY — re-login with only the missing
-// scopes keeps every previously-granted scope — so re-requesting the existing
-// grants would be redundant. This mirrors cmd/event's scopeRemediationHint.
+// The hint lists ONLY the missing scopes: the open platform authorizes
+// incrementally, so re-login with just those keeps every existing grant and
+// re-requesting them would be redundant.
 func preflightScopes(in preflightInput) error {
 	// No usable scope list → skip (user not logged in, or bot has no published
 	// version / the fetch failed); the downstream not_configured / API error owns
@@ -104,7 +95,7 @@ func preflightScopes(in preflightInput) error {
 	sort.Strings(missing)
 
 	return errs.NewPermissionError(errs.SubtypeMissingScope,
-		"当前 %s 身份缺少本命令所需 scope: %s", in.Identity, strings.Join(missing, ", ")).
+		"the current %s identity is missing scopes this command needs: %s", in.Identity, strings.Join(missing, ", ")).
 		WithIdentity(string(in.Identity)).
 		WithMissingScopes(missing...).
 		WithHint("%s", scopeRemediationHint(in.Identity, missing))
@@ -169,7 +160,7 @@ func preflightScopesForScheme(f *cmdutil.Factory, id core.Identity, scheme strin
 	case id == core.AsUser:
 		required = prov.ScopesForIdentity(iagents.IdentityUser)
 		if len(required) == 0 {
-			return nil // no scopes to check (e.g. the example mock declares none)
+			return nil // no scopes to check (the provider declares none for this identity)
 		}
 		tokenScopes = storedUserScopes(f) // local keychain read, no network
 	case id.IsBot():

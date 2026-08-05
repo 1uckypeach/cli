@@ -36,35 +36,49 @@ lark-cli agents card <provider>:<agent_id> --operation all
 
 ## 输出
 
-示例（example，真实输出，`agents card example:echo`）：
+示例（base，真实输出，`agents card base:assistant --as user`）：
 
 ```json
 {
   "ok": true,
   "identity": "user",
   "data": {
-    "provider": "example",
-    "provider_label": "Example 演示 agent（内存 mock，零网络）",
-    "agent_id": "echo",
-    "name": "复读机",
-    "description": "把你发的话原样复读一遍（同一会话续发时带轮次，证明上下文记忆）。最小能力集示范。",
+    "provider": "base",
+    "provider_label": "Base Assistant",
+    "agent_id": "assistant",
+    "brand": "feishu",
+    "name": "Base Assistant",
+    "description": "Handles multi-component Base construction and restructuring, plus user-facing data retrieval and analysis. Use Base CLI shortcuts for a single atomic edit or record create, update, or delete.",
     "capabilities": {
       "artifact_download": false,
       "context_delete": true,
       "context_get": true,
       "context_list": true,
       "file_input": false,
-      "input_required": false,
-      "task_cancel": false,
+      "input_required": true,
+      "task_cancel": true,
       "task_get": true,
       "task_list": true
     },
     "identity": [
-      { "type": "user" },
-      { "type": "bot" }
+      { "type": "user" }
     ],
-    "has_parameters": [],
-    "agent_id_source": "运行 lark-cli agents list example 查看内置演示 agent 及其 agent_ref（无需任何平台配置）"
+    "has_parameters": [
+      "send", "task_get", "task_list", "task_cancel",
+      "context_list", "context_get", "context_delete"
+    ],
+    "agent_id_source": "Use the fixed agent reference base:assistant",
+    "skills": [
+      {
+        "id": "base_assistant",
+        "name": "Build and analyze a Base",
+        "examples": [
+          "Create an order table from the provided field list",
+          "Build a sales management workflow and dashboard",
+          "Analyze recent sales trends and explain the main changes"
+        ]
+      }
+    ]
   }
 }
 ```
@@ -79,7 +93,7 @@ lark-cli agents card <provider>:<agent_id> --operation all
 - **`--operation <动词|all>`**：参数契约子查询。`agents card <ref> --operation send` 返回 `{operation, supported, command, parameters:[{name,type,required,desc,enum?,default?,min?,max?}]}`——`command` 是该动词的命令形态（含 `<...>` 占位，照着替换）；`parameters:[]` = 该动词无参数；`supported:false` = 该 agent 未实现此动词。`--operation all` 返回 `operations` 全映射（要调多个动词时用它省往返）。动词拼错会报 `invalid_argument` 并列出合法动词全集。instance 型 provider 的输出带 `parameters_source:"template"`（模板级声明，具体 agent 以平台为准）。
 - **`name` / `description`**：部分 provider（典型是 catalog 型）的 card 带每 agent 的名称与描述；没有则据 `provider_label` + `agent_id` 向用户描述。
 - **`agent_id_source`**：拿 agent_id 的路径文案，用户没有 agent_id 时照这个引导。
-- 未知 agent_ref：catalog 型 provider 对不在目录里的 id 本地报 `invalid_argument`（exit 2，真实样例见 [provider-example](providers/lark-agents-example.md)）。
+- 未知 agent_ref：catalog 型 provider 对不在目录里的 id 本地报 `invalid_argument`（exit 2），message 形如 `unknown base agent 'nope'`，hint 指回 `agents list <scheme>`。
 
 ## 错误目录
 
@@ -87,11 +101,10 @@ lark-cli agents card <provider>:<agent_id> --operation all
 
 | 触发 | subtype | exit | message / hint（真实输出） |
 |---|---|---|---|
-| 畸形 agent_ref（如 `agents card no-colon`） | invalid_argument | 2 | `agent_ref 格式应为 <provider>:<agent_id>`；hint `agent_ref 形如 <scheme>:<agent_id>，如 example:echo` |
-| 非法 `--format`（如 `--format xml`） | invalid_argument | 2 | `不支持的 --format 值 "xml"`；hint `合法值: json \| pretty`；`param` 字段为 `--format` |
-| catalog 型未知 agent_id | invalid_argument | 2 | 真实样例见 [provider-example「服务端错误码目录」](providers/lark-agents-example.md) |
+| 畸形 agent_ref（如 `agents card no-colon`） | invalid_argument | 2 | `agent_ref must look like <provider>:<agent_id>`；hint `agent_ref looks like <scheme>:<agent_id>, e.g. base:assistant` |
+| 非法 `--format`（如 `--format xml`） | invalid_argument | 2 | `unsupported --format value "xml"`；hint `valid values: json \| pretty`；`param` 字段为 `--format` |
+| catalog 型未知 agent_id | invalid_argument | 2 | message 形如 `unknown base agent 'nope'`；hint `run lark-cli agents list base to see the available agents` |
 
 ## 参考
 
 - [lark-agents](../SKILL.md) — agent 全部动词
-- [provider-example](providers/lark-agents-example.md) — provider 业务事实

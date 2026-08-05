@@ -17,22 +17,23 @@ import (
 )
 
 // cardTestOpts builds a cardOptions driving agentCardRun against a real
-// (test) Factory. The example card is synthesized statically, so no API call
+// (test) Factory. The card is synthesized statically, so no API call
 // is made and stdout carries the capability card envelope.
 func cardTestOpts(t *testing.T, ref string) (*cardOptions, *core.CliConfig) {
 	t.Helper()
+	registerScripted()
 	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
 	f, _, _, _ := cmdutil.TestFactory(t, cfg)
 	cmd := resolveCmd(t, true, "bot") // reuses the common_test.go helper (--as=bot)
 	return &cardOptions{Factory: f, Cmd: cmd, Ref: ref, As: "bot", Format: "json"}, cfg
 }
 
-// TestAgentCardRun_ExampleStaticCard verifies that `agents card example:echo`
+// TestAgentCardRun_StaticCard verifies that `agents card fakecat:min`
 // returns the statically synthesized capability card (no API), with
 // task_cancel gated off and the three context_* caps on, and the agent_id
 // echoed from the ref.
-func TestAgentCardRun_ExampleStaticCard(t *testing.T) {
-	opts, _ := cardTestOpts(t, "example:echo")
+func TestAgentCardRun_StaticCard(t *testing.T) {
+	opts, _ := cardTestOpts(t, "fakecat:min")
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 
 	if err := agentCardRun(opts); err != nil {
@@ -50,11 +51,11 @@ func TestAgentCardRun_ExampleStaticCard(t *testing.T) {
 	if !ok {
 		t.Fatalf("data should be a card object, got %T", env.Data)
 	}
-	if data["agent_id"] != "echo" {
+	if data["agent_id"] != "min" {
 		t.Errorf("agent_id should echo the ref, got %v", data["agent_id"])
 	}
-	if data["provider"] != "example" {
-		t.Errorf("provider should be example, got %v", data["provider"])
+	if data["provider"] != "fakecat" {
+		t.Errorf("provider should be fakecat, got %v", data["provider"])
 	}
 	// source was removed from the card (schema tightening).
 	if _, present := data["source"]; present {
@@ -65,18 +66,18 @@ func TestAgentCardRun_ExampleStaticCard(t *testing.T) {
 		t.Fatalf("capabilities should be an object, got %T", data["capabilities"])
 	}
 	if caps["task_cancel"] != false {
-		t.Errorf("echo task_cancel should be false, got %v", caps["task_cancel"])
+		t.Errorf("fakecat:min task_cancel should be false, got %v", caps["task_cancel"])
 	}
 	if caps["context_list"] != true || caps["context_get"] != true || caps["context_delete"] != true {
-		t.Errorf("echo should support the three context capabilities, got %v", caps)
+		t.Errorf("fakecat:min should support the three context capabilities, got %v", caps)
 	}
 	// The lean card embeds NO parameter details; has_parameters is the always-
-	// emitted (non-null) cue. echo declares no params ⇒ []; the old parameters
+	// emitted (non-null) cue. fakecat:min declares no params ⇒ []; the old parameters
 	// field must be gone entirely.
 	if hp, ok := data["has_parameters"].([]interface{}); !ok {
 		t.Errorf("has_parameters should be a non-null array, got %T (%v)", data["has_parameters"], data["has_parameters"])
 	} else if len(hp) != 0 {
-		t.Errorf("echo has_parameters should be empty, got %v", hp)
+		t.Errorf("fakecat:min has_parameters should be empty, got %v", hp)
 	}
 	if _, present := data["parameters"]; present {
 		t.Errorf("the lean card must not embed a parameters field (use --operation), got %v", data["parameters"])
@@ -145,7 +146,7 @@ func TestAgentCardRun_UserOnlyProviderRemainsDiscoverable(t *testing.T) {
 // The output must surface the identity and capability names in plain text so
 // the stream is not valid envelope JSON.
 func TestAgentCardRun_PrettyFormat(t *testing.T) {
-	opts, _ := cardTestOpts(t, "example:echo")
+	opts, _ := cardTestOpts(t, "fakecat:min")
 	opts.Format = "pretty"
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 
@@ -159,10 +160,10 @@ func TestAgentCardRun_PrettyFormat(t *testing.T) {
 	if json.Unmarshal(out.Bytes(), &env) == nil && env.OK {
 		t.Fatalf("pretty format should not output a JSON envelope: %s", text)
 	}
-	if !strings.Contains(text, "echo") {
+	if !strings.Contains(text, "min") {
 		t.Errorf("pretty output should contain agent_id: %s", text)
 	}
-	// context_list is a declared capability of the echo card; it must appear.
+	// context_list is a declared capability of the fakecat:min card; it must appear.
 	if !strings.Contains(text, "context_list") {
 		t.Errorf("pretty output should list capabilities: %s", text)
 	}
@@ -170,7 +171,7 @@ func TestAgentCardRun_PrettyFormat(t *testing.T) {
 
 // TestAgentCardRun_JSONFormat pins that --format json still emits the envelope.
 func TestAgentCardRun_JSONFormat(t *testing.T) {
-	opts, _ := cardTestOpts(t, "example:echo")
+	opts, _ := cardTestOpts(t, "fakecat:min")
 	opts.Format = "json"
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 
@@ -198,13 +199,13 @@ func TestAgentCardJqFlagRegisteredAndConsumed(t *testing.T) {
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
 	cmd.SetContext(context.Background())
-	cmd.SetArgs([]string{"example:echo", "--as", "bot", "--jq", ".data.agent_id"})
+	cmd.SetArgs([]string{"fakecat:min", "--as", "bot", "--jq", ".data.agent_id"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("card --jq should not error: %v", err)
 	}
 	out := f.IOStreams.Out.(interface{ Bytes() []byte })
 	got := strings.TrimSpace(string(out.Bytes()))
-	if !strings.Contains(got, "echo") || strings.Contains(got, `"ok"`) {
+	if !strings.Contains(got, "min") || strings.Contains(got, `"ok"`) {
 		t.Errorf("--jq .data.agent_id should output only the filtered result, got %q", got)
 	}
 }
@@ -226,13 +227,13 @@ func TestPrintCardPretty_NilCard(t *testing.T) {
 func TestPrintCardPretty_AllOptionalFields(t *testing.T) {
 	card := &iagents.AgentCard{
 		Provider:      "demo",
-		ProviderLabel: "demo 自定义智能体",
+		ProviderLabel: "demo custom agent",
 		Name:          "Demo Agent", // only dynamic cards have Name; it should override ProviderLabel
 		AgentID:       "agt_demo",
 		Description:   "a helpful demo agent",
 		Identity: []iagents.IdentitySpec{
 			{Type: "user"},
-			{Type: "bot", Precondition: "需加入渠道白名单"},
+			{Type: "bot", Precondition: "must be on the channel allowlist"},
 		},
 		Capabilities: iagents.Capabilities{
 			ContextList: true,
@@ -249,14 +250,14 @@ func TestPrintCardPretty_AllOptionalFields(t *testing.T) {
 	text := out.String()
 
 	for _, want := range []string{
-		"Demo Agent (agt_demo)", // dynamic Name takes precedence over ProviderLabel
-		"a helpful demo agent",  // Description branch
-		"identity: user, bot",   // IdentitySpec types are joined
-		"需加入渠道白名单",              // identity precondition must be visible in pretty (Task 11 wrap-up)
-		"parameters: send",      // has_parameters cue + --operation pointer
-		"skills:",               // Skills block header
-		"Sales Analysis",        // skill with a Name
-		"sk_2",                  // skill without a Name → id fallback
+		"Demo Agent (agt_demo)",            // dynamic Name takes precedence over ProviderLabel
+		"a helpful demo agent",             // Description branch
+		"identity: user, bot",              // IdentitySpec types are joined
+		"must be on the channel allowlist", // identity precondition must be visible in pretty
+		"parameters: send",                 // has_parameters cue + --operation pointer
+		"skills:",                          // Skills block header
+		"Sales Analysis",                   // skill with a Name
+		"sk_2",                             // skill without a Name → id fallback
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("pretty output should contain %q, got:\n%s", want, text)
@@ -290,12 +291,12 @@ func TestPrintCardPretty_StripsANSIFromRemoteFields(t *testing.T) {
 func TestPrintCardPretty_StaticFallsBackToProviderLabel(t *testing.T) {
 	card := &iagents.AgentCard{
 		Provider:      "demo",
-		ProviderLabel: "demo 自定义智能体",
+		ProviderLabel: "demo custom agent",
 		AgentID:       "agt_demo",
 	}
 	out := &bytes.Buffer{}
 	printCardPretty(out, card)
-	if !strings.Contains(out.String(), "demo 自定义智能体 (agt_demo)") {
+	if !strings.Contains(out.String(), "demo custom agent (agt_demo)") {
 		t.Errorf("should fall back to ProviderLabel when Name is empty, got:\n%s", out.String())
 	}
 }
@@ -319,7 +320,7 @@ func TestNewCmdAgentCard_ReadRiskAndArgs(t *testing.T) {
 	if err := cmd.Args(cmd, []string{}); err == nil {
 		t.Error("agents card missing ref should report an argument error (ExactArgs 1)")
 	}
-	if err := cmd.Args(cmd, []string{"example:x"}); err != nil {
+	if err := cmd.Args(cmd, []string{"fakeflow:x"}); err != nil {
 		t.Errorf("agents card with a single ref should be valid: %v", err)
 	}
 	fl := cmd.Flags().Lookup("format")

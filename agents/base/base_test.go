@@ -635,16 +635,16 @@ func TestVersionedTaskUsesLatestPendingClarification(t *testing.T) {
 		TaskID:        "t1",
 		Status:        "waiting_for_input",
 		Outputs: []adapterOutput{
-			{Type: "clarification", Clarification: &adapterClarification{ID: "old", Title: "旧问题", Required: true}},
-			{Type: "text", Text: "处理中"},
-			{Type: "clarification", Clarification: &adapterClarification{ID: "new", Title: "新问题", Required: true}},
+			{Type: "clarification", Clarification: &adapterClarification{ID: "old", Title: "old question", Required: true}},
+			{Type: "text", Text: "working"},
+			{Type: "clarification", Clarification: &adapterClarification{ID: "new", Title: "new question", Required: true}},
 		},
 	}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if task.InputRequired == nil || len(task.InputRequired.Questions) != 1 ||
-		task.InputRequired.Questions[0].QuestionID != "new" || task.InputRequired.Questions[0].Question != "新问题" {
+		task.InputRequired.Questions[0].QuestionID != "new" || task.InputRequired.Questions[0].Question != "new question" {
 		t.Fatalf("input_required=%+v", task.InputRequired)
 	}
 }

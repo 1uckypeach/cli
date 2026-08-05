@@ -16,7 +16,7 @@ type PageParams struct {
 // the opaque cursor the caller echoes back (as PageParams.Token) to fetch the
 // following page; an empty NextToken with HasMore=false marks the last page. The
 // framework surfaces it as meta.has_more / meta.page_token and, when there is a
-// next page, a ready-made "下一页" next-action command.
+// next page, a ready-made "next page" next-action command.
 type PageInfo struct {
 	NextToken string // opaque cursor for the next page; "" = last page
 	HasMore   bool

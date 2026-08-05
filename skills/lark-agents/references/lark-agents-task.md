@@ -12,8 +12,8 @@
 # 单次查状态（观察到任意状态 → exit 0）
 lark-cli agents task get <provider>:<agent_id> <task-id>
 
-# 有界轮询：最多 watch 30s；到点未终止 → 照 meta.next 再 watch
-lark-cli agents task get <provider>:<agent_id> <task-id> --watch --timeout 30s
+# 有界轮询：最多 watch 90s；到点未终止 → 照 meta.next 再 watch
+lark-cli agents task get <provider>:<agent_id> <task-id> --watch --timeout 90s
 
 # 无界轮询：--watch 单用阻塞到终态（长任务慎用）
 lark-cli agents task get <provider>:<agent_id> <task-id> --watch
@@ -26,7 +26,7 @@ lark-cli agents task get <provider>:<agent_id> <task-id> --artifact <artifact-id
 |------|------|------|
 | `<agent_ref> <task-id>` | 是 | 两个位置参数 |
 | `--watch` | 否 | 轮询直到停轮询条件（权威定义见 [SKILL.md 核心概念](../SKILL.md)）；终态非成功 → exit 1 |
-| `--timeout <dur>` | 否 | watch 的时间上界，如 `30s`；`0`=无界（阻塞到终态）；**须与 `--watch` 同用**，否则报 `invalid_argument`；到点未终止 → 返回当前状态 + 续 watch 命令 |
+| `--timeout <dur>` | 否 | watch 的时间上界，如 `90s`；`0`=无界（阻塞到终态）；**须与 `--watch` 同用**，否则报 `invalid_argument`；到点未终止 → 返回当前状态 + 续 watch 命令 |
 | `--artifact <id>` | 否 | 下载该产物，不打印任务详情；**须配 `-o`** |
 | `-o/--output <file>` | 视上 | 落盘路径（相对、限 CWD 内）。目标已存在时**默认拒绝覆盖**，须加 `--force`（见下） |
 | `--force` | 视上 | 允许覆盖 `-o` 已存在的目标文件；不加则报 `confirmation_required`（exit 10）、不下载、不动原文件 |
@@ -35,7 +35,7 @@ lark-cli agents task get <provider>:<agent_id> <task-id> --artifact <artifact-id
 
 **退出码**：单次 get 观察到任意状态 → `0`；API/资源错误按对应错误码（如 `not_found` → `1`）。`--watch` 观察到终态 `completed` → `0`，`failed`/`rejected`/`canceled` → `1`（任务真失败）；轮询被中断或 `--timeout` 到点打印当前状态 → `0`。
 
-示例（example，真实输出）——`completed` 终态，文本型结果（节选，`agents task get example:echo task_1e86e7145e41`，即 [send 示例](lark-agents-send.md) 里 `meta.next` 推的那条命令）：
+结构示例（envelope 形状由框架契约固定，与 provider 无关；下例为 `agents task get <agent_ref> task_1e86e7145e41` 的 `completed` 终态、文本型结果节选，即 [send 示例](lark-agents-send.md) 里 `meta.next` 推的那条命令）：
 
 ```json
 {
@@ -47,12 +47,12 @@ lark-cli agents task get <provider>:<agent_id> <task-id> --artifact <artifact-id
     "created_at": "2026-07-11T12:35:12Z", "updated_at": "2026-07-11T12:35:12Z",
     "messages": [
       { "role": "user", "parts": [ { "type": "text", "text": "分析一下上季度销售数据" } ] },
-      { "role": "agent", "parts": [ { "type": "text", "text": "分析一下上季度销售数据" } ] } ]
+      { "role": "agent", "parts": [ { "type": "text", "text": "上季度销售额环比增长 12%……" } ] } ]
   }
 }
 ```
 
-产物型结果（example:reporter，真实输出节选）：
+产物型结果（结构示例节选，需 agent 的 `artifact_download` 能力为 true）：
 
 ```json
 { "data": { "task_id": "task_f52fcd84a895", "state": "completed", "is_terminal": true,
@@ -89,7 +89,7 @@ lark-cli agents task list <provider>:<agent_id> --page-token <token>    # 取下
 lark-cli agents task cancel <provider>:<agent_id> <task-id>
 ```
 
-card `task_cancel=false` 的 agent → **直接返回 `unsupported_capability`（exit 2），不发请求**。先读 [card](lark-agents-card.md) 确认能力再调。示例（example，真实输出）：
+card `task_cancel=false` 的 agent → **直接返回 `unsupported_capability`（exit 2），不发请求**。先读 [card](lark-agents-card.md) 确认能力再调。结构示例：
 
 ```json
 {
@@ -97,8 +97,8 @@ card `task_cancel=false` 的 agent → **直接返回 `unsupported_capability`�
   "error": {
     "type": "validation",
     "subtype": "unsupported_capability",
-    "message": "agent 'example:echo' 不支持 'task cancel'（capability task_cancel=false）",
-    "hint": "运行 lark-cli agents card example:echo 查看支持的能力"
+    "message": "agent '<provider>:<agent_id>' does not support 'task cancel' (capability task_cancel=false)",
+    "hint": "run lark-cli agents card <provider>:<agent_id> to see the supported capabilities"
   }
 }
 ```
@@ -107,15 +107,14 @@ card `task_cancel=false` 的 agent → **直接返回 `unsupported_capability`�
 
 | 触发 | subtype | exit | message（示例） |
 |---|---|---|---|
-| `task cancel`（能力为 false） | unsupported_capability | 2 | 见上方真实输出 |
-| `--artifact` 缺 `-o` | invalid_argument | 2 | `--artifact 需配合 -o/--output 指定落盘路径` |
-| artifact url 命中私网 | invalid_argument | 2 | `被拦截的产物 URL: ...` |
-| 非法 `-o` 路径 | invalid_argument | 2 | `非法的 -o 路径: ...` |
-| `-o` 目标已存在且缺 `--force` | confirmation_required | 10 | `目标文件已存在，覆盖会不可逆地毁掉本地内容: <path>`；hint `确认要覆盖后加 --force 重跑，或换一个 -o 路径`。下载前即拒、原文件不动 |
+| `task cancel`（能力为 false） | unsupported_capability | 2 | 见上方结构示例 |
+| `--artifact` 缺 `-o` | invalid_argument | 2 | `--artifact requires -o/--output to name the save path` |
+| artifact url 命中私网 | invalid_argument | 2 | `blocked artifact URL: ...` |
+| 非法 `-o` 路径 | invalid_argument | 2 | `invalid -o path: ...` |
+| `-o` 目标已存在且缺 `--force` | confirmation_required | 10 | `the target file already exists; overwriting would irreversibly destroy local content: <path>`；hint `add --force to confirm overwriting, or choose a different -o path`。下载前即拒、原文件不动 |
 | 缺 scope | missing_scope | 3 | 本地 preflight；语义与修复路径的唯一权威见 [SKILL.md 前置准备](../SKILL.md) |
-| task id 不存在 | 依 provider | 1 或 2 | 本地目录型（example）报 `invalid_argument`（exit 2，hint 指回 `agents task list`）；真实 provider 服务端资源不存在通常为 `not_found`（exit 1）。先 `agents task list <agent_ref>` 核对 id |
+| task id 不存在 | 依 provider | 1 或 2 | 离线目录型 provider 报 `invalid_argument`（exit 2，hint 指回 `agents task list`）；服务端资源不存在通常为 `not_found`（exit 1）。先 `agents task list <agent_ref>` 核对 id |
 
 ## 参考
 
 - [lark-agents](../SKILL.md) — agent 全部动词
-- [provider-example](providers/lark-agents-example.md) — provider 业务事实

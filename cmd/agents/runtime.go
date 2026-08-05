@@ -69,7 +69,7 @@ func (r *cmdRuntime) CallMultipart(ctx context.Context, method, path string, fie
 		}
 		f, err := vfs.Open(resolved)
 		if err != nil {
-			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--file: 无法打开 %s: %v", fp.Path, err).
+			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--file: cannot open %s: %v", fp.Path, err).
 				WithParam("--file").WithCause(err)
 		}
 		// Closed when CallMultipart returns, i.e. after do()'s request has read the

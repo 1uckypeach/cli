@@ -67,22 +67,22 @@ func NewCmdAgentSend(f *cmdutil.Factory, runF func(*sendOptions) error) *cobra.C
 			return agentSendRun(opts)
 		},
 	}
-	cmd.Flags().StringVar(&opts.Text, "text", "", "消息的自由文本部分：起任务/续聊的正文，或随 --answer 的整体附言（--text 永远不是某道题的答案）")
-	cmd.Flags().StringArrayVar(&opts.Files, "file", nil, "随消息外发的本地文件路径，可重复；文件会被上传到远端 provider（内容离开本机）")
+	cmd.Flags().StringVar(&opts.Text, "text", "", "free-text part of the message: the body when starting or continuing a task, or an overall remark alongside --answer (--text is never one question's answer)")
+	cmd.Flags().StringArrayVar(&opts.Files, "file", nil, "local file to send with the message, repeatable; the file is uploaded to the remote provider (content leaves this machine)")
 	addParamFlag(cmd, &opts.Params)
-	cmd.Flags().StringVar(&opts.ContextID, "context-id", "", "多轮上下文 id（续发同一会话）")
-	cmd.Flags().StringVar(&opts.TaskID, "task-id", "", "向已有任务续发（须与 --context-id 一起用）")
-	cmd.Flags().StringArrayVar(&opts.Answers, "answer", nil, "回答 input_required 问题组，可重复：给选项键用 <question_id>=<option_id>（多选重复同 key），给文字用 <question_id>.text=<文本>；须与 --context-id/--task-id 一起用")
-	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "只做本地校验并打印请求预览，不调用 API")
-	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "确认用 --file 把本地文件外发上传到远端（不加则 exit 10，不上传）")
+	cmd.Flags().StringVar(&opts.ContextID, "context-id", "", "multi-turn context id (continue the same conversation)")
+	cmd.Flags().StringVar(&opts.TaskID, "task-id", "", "continue an existing task (requires --context-id)")
+	cmd.Flags().StringArrayVar(&opts.Answers, "answer", nil, "answer the pending input_required question group, repeatable: <question_id>=<option_id> for a choice question (repeat the key for multi-select), <question_id>.text=<text> for free text; requires --context-id/--task-id")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "validate locally and print the request preview without calling the API")
+	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "confirm uploading the files named by --file to the remote agent (without it: exit 10, nothing uploaded)")
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
-	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
+	cmd.Flags().String("jq", "", "filter the JSON output with a jq expression")
 	if f != nil {
 		cmdutil.AddAPIIdentityFlag(cmd.Context(), cmd, f, &opts.As)
 	} else {
 		// f is nil only in construction-time unit tests; register a bare --as so
 		// the flag surface is still assertable without a Factory.
-		cmd.Flags().StringVar(&opts.As, "as", "", "identity type: user | bot")
+		cmd.Flags().StringVar(&opts.As, "as", "", "identity type: user | bot (the identities an agent actually supports are listed by agents card)")
 	}
 	cmdutil.SetRisk(cmd, cmdutil.RiskWrite)
 	return cmd
@@ -109,33 +109,33 @@ const (
 // at the provider would send the AI down the wrong recovery branch.
 var answerKeyPattern = regexp.MustCompile(`^` + iagents.KeyCharsetRE + `(\.text)?$`)
 
-// parseAnswers parses the raw --answer key=value entries into the §10.1 map
-// encoding (values in argv order), running every offline guard in one
+// parseAnswers parses the raw --answer key=value entries into the map encoding
+// (values in argv order), running every offline guard in one
 // collect-all pass so a multi-error submission is fixed in one round-trip:
 // key=value shape, key grammar, non-empty value, no duplicate .text entry per
 // question. Exact duplicate bare values are deduplicated (an AI retry glitch is
 // idempotent, not an error). Semantic validation (does the qid exist, is the
 // value a legal option) is deliberately NOT here — the CLI is stateless and
-// does not hold the question group; that is the provider's policy (§6.3).
+// does not hold the question group; that is the provider's policy.
 func parseAnswers(raw []string) (map[string][]string, error) {
 	answers := make(map[string][]string, len(raw))
 	var viols []string
 	for _, entry := range raw {
 		key, value, ok := strings.Cut(entry, "=")
 		if !ok {
-			viols = append(viols, fmt.Sprintf("%s（非 key=value 形）", entry))
+			viols = append(viols, fmt.Sprintf("%s (not in key=value form)", entry))
 			continue
 		}
 		if !answerKeyPattern.MatchString(key) {
-			viols = append(viols, fmt.Sprintf("%s（key 非法：合法形态只有 <question_id> 与 <question_id>.text）", key))
+			viols = append(viols, fmt.Sprintf("%s (invalid key: the only legal forms are <question_id> and <question_id>.text)", key))
 			continue
 		}
 		if value == "" {
-			viols = append(viols, fmt.Sprintf("%s（空答案无意义：选项题给 option_id、文字给非空文本；不想答的题不要带这个 key）", key))
+			viols = append(viols, fmt.Sprintf("%s (an empty answer means nothing: give an option_id for a choice question, non-empty text otherwise; omit the key for a question you do not want to answer)", key))
 			continue
 		}
 		if _, isText := iagents.SplitAnswerKey(key); isText && len(answers[key]) > 0 {
-			viols = append(viols, fmt.Sprintf("%s（同一题的 .text 只能出现一次，文本不累积）", key))
+			viols = append(viols, fmt.Sprintf("%s (.text may appear only once per question; text does not accumulate)", key))
 			continue
 		}
 		dup := false
@@ -151,9 +151,9 @@ func parseAnswers(raw []string) (map[string][]string, error) {
 	}
 	if len(viols) > 0 {
 		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"非法的 --answer: %s", strings.Join(viols, "；")).
+			"invalid --answer: %s", strings.Join(viols, "; ")).
 			WithParam("--answer").
-			WithHint("给选项键用 --answer <question_id>=<option_id>（多选重复同 key），给文字用 --answer <question_id>.text=<文本>，逐条修正后整组重发")
+			WithHint("use --answer <question_id>=<option_id> for a choice question (repeat the key for multi-select) and --answer <question_id>.text=<text> for free text; fix each entry and resubmit the whole group")
 	}
 	return answers, nil
 }
@@ -172,9 +172,9 @@ func deriveSendMode(opts *sendOptions) (sendMode, map[string][]string, error) {
 		// answer: continues the pending group's own task, so both ids are required.
 		if opts.ContextID == "" || opts.TaskID == "" {
 			return "", nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
-				"回答问题组需同时提供 --context-id 与 --task-id").
+				"answering a question group requires both --context-id and --task-id").
 				WithParam("--answer").
-				WithHint("--answer 必须与该问题组所属任务的 --context-id/--task-id 一起提供（照抄 task get 输出 meta.next 的命令模板）")
+				WithHint("--answer must come with the --context-id/--task-id of the task holding the group (copy the command template from meta.next of task get)")
 		}
 		answers, err := parseAnswers(opts.Answers)
 		if err != nil {
@@ -186,14 +186,14 @@ func deriveSendMode(opts *sendOptions) (sendMode, map[string][]string, error) {
 	}
 	if opts.TaskID != "" && opts.ContextID == "" {
 		return "", nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"--task-id 需与 --context-id 一起使用").
+			"--task-id must be used together with --context-id").
 			WithParam("--task-id").
-			WithHint("补充 --context-id <ctx-id> 后重发；该任务所属会话可用 lark-cli agents task get <agent_ref> <task-id> 输出的 context_id 确认")
+			WithHint("add --context-id <ctx-id> and resend; the task's context_id is in the output of lark-cli agents task get <agent_ref> <task-id>")
 	}
 	if !hasText {
-		return "", nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--text 必须包含非空白字符").
+		return "", nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--text must contain non-whitespace characters").
 			WithParam("--text").
-			WithHint(`补充 --text "<消息内容>" 后重发；若在回答问题组，用 --answer <question_id>=<option_id> 或 --answer <question_id>.text=<文本>`)
+			WithHint(`add --text "<message>" and resend; to answer a question group use --answer <question_id>=<option_id> or --answer <question_id>.text=<text>`)
 	}
 	if opts.ContextID != "" {
 		return modeContinue, nil, nil
@@ -246,37 +246,35 @@ func agentSendRun(opts *sendOptions) error {
 		Answers:   answers,
 	}
 
-	// --dry-run is a client-side behavior: always available, never
-	// gated by the Card's dry_run capability, and never touches the API.
+	// Capability gates run BEFORE the dry-run branch so a preview is never a
+	// capability bypass: an agent that declares input_required=false / file_input=false
+	// rejects --answer / --file with unsupported_capability whether or not --dry-run
+	// is set — the gate is a local Card check, no network, so the verdict must match
+	// a real send. (The CONFIRMATION gate for --file stays AFTER dry-run below, since
+	// dry-run uploads nothing and is exempt from --yes.)
+	if len(in.Answers) > 0 && !card.Supports(iagents.CapInputRequired) {
+		return capabilityError(opts.Ref, "send with --answer", iagents.CapInputRequired)
+	}
+	if len(in.Files) > 0 && !card.Supports(iagents.CapFileInput) {
+		return capabilityError(opts.Ref, "send with --file", iagents.CapFileInput)
+	}
+
+	// --dry-run is a client-side behavior: always available, never gated by a
+	// dry_run capability, and never touches the API. The capability gates above
+	// have already run; only the confirmation gate below is dry-run-exempt.
 	if opts.DryRun {
 		return emitDryRun(f, opts.Cmd, opts.Ref, in, vp.Resolved, opts.Format)
 	}
 
-	// An agent that never enters input_required cannot take a group answer, so
-	// --answer against it is unsupported_capability — gated offline (mirrors the
-	// --file/file_input gate) to save the caller a doomed round-trip.
-	if len(in.Answers) > 0 && !card.Supports(iagents.CapInputRequired) {
-		return capabilityError(opts.Ref, "send with --answer", iagents.CapInputRequired)
-	}
-
-	if len(in.Files) > 0 {
-		// An agent that does not declare file_input cannot take an upload, so
-		// --file against it is unsupported_capability — gated before any network
-		// access, so the user is not told "confirm the upload" for a send that
-		// would be rejected anyway.
-		if !card.Supports(iagents.CapFileInput) {
-			return capabilityError(opts.Ref, "send with --file", iagents.CapFileInput)
-		}
-		// --file exfiltrates local file content off this machine (the provider
-		// reads the file and uploads it to the remote agent). That is an
-		// irreversible, CLI-enforced high-risk write: a real send that would upload
-		// requires --yes, returning confirmation_required (exit 10) before any
-		// network access. dry-run above is exempt — it never uploads.
-		if !opts.Yes {
-			return errs.NewConfirmationRequiredError(errs.RiskHighRiskWrite, "agents send --file",
-				"--file 会把本地文件外发上传到远端 agent（内容离开本机，不可撤回）").
-				WithHint("确认要外发这些文件后，加 --yes 重发")
-		}
+	// --file exfiltrates local file content off this machine (the provider reads
+	// the file and uploads it to the remote agent). That is an irreversible,
+	// CLI-enforced high-risk write: a real send that would upload requires --yes,
+	// returning confirmation_required (exit 10) before any network access. dry-run
+	// above is exempt — it never uploads.
+	if len(in.Files) > 0 && !opts.Yes {
+		return errs.NewConfirmationRequiredError(errs.RiskHighRiskWrite, "agents send --file",
+			"--file uploads local file content to the remote agent (it leaves this machine and cannot be recalled)").
+			WithHint("add --yes to confirm sending these files")
 	}
 
 	// A real send calls the API, so it needs a configured client; build the
@@ -317,24 +315,24 @@ func validateSendFiles(files []string) error {
 	for _, p := range files {
 		abs, err := validate.SafeInputPath(p)
 		if err != nil {
-			viols = append(viols, fmt.Sprintf("%s（仅接受 CWD 内的相对路径）", p))
+			viols = append(viols, fmt.Sprintf("%s (only relative paths inside the CWD are accepted)", p))
 			continue
 		}
 		st, err := os.Stat(abs)
 		switch {
 		case err != nil:
-			viols = append(viols, fmt.Sprintf("%s（文件不存在或不可读）", p))
+			viols = append(viols, fmt.Sprintf("%s (does not exist or is not readable)", p))
 		case st.IsDir():
-			viols = append(viols, fmt.Sprintf("%s（是目录，--file 只接受文件）", p))
+			viols = append(viols, fmt.Sprintf("%s (is a directory; --file accepts files only)", p))
 		}
 	}
 	if len(viols) == 0 {
 		return nil
 	}
 	return errs.NewValidationError(errs.SubtypeInvalidArgument,
-		"非法的 --file 路径: %s", strings.Join(viols, "；")).
+		"invalid --file path: %s", strings.Join(viols, "; ")).
 		WithParam("--file").
-		WithHint("--file 只接受当前目录内的相对路径且文件必须存在，逐条修正后重发")
+		WithHint("--file accepts only existing files at relative paths inside the current directory; fix each one and resend")
 }
 
 // emitDryRun writes the dry-run preview: {dry_run:true, would_send:{…}}
@@ -373,7 +371,7 @@ func emitDryRun(f *cmdutil.Factory, cmd *cobra.Command, ref string, in iagents.S
 		would["files"] = in.Files
 	}
 	if len(params) > 0 {
-		// Default 回填后的终值：预演即所得。
+		// Final values after default backfill: preview equals what is sent.
 		would["params"] = params
 	}
 	if in.ContextID != "" {
@@ -383,7 +381,7 @@ func emitDryRun(f *cmdutil.Factory, cmd *cobra.Command, ref string, in iagents.S
 		would["task_id"] = in.TaskID
 	}
 	if len(in.Answers) > 0 {
-		// §10.1 键编码原样预览：预演即所得。
+		// The key encoding is previewed verbatim: preview equals what is sent.
 		would["answers"] = in.Answers
 	}
 	env := output.Envelope{
@@ -404,16 +402,13 @@ func emitDryRun(f *cmdutil.Factory, cmd *cobra.Command, ref string, in iagents.S
 
 // nextIDPattern is the character whitelist for server-supplied identifiers
 // (task_id / context_id / question_id) before they are interpolated into a
-// meta.next command string: first character alphanumeric, then letters, digits,
-// '_' and '-'. It is deliberately stricter than validate.ResourceName — that
-// check is a denylist aimed at URL-path safety and would pass shell
-// metacharacters (spaces, ';', backticks, quotes), which are exactly what
-// matters here: meta.next is defined as "AI executes this verbatim", so a
-// server-controlled id is a command-injection surface. The alphanumeric first
-// character additionally rejects flag-lookalike ids ("--text", "-o") that would
-// survive a bare charset test yet hijack the flag surface when an AI re-composes
-// the command. It matches iagents.KeyPattern by construction — the two layers
-// must agree or a key accepted at one becomes a dead end at the other.
+// meta.next command: alphanumeric first character, then letters, digits, '_' and
+// '-'. It is deliberately stricter than validate.ResourceName, which is a
+// URL-path denylist and would pass shell metacharacters — and meta.next is
+// executed verbatim, so a server-controlled id is a command-injection surface.
+// The alphanumeric first character also rejects flag-lookalike ids ("--text",
+// "-o") that would hijack the flag surface. It matches iagents.KeyPattern by
+// construction; the two layers must agree.
 var nextIDPattern = regexp.MustCompile(`^` + iagents.KeyCharsetRE + `$`)
 
 // safeNextID reports whether s may be interpolated into a meta.next command.
@@ -421,13 +416,10 @@ func safeNextID(s string) bool {
 	return nextIDPattern.MatchString(s)
 }
 
-// nextRefPattern is the whitelist for a user-supplied ref before it is
-// interpolated into a meta.next command or a hint command string: the
-// safeNextID charset on both sides of exactly one ':' (the <scheme>:<agent_id>
-// shape ParseRef accepts, further restricted to command-safe characters). A
-// ref is not server-controlled — the threat model is not injection but
-// copy-paste breakage (a ref with spaces/quotes yields a command that cannot
-// be executed verbatim), so a failing ref simply drops the command hint.
+// nextRefPattern is the whitelist for a user-supplied ref before interpolation
+// into a meta.next or hint command: the safeNextID charset on both sides of one
+// ':'. A ref is not server-controlled, so the threat model is copy-paste breakage
+// rather than injection — a failing ref simply drops the command hint.
 var nextRefPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$`)
 
 // safeNextRef reports whether ref may be interpolated into a meta.next / hint
@@ -436,30 +428,20 @@ func safeNextRef(ref string) bool {
 	return nextRefPattern.MatchString(ref)
 }
 
-// nextForTask builds the meta.next[] hints for a send result: a terminal task
-// suggests fetching its artifacts / detail, a still-running task the poll
-// command, an input_required task the continue command, and an auth_required
-// task the re-authorize flow (auth login, not a text continuation). AI callers use
-// these to chain the next step without guessing the command shape, so every
-// value interpolated here must pass its whitelist first: the ref (safeNextRef)
-// and the task_id (safeNextID) each suppress the whole hint when they fail
-// (prefer dropping the hint over risking injection); a failing context_id
-// degrades to the <context_id> placeholder,
-// which keeps the hint while interpolating nothing untrusted. A hint whose
-// command carries <...> placeholders is marked Template so callers know it
-// needs substitution before execution.
-// nextForTask additionally carries business parameters for the TARGET verb of
-// each suggested command per the three-way rule (see paramArgsFor): given
-// values that pass the whitelist ride literally, whitelist failures degrade
-// required params to placeholders, and target-verb-required params the caller
-// never provided are added as placeholders — so a required parameter is
-// structurally incapable of falling off the chain. given is what the caller
-// explicitly provided this call (never backfilled defaults); spec may be nil
-// in construction-time tests (no params are carried then).
-// caller is the verb that produced this output: a terminal task viewed via
-// task get must NOT suggest the very command the caller just ran (a naive AI
-// following meta.next verbatim would loop on itself); the artifact downloads
-// remain the only genuine increment there.
+// nextForTask builds the meta.next[] hints for a task: terminal → read the
+// detail / download artifacts, still running → the bounded poll, input_required
+// → the answer command, auth_required → the re-authorize flow (auth login, not a
+// text continuation). Callers execute these verbatim, so everything interpolated
+// passes a whitelist first: a failing ref or task_id suppresses the whole hint,
+// while a failing context_id degrades to the <context_id> placeholder. A command
+// carrying <...> is marked Template.
+//
+// Business parameters for each suggested command's TARGET verb ride along per the
+// three-way rule (see paramArgsFor), so a required parameter cannot fall off the
+// chain. given is only what the caller explicitly provided; spec may be nil in
+// construction-time tests. caller is the verb that produced this output: task get
+// must not suggest the command just run, or a caller following meta.next
+// verbatim would loop on itself.
 func nextForTask(ref string, task *iagents.AgentTask, spec *iagents.AgentSpec, given map[string]string, caller string) []output.NextAction {
 	if !safeNextRef(ref) {
 		return nil
@@ -469,35 +451,31 @@ func nextForTask(ref string, task *iagents.AgentTask, spec *iagents.AgentSpec, g
 	}
 	if task.State.ShouldStopPolling() {
 		if task.State == iagents.StateAuthRequired {
-			// auth_required is an agent-side task state — the end user must
-			// (re)authorize in the agent (see the SKILL state semantics), NOT a CLI scope error and
-			// NOT a text continuation like input_required. Point at the auth
-			// re-authorize flow instead of a text continuation. The concrete scopes are the
-			// agent's declared scope set (see the lark-agents skill's prerequisites), so --scope is a
-			// placeholder → Template. ref/task_id are already whitelisted above, so
-			// echoing the re-check command in the label is safe.
-			// label 内嵌的重查命令按三分规则补 task_get 的参数携带——auth_required
-			// 是唯一不指向 agent 子树的 next，链传规则同样不许在这条路上丢必填。
+			// auth_required is an agent-side task state: the end user must
+			// (re)authorize in the agent. It is neither a CLI scope error nor a text
+			// continuation like input_required, so point at the re-authorize flow.
+			// The concrete scopes are the agent's own declared set, so --scope stays a
+			// placeholder → Template. ref/task_id are whitelisted above, so echoing
+			// the re-check command in the label is safe; it carries task_get's
+			// parameters too, since this is the one next that leaves the agent subtree
+			// and must still not drop a required parameter.
 			recheckArgs, _ := paramArgsFor(spec, iagents.VerbTaskGet, given)
 			return []output.NextAction{{
-				Label:    fmt.Sprintf("完成重新授权后重查任务（据该 agent 所需 scope 定；重查: lark-cli agents task get %s %s%s）", ref, task.TaskID, recheckArgs),
+				Label:    fmt.Sprintf("Re-check the task after re-authorizing (scopes are the agent's own; re-check: lark-cli agents task get %s %s%s)", ref, task.TaskID, recheckArgs),
 				Command:  `lark-cli auth login --scope "<required_scopes>"`,
 				Template: true,
 			}}
 		}
 		if task.State == iagents.StateInputRequired {
-			// A task pausing on a question group: expand ONE per-question template
-			// (design doc §4.4) so the AI never hand-assembles the answer grammar —
-			// the placeholder names the answer form per question type (bare
-			// <option_id> for a choice, marked repeatable for multi-select,
-			// .text=<文本> for free text). All values are placeholders, so the hint
-			// is always a template — which is also why a missing or
-			// whitelist-failing context_id can degrade to the <context_id>
-			// placeholder instead of dropping the hint. Every question_id is
-			// server-supplied and must pass the safeNextID whitelist before
-			// interpolation (normalization upstream guarantees this; a violation
-			// here degrades to the free-text continuation rather than emitting a
-			// key the CLI's own guard would reject).
+			// A task paused on a question group expands one template per question so
+			// the caller never hand-assembles the answer grammar: bare <option_id>
+			// for a choice, marked repeatable for multi-select, .text for free text.
+			// Every value is a placeholder, so the hint is always a template — which
+			// is also why a missing or whitelist-failing context_id can degrade to
+			// the <context_id> placeholder instead of dropping the hint. A
+			// server-supplied question_id failing safeNextID degrades the whole hint
+			// to the free-text continuation rather than emitting a key the CLI's own
+			// guard would reject.
 			ctxID := task.ContextID
 			if ctxID == "" || !safeNextID(ctxID) {
 				ctxID = "<context_id>"
@@ -512,27 +490,27 @@ func nextForTask(ref string, task *iagents.AgentTask, spec *iagents.AgentSpec, g
 					}
 					switch {
 					case len(q.Options) == 0:
-						parts = append(parts, fmt.Sprintf("--answer %s.text=<文本>", q.QuestionID))
+						parts = append(parts, fmt.Sprintf("--answer %s.text=<text>", q.QuestionID))
 					case q.MultiSelect:
-						parts = append(parts, fmt.Sprintf("--answer %s=<option_id 多选可重复>", q.QuestionID))
+						parts = append(parts, fmt.Sprintf("--answer %s=<option_id, repeatable>", q.QuestionID))
 					default:
 						parts = append(parts, fmt.Sprintf("--answer %s=<option_id>", q.QuestionID))
 					}
 				}
 				if parts != nil {
 					return []output.NextAction{{
-						Label:    "把问题组转达给用户后按其答复提交（用户先前指令已唯一确定答案时可代答，须说明依据）；选项都不合适的题用 <question_id>.text=<文本>",
+						Label:    "Relay the question group to the user and submit their answers (answer on their behalf only when an earlier instruction already determines it, and state the basis); for a question where no option fits use <question_id>.text=<text>",
 						Command:  fmt.Sprintf("lark-cli agents send %s --context-id %s --task-id %s %s%s", ref, ctxID, task.TaskID, strings.Join(parts, " "), sendArgs),
 						Template: true,
 					}}
 				}
 			}
-			// No structured group (provider supplied none and normalization had
-			// nothing to synthesize from): plain free-text continuation — the
-			// provider treats a message to its paused task as the answer (§6.5).
+			// No structured group (the provider supplied none and normalization had
+			// nothing to synthesize from): plain free-text continuation, where the
+			// provider treats a message to its paused task as the answer.
 			return []output.NextAction{{
-				Label:    "补充输入后向同一任务续发",
-				Command:  fmt.Sprintf("lark-cli agents send %s --context-id %s --task-id %s --text <你的答复>%s", ref, ctxID, task.TaskID, sendArgs),
+				Label:    "Continue the same task with the additional input",
+				Command:  fmt.Sprintf("lark-cli agents send %s --context-id %s --task-id %s --text <your_reply>%s", ref, ctxID, task.TaskID, sendArgs),
 				Template: true,
 			}}
 		}
@@ -546,7 +524,7 @@ func nextForTask(ref string, task *iagents.AgentTask, spec *iagents.AgentSpec, g
 		if caller != iagents.VerbTaskGet {
 			getArgs, getTpl := paramArgsFor(spec, iagents.VerbTaskGet, given)
 			next = append(next, output.NextAction{
-				Label:    "查看任务详情与产物",
+				Label:    "View the task detail and artifacts",
 				Command:  fmt.Sprintf("lark-cli agents task get %s %s%s", ref, task.TaskID, getArgs),
 				Template: getTpl,
 			})
@@ -556,8 +534,8 @@ func nextForTask(ref string, task *iagents.AgentTask, spec *iagents.AgentSpec, g
 	}
 	getArgs, getTpl := paramArgsFor(spec, iagents.VerbTaskGet, given)
 	return []output.NextAction{{
-		Label:    "轮询任务直到停轮询条件（有界；到点未终止照此再 watch）",
-		Command:  fmt.Sprintf("lark-cli agents task get %s %s --watch --timeout %s%s", ref, task.TaskID, defaultWatchTimeout, getArgs),
+		Label:    "Poll until a stop condition (bounded; if it is still running at expiry, watch again the same way)",
+		Command:  fmt.Sprintf("lark-cli agents task get %s %s --watch --timeout %ds%s", ref, task.TaskID, int(defaultWatchTimeout.Seconds()), getArgs),
 		Template: getTpl,
 	}}
 }
@@ -578,12 +556,13 @@ func artifactNext(ref string, task *iagents.AgentTask, spec *iagents.AgentSpec, 
 	var next []output.NextAction
 	for _, a := range task.Artifacts {
 		if a.ID == "" || !safeNextID(a.ID) {
-			continue // 服务端 id 过不了白名单 → 跳过该产物，不冒注入险
+			continue // a server id failing the whitelist: skip this artifact, do not risk injection
 		}
 		next = append(next, output.NextAction{
-			// label 只内插已过白名单的 id；产物名是 agent 可控文本，不进 label。
-			Label:    fmt.Sprintf("下载产物 %s", a.ID),
-			Command:  fmt.Sprintf("lark-cli agents task get %s %s --artifact %s -o <保存路径>%s", ref, task.TaskID, a.ID, dlArgs),
+			// Only whitelisted ids are interpolated; the artifact name is
+			// agent-controlled text and stays out of the label.
+			Label:    fmt.Sprintf("Download artifact %s", a.ID),
+			Command:  fmt.Sprintf("lark-cli agents task get %s %s --artifact %s -o <save_path>%s", ref, task.TaskID, a.ID, dlArgs),
 			Template: true,
 		})
 	}
@@ -591,9 +570,13 @@ func artifactNext(ref string, task *iagents.AgentTask, spec *iagents.AgentSpec, 
 }
 
 // defaultWatchTimeout is the bounded poll window meta.next suggests for a
-// still-running task: a safe default that avoids an unbounded --watch blocking
-// forever on a long task and stops an AI caller from self-hammering. On expiry
-// the poll returns the current state (exit 0) plus a fresh watch hint, so the
-// caller re-watches in segments rather than blocking once. `--watch` used alone
-// (--timeout 0) stays unbounded for backward compatibility.
-const defaultWatchTimeout = 30 * time.Second
+// still-running task. On expiry the poll returns the current state (exit 0) plus
+// a fresh watch hint, so the caller re-watches in segments instead of blocking
+// once; `--watch` alone (--timeout 0) stays unbounded for compatibility.
+//
+// 90s, not 30s: a real backend task often runs ~60s, and a 30s window forced a
+// caller to re-issue --watch 2-3 times. Each new process restarts the poll
+// backoff from 1s, so the back-to-back calls left no gap and self-hammered the
+// backend into a rate_limit. A task finishing earlier still returns immediately,
+// since --watch stops at any terminal state.
+const defaultWatchTimeout = 90 * time.Second

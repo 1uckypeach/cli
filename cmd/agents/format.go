@@ -5,7 +5,7 @@
 // validation, the pretty renderers (task key:value view, list
 // header-TSV views) with ANSI stripping for agent-controlled text, and the
 // arg-count validators that wrap cobra's bare "accepts N arg(s)" into a typed
-// validation error carrying a 用法 hint.
+// validation error carrying a usage hint.
 package agents
 
 import (
@@ -34,9 +34,9 @@ func validateFormat(format string) error {
 		return nil
 	}
 	return errs.NewValidationError(errs.SubtypeInvalidArgument,
-		"不支持的 --format 值 %q", format).
+		"unsupported --format value %q", format).
 		WithParam("--format").
-		WithHint("合法值: json | pretty")
+		WithHint("valid values: json | pretty")
 }
 
 // stripANSI sanitizes agent-controlled text before it is written raw to a
@@ -174,10 +174,10 @@ func printTaskPretty(w io.Writer, task *iagents.AgentTask) {
 // say enough).
 func questionKindSuffix(q iagents.Question) string {
 	if len(q.Options) == 0 {
-		return "（自由文本）"
+		return " (free text)"
 	}
 	if q.MultiSelect {
-		return "（可多选）"
+		return " (multi-select)"
 	}
 	return ""
 }
@@ -284,14 +284,14 @@ func printContextDetailPretty(w io.Writer, detail *iagents.ContextDetail) {
 	}
 }
 
-// usageHintOf builds the "用法: <command path> <positional shape>" hint from
+// usageHintOf builds the "usage: <command path> <positional shape>" hint from
 // the executing command's Use line, so the hint never drifts from the
 // registered Use string.
 func usageHintOf(cmd *cobra.Command) string {
 	if _, shape, ok := strings.Cut(cmd.Use, " "); ok {
-		return fmt.Sprintf("用法: %s %s", cmd.CommandPath(), shape)
+		return fmt.Sprintf("usage: %s %s", cmd.CommandPath(), shape)
 	}
-	return "用法: " + cmd.CommandPath()
+	return "usage: " + cmd.CommandPath()
 }
 
 // exactArgsWithUsage is cobra.ExactArgs wrapped into a typed validation error
@@ -301,7 +301,7 @@ func exactArgsWithUsage(n int) cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		if len(args) != n {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument,
-				"需要 %d 个位置参数，收到 %d 个", n, len(args)).
+				"expected %d positional arguments, got %d", n, len(args)).
 				WithHint("%s", usageHintOf(cmd))
 		}
 		return nil
@@ -314,7 +314,7 @@ func maximumArgsWithUsage(n int) cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		if len(args) > n {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument,
-				"最多接受 %d 个位置参数，收到 %d 个", n, len(args)).
+				"at most %d positional arguments are accepted, got %d", n, len(args)).
 				WithHint("%s", usageHintOf(cmd))
 		}
 		return nil

@@ -10,9 +10,9 @@ import (
 
 // ErrInvalidRef is the sentinel error for a malformed agent_ref (wrapped into a
 // validation error by the caller).
-var ErrInvalidRef = errors.New("agent_ref 格式应为 <provider>:<agent_id>")
+var ErrInvalidRef = errors.New("agent_ref must look like <provider>:<agent_id>")
 
-// Ref is the identifier addressing a remote agent: <scheme>:<agent_id>, e.g. example:echo.
+// Ref is the identifier addressing a remote agent: <scheme>:<agent_id>, e.g. base:assistant.
 type Ref struct {
 	Scheme  string
 	AgentID string

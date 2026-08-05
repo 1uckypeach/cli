@@ -71,7 +71,7 @@ func NewCmdAgentContextList(f *cmdutil.Factory) *cobra.Command {
 	addPageFlags(cmd, &opts.PageSize, &opts.PageToken)
 	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
-	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
+	cmd.Flags().String("jq", "", "filter the JSON output with a jq expression")
 	addAsFlag(cmd, f, &opts.As)
 	cmdutil.SetRisk(cmd, cmdutil.RiskRead)
 	return cmd
@@ -98,7 +98,7 @@ func NewCmdAgentContextGet(f *cmdutil.Factory) *cobra.Command {
 	}
 	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
-	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
+	cmd.Flags().String("jq", "", "filter the JSON output with a jq expression")
 	addAsFlag(cmd, f, &opts.As)
 	cmdutil.SetRisk(cmd, cmdutil.RiskRead)
 	return cmd
@@ -125,10 +125,10 @@ func NewCmdAgentContextDelete(f *cmdutil.Factory) *cobra.Command {
 			return agentContextDeleteRun(opts)
 		},
 	}
-	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "确认删除（高危操作，不加则返回 exit 10）")
+	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "confirm the deletion (high-risk; without it the command returns exit 10)")
 	addParamFlag(cmd, &opts.Params)
 	cmd.Flags().StringVar(&opts.Format, "format", "json", formatFlagHelp)
-	cmd.Flags().String("jq", "", "用 jq 表达式过滤 JSON 输出")
+	cmd.Flags().String("jq", "", "filter the JSON output with a jq expression")
 	addAsFlag(cmd, f, &opts.As)
 	cmdutil.SetRisk(cmd, cmdutil.RiskHighRiskWrite)
 	return cmd
@@ -259,8 +259,8 @@ func agentContextDeleteRun(opts *contextOptions) error {
 		// irreversible blast radius in the same voice (Chinese, self-contained)
 		// as the other two exit-10 gates.
 		return errs.NewConfirmationRequiredError(errs.RiskHighRiskWrite, "agents context delete",
-			"删除会话将不可逆地移除该会话及其名下全部任务记录").
-			WithHint("确认要删除后，加 --yes 重发")
+			"deleting a context irreversibly removes it and every task record under it").
+			WithHint("add --yes to confirm the deletion")
 	}
 
 	f := opts.Factory

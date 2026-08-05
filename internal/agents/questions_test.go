@@ -17,7 +17,7 @@ func TestKeyPattern(t *testing.T) {
 			t.Errorf("KeyPattern should accept %q", k)
 		}
 	}
-	bad := []string{"", "--text", "-o", "_x", "q.1", "q 1", "维度", "q1.text"}
+	bad := []string{"", "--text", "-o", "_x", "q.1", "q 1", "\u4e2d\u6587", "q1.text"}
 	for _, k := range bad {
 		if KeyPattern.MatchString(k) {
 			t.Errorf("KeyPattern must reject %q", k)
@@ -46,8 +46,8 @@ func TestSplitAnswerKey(t *testing.T) {
 // provider-supplied ids are left alone, and that minted ids pass KeyPattern.
 func TestMintQuestionIDs(t *testing.T) {
 	qs := []Question{
-		{Question: "维度?", Options: []Option{{Label: "按大区"}, {OptionID: "keep", Label: "按品类"}}},
-		{QuestionID: "biz_q", Question: "时间?"},
+		{Question: "dimension?", Options: []Option{{Label: "by region"}, {OptionID: "keep", Label: "by category"}}},
+		{QuestionID: "biz_q", Question: "time range?"},
 	}
 	MintQuestionIDs(qs, "a8")
 	if qs[0].QuestionID != "q1_a8" || qs[1].QuestionID != "biz_q" {
@@ -96,16 +96,16 @@ func TestNormalizeInputRequired(t *testing.T) {
 
 	// bare A2A shape: no questions, prompt text in Label → one ordinary
 	// free-text question with a deterministic id.
-	tk = normTask(StateInputRequired, &InputRequired{Label: "请补充时间范围"})
+	tk = normTask(StateInputRequired, &InputRequired{Label: "Please give a time range"})
 	if n := NormalizeInputRequired(tk); n != "" {
 		t.Errorf("bare-prompt normalization is not a defect, notice=%q", n)
 	}
 	qs := tk.InputRequired.Questions
-	if len(qs) != 1 || qs[0].Question != "请补充时间范围" || !strings.HasPrefix(qs[0].QuestionID, "q1_") {
+	if len(qs) != 1 || qs[0].Question != "Please give a time range" || !strings.HasPrefix(qs[0].QuestionID, "q1_") {
 		t.Fatalf("bare prompt should become one text question, got %+v", qs)
 	}
 	derived := qs[0].QuestionID
-	tk2 := normTask(StateInputRequired, &InputRequired{Label: "请补充时间范围"})
+	tk2 := normTask(StateInputRequired, &InputRequired{Label: "Please give a time range"})
 	_ = NormalizeInputRequired(tk2)
 	if tk2.InputRequired.Questions[0].QuestionID != derived {
 		t.Error("derived qid must be stable across renders (same anchor)")
@@ -121,39 +121,39 @@ func TestNormalizeInputRequired(t *testing.T) {
 	// question (texts preserved), with a notice; the degraded key passes the
 	// CLI's own grammar (never a dead-end placeholder).
 	tk = normTask(StateInputRequired, &InputRequired{Questions: []Question{
-		{QuestionID: "--text", Question: "维度?"},
-		{QuestionID: "q2", Question: "时间?"},
+		{QuestionID: "--text", Question: "dimension?"},
+		{QuestionID: "q2", Question: "time range?"},
 	}})
 	n := NormalizeInputRequired(tk)
-	if n == "" || !strings.Contains(n, "不合规") {
+	if n == "" || !strings.Contains(n, "invalid") {
 		t.Fatalf("illegal key must degrade with a notice, got %q", n)
 	}
 	qs = tk.InputRequired.Questions
 	if len(qs) != 1 || qs[0].Options != nil || !KeyPattern.MatchString(qs[0].QuestionID) {
 		t.Fatalf("degraded group should be one text question with a legal key, got %+v", qs)
 	}
-	if !strings.Contains(qs[0].Question, "维度?") || !strings.Contains(qs[0].Question, "时间?") {
+	if !strings.Contains(qs[0].Question, "dimension?") || !strings.Contains(qs[0].Question, "time range?") {
 		t.Errorf("degradation must preserve question texts, got %q", qs[0].Question)
 	}
 
 	// duplicate option ids within one question → same degradation path.
 	tk = normTask(StateInputRequired, &InputRequired{Questions: []Question{
-		{QuestionID: "q1", Question: "维度?", Options: []Option{{OptionID: "a", Label: "A"}, {OptionID: "a", Label: "B"}}},
+		{QuestionID: "q1", Question: "dimension?", Options: []Option{{OptionID: "a", Label: "A"}, {OptionID: "a", Label: "B"}}},
 	}})
 	if n := NormalizeInputRequired(tk); n == "" {
 		t.Error("duplicate option ids must degrade with a notice")
 	}
 }
 
-// TestSummaryText pins the §3.3 triage digest: label first, else first
+// TestSummaryText pins the triage digest: label first, else first
 // question, question count suffixed when >1.
 func TestSummaryText(t *testing.T) {
-	ir := &InputRequired{Label: "报表生成确认", Questions: []Question{{Question: "维度?"}, {Question: "时间?"}}}
-	if s := ir.SummaryText(); s != "报表生成确认（共 2 题）" {
+	ir := &InputRequired{Label: "report confirmation", Questions: []Question{{Question: "dimension?"}, {Question: "time range?"}}}
+	if s := ir.SummaryText(); s != "report confirmation (2 questions)" {
 		t.Errorf("got %q", s)
 	}
-	ir = &InputRequired{Questions: []Question{{Question: "维度?"}}}
-	if s := ir.SummaryText(); s != "维度?" {
+	ir = &InputRequired{Questions: []Question{{Question: "dimension?"}}}
+	if s := ir.SummaryText(); s != "dimension?" {
 		t.Errorf("got %q", s)
 	}
 	if (*InputRequired)(nil).SummaryText() != "" {

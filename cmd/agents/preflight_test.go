@@ -75,7 +75,7 @@ func TestPreflightReportsMissingWithIncrementalHint(t *testing.T) {
 	ve := requirePreflightError(t, err)
 
 	wantMissing := []string{"fakescoped:agent_artifact:read", "fakescoped:agent_attachment:write", "fakescoped:agent_chat:read"}
-	if !strings.Contains(ve.Message, "当前 user 身份缺少本命令所需 scope: "+strings.Join(wantMissing, ", ")) {
+	if !strings.Contains(ve.Message, "the current user identity is missing scopes this command needs: "+strings.Join(wantMissing, ", ")) {
 		t.Errorf("message should list all missing scopes, got %q", ve.Message)
 	}
 	if !reflect.DeepEqual(ve.MissingScopes, wantMissing) {

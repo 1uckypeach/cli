@@ -66,7 +66,7 @@ func taskTestOpts(t *testing.T, leaf string) (*taskOptions, *httpmock.Registry) 
 }
 
 // TestTaskCancelUnsupportedGated pins that cancel against an agent whose spec
-// does not wire CancelTask (task_cancel=false, example:echo) is gated offline —
+// does not wire CancelTask (task_cancel=false, fakecat:min) is gated offline —
 // it returns an unsupported_capability validation error before any network
 // access (the httpmock registry has zero stubs, so any request would fail
 // differently).
@@ -74,7 +74,7 @@ func TestTaskCancelUnsupportedGated(t *testing.T) {
 	cfg := &core.CliConfig{AppID: "cli_x", AppSecret: "fake-secret", Brand: core.BrandFeishu}
 	f, _, _, _ := cmdutil.TestFactory(t, cfg)
 	err := agentTaskCancelRun(&taskOptions{
-		Factory: f, Cmd: taskCmdCtx(t, "cancel"), Ref: "example:echo", TaskID: "t1", As: "bot",
+		Factory: f, Cmd: taskCmdCtx(t, "cancel"), Ref: "fakecat:min", TaskID: "t1", As: "bot",
 	})
 	if err == nil {
 		t.Fatal("task cancel with task_cancel=false should report unsupported_capability")
@@ -94,7 +94,7 @@ func TestTaskCancelUnsupportedGated(t *testing.T) {
 // TestArtifactRequiresOutput pins that `task get --artifact` without -o is a
 // validation error raised before any provider is built (client-side guard).
 func TestArtifactRequiresOutput(t *testing.T) {
-	err := agentTaskGetRun(&taskOptions{Ref: "example:agt_x", TaskID: "t1", ArtifactID: "a1", Output: ""})
+	err := agentTaskGetRun(&taskOptions{Ref: "fakeflow:agt_x", TaskID: "t1", ArtifactID: "a1", Output: ""})
 	if err == nil {
 		t.Fatal("--artifact without -o should error")
 	}
@@ -209,7 +209,7 @@ func TestTaskGetTimeoutRequiresWatch(t *testing.T) {
 	if !errors.As(err, &ve) || ve.Param != "--timeout" {
 		t.Fatalf("param should be --timeout, got %+v", ve)
 	}
-	if !strings.Contains(ve.Message, "--timeout 需与 --watch 一起使用") {
+	if !strings.Contains(ve.Message, "--timeout must be used together with --watch") {
 		t.Errorf("message should explain --timeout must be used with --watch, got %q", ve.Message)
 	}
 }
@@ -449,10 +449,10 @@ func TestNewCmdAgentTaskGet_ReadRiskArgsFlags(t *testing.T) {
 	if level, ok := cmdutil.GetRisk(cmd); !ok || level != cmdutil.RiskRead {
 		t.Errorf("task get should be marked read risk, got level=%q ok=%v", level, ok)
 	}
-	if err := cmd.Args(cmd, []string{"example:x"}); err == nil {
+	if err := cmd.Args(cmd, []string{"fakeflow:x"}); err == nil {
 		t.Error("task get missing task-id should raise an args error (ExactArgs 2)")
 	}
-	if err := cmd.Args(cmd, []string{"example:x", "t1"}); err != nil {
+	if err := cmd.Args(cmd, []string{"fakeflow:x", "t1"}); err != nil {
 		t.Errorf("task get with two positional args should be valid: %v", err)
 	}
 	for _, name := range []string{"watch", "timeout", "artifact", "output", "as", "format", "jq"} {
@@ -483,7 +483,7 @@ func TestTaskGetPrettyFormat(t *testing.T) {
 		return &iagents.AgentTask{
 			TaskID: taskID, ContextID: "sess_1", State: iagents.StateCompleted, IsTerminal: true,
 			Messages: []iagents.Message{{Role: "agent", Parts: []iagents.Part{
-				{Type: "text", Text: "\x1b[31m分析完成\x1b[0m"},
+				{Type: "text", Text: "\x1b[31manalysis complete\x1b[0m"},
 			}}},
 			Artifacts: []iagents.Artifact{{ID: "art_1", Kind: "file"}},
 		}, nil
@@ -494,7 +494,7 @@ func TestTaskGetPrettyFormat(t *testing.T) {
 		t.Fatalf("task get --format pretty should not error: %v", err)
 	}
 	text := string(out.Bytes())
-	for _, want := range []string{"state: completed", "task_id: chat_1", "context_id: sess_1", "reply: 分析完成", "artifacts: 1"} {
+	for _, want := range []string{"state: completed", "task_id: chat_1", "context_id: sess_1", "reply: analysis complete", "artifacts: 1"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("pretty output should contain %q, got:\n%s", want, text)
 		}
@@ -517,7 +517,7 @@ func TestTaskListPrettyFormat(t *testing.T) {
 	setScripted(t, scriptedHooks{listTasks: func(string, iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
 		return []iagents.TaskSummary{
 			{TaskID: "chat_1", ContextID: "sess_1", State: iagents.StateCompleted, IsTerminal: true,
-				UpdatedAt: "2026-07-05T12:00:00Z", Summary: "分析完成"},
+				UpdatedAt: "2026-07-05T12:00:00Z", Summary: "analysis complete"},
 		}, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
@@ -529,7 +529,7 @@ func TestTaskListPrettyFormat(t *testing.T) {
 	if !strings.HasPrefix(text, "TASK_ID\tCONTEXT_ID\tSTATE\tIS_TERMINAL\tUPDATED_AT\tSUMMARY\n") {
 		t.Errorf("pretty output should start with a header row, got %q", text)
 	}
-	if !strings.Contains(text, "chat_1\tsess_1\tcompleted\ttrue\t2026-07-05T12:00:00Z\t分析完成") {
+	if !strings.Contains(text, "chat_1\tsess_1\tcompleted\ttrue\t2026-07-05T12:00:00Z\tanalysis complete") {
 		t.Errorf("pretty output should contain a data row with updated_at + summary, got %q", text)
 	}
 }
@@ -564,9 +564,9 @@ func TestTaskListSortedByUpdatedAtDesc(t *testing.T) {
 	opts, _ := taskTestOpts(t, "list")
 	setScripted(t, scriptedHooks{listTasks: func(string, iagents.PageParams) ([]iagents.TaskSummary, iagents.PageInfo, error) {
 		return []iagents.TaskSummary{
-			{TaskID: "new", State: iagents.StateInputRequired, UpdatedAt: "2026-07-05T12:00:00Z", Summary: "请补充"},
-			{TaskID: "mid", State: iagents.StateCompleted, UpdatedAt: "2026-07-05T11:00:00Z", Summary: "第二轮"},
-			{TaskID: "old", State: iagents.StateCompleted, UpdatedAt: "2026-07-05T10:00:00Z", Summary: "第一轮"},
+			{TaskID: "new", State: iagents.StateInputRequired, UpdatedAt: "2026-07-05T12:00:00Z", Summary: "more input needed"},
+			{TaskID: "mid", State: iagents.StateCompleted, UpdatedAt: "2026-07-05T11:00:00Z", Summary: "round two"},
+			{TaskID: "old", State: iagents.StateCompleted, UpdatedAt: "2026-07-05T10:00:00Z", Summary: "round one"},
 		}, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
@@ -594,7 +594,7 @@ func TestTaskListSortedByUpdatedAtDesc(t *testing.T) {
 	if first["updated_at"] != "2026-07-05T12:00:00Z" {
 		t.Errorf("tasks[0].updated_at should be carried, got %v", first["updated_at"])
 	}
-	if first["summary"] != "请补充" {
+	if first["summary"] != "more input needed" {
 		t.Errorf("tasks[0].summary should be carried, got %v", first["summary"])
 	}
 }
@@ -605,7 +605,7 @@ func TestNewCmdAgentTaskCancel_WriteRisk(t *testing.T) {
 	if level, ok := cmdutil.GetRisk(cmd); !ok || level != cmdutil.RiskWrite {
 		t.Errorf("task cancel should be marked write risk, got level=%q ok=%v", level, ok)
 	}
-	if err := cmd.Args(cmd, []string{"example:x"}); err == nil {
+	if err := cmd.Args(cmd, []string{"fakeflow:x"}); err == nil {
 		t.Error("task cancel missing task-id should raise an args error (ExactArgs 2)")
 	}
 }
@@ -1144,7 +1144,7 @@ func TestDownloadArtifact_ForceOverwrites(t *testing.T) {
 
 // TestTaskListPaginationMeta pins the command-level pagination envelope: a
 // provider that returns a page plus PageInfo{HasMore,NextToken} surfaces as
-// meta.count / meta.has_more / meta.page_token, and meta.next carries a "下一页"
+// meta.count / meta.has_more / meta.page_token, and meta.next carries a "next page"
 // action whose command replays --page-size / --page-token.
 func TestTaskListPaginationMeta(t *testing.T) {
 	opts, _ := taskTestOpts(t, "list")
@@ -1182,19 +1182,19 @@ func TestTaskListPaginationMeta(t *testing.T) {
 	}
 	found := false
 	for _, n := range env.Meta.Next {
-		if n.Label == "下一页" && strings.Contains(n.Command, "--page-token 2") && strings.Contains(n.Command, "--page-size 2") {
+		if n.Label == "next page" && strings.Contains(n.Command, "--page-token 2") && strings.Contains(n.Command, "--page-size 2") {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("meta.next should contain a 下一页 action replaying --page-size/--page-token, got %+v", env.Meta.Next)
+		t.Errorf("meta.next should contain a next page action replaying --page-size/--page-token, got %+v", env.Meta.Next)
 	}
 }
 
 // TestTaskListPaginationUnsafeCursorDropsNextKeepsToken pins the injection-drop
 // branch: an unsafe server cursor still rides meta.page_token verbatim (it is
 // DATA the caller can inspect), but it fails the safeNextID whitelist so no
-// executable "下一页" command is emitted with it interpolated.
+// executable "next page" command is emitted with it interpolated.
 func TestTaskListPaginationUnsafeCursorDropsNextKeepsToken(t *testing.T) {
 	opts, _ := taskTestOpts(t, "list")
 	opts.PageSize = 2
@@ -1220,8 +1220,8 @@ func TestTaskListPaginationUnsafeCursorDropsNextKeepsToken(t *testing.T) {
 		t.Errorf("meta.page_token should preserve the raw cursor as data, got %q", env.Meta.PageToken)
 	}
 	for _, n := range env.Meta.Next {
-		if n.Label == "下一页" {
-			t.Errorf("an unsafe cursor must drop the executable 下一页 command, got %+v", n)
+		if n.Label == "next page" {
+			t.Errorf("an unsafe cursor must drop the executable next page command, got %+v", n)
 		}
 	}
 }

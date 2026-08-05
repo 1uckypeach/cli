@@ -59,7 +59,7 @@ func contextTestOpts(t *testing.T, leaf string) (*contextOptions, *httpmock.Regi
 // TestContextDeleteRequiresYes pins that `context delete` without --yes is a
 // confirmation_required error (exit 10), raised before any provider is built.
 func TestContextDeleteRequiresYes(t *testing.T) {
-	err := agentContextDeleteRun(&contextOptions{Ref: "example:agt_x", CtxID: "c1", Yes: false})
+	err := agentContextDeleteRun(&contextOptions{Ref: "fakeflow:agt_x", CtxID: "c1", Yes: false})
 	if err == nil {
 		t.Fatal("context delete without --yes should report confirmation_required")
 	}
@@ -137,7 +137,7 @@ func TestContextListEmitsContexts(t *testing.T) {
 	opts, _ := contextTestOpts(t, "list")
 	setScripted(t, scriptedHooks{listContexts: func(iagents.PageParams) ([]iagents.ContextSummary, iagents.PageInfo, error) {
 		return []iagents.ContextSummary{
-			{ContextID: "sess_1", Title: "销售分析", CreatedAt: "2026-07-05T10:01:11+08:00"},
+			{ContextID: "sess_1", Title: "sales analysis", CreatedAt: "2026-07-05T10:01:11+08:00"},
 			{ContextID: "sess_2"},
 		}, iagents.PageInfo{}, nil
 	}})
@@ -209,7 +209,7 @@ func TestContextListSortedByUpdatedAtDesc(t *testing.T) {
 
 // TestContextListPaginationMeta pins the command-level pagination envelope for
 // context list: a provider that returns a page plus PageInfo{HasMore,NextToken}
-// surfaces as meta.has_more / meta.page_token, and meta.next carries a "下一页"
+// surfaces as meta.has_more / meta.page_token, and meta.next carries a "next page"
 // action whose command replays the ref with --page-size / --page-token.
 func TestContextListPaginationMeta(t *testing.T) {
 	opts, _ := contextTestOpts(t, "list")
@@ -244,13 +244,13 @@ func TestContextListPaginationMeta(t *testing.T) {
 	}
 	found := false
 	for _, n := range env.Meta.Next {
-		if n.Label == "下一页" && strings.Contains(n.Command, "lark-cli agents context list fakeflow:agt_x") &&
+		if n.Label == "next page" && strings.Contains(n.Command, "lark-cli agents context list fakeflow:agt_x") &&
 			strings.Contains(n.Command, "--page-size 2") && strings.Contains(n.Command, "--page-token 2") {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("meta.next should contain a 下一页 action replaying the ref + --page-size/--page-token, got %+v", env.Meta.Next)
+		t.Errorf("meta.next should contain a next page action replaying the ref + --page-size/--page-token, got %+v", env.Meta.Next)
 	}
 }
 
@@ -286,11 +286,11 @@ func TestContextGetEmitsDetail(t *testing.T) {
 	opts.CtxID = "sess_1"
 	setScripted(t, scriptedHooks{getContext: func(ctxID string) (*iagents.ContextDetail, error) {
 		return &iagents.ContextDetail{
-			ContextID: ctxID, Title: "销售分析", CreatedAt: "2026-07-05T10:01:11+08:00",
+			ContextID: ctxID, Title: "sales analysis", CreatedAt: "2026-07-05T10:01:11+08:00",
 			UpdatedAt: "2026-07-05T12:00:00+08:00", TaskCount: iagents.Int(2), AwaitingInput: true,
 			ActiveTask: &iagents.TaskSummary{
 				TaskID: "chat_2", State: iagents.StateInputRequired,
-				UpdatedAt: "2026-07-05T12:00:00+08:00", Summary: "请提供季度",
+				UpdatedAt: "2026-07-05T12:00:00+08:00", Summary: "provide the quarter",
 			},
 		}, nil
 	}})
@@ -307,7 +307,7 @@ func TestContextGetEmitsDetail(t *testing.T) {
 	if data["context_id"] != "sess_1" {
 		t.Errorf("data.context_id should be sess_1, got %v", data["context_id"])
 	}
-	if data["title"] != "销售分析" {
+	if data["title"] != "sales analysis" {
 		t.Errorf("data.title should be echoed, got %v", data["title"])
 	}
 	if data["task_count"] != float64(2) {
@@ -329,7 +329,7 @@ func TestContextGetEmitsDetail(t *testing.T) {
 	if active["is_terminal"] != false {
 		t.Errorf("active_task.is_terminal should be derived from State (input_required ⇒ false), got %v", active["is_terminal"])
 	}
-	if active["summary"] != "请提供季度" {
+	if active["summary"] != "provide the quarter" {
 		t.Errorf("active_task.summary should carry the pending prompt, got %v", active["summary"])
 	}
 }
@@ -415,7 +415,7 @@ func TestContextListPretty(t *testing.T) {
 	opts.Format = "pretty"
 	setScripted(t, scriptedHooks{listContexts: func(iagents.PageParams) ([]iagents.ContextSummary, iagents.PageInfo, error) {
 		return []iagents.ContextSummary{
-			{ContextID: "sess_1", Title: "\x1b[2J销售分析", CreatedAt: "2026-07-05T10:01:11+08:00"},
+			{ContextID: "sess_1", Title: "\x1b[2Jsales analysis", CreatedAt: "2026-07-05T10:01:11+08:00"},
 		}, iagents.PageInfo{}, nil
 	}})
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
@@ -426,7 +426,7 @@ func TestContextListPretty(t *testing.T) {
 	if !strings.HasPrefix(s, "CONTEXT_ID\tCREATED_AT\tUPDATED_AT\tTITLE\tAWAITING_INPUT\n") {
 		t.Errorf("pretty output should start with a header row, got %q", s)
 	}
-	if !strings.Contains(s, "sess_1") || !strings.Contains(s, "销售分析") {
+	if !strings.Contains(s, "sess_1") || !strings.Contains(s, "sales analysis") {
 		t.Errorf("pretty output should contain context_id and title, got %q", s)
 	}
 	if strings.Contains(s, "\x1b") {
@@ -468,10 +468,10 @@ func TestContextGetPretty(t *testing.T) {
 	opts.Format = "pretty"
 	setScripted(t, scriptedHooks{getContext: func(ctxID string) (*iagents.ContextDetail, error) {
 		return &iagents.ContextDetail{
-			ContextID: ctxID, Title: "\x1b[31m销售分析\x1b[0m",
+			ContextID: ctxID, Title: "\x1b[31msales analysis\x1b[0m",
 			TaskCount: iagents.Int(1), AwaitingInput: false,
 			ActiveTask: &iagents.TaskSummary{
-				TaskID: "chat_1", State: iagents.StateCompleted, IsTerminal: true, Summary: "分析完成",
+				TaskID: "chat_1", State: iagents.StateCompleted, IsTerminal: true, Summary: "analysis complete",
 			},
 		}, nil
 	}})
@@ -480,7 +480,7 @@ func TestContextGetPretty(t *testing.T) {
 		t.Fatalf("context get --format pretty should not error: %v", err)
 	}
 	s := string(out.Bytes())
-	for _, want := range []string{"context_id: sess_1", "title: 销售分析", "task_count: 1", "active_task: completed"} {
+	for _, want := range []string{"context_id: sess_1", "title: sales analysis", "task_count: 1", "active_task: completed"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("pretty output should contain %q, got %q", want, s)
 		}
@@ -528,7 +528,7 @@ func TestNewCmdAgentContextList_ReadRisk(t *testing.T) {
 	if err := cmd.Args(cmd, []string{}); err == nil {
 		t.Error("context list missing ref should report an argument error (ExactArgs 1)")
 	}
-	if err := cmd.Args(cmd, []string{"example:x"}); err != nil {
+	if err := cmd.Args(cmd, []string{"fakeflow:x"}); err != nil {
 		t.Errorf("context list with a single ref should be valid: %v", err)
 	}
 	fl := cmd.Flags().Lookup("format")
@@ -544,10 +544,10 @@ func TestNewCmdAgentContextGet_ReadRisk(t *testing.T) {
 	if level, ok := cmdutil.GetRisk(cmd); !ok || level != cmdutil.RiskRead {
 		t.Errorf("context get should be marked read risk, got level=%q ok=%v", level, ok)
 	}
-	if err := cmd.Args(cmd, []string{"example:x"}); err == nil {
+	if err := cmd.Args(cmd, []string{"fakeflow:x"}); err == nil {
 		t.Error("context get missing ctx-id should report an argument error (ExactArgs 2)")
 	}
-	if err := cmd.Args(cmd, []string{"example:x", "c1"}); err != nil {
+	if err := cmd.Args(cmd, []string{"fakeflow:x", "c1"}); err != nil {
 		t.Errorf("context get ref+ctx-id should be valid: %v", err)
 	}
 	for _, name := range []string{"format", "jq"} {
@@ -564,7 +564,7 @@ func TestNewCmdAgentContextDelete_HighRiskWrite(t *testing.T) {
 	if level, ok := cmdutil.GetRisk(cmd); !ok || level != cmdutil.RiskHighRiskWrite {
 		t.Errorf("context delete should be marked high-risk-write risk, got level=%q ok=%v", level, ok)
 	}
-	if err := cmd.Args(cmd, []string{"example:x"}); err == nil {
+	if err := cmd.Args(cmd, []string{"fakeflow:x"}); err == nil {
 		t.Error("context delete missing ctx-id should report an argument error (ExactArgs 2)")
 	}
 	if cmd.Flags().Lookup("yes") == nil {

@@ -27,7 +27,6 @@ metadata:
 | scheme | kind | 一句话 | 详见 |
 |---|---|---|---|
 | `base` | catalog | 统一 Base Assistant，承接复杂建设、结构调整与数据检索分析 | [provider-base](references/providers/lark-agents-base.md) |
-| `example` | catalog | 内置离线演示 agent（内存 mock，零网络），`agents list example` 可枚举 | [provider-example](references/providers/lark-agents-example.md) |
 
 ### Base 的两种入口
 
@@ -60,7 +59,7 @@ metadata:
 
 1. `agents card <agent_ref>` 看 `capabilities` + `has_parameters`——capabilities 决定能调什么动词；`has_parameters` 列出**需要带 `--param` 的动词**（不在列表里的动词不用带任何参数）。要调的动词在列表里 → 先 `agents card <agent_ref> --operation <动词>` 查该动词的参数（name/type/required/enum/default + 命令形态）；要调 2+ 个动词 → `--operation all` 一次拿全。`type:"object"` 的参数按点路径逐字段传（`--param filter.region=east`）。偷懒直接调也行：参数错误一次报全且每条带完整声明，失败一次就能修对。能力为 false 的动词直接报 `unsupported_capability`，不要试。card **不含 scope**——scope 见「前置准备」，缺时命令本地报 `missing_scope`（照抄 hint）。
 2. `agents send <agent_ref> --text "..."` 起任务。send 只 fire、立即返回 `{task_id, context_id, state}`。`meta.next` 是**建议命令**（你显式传过 `--as` 时会带同身份，别自行改换；没传则不带、照常走默认身份）：`template:true` 的先把 `<...>` 占位符整体替换再执行；无 `template` 字段的可直接照抄；执行报错时对照本 skill 参数表。
-3. 轮询到结果：`agents task get <agent_ref> <task-id> --watch --timeout 30s`（唯一轮询入口；send 只 fire，不阻塞），`--timeout` 语义见「异步与轮询」。
+3. 轮询到结果：`agents task get <agent_ref> <task-id> --watch --timeout 90s`（唯一轮询入口；send 只 fire，不阻塞），`--timeout` 语义见「异步与轮询」。
 4. 多轮 / 答题：`state=input_required` 时任务停在一个**问题组**（`input_required.questions[]`，单问=长度 1）等你答，向**同一任务**用 `--answer` 一次交清。**默认转达**：把组 `label/description` + 全部题目、选项（label 与 description）呈给用户等用户定，仅当答案已被用户先前指令唯一确定时可代答（须说明依据）；用户对某题明确说"你定/随便"即为委托，AI 就该题自选并说明所选——别把"你定"弹回去。答法一条规则：**给选项键用 `--answer <question_id>=<option_id>`（多选重复同 key），给文字用 `--answer <question_id>.text=<文本>`**（问答题的正常答案和选择题"都不想选"的逃生是同一写法；`.text` 只在用户明确脱稿时用，**不要**用它替用户"优化"某个现成选项）；`--text` 是整体附言，永远不是某道题的答案。`meta.next` 直接给按题展开的模板，照抄填空即可。收齐再交（引导用户答全；用户只想答一部分就照实提交，严格型 provider 会报 `missing`）；校验报错后**整组重发**（含未报错的题）。组已被别端答掉时报 `failed_precondition` 并携带机器可读的 `resolved_answers`（谁赢了、答的什么），转告用户即可。（该态是否会出现见 provider 文件的能力特例。）
 
 ## 意图 → 命令（决策点速查）
@@ -89,13 +88,13 @@ metadata:
   - `auth_required` → **任务态**：agent 侧在等终端用户完成授权，不是 CLI 权限错误。可照抄排查：`lark-cli auth status` → 按 provider 文件列出的 scope 重新 `lark-cli auth login --scope "<scopes>"` → 再 `agents task get` 重查。注意区分：CLI 调用层权限错误（`missing_scope` 或 API 权限错误）走「前置准备」节流程，与任务态无关。
   - `submitted` / `working` → 还在跑，稍后再 `task get`（或 `--watch`）
   - **停轮询条件** = `is_terminal`（∈{completed,failed,canceled,rejected}）为真 **或** state ∈ {`input_required`,`auth_required`}（后两者不是错误，是"该你续发了"）。
-- **artifact**：任务产出物（图/文件），列在 `data.artifacts[]`（每项含 `id` + 粗粒度 `kind` 提示）；用 `task get --artifact <id> -o <file>` 落盘。选 `-o` 后缀看 `kind`（下载前）与下载输出的 `suggested_name`（下载后，带扩展名）；两者仅参考，落盘以 `-o` 为准。
+- **artifact**：任务产出物（图/文件），列在 `data.artifacts[]`（每项含 `id` + 粗粒度 `kind` 提示）；用 `task get --artifact <id> -o <file>` 落盘（`-o` **只接受 CWD 内的相对路径**，绝对路径报 `invalid_argument`；目标已存在需 `--force` 覆盖）。选 `-o` 后缀看 `kind`（下载前）与下载输出的 `suggested_name`（下载后，带扩展名）；两者仅参考，落盘以 `-o` 为准。
 - **能力门控**：card `capabilities` 共 9 键（`task_get/task_list/task_cancel/input_required/file_input/artifact_download/context_list/context_get/context_delete`），为 false 的动词报 `unsupported_capability`，不静默降级。context 三个动词各有独立能力位（`context_list/context_get/context_delete`）——一个 provider 可能能列会话却不能删会话，按需分别判断，别用单一位一概而论。card 无键的低频能力由运行时兜底——调用报 `unsupported_capability` 与 card 为 false 同样权威，别重试。能力以 `agents card` 实际输出为准；provider 特例见对应 provider 文件。
 
 ## 异步与轮询（子进程契约）
 
 - **轮询方式**：CLI 内置。`task get --watch` 轮询，命中停轮询条件（见「核心概念」）后打印最终 `data` 并退出（send 只 fire、不轮询）。不带 `--watch` 则单次返回当前状态，由你（或按 `meta.next`）手动再查。
-- **有界 watch（`--timeout`）**：`--watch --timeout <dur>`（如 `30s`）给轮询加时间上界；`0`=无界（`--watch` 单用即无界，阻塞到终态，向后兼容）。`--timeout` 须与 `--watch` 同用，否则报 `invalid_argument`。`meta.next` 对未完成任务默认推 `--watch --timeout 30s`（安全默认：不无界阻塞长任务、不 self-hammer）；到点未完照 `meta.next` 再 watch。
+- **有界 watch（`--timeout`）**：`--watch --timeout <dur>`（如 `90s`）给轮询加时间上界；`0`=无界（`--watch` 单用即无界，阻塞到终态，向后兼容）。`--timeout` 须与 `--watch` 同用，否则报 `invalid_argument`。`meta.next` 对未完成任务默认推 `--watch --timeout 90s`（安全默认：不无界阻塞长任务、不 self-hammer）；到点未完照 `meta.next` 再 watch。
 - **超时不判失败**：轮询被中断（`--timeout` 到点 / ctx 取消）返回最近一次状态，**exit 0**（task 是事实源，轮询只是观察窗）；用 `meta.next` 或 `task get` 续查。
 - **退出码**（非穷举，其余通用码见 lark-shared）：`0`=成功 / 观察到任意状态；`1`=API 错误，或 `task get --watch` 观察到终态 `failed`/`rejected`/`canceled`（任务真失败，别重试）；`2`=本地校验错误（参数/用法/能力门控）；`3`=认证/scope 未授予（含本地 `missing_scope` preflight，不发请求；先跑 `lark-cli auth status`；缺 scope 时按 preflight hint 重新授权）；`4`=网络（可重试）；`10`=高危写需显式确认（`context delete` 缺 `--yes`；`send --file` 缺 `--yes`；`task get --artifact -o` 会覆盖已存在文件而缺 `--force`）。
 

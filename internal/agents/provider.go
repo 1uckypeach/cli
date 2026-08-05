@@ -19,26 +19,16 @@ type SendInput struct {
 	TaskID    string
 
 	// Answers is the structured reply to the task's pending input_required
-	// question group, keyed per the design doc §10.1 encoding: key is a
-	// question_id (bare form — each value must hit one of that question's
-	// OptionIDs) or "<question_id>.text" (free-text form — exactly one value,
-	// CLI-guarded). Values keep argv order; repeated bare values on a
-	// multi-select accumulate. A nil/empty map means this send is not answering.
-	// The provider serializes Answers into the reply message's A2A DataPart
-	// (kind=answers). Whether to validate semantics (missing/option/count) is
-	// the provider's own policy — tolerant LLM backends may consume partial or
-	// free answers, strict form backends validate — but any violation it DOES
-	// report must use the collect-all ValidationError shape with per-question
-	// params entries (Reason enum), acceptance must be atomic (validate + record
-	// + leave input_required as one step, side effects after), and nothing may
-	// be silently dropped. Text, when present alongside Answers, is the
-	// message-level remark (TextPart) — never a question's answer.
+	// question group. Each key is a question_id (bare form — every value must hit
+	// one of that question's OptionIDs) or "<question_id>.text" (free-text form,
+	// exactly one value, CLI-guarded). Values keep argv order; repeated bare
+	// values on a multi-select accumulate. Nil/empty means this send is not
+	// answering. Text alongside Answers is a message-level remark, never an answer.
 	//
-	// Wire note (§6.7 messageId, deferred to the adapter): the deterministic
-	// answer-submission id — hash(TaskID + the canonical Answers encoding) — is
-	// NOT carried here; the adapter assembling the A2A message computes it into
-	// Message.messageId so a same-command retry dedupes server-side. There is no
-	// wire in-repo yet, so the framework deliberately ships no dead field.
+	// Semantic validation is the provider's own policy (tolerant backends may take
+	// partial answers, strict ones validate), but any violation it does report must
+	// use the collect-all ValidationError shape with per-question params entries,
+	// acceptance must be atomic, and nothing may be silently dropped.
 	Answers map[string][]string
 }
 
@@ -59,7 +49,7 @@ type CardInfo struct {
 // enforces), which encodes the kind, so there is no separate Kind field to keep
 // in sync.
 type Provider struct {
-	Scheme        string         // ref prefix, e.g. "example"
+	Scheme        string         // ref prefix, e.g. "base"
 	Label         string         // `agents list` LABEL column
 	AgentIDSource string         // where to get an agent_id (AI onboarding cue)
 	Identities    []IdentitySpec // non-empty; Type ∈ {user,bot}; scopes are declared per identity (IdentitySpec.Scopes)
@@ -68,31 +58,24 @@ type Provider struct {
 	Catalog  []AgentSpec // finite, offline-enumerable set (kind = catalog)
 	Instance *AgentSpec  // single template for any runtime agent_id (kind = instance)
 
-	// ListAgents is the optional ONLINE enumeration hook — only meaningful for an
-	// instance provider whose platform has a "list my agents" endpoint. Wired ⇒
-	// `agents list <scheme>` enumerates via this call. A catalog provider leaves it
-	// nil (enumeration is derived offline from Catalog); an instance platform with
-	// only get-by-id and no list endpoint also leaves it nil (not enumerable).
-	// This is independent of AgentSpec.Describe: ListAgents = "which agents exist"
-	// (a list endpoint), Describe = "what one agent looks like" (get-by-id). It is
-	// paginated: the framework passes the requested cursor/size as PageParams and
-	// surfaces the returned PageInfo as meta.has_more / meta.page_token plus a
-	// next-page command.
+	// ListAgents is the optional ONLINE enumeration hook, only meaningful for an
+	// instance provider whose platform has a "list my agents" endpoint. Catalog
+	// providers leave it nil (enumeration is derived offline from Catalog), as do
+	// instance platforms with only get-by-id. It is distinct from
+	// AgentSpec.Describe: ListAgents answers "which agents exist", Describe "what
+	// one agent looks like". Paginated via PageParams/PageInfo.
 	ListAgents func(ctx context.Context, rt Runtime, page PageParams) ([]AgentSummary, PageInfo, error)
 
-	// ListParams declares the business parameters of `agents list <scheme>` itself
-	// (list is a provider-level discovery operation, so its parameters live here,
-	// not on any single agent's spec). Discovered via `agents list` (no scheme)
-	// output's providers[].list_parameters. Register panics when ListParams is
+	// ListParams declares the business parameters of `agents list <scheme>` itself:
+	// list is provider-level, so its parameters live here rather than on an agent's
+	// spec, and surface as providers[].list_parameters. Register panics when
 	// declared without a ListAgents hook.
 	ListParams []CardParam
 }
 
-// ScopesForIdentity returns the declared identity's Scopes verbatim (nil when
-// the identity itself is not declared). The identity gate (not this lookup)
-// owns rejecting an unsupported identity; callers treat an empty result
-// (len == 0, whether nil or an explicit empty slice) as "no scope preflight
-// for this identity".
+// ScopesForIdentity returns the declared identity's Scopes verbatim, nil when the
+// identity is not declared. Rejecting an unsupported identity belongs to the
+// identity gate, not here; an empty result means "no scope preflight".
 func (p Provider) ScopesForIdentity(t IdentityType) []string {
 	for _, id := range p.Identities {
 		if id.Type == t {

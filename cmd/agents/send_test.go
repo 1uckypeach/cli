@@ -85,7 +85,7 @@ func TestSendRequiresText(t *testing.T) {
 		"full width space": "\u3000",
 	} {
 		t.Run(name, func(t *testing.T) {
-			err := agentSendRun(&sendOptions{Ref: "example:agt_x", Text: text})
+			err := agentSendRun(&sendOptions{Ref: "fakeflow:agt_x", Text: text})
 			if err == nil {
 				t.Fatal("missing --text should raise a validation error")
 			}
@@ -112,7 +112,7 @@ func TestSendRequiresText(t *testing.T) {
 // TestSendTaskIDRequiresContextID pins that --task-id without --context-id is a
 // validation error, raised before any provider is built.
 func TestSendTaskIDRequiresContextID(t *testing.T) {
-	err := agentSendRun(&sendOptions{Ref: "example:agt_x", Text: "x", TaskID: "t1"})
+	err := agentSendRun(&sendOptions{Ref: "fakeflow:agt_x", Text: "x", TaskID: "t1"})
 	if err == nil {
 		t.Fatal("--task-id without --context-id should error")
 	}
@@ -135,7 +135,7 @@ func TestSendTaskIDRequiresContextID(t *testing.T) {
 }
 
 // TestSendAnswerGroup pins the structured input_required answer path: --answer
-// entries need no --text, and they reach the provider hook as the §10.1 map
+// entries need no --text, and they reach the provider hook as the map
 // encoding — keys verbatim (bare vs .text), values in argv order, multi-select
 // accumulated, exact duplicates deduplicated.
 func TestSendAnswerGroup(t *testing.T) {
@@ -144,7 +144,7 @@ func TestSendAnswerGroup(t *testing.T) {
 	opts.TaskID = "task_1"
 	opts.Answers = []string{
 		"q1_a8=by_region",
-		"q2_a8.text=2024 全年",
+		"q2_a8.text=full year 2024",
 		"q3_a8=east", "q3_a8=north", "q3_a8=east", // exact dup → deduped
 	}
 	// deliberately no opts.Text — the answers ARE the message.
@@ -159,7 +159,7 @@ func TestSendAnswerGroup(t *testing.T) {
 	if v := got.Answers["q1_a8"]; len(v) != 1 || v[0] != "by_region" {
 		t.Errorf("bare answer should reach the hook as-is, got %v", got.Answers["q1_a8"])
 	}
-	if v := got.Answers["q2_a8.text"]; len(v) != 1 || v[0] != "2024 全年" {
+	if v := got.Answers["q2_a8.text"]; len(v) != 1 || v[0] != "full year 2024" {
 		t.Errorf(".text key should stay verbatim in the map, got %v", got.Answers["q2_a8.text"])
 	}
 	if v := got.Answers["q3_a8"]; len(v) != 2 || v[0] != "east" || v[1] != "north" {
@@ -170,7 +170,7 @@ func TestSendAnswerGroup(t *testing.T) {
 // TestSendAnswerRequiresTaskContext pins that answering a group needs the
 // task/context it belongs to (mode-first guard, before key parsing).
 func TestSendAnswerRequiresTaskContext(t *testing.T) {
-	err := agentSendRun(&sendOptions{Ref: "example:agt_x", Answers: []string{"q1=by_region"}})
+	err := agentSendRun(&sendOptions{Ref: "fakeflow:agt_x", Answers: []string{"q1=by_region"}})
 	if err == nil {
 		t.Fatal("--answer without --context-id/--task-id should error")
 	}
@@ -185,13 +185,13 @@ func TestSendAnswerRequiresTaskContext(t *testing.T) {
 // flag-lookalike key, an empty value, and a duplicated .text entry are ALL
 // reported in one error; none of them reaches any provider.
 func TestSendAnswerGrammar(t *testing.T) {
-	err := agentSendRun(&sendOptions{Ref: "example:agt_x", ContextID: "sess_1", TaskID: "task_1",
+	err := agentSendRun(&sendOptions{Ref: "fakeflow:agt_x", ContextID: "sess_1", TaskID: "task_1",
 		Answers: []string{
-			"noequals",               // 非 key=value
-			"q1.txt=x",               // 后缀拼错：非法 key
-			"--text=x",               // flag 形状 key：首字符非法
-			"q2=",                    // 空值
-			"q3.text=a", "q3.text=b", // .text 不累积
+			"noequals",               // not key=value
+			"q1.txt=x",               // misspelled suffix: invalid key
+			"--text=x",               // flag-shaped key: illegal first character
+			"q2=",                    // empty value
+			"q3.text=a", "q3.text=b", // .text does not accumulate
 		}})
 	if err == nil {
 		t.Fatal("illegal --answer entries should error offline")
@@ -218,7 +218,7 @@ func workingTask() *iagents.AgentTask {
 // silently ignored).
 func TestSendPrettyFormat(t *testing.T) {
 	opts := sendTestOpts(t)
-	opts.Text = "分析销售"
+	opts.Text = "analyze sales"
 	opts.Format = "pretty"
 	setScripted(t, scriptedHooks{send: func(iagents.SendInput) (*iagents.AgentTask, error) {
 		return workingTask(), nil
@@ -244,7 +244,7 @@ func TestSendPrettyFormat(t *testing.T) {
 // (key: value preview) instead of silently emitting JSON.
 func TestSendDryRunPrettyFormat(t *testing.T) {
 	opts := sendTestOpts(t)
-	opts.Text = "分析销售"
+	opts.Text = "analyze sales"
 	opts.DryRun = true
 	opts.Format = "pretty"
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
@@ -253,7 +253,7 @@ func TestSendDryRunPrettyFormat(t *testing.T) {
 		t.Fatalf("dry-run pretty should not error: %v", err)
 	}
 	text := string(out.Bytes())
-	for _, want := range []string{"dry_run: true", "ref: fakeflow:agt_x", "text: 分析销售"} {
+	for _, want := range []string{"dry_run: true", "ref: fakeflow:agt_x", "text: analyze sales"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("pretty output should contain %q, got:\n%s", want, text)
 		}
@@ -302,7 +302,7 @@ func TestSendDryRunPrettyNeutralizesInjection(t *testing.T) {
 // validation error.
 func TestSendNoParamsRequired(t *testing.T) {
 	opts := sendTestOpts(t)
-	opts.Text = "分析销售"
+	opts.Text = "analyze sales"
 	opts.Params = nil
 	opts.DryRun = true
 	if err := agentSendRun(opts); err != nil {
@@ -310,7 +310,7 @@ func TestSendNoParamsRequired(t *testing.T) {
 	}
 
 	opts2 := sendTestOpts(t)
-	opts2.Text = "分析销售"
+	opts2.Text = "analyze sales"
 	opts2.Params = []string{"noequals"} // a --param without '=' should still raise validation
 	opts2.DryRun = true
 	err := agentSendRun(opts2)
@@ -328,7 +328,7 @@ func TestSendNoParamsRequired(t *testing.T) {
 // no send hook installed).
 func TestSendUnknownParamRejected(t *testing.T) {
 	opts := sendTestOpts(t)
-	opts.Text = "分析销售"
+	opts.Text = "analyze sales"
 	opts.Params = []string{"app_id=app_1"}
 	opts.DryRun = true
 	err := agentSendRun(opts)
@@ -351,7 +351,7 @@ func TestSendUnknownParamRejected(t *testing.T) {
 // calls the provider (no send hook installed → a Send would panic).
 func TestSendDryRun(t *testing.T) {
 	opts := sendTestOpts(t)
-	opts.Text = "分析销售"
+	opts.Text = "analyze sales"
 	opts.DryRun = true
 	out := opts.Factory.IOStreams.Out.(interface{ Bytes() []byte })
 
@@ -376,7 +376,7 @@ func TestSendDryRun(t *testing.T) {
 	if !ok {
 		t.Fatalf("data.would_send should be an object, got %T", data["would_send"])
 	}
-	if would["text"] != "分析销售" {
+	if would["text"] != "analyze sales" {
 		t.Errorf("would_send.text should echo the text, got %v", would["text"])
 	}
 }
@@ -386,7 +386,7 @@ func TestSendDryRun(t *testing.T) {
 func TestSendDryRunRejectsProviderUnsupportedIdentity(t *testing.T) {
 	opts := sendTestOpts(t)
 	opts.Ref = "fakeuseronly:agt_x"
-	opts.Text = "分析销售"
+	opts.Text = "analyze sales"
 	opts.DryRun = true
 
 	err := agentSendRun(opts)
@@ -405,7 +405,7 @@ func TestSendDryRunRejectsProviderUnsupportedIdentity(t *testing.T) {
 // a meta.next hint pointing at task get --watch.
 func TestSendStartsTask(t *testing.T) {
 	opts := sendTestOpts(t)
-	opts.Text = "分析销售"
+	opts.Text = "analyze sales"
 	var gotText string
 	setScripted(t, scriptedHooks{send: func(in iagents.SendInput) (*iagents.AgentTask, error) {
 		gotText = in.Text
@@ -416,7 +416,7 @@ func TestSendStartsTask(t *testing.T) {
 	if err := agentSendRun(opts); err != nil {
 		t.Fatalf("send should not error: %v", err)
 	}
-	if gotText != "分析销售" {
+	if gotText != "analyze sales" {
 		t.Errorf("provider should receive the original text, got %q", gotText)
 	}
 	var env output.Envelope
@@ -471,7 +471,7 @@ func TestNewCmdAgentSend_WriteRiskAndArgs(t *testing.T) {
 	if err := cmd.Args(cmd, []string{}); err == nil {
 		t.Error("agents send missing ref should raise an args error (ExactArgs 1)")
 	}
-	if err := cmd.Args(cmd, []string{"example:x"}); err != nil {
+	if err := cmd.Args(cmd, []string{"fakeflow:x"}); err != nil {
 		t.Errorf("agents send with a single ref should be valid: %v", err)
 	}
 	for _, name := range []string{"text", "file", "param", "context-id", "task-id", "dry-run", "as", "format", "jq"} {
@@ -485,7 +485,7 @@ func TestNewCmdAgentSend_WriteRiskAndArgs(t *testing.T) {
 	// The --file help must point out that files are sent off to the remote
 	// provider (file-egress requirement).
 	fileFlag := cmd.Flags().Lookup("file")
-	if fileFlag != nil && !strings.Contains(fileFlag.Usage, "外发") && !strings.Contains(fileFlag.Usage, "上传") {
+	if fileFlag != nil && !strings.Contains(fileFlag.Usage, "uploaded") && !strings.Contains(fileFlag.Usage, "leaves this machine") {
 		t.Errorf("--file help should note files are sent out to the remote provider, got %q", fileFlag.Usage)
 	}
 }
@@ -500,7 +500,7 @@ func TestNewCmdAgentSend_RunFOverride(t *testing.T) {
 		captured = opts
 		return nil
 	})
-	cmd.SetArgs([]string{"example:agt_x", "--text", "hi"})
+	cmd.SetArgs([]string{"fakeflow:agt_x", "--text", "hi"})
 	cmd.SetContext(context.Background())
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute should not error: %v", err)
@@ -508,7 +508,7 @@ func TestNewCmdAgentSend_RunFOverride(t *testing.T) {
 	if !called {
 		t.Fatal("runF should be called")
 	}
-	if captured.Ref != "example:agt_x" || captured.Text != "hi" {
+	if captured.Ref != "fakeflow:agt_x" || captured.Text != "hi" {
 		t.Errorf("opts not populated correctly: %+v", captured)
 	}
 }
@@ -560,11 +560,12 @@ func TestSend_FileWithYesProceeds(t *testing.T) {
 }
 
 // TestSend_FileDryRunNotGated pins that --dry-run with --file is exempt from the
-// gate (dry-run never uploads), so it needs no --yes and never reaches the
-// provider (unset send hook stays a tripwire).
+// CONFIRMATION gate (dry-run never uploads), so a file_input=TRUE provider needs
+// no --yes and never reaches the provider (unset send hook stays a tripwire).
+// The capability gate is a separate matter — see TestSend_DryRunGatedByCapability.
 func TestSend_FileDryRunNotGated(t *testing.T) {
 	mkSendFile(t, "local.txt")
-	opts := sendTestOpts(t)
+	opts := sendTestOpts(t) // fakeflow declares file_input=true
 	opts.Text = "hi"
 	opts.Files = []string{"local.txt"}
 	opts.DryRun = true // no --yes
@@ -572,4 +573,40 @@ func TestSend_FileDryRunNotGated(t *testing.T) {
 	if err := agentSendRun(opts); err != nil {
 		t.Fatalf("dry-run --file should not be gated: %v", err)
 	}
+}
+
+// TestSend_DryRunGatedByCapability pins that --dry-run is NOT a capability
+// bypass: against an agent that declares file_input=false / input_required=false,
+// --file / --answer are rejected with unsupported_capability under dry-run — the
+// SAME verdict a real send would give. This closes the "dry-run false green
+// light" gap, where a preview returned ok for a send the provider could never
+// accept, misleading a caller that uses dry-run to pre-check a command.
+func TestSend_DryRunGatedByCapability(t *testing.T) {
+	wantUnsupported := func(t *testing.T, err error) {
+		t.Helper()
+		p, ok := errs.ProblemOf(err)
+		if !ok || p.Subtype != errs.Subtype("unsupported_capability") {
+			t.Fatalf("want unsupported_capability under dry-run, got problem=%+v err=%v", p, err)
+		}
+	}
+	// --file against file_input=false (fakemin declares neither capability).
+	t.Run("file", func(t *testing.T) {
+		mkSendFile(t, "local.txt")
+		opts := sendTestOpts(t)
+		opts.Ref = "fakemin:agt_x"
+		opts.Text = "hi"
+		opts.Files = []string{"local.txt"}
+		opts.DryRun = true
+		wantUnsupported(t, agentSendRun(opts))
+	})
+	// --answer against input_required=false.
+	t.Run("answer", func(t *testing.T) {
+		opts := sendTestOpts(t)
+		opts.Ref = "fakemin:agt_x"
+		opts.ContextID = "ctx_x"
+		opts.TaskID = "task_x"
+		opts.Answers = []string{"q1=a1"}
+		opts.DryRun = true
+		wantUnsupported(t, agentSendRun(opts))
+	})
 }

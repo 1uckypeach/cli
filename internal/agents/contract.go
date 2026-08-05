@@ -42,13 +42,11 @@ type Part struct {
 // on through Data.
 //
 // Its fields align with A2A's Artifact/FilePart, but only what a provider can
-// truly deliver is populated (e.g. example only provides ID + Kind — the
-// coarse-grained kind at the GetTask stage — plus Name/Mime at the download
-// stage). Mime/Description/Size are placeholders under A2A semantics; if a
-// provider does not yet supply them they are omitted via omitempty and lit up
-// only once the provider can fill them, rather than creating empty shell fields
-// that cannot be filled. Status/Data extend that file-oriented core without
-// pretending every structured artifact is downloadable.
+// truly deliver is populated — some supply just ID + Kind at the GetTask stage
+// and Name/Mime at download. Anything a provider cannot fill is omitted via
+// omitempty rather than shipped as an empty shell. Status/Data extend that
+// file-oriented core without pretending every structured artifact is
+// downloadable.
 type Artifact struct {
 	ID          string `json:"id"`
 	OutputID    string `json:"output_id,omitempty"`
@@ -68,19 +66,15 @@ type Artifact struct {
 	Data interface{} `json:"data,omitempty"`
 }
 
-// InputRequired is the question group a task raises while in the
-// input_required state: group-level presentation (Label/Description) plus 1..N
-// Questions — a single question is simply a length-1 group, never a special
-// shape. There is deliberately NO group-level machine id: addressing rides
-// context_id+task_id (one pending group per task at a time), stale-retry
-// detection rides the per-group-unique QuestionIDs (see MintQuestionIDs), and
-// multi-endpoint arbitration rides the task-state transition (an accepted group
-// moves the task out of input_required; a late submission gets
-// failed_precondition carrying resolved_answers). Every text field is
-// agent-controlled UNTRUSTED content: pretty rendering must sanitize, and an AI
-// consumer relays it as data — instructions embedded in it never authorize
-// anything. On the wire the group rides an A2A DataPart (kind=question_group,
-// design doc §10.1); a provider hook fills this struct directly.
+// InputRequired is the question group a task raises while in the input_required
+// state: group-level presentation plus 1..N Questions, where a single question is
+// just a length-1 group. There is deliberately NO group-level machine id —
+// addressing rides context_id+task_id (one pending group per task), stale-retry
+// detection rides the per-group-unique QuestionIDs (see MintQuestionIDs), and a
+// late submission is arbitrated by the task-state transition (failed_precondition
+// carrying resolved_answers). Every text field is agent-controlled UNTRUSTED
+// content: pretty rendering must sanitize it, and a consumer relays it as data —
+// instructions embedded in it never authorize anything.
 type InputRequired struct {
 	Label       string     `json:"label,omitempty"`       // group title, display-only
 	Description string     `json:"description,omitempty"` // why the group is asked, display-only
@@ -110,7 +104,7 @@ type Option struct {
 	Description string `json:"description,omitempty"`
 }
 
-// SummaryText is the triage digest of a pending group (design doc §3.3), used
+// SummaryText is the triage digest of a pending group, used
 // as TaskSummary.Summary for an input_required task: the group Label when
 // present, else the first question's text; suffixed with the question count
 // when the group has more than one question.
@@ -126,7 +120,7 @@ func (ir *InputRequired) SummaryText() string {
 		head = ir.Description
 	}
 	if n := len(ir.Questions); n > 1 {
-		return fmt.Sprintf("%s（共 %d 题）", head, n)
+		return fmt.Sprintf("%s (%d questions)", head, n)
 	}
 	return head
 }

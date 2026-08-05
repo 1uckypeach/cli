@@ -33,7 +33,7 @@ lark-cli agents card base:assistant --operation all --as user --format json
 
 ## scope、身份与目标 Base
 
-- 仅支持 `--as user`。`--as bot` 会在离线身份预检中拒绝，不发送请求。
+- 仅支持 `--as user`。`--as bot` 会在离线身份预检中拒绝，不发送请求。不带 `--as` 时身份按 `default-as` → 凭证 auto-detect 解析，可能落到 bot（如未设 `default-as` 且只有 bot 凭证），同样会被拒——调 base 时显式带 `--as user` 最稳。
 - Base Assistant 使用 `base:agent:execute` 做 provider 级预检。缺 scope 时按结构化 `missing_scope` hint 走 `lark-shared` 授权流程，然后重试同一 Agent；不要回退 Base CLI。
 - 7 个操作都要求 `base_token`，通过 `--param base_token=<base-token>` 传递；send 可额外传 `active_table_id`。
 - 用户输入 Base/Wiki/record-share URL 等 Base 相关链接时，先运行 `lark-cli base +url-resolve --url "<url>" --as user`；用返回的 `base_token` 和相关 `table_id` / `view_id` / `record_id` 继续后续 Agent 命令，不要把完整 URL、wiki token 或 share token 当成 `base_token`。
@@ -86,7 +86,7 @@ lark-cli agents send base:assistant \
 lark-cli agents task get base:assistant <task-id> \
   --param base_token=<base-token> \
   --param context_id=<context-id> \
-  --as user --watch --timeout 30s --format json
+  --as user --watch --timeout 90s --format json
 ```
 
 ### 回答结构化澄清

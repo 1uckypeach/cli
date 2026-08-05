@@ -106,7 +106,7 @@ func TestDeriveCapabilities(t *testing.T) {
 // is never invoked without a runtime).
 func TestBuildCardOffline(t *testing.T) {
 	prov := catalogProvider("nc", "a1")
-	prov.Identities = []IdentitySpec{{Type: IdentityBot, Precondition: "需要白名单"}}
+	prov.Identities = []IdentitySpec{{Type: IdentityBot, Precondition: "requires an allowlist entry"}}
 	prov.Catalog[0].Describe = func(context.Context, Runtime) (*CardInfo, error) {
 		return &CardInfo{Name: "REMOTE"}, nil // must NOT be called with rt=nil
 	}

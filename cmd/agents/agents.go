@@ -18,7 +18,7 @@ func NewCmdAgents(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "agents",
 		Short: "Drive first-party remote agents (A2A: send / start task / poll / fetch result)",
-		Long:  "Drive Feishu first-party remote agents with a constant verb set. An agent_ref looks like <scheme>:<agent_id> (e.g. example:echo). Read capabilities with `agents card <agent_ref>` first, then pick verbs by capability.",
+		Long:  "Drive Feishu first-party remote agents with a constant verb set. An agent_ref looks like <scheme>:<agent_id> (e.g. base:assistant). Read capabilities with `agents card <agent_ref>` first, then pick verbs by capability.",
 	}
 	cmd.AddCommand(NewCmdAgentList(f))
 	cmd.AddCommand(NewCmdAgentCard(f))

@@ -53,7 +53,7 @@ func findProvider(providers []interface{}, scheme string) map[string]interface{}
 }
 
 // TestAgentListRun_ProviderFieldsV2 pins the provider entry contract: the
-// example entry carries all fields sourced from iagents.Info (the single source
+// base entry carries all fields sourced from iagents.Info (the single source
 // of truth), the legacy free-text description field is gone, and discoverable
 // is no longer exposed.
 func TestAgentListRun_ProviderFieldsV2(t *testing.T) {
@@ -61,13 +61,13 @@ func TestAgentListRun_ProviderFieldsV2(t *testing.T) {
 	if err := agentListRun(opts); err != nil {
 		t.Fatalf("list should not error: %v", err)
 	}
-	prov, ok := iagents.Info("example")
+	prov, ok := iagents.Info("base")
 	if !ok {
-		t.Fatal("the example provider should already be registered (top-level agent blank import)")
+		t.Fatal("the base provider should already be registered (top-level agents blank import)")
 	}
-	p := findProvider(decodeProviders(t, out), "example")
+	p := findProvider(decodeProviders(t, out), "base")
 	if p == nil {
-		t.Fatalf("list should include the example provider: %s", out.String())
+		t.Fatalf("list should include the base provider: %s", out.String())
 	}
 	if p["label"] != prov.Label {
 		t.Errorf("label should come from Provider.Label %q, got %v", prov.Label, p["label"])
@@ -163,15 +163,15 @@ func TestAgentListRun_PrettyFormat(t *testing.T) {
 	if !strings.HasPrefix(text, "SCHEME") {
 		t.Errorf("pretty output should start with a header row: %s", text)
 	}
-	if !strings.Contains(text, "example") {
-		t.Errorf("pretty output should contain the example provider: %s", text)
+	if !strings.Contains(text, "base") {
+		t.Errorf("pretty output should contain the base provider: %s", text)
 	}
-	if !strings.Contains(text, "example:<agent_id>") {
-		t.Errorf("pretty output should contain the example ref format: %s", text)
+	if !strings.Contains(text, "base:<agent_id>") {
+		t.Errorf("pretty output should contain the base ref format: %s", text)
 	}
 	// agent_id_source is surfaced as a footer (not a column) so the newcomer's
 	// "where do I get an agent_id" cue does not disappear in the pretty view.
-	if !strings.Contains(text, "agent_id 获取") {
+	if !strings.Contains(text, "agent_id source") {
 		t.Errorf("pretty output should contain the agent_id_source footer hint: %s", text)
 	}
 }
@@ -198,7 +198,7 @@ func TestAgentListScheme_UnsupportedCapability(t *testing.T) {
 	if !ok || p.Subtype != errs.Subtype("unsupported_capability") {
 		t.Fatalf("subtype should be unsupported_capability, got %+v", p)
 	}
-	if !strings.Contains(err.Error(), "provider 'fakeflow' 暂不支持列举 agent") {
+	if !strings.Contains(err.Error(), "provider 'fakeflow' does not support listing agents") {
 		t.Errorf("message should state that listing is not supported, got %q", err.Error())
 	}
 	if !strings.Contains(p.Hint, fakeflowAgentIDSource) {
@@ -222,7 +222,7 @@ func TestAgentListScheme_UnknownScheme(t *testing.T) {
 	if !ok || p.Subtype != errs.SubtypeInvalidArgument {
 		t.Fatalf("subtype should be invalid_argument, got %+v", p)
 	}
-	if !strings.Contains(err.Error(), "nosuch") || !strings.Contains(err.Error(), "example") {
+	if !strings.Contains(err.Error(), "nosuch") || !strings.Contains(err.Error(), "base") {
 		t.Errorf("message should contain the unknown scheme and the registered scheme list, got %q", err.Error())
 	}
 	// Hand-written validation errors carry a recovery hint pointing at
@@ -253,7 +253,7 @@ func registerFakeDisc() {
 		AgentIDSource: "test only",
 		Identities:    []iagents.IdentitySpec{{Type: iagents.IdentityUser}},
 		Catalog: []iagents.AgentSpec{
-			catSpec("a1", "Agent One", "第一个"),
+			catSpec("a1", "Agent One", "the first"),
 			catSpec("a2", "Agent Two", ""),
 		},
 	})
@@ -337,7 +337,7 @@ func TestAgentListScheme_InstanceListAgentsOnline(t *testing.T) {
 // TestAgentListScheme_PaginationMeta pins the command-level pagination envelope
 // for the instance `list <scheme>` path: a ListAgents hook that returns a page
 // plus PageInfo{HasMore,NextToken} surfaces as meta.has_more / meta.page_token,
-// and meta.next carries a "下一页" action replaying the scheme with
+// and meta.next carries a "next page" action replaying the scheme with
 // --page-size / --page-token.
 func TestAgentListScheme_PaginationMeta(t *testing.T) {
 	spec := catSpec("", "", "")
@@ -385,13 +385,13 @@ func TestAgentListScheme_PaginationMeta(t *testing.T) {
 	}
 	found := false
 	for _, n := range env.Meta.Next {
-		if n.Label == "下一页" && strings.Contains(n.Command, "lark-cli agents list fakelivepage") &&
+		if n.Label == "next page" && strings.Contains(n.Command, "lark-cli agents list fakelivepage") &&
 			strings.Contains(n.Command, "--page-size 2") && strings.Contains(n.Command, "--page-token 2") {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("meta.next should contain a 下一页 action replaying the scheme + --page-size/--page-token, got %+v", env.Meta.Next)
+		t.Errorf("meta.next should contain a next page action replaying the scheme + --page-size/--page-token, got %+v", env.Meta.Next)
 	}
 }
 
@@ -585,10 +585,10 @@ func TestNewCmdAgentList_ReadRisk(t *testing.T) {
 	if err := cmd.Args(cmd, []string{}); err != nil {
 		t.Errorf("agents list with no args should be valid: %v", err)
 	}
-	if err := cmd.Args(cmd, []string{"example"}); err != nil {
+	if err := cmd.Args(cmd, []string{"base"}); err != nil {
 		t.Errorf("agents list <scheme> should be valid: %v", err)
 	}
-	if err := cmd.Args(cmd, []string{"example", "extra"}); err == nil {
+	if err := cmd.Args(cmd, []string{"base", "extra"}); err == nil {
 		t.Error("agents list with more than 1 positional argument should error (MaximumNArgs 1)")
 	}
 }

@@ -46,7 +46,7 @@ func TestNextForTaskCommandsParseAgainstRealTree(t *testing.T) {
 				State:      state,
 				IsTerminal: state.IsTerminal(),
 			}
-			next := nextForTask("example:agent_x", task, nil, nil, iagents.VerbSend)
+			next := nextForTask("fakeflow:agent_x", task, nil, nil, iagents.VerbSend)
 			if len(next) == 0 {
 				t.Fatalf("state %s (ctx %q): legit task must produce next hints", state, ctxID)
 			}
@@ -91,7 +91,7 @@ func TestNextForTaskRejectsInjectionIDs(t *testing.T) {
 	for _, bad := range []string{"chat_1; rm -rf /", "chat `x`", "chat 1", `chat"1"`, "chat$(x)", "chat|x"} {
 		for _, state := range allTaskStates {
 			task := &iagents.AgentTask{TaskID: bad, State: state}
-			if next := nextForTask("example:agent_x", task, nil, nil, iagents.VerbSend); len(next) != 0 {
+			if next := nextForTask("fakeflow:agent_x", task, nil, nil, iagents.VerbSend); len(next) != 0 {
 				t.Fatalf("injection task_id %q (state %s) must suppress next, got %+v", bad, state, next)
 			}
 		}
@@ -105,13 +105,13 @@ func TestNextForTaskRejectsInjectionIDs(t *testing.T) {
 // un-copy-pasteable at best and an injection surface at worst.
 func TestNextForTaskRejectsUnsafeRef(t *testing.T) {
 	task := &iagents.AgentTask{TaskID: "chat_1", State: iagents.StateWorking}
-	for _, bad := range []string{"example:agent x", "example:x;rm -rf /", "example", "a:b:c", "example:$(x)", `example:"x"`, ":x", "example:"} {
+	for _, bad := range []string{"fakeflow:agent x", "fakeflow:x;rm -rf /", "fakeflow", "a:b:c", "fakeflow:$(x)", `fakeflow:"x"`, ":x", "fakeflow:"} {
 		if next := nextForTask(bad, task, nil, nil, iagents.VerbSend); len(next) != 0 {
 			t.Errorf("unsafe ref %q should suppress the whole next, got %+v", bad, next)
 		}
 	}
-	if next := nextForTask("example:agent_x", task, nil, nil, iagents.VerbSend); len(next) == 0 {
-		t.Error("valid ref example:agent_x should keep next")
+	if next := nextForTask("fakeflow:agent_x", task, nil, nil, iagents.VerbSend); len(next) == 0 {
+		t.Error("valid ref fakeflow:agent_x should keep next")
 	}
 }
 
@@ -127,7 +127,7 @@ func TestNextForTaskDegradesInjectionContextID(t *testing.T) {
 		ContextID: dirty,
 		State:     iagents.StateInputRequired,
 	}
-	next := nextForTask("example:agent_x", task, nil, nil, iagents.VerbSend)
+	next := nextForTask("fakeflow:agent_x", task, nil, nil, iagents.VerbSend)
 	if len(next) != 1 {
 		t.Fatalf("dirty context_id must degrade, not drop the hint, got %+v", next)
 	}
@@ -149,7 +149,7 @@ func TestNextForTaskDegradesInjectionContextID(t *testing.T) {
 // send hint.
 func TestNextForTaskAuthRequiredPointsToAuth(t *testing.T) {
 	task := &iagents.AgentTask{TaskID: "chat_1", ContextID: "conv_1", State: iagents.StateAuthRequired}
-	next := nextForTask("example:agent_x", task, nil, nil, iagents.VerbSend)
+	next := nextForTask("fakeflow:agent_x", task, nil, nil, iagents.VerbSend)
 	if len(next) != 1 {
 		t.Fatalf("auth_required should produce 1 next, got %+v", next)
 	}
@@ -173,14 +173,14 @@ func TestNextForTaskAuthRequiredPointsToAuth(t *testing.T) {
 // BOUNDED watch (`--watch --timeout <default>`) so an AI caller neither blocks
 // forever on a long task nor self-hammers with unbounded polls.
 func TestNextForTaskWatchNotWait(t *testing.T) {
-	next := nextForTask("example:agent_x", &iagents.AgentTask{TaskID: "chat_1", State: iagents.StateWorking}, nil, nil, iagents.VerbSend)
+	next := nextForTask("fakeflow:agent_x", &iagents.AgentTask{TaskID: "chat_1", State: iagents.StateWorking}, nil, nil, iagents.VerbSend)
 	if len(next) == 0 {
 		t.Fatal("working task must produce a poll next")
 	}
 	if !strings.Contains(next[0].Command, "--watch") || strings.Contains(next[0].Command, "--wait") {
 		t.Fatalf("poll next must use --watch: %+v", next)
 	}
-	wantTimeout := "--timeout " + defaultWatchTimeout.String()
+	wantTimeout := "--timeout 90s" // meta.next shows whole seconds (90s), not Go's 1m30s; keep in sync with defaultWatchTimeout
 	if !strings.Contains(next[0].Command, wantTimeout) {
 		t.Fatalf("poll next must be bounded with %q, got %+v", wantTimeout, next)
 	}
@@ -188,19 +188,19 @@ func TestNextForTaskWatchNotWait(t *testing.T) {
 
 // TestNextForTaskQuestionGroup pins that an input_required task carrying a
 // question group yields ONE per-question --answer template (bare <option_id>
-// for a choice, marked repeatable for multi-select, .text=<文本> for free text,
-// design doc §4.4); a group with any whitelist-failing question_id falls back
+// for a choice, marked repeatable for multi-select, .text=<text> for free text,
+// a group with any whitelist-failing question_id falls back
 // to the free-text continuation (a key the CLI's own guard would reject is
 // never emitted).
 func TestNextForTaskQuestionGroup(t *testing.T) {
-	group := nextForTask("example:planner", &iagents.AgentTask{
+	group := nextForTask("fakeflow:planner", &iagents.AgentTask{
 		TaskID: "task_1", ContextID: "ctx_1", State: iagents.StateInputRequired,
 		InputRequired: &iagents.InputRequired{
-			Label: "报表生成确认",
+			Label: "report confirmation",
 			Questions: []iagents.Question{
-				{QuestionID: "q1_a8", Question: "维度?", Options: []iagents.Option{{OptionID: "by_region", Label: "按大区"}}},
-				{QuestionID: "q2_a8", Question: "时间?"},
-				{QuestionID: "q3_a8", Question: "区域?", MultiSelect: true, Options: []iagents.Option{{OptionID: "east", Label: "华东"}}},
+				{QuestionID: "q1_a8", Question: "dimension?", Options: []iagents.Option{{OptionID: "by_region", Label: "by region"}}},
+				{QuestionID: "q2_a8", Question: "time range?"},
+				{QuestionID: "q3_a8", Question: "regions?", MultiSelect: true, Options: []iagents.Option{{OptionID: "east", Label: "east"}}},
 			},
 		},
 	}, nil, nil, iagents.VerbSend)
@@ -209,20 +209,20 @@ func TestNextForTaskQuestionGroup(t *testing.T) {
 	}
 	for _, want := range []string{
 		"--answer q1_a8=<option_id>",
-		"--answer q2_a8.text=<文本>",
-		"--answer q3_a8=<option_id 多选可重复>",
+		"--answer q2_a8.text=<text>",
+		"--answer q3_a8=<option_id, repeatable>",
 		"--task-id task_1",
 	} {
 		if !strings.Contains(group[0].Command, want) {
 			t.Errorf("question-group command should contain %q, got %q", want, group[0].Command)
 		}
 	}
-	if !strings.Contains(group[0].Label, "转达给用户") {
+	if !strings.Contains(group[0].Label, "Relay the question group") {
 		t.Errorf("label must be relay-first wording, got %q", group[0].Label)
 	}
 	// A question_id with shell metacharacters must NOT be interpolated → the
 	// whole group falls back to the --text continuation.
-	badID := nextForTask("example:planner", &iagents.AgentTask{
+	badID := nextForTask("fakeflow:planner", &iagents.AgentTask{
 		TaskID: "task_1", ContextID: "ctx_1", State: iagents.StateInputRequired,
 		InputRequired: &iagents.InputRequired{
 			Questions: []iagents.Question{{QuestionID: "q bad;rm", Question: "x"}},
@@ -233,7 +233,7 @@ func TestNextForTaskQuestionGroup(t *testing.T) {
 	}
 	// A flag-lookalike question_id ("--text" passes a bare charset test but not
 	// the alphanumeric-first rule) must likewise never be interpolated.
-	flagLike := nextForTask("example:planner", &iagents.AgentTask{
+	flagLike := nextForTask("fakeflow:planner", &iagents.AgentTask{
 		TaskID: "task_1", ContextID: "ctx_1", State: iagents.StateInputRequired,
 		InputRequired: &iagents.InputRequired{
 			Questions: []iagents.Question{{QuestionID: "--text", Question: "x"}},
@@ -250,30 +250,30 @@ func TestNextForTaskDoesNotSuggestStructuredAnswerWhenCapabilityIsDisabled(t *te
 		InputRequired: &iagents.InputRequired{
 			Questions: []iagents.Question{{
 				QuestionID: "q_scene",
-				Question:   "请选择场景",
-				Options:    []iagents.Option{{OptionID: "opt_create", Label: "新建"}},
+				Question:   "pick a scenario",
+				Options:    []iagents.Option{{OptionID: "opt_create", Label: "create"}},
 			}},
 		},
 	}, &iagents.AgentSpec{InputRequired: false}, nil, iagents.VerbTaskGet)
-	if len(next) != 1 || !strings.Contains(next[0].Command, "--text <你的答复>") || strings.Contains(next[0].Command, "--answer") {
+	if len(next) != 1 || !strings.Contains(next[0].Command, "--text <your_reply>") || strings.Contains(next[0].Command, "--answer") {
 		t.Fatalf("disabled structured input must fall back to text continuation, got %+v", next)
 	}
 }
 
 // TestNextForTaskTemplateFlag pins the template marker semantics: the
-// input_required continue hint carries a <你的答复> placeholder, so it must be
+// input_required continue hint carries a <your_reply> placeholder, so it must be
 // marked template=true (not directly executable); poll and terminal-detail
 // hints are verbatim-executable and must not carry the marker.
 func TestNextForTaskTemplateFlag(t *testing.T) {
 	// input_required with a known context: placeholder in --text → template.
-	cont := nextForTask("example:agent_x", &iagents.AgentTask{
+	cont := nextForTask("fakeflow:agent_x", &iagents.AgentTask{
 		TaskID: "chat_1", ContextID: "conv_1", State: iagents.StateInputRequired,
 	}, nil, nil, iagents.VerbSend)
 	if len(cont) != 1 || !cont[0].Template {
 		t.Fatalf("input_required next must be template=true, got %+v", cont)
 	}
 	// input_required without a context id: <context_id> placeholder → template.
-	contNoCtx := nextForTask("example:agent_x", &iagents.AgentTask{
+	contNoCtx := nextForTask("fakeflow:agent_x", &iagents.AgentTask{
 		TaskID: "chat_1", State: iagents.StateInputRequired,
 	}, nil, nil, iagents.VerbSend)
 	if len(contNoCtx) != 1 || !contNoCtx[0].Template {
@@ -284,7 +284,7 @@ func TestNextForTaskTemplateFlag(t *testing.T) {
 		{TaskID: "chat_1", State: iagents.StateWorking},
 		{TaskID: "chat_1", State: iagents.StateCompleted, IsTerminal: true},
 	} {
-		next := nextForTask("example:agent_x", task, nil, nil, iagents.VerbSend)
+		next := nextForTask("fakeflow:agent_x", task, nil, nil, iagents.VerbSend)
 		if len(next) != 1 || next[0].Template {
 			t.Fatalf("state %s next must be executable (template unset), got %+v", task.State, next)
 		}

@@ -53,8 +53,8 @@ lark-cli agents context delete <provider>:<agent_id> <ctx-id> --yes
   "error": {
     "type": "confirmation",
     "subtype": "confirmation_required",
-    "message": "删除会话将不可逆地移除该会话及其名下全部任务记录",
-    "hint": "确认要删除后，加 --yes 重发",
+    "message": "deleting a context irreversibly removes it and every task record under it",
+    "hint": "add --yes to confirm the deletion",
     "risk": "high-risk-write",
     "action": "agents context delete"
   }
@@ -68,7 +68,7 @@ lark-cli agents context delete <provider>:<agent_id> <ctx-id> --yes
 | `--param key=value` | 视声明 | 可重复；按当前动词（context_list / context_get / context_delete）的声明校验；声明查询与传法的权威见 [card](lark-agents-card.md) |
 | `--as` / `--format json\|pretty` / `--jq` | 否 | 通用；默认 `json` |
 
-删除成功输出 `{ context_id, deleted: true }`。删除后再 get 该会话按下方「ctx id 不存在」行处置（example 报 `invalid_argument` exit 2，真实 provider 通常 `not_found` exit 1）。
+删除成功输出 `{ context_id, deleted: true }`。删除后再 get 该会话按下方「ctx id 不存在」行处置（离线目录型 provider 报 `invalid_argument` exit 2，服务端型通常 `not_found` exit 1）。
 
 ## 错误目录
 
@@ -76,10 +76,9 @@ lark-cli agents context delete <provider>:<agent_id> <ctx-id> --yes
 |---|---|---|---|
 | `context delete` 缺 `--yes` | confirmation_required | 10 | 见上方真实输出 |
 | 缺 scope | missing_scope | 3 | 本地 preflight；语义与修复路径的唯一权威见 [SKILL.md 前置准备](../SKILL.md) |
-| ctx id 不存在 | 依 provider | 1 或 2 | 本地目录型（example）报 `invalid_argument`（exit 2，hint 指回 `context list`）；真实 provider 服务端资源不存在通常为 `not_found`（exit 1）。先 `context list <agent_ref>` 核对 |
+| ctx id 不存在 | 依 provider | 1 或 2 | 离线目录型 provider 报 `invalid_argument`（exit 2，hint 指回 `context list`）；服务端资源不存在通常为 `not_found`（exit 1）。先 `context list <agent_ref>` 核对 |
 | 未知 scheme / 非法 agent_ref | invalid_argument | 2 | 见 [send 错误目录](lark-agents-send.md) |
 
 ## 参考
 
 - [lark-agents](../SKILL.md) — agent 全部动词
-- [provider-example](providers/lark-agents-example.md) — provider 业务事实

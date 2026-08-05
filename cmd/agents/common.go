@@ -130,9 +130,9 @@ func wrapRefResolveError(err error) error {
 	}
 	e := errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", err.Error()).WithCause(err)
 	if errors.Is(err, iagents.ErrInvalidRef) {
-		return e.WithHint("agent_ref 形如 <scheme>:<agent_id>，如 example:echo")
+		return e.WithHint("agent_ref looks like <scheme>:<agent_id>, e.g. base:assistant")
 	}
-	return e.WithHint("用 lark-cli agents list 查看可用 provider")
+	return e.WithHint("run lark-cli agents list to see the available providers")
 }
 
 // cardHint builds the "check the agent card" hint. The ref is user-echoed
@@ -142,9 +142,9 @@ func wrapRefResolveError(err error) error {
 // non-copy-pasteable, and the hint is what an AI copies verbatim).
 func cardHint(ref, what string) string {
 	if safeNextRef(ref) {
-		return fmt.Sprintf("运行 lark-cli agents card %s 查看%s", ref, what)
+		return fmt.Sprintf("run lark-cli agents card %s to see %s", ref, what)
 	}
-	return fmt.Sprintf("查看该 agent 的能力卡片（agents card 命令）确认%s", what)
+	return fmt.Sprintf("read this agent's capability card (agents card) to confirm %s", what)
 }
 
 // emitTask writes a task result: the standard success envelope carrying
@@ -163,7 +163,7 @@ func emitTask(f *cmdutil.Factory, cmd *cobra.Command, task *iagents.AgentTask, n
 		return scan.BlockErr
 	}
 
-	// Normalization notices (provider contract defects, §3.2) must be visible on
+	// Normalization notices (provider contract defects) must be visible on
 	// BOTH surfaces: stderr for humans, envelope _notice for the JSON consumer.
 	var defect string
 	for _, n := range notices {
@@ -194,14 +194,11 @@ func emitTask(f *cmdutil.Factory, cmd *cobra.Command, task *iagents.AgentTask, n
 		env.Notice["provider_defect"] = defect
 	}
 	if len(next) > 0 {
-		// Identity carry follows the CLI-family convention (shortcuts never pin
-		// --as into suggested commands): only when the caller EXPLICITLY passed
-		// --as does the suggestion carry the resolved identity — an explicit
-		// non-default identity would otherwise fall back to the default on
-		// verbatim replay and look up another principal's task store. An
-		// implicit (default/auto) identity stays unpinned: the next command
-		// re-resolves to the same answer in the same environment. Only
-		// agent-subtree commands take --as (auth login does not).
+		// Identity carry follows the CLI-family convention: only an EXPLICIT --as is
+		// pinned into the suggestion, because an explicit non-default identity would
+		// otherwise fall back to the default on verbatim replay and read another
+		// principal's task store. An implicit identity stays unpinned — it
+		// re-resolves to the same answer in the same environment.
 		carryAsIntoNext(cmd, f, next)
 		env.Meta = &output.Meta{Next: next}
 	}
@@ -303,12 +300,12 @@ func resolvedBrand(f *cmdutil.Factory) core.LarkBrand {
 func unavailableForBrandError(ref, what string, brand core.LarkBrand) error {
 	var msg string
 	if what == "" {
-		msg = fmt.Sprintf("agent '%s' 在 %s 品牌下不可用", ref, brand)
+		msg = fmt.Sprintf("agent '%s' is unavailable under the %s brand", ref, brand)
 	} else {
-		msg = fmt.Sprintf("agent '%s' 的 '%s' 在 %s 品牌下不可用", ref, what, brand)
+		msg = fmt.Sprintf("agent '%s' does not offer '%s' under the %s brand", ref, what, brand)
 	}
 	return errs.NewValidationError(errs.SubtypeUnavailableForBrand, "%s", msg).
-		WithHint("%s", cardHint(ref, "当前品牌支持的能力"))
+		WithHint("%s", cardHint(ref, "the capabilities available under the current brand"))
 }
 
 // brandGate is the whole-agent brand visibility gate: a spec whose declared
@@ -341,15 +338,15 @@ func opBrandGate(f *cmdutil.Factory, brands []core.LarkBrand, ref, what string) 
 func capabilityError(ref, capHuman, capKey string) error {
 	return errs.NewValidationError(
 		errs.SubtypeUnsupportedCapability,
-		"agent '%s' 不支持 '%s'（capability %s=false）", ref, capHuman, capKey,
-	).WithHint("%s", cardHint(ref, "支持的能力"))
+		"agent '%s' does not support '%s' (capability %s=false)", ref, capHuman, capKey,
+	).WithHint("%s", cardHint(ref, "the supported capabilities"))
 }
 
 // normalizeTask canonicalizes a provider task the moment it enters the command
 // layer: IsTerminal is re-derived from State (the single source of truth, so a
 // provider that mis-fills the flag can never skew watch exit codes or an AI
 // caller's stop-polling decision), and the input_required question group runs
-// the central §3.2 normalization (size caps, empty options → absent, bare
+// the central normalization (size caps, empty options → absent, bare
 // prompt → one ordinary free-text question, non-conforming keys → whole-group
 // degrade). The returned notice — a provider defect worth seeing — must reach
 // the caller's output surface (emitTask routes it into the JSON envelope
@@ -452,8 +449,8 @@ const (
 // paginated list leaf. Size defaults to defaultPageSize (a bare list returns the
 // first page); an empty token asks for the first page.
 func addPageFlags(cmd *cobra.Command, pageSize *int, pageToken *string) {
-	cmd.Flags().IntVar(pageSize, "page-size", defaultPageSize, "每页条数（1-100）")
-	cmd.Flags().StringVar(pageToken, "page-token", "", "上一页返回的 page_token；留空取第一页")
+	cmd.Flags().IntVar(pageSize, "page-size", defaultPageSize, "page size (1-100)")
+	cmd.Flags().StringVar(pageToken, "page-token", "", "page_token returned by the previous page; empty fetches the first page")
 }
 
 // validatePageSize enforces the [minPageSize,maxPageSize] range as a client-side
@@ -462,9 +459,9 @@ func addPageFlags(cmd *cobra.Command, pageSize *int, pageToken *string) {
 func validatePageSize(n int) error {
 	if n < minPageSize || n > maxPageSize {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"--page-size 须在 %d-%d 之间，收到 %d", minPageSize, maxPageSize, n).
+			"--page-size must be between %d and %d, got %d", minPageSize, maxPageSize, n).
 			WithParam("--page-size").
-			WithHint("改用 %d-%d 之间的每页条数重发", minPageSize, maxPageSize)
+			WithHint("resend with a page size between %d and %d", minPageSize, maxPageSize)
 	}
 	return nil
 }
@@ -507,9 +504,9 @@ func carryAsIntoNext(cmd *cobra.Command, f *cmdutil.Factory, next []output.NextA
 	}
 }
 
-// nextPageAction builds the single "下一页" next-action for a paginated list when
+// nextPageAction builds the single "next page" next-action for a paginated list when
 // a next page exists. base is the fully-formed command up to (but not including)
-// the pagination flags, e.g. "lark-cli agents task list example:echo"; the caller
+// the pagination flags, e.g. "lark-cli agents task list base:assistant"; the caller
 // is responsible for whitelisting the ref / scheme / context-id interpolated into
 // base. The cursor is server-controlled and interpolated verbatim into a command
 // the AI runs, so it must pass the safeNextID whitelist first — a failing cursor
@@ -520,7 +517,7 @@ func nextPageAction(base string, size int, info iagents.PageInfo) []output.NextA
 		return nil
 	}
 	return []output.NextAction{{
-		Label:   "下一页",
+		Label:   "next page",
 		Command: fmt.Sprintf("%s --page-size %d --page-token %s", base, size, info.NextToken),
 	}}
 }
