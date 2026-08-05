@@ -6,6 +6,7 @@ package event
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/client"
@@ -32,41 +33,32 @@ func (r *consumeRuntime) CallAPI(ctx context.Context, method, path string, body 
 		return nil, errs.NewNetworkError(errs.SubtypeNetworkTransport,
 			"api %s %s: %s", method, path, err).WithCause(err)
 	}
-	// Non-JSON HTTP errors (gateway text/plain 404 etc.) skip OAPI envelope parsing.
+	// Event's non-JSON gateway contract includes method/path context and a
+	// tighter body bound. Preserve that domain-specific fallback, while routing
+	// HTTP 429 through the shared API classifier first.
 	ct := resp.Header.Get("Content-Type")
-	if resp.StatusCode >= 400 && !client.IsJSONContentType(ct) && ct != "" {
-		if rateErr := client.ClassifyRateLimitResponse(resp, nil, nil); rateErr != nil {
-			return nil, rateErr
+	if resp.StatusCode >= http.StatusBadRequest && !client.IsJSONContentType(ct) && ct != "" {
+		if resp.StatusCode == http.StatusTooManyRequests {
+			_, classified := client.ClassifyAPIResponse(resp, nil)
+			return nil, classified
 		}
 		const maxBodyEcho = 256
 		body := string(resp.RawBody)
 		if len(body) > maxBodyEcho {
 			body = body[:maxBodyEcho] + "…(truncated)"
 		}
-		if resp.StatusCode >= 500 {
+		if resp.StatusCode >= http.StatusInternalServerError {
 			return nil, errs.NewNetworkError(errs.SubtypeNetworkServer,
 				"api %s %s returned %d: %s", method, path, resp.StatusCode, body).WithRetryable()
 		}
 		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
 			"api %s %s returned %d: %s", method, path, resp.StatusCode, body)
 	}
-	result, err := client.ParseJSONResponse(resp)
-	if err != nil {
-		if rateErr := client.ClassifyRateLimitResponse(resp, nil, nil); rateErr != nil {
-			return nil, rateErr
-		}
-		if _, ok := errs.ProblemOf(err); ok {
-			return nil, err
-		}
-		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
-			"api %s %s: %s", method, path, err).WithCause(err)
-	}
-	apiErr := r.client.CheckResponse(result, r.accessIdentity)
-	if rateErr := client.ClassifyRateLimitResponse(resp, result, apiErr); rateErr != nil {
-		return json.RawMessage(resp.RawBody), rateErr
-	}
-	if apiErr != nil {
-		return json.RawMessage(resp.RawBody), apiErr
+	_, classified := client.ClassifyAPIResponse(resp, func(result interface{}) error {
+		return r.client.CheckResponse(result, r.accessIdentity)
+	})
+	if classified != nil {
+		return json.RawMessage(resp.RawBody), classified
 	}
 	return json.RawMessage(resp.RawBody), nil
 }

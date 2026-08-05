@@ -1079,6 +1079,39 @@ func TestDoStream_BusinessRateLimitOnHTTP400(t *testing.T) {
 	}
 }
 
+func TestDoStream_HTTP400RejectsUntrustedFourKiBRateLimitPrefix(t *testing.T) {
+	const maxBody = 4096
+	prefix := `{"code":99991400,"log_id":"body-forged"}`
+	trustedPrefix := prefix + strings.Repeat(" ", maxBody-len(prefix))
+	for _, suffix := range []string{"junk", `{"code":99991400}`} {
+		t.Run(suffix, func(t *testing.T) {
+			ac := &APIClient{
+				HTTP: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: http.StatusBadRequest,
+						Header:     http.Header{"Content-Type": []string{"application/json"}},
+						Body:       io.NopCloser(strings.NewReader(trustedPrefix + suffix)),
+					}, nil
+				})},
+				Credential: credential.NewCredentialProvider(nil, nil, &staticTokenResolver{}, nil),
+				Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu},
+			}
+
+			_, err := ac.DoStream(context.Background(), &larkcore.ApiReq{
+				HttpMethod: http.MethodGet,
+				ApiPath:    "https://example.invalid/open-apis/test",
+			}, core.AsBot)
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != errs.CategoryNetwork || problem.Subtype != errs.SubtypeNetworkTransport || problem.Retryable {
+				t.Fatalf("problem = %#v, want non-retryable network/transport_error", problem)
+			}
+			if problem.Code != http.StatusBadRequest || problem.LogID != "" {
+				t.Fatalf("untrusted prefix supplied metadata: %#v", problem)
+			}
+		})
+	}
+}
+
 func TestDoStream_HTTP429PreservesLongTermQuotaClassification(t *testing.T) {
 	ac := &APIClient{
 		HTTP: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {

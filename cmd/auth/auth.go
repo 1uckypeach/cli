@@ -81,28 +81,18 @@ func getUserInfo(ctx context.Context, sdk *lark.Client, accessToken string) (ope
 		return "", "", err
 	}
 
+	_, err = client.ClassifyAPIResponse(apiResp, func(result interface{}) error {
+		raw, _ := result.(map[string]interface{})
+		return errclass.BuildAPIError(raw, errclass.ClassifyContext{Identity: string(core.AsUser)})
+	})
+	if err != nil {
+		return "", "", err
+	}
+
 	var resp userInfoResponse
 	if err := json.Unmarshal(apiResp.RawBody, &resp); err != nil {
-		if rateErr := client.ClassifyRateLimitResponse(apiResp, nil, nil); rateErr != nil {
-			return "", "", rateErr
-		}
 		return "", "", errs.NewInternalError(errs.SubtypeInvalidResponse,
 			"failed to parse user info: %v", err).WithCause(err)
-	}
-	var classified error
-	if resp.Code != 0 {
-		var raw map[string]interface{}
-		_ = json.Unmarshal(apiResp.RawBody, &raw)
-		if raw == nil {
-			raw = map[string]interface{}{"code": resp.Code, "msg": resp.Msg}
-		}
-		classified = errclass.BuildAPIError(raw, errclass.ClassifyContext{Identity: string(core.AsUser)})
-	}
-	if rateErr := client.ClassifyRateLimitResponse(apiResp, nil, classified); rateErr != nil {
-		return "", "", rateErr
-	}
-	if classified != nil {
-		return "", "", classified
 	}
 	if resp.Data.OpenID == "" {
 		return "", "", errs.NewInternalError(errs.SubtypeInvalidResponse,
@@ -164,23 +154,23 @@ func getAppInfo(ctx context.Context, f *cmdutil.Factory, appId string) (*appInfo
 		return nil, err
 	}
 
+	cc := errclass.ClassifyContext{Identity: string(core.AsBot)}
+	if cfg, _ := f.Config(); cfg != nil {
+		cc.Brand = string(cfg.Brand)
+		cc.AppID = appId
+	}
+	_, err = client.ClassifyAPIResponse(apiResp, func(result interface{}) error {
+		raw, _ := result.(map[string]interface{})
+		return errclass.BuildAPIError(raw, cc)
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	var resp appInfoResponse
 	if err := json.Unmarshal(apiResp.RawBody, &resp); err != nil {
-		if rateErr := client.ClassifyRateLimitResponse(apiResp, nil, nil); rateErr != nil {
-			return nil, rateErr
-		}
 		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
 			"failed to parse response: %v", err).WithCause(err)
-	}
-	var classified error
-	if resp.Code != 0 {
-		classified = classifyAppInfoErr(apiResp.RawBody, resp.Code, resp.Msg, f, appId)
-	}
-	if rateErr := client.ClassifyRateLimitResponse(apiResp, nil, classified); rateErr != nil {
-		return nil, rateErr
-	}
-	if classified != nil {
-		return nil, classified
 	}
 
 	app := resp.Data.App
@@ -198,22 +188,4 @@ func getAppInfo(ctx context.Context, f *cmdutil.Factory, appId string) (*appInfo
 	}
 
 	return &appInfo{OwnerOpenId: ownerOpenId, UserScopes: userScopes}, nil
-}
-
-// classifyAppInfoErr re-decodes the raw body so BuildAPIError sees the
-// upstream `error` block — the typed appInfoResponse shape drops it.
-func classifyAppInfoErr(rawBody []byte, code int, msg string, f *cmdutil.Factory, appId string) error {
-	var raw map[string]any
-	_ = json.Unmarshal(rawBody, &raw)
-	if raw == nil {
-		raw = map[string]any{}
-	}
-	raw["code"] = code
-	raw["msg"] = msg
-	cc := errclass.ClassifyContext{Identity: string(core.AsBot)}
-	if cfg, _ := f.Config(); cfg != nil {
-		cc.Brand = string(cfg.Brand)
-		cc.AppID = appId
-	}
-	return errclass.BuildAPIError(raw, cc)
 }

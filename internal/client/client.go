@@ -227,21 +227,33 @@ func (c *APIClient) DoStream(ctx context.Context, req *larkcore.ApiReq, as core.
 	if resp.StatusCode >= 400 {
 		defer resp.Body.Close()
 		const maxStreamErrorBodyBytes = 4096
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxStreamErrorBodyBytes+1))
+		completeBody := readErr == nil && len(body) <= maxStreamErrorBodyBytes
+		var classificationBody []byte
+		if completeBody {
+			classificationBody = body
+		}
+
 		var errBody []byte
 		if resp.StatusCode == http.StatusTooManyRequests {
-			body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxStreamErrorBodyBytes+1))
-			if readErr == nil && len(body) <= maxStreamErrorBodyBytes {
-				errBody = body
-			}
+			// A bare 429 is classified from status and headers even when its body
+			// is incomplete. Never trust a truncated prefix for body metadata.
+			errBody = classificationBody
 		} else {
-			// Preserve the legacy non-429 behavior: read at most 4 KiB and
-			// classify whatever prefix was returned, ignoring a body read error.
-			errBody, _ = io.ReadAll(io.LimitReader(resp.Body, maxStreamErrorBodyBytes))
+			// Preserve the legacy non-429 message behavior: display at most the
+			// first 4 KiB and ignore a later body read error. Classification,
+			// however, only consumes a body proven complete within that bound.
+			errBody = body
+			if len(errBody) > maxStreamErrorBodyBytes {
+				errBody = errBody[:maxStreamErrorBodyBytes]
+			}
 		}
-		result := parseRateLimitResult(errBody)
-		classified := c.CheckResponse(result, as)
-		if rateErr := rateLimitError(resp.StatusCode, resp.Header, result, errBody, classified); rateErr != nil {
-			return nil, rateErr
+		result := errclass.ParseRateLimitJSON(classificationBody)
+		if resp.StatusCode == http.StatusTooManyRequests || errclass.IsBusinessRateLimit(result) {
+			apiResp := &larkcore.ApiResp{StatusCode: resp.StatusCode, Header: resp.Header, RawBody: classificationBody}
+			if classified := classifyAPIResponseError(apiResp, result, c.CheckResponse(result, as)); classified != nil {
+				return nil, classified
+			}
 		}
 		msg := strings.TrimSpace(string(errBody))
 		subtype := errs.SubtypeNetworkTransport
@@ -366,29 +378,9 @@ func (c *APIClient) CallAPI(ctx context.Context, request RawApiRequest) (interfa
 // the callback or accumulator: JSON decoding, business errors, explicit rate
 // limits, and otherwise-unclassified HTTP failures.
 func (c *APIClient) parsePaginationPage(resp *larkcore.ApiResp, identity core.Identity) (interface{}, error) {
-	result, parseErr := ParseJSONResponse(resp)
-	if parseErr != nil {
-		if resp.StatusCode >= http.StatusBadRequest {
-			if rateErr := rateLimitError(resp.StatusCode, resp.Header, nil, resp.RawBody, nil); rateErr != nil {
-				return nil, rateErr
-			}
-			return nil, httpStatusError(resp.StatusCode, resp.RawBody)
-		}
-		return nil, WrapJSONResponseParseError(parseErr, resp.RawBody)
-	}
-	if apiErr := c.CheckResponse(result, identity); apiErr != nil {
-		if rateErr := rateLimitError(resp.StatusCode, resp.Header, result, resp.RawBody, apiErr); rateErr != nil {
-			return nil, rateErr
-		}
-		return nil, apiErr
-	}
-	if rateErr := rateLimitError(resp.StatusCode, resp.Header, result, resp.RawBody, nil); rateErr != nil {
-		return nil, rateErr
-	}
-	if resp.StatusCode >= http.StatusBadRequest {
-		return nil, httpStatusError(resp.StatusCode, resp.RawBody)
-	}
-	return result, nil
+	return ClassifyAPIResponse(resp, func(result interface{}) error {
+		return c.CheckResponse(result, identity)
+	})
 }
 
 func normalizePaginationFailure(err error, operation string) error {

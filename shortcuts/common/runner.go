@@ -317,21 +317,22 @@ func (ctx *RuntimeContext) ClassifyAPIResponse(resp *larkcore.ApiResp) (map[stri
 // classification context.
 func ClassifyAPIResponseWith(resp *larkcore.ApiResp, cc errclass.ClassifyContext) (map[string]interface{}, error) {
 	logID, _ := logIDFromHeader(resp)["log_id"].(string)
-
-	result, parseErr := client.ParseJSONResponse(resp)
-	if parseErr != nil {
-		if resp.StatusCode >= 400 {
-			if rateErr := client.ClassifyRateLimitResponse(resp, nil, nil); rateErr != nil {
-				return nil, rateErr
-			}
-			return nil, httpStatusError(resp.StatusCode, resp.RawBody, logID)
+	result, classified := client.ClassifyAPIResponse(resp, func(result interface{}) error {
+		resultMap, ok := result.(map[string]interface{})
+		if !ok {
+			return nil
 		}
-		return nil, client.WrapJSONResponseParseError(parseErr, resp.RawBody)
-	}
+		if logID != "" && responseBodyLogID(resultMap) == "" {
+			if _, present := resultMap["log_id"]; !present {
+				resultMap["log_id"] = logID
+			}
+		}
+		return errclass.BuildAPIError(resultMap, cc)
+	})
 	resultMap, ok := result.(map[string]interface{})
 	if !ok {
-		if rateErr := client.ClassifyRateLimitResponse(resp, result, nil); rateErr != nil {
-			return nil, rateErr
+		if classified != nil {
+			return nil, classified
 		}
 		e := errs.NewInternalError(errs.SubtypeInvalidResponse, "API returned a non-object JSON response")
 		if logID != "" {
@@ -339,21 +340,9 @@ func ClassifyAPIResponseWith(resp *larkcore.ApiResp, cc errclass.ClassifyContext
 		}
 		return nil, e
 	}
-	if logID != "" && responseBodyLogID(resultMap) == "" {
-		if _, present := resultMap["log_id"]; !present {
-			resultMap["log_id"] = logID
-		}
-	}
 	out, _ := resultMap["data"].(map[string]interface{})
-	apiErr := errclass.BuildAPIError(resultMap, cc)
-	if rateErr := client.ClassifyRateLimitResponse(resp, result, apiErr); rateErr != nil {
-		return out, rateErr
-	}
-	if apiErr != nil {
-		return out, apiErr
-	}
-	if resp.StatusCode >= 400 {
-		return out, httpStatusError(resp.StatusCode, resp.RawBody, logID)
+	if classified != nil {
+		return out, classified
 	}
 	return out, nil
 }
@@ -368,29 +357,6 @@ func responseBodyLogID(result map[string]interface{}) string {
 		}
 	}
 	return ""
-}
-
-// httpStatusError classifies an HTTP error status whose body is not a usable
-// API envelope: 5xx → retryable network/server_error, 404 → not_found, other
-// 4xx → api error. The x-tt-logid (when present) is attached for diagnosis.
-func httpStatusError(status int, rawBody []byte, logID string) error {
-	body := TruncateStr(strings.TrimSpace(string(rawBody)), 500)
-	if status >= 500 {
-		e := errs.NewNetworkError(errs.SubtypeNetworkServer, "HTTP %d: %s", status, body).WithCode(status).WithRetryable()
-		if logID != "" {
-			e = e.WithLogID(logID)
-		}
-		return e
-	}
-	subtype := errs.SubtypeUnknown
-	if status == http.StatusNotFound {
-		subtype = errs.SubtypeNotFound
-	}
-	e := errs.NewAPIError(subtype, "HTTP %d: %s", status, body).WithCode(status)
-	if logID != "" {
-		e = e.WithLogID(logID)
-	}
-	return e
 }
 
 // typedOrInternal passes an already-typed errs.* error through unchanged and
