@@ -27,7 +27,6 @@ const (
 	HeaderExecutionId = "X-Cli-Execution-Id"
 	HeaderAgentTrace  = "X-Agent-Trace"
 	HeaderAgentName   = "X-Agent-Name"
-	HeaderXTtEnv      = "X-TT-ENV"
 
 	SourceValue = "lark-cli"
 
@@ -59,9 +58,6 @@ func BaseSecurityHeaders() http.Header {
 	}
 	if v := envvars.AgentName(); v != "" {
 		h.Set(HeaderAgentName, v)
-	}
-	if v := envvars.XTtEnv(); v != "" {
-		h.Set(HeaderXTtEnv, v)
 	}
 	return h
 }

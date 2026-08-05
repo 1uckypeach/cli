@@ -12,7 +12,6 @@ import (
 const (
 	agentNameMaxLen  = 128
 	agentTraceMaxLen = 1024
-	xTtEnvMaxLen     = 128
 )
 
 func AgentName() string {
@@ -21,10 +20,6 @@ func AgentName() string {
 
 func AgentTrace() string {
 	return sanitizeSingleLine(os.Getenv(CliAgentTrace), agentTraceMaxLen)
-}
-
-func XTtEnv() string {
-	return sanitizeSingleLine(os.Getenv(CliXTtEnv), xTtEnvMaxLen)
 }
 
 func sanitizeSingleLine(raw string, maxLen int) string {

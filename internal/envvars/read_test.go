@@ -131,17 +131,3 @@ func TestAgentTrace_AcceptsMaxLengthValue(t *testing.T) {
 		t.Fatalf("AgentTrace() = %q, want %d-byte value accepted", got, agentTraceMaxLen)
 	}
 }
-
-func TestXTtEnv_ReturnsCleanValue(t *testing.T) {
-	t.Setenv(CliXTtEnv, "  boe_agent_meeting  ")
-	if got := XTtEnv(); got != "boe_agent_meeting" {
-		t.Fatalf("XTtEnv() = %q, want %q", got, "boe_agent_meeting")
-	}
-}
-
-func TestXTtEnv_RejectsControlCharacters(t *testing.T) {
-	t.Setenv(CliXTtEnv, "boe_agent_meeting\r\nX-Evil: attack")
-	if got := XTtEnv(); got != "" {
-		t.Fatalf("XTtEnv() = %q, want empty for control characters", got)
-	}
-}
