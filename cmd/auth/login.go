@@ -37,6 +37,75 @@ type LoginOptions struct {
 	NoWait     bool
 	Wait       bool
 	DeviceCode string
+
+	// waitIntent carries the resolved --wait / --no-wait preference. It is set
+	// from cobra's Changed() state in RunE because the booleans above cannot
+	// distinguish "--wait=false" from "no --wait at all". Tests construct
+	// LoginOptions directly and may leave it zero, which means "decide from
+	// stdout" — the same default a caller who passed neither flag gets.
+	waitIntent waitIntent
+}
+
+// waitIntent is the caller's stated preference about blocking on authorization.
+type waitIntent int
+
+const (
+	// waitIntentAuto follows stdout: block on a terminal, return the device code
+	// when unattended.
+	waitIntentAuto waitIntent = iota
+	// waitIntentBlock polls until authorization completes, terminal or not.
+	waitIntentBlock
+	// waitIntentReturn emits the device code and returns, terminal or not.
+	waitIntentReturn
+	// waitIntentConflict records that both flags were set explicitly. The error
+	// is raised in authLoginRun rather than here so flag wiring stays free of
+	// error plumbing and the failure lands on the same path as every other
+	// validation error.
+	waitIntentConflict
+)
+
+// flagState pairs a bool flag's value with whether the caller set it.
+type flagState struct {
+	set   bool
+	value bool
+}
+
+// effectiveWaitIntent returns the intent to act on. Callers that construct
+// LoginOptions directly instead of going through cobra never populate
+// waitIntent, and silently ignoring their NoWait / Wait booleans would make a
+// set field do nothing. Those booleans can only express "asked for it" (a false
+// field is indistinguishable from an unset one), which is exactly what
+// flagState models here.
+func (o *LoginOptions) effectiveWaitIntent() waitIntent {
+	if o.waitIntent != waitIntentAuto {
+		return o.waitIntent
+	}
+	return resolveWaitIntent(
+		flagState{set: o.NoWait, value: o.NoWait},
+		flagState{set: o.Wait, value: o.Wait},
+	)
+}
+
+// resolveWaitIntent folds the two mutually-exclusive flags into one intent.
+// An explicitly negated flag means the opposite of its name: --no-wait=false is
+// a request to block, --wait=false a request to return immediately.
+func resolveWaitIntent(noWait, wait flagState) waitIntent {
+	switch {
+	case noWait.set && wait.set:
+		return waitIntentConflict
+	case noWait.set:
+		if noWait.value {
+			return waitIntentReturn
+		}
+		return waitIntentBlock
+	case wait.set:
+		if wait.value {
+			return waitIntentBlock
+		}
+		return waitIntentReturn
+	default:
+		return waitIntentAuto
+	}
 }
 
 var pollDeviceToken = larkauth.PollDeviceToken
@@ -64,11 +133,14 @@ codes (supports ASCII and PNG formats).`,
 					"strict mode is %q, user login is disabled in this profile", mode).
 					WithHint("if the user explicitly wants to switch to user identity, see `lark-cli config strict-mode --help` (confirm with the user before switching; switching does NOT require re-bind)")
 			}
-			// An explicit --no-wait=false asks to block; record it as --wait so the
-			// non-terminal default below cannot override a stated preference.
-			if cmd.Flags().Changed("no-wait") && !opts.NoWait {
-				opts.Wait = true
-			}
+			// Both flags carry a stated preference even when set to false, so the
+			// resolved intent is captured here where Changed() is available. A bare
+			// bool cannot express it: --wait=false and an absent --wait are the same
+			// value but opposite requests.
+			opts.waitIntent = resolveWaitIntent(
+				flagState{set: cmd.Flags().Changed("no-wait"), value: opts.NoWait},
+				flagState{set: cmd.Flags().Changed("wait"), value: opts.Wait},
+			)
 			opts.Ctx = cmd.Context()
 			if runF != nil {
 				return runF(opts)
@@ -127,24 +199,22 @@ func completeDomain(toComplete string) []string {
 // resolveNoWait decides whether auth login returns right after issuing the
 // device code instead of polling until the user authorizes.
 //
-// The default follows stdout: an unattended run (piped output, agent sandbox,
+// waitIntentAuto follows stdout: an unattended run (piped output, agent sandbox,
 // CI) has nobody to open the verification URL, so blocking there burns the
-// caller's entire turn for a result that can never arrive. Both preferences stay
-// expressible — --no-wait forces the non-blocking path on a terminal too, --wait
-// keeps the poll on a pipe — and asking for both at once is a caller bug rather
-// than something to silently resolve.
-func resolveNoWait(noWait, wait, stdoutIsTerminal bool) (bool, error) {
-	if noWait && wait {
+// caller's entire turn for a result that can never arrive. Setting both flags is
+// a caller bug rather than something to silently resolve.
+func resolveNoWait(intent waitIntent, stdoutIsTerminal bool) (bool, error) {
+	switch intent {
+	case waitIntentConflict:
 		return false, errs.NewValidationError(errs.SubtypeInvalidArgument,
 			"--wait and --no-wait are mutually exclusive").WithParam("--wait")
-	}
-	if noWait {
+	case waitIntentReturn:
 		return true, nil
-	}
-	if wait {
+	case waitIntentBlock:
 		return false, nil
+	default:
+		return !stdoutIsTerminal, nil
 	}
-	return !stdoutIsTerminal, nil
 }
 
 // authLoginRun executes the login command logic.
@@ -159,11 +229,12 @@ func authLoginRun(opts *LoginOptions) error {
 	// Resolved before any network call so a contradictory flag pair fails fast
 	// instead of after a device code has been issued and burned.
 	stdoutIsTerminal := f.IOStreams != nil && f.IOStreams.OutIsTerminal
-	noWait, err := resolveNoWait(opts.NoWait, opts.Wait, stdoutIsTerminal)
+	intent := opts.effectiveWaitIntent()
+	noWait, err := resolveNoWait(intent, stdoutIsTerminal)
 	if err != nil {
 		return err
 	}
-	autoNoWait := noWait && !opts.NoWait
+	autoNoWait := noWait && intent == waitIntentAuto
 
 	// Determine UI language from saved config
 	var lang i18n.Lang
@@ -242,7 +313,14 @@ func authLoginRun(opts *LoginOptions) error {
 			log("View all options:")
 			log(msg.HintFooter)
 			log("")
-			log("Note: this command blocks until authorization is complete. For non-streaming agent harnesses, use --no-wait --json, send the verification URL as the final message of the turn, then run --device-code in a later step after the user confirms authorization.")
+			// This branch is also reached on a terminal with --json, so the note
+			// reports what will actually happen rather than assuming the
+			// unattended case.
+			if stdoutIsTerminal {
+				log("Note: stdout is a terminal, so this command blocks until authorization completes. Pass --no-wait to get the device code immediately and finish with --device-code later.")
+			} else {
+				log("Note: stdout is not a terminal, so this command returns the device code immediately instead of blocking. Send the verification URL as the final message of the turn, then run --device-code in a later step after the user confirms authorization. Pass --wait to block until authorization completes instead.")
+			}
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "please specify the scopes to authorize").WithParam("--scope")
 		}
 	}

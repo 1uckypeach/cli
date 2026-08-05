@@ -23,6 +23,21 @@ type CheckOptions struct {
 	JSON    bool
 }
 
+// unusableTokenError maps a token status to the `error` value auth check
+// reports for it, or "" when the token can still serve calls. It keeps the
+// predicate aligned with the rest of the tree: a status that makes `--as auto`
+// fall back to bot must not be answered with "granted" here.
+func unusableTokenError(status string) string {
+	switch status {
+	case larkauth.TokenStatusCorrupted:
+		return "corrupted_token"
+	case larkauth.TokenStatusExpired:
+		return "expired_token"
+	default:
+		return ""
+	}
+}
+
 // NewCmdAuthCheck creates the auth check subcommand.
 func NewCmdAuthCheck(f *cmdutil.Factory, runF func(*CheckOptions) error) *cobra.Command {
 	return newCmdAuthCheck(f, runF, nil)
@@ -80,11 +95,15 @@ func authCheckRunWithRecovery(opts *CheckOptions, projector *recovery.Projector)
 		output.PrintJson(f.IOStreams.Out, map[string]interface{}{"ok": false, "error": "no_token", "missing": required})
 		return output.ErrBare(1)
 	}
-	// The scope list of a corrupted record still looks complete, so reporting
+	// The scope list of an unusable record still looks complete, so reporting
 	// scopes here would answer "granted" for a credential that cannot make a
 	// single call. Fail with the cause instead.
-	if larkauth.TokenStatus(stored) == larkauth.TokenStatusCorrupted {
-		output.PrintJson(f.IOStreams.Out, map[string]interface{}{"ok": false, "error": "corrupted_token", "missing": required})
+	//
+	// needs_refresh is deliberately not rejected: that token still serves calls
+	// after the automatic refresh on the next use, so its scopes are the ones
+	// the caller will actually have.
+	if unusable := unusableTokenError(larkauth.TokenStatus(stored)); unusable != "" {
+		output.PrintJson(f.IOStreams.Out, map[string]interface{}{"ok": false, "error": unusable, "missing": required})
 		return output.ErrBare(1)
 	}
 

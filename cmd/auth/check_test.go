@@ -233,11 +233,80 @@ func TestAuthCheckRun_ConcealedLoginOmitsSuggestion(t *testing.T) {
 	}
 }
 
-// TestAuthCheckRun_CorruptedTokenFailsInsteadOfReportingScopes pins that the
-// predicate does not answer "granted" from a record that cannot make a call. The
-// scope list of a corrupted token still looks complete, so checking scopes first
-// would produce a confident wrong answer.
-func TestAuthCheckRun_CorruptedTokenFailsInsteadOfReportingScopes(t *testing.T) {
+// TestAuthCheckRun_UnusableTokenFailsInsteadOfReportingScopes pins that the
+// predicate does not answer "granted" from a record that cannot make a call.
+// Both statuses below leave the scope list intact and both make `--as auto`
+// fall back to bot, so answering from either one contradicts the rest of the
+// tree.
+func TestAuthCheckRun_UnusableTokenFailsInsteadOfReportingScopes(t *testing.T) {
+	tests := []struct {
+		name        string
+		accessToken string
+		expiresIn   time.Duration
+		refreshIn   time.Duration
+		wantError   string
+	}{
+		{name: "corrupted", accessToken: "", expiresIn: time.Hour, refreshIn: 24 * time.Hour, wantError: "corrupted_token"},
+		{name: "expired", accessToken: "user-access-token", expiresIn: -2 * time.Hour, refreshIn: -time.Hour, wantError: "expired_token"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			keyring.MockInit()
+			t.Setenv("HOME", t.TempDir())
+			t.Setenv("LARKSUITE_CLI_DATA_DIR", t.TempDir())
+
+			cfg := &core.CliConfig{
+				AppID:      "test-app",
+				AppSecret:  "test-secret",
+				Brand:      core.BrandFeishu,
+				UserOpenId: "ou_user",
+				UserName:   "tester",
+			}
+			now := time.Now()
+			if err := larkauth.SetStoredToken(&larkauth.StoredUAToken{
+				AppId:            cfg.AppID,
+				UserOpenId:       cfg.UserOpenId,
+				AccessToken:      tc.accessToken,
+				RefreshToken:     "refresh-token",
+				ExpiresAt:        now.Add(tc.expiresIn).UnixMilli(),
+				RefreshExpiresAt: now.Add(tc.refreshIn).UnixMilli(),
+				Scope:            "im:message docx:document",
+			}); err != nil {
+				t.Fatalf("SetStoredToken() error = %v", err)
+			}
+
+			f, stdout, _, _ := cmdutil.TestFactory(t, cfg)
+
+			err := authCheckRun(&CheckOptions{Factory: f, Scope: "im:message"})
+			if err == nil {
+				t.Fatalf("expected a non-zero exit for a %s token", tc.name)
+			}
+			if got := output.ExitCodeOf(err); got != 1 {
+				t.Errorf("exit code = %d, want 1", got)
+			}
+
+			var got map[string]interface{}
+			if jsonErr := json.Unmarshal(stdout.Bytes(), &got); jsonErr != nil {
+				t.Fatalf("json.Unmarshal(stdout) error = %v, stdout:\n%s", jsonErr, stdout.String())
+			}
+			if ok, _ := got["ok"].(bool); ok {
+				t.Fatalf("ok = true, want false; stdout:\n%s", stdout.String())
+			}
+			if got["error"] != tc.wantError {
+				t.Fatalf("error = %v, want %s; stdout:\n%s", got["error"], tc.wantError, stdout.String())
+			}
+			if _, present := got["granted"]; present {
+				t.Fatalf("granted must be absent for a %s token, stdout:\n%s", tc.name, stdout.String())
+			}
+		})
+	}
+}
+
+// TestAuthCheckRun_NeedsRefreshTokenStillReportsScopes pins the other side of
+// the boundary: a token due for refresh still serves calls after the automatic
+// refresh on next use, so rejecting it would make the predicate uselessly strict.
+func TestAuthCheckRun_NeedsRefreshTokenStillReportsScopes(t *testing.T) {
 	keyring.MockInit()
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("LARKSUITE_CLI_DATA_DIR", t.TempDir())
@@ -253,37 +322,28 @@ func TestAuthCheckRun_CorruptedTokenFailsInsteadOfReportingScopes(t *testing.T) 
 	if err := larkauth.SetStoredToken(&larkauth.StoredUAToken{
 		AppId:            cfg.AppID,
 		UserOpenId:       cfg.UserOpenId,
-		AccessToken:      "",
+		AccessToken:      "user-access-token",
 		RefreshToken:     "refresh-token",
-		ExpiresAt:        now.Add(time.Hour).UnixMilli(),
+		ExpiresAt:        now.Add(time.Minute).UnixMilli(),
 		RefreshExpiresAt: now.Add(24 * time.Hour).UnixMilli(),
 		Scope:            "im:message docx:document",
 	}); err != nil {
 		t.Fatalf("SetStoredToken() error = %v", err)
 	}
+	if got := larkauth.TokenStatus(larkauth.GetStoredToken(cfg.AppID, cfg.UserOpenId)); got != larkauth.TokenStatusNeedsRefresh {
+		t.Fatalf("fixture status = %q, want %q", got, larkauth.TokenStatusNeedsRefresh)
+	}
 
 	f, stdout, _, _ := cmdutil.TestFactory(t, cfg)
 
-	err := authCheckRun(&CheckOptions{Factory: f, Scope: "im:message"})
-
-	if err == nil {
-		t.Fatal("expected a non-zero exit for a corrupted token")
+	if err := authCheckRun(&CheckOptions{Factory: f, Scope: "im:message"}); err != nil {
+		t.Fatalf("authCheckRun() error = %v, want nil", err)
 	}
-	if got := output.ExitCodeOf(err); got != 1 {
-		t.Errorf("exit code = %d, want 1", got)
-	}
-
 	var got map[string]interface{}
-	if jsonErr := json.Unmarshal(stdout.Bytes(), &got); jsonErr != nil {
-		t.Fatalf("json.Unmarshal(stdout) error = %v, stdout:\n%s", jsonErr, stdout.String())
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal(stdout) error = %v", err)
 	}
-	if ok, _ := got["ok"].(bool); ok {
-		t.Fatalf("ok = true, want false; stdout:\n%s", stdout.String())
-	}
-	if got["error"] != "corrupted_token" {
-		t.Fatalf("error = %v, want corrupted_token; stdout:\n%s", got["error"], stdout.String())
-	}
-	if _, present := got["granted"]; present {
-		t.Fatalf("granted must be absent for a corrupted token, stdout:\n%s", stdout.String())
+	if ok, _ := got["ok"].(bool); !ok {
+		t.Fatalf("ok = false, want true for a refreshable token; stdout:\n%s", stdout.String())
 	}
 }

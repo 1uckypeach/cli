@@ -325,7 +325,7 @@ func TestAuthLoginRun_NonTerminal_NoFlags_RejectsWithHint(t *testing.T) {
 	}
 	// Stderr should explain the split-flow path for non-streaming agents.
 	stderrStr := stderr.String()
-	for _, want := range []string{"--no-wait --json", "final message of the turn", "--device-code"} {
+	for _, want := range []string{"returns the device code immediately", "final message of the turn", "--device-code", "--wait to block"} {
 		if !strings.Contains(stderrStr, want) {
 			t.Errorf("expected stderr to mention %q, got: %s", want, stderrStr)
 		}
@@ -1221,40 +1221,86 @@ func TestGetDomainMetadata_ExcludesAuthDomainChildren(t *testing.T) {
 	}
 }
 
+// TestResolveWaitIntent pins how the two flags fold into one intent. Both carry
+// a preference even when set to false: --wait=false and an absent --wait are the
+// same boolean but opposite requests, and reading only the value silently
+// ignored the explicit one.
+func TestResolveWaitIntent(t *testing.T) {
+	tests := []struct {
+		name   string
+		noWait flagState
+		wait   flagState
+		want   waitIntent
+	}{
+		{name: "neither flag", want: waitIntentAuto},
+		{name: "--no-wait", noWait: flagState{set: true, value: true}, want: waitIntentReturn},
+		{name: "--no-wait=false asks to block", noWait: flagState{set: true, value: false}, want: waitIntentBlock},
+		{name: "--wait", wait: flagState{set: true, value: true}, want: waitIntentBlock},
+		{name: "--wait=false asks to return", wait: flagState{set: true, value: false}, want: waitIntentReturn},
+		{
+			name:   "both set is a conflict regardless of value",
+			noWait: flagState{set: true, value: true},
+			wait:   flagState{set: true, value: false},
+			want:   waitIntentConflict,
+		},
+		{
+			name:   "both set to the same meaning is still a conflict",
+			noWait: flagState{set: true, value: false},
+			wait:   flagState{set: true, value: true},
+			want:   waitIntentConflict,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := resolveWaitIntent(tc.noWait, tc.wait); got != tc.want {
+				t.Fatalf("resolveWaitIntent() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 // TestResolveNoWait pins the wait/no-wait decision table. The unattended default
 // is the point of the contract: without it, an agent sandbox blocks for the whole
 // device-code lifetime waiting for a scan that cannot happen.
 func TestResolveNoWait(t *testing.T) {
 	tests := []struct {
 		name             string
-		noWait           bool
-		wait             bool
+		intent           waitIntent
 		stdoutIsTerminal bool
 		want             bool
 		wantErr          bool
 	}{
-		{name: "no flags on a terminal blocks", stdoutIsTerminal: true, want: false},
-		{name: "no flags without a terminal returns immediately", stdoutIsTerminal: false, want: true},
-		{name: "--no-wait forces immediate return on a terminal", noWait: true, stdoutIsTerminal: true, want: true},
-		{name: "--no-wait without a terminal returns immediately", noWait: true, stdoutIsTerminal: false, want: true},
-		{name: "--wait blocks without a terminal", wait: true, stdoutIsTerminal: false, want: false},
-		{name: "--wait blocks on a terminal", wait: true, stdoutIsTerminal: true, want: false},
-		{name: "both flags is a caller bug", noWait: true, wait: true, stdoutIsTerminal: false, wantErr: true},
+		{name: "auto on a terminal blocks", intent: waitIntentAuto, stdoutIsTerminal: true, want: false},
+		{name: "auto without a terminal returns immediately", intent: waitIntentAuto, stdoutIsTerminal: false, want: true},
+		{name: "return forces immediate return on a terminal", intent: waitIntentReturn, stdoutIsTerminal: true, want: true},
+		{name: "return without a terminal returns immediately", intent: waitIntentReturn, stdoutIsTerminal: false, want: true},
+		{name: "block blocks without a terminal", intent: waitIntentBlock, stdoutIsTerminal: false, want: false},
+		{name: "block blocks on a terminal", intent: waitIntentBlock, stdoutIsTerminal: true, want: false},
+		{name: "conflict is a caller bug", intent: waitIntentConflict, stdoutIsTerminal: false, wantErr: true},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := resolveNoWait(tc.noWait, tc.wait, tc.stdoutIsTerminal)
+			got, err := resolveNoWait(tc.intent, tc.stdoutIsTerminal)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("resolveNoWait() error = nil, want a validation error")
 				}
+				problem, ok := errs.ProblemOf(err)
+				if !ok {
+					t.Fatalf("ProblemOf() ok = false, want a typed error; got %v", err)
+				}
+				if problem.Category != errs.CategoryValidation {
+					t.Fatalf("category = %q, want %q", problem.Category, errs.CategoryValidation)
+				}
+				if problem.Subtype != errs.SubtypeInvalidArgument {
+					t.Fatalf("subtype = %q, want %q", problem.Subtype, errs.SubtypeInvalidArgument)
+				}
+				// param lives on *errs.ValidationError, not on the shared Problem.
 				var verr *errs.ValidationError
 				if !errors.As(err, &verr) {
 					t.Fatalf("error is not a *errs.ValidationError: %v", err)
-				}
-				if verr.Subtype != errs.SubtypeInvalidArgument {
-					t.Fatalf("subtype = %q, want %q", verr.Subtype, errs.SubtypeInvalidArgument)
 				}
 				if verr.Param != "--wait" {
 					t.Fatalf("param = %q, want --wait", verr.Param)
@@ -1390,37 +1436,72 @@ func TestAuthLoginRun_WaitFlagBlocksWithoutTerminal(t *testing.T) {
 	}
 }
 
-// TestAuthLoginCmd_ExplicitNoWaitFalseBlocks pins that `--no-wait=false` is read
-// as a stated preference to block, not as an unset flag the terminal check may
-// override.
-func TestAuthLoginCmd_ExplicitNoWaitFalseBlocks(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
-		AppID: "cli_test", AppSecret: "secret", Brand: core.BrandFeishu,
-	})
-
-	var captured *LoginOptions
-	cmd := NewCmdAuthLogin(f, func(opts *LoginOptions) error {
-		captured = opts
-		return nil
-	})
-	cmd.SetOut(io.Discard)
-	cmd.SetErr(io.Discard)
-	cmd.SetArgs([]string{"--scope", "im:message:send", "--no-wait=false"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("Execute() error = %v", err)
+// TestAuthLoginCmd_ExplicitFlagsReachIntent pins the cobra wiring: an explicitly
+// negated flag means the opposite of its name, and reading only the bool value
+// would silently drop that. Goes through real flag parsing because the bug this
+// guards against lives in the Changed() plumbing, not in resolveWaitIntent.
+func TestAuthLoginCmd_ExplicitFlagsReachIntent(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want waitIntent
+	}{
+		{name: "no flag", args: nil, want: waitIntentAuto},
+		{name: "--no-wait", args: []string{"--no-wait"}, want: waitIntentReturn},
+		{name: "--no-wait=false", args: []string{"--no-wait=false"}, want: waitIntentBlock},
+		{name: "--wait", args: []string{"--wait"}, want: waitIntentBlock},
+		{name: "--wait=false", args: []string{"--wait=false"}, want: waitIntentReturn},
+		{name: "both flags", args: []string{"--wait", "--no-wait"}, want: waitIntentConflict},
 	}
 
-	if captured == nil {
-		t.Fatal("run function was not invoked")
-	}
-	if !captured.Wait {
-		t.Fatal("Wait = false, want true so an explicit --no-wait=false keeps the blocking path")
-	}
-	noWait, err := resolveNoWait(captured.NoWait, captured.Wait, false)
-	if err != nil {
-		t.Fatalf("resolveNoWait() error = %v", err)
-	}
-	if noWait {
-		t.Fatal("resolveNoWait() = true, want false: an explicit --no-wait=false must still block")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+				AppID: "cli_test", AppSecret: "secret", Brand: core.BrandFeishu,
+			})
+
+			var captured *LoginOptions
+			cmd := NewCmdAuthLogin(f, func(opts *LoginOptions) error {
+				captured = opts
+				return nil
+			})
+			cmd.SetOut(io.Discard)
+			cmd.SetErr(io.Discard)
+			cmd.SetArgs(append([]string{"--scope", "im:message:send"}, tc.args...))
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if captured == nil {
+				t.Fatal("run function was not invoked")
+			}
+			if captured.waitIntent != tc.want {
+				t.Fatalf("waitIntent = %v, want %v", captured.waitIntent, tc.want)
+			}
+
+			// The intent must survive into the actual decision. Pin it against a
+			// terminal stdout, where the default disagrees with both explicit
+			// requests and a dropped flag would go unnoticed.
+			noWait, err := resolveNoWait(captured.waitIntent, true)
+			switch tc.want {
+			case waitIntentConflict:
+				if err == nil {
+					t.Fatal("resolveNoWait() error = nil, want the mutually-exclusive error")
+				}
+			case waitIntentReturn:
+				if err != nil {
+					t.Fatalf("resolveNoWait() error = %v", err)
+				}
+				if !noWait {
+					t.Fatal("resolveNoWait() = false on a terminal, want true for an explicit return request")
+				}
+			default:
+				if err != nil {
+					t.Fatalf("resolveNoWait() error = %v", err)
+				}
+				if noWait {
+					t.Fatal("resolveNoWait() = true, want false")
+				}
+			}
+		})
 	}
 }

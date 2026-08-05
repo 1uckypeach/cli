@@ -5,6 +5,7 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -130,8 +131,20 @@ func TestGetValidAccessToken_CorruptedRecordFailsAndSurvives(t *testing.T) {
 	if !ok {
 		t.Fatalf("ProblemOf() ok = false, want a typed error; got %v", err)
 	}
+	if problem.Category != errs.CategoryAuthentication {
+		t.Fatalf("category = %q, want %q", problem.Category, errs.CategoryAuthentication)
+	}
 	if problem.Subtype != errs.SubtypeTokenInvalid {
 		t.Fatalf("subtype = %q, want %q", problem.Subtype, errs.SubtypeTokenInvalid)
+	}
+	// Cause preservation, asserted directly rather than through the helper: the
+	// sentinel must stay reachable via errors.As for every existing consumer.
+	var needAuth *NeedAuthorizationError
+	if !errors.As(err, &needAuth) {
+		t.Fatalf("errors.As(*NeedAuthorizationError) = false, want the sentinel preserved in the cause chain; got %v", err)
+	}
+	if needAuth.UserOpenId != openID {
+		t.Fatalf("cause UserOpenId = %q, want %q", needAuth.UserOpenId, openID)
 	}
 	if !IsNeedUserAuthorizationError(err) {
 		t.Fatal("IsNeedUserAuthorizationError() = false, want true so existing re-authorization handling still fires")
@@ -151,6 +164,16 @@ func TestNewCorruptedUserTokenError_NamesTheFieldAndCause(t *testing.T) {
 	problem, ok := errs.ProblemOf(err)
 	if !ok {
 		t.Fatalf("ProblemOf() ok = false, want typed error; got %v", err)
+	}
+	if problem.Category != errs.CategoryAuthentication {
+		t.Fatalf("category = %q, want %q", problem.Category, errs.CategoryAuthentication)
+	}
+	if problem.Subtype != errs.SubtypeTokenInvalid {
+		t.Fatalf("subtype = %q, want %q", problem.Subtype, errs.SubtypeTokenInvalid)
+	}
+	var needAuth *NeedAuthorizationError
+	if !errors.As(err, &needAuth) {
+		t.Fatalf("errors.As(*NeedAuthorizationError) = false, want the sentinel preserved; got %v", err)
 	}
 	for _, want := range []string{"accessToken is empty", "userAccessToken", "ou_msg"} {
 		if !strings.Contains(problem.Message, want) {
