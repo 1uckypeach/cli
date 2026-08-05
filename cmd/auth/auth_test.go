@@ -60,8 +60,11 @@ func TestAuthLoginCmd_HelpGuidesNonStreamingAgentsToSplitFlow(t *testing.T) {
 
 	got := stdout.String()
 	for _, want := range []string{
-		"only delivers final turn messages",
-		"--no-wait --json",
+		// The split flow is now the default for unattended runs, so the help has
+		// to state both halves of it: what happens without a terminal, and how to
+		// opt back into blocking.
+		"device code immediately instead of blocking",
+		"--wait to block even when stdout is not a terminal",
 		"send the verification URL (or QR code) to the user as your final message",
 		"run --device-code in a later step",
 	} {

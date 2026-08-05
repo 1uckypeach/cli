@@ -35,6 +35,7 @@ type LoginOptions struct {
 	Domains    []string
 	Exclude    []string
 	NoWait     bool
+	Wait       bool
 	DeviceCode string
 }
 
@@ -49,16 +50,24 @@ func NewCmdAuthLogin(f *cmdutil.Factory, runF func(*LoginOptions) error) *cobra.
 		Short: "Device Flow authorization login",
 		Long: `Device Flow authorization login.
 
-For AI agents: this command blocks until the user completes authorization in the
-browser. If your harness or agent tool only delivers final turn messages, use --no-wait --json,
-send the verification URL (or QR code) to the user as your final message, end the turn, then
-run --device-code in a later step after the user confirms authorization. Use 'lark-cli auth qrcode'
-to generate QR codes (supports ASCII and PNG formats).`,
+On an interactive terminal this command blocks until the user completes authorization in
+the browser. When stdout is not a terminal (piped output, agent sandbox, CI) it returns the
+device code immediately instead of blocking, because no one is there to open the URL.
+
+For AI agents: send the verification URL (or QR code) to the user as your final message, end
+the turn, then run --device-code in a later step after the user confirms authorization. Pass
+--wait to block even when stdout is not a terminal. Use 'lark-cli auth qrcode' to generate QR
+codes (supports ASCII and PNG formats).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if mode := f.ResolveStrictMode(cmd.Context()); mode == core.StrictModeBot {
 				return errs.NewValidationError(errs.SubtypeInvalidArgument,
 					"strict mode is %q, user login is disabled in this profile", mode).
 					WithHint("if the user explicitly wants to switch to user identity, see `lark-cli config strict-mode --help` (confirm with the user before switching; switching does NOT require re-bind)")
+			}
+			// An explicit --no-wait=false asks to block; record it as --wait so the
+			// non-terminal default below cannot override a stated preference.
+			if cmd.Flags().Changed("no-wait") && !opts.NoWait {
+				opts.Wait = true
 			}
 			opts.Ctx = cmd.Context()
 			if runF != nil {
@@ -84,7 +93,8 @@ to generate QR codes (supports ASCII and PNG formats).`,
 	cmd.Flags().StringSliceVar(&opts.Exclude, "exclude", nil,
 		"scopes to exclude from the request (repeatable or comma-separated, e.g. --exclude drive:file:download)")
 	cmd.Flags().BoolVar(&opts.JSON, "json", false, "structured JSON output")
-	cmd.Flags().BoolVar(&opts.NoWait, "no-wait", false, "initiate device authorization and return immediately; use --device-code to complete")
+	cmd.Flags().BoolVar(&opts.NoWait, "no-wait", false, "initiate device authorization and return immediately; use --device-code to complete (default when stdout is not a terminal)")
+	cmd.Flags().BoolVar(&opts.Wait, "wait", false, "block until authorization completes even when stdout is not a terminal (default on an interactive terminal)")
 	cmd.Flags().StringVar(&opts.DeviceCode, "device-code", "", "poll and complete authorization with a device code from a previous --no-wait call")
 
 	cmdutil.RegisterFlagCompletion(cmd, "domain", func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -114,6 +124,29 @@ func completeDomain(toComplete string) []string {
 	return completions
 }
 
+// resolveNoWait decides whether auth login returns right after issuing the
+// device code instead of polling until the user authorizes.
+//
+// The default follows stdout: an unattended run (piped output, agent sandbox,
+// CI) has nobody to open the verification URL, so blocking there burns the
+// caller's entire turn for a result that can never arrive. Both preferences stay
+// expressible — --no-wait forces the non-blocking path on a terminal too, --wait
+// keeps the poll on a pipe — and asking for both at once is a caller bug rather
+// than something to silently resolve.
+func resolveNoWait(noWait, wait, stdoutIsTerminal bool) (bool, error) {
+	if noWait && wait {
+		return false, errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"--wait and --no-wait are mutually exclusive").WithParam("--wait")
+	}
+	if noWait {
+		return true, nil
+	}
+	if wait {
+		return false, nil
+	}
+	return !stdoutIsTerminal, nil
+}
+
 // authLoginRun executes the login command logic.
 func authLoginRun(opts *LoginOptions) error {
 	f := opts.Factory
@@ -122,6 +155,15 @@ func authLoginRun(opts *LoginOptions) error {
 	if err != nil {
 		return err
 	}
+
+	// Resolved before any network call so a contradictory flag pair fails fast
+	// instead of after a device code has been issued and burned.
+	stdoutIsTerminal := f.IOStreams != nil && f.IOStreams.OutIsTerminal
+	noWait, err := resolveNoWait(opts.NoWait, opts.Wait, stdoutIsTerminal)
+	if err != nil {
+		return err
+	}
+	autoNoWait := noWait && !opts.NoWait
 
 	// Determine UI language from saved config
 	var lang i18n.Lang
@@ -271,9 +313,16 @@ func authLoginRun(opts *LoginOptions) error {
 	}
 
 	// --no-wait: return immediately with device code and URL
-	if opts.NoWait {
+	if noWait {
 		if err := saveLoginRequestedScope(authResp.DeviceCode, finalScope); err != nil {
 			fmt.Fprintf(f.IOStreams.ErrOut, "[lark-cli] [WARN] auth login: failed to cache requested scopes: %v\n", err)
+		}
+		// Announce the switch on stderr: the caller asked for neither mode, so it
+		// must be able to tell why it got a device code instead of a completed
+		// login — and how to get the blocking behaviour back.
+		if autoNoWait {
+			fmt.Fprintln(f.IOStreams.ErrOut,
+				"[lark-cli] auth login: stdout is not a terminal, returning the device code instead of waiting for authorization. Pass --wait to block until authorization completes.")
 		}
 		data := map[string]interface{}{
 			"verification_url": authResp.VerificationUriComplete,

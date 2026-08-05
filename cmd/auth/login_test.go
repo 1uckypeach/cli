@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/errs"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -616,6 +617,10 @@ func TestAuthLoginRun_MissingRequestedScopeAlignsWithLoginSuccess(t *testing.T) 
 		AppSecret:   "secret",
 		Brand:       core.BrandFeishu,
 	})
+	// This case exercises the blocking poll, which is the terminal default;
+	// TestFactory reports a non-terminal stdout, where login now returns the
+	// device code instead of polling.
+	f.IOStreams.OutIsTerminal = true
 
 	reg.Register(&httpmock.Stub{
 		Method: "POST",
@@ -890,12 +895,15 @@ func TestAuthLoginRun_JSONAbort_StdoutEventOnly_StderrEmpty(t *testing.T) {
 		return &larkauth.DeviceFlowResult{OK: false, Message: "user denied"}
 	}
 
+	// Asserting on the poll's abort output requires the blocking path, i.e. the
+	// interactive-terminal default.
 	f, stdout, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
 		ProfileName: "default",
 		AppID:       "cli_test",
 		AppSecret:   "secret",
 		Brand:       core.BrandFeishu,
 	})
+	f.IOStreams.OutIsTerminal = true
 
 	reg.Register(&httpmock.Stub{
 		Method: "POST",
@@ -1111,6 +1119,9 @@ func TestAuthLoginRun_JSONDeviceAuthorizationAgentHintIncludesRawURLGuidance(t *
 		AppSecret:   "secret",
 		Brand:       core.BrandFeishu,
 	})
+	// The device_authorization event this asserts on belongs to the blocking
+	// path, i.e. the interactive-terminal default.
+	f.IOStreams.OutIsTerminal = true
 
 	reg.Register(&httpmock.Stub{
 		Method: "POST",
@@ -1207,5 +1218,209 @@ func TestGetDomainMetadata_ExcludesAuthDomainChildren(t *testing.T) {
 		if dm.Name == "whiteboard" {
 			t.Error("whiteboard should not appear in interactive domain list (has auth_domain=docs)")
 		}
+	}
+}
+
+// TestResolveNoWait pins the wait/no-wait decision table. The unattended default
+// is the point of the contract: without it, an agent sandbox blocks for the whole
+// device-code lifetime waiting for a scan that cannot happen.
+func TestResolveNoWait(t *testing.T) {
+	tests := []struct {
+		name             string
+		noWait           bool
+		wait             bool
+		stdoutIsTerminal bool
+		want             bool
+		wantErr          bool
+	}{
+		{name: "no flags on a terminal blocks", stdoutIsTerminal: true, want: false},
+		{name: "no flags without a terminal returns immediately", stdoutIsTerminal: false, want: true},
+		{name: "--no-wait forces immediate return on a terminal", noWait: true, stdoutIsTerminal: true, want: true},
+		{name: "--no-wait without a terminal returns immediately", noWait: true, stdoutIsTerminal: false, want: true},
+		{name: "--wait blocks without a terminal", wait: true, stdoutIsTerminal: false, want: false},
+		{name: "--wait blocks on a terminal", wait: true, stdoutIsTerminal: true, want: false},
+		{name: "both flags is a caller bug", noWait: true, wait: true, stdoutIsTerminal: false, wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := resolveNoWait(tc.noWait, tc.wait, tc.stdoutIsTerminal)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("resolveNoWait() error = nil, want a validation error")
+				}
+				var verr *errs.ValidationError
+				if !errors.As(err, &verr) {
+					t.Fatalf("error is not a *errs.ValidationError: %v", err)
+				}
+				if verr.Subtype != errs.SubtypeInvalidArgument {
+					t.Fatalf("subtype = %q, want %q", verr.Subtype, errs.SubtypeInvalidArgument)
+				}
+				if verr.Param != "--wait" {
+					t.Fatalf("param = %q, want --wait", verr.Param)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveNoWait() error = %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("resolveNoWait() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestAuthLoginRun_NonTerminalReturnsDeviceCodeWithoutPolling is the regression
+// for the reported hang: with stdout piped and neither flag passed, login must
+// emit the device code and return instead of polling. The httpmock registry has
+// no token stub, so any poll attempt fails the test.
+func TestAuthLoginRun_NonTerminalReturnsDeviceCodeWithoutPolling(t *testing.T) {
+	keyring.MockInit()
+	setupLoginConfigDir(t)
+
+	pollCalled := false
+	original := pollDeviceToken
+	t.Cleanup(func() { pollDeviceToken = original })
+	pollDeviceToken = func(ctx context.Context, httpClient *http.Client, appId, appSecret string, brand core.LarkBrand, deviceCode string, interval, expiresIn int, errOut io.Writer) *larkauth.DeviceFlowResult {
+		pollCalled = true
+		return &larkauth.DeviceFlowResult{OK: false, Message: "should not be reached"}
+	}
+
+	f, stdout, stderr, reg := cmdutil.TestFactory(t, &core.CliConfig{
+		ProfileName: "default",
+		AppID:       "cli_test",
+		AppSecret:   "secret",
+		Brand:       core.BrandFeishu,
+	})
+	// TestFactory writes to buffers, so OutIsTerminal is already false — the
+	// unattended shape this contract is about.
+	f.IOStreams.OutIsTerminal = false
+
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    larkauth.PathDeviceAuthorization,
+		Body: map[string]interface{}{
+			"device_code":               "device-code",
+			"user_code":                 "user-code",
+			"verification_uri":          "https://example.com/verify",
+			"verification_uri_complete": "https://example.com/verify?code=123",
+			"expires_in":                240,
+			"interval":                  0,
+		},
+	})
+
+	if err := authLoginRun(&LoginOptions{
+		Factory: f,
+		Ctx:     context.Background(),
+		Scope:   "im:message:send",
+	}); err != nil {
+		t.Fatalf("authLoginRun() error = %v, want nil", err)
+	}
+
+	if pollCalled {
+		t.Fatal("pollDeviceToken was called; an unattended run must not block on authorization")
+	}
+
+	var got map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal(stdout) error = %v, stdout:\n%s", err, stdout.String())
+	}
+	if got["device_code"] != "device-code" {
+		t.Fatalf("device_code = %v, want device-code; stdout:\n%s", got["device_code"], stdout.String())
+	}
+	if got["verification_url"] != "https://example.com/verify?code=123" {
+		t.Fatalf("verification_url = %v; stdout:\n%s", got["verification_url"], stdout.String())
+	}
+
+	// The switch is announced, and the announcement names the way back.
+	for _, want := range []string{"stdout is not a terminal", "--wait"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("stderr missing %q, got:\n%s", want, stderr.String())
+		}
+	}
+}
+
+// TestAuthLoginRun_WaitFlagBlocksWithoutTerminal pins the escape hatch: a caller
+// that genuinely wants to wait on a pipe keeps the polling behaviour.
+func TestAuthLoginRun_WaitFlagBlocksWithoutTerminal(t *testing.T) {
+	keyring.MockInit()
+	setupLoginConfigDir(t)
+
+	pollCalled := false
+	original := pollDeviceToken
+	t.Cleanup(func() { pollDeviceToken = original })
+	pollDeviceToken = func(ctx context.Context, httpClient *http.Client, appId, appSecret string, brand core.LarkBrand, deviceCode string, interval, expiresIn int, errOut io.Writer) *larkauth.DeviceFlowResult {
+		pollCalled = true
+		return &larkauth.DeviceFlowResult{OK: false, Message: "user denied"}
+	}
+
+	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+		ProfileName: "default",
+		AppID:       "cli_test",
+		AppSecret:   "secret",
+		Brand:       core.BrandFeishu,
+	})
+	f.IOStreams.OutIsTerminal = false
+
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    larkauth.PathDeviceAuthorization,
+		Body: map[string]interface{}{
+			"device_code":               "device-code",
+			"user_code":                 "user-code",
+			"verification_uri":          "https://example.com/verify",
+			"verification_uri_complete": "https://example.com/verify?code=123",
+			"expires_in":                240,
+			"interval":                  0,
+		},
+	})
+
+	err := authLoginRun(&LoginOptions{
+		Factory: f,
+		Ctx:     context.Background(),
+		Scope:   "im:message:send",
+		Wait:    true,
+	})
+	if err == nil {
+		t.Fatal("expected the denied-authorization error from the poll")
+	}
+	if !pollCalled {
+		t.Fatal("pollDeviceToken was not called; --wait must keep blocking on a pipe")
+	}
+}
+
+// TestAuthLoginCmd_ExplicitNoWaitFalseBlocks pins that `--no-wait=false` is read
+// as a stated preference to block, not as an unset flag the terminal check may
+// override.
+func TestAuthLoginCmd_ExplicitNoWaitFalseBlocks(t *testing.T) {
+	f, _, _, _ := cmdutil.TestFactory(t, &core.CliConfig{
+		AppID: "cli_test", AppSecret: "secret", Brand: core.BrandFeishu,
+	})
+
+	var captured *LoginOptions
+	cmd := NewCmdAuthLogin(f, func(opts *LoginOptions) error {
+		captured = opts
+		return nil
+	})
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	cmd.SetArgs([]string{"--scope", "im:message:send", "--no-wait=false"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if captured == nil {
+		t.Fatal("run function was not invoked")
+	}
+	if !captured.Wait {
+		t.Fatal("Wait = false, want true so an explicit --no-wait=false keeps the blocking path")
+	}
+	noWait, err := resolveNoWait(captured.NoWait, captured.Wait, false)
+	if err != nil {
+		t.Fatalf("resolveNoWait() error = %v", err)
+	}
+	if noWait {
+		t.Fatal("resolveNoWait() = true, want false: an explicit --no-wait=false must still block")
 	}
 }
