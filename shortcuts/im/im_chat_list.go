@@ -94,7 +94,7 @@ var ImChatList = common.Shortcut{
 			return err
 		}
 		if len(parts) == 1 && parts[0] == "p2p" && runtime.IsBot() {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument,
+			return errs.NewValidationError(errs.SubtypeIdentityNotSupported,
 				`--types=p2p (single chats) is only supported with user identity (--as user). To protect user privacy, bot identity cannot list p2p chats. Use --as user, or include "group" in --types.`).WithParam("--types")
 		}
 		return nil

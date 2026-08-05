@@ -24,8 +24,15 @@ func TestGetUser_BotCurrentUserValidationTyped(t *testing.T) {
 	if !errors.As(err, &validation) {
 		t.Fatalf("expected validation error, got %T: %v", err, err)
 	}
-	if validation.Param != "--user-id" {
-		t.Fatalf("param: got %q, want --user-id", validation.Param)
+	if validation.Param != "" {
+		t.Fatalf("param: got %q, want empty for omitted --user-id", validation.Param)
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("expected typed problem, got %T: %v", err, err)
+	}
+	if problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeIdentityNotSupported {
+		t.Fatalf("problem = %s/%s, want validation/identity_not_supported", problem.Category, problem.Subtype)
 	}
 }
 

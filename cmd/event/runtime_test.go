@@ -134,6 +134,58 @@ func TestConsumeRuntimeCallAPI_EnvelopeErrorIsTyped(t *testing.T) {
 	}
 }
 
+func TestConsumeRuntimeCallAPI_RateLimitRecoveryMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		status   int
+		ct       string
+		body     string
+		wantCode int
+	}{
+		{name: "HTTP 429 JSON code zero", status: http.StatusTooManyRequests, ct: "application/json", body: `{"code":0,"msg":"slow"}`, wantCode: 429},
+		{name: "HTTP 429 JSON without code", status: http.StatusTooManyRequests, ct: "application/json", body: `{"msg":"slow"}`, wantCode: 429},
+		{name: "HTTP 429 non JSON", status: http.StatusTooManyRequests, ct: "text/plain", body: "slow", wantCode: 429},
+		{name: "HTTP 429 empty body", status: http.StatusTooManyRequests, body: "", wantCode: 429},
+		{name: "business rate limit HTTP 200", status: http.StatusOK, ct: "application/json", body: `{"code":99991400,"msg":"slow"}`, wantCode: 99991400},
+		{name: "business rate limit HTTP 400", status: http.StatusBadRequest, ct: "application/json", body: `{"code":99991400,"msg":"slow"}`, wantCode: 99991400},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			r := newTestConsumeRuntime(stubRoundTripper{respond: func(req *http.Request) (*http.Response, error) {
+				calls++
+				return &http.Response{
+					StatusCode: tt.status,
+					Header: http.Header{
+						"Content-Type": []string{tt.ct},
+						"Retry-After":  []string{"13"},
+					},
+					Body:    io.NopCloser(strings.NewReader(tt.body)),
+					Request: req,
+				}, nil
+			}})
+
+			_, err := r.CallAPI(context.Background(), "POST", "/open-apis/event/v1/connection", map[string]any{"write": true})
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("CallAPI() error = %T (%v), want *errs.APIError", err, err)
+			}
+			if apiErr.Subtype != errs.SubtypeRateLimit || apiErr.Code != tt.wantCode || !apiErr.Retryable {
+				t.Fatalf("rate limit problem = %#v, want code %d", apiErr.Problem, tt.wantCode)
+			}
+			if apiErr.RetryAfterSeconds == nil || *apiErr.RetryAfterSeconds != 13 || apiErr.RetryAfterSource != "retry-after" {
+				t.Fatalf("retry metadata = (%v, %q), want (13, retry-after)", apiErr.RetryAfterSeconds, apiErr.RetryAfterSource)
+			}
+			if !strings.Contains(apiErr.Hint, "safe to replay") {
+				t.Fatalf("hint does not warn against unsafe write replay: %q", apiErr.Hint)
+			}
+			if calls != 1 {
+				t.Fatalf("request count = %d, want 1", calls)
+			}
+		})
+	}
+}
+
 func TestConsumeRuntimeCallAPI_Success(t *testing.T) {
 	r := newTestConsumeRuntime(stubRoundTripper{respond: stubResponse(http.StatusOK, "application/json",
 		`{"code":0,"data":{"ok":true}}`)})

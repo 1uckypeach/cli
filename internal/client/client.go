@@ -157,7 +157,7 @@ func (c *APIClient) DoSDKRequest(ctx context.Context, req *larkcore.ApiReq, as c
 // Auth is resolved via Credential (same as DoSDKRequest). Security headers and
 // any extra headers from opts are applied automatically.
 // HTTP errors (status >= 400) are handled internally: the body is read (up to 4 KB),
-// closed, and returned as a typed *errs.NetworkError — callers only receive successful responses.
+// closed, and returned as a typed error — callers only receive successful responses.
 func (c *APIClient) DoStream(ctx context.Context, req *larkcore.ApiReq, as core.Identity, opts ...Option) (*http.Response, error) {
 	cfg := buildConfig(opts)
 
@@ -226,7 +226,23 @@ func (c *APIClient) DoStream(ctx context.Context, req *larkcore.ApiReq, as core.
 	// Handle HTTP errors internally
 	if resp.StatusCode >= 400 {
 		defer resp.Body.Close()
-		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		const maxStreamErrorBodyBytes = 4096
+		var errBody []byte
+		if resp.StatusCode == http.StatusTooManyRequests {
+			body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxStreamErrorBodyBytes+1))
+			if readErr == nil && len(body) <= maxStreamErrorBodyBytes {
+				errBody = body
+			}
+		} else {
+			// Preserve the legacy non-429 behavior: read at most 4 KiB and
+			// classify whatever prefix was returned, ignoring a body read error.
+			errBody, _ = io.ReadAll(io.LimitReader(resp.Body, maxStreamErrorBodyBytes))
+		}
+		result := parseRateLimitResult(errBody)
+		classified := c.CheckResponse(result, as)
+		if rateErr := rateLimitError(resp.StatusCode, resp.Header, result, errBody, classified); rateErr != nil {
+			return nil, rateErr
+		}
 		msg := strings.TrimSpace(string(errBody))
 		subtype := errs.SubtypeNetworkTransport
 		if resp.StatusCode >= 500 {
@@ -346,12 +362,58 @@ func (c *APIClient) CallAPI(ctx context.Context, request RawApiRequest) (interfa
 	return result, nil
 }
 
-// paginateLoop runs the core pagination loop. For each successful page (code == 0),
-// it calls onResult if non-nil. It always accumulates and returns all raw page results.
+// parsePaginationPage checks every response boundary before a page can reach
+// the callback or accumulator: JSON decoding, business errors, explicit rate
+// limits, and otherwise-unclassified HTTP failures.
+func (c *APIClient) parsePaginationPage(resp *larkcore.ApiResp, identity core.Identity) (interface{}, error) {
+	result, parseErr := ParseJSONResponse(resp)
+	if parseErr != nil {
+		if resp.StatusCode >= http.StatusBadRequest {
+			if rateErr := rateLimitError(resp.StatusCode, resp.Header, nil, resp.RawBody, nil); rateErr != nil {
+				return nil, rateErr
+			}
+			return nil, httpStatusError(resp.StatusCode, resp.RawBody)
+		}
+		return nil, WrapJSONResponseParseError(parseErr, resp.RawBody)
+	}
+	if apiErr := c.CheckResponse(result, identity); apiErr != nil {
+		if rateErr := rateLimitError(resp.StatusCode, resp.Header, result, resp.RawBody, apiErr); rateErr != nil {
+			return nil, rateErr
+		}
+		return nil, apiErr
+	}
+	if rateErr := rateLimitError(resp.StatusCode, resp.Header, result, resp.RawBody, nil); rateErr != nil {
+		return nil, rateErr
+	}
+	if resp.StatusCode >= http.StatusBadRequest {
+		return nil, httpStatusError(resp.StatusCode, resp.RawBody)
+	}
+	return result, nil
+}
+
+func normalizePaginationFailure(err error, operation string) error {
+	if _, ok := errs.ProblemOf(err); ok {
+		return err
+	}
+	if err == nil {
+		return errs.NewInternalError(errs.SubtypeUnknown, "%s failed without an error", operation)
+	}
+	return errs.NewInternalError(errs.SubtypeUnknown, "%s failed: %v", operation, err).WithCause(err)
+}
+
+// paginateLoop runs the core pagination loop. Only pages that pass transport,
+// HTTP, JSON, and business checks reach onResult and the accumulator.
 func (c *APIClient) paginateLoop(ctx context.Context, request RawApiRequest, opts PaginationOptions, onResult func(interface{}) error) ([]interface{}, error) {
 	var allResults []interface{}
 	var pageToken string
 	page := 0
+	classificationIdentity := opts.Identity
+	if classificationIdentity == "" {
+		classificationIdentity = request.As
+	}
+	if classificationIdentity == "" {
+		classificationIdentity = core.AsUser
+	}
 	pageDelay := opts.PageDelay
 	if pageDelay == 0 {
 		pageDelay = 200
@@ -366,9 +428,10 @@ func (c *APIClient) paginateLoop(ctx context.Context, request RawApiRequest, opt
 		if pageToken != "" {
 			params["page_token"] = pageToken
 		}
+		failedPageToken, _ := params["page_token"].(string)
 
 		fmt.Fprintf(c.ErrOut, "[page %d] fetching...\n", page)
-		result, err := c.CallAPI(ctx, RawApiRequest{
+		resp, err := c.DoAPI(ctx, RawApiRequest{
 			Method:    request.Method,
 			URL:       request.URL,
 			Params:    params,
@@ -377,28 +440,17 @@ func (c *APIClient) paginateLoop(ctx context.Context, request RawApiRequest, opt
 			ExtraOpts: request.ExtraOpts,
 		})
 		if err != nil {
-			if page == 1 {
-				return nil, err
-			}
-			fmt.Fprintf(c.ErrOut, "[page %d] error, stopping pagination\n", page)
-			break
+			return allResults, errs.NewPaginationError(err, len(allResults), failedPageToken)
 		}
-
-		if resultMap, ok := result.(map[string]interface{}); ok {
-			code, _ := util.ToFloat64(resultMap["code"])
-			if code != 0 {
-				allResults = append(allResults, result)
-				if page == 1 {
-					return allResults, nil
-				}
-				fmt.Fprintf(c.ErrOut, "[page %d] API error (code=%.0f), stopping pagination\n", page, code)
-				break
-			}
+		result, err := c.parsePaginationPage(resp, classificationIdentity)
+		if err != nil {
+			return allResults, errs.NewPaginationError(err, len(allResults), failedPageToken)
 		}
 
 		if onResult != nil {
 			if err := onResult(result); err != nil {
-				return allResults, err
+				callbackErr := normalizePaginationFailure(err, "pagination page callback")
+				return allResults, errs.NewPaginationError(callbackErr, len(allResults), failedPageToken)
 			}
 		}
 		allResults = append(allResults, result)
@@ -427,7 +479,19 @@ func (c *APIClient) paginateLoop(ctx context.Context, request RawApiRequest, opt
 		}
 
 		if pageDelay > 0 {
-			time.Sleep(time.Duration(pageDelay) * time.Millisecond)
+			timer := time.NewTimer(time.Duration(pageDelay) * time.Millisecond)
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				cancelErr := normalizePaginationFailure(context.Cause(ctx), "pagination page delay")
+				return allResults, errs.NewPaginationError(cancelErr, len(allResults), pageToken)
+			}
 		}
 	}
 	return allResults, nil

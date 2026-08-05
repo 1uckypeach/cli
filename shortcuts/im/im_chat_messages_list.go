@@ -80,7 +80,7 @@ var ImChatMessageList = common.Shortcut{
 		// Under bot identity, --user-id is not supported; require --chat-id only.
 		if runtime.IsBot() {
 			if runtime.Str("user-id") != "" {
-				return errs.NewValidationError(errs.SubtypeInvalidArgument, "--user-id requires user identity (--as user); use --chat-id when calling with bot identity").WithParam("--user-id")
+				return errs.NewValidationError(errs.SubtypeIdentityNotSupported, "--user-id requires user identity (--as user); use --chat-id when calling with bot identity").WithParam("--user-id")
 			}
 			if runtime.Str("chat-id") == "" {
 				return errs.NewValidationError(errs.SubtypeInvalidArgument, "specify --chat-id (bot identity does not support --user-id)").WithParam("--chat-id")

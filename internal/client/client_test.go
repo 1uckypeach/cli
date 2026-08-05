@@ -229,6 +229,17 @@ func TestStreamPages_OnItemsErrorStopsPagination(t *testing.T) {
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("err = %v, want sentinel", err)
 	}
+	var paginationErr *errs.PaginationError
+	if !errors.As(err, &paginationErr) {
+		t.Fatalf("err = %T (%v), want PaginationError", err, err)
+	}
+	if paginationErr.CompletedPages != 0 || paginationErr.NextPageToken != "" {
+		t.Fatalf("progress = %d/%q, want 0/empty for failed first-page callback", paginationErr.CompletedPages, paginationErr.NextPageToken)
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryInternal || problem.Subtype != errs.SubtypeUnknown {
+		t.Fatalf("ProblemOf = %#v, %v; want internal/unknown", problem, ok)
+	}
 	if result != nil {
 		t.Fatalf("result = %#v, want nil when callback stops pagination", result)
 	}
@@ -240,6 +251,48 @@ func TestStreamPages_OnItemsErrorStopsPagination(t *testing.T) {
 	}
 	if len(streamedItems) != 1 {
 		t.Fatalf("streamedItems = %d, want first page only", len(streamedItems))
+	}
+}
+
+func TestPaginateLoop_TypedCallbackErrorPreservesTypeAndCurrentCursor(t *testing.T) {
+	rt := roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return jsonResponse(map[string]interface{}{
+			"code": 0, "msg": "ok",
+			"data": map[string]interface{}{
+				"items":      []interface{}{map[string]interface{}{"id": "current"}},
+				"has_more":   true,
+				"page_token": "future-page",
+			},
+		}), nil
+	})
+	ac, _ := newTestAPIClient(t, rt)
+	inner := errs.NewValidationError(errs.SubtypeFailedPrecondition, "typed callback stopped")
+
+	results, err := ac.paginateLoop(context.Background(), RawApiRequest{
+		Method: http.MethodGet,
+		URL:    "/open-apis/test",
+		Params: map[string]interface{}{"page_token": "current-page"},
+		As:     core.AsBot,
+	}, PaginationOptions{PageDelay: -1}, func(interface{}) error {
+		return inner
+	})
+	if len(results) != 0 {
+		t.Fatalf("results = %d pages, want callback-failed page excluded", len(results))
+	}
+	var paginationErr *errs.PaginationError
+	if !errors.As(err, &paginationErr) {
+		t.Fatalf("err = %T (%v), want PaginationError", err, err)
+	}
+	if paginationErr.CompletedPages != 0 || paginationErr.NextPageToken != "current-page" {
+		t.Fatalf("progress = %d/%q, want 0/current-page", paginationErr.CompletedPages, paginationErr.NextPageToken)
+	}
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) || validationErr != inner {
+		t.Fatalf("errors.As = %#v, want original typed callback error", validationErr)
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeFailedPrecondition {
+		t.Fatalf("ProblemOf = %#v, %v; want validation/failed_precondition", problem, ok)
 	}
 }
 
@@ -324,6 +377,322 @@ func TestPaginateAll_NaturalEndClearsPageToken(t *testing.T) {
 	}
 	if _, exists := data["page_token"]; exists {
 		t.Errorf("expected page_token absent at natural end, got %v", data["page_token"])
+	}
+}
+
+func TestPaginateAll_SecondPageFailuresReturnProgress(t *testing.T) {
+	tests := []struct {
+		name       string
+		secondPage func() (*http.Response, error)
+		category   errs.Category
+		subtype    errs.Subtype
+	}{
+		{
+			name: "transport",
+			secondPage: func() (*http.Response, error) {
+				return nil, &net.DNSError{Err: "no such host", Name: "example.invalid"}
+			},
+			category: errs.CategoryNetwork,
+			subtype:  errs.SubtypeNetworkDNS,
+		},
+		{
+			name: "malformed JSON",
+			secondPage: func() (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(`{"code":`)),
+				}, nil
+			},
+			category: errs.CategoryInternal,
+			subtype:  errs.SubtypeInvalidResponse,
+		},
+		{
+			name: "business error",
+			secondPage: func() (*http.Response, error) {
+				return jsonResponse(map[string]interface{}{"code": 230027, "msg": "user not authorized"}), nil
+			},
+			category: errs.CategoryAuthorization,
+			subtype:  errs.SubtypeUserUnauthorized,
+		},
+		{
+			name: "HTTP error",
+			secondPage: func() (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusInternalServerError,
+					Header:     http.Header{"Content-Type": []string{"text/plain"}},
+					Body:       io.NopCloser(strings.NewReader("gateway unavailable")),
+				}, nil
+			},
+			category: errs.CategoryNetwork,
+			subtype:  errs.SubtypeNetworkServer,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			rt := roundTripFunc(func(*http.Request) (*http.Response, error) {
+				calls++
+				if calls == 1 {
+					return jsonResponse(map[string]interface{}{
+						"code": 0, "msg": "ok",
+						"data": map[string]interface{}{
+							"items":      []interface{}{map[string]interface{}{"id": "first"}},
+							"has_more":   true,
+							"page_token": "resume-secret",
+						},
+					}), nil
+				}
+				return tt.secondPage()
+			})
+			ac, errBuf := newTestAPIClient(t, rt)
+
+			result, err := ac.PaginateAll(context.Background(), RawApiRequest{
+				Method: http.MethodGet,
+				URL:    "/open-apis/test",
+				As:     core.AsUser,
+			}, PaginationOptions{PageDelay: -1})
+			if err == nil {
+				t.Fatal("PaginateAll() error = nil")
+			}
+			if result != nil {
+				t.Fatalf("PaginateAll() result = %#v, want nil on partial failure", result)
+			}
+			var paginationErr *errs.PaginationError
+			if !errors.As(err, &paginationErr) {
+				t.Fatalf("error = %T (%v), want *errs.PaginationError", err, err)
+			}
+			if paginationErr.CompletedPages != 1 || paginationErr.NextPageToken != "resume-secret" {
+				t.Fatalf("progress = %d/%q, want 1/resume-secret", paginationErr.CompletedPages, paginationErr.NextPageToken)
+			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != tt.category || problem.Subtype != tt.subtype {
+				t.Fatalf("ProblemOf = %#v, %v; want %s/%s", problem, ok, tt.category, tt.subtype)
+			}
+			if strings.Contains(errBuf.String(), "resume-secret") || strings.Contains(errBuf.String(), "error, stopping pagination") {
+				t.Fatalf("stderr leaked cursor or temporary error log: %q", errBuf.String())
+			}
+		})
+	}
+}
+
+func TestPaginateAll_FirstPageFailureReportsStartingCursor(t *testing.T) {
+	rt := roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return jsonResponse(map[string]interface{}{"code": 230027, "msg": "user not authorized"}), nil
+	})
+	ac, errBuf := newTestAPIClient(t, rt)
+
+	result, err := ac.PaginateAll(context.Background(), RawApiRequest{
+		Method: http.MethodGet,
+		URL:    "/open-apis/test",
+		Params: map[string]interface{}{"page_token": "starting-secret"},
+		As:     core.AsUser,
+	}, PaginationOptions{PageDelay: -1})
+	if result != nil {
+		t.Fatalf("result = %#v, want nil", result)
+	}
+	var paginationErr *errs.PaginationError
+	if !errors.As(err, &paginationErr) {
+		t.Fatalf("error = %T (%v), want *errs.PaginationError", err, err)
+	}
+	if paginationErr.CompletedPages != 0 || paginationErr.NextPageToken != "starting-secret" {
+		t.Fatalf("progress = %d/%q, want 0/starting-secret", paginationErr.CompletedPages, paginationErr.NextPageToken)
+	}
+	if strings.Contains(errBuf.String(), "starting-secret") {
+		t.Fatalf("stderr leaked starting cursor: %q", errBuf.String())
+	}
+}
+
+func TestPaginateAll_BusinessErrorClassificationIdentityPrecedence(t *testing.T) {
+	tests := []struct {
+		name            string
+		requestIdentity core.Identity
+		optionIdentity  core.Identity
+		wantIdentity    string
+	}{
+		{name: "options override request", requestIdentity: core.AsBot, optionIdentity: core.AsUser, wantIdentity: "user"},
+		{name: "request fallback", requestIdentity: core.AsBot, wantIdentity: "bot"},
+		{name: "default fallback", wantIdentity: "user"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rt := roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return jsonResponse(map[string]interface{}{
+					"code": 99991679,
+					"msg":  "missing scope",
+				}), nil
+			})
+			ac, _ := newTestAPIClient(t, rt)
+
+			result, err := ac.PaginateAll(context.Background(), RawApiRequest{
+				Method: http.MethodGet,
+				URL:    "/open-apis/test",
+				As:     tt.requestIdentity,
+			}, PaginationOptions{Identity: tt.optionIdentity, PageDelay: -1})
+			if result != nil {
+				t.Fatalf("result = %#v, want nil", result)
+			}
+			var paginationErr *errs.PaginationError
+			if !errors.As(err, &paginationErr) {
+				t.Fatalf("error = %T (%v), want PaginationError", err, err)
+			}
+			if paginationErr.CompletedPages != 0 || paginationErr.NextPageToken != "" {
+				t.Fatalf("progress = %d/%q, want 0/empty", paginationErr.CompletedPages, paginationErr.NextPageToken)
+			}
+			var permissionErr *errs.PermissionError
+			if !errors.As(err, &permissionErr) {
+				t.Fatalf("error = %T (%v), want PermissionError in wrapper", err, err)
+			}
+			if permissionErr.Identity != tt.wantIdentity {
+				t.Errorf("PermissionError.Identity = %q, want %q", permissionErr.Identity, tt.wantIdentity)
+			}
+			if tt.wantIdentity == "bot" {
+				if !strings.Contains(permissionErr.Hint, "developer console") {
+					t.Errorf("PermissionError.Hint = %q, want bot scope-application guidance", permissionErr.Hint)
+				}
+			} else if !strings.Contains(permissionErr.Hint, "lark-cli auth login") {
+				t.Errorf("PermissionError.Hint = %q, want user authorization recovery guidance", permissionErr.Hint)
+			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != errs.CategoryAuthorization || problem.Subtype != errs.SubtypeMissingScope {
+				t.Fatalf("ProblemOf = %#v, %v; want authorization/missing_scope", problem, ok)
+			}
+		})
+	}
+}
+
+func TestPaginateLoop_ThirdPageFailureExcludesFailedPage(t *testing.T) {
+	calls := 0
+	rt := roundTripFunc(func(*http.Request) (*http.Response, error) {
+		calls++
+		if calls == 3 {
+			return jsonResponse(map[string]interface{}{"code": 230027, "msg": "user not authorized"}), nil
+		}
+		return jsonResponse(map[string]interface{}{
+			"code": 0, "msg": "ok",
+			"data": map[string]interface{}{
+				"items":      []interface{}{map[string]interface{}{"page": calls}},
+				"has_more":   true,
+				"page_token": map[int]string{1: "page-2", 2: "page-3"}[calls],
+			},
+		}), nil
+	})
+	ac, _ := newTestAPIClient(t, rt)
+
+	results, err := ac.paginateLoop(context.Background(), RawApiRequest{
+		Method: http.MethodGet,
+		URL:    "/open-apis/test",
+		As:     core.AsUser,
+	}, PaginationOptions{PageDelay: -1}, nil)
+	if len(results) != 2 {
+		t.Fatalf("accumulated pages = %d, want only two successful pages", len(results))
+	}
+	var paginationErr *errs.PaginationError
+	if !errors.As(err, &paginationErr) {
+		t.Fatalf("error = %T (%v), want *errs.PaginationError", err, err)
+	}
+	if paginationErr.CompletedPages != 2 || paginationErr.NextPageToken != "page-3" {
+		t.Fatalf("progress = %d/%q, want 2/page-3", paginationErr.CompletedPages, paginationErr.NextPageToken)
+	}
+}
+
+func TestStreamPages_PreservesWrittenPagesBeforeFailure(t *testing.T) {
+	calls := 0
+	rt := roundTripFunc(func(*http.Request) (*http.Response, error) {
+		calls++
+		if calls == 1 {
+			return jsonResponse(map[string]interface{}{
+				"code": 0, "msg": "ok",
+				"data": map[string]interface{}{
+					"items":      []interface{}{map[string]interface{}{"id": "written"}},
+					"has_more":   true,
+					"page_token": "second-page",
+				},
+			}), nil
+		}
+		return jsonResponse(map[string]interface{}{"code": 230027, "msg": "user not authorized"}), nil
+	})
+	ac, _ := newTestAPIClient(t, rt)
+	var written []interface{}
+
+	result, hasItems, err := ac.StreamPages(context.Background(), RawApiRequest{
+		Method: http.MethodGet,
+		URL:    "/open-apis/test",
+		As:     core.AsUser,
+	}, func(items []interface{}) error {
+		written = append(written, items...)
+		return nil
+	}, PaginationOptions{PageDelay: -1})
+	if err == nil {
+		t.Fatal("StreamPages() error = nil")
+	}
+	if result != nil || hasItems {
+		t.Fatalf("result/hasItems = %#v/%v, want nil/false on final error", result, hasItems)
+	}
+	if len(written) != 1 {
+		t.Fatalf("written items = %d, want successful first page preserved", len(written))
+	}
+	var paginationErr *errs.PaginationError
+	if !errors.As(err, &paginationErr) || paginationErr.CompletedPages != 1 {
+		t.Fatalf("error progress = %#v, want one completed page", paginationErr)
+	}
+}
+
+func TestPaginateAll_PageDelayHonorsContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	calls := 0
+	rt := roundTripFunc(func(*http.Request) (*http.Response, error) {
+		calls++
+		cancel()
+		return jsonResponse(map[string]interface{}{
+			"code": 0, "msg": "ok",
+			"data": map[string]interface{}{
+				"items":      []interface{}{},
+				"has_more":   true,
+				"page_token": "not-requested",
+			},
+		}), nil
+	})
+	ac, _ := newTestAPIClient(t, rt)
+
+	started := time.Now()
+	_, err := ac.PaginateAll(ctx, RawApiRequest{
+		Method: http.MethodGet,
+		URL:    "/open-apis/test",
+		As:     core.AsBot,
+	}, PaginationOptions{PageDelay: 5_000})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
+	}
+	var paginationErr *errs.PaginationError
+	if !errors.As(err, &paginationErr) {
+		t.Fatalf("error = %T (%v), want PaginationError", err, err)
+	}
+	if paginationErr.CompletedPages != 1 || paginationErr.NextPageToken != "not-requested" {
+		t.Fatalf("progress = %d/%q, want 1/not-requested", paginationErr.CompletedPages, paginationErr.NextPageToken)
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryInternal || problem.Subtype != errs.SubtypeUnknown {
+		t.Fatalf("ProblemOf = %#v, %v; want internal/unknown", problem, ok)
+	}
+	encoded, marshalErr := json.Marshal(err)
+	if marshalErr != nil {
+		t.Fatalf("json.Marshal: %v", marshalErr)
+	}
+	var wire map[string]any
+	if unmarshalErr := json.Unmarshal(encoded, &wire); unmarshalErr != nil {
+		t.Fatalf("json.Unmarshal: %v", unmarshalErr)
+	}
+	if wire["completed_pages"] != float64(1) || wire["next_page_token"] != "not-requested" {
+		t.Fatalf("wire progress = %#v", wire)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("cancellation took %s, want prompt return", elapsed)
+	}
+	if calls != 1 {
+		t.Fatalf("calls = %d, want no request after cancellation", calls)
 	}
 }
 
@@ -538,6 +907,197 @@ func TestDoStream_PreservesTypedTransportError(t *testing.T) {
 	}
 	if !errors.Is(err, policyErr) {
 		t.Fatal("DoStream() did not preserve the typed transport error")
+	}
+}
+
+func TestDoStream_RateLimitSendsOnce(t *testing.T) {
+	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodDelete} {
+		t.Run(method, func(t *testing.T) {
+			calls := 0
+			ac := &APIClient{
+				HTTP: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+					calls++
+					return &http.Response{
+						StatusCode: http.StatusTooManyRequests,
+						Header: http.Header{
+							"Content-Type": []string{"application/json"},
+							"Retry-After":  []string{"7"},
+						},
+						Body: io.NopCloser(strings.NewReader(`{"code":99991400,"msg":"slow"}`)),
+					}, nil
+				})},
+				Credential: credential.NewCredentialProvider(nil, nil, &staticTokenResolver{}, nil),
+				Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu},
+			}
+			_, err := ac.DoStream(context.Background(), &larkcore.ApiReq{HttpMethod: method, ApiPath: "https://example.invalid/open-apis/test", Body: strings.NewReader("payload")}, core.AsBot)
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) || apiErr.Subtype != errs.SubtypeRateLimit {
+				t.Fatalf("DoStream() error = %T (%v), want api/rate_limit", err, err)
+			}
+			if calls != 1 {
+				t.Fatalf("request calls = %d, want exactly 1", calls)
+			}
+		})
+	}
+}
+
+func TestDoAPI_RateLimitSendsOnceForEveryMethod(t *testing.T) {
+	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodDelete} {
+		t.Run(method, func(t *testing.T) {
+			calls := 0
+			ac, _ := newTestAPIClient(t, roundTripFunc(func(*http.Request) (*http.Response, error) {
+				calls++
+				return &http.Response{
+					StatusCode: http.StatusTooManyRequests,
+					Header: http.Header{
+						"Content-Type": []string{"application/json"},
+						"Retry-After":  []string{"2"},
+					},
+					Body: io.NopCloser(strings.NewReader(`{"code":99991400,"msg":"slow"}`)),
+				}, nil
+			}))
+
+			resp, err := ac.DoAPI(context.Background(), RawApiRequest{
+				Method: method,
+				URL:    "/open-apis/test/v1/resources",
+				Data:   map[string]interface{}{"value": "body must not be replayed"},
+				As:     core.AsBot,
+			})
+			if err != nil {
+				t.Fatalf("DoAPI() error = %v", err)
+			}
+			err = HandleResponse(resp, ResponseOptions{Out: io.Discard, ErrOut: io.Discard})
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) || apiErr.Subtype != errs.SubtypeRateLimit {
+				t.Fatalf("HandleResponse() error = %T (%v), want api/rate_limit", err, err)
+			}
+			if calls != 1 {
+				t.Fatalf("request calls = %d, want exactly 1", calls)
+			}
+		})
+	}
+}
+
+func TestDoStream_RateLimitErrorBodyIsBounded(t *testing.T) {
+	body := strings.Repeat("x", 8192)
+	ac := &APIClient{
+		HTTP: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: http.StatusTooManyRequests, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(body))}, nil
+		})},
+		Credential: credential.NewCredentialProvider(nil, nil, &staticTokenResolver{}, nil),
+		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu},
+	}
+	_, err := ac.DoStream(context.Background(), &larkcore.ApiReq{HttpMethod: http.MethodGet, ApiPath: "https://example.invalid/open-apis/test"}, core.AsBot)
+	var apiErr *errs.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("DoStream() error = %T (%v), want *errs.APIError", err, err)
+	}
+	if len(apiErr.Message) > 4600 {
+		t.Fatalf("rate-limit message unexpectedly contains unbounded body: len=%d", len(apiErr.Message))
+	}
+}
+
+type streamBoundaryErrorReader struct {
+	prefix *strings.Reader
+	err    error
+}
+
+func (r *streamBoundaryErrorReader) Read(p []byte) (int, error) {
+	if r.prefix.Len() > 0 {
+		return r.prefix.Read(p)
+	}
+	return 0, r.err
+}
+
+func TestDoStream_HTTP429RejectsUntrustedFourKiBPrefixMetadata(t *testing.T) {
+	const maxBody = 4096
+	prefix := `{"code":99991400,"log_id":"body-forged"}`
+	trustedPrefix := prefix + strings.Repeat(" ", maxBody-len(prefix))
+	sentinel := errors.New("read beyond four KiB")
+	tests := []struct {
+		name string
+		body func() io.ReadCloser
+	}{
+		{name: "trailing junk beyond limit", body: func() io.ReadCloser { return io.NopCloser(strings.NewReader(trustedPrefix + "junk")) }},
+		{name: "second JSON beyond limit", body: func() io.ReadCloser { return io.NopCloser(strings.NewReader(trustedPrefix + `{"code":99991400}`)) }},
+		{name: "boundary read error", body: func() io.ReadCloser {
+			return io.NopCloser(&streamBoundaryErrorReader{prefix: strings.NewReader(trustedPrefix), err: sentinel})
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			ac := &APIClient{
+				HTTP: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+					calls++
+					return &http.Response{
+						StatusCode: http.StatusTooManyRequests,
+						Header: http.Header{
+							"X-Request-Id": []string{"header-log"},
+							"Retry-After":  []string{"12"},
+						},
+						Body: tt.body(),
+					}, nil
+				})},
+				Credential: credential.NewCredentialProvider(nil, nil, &staticTokenResolver{}, nil),
+				Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu},
+			}
+			_, err := ac.DoStream(context.Background(), &larkcore.ApiReq{HttpMethod: http.MethodGet, ApiPath: "https://example.invalid/open-apis/test"}, core.AsBot)
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("DoStream() error = %T (%v), want APIError", err, err)
+			}
+			if apiErr.Code != 429 || apiErr.LogID != "header-log" || apiErr.RetryAfterSeconds == nil || *apiErr.RetryAfterSeconds != 12 {
+				t.Fatalf("untrusted 4 KiB prefix supplied metadata: %#v", apiErr)
+			}
+			if apiErr.Cause != nil || errors.Is(err, sentinel) {
+				t.Fatalf("body read error leaked into classification: %#v", apiErr)
+			}
+			if calls != 1 {
+				t.Fatalf("request calls = %d, want 1", calls)
+			}
+		})
+	}
+}
+
+func TestDoStream_BusinessRateLimitOnHTTP400(t *testing.T) {
+	ac := &APIClient{
+		HTTP: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"code":99991400,"msg":"slow"}`)),
+			}, nil
+		})},
+		Credential: credential.NewCredentialProvider(nil, nil, &staticTokenResolver{}, nil),
+		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu},
+	}
+	_, err := ac.DoStream(context.Background(), &larkcore.ApiReq{HttpMethod: http.MethodGet, ApiPath: "https://example.invalid/open-apis/test"}, core.AsBot)
+	var apiErr *errs.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != 99991400 || apiErr.Subtype != errs.SubtypeRateLimit {
+		t.Fatalf("DoStream() error = %#v (%v), want api/rate_limit code 99991400", apiErr, err)
+	}
+}
+
+func TestDoStream_HTTP429PreservesLongTermQuotaClassification(t *testing.T) {
+	ac := &APIClient{
+		HTTP: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     http.Header{"Retry-After": []string{"4"}},
+				Body:       io.NopCloser(strings.NewReader(`{"code":1063006,"msg":"daily quota"}`)),
+			}, nil
+		})},
+		Credential: credential.NewCredentialProvider(nil, nil, &staticTokenResolver{}, nil),
+		Config:     &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu},
+	}
+	_, err := ac.DoStream(context.Background(), &larkcore.ApiReq{HttpMethod: http.MethodPost, ApiPath: "https://example.invalid/open-apis/test"}, core.AsUser)
+	var apiErr *errs.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("DoStream() error = %T (%v), want *errs.APIError", err, err)
+	}
+	if apiErr.Code != 1063006 || apiErr.Retryable || apiErr.RetryAfterSeconds != nil {
+		t.Fatalf("long-term quota classification was changed: %#v", apiErr)
 	}
 }
 

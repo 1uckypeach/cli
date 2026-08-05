@@ -245,8 +245,15 @@ func TestServicePaginate_StreamingWriteFailureStopsFurtherPages(t *testing.T) {
 		t.Fatalf("servicePaginate() error = %v, want preserved writer cause", err)
 	}
 	problem, ok := errs.ProblemOf(err)
-	if !ok || problem.Category != errs.CategoryInternal {
-		t.Fatalf("servicePaginate() problem = %#v, %v; want internal typed error", problem, ok)
+	if !ok || problem.Category != errs.CategoryInternal || problem.Subtype != errs.SubtypeUnknown {
+		t.Fatalf("servicePaginate() problem = %#v, %v; want internal/unknown", problem, ok)
+	}
+	var paginationErr *errs.PaginationError
+	if !errors.As(err, &paginationErr) {
+		t.Fatalf("servicePaginate() error = %T (%v), want PaginationError", err, err)
+	}
+	if paginationErr.CompletedPages != 1 || paginationErr.NextPageToken != "next-1" {
+		t.Fatalf("progress = %d/%q, want 1/next-1", paginationErr.CompletedPages, paginationErr.NextPageToken)
 	}
 	if calls != 2 {
 		t.Fatalf("pagination requests = %d, want 2", calls)
@@ -291,7 +298,7 @@ func TestServicePaginate_StreamingFormatFallsBackToJSONWithoutList(t *testing.T)
 	}
 }
 
-func TestServicePaginate_BusinessErrorsWriteRawAndRemainUnmarked(t *testing.T) {
+func TestServicePaginate_BusinessErrorsReturnProgressWithoutStdout(t *testing.T) {
 	businessResponse := map[string]interface{}{
 		"code": 123456,
 		"msg":  "fixture business error",
@@ -324,9 +331,19 @@ func TestServicePaginate_BusinessErrorsWriteRawAndRemainUnmarked(t *testing.T) {
 			if errs.IsRaw(err) {
 				t.Fatalf("errs.IsRaw(error) = true, want current servicePaginate pass-through behavior")
 			}
-			assertServicePaginateJSONBytes(t, out.Bytes(), businessResponse)
-			if bytes.Contains(out.Bytes(), []byte(`"ok": true`)) {
-				t.Fatalf("business-error stdout contains a success envelope:\n%s", out.Bytes())
+			var paginationErr *errs.PaginationError
+			if !errors.As(err, &paginationErr) {
+				t.Fatalf("error = %T (%v), want PaginationError", err, err)
+			}
+			if paginationErr.CompletedPages != 0 || paginationErr.NextPageToken != "" {
+				t.Fatalf("progress = %d/%q, want 0/empty", paginationErr.CompletedPages, paginationErr.NextPageToken)
+			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != errs.CategoryAPI || problem.Subtype != errs.SubtypeUnknown || problem.Code != 123456 {
+				t.Fatalf("ProblemOf = %#v, %v; want api/unknown code 123456", problem, ok)
+			}
+			if got := out.String(); got != "" {
+				t.Fatalf("stdout bytes = %q, want empty", got)
 			}
 			if got := errOut.String(); got != "" {
 				t.Fatalf("stderr bytes = %q, want empty", got)
@@ -360,6 +377,17 @@ func TestServicePaginate_TransportErrorsRemainUnmarked(t *testing.T) {
 			if errs.IsRaw(err) {
 				t.Fatalf("errs.IsRaw(error) = true, want current servicePaginate pass-through behavior")
 			}
+			var paginationErr *errs.PaginationError
+			if !errors.As(err, &paginationErr) {
+				t.Fatalf("error = %T (%v), want PaginationError", err, err)
+			}
+			if paginationErr.CompletedPages != 0 || paginationErr.NextPageToken != "" {
+				t.Fatalf("progress = %d/%q, want 0/empty", paginationErr.CompletedPages, paginationErr.NextPageToken)
+			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != errs.CategoryNetwork {
+				t.Fatalf("ProblemOf = %#v, %v; want original network classification", problem, ok)
+			}
 			if got := out.String(); got != "" {
 				t.Fatalf("stdout bytes = %q, want empty", got)
 			}
@@ -367,6 +395,38 @@ func TestServicePaginate_TransportErrorsRemainUnmarked(t *testing.T) {
 				t.Fatalf("stderr bytes = %q, want empty", got)
 			}
 		})
+	}
+}
+
+func TestServicePaginate_DecodeErrorReturnsProgressWithoutStdout(t *testing.T) {
+	ac, out, errOut, reg := newServicePaginateTestHarness(t)
+	reg.Register(&httpmock.Stub{
+		URL:     "/open-apis/test/v1/items",
+		RawBody: []byte(`{"code":`),
+	})
+
+	err := servicePaginate(context.Background(), ac, servicePaginateRequest(),
+		output.FormatJSON, "", out, errOut, "lark-cli test items list",
+		client.PaginationOptions{PageDelay: -1}, ac.CheckResponse)
+	if err == nil {
+		t.Fatal("servicePaginate() error = nil, want decode error")
+	}
+	if errs.IsRaw(err) {
+		t.Fatalf("errs.IsRaw(error) = true, want service pass-through behavior")
+	}
+	var paginationErr *errs.PaginationError
+	if !errors.As(err, &paginationErr) {
+		t.Fatalf("error = %T (%v), want PaginationError", err, err)
+	}
+	if paginationErr.CompletedPages != 0 || paginationErr.NextPageToken != "" {
+		t.Fatalf("progress = %d/%q, want 0/empty", paginationErr.CompletedPages, paginationErr.NextPageToken)
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryInternal || problem.Subtype != errs.SubtypeInvalidResponse {
+		t.Fatalf("ProblemOf = %#v, %v; want internal/invalid_response", problem, ok)
+	}
+	if out.Len() != 0 || errOut.Len() != 0 {
+		t.Fatalf("decode error wrote stdout/stderr: %q / %q", out.String(), errOut.String())
 	}
 }
 
@@ -390,6 +450,10 @@ func TestServicePaginate_StreamBusinessErrorRemainsUnmarked(t *testing.T) {
 	}
 	if errs.IsRaw(err) {
 		t.Fatalf("errs.IsRaw(error) = true, want current servicePaginate pass-through behavior")
+	}
+	var paginationErr *errs.PaginationError
+	if !errors.As(err, &paginationErr) || paginationErr.CompletedPages != 0 || paginationErr.NextPageToken != "" {
+		t.Fatalf("pagination progress = %#v, want 0 completed pages and no token", paginationErr)
 	}
 	if got := out.String(); got != "" {
 		t.Fatalf("stdout bytes = %q, want empty", got)

@@ -30,7 +30,7 @@ func validateWikiMemberSpaceID(runtime *common.RuntimeContext, spaceID string) e
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--space-id is required and cannot be blank").WithParam("--space-id")
 	}
 	if runtime.As().IsBot() && spaceID == wikiMyLibrarySpaceID {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "bot identity does not support --space-id my_library; use an explicit --space-id").WithParam("--space-id")
+		return errs.NewValidationError(errs.SubtypeIdentityNotSupported, "bot identity does not support --space-id my_library; use an explicit --space-id").WithParam("--space-id")
 	}
 	return validateOptionalResourceName(spaceID, "--space-id")
 }

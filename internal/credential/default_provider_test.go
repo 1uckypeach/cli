@@ -4,8 +4,13 @@
 package credential
 
 import (
+	"context"
 	"errors"
+	"runtime"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/larksuite/cli/errs"
 )
@@ -17,6 +22,272 @@ func TestDefaultTokenProvider_Dispatches(t *testing.T) {
 
 func TestDefaultAccountProvider_Implements(t *testing.T) {
 	var _ DefaultAccountResolver = &DefaultAccountProvider{}
+}
+
+func TestDefaultTokenProvider_RetryableTATErrorIsNotCached(t *testing.T) {
+	retryableErr := errs.NewAPIError(errs.SubtypeRateLimit, "rate limited").WithRetryable()
+	var calls atomic.Int32
+	p := NewDefaultTokenProvider(nil, nil, nil)
+	p.tatResolver = func(context.Context) (*TokenResult, error) {
+		if calls.Add(1) == 1 {
+			return nil, retryableErr
+		}
+		return &TokenResult{Token: "recovered-token"}, nil
+	}
+
+	if result, err := p.resolveTAT(context.Background()); result != nil || !errors.Is(err, retryableErr) {
+		t.Fatalf("first resolution = (%v, %v), want retryable error", result, err)
+	}
+	result, err := p.resolveTAT(context.Background())
+	if err != nil {
+		t.Fatalf("second resolution returned error: %v", err)
+	}
+	if result == nil || result.Token != "recovered-token" {
+		t.Fatalf("second resolution = %#v, want recovered token", result)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("resolver calls = %d, want 2", got)
+	}
+}
+
+func TestDefaultTokenProvider_ConcurrentRetryableTATFlightIsSharedThenRetried(t *testing.T) {
+	const callers = 16
+	retryableErr := errs.NewAPIError(errs.SubtypeRateLimit, "rate limited").WithRetryable()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var calls atomic.Int32
+	p := NewDefaultTokenProvider(nil, nil, nil)
+	p.tatResolver = func(context.Context) (*TokenResult, error) {
+		if calls.Add(1) == 1 {
+			close(started)
+			<-release
+			return nil, retryableErr
+		}
+		return &TokenResult{Token: "recovered-token"}, nil
+	}
+
+	type outcome struct {
+		result *TokenResult
+		err    error
+	}
+	outcomes := make(chan outcome, callers)
+	go func() {
+		result, err := p.resolveTAT(context.Background())
+		outcomes <- outcome{result: result, err: err}
+	}()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for the first TAT resolution to start")
+	}
+
+	for i := 1; i < callers; i++ {
+		go func() {
+			result, err := p.resolveTAT(context.Background())
+			outcomes <- outcome{result: result, err: err}
+		}()
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		p.tatMu.Lock()
+		followers := p.tatFlight.followers
+		p.tatMu.Unlock()
+		if followers == callers-1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("in-flight followers = %d, want %d", followers, callers-1)
+		}
+		runtime.Gosched()
+	}
+
+	close(release)
+	for i := 0; i < callers; i++ {
+		select {
+		case got := <-outcomes:
+			if got.result != nil || !errors.Is(got.err, retryableErr) {
+				t.Fatalf("shared retryable resolution = (%v, %v), want retryable error", got.result, got.err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for shared retryable resolution")
+		}
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("resolver calls after shared flight = %d, want 1", got)
+	}
+
+	result, err := p.resolveTAT(context.Background())
+	if err != nil || result == nil || result.Token != "recovered-token" {
+		t.Fatalf("later resolution = (%v, %v), want recovered success", result, err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("resolver calls after recovery = %d, want 2", got)
+	}
+}
+
+func TestDefaultTokenProvider_ConcurrentTATResolverPanicUnblocksFollowersAndCleansFlight(t *testing.T) {
+	const callers = 16
+	panicVal := &struct{ message string }{message: "resolver panic"}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var calls atomic.Int32
+	p := NewDefaultTokenProvider(nil, nil, nil)
+	p.tatResolver = func(context.Context) (*TokenResult, error) {
+		if calls.Add(1) == 1 {
+			close(started)
+			<-release
+			panic(panicVal)
+		}
+		return &TokenResult{Token: "recovered-after-panic"}, nil
+	}
+
+	recovered := make(chan any, callers)
+	resolveAndRecover := func() {
+		defer func() {
+			recovered <- recover()
+		}()
+		_, _ = p.resolveTAT(context.Background())
+	}
+	go resolveAndRecover()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for the panicking TAT resolution to start")
+	}
+
+	for i := 1; i < callers; i++ {
+		go resolveAndRecover()
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		p.tatMu.Lock()
+		followers := p.tatFlight.followers
+		p.tatMu.Unlock()
+		if followers == callers-1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("in-flight followers = %d, want %d", followers, callers-1)
+		}
+		runtime.Gosched()
+	}
+
+	close(release)
+	for i := 0; i < callers; i++ {
+		select {
+		case got := <-recovered:
+			if got != panicVal {
+				t.Fatalf("recovered panic = %#v, want %#v", got, panicVal)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for caller to recover resolver panic")
+		}
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("resolver calls after panicking flight = %d, want 1", got)
+	}
+
+	result, err := p.resolveTAT(context.Background())
+	if err != nil || result == nil || result.Token != "recovered-after-panic" {
+		t.Fatalf("later resolution = (%v, %v), want recovered success", result, err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("resolver calls after panic recovery = %d, want 2", got)
+	}
+}
+
+func TestDefaultTokenProvider_SuccessfulTATIsCached(t *testing.T) {
+	var calls atomic.Int32
+	want := &TokenResult{Token: "cached-token"}
+	p := NewDefaultTokenProvider(nil, nil, nil)
+	p.tatResolver = func(context.Context) (*TokenResult, error) {
+		calls.Add(1)
+		return want, nil
+	}
+
+	for i := 0; i < 2; i++ {
+		result, err := p.resolveTAT(context.Background())
+		if err != nil || result != want {
+			t.Fatalf("resolution %d = (%v, %v), want cached success", i+1, result, err)
+		}
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("resolver calls = %d, want 1", got)
+	}
+}
+
+func TestDefaultTokenProvider_NonRetryableTATErrorIsCached(t *testing.T) {
+	wantErr := errs.NewConfigError(errs.SubtypeInvalidClient, "invalid credentials")
+	var calls atomic.Int32
+	p := NewDefaultTokenProvider(nil, nil, nil)
+	p.tatResolver = func(context.Context) (*TokenResult, error) {
+		calls.Add(1)
+		return nil, wantErr
+	}
+
+	for i := 0; i < 2; i++ {
+		result, err := p.resolveTAT(context.Background())
+		if result != nil || !errors.Is(err, wantErr) {
+			t.Fatalf("resolution %d = (%v, %v), want cached error", i+1, result, err)
+		}
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("resolver calls = %d, want 1", got)
+	}
+}
+
+func TestDefaultTokenProvider_ConcurrentTATSuccessCoalesces(t *testing.T) {
+	const callers = 16
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var calls atomic.Int32
+	p := NewDefaultTokenProvider(nil, nil, nil)
+	p.tatResolver = func(context.Context) (*TokenResult, error) {
+		if calls.Add(1) == 1 {
+			close(started)
+		}
+		<-release
+		return &TokenResult{Token: "shared-token"}, nil
+	}
+
+	type outcome struct {
+		result *TokenResult
+		err    error
+	}
+	outcomes := make(chan outcome, callers)
+	var ready sync.WaitGroup
+	ready.Add(callers)
+	begin := make(chan struct{})
+	for i := 0; i < callers; i++ {
+		go func() {
+			ready.Done()
+			<-begin
+			result, err := p.resolveTAT(context.Background())
+			outcomes <- outcome{result: result, err: err}
+		}()
+	}
+	ready.Wait()
+	close(begin)
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for TAT resolution to start")
+	}
+	close(release)
+
+	for i := 0; i < callers; i++ {
+		select {
+		case got := <-outcomes:
+			if got.err != nil || got.result == nil || got.result.Token != "shared-token" {
+				t.Fatalf("concurrent resolution = (%v, %v), want shared success", got.result, got.err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for concurrent TAT resolution")
+		}
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("resolver calls = %d, want 1", got)
+	}
 }
 
 // TestClassifyTATResponseCode_InvalidClient_MapsToInvalidClient pins that the

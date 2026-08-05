@@ -38,11 +38,10 @@ const probeTimeout = 3 * time.Second
 //     CategoryConfig / SubtypeInvalidClient, or whatever codemeta maps. That
 //     typed error is propagated so the root dispatcher renders the canonical
 //     envelope and `config init` exits non-zero — identical to how every other
-//     token-resolving command reports the same bad credentials. Ambiguous
-//     failures (transport errors, transient 5xx/server_error, JSON parse errors,
-//     timeouts) come back as raw untyped errors and are swallowed (return nil),
-//     so valid configurations are never disturbed by upstream noise.
-//     errs.IsTyped is the discriminator.
+//     token-resolving command reports the same bad credentials. A retryable
+//     api/rate_limit error and ambiguous untyped failures (transport errors,
+//     transient 5xx/server_error, JSON parse errors, timeouts) are swallowed so
+//     valid configurations are never disturbed by upstream noise.
 //
 //  2. If TAT succeeded, a POST to the probe endpoint is fired. The outcome of
 //     that call (success, server error, timeout, parse failure) is always
@@ -61,12 +60,12 @@ func runProbe(parent context.Context, factory *cmdutil.Factory, appID, appSecret
 
 	token, err := credential.FetchTAT(ctx, httpClient, brand, appID, appSecret)
 	if err != nil {
-		// A typed error from FetchTAT is a deterministic credential rejection
-		// (classifyTATResponseCode). Propagate it so config init exits with the
-		// same envelope the rest of the CLI uses for bad credentials. Untyped
-		// errors are ambiguous (transport / HTTP / parse / timeout) — stay
-		// silent and let the command succeed.
-		if errs.IsTyped(err) {
+		// A retryable API rate limit is expected probe noise. Other typed
+		// errors are deterministic and must remain visible to the caller.
+		if ignoreProbeTATError(err) {
+			return nil
+		}
+		if _, ok := errs.ProblemOf(err); ok {
 			return err
 		}
 		return nil
@@ -89,4 +88,9 @@ func runProbe(parent context.Context, factory *cmdutil.Factory, appID, appSecret
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, resp.Body)
 	return nil
+}
+
+func ignoreProbeTATError(err error) bool {
+	problem, ok := errs.ProblemOf(err)
+	return ok && problem.Category == errs.CategoryAPI && problem.Subtype == errs.SubtypeRateLimit && problem.Retryable
 }

@@ -432,14 +432,14 @@ var MailForward = common.Shortcut{
 				return mailFailedPreconditionError("large attachments require a body; " +
 					"empty messages cannot include the download link")
 			}
-			if runtime.Config == nil || runtime.UserOpenId() == "" {
-				var totalBytes int64
-				for _, f := range classified.Oversized {
-					totalBytes += f.Size
-				}
-				return mailFailedPreconditionError("total attachment size %.1f MB exceeds the 25 MB EML limit; "+
-					"large attachment upload requires user identity (--as user)",
-					float64(totalBytes)/1024/1024)
+			var totalBytes int64
+			for _, f := range classified.Oversized {
+				totalBytes += f.Size
+			}
+			if _, err := mailRequireUserOpenID(runtime, "total attachment size %.1f MB exceeds the 25 MB EML limit; "+
+				"large attachment upload requires user identity (--as user)",
+				float64(totalBytes)/1024/1024); err != nil {
+				return err
 			}
 
 			var allOversized []attachmentFile

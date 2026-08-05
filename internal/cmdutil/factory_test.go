@@ -161,34 +161,120 @@ func TestCheckIdentity_Supported_UserOnly(t *testing.T) {
 
 func TestCheckIdentity_Unsupported_Explicit(t *testing.T) {
 	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
-	f.IdentityAutoDetected = false // explicit --as
+	cmd := newCmdWithAsFlag("user", true)
+	f.ResolveAs(context.Background(), cmd, core.AsUser)
 
 	err := f.CheckIdentity(core.AsUser, []string{"bot"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "--as user is not supported") {
-		t.Errorf("unexpected error message: %v", err)
+	problem, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("expected typed error, got %T: %v", err, err)
 	}
-	if !strings.Contains(err.Error(), "bot") {
-		t.Errorf("error should mention supported identity: %v", err)
+	if problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeIdentityNotSupported {
+		t.Errorf("category/subtype = %s/%s, want validation/identity_not_supported", problem.Category, problem.Subtype)
+	}
+	var ve *errs.ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected *errs.ValidationError, got %T: %v", err, err)
+	}
+	if ve.Param != "--as" {
+		t.Errorf("Param = %q, want --as", ve.Param)
+	}
+	if got, want := ve.Hint, "this command supports bot identity; use --as bot only when bot authorization is configured"; got != want {
+		t.Errorf("Hint = %q, want %q", got, want)
 	}
 }
 
 func TestCheckIdentity_Unsupported_AutoDetected(t *testing.T) {
 	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
-	f.IdentityAutoDetected = true
+	cmd := newCmdWithAsFlag("auto", true)
+	f.ResolveAs(context.Background(), cmd, core.AsAuto)
 
 	err := f.CheckIdentity(core.AsUser, []string{"bot"})
 	var ve *errs.ValidationError
 	if !errors.As(err, &ve) {
 		t.Fatalf("expected *errs.ValidationError, got %T: %v", err, err)
 	}
-	if !strings.Contains(ve.Message, "resolved identity") {
-		t.Errorf("expected 'resolved identity' in message, got: %v", ve.Message)
+	if ve.Subtype != errs.SubtypeIdentityNotSupported {
+		t.Errorf("Subtype = %q, want %q", ve.Subtype, errs.SubtypeIdentityNotSupported)
 	}
-	if !strings.Contains(ve.Hint, "use --as bot") {
-		t.Errorf("expected hint to suggest --as bot, got: %v", ve.Hint)
+	if ve.Param != "" {
+		t.Errorf("Param = %q, want empty for auto-selected identity", ve.Param)
+	}
+	if got, want := ve.Hint, "this command supports bot identity; use --as bot only when bot authorization is configured"; got != want {
+		t.Errorf("Hint = %q, want %q", got, want)
+	}
+}
+
+func TestCheckIdentity_Unsupported_DefaultAs(t *testing.T) {
+	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s", DefaultAs: "user"})
+	cmd := newCmdWithAsFlag("auto", false)
+	f.ResolveAs(context.Background(), cmd, core.AsUser)
+
+	err := f.CheckIdentity(core.AsUser, []string{"bot"})
+	var ve *errs.ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected *errs.ValidationError, got %T: %v", err, err)
+	}
+	if ve.Subtype != errs.SubtypeIdentityNotSupported {
+		t.Errorf("Subtype = %q, want %q", ve.Subtype, errs.SubtypeIdentityNotSupported)
+	}
+	if ve.Param != "" {
+		t.Errorf("Param = %q, want empty for default-as identity", ve.Param)
+	}
+}
+
+func TestCheckIdentity_Unsupported_NoSupportedIdentityHasNoHint(t *testing.T) {
+	f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
+
+	err := f.CheckIdentity(core.AsUser, nil)
+	var ve *errs.ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected *errs.ValidationError, got %T: %v", err, err)
+	}
+	if ve.Subtype != errs.SubtypeIdentityNotSupported {
+		t.Errorf("Subtype = %q, want %q", ve.Subtype, errs.SubtypeIdentityNotSupported)
+	}
+	if ve.Hint != "" {
+		t.Errorf("Hint = %q, want empty when no supported identity is known", ve.Hint)
+	}
+}
+
+func TestCheckIdentity_InvalidIdentityRemainsInvalidArgument(t *testing.T) {
+	tests := []struct {
+		name      string
+		identity  core.Identity
+		explicit  bool
+		wantParam string
+	}{
+		{name: "explicit unknown", identity: "admin", explicit: true, wantParam: "--as"},
+		{name: "explicit wrong case", identity: "USER", explicit: true, wantParam: "--as"},
+		{name: "implicit unknown", identity: "bogus", explicit: false},
+		{name: "implicit empty", identity: "", explicit: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, _, _, _ := TestFactory(t, &core.CliConfig{AppID: "a", AppSecret: "s"})
+			if tt.explicit {
+				cmd := newCmdWithAsFlag(string(tt.identity), true)
+				f.ResolveAs(context.Background(), cmd, tt.identity)
+			}
+
+			err := f.CheckIdentity(tt.identity, []string{"user", "bot"})
+			var ve *errs.ValidationError
+			if !errors.As(err, &ve) {
+				t.Fatalf("expected *errs.ValidationError, got %T: %v", err, err)
+			}
+			if ve.Subtype != errs.SubtypeInvalidArgument {
+				t.Errorf("Subtype = %q, want %q", ve.Subtype, errs.SubtypeInvalidArgument)
+			}
+			if ve.Param != tt.wantParam {
+				t.Errorf("Param = %q, want %q", ve.Param, tt.wantParam)
+			}
+		})
 	}
 }
 

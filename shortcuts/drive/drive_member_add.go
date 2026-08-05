@@ -238,10 +238,10 @@ func readDriveMemberAddSpec(runtime *common.RuntimeContext) (driveMemberAddSpec,
 		NotificationSet:  runtime.Changed("need-notification"),
 	}
 	if runtime.As().IsBot() && spec.NotificationSet {
-		return driveMemberAddSpec{}, errs.NewValidationError(errs.SubtypeInvalidArgument, "--need-notification is only valid with --as user; omit it when using --as bot").WithParam("--need-notification")
+		return driveMemberAddSpec{}, errs.NewValidationError(errs.SubtypeIdentityNotSupported, "--need-notification is only valid with --as user; omit it when using --as bot").WithParam("--need-notification")
 	}
 	if runtime.As().IsBot() && spec.MemberType == "opendepartmentid" {
-		return driveMemberAddSpec{}, errs.NewValidationError(errs.SubtypeInvalidArgument, "--member-type=opendepartmentid requires --as user; bot identity does not support adding department collaborators").WithParam("--member-type")
+		return driveMemberAddSpec{}, errs.NewValidationError(errs.SubtypeIdentityNotSupported, "--member-type=opendepartmentid requires --as user; bot identity does not support adding department collaborators").WithParam("--member-type")
 	}
 	return spec, nil
 }

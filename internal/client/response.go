@@ -5,7 +5,6 @@ package client
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +16,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/util"
 )
@@ -85,6 +85,9 @@ func HandleResponse(resp *larkcore.ApiResp, opts ResponseOptions) error {
 	// Non-JSON error responses (e.g. 404 text/plain from gateway): return error
 	// directly instead of falling through to the binary-save path.
 	if resp.StatusCode >= 400 && !IsJSONContentType(ct) && ct != "" {
+		if rateErr := rateLimitError(resp.StatusCode, resp.Header, nil, resp.RawBody, nil); rateErr != nil {
+			return rateErr
+		}
 		return httpStatusError(resp.StatusCode, resp.RawBody)
 	}
 
@@ -96,12 +99,21 @@ func HandleResponse(resp *larkcore.ApiResp, opts ResponseOptions) error {
 			// missing Content-Type) must be classified by status, not reported
 			// as an internal decode failure, matching the non-JSON branch above.
 			if resp.StatusCode >= 400 {
+				if rateErr := rateLimitError(resp.StatusCode, resp.Header, nil, resp.RawBody, nil); rateErr != nil {
+					return rateErr
+				}
 				return httpStatusError(resp.StatusCode, resp.RawBody)
 			}
 			return WrapJSONResponseParseError(err, resp.RawBody)
 		}
 		if apiErr := check(result, identity); apiErr != nil {
+			if rateErr := rateLimitError(resp.StatusCode, resp.Header, result, resp.RawBody, apiErr); rateErr != nil {
+				return rateErr
+			}
 			return apiErr
+		}
+		if rateErr := rateLimitError(resp.StatusCode, resp.Header, result, resp.RawBody, nil); rateErr != nil {
+			return rateErr
 		}
 		// CheckResponse treats business code 0 as success, so a 4xx/5xx whose
 		// JSON body omits a non-zero code would otherwise be served as a
@@ -192,13 +204,19 @@ func IsJSONContentType(ct string) bool {
 // ParseJSONResponse decodes a raw SDK response body as JSON.
 // CallAPI and HandleResponse both delegate to this function.
 func ParseJSONResponse(resp *larkcore.ApiResp) (interface{}, error) {
-	var result interface{}
-	dec := json.NewDecoder(bytes.NewReader(resp.RawBody))
-	dec.UseNumber()
-	if err := dec.Decode(&result); err != nil {
-		return nil, fmt.Errorf("response parse error: %w (body: %s)", err, util.TruncateStr(string(resp.RawBody), 500))
+	result, err := errclass.DecodeSingleJSON(resp.RawBody)
+	if err != nil {
+		return nil, fmt.Errorf("response parse error: %w (body: %s)", err, jsonResponseBodySummary(resp.RawBody))
 	}
 	return result, nil
+}
+
+func jsonResponseBodySummary(rawBody []byte) string {
+	const maxSummaryWindowBytes = 2048
+	if len(rawBody) > maxSummaryWindowBytes {
+		rawBody = rawBody[:maxSummaryWindowBytes]
+	}
+	return util.TruncateStr(string(rawBody), 500)
 }
 
 // ── File saving ──

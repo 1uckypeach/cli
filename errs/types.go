@@ -444,7 +444,9 @@ func (e *NetworkError) WithCause(cause error) *NetworkError {
 // errors.Is / errors.Unwrap; it is intentionally not serialized.
 type APIError struct {
 	Problem
-	Cause error `json:"-"`
+	RetryAfterSeconds *int   `json:"retry_after_seconds,omitempty"`
+	RetryAfterSource  string `json:"retry_after_source,omitempty"`
+	Cause             error  `json:"-"`
 }
 
 // Unwrap is nil-receiver safe; see ValidationError.Unwrap.
@@ -490,6 +492,12 @@ func (e *APIError) WithCode(code int) *APIError {
 
 func (e *APIError) WithRetryable() *APIError {
 	e.Retryable = true
+	return e
+}
+
+func (e *APIError) WithRetryAfter(seconds int, source string) *APIError {
+	e.RetryAfterSeconds = &seconds
+	e.RetryAfterSource = source
 	return e
 }
 

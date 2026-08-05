@@ -12,9 +12,10 @@ const (
 
 // CategoryValidation subtypes
 const (
-	SubtypeInvalidArgument    Subtype = "invalid_argument"    // user-supplied flag / arg failed validation (gRPC INVALID_ARGUMENT alignment)
-	SubtypeFailedPrecondition Subtype = "failed_precondition" // request is valid but the system/resource state is not in the state required to execute; caller must change state (not retry) — e.g. ambiguous remote mapping (gRPC FAILED_PRECONDITION alignment)
-	SubtypeCommandUnavailable Subtype = "command_unavailable" // command not included in this build (integrator-restricted distribution); absent, not gated
+	SubtypeInvalidArgument      Subtype = "invalid_argument"       // user-supplied flag / arg failed validation (gRPC INVALID_ARGUMENT alignment)
+	SubtypeFailedPrecondition   Subtype = "failed_precondition"    // request is valid but the system/resource state is not in the state required to execute; caller must change state (not retry) — e.g. ambiguous remote mapping (gRPC FAILED_PRECONDITION alignment)
+	SubtypeIdentityNotSupported Subtype = "identity_not_supported" // selected user/bot identity is outside the command's declared supported identities
+	SubtypeCommandUnavailable   Subtype = "command_unavailable"    // command not included in this build (integrator-restricted distribution); absent, not gated
 )
 
 // CategoryAuthentication subtypes

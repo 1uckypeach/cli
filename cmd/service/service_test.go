@@ -743,7 +743,7 @@ func TestServiceMethod_BusinessErrorReturnsTypedErrorWithoutSuccessEnvelope(t *t
 	}
 }
 
-func TestServiceMethod_PageAll_DefaultBusinessErrorOutputsRawResponse(t *testing.T) {
+func TestServiceMethod_PageAll_DefaultBusinessErrorReturnsPaginationProgress(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app-service-pageall-err", AppSecret: "test-secret-service-pageall-err", Brand: core.BrandFeishu,
 	})
@@ -765,11 +765,15 @@ func TestServiceMethod_PageAll_DefaultBusinessErrorOutputsRawResponse(t *testing
 		t.Fatal("expected error for non-zero code")
 	}
 	requireProblem(t, err, errs.CategoryAuthorization, errs.SubtypeUserUnauthorized, 230027)
-	if !strings.Contains(stdout.String(), "230027") || !strings.Contains(stdout.String(), "user not authorized") {
-		t.Fatalf("expected raw error response on stdout, got: %s", stdout.String())
+	var paginationErr *errs.PaginationError
+	if !errors.As(err, &paginationErr) {
+		t.Fatalf("expected PaginationError, got %T: %v", err, err)
 	}
-	if strings.Contains(stdout.String(), `"ok": true`) || strings.Contains(stdout.String(), `"ok":true`) {
-		t.Fatalf("unexpected success envelope on error path: %s", stdout.String())
+	if paginationErr.CompletedPages != 0 || paginationErr.NextPageToken != "" {
+		t.Fatalf("progress = %d/%q, want 0/empty", paginationErr.CompletedPages, paginationErr.NextPageToken)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("pagination error wrote stdout: %s", stdout.String())
 	}
 }
 
@@ -1007,7 +1011,7 @@ func TestServiceMethod_PageAll_WithJq(t *testing.T) {
 	}
 }
 
-func TestServiceMethod_PageAll_WithJqBusinessErrorOutputsRawResponse(t *testing.T) {
+func TestServiceMethod_PageAll_WithJqBusinessErrorReturnsPaginationProgress(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app-spjq-err", AppSecret: "test-secret-spjq-err", Brand: core.BrandFeishu,
 	})
@@ -1033,11 +1037,15 @@ func TestServiceMethod_PageAll_WithJqBusinessErrorOutputsRawResponse(t *testing.
 	if !errors.As(err, &permErr) {
 		t.Fatalf("expected PermissionError, got %T: %v", err, err)
 	}
-	if !strings.Contains(stdout.String(), "230027") || !strings.Contains(stdout.String(), "user not authorized") {
-		t.Fatalf("expected raw error response on stdout, got: %s", stdout.String())
+	var paginationErr *errs.PaginationError
+	if !errors.As(err, &paginationErr) {
+		t.Fatalf("expected PaginationError, got %T: %v", err, err)
 	}
-	if strings.Contains(stdout.String(), `"ok": true`) || strings.Contains(stdout.String(), `"ok":true`) {
-		t.Fatalf("unexpected success envelope on error path: %s", stdout.String())
+	if paginationErr.CompletedPages != 0 || paginationErr.NextPageToken != "" {
+		t.Fatalf("progress = %d/%q, want 0/empty", paginationErr.CompletedPages, paginationErr.NextPageToken)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("pagination error wrote stdout: %s", stdout.String())
 	}
 }
 

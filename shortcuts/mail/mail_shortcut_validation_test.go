@@ -5,6 +5,7 @@ package mail
 
 import (
 	"encoding/base64"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -32,6 +33,18 @@ func assertValidationError(t *testing.T, err error, wantSubstr string) {
 	}
 	if wantSubstr != "" && !strings.Contains(err.Error(), wantSubstr) {
 		t.Errorf("expected error message to contain %q, got: %v", wantSubstr, err.Error())
+	}
+}
+
+func assertMailIdentityProblem(t *testing.T, err error, wantParam string) {
+	t.Helper()
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeIdentityNotSupported {
+		t.Fatalf("problem = %#v, want validation/identity_not_supported", problem)
+	}
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) || validationErr.Param != wantParam {
+		t.Fatalf("validation param = %q, want %q", validationErr.Param, wantParam)
 	}
 }
 
@@ -107,6 +120,7 @@ func TestMailMessageBotMailboxMeReturnsValidationError(t *testing.T) {
 		"+message", "--as", "bot", "--mailbox", "me", "--message-id", "msg_xxx",
 	}, f, stdout)
 	assertValidationError(t, err, "does not support --mailbox me")
+	assertMailIdentityProblem(t, err, "--mailbox")
 }
 
 // TC-2: +message --as bot --mailbox explicit → Validate passes
@@ -134,6 +148,7 @@ func TestMailMessagesBotDefaultMailboxMeReturnsValidationError(t *testing.T) {
 		"+messages", "--as", "bot", "--message-ids", validMessageIDForTest("biz-x"),
 	}, f, stdout)
 	assertValidationError(t, err, "does not support --mailbox me")
+	assertMailIdentityProblem(t, err, "")
 }
 
 // TC-5: +messages --as bot --mailbox explicit → Validate passes

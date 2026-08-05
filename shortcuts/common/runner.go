@@ -124,6 +124,9 @@ func (ctx *RuntimeContext) fetchBotInfo() (*BotInfo, error) {
 		return nil, fmt.Errorf("fetch bot info: %w", err)
 	}
 	if resp.StatusCode >= 400 {
+		if _, classified := ctx.ClassifyAPIResponse(resp); classified != nil {
+			return nil, classified
+		}
 		return nil, fmt.Errorf("fetch bot info: HTTP %d", resp.StatusCode)
 	}
 	// /open-apis/bot/v3/info returns `{code, msg, bot: {...}}` — the bot
@@ -140,6 +143,9 @@ func (ctx *RuntimeContext) fetchBotInfo() (*BotInfo, error) {
 		return nil, fmt.Errorf("fetch bot info: unmarshal: %w", err)
 	}
 	if envelope.Code != 0 {
+		if _, classified := ctx.ClassifyAPIResponse(resp); classified != nil {
+			return nil, classified
+		}
 		return nil, fmt.Errorf("fetch bot info: [%d] %s", envelope.Code, envelope.Msg)
 	}
 	if envelope.Data.OpenID == "" {
@@ -315,31 +321,53 @@ func ClassifyAPIResponseWith(resp *larkcore.ApiResp, cc errclass.ClassifyContext
 	result, parseErr := client.ParseJSONResponse(resp)
 	if parseErr != nil {
 		if resp.StatusCode >= 400 {
+			if rateErr := client.ClassifyRateLimitResponse(resp, nil, nil); rateErr != nil {
+				return nil, rateErr
+			}
 			return nil, httpStatusError(resp.StatusCode, resp.RawBody, logID)
 		}
 		return nil, client.WrapJSONResponseParseError(parseErr, resp.RawBody)
 	}
 	resultMap, ok := result.(map[string]interface{})
 	if !ok {
+		if rateErr := client.ClassifyRateLimitResponse(resp, result, nil); rateErr != nil {
+			return nil, rateErr
+		}
 		e := errs.NewInternalError(errs.SubtypeInvalidResponse, "API returned a non-object JSON response")
 		if logID != "" {
 			e = e.WithLogID(logID)
 		}
 		return nil, e
 	}
-	if logID != "" {
+	if logID != "" && responseBodyLogID(resultMap) == "" {
 		if _, present := resultMap["log_id"]; !present {
 			resultMap["log_id"] = logID
 		}
 	}
 	out, _ := resultMap["data"].(map[string]interface{})
-	if apiErr := errclass.BuildAPIError(resultMap, cc); apiErr != nil {
+	apiErr := errclass.BuildAPIError(resultMap, cc)
+	if rateErr := client.ClassifyRateLimitResponse(resp, result, apiErr); rateErr != nil {
+		return out, rateErr
+	}
+	if apiErr != nil {
 		return out, apiErr
 	}
 	if resp.StatusCode >= 400 {
 		return out, httpStatusError(resp.StatusCode, resp.RawBody, logID)
 	}
 	return out, nil
+}
+
+func responseBodyLogID(result map[string]interface{}) string {
+	if logID, _ := result["log_id"].(string); strings.TrimSpace(logID) != "" {
+		return logID
+	}
+	if errBlock, ok := result["error"].(map[string]interface{}); ok {
+		if logID, _ := errBlock["log_id"].(string); strings.TrimSpace(logID) != "" {
+			return logID
+		}
+	}
+	return ""
 }
 
 // httpStatusError classifies an HTTP error status whose body is not a usable

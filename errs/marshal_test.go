@@ -155,10 +155,11 @@ func TestNetworkError_MarshalJSON(t *testing.T) {
 	}
 }
 
-func TestAPIError_MarshalJSON(t *testing.T) {
-	ae := &APIError{
-		Problem: Problem{Category: CategoryAPI, Subtype: SubtypeRateLimit, Code: 99991400, Message: "slow", Retryable: true},
-	}
+func TestAPIError_RateLimitMarshalJSON(t *testing.T) {
+	ae := NewAPIError(SubtypeRateLimit, "slow").
+		WithCode(99991400).
+		WithRetryable().
+		WithRetryAfter(45, "retry-after")
 	b, _ := json.Marshal(ae)
 	s := string(b)
 	for _, want := range []string{
@@ -166,10 +167,17 @@ func TestAPIError_MarshalJSON(t *testing.T) {
 		`"subtype":"rate_limit"`,
 		`"code":99991400`,
 		`"retryable":true`,
+		`"retry_after_seconds":45`,
+		`"retry_after_source":"retry-after"`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("missing %q in %s", want, s)
 		}
+	}
+
+	bare, _ := json.Marshal(NewAPIError(SubtypeUnknown, "x"))
+	if strings.Contains(string(bare), "retry_after") {
+		t.Fatalf("unset retry-after fields must be omitted: %s", bare)
 	}
 }
 

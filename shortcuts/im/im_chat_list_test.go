@@ -7,12 +7,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/shortcuts/common"
@@ -294,6 +296,16 @@ func TestImChatList_Validate_Types(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), c.wantErr) {
 				t.Fatalf("Validate() err = %v; want substring %q", err, c.wantErr)
+			}
+			if c.name == "bot single p2p rejected" {
+				problem, ok := errs.ProblemOf(err)
+				if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeIdentityNotSupported {
+					t.Fatalf("problem = %#v, want validation/identity_not_supported", problem)
+				}
+				var validationErr *errs.ValidationError
+				if !errors.As(err, &validationErr) || validationErr.Param != "--types" {
+					t.Fatalf("validation param = %q, want --types", validationErr.Param)
+				}
 			}
 		})
 	}

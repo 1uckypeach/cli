@@ -35,6 +35,9 @@ func (r *consumeRuntime) CallAPI(ctx context.Context, method, path string, body 
 	// Non-JSON HTTP errors (gateway text/plain 404 etc.) skip OAPI envelope parsing.
 	ct := resp.Header.Get("Content-Type")
 	if resp.StatusCode >= 400 && !client.IsJSONContentType(ct) && ct != "" {
+		if rateErr := client.ClassifyRateLimitResponse(resp, nil, nil); rateErr != nil {
+			return nil, rateErr
+		}
 		const maxBodyEcho = 256
 		body := string(resp.RawBody)
 		if len(body) > maxBodyEcho {
@@ -49,13 +52,20 @@ func (r *consumeRuntime) CallAPI(ctx context.Context, method, path string, body 
 	}
 	result, err := client.ParseJSONResponse(resp)
 	if err != nil {
+		if rateErr := client.ClassifyRateLimitResponse(resp, nil, nil); rateErr != nil {
+			return nil, rateErr
+		}
 		if _, ok := errs.ProblemOf(err); ok {
 			return nil, err
 		}
 		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
 			"api %s %s: %s", method, path, err).WithCause(err)
 	}
-	if apiErr := r.client.CheckResponse(result, r.accessIdentity); apiErr != nil {
+	apiErr := r.client.CheckResponse(result, r.accessIdentity)
+	if rateErr := client.ClassifyRateLimitResponse(resp, result, apiErr); rateErr != nil {
+		return json.RawMessage(resp.RawBody), rateErr
+	}
+	if apiErr != nil {
 		return json.RawMessage(resp.RawBody), apiErr
 	}
 	return json.RawMessage(resp.RawBody), nil

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -95,6 +96,65 @@ func TestCallAPITyped_Success(t *testing.T) {
 	}
 	if _, leaked := data["log_id"]; leaked {
 		t.Errorf("success data must not carry log_id, got: %v", data)
+	}
+}
+
+func TestCallAPITyped_RateLimitMetadataFromResponseHeader(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusBadRequest} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			rt, reg := newCallAPITypedRuntime(t)
+			reg.Register(&httpmock.Stub{
+				Method: "POST",
+				URL:    "/open-apis/x/y",
+				Status: status,
+				Headers: http.Header{
+					"Content-Type": []string{"application/json"},
+					"Retry-After":  []string{"11"},
+				},
+				Body: map[string]interface{}{"code": float64(99991400), "msg": "slow"},
+			})
+
+			_, err := rt.CallAPITyped("POST", "/open-apis/x/y", nil, map[string]any{"write": true})
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("CallAPITyped() error = %T (%v), want *errs.APIError", err, err)
+			}
+			if apiErr.Subtype != errs.SubtypeRateLimit || apiErr.Code != 99991400 || !apiErr.Retryable {
+				t.Fatalf("rate limit problem = %#v", apiErr.Problem)
+			}
+			if apiErr.RetryAfterSeconds == nil || *apiErr.RetryAfterSeconds != 11 || apiErr.RetryAfterSource != "retry-after" {
+				t.Fatalf("retry metadata = (%v, %q), want (11, retry-after)", apiErr.RetryAfterSeconds, apiErr.RetryAfterSource)
+			}
+			if !strings.Contains(apiErr.Hint, "safe to replay") {
+				t.Fatalf("hint does not warn against unsafe write replay: %q", apiErr.Hint)
+			}
+		})
+	}
+}
+
+func TestCallAPITyped_BareHTTP429PrefersBodyLogID(t *testing.T) {
+	rt, reg := newCallAPITypedRuntime(t)
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/x/y",
+		Status: http.StatusTooManyRequests,
+		Headers: http.Header{
+			"Content-Type": []string{"application/json"},
+			"X-Tt-Logid":   []string{"header-log"},
+		},
+		Body: map[string]interface{}{
+			"msg":   "slow",
+			"error": map[string]interface{}{"log_id": "nested-log"},
+		},
+	})
+
+	_, err := rt.CallAPITyped("POST", "/open-apis/x/y", nil, map[string]any{})
+	var apiErr *errs.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("CallAPITyped() error = %T (%v), want *errs.APIError", err, err)
+	}
+	if apiErr.LogID != "nested-log" {
+		t.Fatalf("LogID = %q, want nested body log before header fallback", apiErr.LogID)
 	}
 }
 

@@ -143,9 +143,9 @@ func uploadLargeAttachments(ctx context.Context, runtime *common.RuntimeContext,
 	if len(files) == 0 {
 		return nil, nil
 	}
-	userOpenId := runtime.UserOpenId()
-	if userOpenId == "" {
-		return nil, mailFailedPreconditionError("large attachment upload requires user identity (user open_id not available)")
+	userOpenId, err := mailRequireUserOpenID(runtime, "large attachment upload requires user identity (user open_id not available)")
+	if err != nil {
+		return nil, err
 	}
 
 	results := make([]largeAttachmentResult, 0, len(files))
@@ -427,14 +427,14 @@ func processLargeAttachments(
 			"empty messages cannot include the download link")
 	}
 
-	if runtime.Config == nil || runtime.UserOpenId() == "" {
-		var totalBytes int64
-		for _, f := range files {
-			totalBytes += f.Size
-		}
-		return bld, mailFailedPreconditionError("total attachment size %.1f MB exceeds the 25 MB EML limit; "+
-			"large attachment upload requires user identity (--as user)",
-			float64(totalBytes)/1024/1024)
+	var totalBytes int64
+	for _, f := range files {
+		totalBytes += f.Size
+	}
+	if _, err := mailRequireUserOpenID(runtime, "total attachment size %.1f MB exceeds the 25 MB EML limit; "+
+		"large attachment upload requires user identity (--as user)",
+		float64(totalBytes)/1024/1024); err != nil {
+		return bld, err
 	}
 
 	results, err := uploadLargeAttachments(ctx, runtime, classified.Oversized)
@@ -612,14 +612,14 @@ func preprocessLargeAttachmentsForDraftEdit(
 	}
 
 	// Guard: need user identity for upload.
-	if runtime.Config == nil || runtime.UserOpenId() == "" {
-		var totalBytes int64
-		for _, f := range files {
-			totalBytes += f.Size
-		}
-		return patch, mailFailedPreconditionError("total attachment size %.1f MB exceeds the 25 MB EML limit; "+
-			"large attachment upload requires user identity (--as user)",
-			float64(totalBytes)/1024/1024)
+	var totalBytes int64
+	for _, f := range files {
+		totalBytes += f.Size
+	}
+	if _, err := mailRequireUserOpenID(runtime, "total attachment size %.1f MB exceeds the 25 MB EML limit; "+
+		"large attachment upload requires user identity (--as user)",
+		float64(totalBytes)/1024/1024); err != nil {
+		return patch, err
 	}
 
 	// Upload oversized files.

@@ -170,6 +170,42 @@ func TestRunProbe_TATOtherClientError_Propagates(t *testing.T) {
 	}
 }
 
+func TestRunProbe_TATHTTP429RateLimit_Silent(t *testing.T) {
+	rt := &fakeRT{
+		tatHandler: func(req *http.Request) (*http.Response, error) {
+			resp := jsonResp(429, `{"code":99991400,"error_description":"do not expose"}`)
+			resp.Header.Set("Retry-After", "5")
+			return resp, nil
+		},
+	}
+	f, errBuf := fakeFactory(t, rt)
+	assertSilent(t, runProbe(context.Background(), f, "cli_x", "secret_y", core.BrandFeishu), errBuf)
+	if rt.tatCalls != 1 || rt.probeCalls != 0 {
+		t.Fatalf("calls = tat %d/probe %d, want 1/0", rt.tatCalls, rt.probeCalls)
+	}
+}
+
+func TestIgnoreProbeTATError_ExactTypedMatch(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "retryable api rate limit", err: errs.NewAPIError(errs.SubtypeRateLimit, "limited").WithRetryable(), want: true},
+		{name: "non retryable rate limit", err: errs.NewAPIError(errs.SubtypeRateLimit, "limited")},
+		{name: "wrong subtype", err: errs.NewAPIError(errs.SubtypeUnknown, "unknown").WithRetryable()},
+		{name: "wrong category", err: errs.NewNetworkError(errs.SubtypeRateLimit, "limited").WithRetryable()},
+		{name: "untyped", err: errors.New("network")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ignoreProbeTATError(tt.err); got != tt.want {
+				t.Fatalf("ignoreProbeTATError() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 // Non-200 HTTP at the TAT endpoint is ambiguous (not a payload credential
 // rejection) → silent, exit 0.
 func TestRunProbe_TATHTTPNon200_Silent(t *testing.T) {

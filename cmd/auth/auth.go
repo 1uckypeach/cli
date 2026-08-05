@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	larkauth "github.com/larksuite/cli/internal/auth"
+	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/errclass"
@@ -82,10 +83,26 @@ func getUserInfo(ctx context.Context, sdk *lark.Client, accessToken string) (ope
 
 	var resp userInfoResponse
 	if err := json.Unmarshal(apiResp.RawBody, &resp); err != nil {
+		if rateErr := client.ClassifyRateLimitResponse(apiResp, nil, nil); rateErr != nil {
+			return "", "", rateErr
+		}
 		return "", "", fmt.Errorf("failed to parse user info: %w", err)
 	}
+	result := map[string]interface{}{"code": resp.Code, "msg": resp.Msg}
+	var classified error
 	if resp.Code != 0 {
-		return "", "", fmt.Errorf("failed to get user info [%d]: %s", resp.Code, resp.Msg)
+		var raw map[string]interface{}
+		_ = json.Unmarshal(apiResp.RawBody, &raw)
+		if raw == nil {
+			raw = result
+		}
+		classified = errclass.BuildAPIError(raw, errclass.ClassifyContext{Identity: string(core.AsUser)})
+	}
+	if rateErr := client.ClassifyRateLimitResponse(apiResp, result, classified); rateErr != nil {
+		return "", "", rateErr
+	}
+	if classified != nil {
+		return "", "", classified
 	}
 	if resp.Data.OpenID == "" {
 		return "", "", fmt.Errorf("failed to get user info: missing open_id in response")
@@ -148,10 +165,21 @@ func getAppInfo(ctx context.Context, f *cmdutil.Factory, appId string) (*appInfo
 
 	var resp appInfoResponse
 	if err := json.Unmarshal(apiResp.RawBody, &resp); err != nil {
+		if rateErr := client.ClassifyRateLimitResponse(apiResp, nil, nil); rateErr != nil {
+			return nil, rateErr
+		}
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
+	result := map[string]interface{}{"code": resp.Code, "msg": resp.Msg}
+	var classified error
 	if resp.Code != 0 {
-		return nil, classifyAppInfoErr(apiResp.RawBody, resp.Code, resp.Msg, f, appId)
+		classified = classifyAppInfoErr(apiResp.RawBody, resp.Code, resp.Msg, f, appId)
+	}
+	if rateErr := client.ClassifyRateLimitResponse(apiResp, result, classified); rateErr != nil {
+		return nil, rateErr
+	}
+	if classified != nil {
+		return nil, classified
 	}
 
 	app := resp.Data.App

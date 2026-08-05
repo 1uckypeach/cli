@@ -12,6 +12,9 @@ import (
 	"strings"
 	"testing"
 
+	lark "github.com/larksuite/oapi-sdk-go/v3"
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
+
 	"github.com/larksuite/cli/errs"
 	extcred "github.com/larksuite/cli/extension/credential"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -478,6 +481,156 @@ func TestAuthScopesRun_LarkPermissionError_TypedAsPermissionError(t *testing.T) 
 	var intErr *errs.InternalError
 	if errors.As(err, &intErr) {
 		t.Error("Lark business error must not be wrapped as InternalError; permission semantics lost")
+	}
+}
+
+func TestGetAppInfo_RateLimitRecoveryMetadata(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		status   int
+		body     map[string]interface{}
+		wantCode int
+	}{
+		{name: "HTTP 429 code zero", status: http.StatusTooManyRequests, body: map[string]interface{}{"code": 0, "msg": "slow"}, wantCode: 429},
+		{name: "business rate limit", status: http.StatusOK, body: map[string]interface{}{"code": 99991400, "msg": "slow"}, wantCode: 99991400},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu})
+			f.Credential = credential.NewCredentialProvider(nil, nil, &authScopesTokenResolver{}, nil)
+			reg.Register(&httpmock.Stub{
+				Method:  http.MethodGet,
+				URL:     "/open-apis/application/v6/applications/test-app",
+				Status:  tt.status,
+				Headers: http.Header{"Content-Type": []string{"application/json"}, "Retry-After": []string{"17"}},
+				Body:    tt.body,
+			})
+
+			_, err := getAppInfo(context.Background(), f, "test-app")
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("getAppInfo() error = %T (%v), want *errs.APIError", err, err)
+			}
+			if apiErr.Subtype != errs.SubtypeRateLimit || apiErr.Code != tt.wantCode {
+				t.Fatalf("rate limit problem = %#v, want code %d", apiErr.Problem, tt.wantCode)
+			}
+			if apiErr.RetryAfterSeconds == nil || *apiErr.RetryAfterSeconds != 17 || apiErr.RetryAfterSource != "retry-after" {
+				t.Fatalf("retry metadata = (%v, %q), want (17, retry-after)", apiErr.RetryAfterSeconds, apiErr.RetryAfterSource)
+			}
+		})
+	}
+}
+
+func TestGetUserInfo_RateLimitRecoveryMetadata(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		status   int
+		body     map[string]interface{}
+		wantCode int
+	}{
+		{name: "HTTP 429 code zero", status: http.StatusTooManyRequests, body: map[string]interface{}{"code": 0, "msg": "slow"}, wantCode: 429},
+		{name: "business rate limit", status: http.StatusOK, body: map[string]interface{}{"code": 99991400, "msg": "slow"}, wantCode: 99991400},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := &httpmock.Registry{}
+			reg.Register(&httpmock.Stub{
+				Method:  http.MethodGet,
+				URL:     "/open-apis/authen/v1/user_info",
+				Status:  tt.status,
+				Headers: http.Header{"Content-Type": []string{"application/json"}, "Retry-After": []string{"23"}},
+				Body:    tt.body,
+			})
+			sdk := lark.NewClient("test-app", "test-secret",
+				lark.WithEnableTokenCache(false),
+				lark.WithLogLevel(larkcore.LogLevelError),
+				lark.WithHttpClient(&http.Client{Transport: reg}),
+			)
+
+			_, _, err := getUserInfo(context.Background(), sdk, "user-token")
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("getUserInfo() error = %T (%v), want *errs.APIError", err, err)
+			}
+			if apiErr.Code != tt.wantCode || apiErr.Subtype != errs.SubtypeRateLimit {
+				t.Fatalf("rate limit problem = %#v, want code %d", apiErr.Problem, tt.wantCode)
+			}
+			if apiErr.RetryAfterSeconds == nil || *apiErr.RetryAfterSeconds != 23 {
+				t.Fatalf("RetryAfterSeconds = %v, want 23", apiErr.RetryAfterSeconds)
+			}
+		})
+	}
+}
+
+func TestGetUserInfo_RateLimitLogIDUsesCompleteStrictBody(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		wantLog  string
+		wantCode int
+	}{
+		{name: "top before nested and header", body: `{"code":99991400,"log_id":"top-log","error":{"log_id":"nested-log"}}`, wantLog: "top-log", wantCode: 99991400},
+		{name: "nested before header", body: `{"code":99991400,"error":{"log_id":"nested-log"}}`, wantLog: "nested-log", wantCode: 99991400},
+		{name: "header fallback", body: `{"code":99991400}`, wantLog: "header-log", wantCode: 99991400},
+		{name: "invalid body log falls back to header", body: `{"code":99991400,"log_id":"bad/log"}`, wantLog: "header-log", wantCode: 99991400},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := &httpmock.Registry{}
+			reg.Register(&httpmock.Stub{
+				Method:  http.MethodGet,
+				URL:     "/open-apis/authen/v1/user_info",
+				Status:  http.StatusTooManyRequests,
+				RawBody: []byte(tt.body),
+				Headers: http.Header{"Content-Type": []string{"application/json"}, "X-Tt-Logid": []string{"header-log"}, "X-Request-Id": []string{"request-log"}},
+			})
+			sdk := lark.NewClient("test-app", "test-secret",
+				lark.WithEnableTokenCache(false),
+				lark.WithLogLevel(larkcore.LogLevelError),
+				lark.WithHttpClient(&http.Client{Transport: reg}),
+			)
+			_, _, err := getUserInfo(context.Background(), sdk, "user-token")
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("getUserInfo() error = %T (%v), want APIError", err, err)
+			}
+			if apiErr.LogID != tt.wantLog || apiErr.Code != tt.wantCode {
+				t.Fatalf("rate limit metadata = code %d/log %q, want %d/%q", apiErr.Code, apiErr.LogID, tt.wantCode, tt.wantLog)
+			}
+		})
+	}
+}
+
+func TestGetAppInfo_RateLimitLogIDUsesCompleteStrictBody(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		wantLog  string
+		wantCode int
+	}{
+		{name: "top before nested and header", body: `{"code":99991400,"log_id":"top-log","error":{"log_id":"nested-log"}}`, wantLog: "top-log", wantCode: 99991400},
+		{name: "nested before header", body: `{"code":99991400,"error":{"log_id":"nested-log"}}`, wantLog: "nested-log", wantCode: 99991400},
+		{name: "header fallback", body: `{"code":99991400}`, wantLog: "header-log", wantCode: 99991400},
+		{name: "invalid body log falls back to header", body: `{"code":99991400,"log_id":"bad/log"}`, wantLog: "header-log", wantCode: 99991400},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{AppID: "test-app", AppSecret: "test-secret", Brand: core.BrandFeishu})
+			f.Credential = credential.NewCredentialProvider(nil, nil, &authScopesTokenResolver{}, nil)
+			reg.Register(&httpmock.Stub{
+				Method:  http.MethodGet,
+				URL:     "/open-apis/application/v6/applications/test-app",
+				Status:  http.StatusTooManyRequests,
+				RawBody: []byte(tt.body),
+				Headers: http.Header{"Content-Type": []string{"application/json"}, "X-Tt-Logid": []string{"header-log"}, "X-Request-Id": []string{"request-log"}},
+			})
+			_, err := getAppInfo(context.Background(), f, "test-app")
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("getAppInfo() error = %T (%v), want APIError", err, err)
+			}
+			if apiErr.LogID != tt.wantLog || apiErr.Code != tt.wantCode {
+				t.Fatalf("rate limit metadata = code %d/log %q, want %d/%q", apiErr.Code, apiErr.LogID, tt.wantCode, tt.wantLog)
+			}
+		})
 	}
 }
 

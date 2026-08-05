@@ -114,14 +114,28 @@ type DefaultTokenProvider struct {
 	defaultAcct *DefaultAccountProvider
 	httpClient  func() (*http.Client, error)
 	errOut      io.Writer
+	tatResolver func(context.Context) (*TokenResult, error)
 
-	tatOnce   sync.Once
+	tatMu     sync.Mutex
+	tatFlight *tatResolution
+	tatCached bool
 	tatResult *TokenResult
 	tatErr    error
 }
 
+type tatResolution struct {
+	done      chan struct{}
+	result    *TokenResult
+	err       error
+	followers int
+	panicked  bool
+	panicVal  any
+}
+
 func NewDefaultTokenProvider(defaultAcct *DefaultAccountProvider, httpClient func() (*http.Client, error), errOut io.Writer) *DefaultTokenProvider {
-	return &DefaultTokenProvider{defaultAcct: defaultAcct, httpClient: httpClient, errOut: errOut}
+	p := &DefaultTokenProvider{defaultAcct: defaultAcct, httpClient: httpClient, errOut: errOut}
+	p.tatResolver = p.doResolveTAT
+	return p
 }
 
 func (p *DefaultTokenProvider) ResolveToken(ctx context.Context, req TokenSpec) (*TokenResult, error) {
@@ -158,13 +172,59 @@ func (p *DefaultTokenProvider) resolveUAT(ctx context.Context) (*TokenResult, er
 	return &TokenResult{Token: token, Scopes: scopes}, nil
 }
 
-// resolveTAT resolves a tenant access token. The result is cached after the first
-// call via sync.Once — only the context from the first call is used.
+// resolveTAT resolves a tenant access token. Concurrent callers share an in-flight
+// resolution. Successful and non-retryable results are cached; retryable typed
+// errors are returned to the current callers but allow a later call to try again.
 func (p *DefaultTokenProvider) resolveTAT(ctx context.Context) (*TokenResult, error) {
-	p.tatOnce.Do(func() {
-		p.tatResult, p.tatErr = p.doResolveTAT(ctx)
-	})
-	return p.tatResult, p.tatErr
+	p.tatMu.Lock()
+	if p.tatCached {
+		result, err := p.tatResult, p.tatErr
+		p.tatMu.Unlock()
+		return result, err
+	}
+	if flight := p.tatFlight; flight != nil {
+		flight.followers++
+		p.tatMu.Unlock()
+		<-flight.done
+		if flight.panicked {
+			panic(flight.panicVal)
+		}
+		return flight.result, flight.err
+	}
+
+	var result *TokenResult
+	var err error
+	cacheResult := false
+	completed := false
+
+	flight := &tatResolution{done: make(chan struct{})}
+	p.tatFlight = flight
+	p.tatMu.Unlock()
+
+	defer func() {
+		panicVal := recover()
+		panicked := !completed
+
+		p.tatMu.Lock()
+		flight.result, flight.err = result, err
+		flight.panicked, flight.panicVal = panicked, panicVal
+		if cacheResult {
+			p.tatResult, p.tatErr = result, err
+			p.tatCached = true
+		}
+		p.tatFlight = nil
+		close(flight.done)
+		p.tatMu.Unlock()
+
+		if panicked {
+			panic(panicVal)
+		}
+	}()
+
+	result, err = p.tatResolver(ctx)
+	cacheResult = err == nil || !errs.IsRetryable(err)
+	completed = true
+	return result, err
 }
 
 func (p *DefaultTokenProvider) doResolveTAT(ctx context.Context) (*TokenResult, error) {

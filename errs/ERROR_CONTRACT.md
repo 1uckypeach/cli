@@ -411,6 +411,73 @@ A `params` wire example (multiple parameters each carrying a reason):
 }
 ```
 
+#### Unsupported execution identity
+
+`validation/identity_not_supported` means the CLI knows from command or
+Shortcut metadata that the selected `user` or `bot` identity cannot execute
+the command. Consumers may branch on this subtype; they must not parse the
+message to detect the condition.
+
+When the user explicitly selected an incompatible identity, the error carries
+`param: "--as"`. When the identity came from auto-detection, `default-as`, or
+another implicit policy, `param` is omitted because `--as` was not the failing
+user input. The hint lists the identities the command supports and recommends
+`--as` only conditionally: the corresponding authorization must already be
+configured. If no supported identity is known, the producer omits the hint
+rather than suggesting an unusable value.
+
+This subtype is produced only from a known local identity boundary. Raw API
+responses are not reclassified from message text or broad numeric codes:
+`230027` remains `authorization/user_unauthorized`, `99991663` remains
+`authentication/token_invalid`, and `20008` retains its existing API
+classification.
+
+#### Short-term rate limits
+
+HTTP `429` and Lark business code `99991400` produce
+`api/rate_limit` with `retryable: true`. They also carry
+`retry_after_seconds` and `retry_after_source`; the source is `retry-after`
+when a valid standard `Retry-After` delta or HTTP date was present, otherwise
+it is `default` and the suggested delay is one second. Values that are
+negative, expired, malformed, larger than 86400 seconds, or overflow an
+integer are ignored. Non-standard reset headers are not interpreted.
+
+`retryable: true` describes a short-lived server response. It does **not**
+mean the original request—especially a write—is safe to replay. The CLI never
+sleeps or automatically retries these requests. A caller should wait for the
+suggested interval, reevaluate the operation, and retry only after verifying
+its result or idempotency guarantee. `retry_after_seconds` is recovery advice,
+not authorization to repeat an operation.
+
+An HTTP 429 without business code uses `code: 429`. If the response contains
+business code `99991400`, that code is preserved.
+
+#### Pagination progress on failure
+
+When a paginated request fails, the final typed error preserves the original
+category, subtype, code, recovery extensions, and cause chain. It adds:
+
+- `completed_pages`: the number of pages successfully checked and accepted
+  before the failure; always present and possibly zero.
+- `next_page_token`: the cursor used to request the failed page; omitted when
+  the failed first page had no starting cursor.
+
+The failed response is never added to the accumulated result. Aggregate output
+therefore cannot turn partial data into a success envelope. Streaming formats
+cannot retract pages already written, but the command returns the typed error
+and a non-zero exit code so callers can detect that the stream is incomplete.
+If a page callback fails, that page is not counted as completed and its request
+cursor is the resume token. If the context is canceled during the delay between
+successful pages, the next page token already returned by the API is the resume
+token. Callback and cancellation causes are always normalized to typed errors
+and remain reachable through `errors.Is` / `errors.As`.
+
+`next_page_token` is recovery data only. Producers must not copy it into
+messages, hints, progress logs, or debug output. Pagination progress is added
+by transparently marshaling the complete underlying typed error; a collision
+with either reserved progress field fails closed as an internal serialization
+error instead of overwriting data.
+
 ### Constructing typed errors
 
 Prefer the **builder API**. The constructor pins `Category` + `Subtype` +

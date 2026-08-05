@@ -217,6 +217,19 @@ func TestValidateWikiNodeCreateSpecRejectsBotMyLibrarySpaceID(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "bot identity does not support --space-id my_library") {
 		t.Fatalf("expected bot my_library validation error, got %v", err)
 	}
+	requireWikiIdentityProblem(t, err, "--space-id")
+}
+
+func requireWikiIdentityProblem(t *testing.T, err error, wantParam string) {
+	t.Helper()
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeIdentityNotSupported {
+		t.Fatalf("problem = %#v, want validation/identity_not_supported", problem)
+	}
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) || validationErr.Param != wantParam {
+		t.Fatalf("validation param = %q, want %q", validationErr.Param, wantParam)
+	}
 }
 
 func TestResolveWikiNodeCreateSpaceUsesParentNode(t *testing.T) {

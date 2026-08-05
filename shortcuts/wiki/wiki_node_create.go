@@ -241,7 +241,7 @@ func validateWikiNodeCreateSpec(spec wikiNodeCreateSpec, identity core.Identity)
 	// my_library must be rejected explicitly instead of deferring to API-time
 	// resolution errors.
 	if identity.IsBot() && spec.SpaceID == wikiMyLibrarySpaceID {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "bot identity does not support --space-id my_library; use an explicit --space-id or --parent-node-token").WithParam("--space-id")
+		return errs.NewValidationError(errs.SubtypeIdentityNotSupported, "bot identity does not support --space-id my_library; use an explicit --space-id or --parent-node-token").WithParam("--space-id")
 	}
 	// Bot identity also cannot fall back implicitly, so it requires an explicit
 	// target or a parent it can resolve from.

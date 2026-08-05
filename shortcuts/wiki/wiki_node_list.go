@@ -135,7 +135,7 @@ func readWikiNodeListSpec(runtime *common.RuntimeContext) (wikiNodeListSpec, err
 	// hint instead of deferring to API-time errors. Matches the contract
 	// used by +node-create and +move.
 	if runtime.As().IsBot() && spaceID == wikiMyLibrarySpaceID {
-		return wikiNodeListSpec{}, errs.NewValidationError(errs.SubtypeInvalidArgument, "bot identity does not support --space-id my_library; use an explicit numeric --space-id").WithParam("--space-id")
+		return wikiNodeListSpec{}, errs.NewValidationError(errs.SubtypeIdentityNotSupported, "bot identity does not support --space-id my_library; use an explicit numeric --space-id").WithParam("--space-id")
 	}
 	if err := validateWikiNodeListSpaceID(spaceID); err != nil {
 		return wikiNodeListSpec{}, err

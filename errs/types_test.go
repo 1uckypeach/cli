@@ -311,6 +311,12 @@ func TestWithHint_PrintfFormat(t *testing.T) {
 	}
 }
 
+func TestSubtypeIdentityNotSupported_WireValue(t *testing.T) {
+	if got, want := errs.SubtypeIdentityNotSupported, errs.Subtype("identity_not_supported"); got != want {
+		t.Errorf("SubtypeIdentityNotSupported = %q, want %q", got, want)
+	}
+}
+
 // TestPermissionError_FullChain verifies the most field-heavy typed error
 // constructs cleanly via the chain.
 func TestPermissionError_FullChain(t *testing.T) {

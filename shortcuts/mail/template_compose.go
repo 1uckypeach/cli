@@ -287,9 +287,9 @@ func uploadToDriveForTemplate(ctx context.Context, runtime *common.RuntimeContex
 	if err := filecheck.CheckBlockedExtension(name); err != nil {
 		return "", size, mailValidationError("%v", err).WithCause(err)
 	}
-	userOpenId := runtime.UserOpenId()
-	if userOpenId == "" {
-		return "", size, mailFailedPreconditionError("template attachment upload requires user identity (--as user)")
+	userOpenId, err := mailRequireUserOpenID(runtime, "template attachment upload requires user identity (--as user)")
+	if err != nil {
+		return "", size, err
 	}
 	if size <= common.MaxDriveMediaUploadSinglePartSize {
 		fileKey, err = common.UploadDriveMediaAllTyped(runtime, common.DriveMediaUploadAllConfig{

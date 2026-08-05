@@ -53,7 +53,7 @@ var ImChatCreate = common.Shortcut{
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		if runtime.Bool("set-bot-manager") && !runtime.IsBot() {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--set-bot-manager is only supported with bot identity (--as bot)").WithParam("--set-bot-manager")
+			return errs.NewValidationError(errs.SubtypeIdentityNotSupported, "--set-bot-manager is only supported with bot identity (--as bot)").WithParam("--set-bot-manager")
 		}
 
 		name := runtime.Str("name")

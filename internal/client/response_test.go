@@ -364,6 +364,87 @@ func TestHandleResponse_JSONWithError(t *testing.T) {
 	}
 }
 
+func TestHandleResponse_RateLimitMetadata(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     int
+		body       []byte
+		headers    map[string]string
+		wantCode   int
+		wantWait   int
+		wantSource string
+	}{
+		{name: "HTTP 429 JSON without business code", status: 429, body: []byte(`{"msg":"too many requests"}`), headers: map[string]string{"Content-Type": "application/json", "Retry-After": "8"}, wantCode: 429, wantWait: 8, wantSource: "retry-after"},
+		{name: "HTTP 429 non JSON", status: 429, body: []byte("slow down"), headers: map[string]string{"Content-Type": "text/plain"}, wantCode: 429, wantWait: 1, wantSource: "default"},
+		{name: "HTTP 429 empty body", status: 429, headers: map[string]string{"Retry-After": "3"}, wantCode: 429, wantWait: 3, wantSource: "retry-after"},
+		{name: "business rate limit on HTTP 400", status: 400, body: []byte(`{"code":99991400,"msg":"request rate limit exceeded"}`), headers: map[string]string{"Content-Type": "application/json", "Retry-After": "10"}, wantCode: 99991400, wantWait: 10, wantSource: "retry-after"},
+		{name: "HTTP 429 preserves rate limit business code", status: 429, body: []byte(`{"code":99991400,"msg":"request rate limit exceeded"}`), headers: map[string]string{"Content-Type": "application/json", "Retry-After": "5"}, wantCode: 99991400, wantWait: 5, wantSource: "retry-after"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := HandleResponse(newApiRespWithStatus(tt.status, tt.body, tt.headers), ResponseOptions{Out: io.Discard, ErrOut: io.Discard, FileIO: &localfileio.LocalFileIO{}})
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("HandleResponse() error = %T (%v), want *errs.APIError", err, err)
+			}
+			if apiErr.Subtype != errs.SubtypeRateLimit || apiErr.Code != tt.wantCode || !apiErr.Retryable {
+				t.Fatalf("rate limit problem = %#v, want subtype rate_limit, code %d, retryable", apiErr.Problem, tt.wantCode)
+			}
+			if apiErr.RetryAfterSeconds == nil || *apiErr.RetryAfterSeconds != tt.wantWait || apiErr.RetryAfterSource != tt.wantSource {
+				t.Fatalf("retry metadata = (%v, %q), want (%d, %q)", apiErr.RetryAfterSeconds, apiErr.RetryAfterSource, tt.wantWait, tt.wantSource)
+			}
+			if !strings.Contains(apiErr.Hint, "does not mean") || !strings.Contains(apiErr.Hint, "safe to replay") {
+				t.Fatalf("hint must distinguish retryable from safe replay: %q", apiErr.Hint)
+			}
+		})
+	}
+}
+
+func TestHandleResponse_BusinessRateLimitBackfillsHeaderLogID(t *testing.T) {
+	resp := newApiRespWithStatus(http.StatusBadRequest,
+		[]byte(`{"code":99991400,"msg":"slow"}`),
+		map[string]string{"Content-Type": "application/json", "Retry-After": "2", "X-Tt-Logid": "header-log"})
+	err := HandleResponse(resp, ResponseOptions{Out: io.Discard, ErrOut: io.Discard, FileIO: &localfileio.LocalFileIO{}})
+	var apiErr *errs.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("HandleResponse() error = %T (%v), want *errs.APIError", err, err)
+	}
+	if apiErr.LogID != "header-log" {
+		t.Fatalf("LogID = %q, want header-log", apiErr.LogID)
+	}
+}
+
+func TestHandleResponse_HTTP429MalformedJSONCannotForgeMetadata(t *testing.T) {
+	for _, body := range [][]byte{
+		[]byte(`{"code":99991400,"log_id":"forged"}trailing-junk`),
+		[]byte(`{"code":99991400,"log_id":"forged"}{"code":99991400}`),
+	} {
+		err := HandleResponse(newApiRespWithStatus(429, body, map[string]string{"Content-Type": "application/json"}), ResponseOptions{Out: io.Discard, ErrOut: io.Discard, FileIO: &localfileio.LocalFileIO{}})
+		var apiErr *errs.APIError
+		if !errors.As(err, &apiErr) {
+			t.Fatalf("HandleResponse() error = %T (%v), want APIError", err, err)
+		}
+		if apiErr.Code != 429 || apiErr.LogID != "" || apiErr.Message != "request rate limit exceeded" {
+			t.Fatalf("malformed response forged metadata: %#v", apiErr)
+		}
+	}
+}
+
+func TestParseJSONResponse_LargeUnicodeTrailingValueHasBoundedSummary(t *testing.T) {
+	body := []byte(`{"code":0}{"blob":"` + strings.Repeat("界", 1<<20) + `tail-secret"}`)
+	_, err := ParseJSONResponse(newApiResp(body, map[string]string{"Content-Type": "application/json"}))
+	if err == nil {
+		t.Fatal("expected trailing JSON error")
+	}
+	message := err.Error()
+	if strings.Contains(message, "tail-secret") {
+		t.Fatalf("error summary contains far-tail content: len=%d", len(message))
+	}
+	if len(message) > 2500 {
+		t.Fatalf("error summary is not bounded: len=%d", len(message))
+	}
+}
+
 func TestHandleResponse_BinaryAutoSave(t *testing.T) {
 	dir := t.TempDir()
 	origWd, _ := os.Getwd()

@@ -2654,11 +2654,33 @@ func buildCalendarBody(runtime *common.RuntimeContext, senderEmail string, toAdd
 // bot uses tenant access token; "me" cannot be resolved to a user mailbox under TAT.
 func validateBotMailboxNotMe(runtime *common.RuntimeContext) error {
 	if runtime.IsBot() && runtime.Str("mailbox") == "me" {
-		return mailValidationParamError("--mailbox",
+		identityErr := errs.NewValidationError(errs.SubtypeIdentityNotSupported,
 			"--as bot does not support --mailbox me: bot identity uses a tenant token and cannot resolve \"me\" to a user mailbox; "+
 				"pass an explicit email address, e.g. --mailbox alice@example.com")
+		if runtime.Changed("mailbox") {
+			return identityErr.WithParam("--mailbox")
+		}
+		return identityErr
 	}
 	return nil
+}
+
+func mailUserIdentityRequiredError(runtime *common.RuntimeContext, format string, args ...any) *errs.ValidationError {
+	if runtime != nil && runtime.IsBot() {
+		return errs.NewValidationError(errs.SubtypeIdentityNotSupported, format, args...).
+			WithHint("use --as user only when user authorization is configured")
+	}
+	return mailFailedPreconditionError(format, args...)
+}
+
+func mailRequireUserOpenID(runtime *common.RuntimeContext, format string, args ...any) (string, error) {
+	if runtime == nil || runtime.IsBot() {
+		return "", mailUserIdentityRequiredError(runtime, format, args...)
+	}
+	if runtime.Config == nil || runtime.UserOpenId() == "" {
+		return "", mailFailedPreconditionError(format, args...)
+	}
+	return runtime.UserOpenId(), nil
 }
 
 // validateMessageIDs parses and validates the existing +messages comma-separated

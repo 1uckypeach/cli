@@ -43,6 +43,7 @@ type Factory struct {
 	IdentityAutoDetected bool                    // set by ResolveAs when identity was auto-detected
 	ResolvedIdentity     core.Identity           // identity resolved by the last ResolveAs call
 	CurrentCommand       *cobra.Command          // last matched command being executed; set during PersistentPreRun
+	identityExplicit     bool                    // set only when the user explicitly selected --as user or --as bot
 
 	Credential *credential.CredentialProvider
 
@@ -88,9 +89,11 @@ func (f *Factory) ResolveFileIO(ctx context.Context) fileio.FileIO {
 // When the value is "auto" (or unset), auto-detect based on credential hints.
 func (f *Factory) ResolveAs(ctx context.Context, cmd *cobra.Command, flagAs core.Identity) core.Identity {
 	f.IdentityAutoDetected = false
+	f.identityExplicit = false
 
 	if cmd != nil && cmd.Flags().Changed("as") {
 		if flagAs != core.AsAuto {
+			f.identityExplicit = true
 			f.ResolvedIdentity = flagAs
 			return flagAs
 		}
@@ -147,8 +150,17 @@ func (f *Factory) resolveIdentityHint(ctx context.Context) *credential.IdentityH
 
 // CheckIdentity verifies the resolved identity is in the supported list.
 // On success, sets f.ResolvedIdentity. On failure, returns an error
-// tailored to whether the identity was explicit (--as) or auto-detected.
+// tailored to whether the identity was explicitly selected with --as or was
+// selected implicitly through auto-detection, default-as, or strict mode.
 func (f *Factory) CheckIdentity(as core.Identity, supported []string) error {
+	if as != core.AsUser && as != core.AsBot {
+		invalidErr := errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"invalid identity %q, expected user or bot", as)
+		if f.identityExplicit {
+			return invalidErr.WithParam("--as")
+		}
+		return invalidErr
+	}
 	for _, t := range supported {
 		if string(as) == t {
 			f.ResolvedIdentity = as
@@ -156,19 +168,26 @@ func (f *Factory) CheckIdentity(as core.Identity, supported []string) error {
 		}
 	}
 	list := strings.Join(supported, ", ")
-	if f.IdentityAutoDetected {
-		base := errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"resolved identity %q (via auto-detect or default-as) is not supported, this command only supports: %s",
-			as, list).
+	var identityErr *errs.ValidationError
+	if f.identityExplicit {
+		identityErr = errs.NewValidationError(errs.SubtypeIdentityNotSupported,
+			"--as %s is not supported, this command only supports: %s", as, list).
 			WithParam("--as")
-		if len(supported) > 0 {
-			return base.WithHint("use --as %s", supported[0])
-		}
-		return base
+	} else {
+		identityErr = errs.NewValidationError(errs.SubtypeIdentityNotSupported,
+			"resolved identity %q is not supported, this command only supports: %s", as, list)
 	}
-	return errs.NewValidationError(errs.SubtypeInvalidArgument,
-		"--as %s is not supported, this command only supports: %s", as, list).
-		WithParam("--as")
+	if len(supported) == 1 {
+		return identityErr.WithHint(
+			"this command supports %s identity; use --as %s only when %s authorization is configured",
+			supported[0], supported[0], supported[0])
+	}
+	if len(supported) > 1 {
+		return identityErr.WithHint(
+			"this command supports these identities: %s; use --as with a supported identity only when its authorization is configured",
+			list)
+	}
+	return identityErr
 }
 
 // ResolveStrictMode returns the effective strict mode by reading

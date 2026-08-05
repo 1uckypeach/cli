@@ -22,10 +22,14 @@ type stubRoundTripper struct {
 	gotBody  string
 	respCode int
 	respBody string
+	respRead io.ReadCloser
+	header   http.Header
 	err      error
+	calls    int
 }
 
 func (s *stubRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	s.calls++
 	s.gotReq = req
 	if req.Body != nil {
 		b, _ := io.ReadAll(req.Body)
@@ -34,11 +38,29 @@ func (s *stubRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	if s.err != nil {
 		return nil, s.err
 	}
+	body := s.respRead
+	if body == nil {
+		body = io.NopCloser(strings.NewReader(s.respBody))
+	}
 	return &http.Response{
 		StatusCode: s.respCode,
-		Body:       io.NopCloser(strings.NewReader(s.respBody)),
-		Header:     make(http.Header),
+		Body:       body,
+		Header:     s.header,
 	}, nil
+}
+
+type boundaryErrorReader struct {
+	prefix        *strings.Reader
+	err           error
+	boundaryReads int
+}
+
+func (r *boundaryErrorReader) Read(p []byte) (int, error) {
+	if r.prefix.Len() > 0 {
+		return r.prefix.Read(p)
+	}
+	r.boundaryReads++
+	return 0, r.err
 }
 
 func TestFetchTAT_Success(t *testing.T) {
@@ -174,31 +196,187 @@ func TestFetchTAT_ServerError_Untyped(t *testing.T) {
 	}
 }
 
-// Rate-limiting is transient, not a deterministic credential rejection — an HTTP
-// 429 (even with a parseable OAuth body) and the OAuth slow_down error must both
-// stay UNTYPED so a rate-limited probe stays silent and retryers can back off.
-func TestFetchTAT_RateLimit_Untyped(t *testing.T) {
-	cases := []struct {
-		name string
-		code int
-		body string
+func TestFetchTAT_HTTP429TypedSafeRateLimit(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		header   http.Header
+		wantCode int
+		wantLog  string
+		wantWait int
 	}{
-		{"http 429", 429, `{"code":99991400,"error":"too_many_requests","error_description":"rate limit exceeded"}`},
-		{"oauth slow_down", 200, `{"error":"slow_down","error_description":"polling too fast"}`},
+		{name: "business code", body: `{"code":99991400,"error_description":"secret\u0000oauth text","log_id":"body-log"}`, header: http.Header{"Retry-After": []string{"7"}, "X-Tt-Logid": []string{"header-log"}}, wantCode: 99991400, wantLog: "body-log", wantWait: 7},
+		{name: "unrelated business code", body: `{"code":20002,"msg":"secret"}`, wantCode: 429, wantWait: 1},
+		{name: "plain text", body: "secret plaintext", wantCode: 429, wantWait: 1},
+		{name: "html", body: "<html>secret</html>", wantCode: 429, wantWait: 1},
+		{name: "empty", wantCode: 429, wantWait: 1},
+		{name: "malformed invalid utf8", body: "{\xffsecret", wantCode: 429, wantWait: 1},
+		{name: "trailing junk cannot forge metadata", body: `{"code":99991400,"log_id":"forged"}trailing-junk`, wantCode: 429, wantWait: 1},
+		{name: "concatenated values cannot forge metadata", body: `{"code":99991400,"log_id":"forged"}{"code":99991400}`, wantCode: 429, wantWait: 1},
+		{name: "invalid log falls through", body: `{"log_id":"bad/value","error":{"log_id":"nested-ok"}}`, header: http.Header{"X-Tt-Logid": []string{"header-log"}}, wantCode: 429, wantLog: "nested-ok", wantWait: 1},
+		{name: "multiple retry after defaults", header: http.Header{"Retry-After": []string{"3", "4"}}, wantCode: 429, wantWait: 1},
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			rt := &stubRoundTripper{respCode: tc.code, respBody: tc.body}
-			hc := &http.Client{Transport: rt}
-
-			_, err := FetchTAT(context.Background(), hc, core.BrandFeishu, "cli_app", "secret_x")
-			if err == nil {
-				t.Fatal("expected error for rate-limit")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rt := &stubRoundTripper{respCode: 429, respBody: tt.body, header: tt.header}
+			_, err := FetchTAT(context.Background(), &http.Client{Transport: rt}, core.BrandFeishu, "cli_app", "secret_x")
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("error = %T (%v), want APIError", err, err)
 			}
-			if errs.IsTyped(err) {
-				t.Errorf("rate-limit must be UNTYPED (transient), got typed %T %v", err, err)
+			if apiErr.Code != tt.wantCode || apiErr.Subtype != errs.SubtypeRateLimit || !apiErr.Retryable {
+				t.Fatalf("problem = %#v", apiErr.Problem)
+			}
+			if apiErr.Message != "request rate limit exceeded" || strings.Contains(apiErr.Hint, "secret") || apiErr.Cause != nil {
+				t.Fatalf("unsafe response detail leaked: %#v", apiErr)
+			}
+			if apiErr.LogID != tt.wantLog || apiErr.RetryAfterSeconds == nil || *apiErr.RetryAfterSeconds != tt.wantWait {
+				t.Fatalf("metadata = log %q retry %v, want %q/%d", apiErr.LogID, apiErr.RetryAfterSeconds, tt.wantLog, tt.wantWait)
+			}
+			if rt.calls != 1 {
+				t.Fatalf("request count = %d, want 1", rt.calls)
 			}
 		})
+	}
+}
+
+func TestFetchTAT_HTTP429BoundedBodyDoesNotLeak(t *testing.T) {
+	prefix := `{"code":99991400,"log_id":"body-forged"}`
+	padding := strings.Repeat(" ", maxTATResponseBodyBytes-len(prefix))
+	for _, suffix := range []string{
+		"trailing-junk",
+		`{"code":99991400,"log_id":"second-forged"}`,
+	} {
+		t.Run(suffix, func(t *testing.T) {
+			rt := &stubRoundTripper{
+				respCode: 429,
+				respBody: prefix + padding + suffix,
+				header:   http.Header{"X-Request-Id": []string{"header-log"}, "Retry-After": []string{"11"}},
+			}
+			_, err := FetchTAT(context.Background(), &http.Client{Transport: rt}, core.BrandFeishu, "cli_app", "secret_x")
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("error = %T (%v), want APIError", err, err)
+			}
+			if apiErr.Code != 429 || apiErr.LogID != "header-log" {
+				t.Fatalf("overflow body supplied metadata: %#v", apiErr.Problem)
+			}
+			if apiErr.RetryAfterSeconds == nil || *apiErr.RetryAfterSeconds != 11 || apiErr.RetryAfterSource != "retry-after" {
+				t.Fatalf("header retry metadata = (%v, %q), want (11, retry-after)", apiErr.RetryAfterSeconds, apiErr.RetryAfterSource)
+			}
+			if apiErr.Message != "request rate limit exceeded" || strings.Contains(apiErr.Error(), "forged") || apiErr.Cause != nil {
+				t.Fatalf("bounded response leaked into error: %#v", apiErr)
+			}
+			if rt.calls != 1 {
+				t.Fatalf("request count = %d, want 1", rt.calls)
+			}
+		})
+	}
+}
+
+func TestFetchTAT_Non429OverflowKeepsOneMiBPrefixSemantics(t *testing.T) {
+	prefix := `{"code":0,"access_token":"t-ok"}`
+	body := prefix + strings.Repeat(" ", maxTATResponseBodyBytes-len(prefix)) + "trailing-junk"
+	rt := &stubRoundTripper{respCode: http.StatusOK, respBody: body}
+	token, err := FetchTAT(context.Background(), &http.Client{Transport: rt}, core.BrandFeishu, "cli_app", "secret_x")
+	if err != nil || token != "t-ok" {
+		t.Fatalf("FetchTAT() = (%q, %v), want historical 1 MiB prefix success", token, err)
+	}
+	if rt.calls != 1 {
+		t.Fatalf("request count = %d, want 1", rt.calls)
+	}
+}
+
+func TestFetchTAT_ReadBoundaryCompatibilityByHTTPStatus(t *testing.T) {
+	errorsAfterBoundary := []struct {
+		name string
+		err  error
+	}{
+		{name: "sentinel", err: errors.New("read beyond legacy boundary")},
+		{name: "unexpected EOF", err: io.ErrUnexpectedEOF},
+	}
+	for _, tt := range errorsAfterBoundary {
+		t.Run(tt.name, func(t *testing.T) {
+			successPrefix := `{"code":0,"access_token":"t-ok"}`
+			successBody := successPrefix + strings.Repeat(" ", maxTATResponseBodyBytes-len(successPrefix))
+			successReader := &boundaryErrorReader{prefix: strings.NewReader(successBody), err: tt.err}
+			successRT := &stubRoundTripper{respCode: http.StatusOK, respRead: io.NopCloser(successReader)}
+			token, err := FetchTAT(context.Background(), &http.Client{Transport: successRT}, core.BrandFeishu, "cli_app", "secret_x")
+			if err != nil || token != "t-ok" {
+				t.Fatalf("HTTP 200 FetchTAT() = (%q, %v), want legacy prefix success", token, err)
+			}
+			if successReader.boundaryReads != 0 {
+				t.Fatalf("HTTP 200 read beyond 1 MiB %d times, want 0", successReader.boundaryReads)
+			}
+
+			ratePrefix := `{"code":99991400,"log_id":"body-forged"}`
+			rateBody := ratePrefix + strings.Repeat(" ", maxTATResponseBodyBytes-len(ratePrefix))
+			rateReader := &boundaryErrorReader{prefix: strings.NewReader(rateBody), err: tt.err}
+			rateRT := &stubRoundTripper{
+				respCode: http.StatusTooManyRequests,
+				respRead: io.NopCloser(rateReader),
+				header:   http.Header{"X-Tt-Logid": []string{"header-log"}, "Retry-After": []string{"6"}},
+			}
+			_, err = FetchTAT(context.Background(), &http.Client{Transport: rateRT}, core.BrandFeishu, "cli_app", "secret_x")
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("HTTP 429 error = %T (%v), want safe APIError", err, err)
+			}
+			if apiErr.Code != 429 || apiErr.LogID != "header-log" || apiErr.RetryAfterSeconds == nil || *apiErr.RetryAfterSeconds != 6 || apiErr.Cause != nil {
+				t.Fatalf("HTTP 429 boundary classification = %#v", apiErr)
+			}
+			if rateReader.boundaryReads != 1 {
+				t.Fatalf("HTTP 429 boundary probes = %d, want 1", rateReader.boundaryReads)
+			}
+		})
+	}
+}
+
+func TestFetchTAT_EarlyBodyReadErrorByHTTPStatus(t *testing.T) {
+	errorsBeforeBoundary := []struct {
+		name string
+		err  error
+	}{
+		{name: "sentinel", err: errors.New("early body read failure")},
+		{name: "unexpected EOF", err: io.ErrUnexpectedEOF},
+	}
+	for _, tt := range errorsBeforeBoundary {
+		t.Run(tt.name, func(t *testing.T) {
+			partialBody := `{"code":99991400,"log_id":"body-forged"}`
+
+			nonRateReader := &boundaryErrorReader{prefix: strings.NewReader(partialBody), err: tt.err}
+			nonRateRT := &stubRoundTripper{respCode: http.StatusOK, respRead: io.NopCloser(nonRateReader)}
+			_, err := FetchTAT(context.Background(), &http.Client{Transport: nonRateRT}, core.BrandFeishu, "cli_app", "secret_x")
+			if !errors.Is(err, tt.err) {
+				t.Fatalf("HTTP 200 error = %v, want wrapped read error %v", err, tt.err)
+			}
+
+			rateReader := &boundaryErrorReader{prefix: strings.NewReader(partialBody), err: tt.err}
+			rateRT := &stubRoundTripper{
+				respCode: http.StatusTooManyRequests,
+				respRead: io.NopCloser(rateReader),
+				header:   http.Header{"X-Request-Id": []string{"header-log"}, "Retry-After": []string{"8"}},
+			}
+			_, err = FetchTAT(context.Background(), &http.Client{Transport: rateRT}, core.BrandFeishu, "cli_app", "secret_x")
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("HTTP 429 error = %T (%v), want APIError", err, err)
+			}
+			if apiErr.Code != 429 || apiErr.LogID != "header-log" || apiErr.RetryAfterSeconds == nil || *apiErr.RetryAfterSeconds != 8 {
+				t.Fatalf("HTTP 429 early-read classification = %#v", apiErr)
+			}
+			if apiErr.Cause != nil || errors.Is(err, tt.err) || strings.Contains(apiErr.Message, tt.err.Error()) || strings.Contains(apiErr.Hint, tt.err.Error()) {
+				t.Fatalf("HTTP 429 leaked read error: %#v", apiErr)
+			}
+		})
+	}
+}
+
+func TestFetchTAT_OAuthSlowDownRemainsUntyped(t *testing.T) {
+	rt := &stubRoundTripper{respCode: 200, respBody: `{"error":"slow_down","error_description":"polling too fast"}`}
+	_, err := FetchTAT(context.Background(), &http.Client{Transport: rt}, core.BrandFeishu, "cli_app", "secret_x")
+	if err == nil || errs.IsTyped(err) {
+		t.Fatalf("slow_down error = %T (%v), want non-nil untyped", err, err)
 	}
 }
 

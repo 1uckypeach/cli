@@ -11,9 +11,13 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/errclass"
 )
+
+const maxTATResponseBodyBytes = 1 << 20
 
 // FetchTAT performs a single HTTP POST to mint a tenant access token via the
 // unified OAuth 2.0 Token Endpoint ({accounts}/oauth/v3/token) using the
@@ -27,8 +31,8 @@ import (
 // doResolveTAT (and thus every token-resolving command) produces, so callers
 // see one consistent envelope. Transport failures, unreadable/unparseable
 // bodies, and transient server-side failures (5xx / server_error) are returned
-// raw (untyped), leaving them ambiguous; a caller can use errs.IsTyped to tell a
-// deterministic credential rejection apart from upstream/transport noise.
+// raw (untyped), leaving them ambiguous. HTTP 429 is the exception: it returns
+// a safe typed api/rate_limit error with bounded recovery metadata.
 //
 // The caller owns the context timeout.
 func FetchTAT(ctx context.Context, httpClient *http.Client, brand core.LarkBrand, appID, appSecret string) (string, error) {
@@ -52,7 +56,16 @@ func FetchTAT(ctx context.Context, httpClient *http.Client, brand core.LarkBrand
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode == http.StatusTooManyRequests {
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxTATResponseBodyBytes+1))
+		bodyOverflow := len(body) > maxTATResponseBodyBytes
+		var rateLimitResult any
+		if readErr == nil && !bodyOverflow {
+			rateLimitResult = errclass.ParseRateLimitJSON(body)
+		}
+		return "", errclass.ClassifyHTTPRateLimit(resp.StatusCode, resp.Header, rateLimitResult, nil, time.Now())
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTATResponseBodyBytes))
 	if err != nil {
 		return "", fmt.Errorf("failed to read TAT response: %w", err)
 	}
@@ -76,10 +89,10 @@ func FetchTAT(ctx context.Context, httpClient *http.Client, brand core.LarkBrand
 
 	// Transient/server-side failures stay untyped so probe callers stay silent and
 	// retryers can back off; only deterministic client rejections are typed. Covers
-	// 5xx, HTTP 429 rate-limit, and the OAuth transient error strings (server_error,
+	// 5xx and the OAuth transient error strings (server_error,
 	// temporarily_unavailable, slow_down) — matching the legacy "non-2xx is noise"
-	// behavior so a rate-limited probe is not surfaced as a hard credential error.
-	if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests ||
+	// behavior for OAuth transient errors. HTTP 429 was handled above.
+	if resp.StatusCode >= 500 ||
 		result.Error == "server_error" || result.Error == "temporarily_unavailable" ||
 		result.Error == "slow_down" {
 		return "", fmt.Errorf("TAT endpoint transient failure (HTTP %d, code=%d, error=%q): %s",

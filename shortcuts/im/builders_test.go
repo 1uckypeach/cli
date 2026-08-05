@@ -6,10 +6,12 @@ package im
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/spf13/cobra"
@@ -663,6 +665,27 @@ func TestShortcutValidateBranches(t *testing.T) {
 		err := ImChatMessageList.Validate(context.Background(), runtime)
 		if err == nil || !strings.Contains(err.Error(), "requires user identity") {
 			t.Fatalf("ImChatMessageList.Validate() error = %v, want requires user identity", err)
+		}
+		problem, ok := errs.ProblemOf(err)
+		if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeIdentityNotSupported {
+			t.Fatalf("problem = %#v, want validation/identity_not_supported", problem)
+		}
+		var validationErr *errs.ValidationError
+		if !errors.As(err, &validationErr) || validationErr.Param != "--user-id" {
+			t.Fatalf("validation param = %q, want --user-id", validationErr.Param)
+		}
+	})
+
+	t.Run("ImChatCreate rejects bot-manager mode for user identity", func(t *testing.T) {
+		runtime := newTestRuntimeContext(t, map[string]string{}, map[string]bool{"set-bot-manager": true})
+		err := ImChatCreate.Validate(context.Background(), runtime)
+		problem, ok := errs.ProblemOf(err)
+		if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeIdentityNotSupported {
+			t.Fatalf("problem = %#v, want validation/identity_not_supported", problem)
+		}
+		var validationErr *errs.ValidationError
+		if !errors.As(err, &validationErr) || validationErr.Param != "--set-bot-manager" {
+			t.Fatalf("validation param = %q, want --set-bot-manager", validationErr.Param)
 		}
 	})
 

@@ -424,6 +424,7 @@ func TestWikiNodeListRejectsMyLibraryForBot(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "bot identity does not support --space-id my_library") {
 		t.Fatalf("expected my_library bot rejection, got %v", err)
 	}
+	requireWikiIdentityProblem(t, err, "--space-id")
 }
 
 func TestWikiNodeListResolvesMyLibraryForUser(t *testing.T) {

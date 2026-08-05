@@ -17,6 +17,7 @@ import (
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 )
 
@@ -324,6 +325,10 @@ func TestResolveChatIDForMessagesList(t *testing.T) {
 		_, err := resolveChatIDForMessagesList(runtime, false)
 		if err == nil || !strings.Contains(err.Error(), "requires user identity") {
 			t.Fatalf("resolveChatIDForMessagesList() error = %v, want requires user identity", err)
+		}
+		problem, ok := errs.ProblemOf(err)
+		if !ok || problem.Subtype != errs.SubtypeIdentityNotSupported {
+			t.Fatalf("problem = %#v, want identity_not_supported", problem)
 		}
 	})
 }

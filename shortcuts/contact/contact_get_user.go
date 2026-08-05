@@ -9,6 +9,7 @@ import (
 
 	"io"
 
+	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/shortcuts/common"
 )
@@ -28,8 +29,7 @@ var ContactGetUser = common.Shortcut{
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		if runtime.Str("user-id") == "" && runtime.IsBot() {
-			return common.ValidationErrorf("bot identity cannot get current user info, specify --user-id").
-				WithParam("--user-id")
+			return errs.NewValidationError(errs.SubtypeIdentityNotSupported, "bot identity cannot get current user info, specify --user-id")
 		}
 		return nil
 	},

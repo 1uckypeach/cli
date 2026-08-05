@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/vfs/localfileio"
 	"github.com/larksuite/cli/shortcuts/common"
@@ -1086,6 +1087,17 @@ func TestProcessLargeAttachments_OversizedNoIdentity(t *testing.T) {
 	}
 }
 
+func TestProcessLargeAttachments_OversizedBotIdentity(t *testing.T) {
+	chdirTemp(t)
+	if err := os.WriteFile("huge.zip", make([]byte, 100), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rt := common.TestNewRuntimeContextWithIdentity(&cobra.Command{}, &core.CliConfig{UserOpenId: "ou_stale_user"}, core.AsBot)
+	bld := emlbuilder.New().WithFileIO(rt.FileIO())
+	_, err := processLargeAttachments(nil, rt, bld, "<p>body</p>", "", []string{"huge.zip"}, emlbuilder.MaxEMLSize, 0)
+	assertMailIdentityProblem(t, err, "")
+}
+
 func TestPreprocessLargeAttachments_NoAddAttachmentOps(t *testing.T) {
 	rt := common.TestNewRuntimeContext(&cobra.Command{}, nil)
 	snapshot := &draftpkg.DraftSnapshot{
@@ -1184,6 +1196,48 @@ func TestPreprocessLargeAttachments_OversizedNoIdentity(t *testing.T) {
 	_, err := preprocessLargeAttachmentsForDraftEdit(nil, rt, snapshot, patch)
 	if err == nil || !strings.Contains(err.Error(), "user identity") {
 		t.Fatalf("expected user identity error, got %v", err)
+	}
+}
+
+func TestPreprocessLargeAttachments_OversizedBotWithConfiguredUserOpenID(t *testing.T) {
+	chdirTemp(t)
+	if err := os.WriteFile("big.zip", make([]byte, 100), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rt := common.TestNewRuntimeContextWithIdentity(&cobra.Command{}, &core.CliConfig{UserOpenId: "ou_stale_user"}, core.AsBot)
+	snapshot := &draftpkg.DraftSnapshot{Body: &draftpkg.Part{
+		MediaType: "multipart/mixed",
+		Children: []*draftpkg.Part{
+			{MediaType: "text/html", Body: make([]byte, emlbuilder.MaxEMLSize)},
+		},
+	}}
+	patch := draftpkg.Patch{Ops: []draftpkg.PatchOp{{Op: "add_attachment", Path: "big.zip"}}}
+	_, err := preprocessLargeAttachmentsForDraftEdit(nil, rt, snapshot, patch)
+	assertMailIdentityProblem(t, err, "")
+}
+
+func TestUploadLargeAttachments_BotIdentity(t *testing.T) {
+	rt := common.TestNewRuntimeContextWithIdentity(&cobra.Command{}, &core.CliConfig{UserOpenId: "ou_stale_user"}, core.AsBot)
+	_, err := uploadLargeAttachments(nil, rt, []attachmentFile{{FileName: "huge.zip", Size: 100}})
+	assertMailIdentityProblem(t, err, "")
+}
+
+func TestMailRequireUserOpenIDChecksIdentityBeforeConfiguredUser(t *testing.T) {
+	botRuntime := common.TestNewRuntimeContextWithIdentity(&cobra.Command{}, &core.CliConfig{UserOpenId: "ou_stale_user"}, core.AsBot)
+	_, err := mailRequireUserOpenID(botRuntime, "user identity required")
+	assertMailIdentityProblem(t, err, "")
+
+	userRuntime := common.TestNewRuntimeContextWithIdentity(&cobra.Command{}, &core.CliConfig{}, core.AsUser)
+	_, err = mailRequireUserOpenID(userRuntime, "user identity required")
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeFailedPrecondition {
+		t.Fatalf("problem = %#v, want validation/failed_precondition", problem)
+	}
+
+	userRuntime = common.TestNewRuntimeContextWithIdentity(&cobra.Command{}, &core.CliConfig{UserOpenId: "ou_user"}, core.AsUser)
+	openID, err := mailRequireUserOpenID(userRuntime, "user identity required")
+	if err != nil || openID != "ou_user" {
+		t.Fatalf("mailRequireUserOpenID() = %q, %v; want ou_user, nil", openID, err)
 	}
 }
 

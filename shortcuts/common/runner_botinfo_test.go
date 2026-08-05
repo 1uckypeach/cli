@@ -5,11 +5,14 @@ package common
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 
+	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
@@ -171,9 +174,46 @@ func TestFetchBotInfo_APICodeNonZero(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for non-zero code")
 	}
-	// fetchBotInfo returns a raw fmt.Errorf, not a typed envelope — message-substring assertion is intentional.
-	if !strings.Contains(err.Error(), "[99991]") {
-		t.Errorf("error = %q, want substring [99991]", err.Error())
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Code != 99991 {
+		t.Fatalf("problem = %#v, %v; want typed code 99991", problem, ok)
+	}
+}
+
+func TestFetchBotInfo_RateLimitRecoveryMetadata(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		status   int
+		body     map[string]interface{}
+		wantCode int
+	}{
+		{name: "HTTP 429 code zero", status: http.StatusTooManyRequests, body: map[string]interface{}{"code": 0, "msg": "slow"}, wantCode: 429},
+		{name: "business rate limit", status: http.StatusOK, body: map[string]interface{}{"code": 99991400, "msg": "slow"}, wantCode: 99991400},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f, _, _, reg := cmdutil.TestFactory(t, botInfoTestConfig(t))
+			reg.Register(&httpmock.Stub{
+				Method:  "GET",
+				URL:     "/open-apis/bot/v3/info",
+				Status:  tt.status,
+				Headers: http.Header{"Content-Type": []string{"application/json"}, "Retry-After": []string{"19"}},
+				Body:    tt.body,
+			})
+
+			var info *BotInfo
+			var err error
+			runBotInfoShortcut(t, f, &info, &err)
+			var apiErr *errs.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("fetchBotInfo error = %T (%v), want *errs.APIError", err, err)
+			}
+			if apiErr.Code != tt.wantCode || apiErr.Subtype != errs.SubtypeRateLimit {
+				t.Fatalf("rate limit problem = %#v, want code %d", apiErr.Problem, tt.wantCode)
+			}
+			if apiErr.RetryAfterSeconds == nil || *apiErr.RetryAfterSeconds != 19 {
+				t.Fatalf("RetryAfterSeconds = %v, want 19", apiErr.RetryAfterSeconds)
+			}
+		})
 	}
 }
 
@@ -220,9 +260,9 @@ func TestFetchBotInfo_HTTP4xx(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for HTTP 403")
 	}
-	// fetchBotInfo returns a raw fmt.Errorf, not a typed envelope — message-substring assertion is intentional.
-	if !strings.Contains(err.Error(), "403") {
-		t.Errorf("error = %q, want substring '403'", err.Error())
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Code != 403 {
+		t.Fatalf("problem = %#v, %v; want typed code 403", problem, ok)
 	}
 }
 

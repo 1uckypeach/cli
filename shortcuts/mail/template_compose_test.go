@@ -4,10 +4,16 @@
 package mail
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/shortcuts/common"
+	"github.com/spf13/cobra"
 )
 
 // ---------------------------------------------------------------------------
@@ -334,6 +340,16 @@ func TestEncodeTemplateLargeAttachmentHeader(t *testing.T) {
 	if len(ids) != 2 || ids[0].ID != "a" || ids[1].ID != "b" {
 		t.Errorf("unexpected dedup/order: %#v", ids)
 	}
+}
+
+func TestUploadToDriveForTemplate_BotIdentity(t *testing.T) {
+	chdirTemp(t)
+	if err := os.WriteFile("attachment.txt", []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runtime := common.TestNewRuntimeContextWithIdentity(&cobra.Command{}, &core.CliConfig{UserOpenId: "ou_stale_user"}, core.AsBot)
+	_, _, err := uploadToDriveForTemplate(context.Background(), runtime, "attachment.txt")
+	assertMailIdentityProblem(t, err, "")
 }
 
 // ---------------------------------------------------------------------------

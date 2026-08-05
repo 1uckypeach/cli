@@ -448,7 +448,7 @@ func TestApiCmd_PageAll_NonBatchAPI_FallbackToJSON(t *testing.T) {
 	}
 }
 
-func TestApiCmd_PageAll_NonBatchAPI_ErrorStillOutputsJSON(t *testing.T) {
+func TestApiCmd_PageAll_NonBatchAPI_ErrorReturnsPaginationProgress(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
 		AppID: "test-app-pageall-err", AppSecret: "test-secret-pageall-err", Brand: core.BrandFeishu,
 	})
@@ -468,17 +468,17 @@ func TestApiCmd_PageAll_NonBatchAPI_ErrorStillOutputsJSON(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error for non-zero code")
 	}
-	// Should still output the response body so user can see the error details
-	if !strings.Contains(stdout.String(), "230027") {
-		t.Errorf("expected error response in stdout, got: %s", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "user not authorized") {
-		t.Errorf("expected error message in stdout, got: %s", stdout.String())
-	}
-	if strings.Contains(stdout.String(), `"ok": true`) || strings.Contains(stdout.String(), `"ok":true`) {
-		t.Fatalf("unexpected success envelope on error path: %s", stdout.String())
+	if stdout.Len() != 0 {
+		t.Fatalf("pagination error wrote stdout: %s", stdout.String())
 	}
 	requireProblem(t, err, errs.CategoryAuthorization, errs.SubtypeUserUnauthorized, 230027)
+	var paginationErr *errs.PaginationError
+	if !errors.As(err, &paginationErr) {
+		t.Fatalf("expected PaginationError, got %T: %v", err, err)
+	}
+	if paginationErr.CompletedPages != 0 || paginationErr.NextPageToken != "" {
+		t.Fatalf("progress = %d/%q, want 0/empty", paginationErr.CompletedPages, paginationErr.NextPageToken)
+	}
 	var permErr *errs.PermissionError
 	if !errors.As(err, &permErr) {
 		t.Fatalf("expected PermissionError, got %T: %v", err, err)

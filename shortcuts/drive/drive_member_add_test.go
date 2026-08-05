@@ -552,6 +552,7 @@ func TestDriveMemberAdd_RejectsNotificationWithBot(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "--need-notification is only valid with --as user") {
 		t.Fatalf("expected bot notification validation error, got: %v", err)
 	}
+	assertDriveMemberIdentityProblem(t, err, "--need-notification")
 }
 
 func TestDriveMemberAdd_RejectsDepartmentWithBot(t *testing.T) {
@@ -570,6 +571,19 @@ func TestDriveMemberAdd_RejectsDepartmentWithBot(t *testing.T) {
 	}, f, stdout)
 	if err == nil || !strings.Contains(err.Error(), "--member-type=opendepartmentid requires --as user") {
 		t.Fatalf("expected bot+opendepartmentid validation error, got: %v", err)
+	}
+	assertDriveMemberIdentityProblem(t, err, "--member-type")
+}
+
+func assertDriveMemberIdentityProblem(t *testing.T, err error, wantParam string) {
+	t.Helper()
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeIdentityNotSupported {
+		t.Fatalf("problem = %#v, want validation/identity_not_supported", problem)
+	}
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) || validationErr.Param != wantParam {
+		t.Fatalf("validation param = %q, want %q", validationErr.Param, wantParam)
 	}
 }
 
