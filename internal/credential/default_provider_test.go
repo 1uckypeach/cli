@@ -382,6 +382,76 @@ func TestDefaultTokenProvider_FollowerObservesOwnContextCancellation(t *testing.
 	}
 }
 
+func TestDefaultTokenProvider_HealthyFollowerRetriesAfterLeaderCancellation(t *testing.T) {
+	started := make(chan struct{})
+	var calls atomic.Int32
+	p := NewDefaultTokenProvider(nil, nil, nil)
+	p.tatResolver = func(ctx context.Context) (*TokenResult, error) {
+		if calls.Add(1) == 1 {
+			close(started)
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
+		return &TokenResult{Token: "follower-token"}, nil
+	}
+
+	type outcome struct {
+		result *TokenResult
+		err    error
+	}
+	leaderCtx, cancelLeader := context.WithCancel(context.Background())
+	leaderDone := make(chan outcome, 1)
+	go func() {
+		result, err := p.resolveTAT(leaderCtx)
+		leaderDone <- outcome{result: result, err: err}
+	}()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for leader resolution")
+	}
+
+	followerDone := make(chan outcome, 1)
+	go func() {
+		result, err := p.resolveTAT(context.Background())
+		followerDone <- outcome{result: result, err: err}
+	}()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		p.tatMu.Lock()
+		followers := p.tatFlight.followers
+		p.tatMu.Unlock()
+		if followers == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("in-flight followers = %d, want 1", followers)
+		}
+		runtime.Gosched()
+	}
+
+	cancelLeader()
+	select {
+	case got := <-leaderDone:
+		if got.result != nil || !errors.Is(got.err, context.Canceled) {
+			t.Fatalf("leader resolution = (%v, %v), want context.Canceled", got.result, got.err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for canceled leader")
+	}
+	select {
+	case got := <-followerDone:
+		if got.err != nil || got.result == nil || got.result.Token != "follower-token" {
+			t.Fatalf("follower resolution = (%v, %v), want follower-token", got.result, got.err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for healthy follower recovery")
+	}
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("resolver calls = %d, want 2", got)
+	}
+}
+
 func TestDefaultTokenProvider_ConcurrentTATSuccessCoalesces(t *testing.T) {
 	const callers = 16
 	started := make(chan struct{})

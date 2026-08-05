@@ -125,12 +125,13 @@ type DefaultTokenProvider struct {
 }
 
 type tatResolution struct {
-	done      chan struct{}
-	result    *TokenResult
-	err       error
-	followers int
-	panicked  bool
-	panicVal  any
+	done               chan struct{}
+	result             *TokenResult
+	err                error
+	followers          int
+	leaderContextEnded bool
+	panicked           bool
+	panicVal           any
 }
 
 func NewDefaultTokenProvider(defaultAcct *DefaultAccountProvider, httpClient func() (*http.Client, error), errOut io.Writer) *DefaultTokenProvider {
@@ -177,6 +178,10 @@ func (p *DefaultTokenProvider) resolveUAT(ctx context.Context) (*TokenResult, er
 // resolution. Successful and explicitly non-retryable typed results are cached;
 // retryable or untyped errors allow a later call to try again.
 func (p *DefaultTokenProvider) resolveTAT(ctx context.Context) (*TokenResult, error) {
+	return p.resolveTATWithHandoff(ctx, true)
+}
+
+func (p *DefaultTokenProvider) resolveTATWithHandoff(ctx context.Context, allowHandoff bool) (*TokenResult, error) {
 	p.tatMu.Lock()
 	if p.tatCached {
 		result, err := p.tatResult, p.tatErr
@@ -190,6 +195,9 @@ func (p *DefaultTokenProvider) resolveTAT(ctx context.Context) (*TokenResult, er
 		case <-flight.done:
 			if flight.panicked {
 				panic(flight.panicVal)
+			}
+			if allowHandoff && flight.leaderContextEnded && ctx.Err() == nil {
+				return p.resolveTATWithHandoff(ctx, false)
 			}
 			return flight.result, flight.err
 		case <-ctx.Done():
@@ -212,6 +220,8 @@ func (p *DefaultTokenProvider) resolveTAT(ctx context.Context) (*TokenResult, er
 
 		p.tatMu.Lock()
 		flight.result, flight.err = result, err
+		leaderContextErr := ctx.Err()
+		flight.leaderContextEnded = leaderContextErr != nil && errors.Is(err, leaderContextErr)
 		flight.panicked, flight.panicVal = panicked, panicVal
 		if cacheResult {
 			p.tatResult, p.tatErr = result, err
