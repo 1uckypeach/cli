@@ -119,7 +119,10 @@ lark-cli vc +meeting-events --as <source_identity> --meeting-id <meeting_id> --p
 | `vc +meeting-list-active` | 发现当前可见的进行中会议 | [lark-vc-meeting-list-active](references/lark-vc-meeting-list-active.md) |
 | `vc +meeting-events` | 读取会中事件和共享内容 | [lark-vc-meeting-events](references/lark-vc-meeting-events.md) |
 | `vc +meeting-message-send` | 发送会中文本消息或表情 | [lark-vc-meeting-message-send](references/lark-vc-meeting-message-send.md) |
+| `vc +meeting-start` | 以应用机器人探测日程会议的 START_AND_JOIN | [lark-vc-agent-meeting-start](references/lark-vc-agent-meeting-start.md) |
 | `vc +meeting-join` | 让应用机器人加入会议 | [lark-vc-agent-meeting-join](references/lark-vc-agent-meeting-join.md) |
+| `vc +meeting-invite` | 以应用机器人邀请指定用户或全部合格日程参会人 | [lark-vc-agent-meeting-invite](references/lark-vc-agent-meeting-invite.md) |
+| `vc +meeting-end` | 让当前 Host 应用机器人结束会议 | [lark-vc-agent-meeting-end](references/lark-vc-agent-meeting-end.md) |
 | `vc +meeting-leave` | 让应用机器人离开会议 | [lark-vc-agent-meeting-leave](references/lark-vc-agent-meeting-leave.md) |
 | `minutes +search` | 搜索妙记 | [lark-minutes-search](references/lark-minutes-search.md) |
 | `minutes minutes get` | 查询妙记基础信息 | `lark-cli minutes minutes get --help` |
