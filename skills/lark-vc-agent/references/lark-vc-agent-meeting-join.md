@@ -106,7 +106,8 @@ lark-cli vc +meeting-list-active --as bot --user-id <user_open_id> --format json
 lark-cli vc +meeting-join --as bot --meeting-number 123456789
 
 # 第 2 步：会议结束后，先查询会议产物
-lark-cli vc +detail --meeting-ids <meeting.id>
+#   身份必须沿用入会时的 --as bot：meeting.get 只返回当前身份参与过的会议
+lark-cli vc +detail --as bot --meeting-ids <meeting.id>
 ```
 
 后续按 `lark-vc` 的产物决策处理：根据 `note_display_type`、`note_id`、`minute_token` 和用户意图选择纪要正文、逐字稿或妙记。

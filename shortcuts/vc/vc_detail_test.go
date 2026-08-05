@@ -8,6 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -32,6 +35,51 @@ import (
 func TestVCDetailSupportsBotIdentity(t *testing.T) {
 	if len(VCDetail.AuthTypes) != 2 || VCDetail.AuthTypes[0] != "user" || VCDetail.AuthTypes[1] != "bot" {
 		t.Errorf("VCDetail.AuthTypes = %v, want [user bot]", VCDetail.AuthTypes)
+	}
+}
+
+// TestVCAgentSkillKeepsIdentityOnDetail guards a doc-level contract that already
+// broke once: the lark-vc-agent skill requires the identity that produced a
+// meeting_id to be carried forward, because meeting.get only returns meetings
+// that identity joined. SKILL.md was fixed while three reference files kept the
+// bare command, so the check walks the whole skill directory rather than the
+// entry file. Only full `lark-cli vc +detail` invocations are checked; prose
+// that merely names the command is left alone.
+func TestVCAgentSkillKeepsIdentityOnDetail(t *testing.T) {
+	root := filepath.Join("..", "..", "skills", "lark-vc-agent")
+	if _, err := os.Stat(root); err != nil {
+		t.Skipf("skill dir not available: %v", err)
+	}
+
+	var checked int
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+		b, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		for i, line := range strings.Split(string(b), "\n") {
+			if !strings.Contains(line, "lark-cli vc +detail") {
+				continue
+			}
+			checked++
+			if !strings.Contains(line, "--as") {
+				t.Errorf("%s:%d runs `lark-cli vc +detail` without --as, so a bot-joined meeting_id falls back to the user identity:\n  %s",
+					path, i+1, strings.TrimSpace(line))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking %s: %v", root, err)
+	}
+	if checked == 0 {
+		t.Fatalf("found no `lark-cli vc +detail` invocation under %s; the check would silently pass forever", root)
 	}
 }
 

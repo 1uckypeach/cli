@@ -75,7 +75,8 @@ lark-cli vc +meeting-leave --as bot --meeting-id <meeting.id>
 
 ```bash
 # 第 1 步：会议结束后进入 lark-vc 获取会议产物信息
-lark-cli vc +detail --meeting-ids <meeting.id>
+#   身份沿用应用机器人入会时的 --as bot，离会后依然可查
+lark-cli vc +detail --as bot --meeting-ids <meeting.id>
 ```
 
 ## 常见错误与排查
