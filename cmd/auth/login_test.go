@@ -1379,6 +1379,16 @@ func TestAuthLoginRun_NonTerminalReturnsDeviceCodeWithoutPolling(t *testing.T) {
 		t.Fatalf("verification_url = %v; stdout:\n%s", got["verification_url"], stdout.String())
 	}
 
+	// Both outcomes exit 0, so `event` is the only machine-readable signal that
+	// tells a caller no token was stored. Asserted as a literal on purpose: it is
+	// an output contract, and following the constant here would let a rename pass.
+	if got["event"] != "authorization_requested" {
+		t.Fatalf("event = %v, want authorization_requested; stdout:\n%s", got["event"], stdout.String())
+	}
+	if got["event"] == "authorization_complete" {
+		t.Fatal("event must not claim authorization completed: no token has been stored at this point")
+	}
+
 	// The switch is announced, and the announcement names the way back.
 	for _, want := range []string{"stdout is not a terminal", "--wait"} {
 		if !strings.Contains(stderr.String(), want) {

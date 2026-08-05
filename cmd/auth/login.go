@@ -402,7 +402,12 @@ func authLoginRun(opts *LoginOptions) error {
 			fmt.Fprintln(f.IOStreams.ErrOut,
 				"[lark-cli] auth login: stdout is not a terminal, returning the device code instead of waiting for authorization. Pass --wait to block until authorization completes.")
 		}
+		// event names the outcome so a caller does not have to infer "not logged
+		// in yet" from the absence of the authorization_complete payload. Both
+		// paths exit 0, so the field is the only machine-readable signal that
+		// authorization was merely requested and no token has been stored.
 		data := map[string]interface{}{
+			"event":            eventAuthorizationRequested,
 			"verification_url": authResp.VerificationUriComplete,
 			"device_code":      authResp.DeviceCode,
 			"expires_in":       authResp.ExpiresIn,
