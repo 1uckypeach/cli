@@ -32,6 +32,7 @@ func TestRenderClonesEveryConcreteTypedErrorAndPreservesWireExtensions(t *testin
 			Retryable:      true,
 		}
 	}
+	retryAfterSeconds := 7
 
 	tests := []struct {
 		name     string
@@ -101,8 +102,9 @@ func TestRenderClonesEveryConcreteTypedErrorAndPreservesWireExtensions(t *testin
 		{
 			name: "api",
 			original: &errs.APIError{
-				Problem: problem(errs.CategoryAPI, errs.SubtypeRateLimit),
-				Cause:   sentinel,
+				Problem:           problem(errs.CategoryAPI, errs.SubtypeRateLimit),
+				RetryAfterSeconds: &retryAfterSeconds,
+				Cause:             sentinel,
 			},
 		},
 		{

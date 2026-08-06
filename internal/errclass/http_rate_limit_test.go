@@ -62,6 +62,26 @@ func TestClassifyHTTPRateLimit_RetryAfterSafety(t *testing.T) {
 	}
 }
 
+func TestClassifyHTTPRateLimit_OGWResetPrecedenceAndFallback(t *testing.T) {
+	tests := []struct {
+		name   string
+		header http.Header
+		want   int
+		source string
+	}{
+		{name: "OGW reset preferred", header: http.Header{"X-Ogw-Ratelimit-Reset": []string{"8"}, "Retry-After": []string{"4"}}, want: 8, source: "x-ogw-ratelimit-reset"},
+		{name: "invalid OGW falls back", header: http.Header{"X-Ogw-Ratelimit-Reset": []string{"invalid"}, "Retry-After": []string{"4"}}, want: 4, source: "retry-after"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			seconds, source := ParseRetryAfter(tt.header, time.Now())
+			if seconds != tt.want || source != tt.source {
+				t.Fatalf("ParseRetryAfter() = (%d, %q), want (%d, %q)", seconds, source, tt.want, tt.source)
+			}
+		})
+	}
+}
+
 func TestClassifyHTTPRateLimit_BusinessCodeMustBeExactInteger(t *testing.T) {
 	tests := []struct {
 		name string

@@ -444,9 +444,13 @@ func (e *NetworkError) WithCause(cause error) *NetworkError {
 // errors.Is / errors.Unwrap; it is intentionally not serialized.
 type APIError struct {
 	Problem
-	RetryAfterSeconds *int   `json:"retry_after_seconds,omitempty"`
-	RetryAfterSource  string `json:"retry_after_source,omitempty"`
-	Cause             error  `json:"-"`
+	// RetryAfterSeconds is the bounded delay recommended before another
+	// attempt. A nil value omits recovery timing from the wire envelope.
+	RetryAfterSeconds *int `json:"retry_after_seconds,omitempty"`
+	// RetryAfterSource records whether the delay came from a response header or
+	// the classifier's conservative default.
+	RetryAfterSource string `json:"retry_after_source,omitempty"`
+	Cause            error  `json:"-"`
 }
 
 // Unwrap is nil-receiver safe; see ValidationError.Unwrap.

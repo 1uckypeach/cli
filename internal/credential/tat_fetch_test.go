@@ -42,10 +42,14 @@ func (s *stubRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	if body == nil {
 		body = io.NopCloser(strings.NewReader(s.respBody))
 	}
+	header := make(http.Header)
+	if s.header != nil {
+		header = s.header.Clone()
+	}
 	return &http.Response{
 		StatusCode: s.respCode,
 		Body:       body,
-		Header:     s.header,
+		Header:     header,
 	}, nil
 }
 
@@ -204,8 +208,10 @@ func TestFetchTAT_HTTP429TypedSafeRateLimit(t *testing.T) {
 		wantCode int
 		wantLog  string
 		wantWait int
+		wantFrom string
 	}{
-		{name: "business code", body: `{"code":99991400,"error_description":"secret\u0000oauth text","log_id":"body-log"}`, header: http.Header{"Retry-After": []string{"7"}, "X-Tt-Logid": []string{"header-log"}}, wantCode: 99991400, wantLog: "body-log", wantWait: 7},
+		{name: "business code", body: `{"code":99991400,"error_description":"secret\u0000oauth text","log_id":"body-log"}`, header: http.Header{"Retry-After": []string{"7"}, "X-Tt-Logid": []string{"header-log"}}, wantCode: 99991400, wantLog: "body-log", wantWait: 7, wantFrom: "retry-after"},
+		{name: "platform reset header", body: `{"error":"too_many_requests"}`, header: http.Header{"X-Ogw-Ratelimit-Reset": []string{"8"}, "Retry-After": []string{"4"}}, wantCode: 429, wantWait: 8, wantFrom: "x-ogw-ratelimit-reset"},
 		{name: "unrelated business code", body: `{"code":20002,"msg":"secret"}`, wantCode: 429, wantWait: 1},
 		{name: "plain text", body: "secret plaintext", wantCode: 429, wantWait: 1},
 		{name: "html", body: "<html>secret</html>", wantCode: 429, wantWait: 1},
@@ -232,6 +238,9 @@ func TestFetchTAT_HTTP429TypedSafeRateLimit(t *testing.T) {
 			}
 			if apiErr.LogID != tt.wantLog || apiErr.RetryAfterSeconds == nil || *apiErr.RetryAfterSeconds != tt.wantWait {
 				t.Fatalf("metadata = log %q retry %v, want %q/%d", apiErr.LogID, apiErr.RetryAfterSeconds, tt.wantLog, tt.wantWait)
+			}
+			if tt.wantFrom != "" && apiErr.RetryAfterSource != tt.wantFrom {
+				t.Fatalf("retry source = %q, want %q", apiErr.RetryAfterSource, tt.wantFrom)
 			}
 			if rt.calls != 1 {
 				t.Fatalf("request count = %d, want 1", rt.calls)

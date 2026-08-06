@@ -62,6 +62,7 @@ Typed errors render to **stderr** as one JSON object per process exit:
 | `error.hint` | informational | actionable recovery guidance |
 | `error.log_id` | informational | upstream request id (server-side trace) |
 | `error.retryable` | wire-stable | `true` when present; omitted when `false` |
+| `error.retry_after_seconds` | per-Subtype-stable | upstream-provided minimum delay before retry; emitted when available for retryable `api/rate_limit` errors |
 | `error.param` | per-Subtype-stable | single offending parameter (`ValidationError`); see **Validation parameters** |
 | `error.params` | per-Subtype-stable | per-parameter validation detail array (`ValidationError`); see **Validation parameters** |
 | per-Subtype extension fields | per-Subtype-stable | e.g. `missing_scopes`, `console_url`, `challenge_url`; `console_url` is emitted for developer/admin recovery such as `app_scope_not_applied`, not user `missing_scope` |
@@ -284,7 +285,7 @@ esac
 ```
 
 Unknown fields are forward-compatible additions: ignore, don't fail.
-Branch only on `type`, `subtype`, `code`, `retryable`, and declared
+Branch only on `type`, `subtype`, `code`, `retryable`, `retry_after_seconds`, and declared
 extension fields — `message` is human-readable prose that may be
 reworded without notice.
 
@@ -470,11 +471,11 @@ classification.
 
 HTTP `429` and Lark business code `99991400` produce
 `api/rate_limit` with `retryable: true`. They also carry
-`retry_after_seconds` and `retry_after_source`; the source is `retry-after`
-when a valid standard `Retry-After` delta or HTTP date was present, otherwise
-it is `default` and the suggested delay is one second. Values that are
-negative, expired, malformed, larger than 86400 seconds, or overflow an
-integer are ignored. Non-standard reset headers are not interpreted.
+`retry_after_seconds` and `retry_after_source`. Lark's bounded numeric
+`X-Ogw-Ratelimit-Reset` takes precedence, followed by a valid standard
+`Retry-After` delta or HTTP date. If neither is usable, the source is `default`
+and the suggested delay is one second. Values that are negative, expired,
+malformed, larger than 86400 seconds, or overflow an integer are ignored.
 
 `retryable: true` describes a short-lived server response. It does **not**
 mean the original request—especially a write—is safe to replay. The CLI never

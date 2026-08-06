@@ -21,6 +21,7 @@ import (
 const (
 	defaultRetryAfterSeconds = 1
 	maxRetryAfterSeconds     = 24 * 60 * 60
+	retryAfterSourceOGW      = "x-ogw-ratelimit-reset"
 	retryAfterSourceHeader   = "retry-after"
 	retryAfterSourceDefault  = "default"
 	// RateLimitMessage is the stable user-facing message for short-term limits.
@@ -71,9 +72,13 @@ func ClassifyHTTPRateLimit(status int, header http.Header, result any, classifie
 	return apiErr.WithRetryable().WithRetryAfter(seconds, source)
 }
 
-// ParseRetryAfter accepts exactly one bounded Retry-After value. Unsupported
-// reset headers and ambiguous/malformed values use the conservative default.
+// ParseRetryAfter prefers Lark's numeric reset header, then accepts exactly one
+// bounded Retry-After value. Ambiguous or malformed values use the conservative
+// default.
 func ParseRetryAfter(header http.Header, now time.Time) (int, string) {
+	if seconds, ok := parsePositiveDeltaSeconds(header.Values("X-Ogw-Ratelimit-Reset")); ok {
+		return seconds, retryAfterSourceOGW
+	}
 	values := header.Values("Retry-After")
 	if len(values) != 1 {
 		return defaultRetryAfterSeconds, retryAfterSourceDefault
@@ -115,6 +120,26 @@ func ParseRetryAfter(header http.Header, now time.Time) (int, string) {
 		return defaultRetryAfterSeconds, retryAfterSourceDefault
 	}
 	return seconds, retryAfterSourceHeader
+}
+
+func parsePositiveDeltaSeconds(values []string) (int, bool) {
+	if len(values) != 1 || len(values[0]) > 128 {
+		return 0, false
+	}
+	value := strings.TrimSpace(values[0])
+	if value == "" {
+		return 0, false
+	}
+	for i := 0; i < len(value); i++ {
+		if value[i] < '0' || value[i] > '9' {
+			return 0, false
+		}
+	}
+	seconds, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || seconds <= 0 || seconds > maxRetryAfterSeconds {
+		return 0, false
+	}
+	return int(seconds), true
 }
 
 var errTrailingJSONContent = errors.New("trailing content after JSON value")
