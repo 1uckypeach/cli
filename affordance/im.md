@@ -142,7 +142,7 @@ lark-cli im +messages-resources-download --message-id om_xxx --file-key img_v3_x
 - `lark-im/references/lark-im-messages-resources-download.md`
 
 ## +messages-search
-Use this shortcut with the identity that should define message visibility to find messages across conversations by keyword or structured filters.
+Use this to find messages across conversations by keyword or structured filters.
 
 ### Examples
 
