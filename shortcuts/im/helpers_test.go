@@ -652,6 +652,7 @@ func TestShortcuts(t *testing.T) {
 		"+chat-create",
 		"+chat-list",
 		"+chat-members-list",
+		"+chat-members-add",
 		"+chat-messages-list",
 		"+chat-search",
 		"+chat-update",
