@@ -11,6 +11,7 @@ func Shortcuts() []common.Shortcut {
 		ImChatCreate,
 		ImChatList,
 		ImChatMembersList,
+		ImChatMembersAdd,
 		ImChatMessageList,
 		ImChatSearch,
 		ImChatUpdate,
