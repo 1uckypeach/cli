@@ -739,6 +739,7 @@ type meetingTimelineEntry struct {
 	subject     string
 	description string
 	details     []string
+	isAction    bool
 }
 
 func buildMeetingEventTimeline(events []interface{}) meetingTimeline {
@@ -864,7 +865,7 @@ func documentContextEntries(payload map[string]interface{}, fallbackTime time.Ti
 		if subject == "" {
 			subject = "未知用户"
 		}
-		entries = append(entries, newTimelineEntry(when, ok, sequence, subject, description, details))
+		entries = append(entries, newTimelineActionEntry(when, ok, sequence, subject, description, details))
 	}
 	return entries
 }
@@ -904,7 +905,7 @@ func describeDocumentContextItem(item map[string]interface{}) (string, []string,
 	}
 }
 
-func describeCommentFocus(item, comment map[string]interface{}) (string, []string, bool) {
+func describeCommentFocus(_ map[string]interface{}, comment map[string]interface{}) (string, []string, bool) {
 	commentID := strings.TrimSpace(common.GetString(comment, "comment_id"))
 	focused, hasFocused := comment["focused"].(bool)
 	if !hasFocused {
@@ -921,11 +922,7 @@ func describeCommentFocus(item, comment map[string]interface{}) (string, []strin
 	default:
 		description = "取消评论聚焦"
 	}
-	var details []string
-	if title := strings.TrimSpace(common.GetString(common.GetMap(item, "share_doc"), "title")); title != "" {
-		details = append(details, "文档："+title)
-	}
-	return description, details, true
+	return description, nil, true
 }
 
 func describeSectionLocation(section map[string]interface{}) (string, []string, bool) {
@@ -1142,6 +1139,12 @@ func newTimelineEntry(when time.Time, hasWhen bool, sequence *int, subject, desc
 	return entry
 }
 
+func newTimelineActionEntry(when time.Time, hasWhen bool, sequence *int, subject, description string, details []string) meetingTimelineEntry {
+	entry := newTimelineEntry(when, hasWhen, sequence, subject, description, details)
+	entry.isAction = true
+	return entry
+}
+
 func parseFlexibleTime(raw string) (time.Time, bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -1182,7 +1185,7 @@ func renderMeetingEventsPretty(timeline meetingTimeline) string {
 				}
 				continue
 			}
-			if needsColon(entry.description) {
+			if !entry.isAction && needsColon(entry.description) {
 				fmt.Fprintf(&b, "%s: %s\n", escapePrettyText(entry.subject), escapePrettyText(entry.description))
 			} else {
 				fmt.Fprintf(&b, "%s %s\n", escapePrettyText(entry.subject), escapePrettyText(entry.description))
@@ -1271,13 +1274,7 @@ func needsColon(description string) bool {
 			!strings.HasPrefix(description, "被移出") &&
 			!strings.HasPrefix(description, "会议结束") &&
 			!strings.HasPrefix(description, "开始共享") &&
-			!strings.HasPrefix(description, "结束共享") &&
-			!strings.HasPrefix(description, "聚焦评论") &&
-			!strings.HasPrefix(description, "取消聚焦") &&
-			!strings.HasPrefix(description, "取消评论聚焦") &&
-			!strings.HasPrefix(description, "定位到章节") &&
-			!strings.HasPrefix(description, "打开 ") &&
-			!strings.HasPrefix(description, "关闭 ")
+			!strings.HasPrefix(description, "结束共享")
 	}
 }
 

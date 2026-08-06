@@ -230,8 +230,8 @@ lark-cli drive +list-replies \
 
 | action | element_type | token 条件 | 精确命令 |
 | --- | --- | --- | --- |
-| `open` | `image` | `element_token` 非空 | `lark-cli docs +media-preview --token "<element_token>" --output "<explicit-path>"` |
-| `open` | `whiteboard` | `element_token` 非空 | `lark-cli docs +media-download --type whiteboard --token "<element_token>" --output "<explicit-path>"` |
+| `open` | `image` | `element_token` 非空 | `lark-cli docs +media-preview --as <same_identity> --token "<element_token>" --output "<explicit-path>"` |
+| `open` | `whiteboard` | `element_token` 非空 | `lark-cli docs +media-download --as <same_identity> --type whiteboard --token "<element_token>" --output "<explicit-path>"` |
 | `close` | `image`/`whiteboard` | 任意 | 零调用；pretty 只记录预览关闭 |
 | 未知 | 任意 | 任意 | 零调用；不生成 pretty 条目，只保留 raw |
 | `open` | 未知/空 | 任意 | 零调用；禁止把原值透传到 `--type` |

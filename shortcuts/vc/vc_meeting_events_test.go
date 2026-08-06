@@ -1350,7 +1350,7 @@ func TestDocumentContextChangedTimeline_KnownItems(t *testing.T) {
 			},
 			wantActorID:     "u-comment",
 			wantDescription: "聚焦评论 comment-1",
-			wantDetails:     []string{"文档：Design Doc"},
+			wantDetails:     nil,
 		},
 		{
 			name: "section location",
@@ -1410,6 +1410,9 @@ func TestDocumentContextChangedTimeline_KnownItems(t *testing.T) {
 			}
 			if entries[0].description != tt.wantDescription {
 				t.Fatalf("timeline description = %q, want %q", entries[0].description, tt.wantDescription)
+			}
+			if !entries[0].isAction {
+				t.Fatal("document context entry should keep its action formatting")
 			}
 			if !reflect.DeepEqual(entries[0].details, tt.wantDetails) {
 				t.Fatalf("timeline details = %#v, want %#v", entries[0].details, tt.wantDetails)
@@ -1936,15 +1939,31 @@ func TestNeedsColon(t *testing.T) {
 		{description: "加入了会议", want: false},
 		{description: "离开了会议", want: false},
 		{description: "开始共享「文档」", want: false},
-		{description: "聚焦评论 comment-1", want: false},
-		{description: "定位到章节「A > B」", want: false},
-		{description: "打开 image 预览 token", want: false},
+		{description: "聚焦评论 comment-1", want: true},
+		{description: "定位到章节「A > B」", want: true},
+		{description: "打开 image 预览 token", want: true},
 		{description: "[text] hello", want: true},
 	}
 	for _, tt := range tests {
 		if got := needsColon(tt.description); got != tt.want {
 			t.Fatalf("needsColon(%q) = %v, want %v", tt.description, got, tt.want)
 		}
+	}
+}
+
+func TestRenderMeetingEventsPretty_DoesNotInferActionFromTranscriptText(t *testing.T) {
+	sequence := 0
+	timeline := meetingTimeline{entries: []meetingTimelineEntry{
+		newTimelineEntry(time.Time{}, false, &sequence, "Alice", "打开 image 预览不是操作事件", nil),
+		newTimelineActionEntry(time.Time{}, false, &sequence, "Bob", "打开 image 预览 token", nil),
+	}}
+
+	got := renderMeetingEventsPretty(timeline)
+	if !strings.Contains(got, "Alice: 打开 image 预览不是操作事件") {
+		t.Fatalf("transcript-like text should retain colon: %s", got)
+	}
+	if !strings.Contains(got, "Bob 打开 image 预览 token") {
+		t.Fatalf("document action should omit colon: %s", got)
 	}
 }
 
