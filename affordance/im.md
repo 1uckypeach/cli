@@ -315,8 +315,8 @@ lark-cli im +feed-group-query-item --as user --feed-group-id ofg_xxx --feed-id o
 ### Skills
 - `lark-im/references/lark-im-feed-group-query-item.md`
 
-## chat.members create
-Use this raw method for the skill's two-step recovery flow when a bot-created group cannot invite users because they are invisible to the bot.
+## +chat-members-add
+Use this shortcut for the skill's two-step recovery flow when a bot-created group cannot invite users because they are invisible to the bot. Prefer this over the raw `chat.members create` method — it takes the same request and reports the same `invalid_id_list`, without requiring two separate JSON blobs.
 
 ### Prerequisites
 - Create the group first, then add members as a user who is already in that group.
@@ -325,10 +325,14 @@ Use this raw method for the skill's two-step recovery flow when a bot-created gr
 
 **Add reachable users and report invalid ids separately**
 ```bash
-lark-cli im chat.members create --params '{"chat_id":"oc_xxx","member_id_type":"open_id","succeed_type":1}' --data '{"id_list":["ou_aaa","ou_bbb"]}' --as user
+lark-cli im +chat-members-add --chat-id oc_xxx --users ou_aaa,ou_bbb
 ```
 
+### Avoid when
+- The user ID must be in `union_id`/`user_id` format rather than `open_id` — use the raw `chat.members create` method instead.
+
 ### Skills
+- `lark-im/references/lark-im-chat-members-add.md`
 - `lark-im/references/lark-im-chat-create.md`
 - `lark-im/references/lark-im-chat-identity.md`
 
