@@ -28,6 +28,11 @@ const (
 	HeaderAgentTrace  = "X-Agent-Trace"
 	HeaderAgentName   = "X-Agent-Name"
 
+	// HeaderPersistLane pins requests to a specific service lane. "GRAY" routes
+	// to the gray/staging deployment during integration testing.
+	HeaderPersistLane = "Rpc-Persist-Lane-C-Lark-Channel"
+	PersistLaneGray   = "GRAY"
+
 	SourceValue = "lark-cli"
 
 	HeaderUserAgent = "User-Agent"
@@ -59,7 +64,7 @@ func BaseSecurityHeaders() http.Header {
 	if v := envvars.AgentName(); v != "" {
 		h.Set(HeaderAgentName, v)
 	}
-	h.Set("x-tt-env", "ppe_meeting_artifacts")
+	h.Set(HeaderPersistLane, PersistLaneGray)
 	return h
 }
 
