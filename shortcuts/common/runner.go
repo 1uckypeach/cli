@@ -38,26 +38,29 @@ import (
 
 // RuntimeContext provides helpers for shortcut execution.
 type RuntimeContext struct {
-	ctx             context.Context // from cmd.Context(), propagated through the call chain
-	Config          *core.CliConfig
-	Cmd             *cobra.Command
-	Format          string
-	JqExpr          string                            // --jq expression; empty = no filter
-	outputErrOnce   sync.Once                         // guards first-error capture in Out()/OutFormat()
-	outputErr       error                             // deferred error from jq filtering; written at most once
-	botOnly         bool                              // set by framework for bot-only shortcuts
-	resolvedAs      core.Identity                     // effective identity resolved by framework
-	declaredScopes  []string                          // shortcut-declared scopes for the resolved identity
-	reportOnce      sync.Once                         // lazily initializes the command-scoped upload report budget
-	reportBudget    *fileevent.Budget                 // shared by every upload report in this command
-	Factory         *cmdutil.Factory                  // injected by framework
-	apiClientFunc   func() (*client.APIClient, error) // sync.OnceValues; initialized in newRuntimeContext
-	botInfoFunc     func() (*BotInfo, error)          // sync.OnceValues; lazy bot identity from /bot/v3/info
-	larkSDK         *lark.Client                      // eagerly initialized in mountDeclarative
-	stdinConsumed   bool                              // set when an Input flag has consumed stdin (`-`); guards against a second flag also using `-` within the same call
-	inputResolved   map[string]bool                   // flags whose value was replaced by @file / stdin content in resolveInputFlags; see InputResolvedFromSource
-	contractSession *imcontract.Session
-	readSession     *imcontract.ReadSession
+	ctx               context.Context // from cmd.Context(), propagated through the call chain
+	Config            *core.CliConfig
+	Cmd               *cobra.Command
+	Format            string
+	JqExpr            string                            // --jq expression; empty = no filter
+	outputErrOnce     sync.Once                         // guards first-error capture in Out()/OutFormat()
+	outputErr         error                             // deferred error from jq filtering; written at most once
+	botOnly           bool                              // set by framework for bot-only shortcuts
+	resolvedAs        core.Identity                     // effective identity resolved by framework
+	declaredScopes    []string                          // shortcut-declared scopes for the resolved identity
+	reportOnce        sync.Once                         // lazily initializes the command-scoped upload report budget
+	reportBudget      *fileevent.Budget                 // shared by every upload report in this command
+	Factory           *cmdutil.Factory                  // injected by framework
+	apiClientFunc     func() (*client.APIClient, error) // sync.OnceValues; initialized in newRuntimeContext
+	botInfoFunc       func() (*BotInfo, error)          // sync.OnceValues; lazy bot identity from /bot/v3/info
+	larkSDK           *lark.Client                      // eagerly initialized in mountDeclarative
+	stdinConsumed     bool                              // set when an Input flag has consumed stdin (`-`); guards against a second flag also using `-` within the same call
+	inputResolved     map[string]bool                   // flags whose value was replaced by @file / stdin content in resolveInputFlags; see InputResolvedFromSource
+	contractSession   *imcontract.Session
+	readSession       *imcontract.ReadSession
+	identityWarnOnce  sync.Once // emits the defaulted-identity warning at most once
+	identityDefaulted bool      // dual-identity IM write ran without explicit --as
+	readNotice        map[string]interface{}
 }
 
 // ── Identity ──
@@ -807,7 +810,40 @@ func (ctx *RuntimeContext) newEmitter() *output.Emitter {
 		CommandPath:    ctx.Cmd.CommandPath(),
 		Identity:       string(ctx.As()),
 		ColorEnabled:   streams.OutIsTerminal,
-		NoticeProvider: output.GetNotice,
+		NoticeProvider: ctx.notice,
+	})
+}
+
+func (ctx *RuntimeContext) notice() map[string]interface{} {
+	base := output.GetNotice()
+	if ctx.identityDefaulted {
+		base = imcontract.WithIdentityDefaultedNotice(base, string(ctx.As()))
+	}
+	return mergeNoticeMaps(base, ctx.readNotice)
+}
+
+func mergeNoticeMaps(base, extra map[string]interface{}) map[string]interface{} {
+	if len(base) == 0 && len(extra) == 0 {
+		return nil
+	}
+	merged := make(map[string]interface{}, len(base)+len(extra))
+	for key, value := range base {
+		merged[key] = value
+	}
+	for key, value := range extra {
+		merged[key] = value
+	}
+	return merged
+}
+
+func (ctx *RuntimeContext) warnIdentityDefaulted() {
+	if !ctx.identityDefaulted {
+		return
+	}
+	ctx.identityWarnOnce.Do(func() {
+		fmt.Fprintf(ctx.IO().ErrOut, "warning: %s: %s\n",
+			imcontract.IdentityDefaultedNoticeKey,
+			imcontract.IdentityDefaultedMessage(string(ctx.As())))
 	})
 }
 
@@ -902,6 +938,14 @@ func (ctx *RuntimeContext) emitFinalized(
 		resultExit = result.ExitCode
 	}
 	if ctx.readSession != nil {
+		var pagination *output.PaginationMeta
+		if meta != nil {
+			pagination = meta.Pagination
+		}
+		if err := ctx.readSession.ObserveOutputPagination(pagination, ctx.paginationStartedFromToken()); err != nil {
+			ctx.outputErrOnce.Do(func() { ctx.outputErr = err })
+			return
+		}
 		result, err := ctx.readSession.Finalize(data)
 		if err != nil {
 			ctx.outputErrOnce.Do(func() { ctx.outputErr = err })
@@ -910,6 +954,7 @@ func (ctx *RuntimeContext) emitFinalized(
 		data = result.Data
 		ok = result.OK
 		meta = mergeIMReadMeta(meta, result.Meta)
+		ctx.readNotice = result.Notice
 		hint = result.Hint
 		resultExit = result.ExitCode
 		if result.Error != nil {
@@ -917,6 +962,7 @@ func (ctx *RuntimeContext) emitFinalized(
 		}
 		resultCause = result.Cause
 	}
+	ctx.warnIdentityDefaulted()
 
 	// Legacy OutFormat falls back to the JSON envelope when a command does not
 	// provide a pretty renderer. Preserve that behavior without re-finalizing
@@ -953,6 +999,7 @@ func (ctx *RuntimeContext) emitFinalized(
 				return
 			}
 			if ctx.JqExpr != "" {
+				fmt.Fprintln(ctx.IO().ErrOut, "error: jq projection failed after the IM write completed; inspect --jq")
 				ctx.writeIMJQFallback(contractResult)
 				return
 			}
@@ -1267,6 +1314,7 @@ func newRuntimeContext(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, conf
 		switch {
 		case contract.Strategy.Kind.IsWrite():
 			rctx.contractSession = imcontract.NewSession(contract)
+			rctx.identityDefaulted = shortcutIdentityWasDefaulted(cmd, f, s)
 		case contract.Strategy.Kind.IsRead():
 			readSession, readErr := imcontract.NewReadSession(contract, imcontract.ReadOptions{
 				FullRead: imContractFullRead(cmd, contract.Key),
@@ -1294,6 +1342,15 @@ func newRuntimeContext(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, conf
 	return rctx, nil
 }
 
+func shortcutIdentityWasDefaulted(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut) bool {
+	if cmd == nil || f == nil || s == nil || cmd.Flags().Changed("as") ||
+		!f.IdentityAutoDetected || f.ResolveStrictMode(cmd.Context()).IsActive() {
+		return false
+	}
+	return slices.Contains(s.AuthTypes, string(core.AsUser)) &&
+		slices.Contains(s.AuthTypes, string(core.AsBot))
+}
+
 func shortcutBoolFlag(cmd *cobra.Command, name string) bool {
 	if cmd == nil || cmd.Flags().Lookup(name) == nil {
 		return false
@@ -1317,6 +1374,13 @@ func imContractFullRead(cmd *cobra.Command, key imcontract.ContractKey) bool {
 	return err == nil && limit == 0
 }
 
+func (ctx *RuntimeContext) paginationStartedFromToken() bool {
+	if ctx == nil || ctx.Cmd == nil || ctx.Cmd.Flags().Lookup("page-token") == nil {
+		return false
+	}
+	return strings.TrimSpace(ctx.Str("page-token")) != ""
+}
+
 func mergeIMReadMeta(base, contract *output.Meta) *output.Meta {
 	if base == nil && contract == nil {
 		return nil
@@ -1326,10 +1390,14 @@ func mergeIMReadMeta(base, contract *output.Meta) *output.Meta {
 		merged = *base
 	}
 	if contract != nil {
-		merged.Complete = contract.Complete
-		merged.PagesFetched = contract.PagesFetched
-		merged.StopReason = contract.StopReason
-		merged.NextPageToken = contract.NextPageToken
+		merged.Pagination = contract.Pagination
+		if merged.Pagination != nil {
+			pagination := *merged.Pagination
+			if base != nil && base.Pagination != nil {
+				pagination.Items = base.Pagination.Items
+			}
+			merged.Pagination = &pagination
+		}
 	}
 	return &merged
 }
@@ -1482,13 +1550,15 @@ func handleShortcutDryRun(f *cmdutil.Factory, rctx *RuntimeContext, s *Shortcut)
 		// Same data.context contract as the service/api dry-run paths.
 		dryResult.Context(rctx.Config.AppID, rctx.UserOpenId())
 	}
+	rctx.warnIdentityDefaulted()
 	return cmdutil.WriteDryRun(dryResult, cmdutil.DryRunOutputOptions{
-		Format:      rctx.Format,
-		JqExpr:      rctx.JqExpr,
-		CommandPath: rctx.Cmd.CommandPath(),
-		Identity:    rctx.As(),
-		Out:         f.IOStreams.Out,
-		ErrOut:      f.IOStreams.ErrOut,
+		Format:         rctx.Format,
+		JqExpr:         rctx.JqExpr,
+		CommandPath:    rctx.Cmd.CommandPath(),
+		Identity:       rctx.As(),
+		Out:            f.IOStreams.Out,
+		ErrOut:         f.IOStreams.ErrOut,
+		NoticeProvider: rctx.notice,
 	})
 }
 
