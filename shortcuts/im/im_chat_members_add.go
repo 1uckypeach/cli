@@ -85,7 +85,7 @@ func emitChatMembersAddResult(runtime *common.RuntimeContext, chatID string, req
 		"chat_id":         chatID,
 		"total":           len(requested),
 		"success_count":   len(succeeded),
-		"failure_count":   len(invalid),
+		"failure_count":   len(requested) - len(succeeded),
 		"succeeded_ids":   succeeded,
 		"invalid_id_list": invalid,
 	}

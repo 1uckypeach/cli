@@ -5,6 +5,7 @@ package im
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -200,6 +201,80 @@ func TestEmitChatMembersAddResultPartialFailure(t *testing.T) {
 	if !strings.Contains(errOut, "warning: 1 member(s) could not be added: ou_bad") {
 		t.Fatalf("stderr = %s, want warning line", errOut)
 	}
+}
+
+func TestEmitChatMembersAddResultInvariantHoldsUnderServerAnomalies(t *testing.T) {
+	cases := []struct {
+		name      string
+		requested []string
+		data      map[string]interface{}
+	}{
+		{
+			name:      "duplicate requested id echoed once in invalid_id_list",
+			requested: []string{"ou_a", "ou_a"},
+			data: map[string]interface{}{
+				"invalid_id_list": []interface{}{"ou_a"},
+			},
+		},
+		{
+			name:      "invalid_id_list contains an id outside requested",
+			requested: []string{"ou_a", "ou_bad"},
+			data: map[string]interface{}{
+				"invalid_id_list": []interface{}{"ou_bad", "ou_not_requested"},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := newChatMembersAddCmd(t)
+			rt := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+				t.Fatalf("must not call API")
+				return nil, nil
+			}))
+			setRuntimeField(t, rt, "Cmd", cmd)
+
+			err := emitChatMembersAddResult(rt, "oc_x", tc.requested, tc.data)
+			var pfErr *output.PartialFailureError
+			if !errors.As(err, &pfErr) {
+				t.Fatalf("emitChatMembersAddResult() error = %T %v, want partial failure", err, err)
+			}
+
+			out := rt.Factory.IOStreams.Out.(interface{ String() string }).String()
+			total := len(tc.requested)
+			wantTotal := fmt.Sprintf(`"total": %d`, total)
+			if !strings.Contains(out, wantTotal) {
+				t.Fatalf("stdout = %s, want %q", out, wantTotal)
+			}
+
+			successCount := extractIntField(t, out, "success_count")
+			failureCount := extractIntField(t, out, "failure_count")
+			if successCount+failureCount != total {
+				t.Fatalf("success_count(%d) + failure_count(%d) = %d, want total %d", successCount, failureCount, successCount+failureCount, total)
+			}
+		})
+	}
+}
+
+// extractIntField pulls the integer value of a `"field": N` pair out of the
+// JSON output produced by runtime.Out/OutPartialFailure for assertions above.
+func extractIntField(t *testing.T, out, field string) int {
+	t.Helper()
+	marker := fmt.Sprintf(`"%s": `, field)
+	idx := strings.Index(out, marker)
+	if idx == -1 {
+		t.Fatalf("stdout = %s, missing field %q", out, field)
+	}
+	rest := out[idx+len(marker):]
+	end := strings.IndexAny(rest, ",\n}")
+	if end == -1 {
+		t.Fatalf("stdout = %s, could not parse field %q", out, field)
+	}
+	var n int
+	if _, err := fmt.Sscanf(strings.TrimSpace(rest[:end]), "%d", &n); err != nil {
+		t.Fatalf("failed to parse int for field %q: %v", field, err)
+	}
+	return n
 }
 
 func joinComma(ids []string) string {
