@@ -10,6 +10,8 @@ type Envelope struct {
 	DryRun             bool                   `json:"dry_run,omitempty"`
 	Data               interface{}            `json:"data,omitempty"`
 	Meta               *Meta                  `json:"meta,omitempty"`
+	Error              interface{}            `json:"error,omitempty"`
+	Hint               string                 `json:"hint,omitempty"`
 	ContentSafetyAlert interface{}            `json:"_content_safety_alert,omitempty"`
 	Notice             map[string]interface{} `json:"_notice,omitempty"`
 }
@@ -24,12 +26,16 @@ type Envelope struct {
 // zero, and without omitempty it would pollute every other domain's meta. Every
 // non-batch command leaves them nil, so this stays invisible outside batch use.
 type Meta struct {
-	Count       int             `json:"count,omitempty"`
-	Rollback    string          `json:"rollback,omitempty"`
-	Pagination  *PaginationMeta `json:"pagination,omitempty"`
-	Total       *int            `json:"total,omitempty"`
-	HitCount    *int            `json:"hit_count,omitempty"`
-	MissedCount *int            `json:"missed_count,omitempty"`
+	Count         int             `json:"count,omitempty"`
+	Rollback      string          `json:"rollback,omitempty"`
+	Pagination    *PaginationMeta `json:"pagination,omitempty"`
+	Total         *int            `json:"total,omitempty"`
+	HitCount      *int            `json:"hit_count,omitempty"`
+	MissedCount   *int            `json:"missed_count,omitempty"`
+	Complete      *bool           `json:"complete,omitempty"`
+	PagesFetched  int             `json:"pages_fetched,omitempty"`
+	StopReason    string          `json:"stop_reason,omitempty"`
+	NextPageToken string          `json:"next_page_token,omitempty"`
 }
 
 // PaginationMeta reports how a paginated read ended.
