@@ -50,13 +50,7 @@ var imAffordanceExamples = []imAffordanceExample{
 	{method: "+feed-group-list", command: "lark-cli im +feed-group-list --as user", source: "lark-im/references/lark-im-feed-group-list.md"},
 	{method: "+feed-group-list-item", command: "lark-cli im +feed-group-list-item --as user --feed-group-id ofg_xxx", source: "lark-im/references/lark-im-feed-group-list-item.md"},
 	{method: "+feed-group-query-item", command: "lark-cli im +feed-group-query-item --as user --feed-group-id ofg_xxx --feed-id oc_a,oc_b", source: "lark-im/references/lark-im-feed-group-query-item.md"},
-	{
-		method:        "chat.members.create",
-		command:       `lark-cli im chat.members create --params '{"chat_id":"oc_xxx","member_id_type":"open_id","succeed_type":1}' --data '{"id_list":["ou_aaa","ou_bbb"]}' --as user`,
-		source:        "lark-im/references/lark-im-chat-create.md",
-		sourceCommand: `lark-cli im chat.members create --params '{"chat_id":"<chat_id from step 2>","member_id_type":"open_id","succeed_type":1}' --data '{"id_list":["ou_aaa","ou_bbb"]}' --as user`,
-		derivation:    "materialize-chat-id",
-	},
+	{method: "+chat-members-add", command: "lark-cli im +chat-members-add --chat-id oc_xxx --users ou_aaa,ou_bbb", source: "lark-im/references/lark-im-chat-members-add.md"},
 	{method: "feed.groups.create", command: `lark-cli im feed.groups create --as user --data '{"feed_group_creator":{"type":"normal","name":"Releases"}}'`, source: "lark-im/references/lark-im-feed-groups.md"},
 	{method: "feed.groups.update", command: `lark-cli im feed.groups update --as user --params '{"feed_group_id":"ofg_xxx"}' --data '{"feed_group_updater":{"name":"测试标签名称","update_fields":[1]}}'`, source: "lark-im/references/lark-im-feed-groups.md"},
 	{method: "feed.groups.delete", command: `lark-cli im feed.groups delete --as user --params '{"feed_group_id":"ofg_xxx"}'`, source: "lark-im/references/lark-im-feed-groups.md"},
@@ -103,8 +97,8 @@ func TestIMAffordanceExamplesTraceToCurrentSkill(t *testing.T) {
 			shortcutCount++
 		}
 	}
-	if shortcutCount != 21 || len(imAffordanceExamples)-shortcutCount != 12 {
-		t.Fatalf("audited split = %d shortcuts / %d raw, want 21 / 12", shortcutCount, len(imAffordanceExamples)-shortcutCount)
+	if shortcutCount != 22 || len(imAffordanceExamples)-shortcutCount != 11 {
+		t.Fatalf("audited split = %d shortcuts / %d raw, want 22 / 11", shortcutCount, len(imAffordanceExamples)-shortcutCount)
 	}
 	for method := range parsedDomain.methods {
 		if !audited[method] {
