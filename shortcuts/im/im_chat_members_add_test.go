@@ -259,6 +259,112 @@ func TestEmitChatMembersAddResultInvariantHoldsUnderServerAnomalies(t *testing.T
 	}
 }
 
+func TestEmitChatMembersAddResultNotExistedIDExcludedFromSucceeded(t *testing.T) {
+	cmd := newChatMembersAddCmd(t)
+	rt := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		t.Fatalf("must not call API")
+		return nil, nil
+	}))
+	setRuntimeField(t, rt, "Cmd", cmd)
+
+	err := emitChatMembersAddResult(rt, "oc_x", []string{"ou_a", "ou_ghost"}, map[string]interface{}{
+		"not_existed_id_list": []interface{}{"ou_ghost"},
+	})
+	var pfErr *output.PartialFailureError
+	if !errors.As(err, &pfErr) {
+		t.Fatalf("emitChatMembersAddResult() error = %T %v, want partial failure", err, err)
+	}
+	if pfErr.Code != output.ExitAPI {
+		t.Fatalf("partial failure exit code = %d, want %d (ExitAPI)", pfErr.Code, output.ExitAPI)
+	}
+	out := rt.Factory.IOStreams.Out.(interface{ String() string }).String()
+	for _, want := range []string{
+		`"ok": false`,
+		`"success_count": 1`,
+		`"failure_count": 1`,
+		`"not_existed_id_list"`,
+		`ou_ghost`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("stdout = %s, want %q", out, want)
+		}
+	}
+	// succeeded_ids must contain ou_a but not ou_ghost.
+	succeededSection := extractArrayField(t, out, "succeeded_ids")
+	if !strings.Contains(succeededSection, "ou_a") {
+		t.Fatalf("succeeded_ids section = %s, want ou_a present", succeededSection)
+	}
+	if strings.Contains(succeededSection, "ou_ghost") {
+		t.Fatalf("succeeded_ids section = %s, want ou_ghost absent", succeededSection)
+	}
+	errOut := rt.Factory.IOStreams.ErrOut.(interface{ String() string }).String()
+	if !strings.Contains(errOut, "warning: 1 member(s) could not be added: ou_ghost") {
+		t.Fatalf("stderr = %s, want warning line", errOut)
+	}
+}
+
+func TestEmitChatMembersAddResultPendingApprovalIDExcludedFromSucceeded(t *testing.T) {
+	cmd := newChatMembersAddCmd(t)
+	rt := newUserShortcutRuntime(t, shortcutRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		t.Fatalf("must not call API")
+		return nil, nil
+	}))
+	setRuntimeField(t, rt, "Cmd", cmd)
+
+	err := emitChatMembersAddResult(rt, "oc_x", []string{"ou_a", "ou_pending"}, map[string]interface{}{
+		"pending_approval_id_list": []interface{}{"ou_pending"},
+	})
+	var pfErr *output.PartialFailureError
+	if !errors.As(err, &pfErr) {
+		t.Fatalf("emitChatMembersAddResult() error = %T %v, want partial failure", err, err)
+	}
+	if pfErr.Code != output.ExitAPI {
+		t.Fatalf("partial failure exit code = %d, want %d (ExitAPI)", pfErr.Code, output.ExitAPI)
+	}
+	out := rt.Factory.IOStreams.Out.(interface{ String() string }).String()
+	for _, want := range []string{
+		`"ok": false`,
+		`"success_count": 1`,
+		`"failure_count": 1`,
+		`"pending_approval_ids"`,
+		`ou_pending`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("stdout = %s, want %q", out, want)
+		}
+	}
+	succeededSection := extractArrayField(t, out, "succeeded_ids")
+	if !strings.Contains(succeededSection, "ou_a") {
+		t.Fatalf("succeeded_ids section = %s, want ou_a present", succeededSection)
+	}
+	if strings.Contains(succeededSection, "ou_pending") {
+		t.Fatalf("succeeded_ids section = %s, want ou_pending absent", succeededSection)
+	}
+	errOut := rt.Factory.IOStreams.ErrOut.(interface{ String() string }).String()
+	if !strings.Contains(errOut, "warning: 1 member(s) could not be added: ou_pending") {
+		t.Fatalf("stderr = %s, want warning line", errOut)
+	}
+}
+
+// extractArrayField pulls the raw contents between the `[` and matching `]`
+// of a `"field": [...]` array out of the JSON output produced by
+// runtime.Out/OutPartialFailure, so assertions can check array membership
+// without depending on the (alphabetically sorted) key ordering.
+func extractArrayField(t *testing.T, out, field string) string {
+	t.Helper()
+	marker := fmt.Sprintf(`"%s": [`, field)
+	idx := strings.Index(out, marker)
+	if idx == -1 {
+		t.Fatalf("stdout = %s, missing array field %q", out, field)
+	}
+	start := idx + len(marker)
+	end := strings.Index(out[start:], "]")
+	if end == -1 {
+		t.Fatalf("stdout = %s, could not find closing bracket for field %q", out, field)
+	}
+	return out[start : start+end]
+}
+
 // extractIntField pulls the integer value of a `"field": N` pair out of the
 // JSON output produced by runtime.Out/OutPartialFailure for assertions above.
 func extractIntField(t *testing.T, out, field string) int {

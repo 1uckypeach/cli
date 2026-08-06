@@ -64,39 +64,55 @@ func collectChatMembersToAdd(runtime *common.RuntimeContext) ([]string, []string
 
 // emitChatMembersAddResult builds the ledger envelope (total/success/failure
 // counts plus succeeded_ids) from the requested id list and the server's
-// invalid_id_list, then writes it via the ok:false partial-failure path when
-// any ID failed — the same convention +feed-shortcut-create already
-// established for batch writes in this domain (see addFeedShortcutWriteLedger
-// in shortcuts/im/helpers.go).
+// invalid_id_list/not_existed_id_list/pending_approval_id_list, then writes
+// it via the ok:false partial-failure path when any ID failed — the same
+// convention +feed-shortcut-create already established for batch writes in
+// this domain (see addFeedShortcutWriteLedger in shortcuts/im/helpers.go).
+//
+// All three server lists represent an id that did NOT become a real member
+// of the chat: invalid_id_list (departed/invisible/app-not-activated),
+// not_existed_id_list (id does not exist), and pending_approval_id_list
+// (awaiting owner/admin approval — not yet a member). An id present in any
+// of them must not be counted as succeeded.
 func emitChatMembersAddResult(runtime *common.RuntimeContext, chatID string, requested []string, data map[string]interface{}) error {
 	if data == nil {
 		data = map[string]interface{}{}
 	}
 	invalid := stringsFromAny(data["invalid_id_list"])
+	notExisted := stringsFromAny(data["not_existed_id_list"])
+	pendingApproval := stringsFromAny(data["pending_approval_id_list"])
 
-	invalidSet := make(map[string]struct{}, len(invalid))
-	for _, id := range invalid {
-		invalidSet[id] = struct{}{}
+	failedSet := make(map[string]struct{}, len(invalid)+len(notExisted)+len(pendingApproval))
+	var failedIDs []string
+	for _, list := range [][]string{invalid, notExisted, pendingApproval} {
+		for _, id := range list {
+			if _, seen := failedSet[id]; !seen {
+				failedSet[id] = struct{}{}
+				failedIDs = append(failedIDs, id)
+			}
+		}
 	}
 	succeeded := make([]string, 0, len(requested))
 	for _, id := range requested {
-		if _, failed := invalidSet[id]; failed {
+		if _, failed := failedSet[id]; failed {
 			continue
 		}
 		succeeded = append(succeeded, id)
 	}
 
 	outData := map[string]interface{}{
-		"chat_id":         chatID,
-		"total":           len(requested),
-		"success_count":   len(succeeded),
-		"failure_count":   len(requested) - len(succeeded),
-		"succeeded_ids":   succeeded,
-		"invalid_id_list": invalid,
+		"chat_id":              chatID,
+		"total":                len(requested),
+		"success_count":        len(succeeded),
+		"failure_count":        len(requested) - len(succeeded),
+		"succeeded_ids":        succeeded,
+		"invalid_id_list":      invalid,
+		"not_existed_id_list":  notExisted,
+		"pending_approval_ids": pendingApproval,
 	}
 
-	if len(invalid) > 0 {
-		fmt.Fprintf(runtime.IO().ErrOut, "warning: %d member(s) could not be added: %s\n", len(invalid), strings.Join(invalid, ", "))
+	if len(invalid) > 0 || len(notExisted) > 0 || len(pendingApproval) > 0 {
+		fmt.Fprintf(runtime.IO().ErrOut, "warning: %d member(s) could not be added: %s\n", len(failedIDs), strings.Join(failedIDs, ", "))
 		return runtime.OutPartialFailure(outData, nil)
 	}
 	runtime.Out(outData, nil)
