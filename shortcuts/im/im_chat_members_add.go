@@ -4,6 +4,7 @@
 package im
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
@@ -54,4 +55,62 @@ func collectChatMembersToAdd(runtime *common.RuntimeContext) ([]string, []string
 		return nil, nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--users or --bots is required (at least one)").WithParam("--users")
 	}
 	return users, bots, nil
+}
+
+// emitChatMembersAddResult builds the ledger envelope (total/success/failure
+// counts plus succeeded_ids) from the requested id list and the server's
+// invalid_id_list, then writes it via the ok:false partial-failure path when
+// any ID failed — the same convention +feed-shortcut-create already
+// established for batch writes in this domain (see addFeedShortcutWriteLedger
+// in shortcuts/im/helpers.go).
+func emitChatMembersAddResult(runtime *common.RuntimeContext, chatID string, requested []string, data map[string]interface{}) error {
+	if data == nil {
+		data = map[string]interface{}{}
+	}
+	invalid := stringsFromAny(data["invalid_id_list"])
+
+	invalidSet := make(map[string]struct{}, len(invalid))
+	for _, id := range invalid {
+		invalidSet[id] = struct{}{}
+	}
+	succeeded := make([]string, 0, len(requested))
+	for _, id := range requested {
+		if _, failed := invalidSet[id]; failed {
+			continue
+		}
+		succeeded = append(succeeded, id)
+	}
+
+	outData := map[string]interface{}{
+		"chat_id":         chatID,
+		"total":           len(requested),
+		"success_count":   len(succeeded),
+		"failure_count":   len(invalid),
+		"succeeded_ids":   succeeded,
+		"invalid_id_list": invalid,
+	}
+
+	if len(invalid) > 0 {
+		fmt.Fprintf(runtime.IO().ErrOut, "warning: %d member(s) could not be added: %s\n", len(invalid), strings.Join(invalid, ", "))
+		return runtime.OutPartialFailure(outData, nil)
+	}
+	runtime.Out(outData, nil)
+	return nil
+}
+
+// stringsFromAny coerces a JSON-decoded []interface{} of strings (the shape
+// invalid_id_list arrives in after generic unmarshal) into []string,
+// tolerating a nil/missing field as an empty slice.
+func stringsFromAny(v interface{}) []string {
+	raw, ok := v.([]interface{})
+	if !ok {
+		return []string{}
+	}
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }
