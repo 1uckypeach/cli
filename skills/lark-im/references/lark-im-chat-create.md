@@ -86,13 +86,11 @@ Bot may fail to invite users who are mutually invisible to it during group creat
 3. **Add other members via user identity** (requires the current user to be in the group):
 
    ```bash
-   lark-cli im chat.members create \
-     --params '{"chat_id":"<chat_id from step 2>","member_id_type":"open_id","succeed_type":1}' \
-     --data '{"id_list":["ou_aaa","ou_bbb"]}' \
-     --as user
+   lark-cli im +chat-members-add --chat-id <chat_id from step 2> \
+     --users ou_aaa,ou_bbb --as user
    ```
 
-   `succeed_type=1` ensures reachable users are added successfully; unreachable ones are returned in `invalid_id_list` instead of failing the whole request.
+   By default (`--succeed-type 1`), reachable users are added successfully; unreachable ones are returned in `invalid_id_list` instead of failing the whole request.
 
 4. **Check `invalid_id_list`** in the response. If non-empty, report to the user which members could not be added.
 
