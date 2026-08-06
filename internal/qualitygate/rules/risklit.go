@@ -67,32 +67,54 @@ func riskLiteralsInFile(path, src string) []report.Diagnostic {
 		return nil
 	}
 	var diags []report.Diagnostic
-	add := func(pos token.Pos, literal, where string) {
-		diags = append(diags, riskLiteralDiagnostic(path, fset.Position(pos).Line, literal, where))
-	}
 	ast.Inspect(file, func(n ast.Node) bool {
-		switch node := n.(type) {
-		case *ast.KeyValueExpr:
-			// `Risk: "read"` in any struct literal.
-			key, ok := node.Key.(*ast.Ident)
-			if !ok || key.Name != "Risk" {
-				return true
-			}
-			if lit, ok := stringLiteral(node.Value); ok {
-				add(node.Value.Pos(), lit, "a Risk field")
-			}
-		case *ast.CallExpr:
-			// `SetRisk(cmd, "read")` / `cmdutil.SetRisk(cmd, "read")`.
-			if !isSetRiskCall(node.Fun) || len(node.Args) != 2 {
-				return true
-			}
-			if lit, ok := stringLiteral(node.Args[1]); ok {
-				add(node.Args[1].Pos(), lit, "SetRisk")
-			}
+		if use, ok := riskLiteralUsedBy(n); ok {
+			diags = append(diags, riskLiteralDiagnostic(path, fset.Position(use.pos).Line, use.value, use.where))
 		}
 		return true
 	})
 	return diags
+}
+
+// riskLiteralUse is one hand-written level found in the tree, with enough
+// position to point the author at it.
+type riskLiteralUse struct {
+	value string
+	pos   token.Pos
+	where string
+}
+
+func riskLiteralUsedBy(n ast.Node) (riskLiteralUse, bool) {
+	switch node := n.(type) {
+	case *ast.KeyValueExpr:
+		return riskFieldLiteral(node)
+	case *ast.CallExpr:
+		return setRiskArgLiteral(node)
+	}
+	return riskLiteralUse{}, false
+}
+
+func riskFieldLiteral(node *ast.KeyValueExpr) (riskLiteralUse, bool) {
+	key, ok := node.Key.(*ast.Ident)
+	if !ok || key.Name != "Risk" {
+		return riskLiteralUse{}, false
+	}
+	value, ok := stringLiteral(node.Value)
+	if !ok {
+		return riskLiteralUse{}, false
+	}
+	return riskLiteralUse{value: value, pos: node.Value.Pos(), where: "a Risk field"}, true
+}
+
+func setRiskArgLiteral(node *ast.CallExpr) (riskLiteralUse, bool) {
+	if !isSetRiskCall(node.Fun) || len(node.Args) != 2 {
+		return riskLiteralUse{}, false
+	}
+	value, ok := stringLiteral(node.Args[1])
+	if !ok {
+		return riskLiteralUse{}, false
+	}
+	return riskLiteralUse{value: value, pos: node.Args[1].Pos(), where: "SetRisk"}, true
 }
 
 func riskLiteralDiagnostic(path string, line int, literal, where string) report.Diagnostic {

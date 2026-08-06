@@ -28,12 +28,12 @@ import (
 //     gated on --yes, never allowed through silently
 //   - absent / read / write           → no gate
 
-// InvalidRiskDeclaration reports whether level is present but outside the
+// invalidRiskDeclaration reports whether level is present but outside the
 // closed taxonomy. An absent level ("") is a legal state — it means the
 // command is not annotated and defaults to read — and is deliberately not
 // reported here, so "unannotated" and "misspelled" never collapse into one
 // branch.
-func InvalidRiskDeclaration(level Risk) bool {
+func invalidRiskDeclaration(level Risk) bool {
 	return level != "" && !level.IsValid()
 }
 
@@ -42,7 +42,7 @@ func InvalidRiskDeclaration(level Risk) bool {
 // have to be confirmed, and if it is not, EnforceRiskDeclaration has already
 // rejected the call.
 func RequiresConfirmation(level Risk) bool {
-	return level == RiskHighRiskWrite || InvalidRiskDeclaration(level)
+	return level == RiskHighRiskWrite || invalidRiskDeclaration(level)
 }
 
 // EnforceRiskDeclaration returns a non-nil error when a command must not run
@@ -53,7 +53,7 @@ func RequiresConfirmation(level Risk) bool {
 // action identifies the operation for the agent, in the same shape used by
 // RequireConfirmation ("drive +delete", "drive.files.delete").
 func EnforceRiskDeclaration(action string, level Risk) error {
-	if !InvalidRiskDeclaration(level) {
+	if !invalidRiskDeclaration(level) {
 		return nil
 	}
 	if allowInvalidRisk() {
