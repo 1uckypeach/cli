@@ -51,8 +51,25 @@ func validateFetchV2(_ context.Context, runtime *common.RuntimeContext) error {
 	if err := validateReadModeFlags(runtime); err != nil {
 		return err
 	}
+	if err := validateFetchCommentOutput(runtime); err != nil {
+		return err
+	}
 	if shouldIncludeFetchComments(runtime) {
 		return runtime.EnsureScopes([]string{docsFetchCommentReadScope})
+	}
+	return nil
+}
+
+func validateFetchCommentOutput(runtime *common.RuntimeContext) error {
+	if !shouldIncludeFetchComments(runtime) {
+		return nil
+	}
+	outputFormat := strings.TrimSpace(runtime.Format)
+	if outputFormat == "" {
+		outputFormat = strings.TrimSpace(runtime.Str("format"))
+	}
+	if outputFormat != "json" {
+		return common.ValidationErrorf("--comments requires JSON output because %s output cannot losslessly preserve document.content together with the comment reference_map; use --format json", outputFormat).WithParam("--format")
 	}
 	return nil
 }
