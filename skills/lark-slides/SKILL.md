@@ -258,7 +258,7 @@ N. 结尾页：[结尾文案]
 知识库链接（`/wiki/TOKEN`）不能直接当 `xml_presentation_id`。直接调用原生 API 前，先用 Wiki shortcut 查询节点，确认 `data.obj_type == "slides"`，再用 `data.obj_token` 作为真实 presentation ID。
 
 ```bash
-lark-cli wiki +node-get --node-token '<wiki_url>' --as user --format json
+lark-cli wiki +node-get --node-token 'https://xxx.feishu.cn/wiki/wikcn_EXAMPLE_NODE_TOKEN_123456' --as user --format json
 ```
 
 节点解析必须与后续 Slides 操作使用相同身份；下游明确使用 `--as bot` 时，这里也改为 `--as bot`。
