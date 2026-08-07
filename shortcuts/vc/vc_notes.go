@@ -168,6 +168,19 @@ func resolveMeetingIDsFromCalendarEvent(runtime *common.RuntimeContext, instance
 	return result, nil
 }
 
+// calendarEventResolutionFailure preserves the established calendar_event_id
+// and error fields while presenting the typed error before it is embedded in a
+// partial-result envelope. Existing messages remain byte-compatible, while an
+// additive hint receives centralized command-surface projection.
+func calendarEventResolutionFailure(runtime *common.RuntimeContext, instanceID string, err error) map[string]any {
+	presented := runtime.PresentError(err)
+	result := map[string]any{"calendar_event_id": instanceID, "error": presented.Error()}
+	if problem, ok := errs.ProblemOf(presented); ok && problem.Hint != "" {
+		result["hint"] = problem.Hint
+	}
+	return result
+}
+
 // extractStringSlice extracts a []string from a JSON array field in a map.
 func extractStringSlice(m map[string]any, key string) []string {
 	raw, _ := m[key].([]any)
@@ -189,7 +202,7 @@ func fetchNoteByCalendarEventID(ctx context.Context, runtime *common.RuntimeCont
 
 	relInfo, err := resolveMeetingIDsFromCalendarEvent(runtime, instanceID, calendarID, true)
 	if err != nil {
-		return map[string]any{"calendar_event_id": instanceID, "error": err.Error()}
+		return calendarEventResolutionFailure(runtime, instanceID, err)
 	}
 
 	result := map[string]any{"calendar_event_id": instanceID}
@@ -380,8 +393,9 @@ func fetchNoteByMinuteToken(ctx context.Context, runtime *common.RuntimeContext,
 	data, err := runtime.CallAPITyped(http.MethodGet, fmt.Sprintf("/open-apis/minutes/v1/minutes/%s", validate.EncodePathSegment(minuteToken)), nil, nil)
 	if err != nil {
 		err = minutesReadError(err, minuteToken)
-		result := map[string]any{"minute_token": minuteToken, "error": err.Error()}
-		if p, ok := errs.ProblemOf(err); ok && p.Hint != "" {
+		presented := runtime.PresentError(err)
+		result := map[string]any{"minute_token": minuteToken, "error": presented.Error()}
+		if p, ok := errs.ProblemOf(presented); ok && p.Hint != "" {
 			result["hint"] = p.Hint
 		}
 		return result
@@ -587,7 +601,6 @@ var VCNotes = common.Shortcut{
 			if missing := common.MissingScopes(scopes, required); len(missing) > 0 {
 				return errs.NewPermissionError(errs.SubtypeMissingScope,
 					"missing required scope(s): %s", strings.Join(missing, ", ")).
-					WithHint("run `lark-cli auth login --scope %q` in the background. It blocks and outputs a verification URL — retrieve the URL and open it in a browser to complete login.", strings.Join(missing, " ")).
 					WithMissingScopes(missing...).
 					WithIdentity(string(runtime.As()))
 			}

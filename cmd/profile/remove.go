@@ -5,6 +5,7 @@ package profile
 
 import (
 	"fmt"
+	"github.com/larksuite/cli/internal/recovery"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -46,8 +47,12 @@ func profileRemoveRun(f *cmdutil.Factory, name string) error {
 	}
 
 	if len(multi.Apps) == 1 {
-		return errs.NewValidationError(errs.SubtypeFailedPrecondition, "cannot remove the only profile").
-			WithHint("add another profile first: lark-cli profile add")
+		return recovery.Attach(
+			errs.NewValidationError(errs.SubtypeFailedPrecondition, "cannot remove the only profile"),
+			recovery.Join("",
+				recovery.Command(recovery.TargetProfileAdd, "add another profile first: lark-cli profile add"),
+			).WithFallback("configure another profile through this distribution before removing the only profile"),
+		)
 	}
 
 	app := &multi.Apps[idx]

@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/larksuite/cli/internal/recovery"
 	"slices"
 
 	"github.com/spf13/cobra"
@@ -105,9 +106,16 @@ func strictModeStubFrom(child *cobra.Command, mode identity.StrictMode) *cobra.C
 		},
 		RunE: func(c *cobra.Command, _ []string) error {
 			cd := cmdpolicy.CommandDeniedFromDenial(cmdpolicy.CanonicalPath(c), denial)
-			return errs.NewValidationError(errs.SubtypeFailedPrecondition, "%s", stubMessage).
-				WithHint("denied by %s policy (reason_code %s); %s", cd.Layer, cd.ReasonCode, stubHint).
-				WithCause(cd)
+			hint := recovery.Join("; ",
+				recovery.Text(fmt.Sprintf("denied by %s policy (reason_code %s)", cd.Layer, cd.ReasonCode)),
+				recovery.Command(recovery.TargetConfigStrictMode, stubHint),
+			)
+			return recovery.Annotate(
+				errs.NewValidationError(errs.SubtypeFailedPrecondition, "%s", stubMessage).
+					WithHint("%s", hint.String()).
+					WithCause(cd),
+				hint,
+			)
 		},
 	}
 }

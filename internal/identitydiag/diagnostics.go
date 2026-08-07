@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/larksuite/cli/internal/recovery"
 	"io"
 	"net/http"
 	"strings"
@@ -56,6 +57,34 @@ type Identity struct {
 	ExpiresAt        string `json:"expiresAt,omitempty"`
 	RefreshExpiresAt string `json:"refreshExpiresAt,omitempty"`
 	GrantedAt        string `json:"grantedAt,omitempty"`
+	recoveryTarget   recovery.Target
+}
+
+// withCommandRecovery binds user-facing recovery text to the command it
+// requires. Keeping the pair behind one constructor prevents a new diagnostic
+// from emitting a command hint without the build-local filtering metadata.
+func withCommandRecovery(identity Identity, target recovery.Target, hint string) Identity {
+	identity.Hint = hint
+	identity.recoveryTarget = target
+	return identity
+}
+
+// FilterRecovery returns a copy whose command-targeted hints are removed when
+// the current presenter cannot reference their semantic target. Identity
+// diagnosis itself remains unaware of plugins, policy, and distributions.
+func FilterRecovery(result Result, canReference func(recovery.Target) bool) Result {
+	if canReference == nil {
+		return result
+	}
+	filter := func(identity Identity) Identity {
+		if identity.recoveryTarget != "" && !canReference(identity.recoveryTarget) {
+			identity.Hint = ""
+		}
+		return identity
+	}
+	result.Bot = filter(result.Bot)
+	result.User = filter(result.User)
+	return result
 }
 
 // Diagnose checks bot and user identities separately. When verify is false,
@@ -191,11 +220,10 @@ func externalCredentialHint(provider string) string {
 
 func diagnoseBot(ctx context.Context, f *cmdutil.Factory, cfg *configpkg.CliConfig, verify bool) Identity {
 	if cfg == nil || cfg.AppID == "" {
-		return Identity{
+		return withCommandRecovery(Identity{
 			Status:  StatusNotConfigured,
 			Message: "Bot identity: not configured (missing app config)",
-			Hint:    "run: lark-cli config --help",
-		}
+		}, recovery.TargetConfig, "run: lark-cli config --help")
 	}
 	if !cfg.CanBot() {
 		return Identity{
@@ -205,11 +233,10 @@ func diagnoseBot(ctx context.Context, f *cmdutil.Factory, cfg *configpkg.CliConf
 		}
 	}
 	if cfg.SupportedIdentities == 0 && !credential.HasRealAppSecret(cfg.AppSecret) {
-		return Identity{
+		return withCommandRecovery(Identity{
 			Status:  StatusNotConfigured,
 			Message: "Bot identity: not configured (missing app secret or bot token)",
-			Hint:    "run: lark-cli config --help",
-		}
+		}, recovery.TargetConfig, "run: lark-cli config --help")
 	}
 
 	id := Identity{
@@ -254,18 +281,16 @@ func diagnoseBot(ctx context.Context, f *cmdutil.Factory, cfg *configpkg.CliConf
 
 func diagnoseUser(ctx context.Context, f *cmdutil.Factory, cfg *configpkg.CliConfig, verify bool) Identity {
 	if cfg == nil || cfg.AppID == "" {
-		return Identity{
+		return withCommandRecovery(Identity{
 			Status:  StatusNotConfigured,
 			Message: "User identity: not configured (missing app config)",
-			Hint:    "run: lark-cli config --help",
-		}
+		}, recovery.TargetConfig, "run: lark-cli config --help")
 	}
 	if cfg.UserOpenId == "" {
-		return Identity{
+		return withCommandRecovery(Identity{
 			Status:  StatusMissing,
 			Message: "User identity: missing (no user logged in)",
-			Hint:    "run: lark-cli auth login --help",
-		}
+		}, recovery.TargetAuthLogin, "run: lark-cli auth login --help")
 	}
 
 	id := Identity{
@@ -276,8 +301,7 @@ func diagnoseUser(ctx context.Context, f *cmdutil.Factory, cfg *configpkg.CliCon
 	if stored == nil {
 		id.Status = StatusMissing
 		id.Message = "User identity: missing (no token in keychain for " + cfg.UserOpenId + ")"
-		id.Hint = "run: lark-cli auth login --help"
-		return id
+		return withCommandRecovery(id, recovery.TargetAuthLogin, "run: lark-cli auth login --help")
 	}
 
 	fillTokenFields(&id, stored)
@@ -293,41 +317,40 @@ func diagnoseUser(ctx context.Context, f *cmdutil.Factory, cfg *configpkg.CliCon
 	default:
 		id.Status = StatusMissing
 		id.Message = "User identity: missing (refresh token expired)"
-		id.Hint = "run: lark-cli auth login --help"
-		return id
+		return withCommandRecovery(id, recovery.TargetAuthLogin, "run: lark-cli auth login --help")
 	}
 
 	if !verify {
 		return id
 	}
 
-	markVerifyFailed := func(reason, hint string) Identity {
+	markVerifyFailed := func(reason, hint string, target recovery.Target) Identity {
 		id.Status = StatusVerifyFailed
 		id.Available = false
 		id.Verified = boolPtr(false)
 		id.Message = "User identity: verify failed: " + reason
 		if hint != "" {
-			id.Hint = hint
+			id = withCommandRecovery(id, target, hint)
 		}
 		return id
 	}
 
 	httpClient, err := f.HttpClient()
 	if err != nil {
-		return markVerifyFailed("create HTTP client: "+err.Error(), "")
+		return markVerifyFailed("create HTTP client: "+err.Error(), "", "")
 	}
 	token, err := larkauth.GetValidAccessToken(httpClient, larkauth.NewUATCallOptions(cfg, f.IOStreams.ErrOut))
 	if err != nil {
-		return markVerifyFailed("token unusable: "+err.Error(), "run: lark-cli auth login --help")
+		return markVerifyFailed("token unusable: "+err.Error(), "run: lark-cli auth login --help", recovery.TargetAuthLogin)
 	}
 	sdk, err := f.LarkClient()
 	if err != nil {
-		return markVerifyFailed("SDK init failed: "+err.Error(), "")
+		return markVerifyFailed("SDK init failed: "+err.Error(), "", "")
 	}
 	verifyCtx, cancel := context.WithTimeout(ctx, verifyTimeout)
 	defer cancel()
 	if err := larkauth.VerifyUserToken(verifyCtx, sdk, token); err != nil {
-		return markVerifyFailed("server rejected token: "+err.Error(), "run: lark-cli auth login --help")
+		return markVerifyFailed("server rejected token: "+err.Error(), "run: lark-cli auth login --help", recovery.TargetAuthLogin)
 	}
 
 	id.Verified = boolPtr(true)

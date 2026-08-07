@@ -64,6 +64,14 @@ func TestSlidesCreateBasic(t *testing.T) {
 	}
 }
 
+func TestBuildPresentationXMLUsesCanonicalHTTPSNamespace(t *testing.T) {
+	got := buildPresentationXML("Demo")
+	want := `<presentation xmlns="https://www.larkoffice.com/sml/2.0" width="960" height="540"><title>Demo</title></presentation>`
+	if got != want {
+		t.Fatalf("buildPresentationXML() = %q, want %q", got, want)
+	}
+}
+
 // TestSlidesCreateBotAutoGrant verifies that bot mode grants the current user full_access on the new presentation.
 func TestSlidesCreateBotAutoGrant(t *testing.T) {
 	t.Parallel()
@@ -148,8 +156,9 @@ func TestSlidesCreateBotSkippedWithoutCurrentUser(t *testing.T) {
 	if grant["status"] != common.PermissionGrantSkipped {
 		t.Fatalf("permission_grant.status = %v, want %q", grant["status"], common.PermissionGrantSkipped)
 	}
-	if hint, ok := grant["hint"].(string); !ok || !strings.Contains(hint, "auth login") {
-		t.Fatalf("hint = %#v, want string containing 'auth login'", grant["hint"])
+	if hint, ok := grant["hint"].(string); !ok ||
+		!strings.Contains(hint, "auth login") {
+		t.Fatalf("hint = %#v, want actionable default authorization recovery", grant["hint"])
 	}
 }
 
@@ -325,7 +334,7 @@ func TestSlidesCreateWithSlides(t *testing.T) {
 		},
 	})
 
-	slidesJSON := `["<slide xmlns=\"http://www.larkoffice.com/sml/2.0\"><data></data></slide>","<slide xmlns=\"http://www.larkoffice.com/sml/2.0\"><data></data></slide>"]`
+	slidesJSON := `["<slide xmlns=\"https://www.larkoffice.com/sml/2.0\"><data></data></slide>","<slide xmlns=\"https://www.larkoffice.com/sml/2.0\"><data></data></slide>"]`
 	err := runSlidesCreateShortcut(t, f, stdout, []string{
 		"+create",
 		"--title", "With Slides",
@@ -381,7 +390,7 @@ func TestSlidesCreatePreservesSchemaIssues(t *testing.T) {
 
 	err := runSlidesCreateShortcut(t, f, stdout, []string{
 		"+create",
-		"--slides", `["<slide xmlns=\"http://www.larkoffice.com/sml/2.0\"><data/></slide>"]`,
+		"--slides", `["<slide xmlns=\"https://www.larkoffice.com/sml/2.0\"><data/></slide>"]`,
 		"--as", "user",
 	})
 	if err != nil {
@@ -442,7 +451,7 @@ func TestSlidesCreateWithSlidesPartialFailure(t *testing.T) {
 		},
 	})
 
-	slidesJSON := `["<slide xmlns=\"http://www.larkoffice.com/sml/2.0\"><data></data></slide>","<bad-xml>"]`
+	slidesJSON := `["<slide xmlns=\"https://www.larkoffice.com/sml/2.0\"><data></data></slide>","<bad-xml>"]`
 	err := runSlidesCreateShortcut(t, f, stdout, []string{
 		"+create",
 		"--title", "Partial",
@@ -625,7 +634,7 @@ func TestSlidesCreateWithSlidesDryRun(t *testing.T) {
 	t.Parallel()
 
 	f, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
-	slidesJSON := `["<slide xmlns=\"http://www.larkoffice.com/sml/2.0\"><data></data></slide>","<slide xmlns=\"http://www.larkoffice.com/sml/2.0\"><data></data></slide>"]`
+	slidesJSON := `["<slide xmlns=\"https://www.larkoffice.com/sml/2.0\"><data></data></slide>","<slide xmlns=\"https://www.larkoffice.com/sml/2.0\"><data></data></slide>"]`
 	err := runSlidesCreateShortcut(t, f, stdout, []string{
 		"+create",
 		"--title", "DryRun Slides",
@@ -857,8 +866,8 @@ func TestSlidesCreateWithImagePlaceholders(t *testing.T) {
 	reg.Register(slideStub2)
 
 	slidesJSON := `[
-	  "<slide xmlns=\"http://www.larkoffice.com/sml/2.0\"><data><img src=\"@a.png\" topLeftX=\"10\"/><img src=\"@b.png\" topLeftX=\"20\"/></data></slide>",
-	  "<slide xmlns=\"http://www.larkoffice.com/sml/2.0\"><data><img src=\"@a.png\" topLeftX=\"30\"/></data></slide>"
+	  "<slide xmlns=\"https://www.larkoffice.com/sml/2.0\"><data><img src=\"@a.png\" topLeftX=\"10\"/><img src=\"@b.png\" topLeftX=\"20\"/></data></slide>",
+	  "<slide xmlns=\"https://www.larkoffice.com/sml/2.0\"><data><img src=\"@a.png\" topLeftX=\"30\"/></data></slide>"
 	]`
 	err := runSlidesCreateShortcut(t, f, stdout, []string{
 		"+create",

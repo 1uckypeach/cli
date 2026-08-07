@@ -6,6 +6,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/larksuite/cli/internal/recovery"
 	"os"
 	"strings"
 
@@ -62,6 +63,14 @@ type BindOptions struct {
 
 // NewCmdConfigBind creates the config bind subcommand.
 func NewCmdConfigBind(f *cmdutil.Factory, runF func(*BindOptions) error) *cobra.Command {
+	return newCmdConfigBind(f, runF, nil)
+}
+
+func newCmdConfigBind(
+	f *cmdutil.Factory,
+	runF func(*BindOptions) error,
+	projector *recovery.Projector,
+) *cobra.Command {
 	opts := &BindOptions{Factory: f, UILang: i18n.LangZhCN}
 
 	cmd := &cobra.Command{
@@ -101,7 +110,7 @@ Interactive terminal use: run with no flags to enter the TUI form.`,
 			if runF != nil {
 				return runF(opts)
 			}
-			return configBindRun(opts)
+			return configBindRunWithRecovery(opts, projector)
 		},
 	}
 
@@ -119,6 +128,10 @@ Interactive terminal use: run with no flags to enter the TUI form.`,
 // helper whose signature declares its contract; the body reads as the shape of
 // the bind flow itself, not its mechanics.
 func configBindRun(opts *BindOptions) error {
+	return configBindRunWithRecovery(opts, nil)
+}
+
+func configBindRunWithRecovery(opts *BindOptions, projector *recovery.Projector) error {
 	if err := validateBindFlags(opts); err != nil {
 		return err
 	}
@@ -157,7 +170,7 @@ func configBindRun(opts *BindOptions) error {
 	applyPreferences(appConfig, opts, priorLang(existing.ConfigBytes))
 	noticeUserDefaultRisk(opts)
 
-	return commitBinding(opts, appConfig, existing.ConfigBytes, source, targetConfigPath)
+	return commitBinding(opts, appConfig, existing.ConfigBytes, source, targetConfigPath, projector)
 }
 
 // existingBinding is the outcome of checking whether a workspace was already
@@ -407,7 +420,13 @@ func priorLang(previousConfigBytes []byte) i18n.Lang {
 // any), and a JSON success envelope. Cleanup runs only after the new config
 // is durably written — if anything fails earlier, the old workspace stays
 // usable.
-func commitBinding(opts *BindOptions, appConfig *configpkg.AppConfig, previousConfigBytes []byte, source, configPath string) error {
+func commitBinding(
+	opts *BindOptions,
+	appConfig *configpkg.AppConfig,
+	previousConfigBytes []byte,
+	source, configPath string,
+	projector *recovery.Projector,
+) error {
 	multi := &configpkg.MultiAppConfig{Apps: []configpkg.AppConfig{*appConfig}}
 
 	if err := vfs.MkdirAll(workspace.GetConfigDir(), 0700); err != nil {
@@ -465,12 +484,23 @@ func commitBinding(opts *BindOptions, appConfig *configpkg.AppConfig, previousCo
 	case "bot-only":
 		envelope["message"] = fmt.Sprintf(prefMsg.MessageBotOnly, appConfig.AppId, display, brand)
 	case "user-default":
-		envelope["message"] = fmt.Sprintf(prefMsg.MessageUserDefault, appConfig.AppId, display, display)
+		envelope["message"] = userDefaultBindMessage(prefMsg, appConfig.AppId, display, projector)
 	}
 
 	resultJSON, _ := json.Marshal(envelope)
 	fmt.Fprintln(opts.Factory.IOStreams.Out, string(resultJSON))
 	return nil
+}
+
+func userDefaultBindMessage(
+	messages *bindMsg,
+	appID, display string,
+	projector *recovery.Projector,
+) string {
+	if projector.CanReference(recovery.TargetAuthLogin) {
+		return fmt.Sprintf(messages.MessageUserDefault, appID, display, display)
+	}
+	return fmt.Sprintf(messages.MessageUserDefaultFallback, appID, display)
 }
 
 // cleanupKeychainFromData removes keychain entries referenced by a previous

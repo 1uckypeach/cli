@@ -244,8 +244,8 @@ const (
 // text, aligning with the desktop client's APP_DISPLAY_NAME i18n
 // substitution.
 //
-//   - BrandLark    → "Lark" (same in English and Chinese)
-//   - BrandFeishu  → "飞书" for zh languages, "Feishu" for others
+//   - brand.Lark    → "Lark" (same in English and Chinese)
+//   - brand.Feishu  → "飞书" for zh languages, "Feishu" for others
 func brandDisplayName(brand brandpkg.Brand, lang string) string {
 	if brand == brandpkg.Lark {
 		return "Lark"

@@ -1789,7 +1789,7 @@ func downloadAttachmentContent(runtime *common.RuntimeContext, downloadURL strin
 		return nil, mailInvalidResponseError("attachment download URL has no host")
 	}
 
-	httpClient, err := runtime.Factory.HttpClient()
+	httpClient, err := runtime.Factory.ExternalHTTPClient()
 	if err != nil {
 		return nil, errs.NewInternalError(errs.SubtypeSDKError, "failed to get HTTP client: %v", err).WithCause(err)
 	}
@@ -2375,7 +2375,6 @@ func validateConfirmSendScope(runtime *common.RuntimeContext) error {
 	if missing := common.MissingScopes(storedScope, required); len(missing) > 0 {
 		return errs.NewPermissionError(errs.SubtypeMissingScope,
 			"--confirm-send requires scope: %s", strings.Join(missing, ", ")).
-			WithHint("run `lark-cli auth login --scope %q` to grant the send permission", strings.Join(missing, " ")).
 			WithMissingScopes(missing...).
 			WithIdentity("user")
 	}
@@ -2400,7 +2399,6 @@ func validateFolderReadScope(runtime *common.RuntimeContext) error {
 	if missing := common.MissingScopes(storedScope, required); len(missing) > 0 {
 		return errs.NewPermissionError(errs.SubtypeMissingScope,
 			"folder resolution requires scope: %s", strings.Join(missing, ", ")).
-			WithHint("run `lark-cli auth login --scope %q` to grant folder read permission", strings.Join(missing, " ")).
 			WithMissingScopes(missing...).
 			WithIdentity("user")
 	}
@@ -2425,7 +2423,6 @@ func validateLabelReadScope(runtime *common.RuntimeContext) error {
 	if missing := common.MissingScopes(storedScope, required); len(missing) > 0 {
 		return errs.NewPermissionError(errs.SubtypeMissingScope,
 			"label resolution requires scope: %s", strings.Join(missing, ", ")).
-			WithHint("run `lark-cli auth login --scope %q` to grant label access permission", strings.Join(missing, " ")).
 			WithMissingScopes(missing...).
 			WithIdentity("user")
 	}

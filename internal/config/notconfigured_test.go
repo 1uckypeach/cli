@@ -5,6 +5,8 @@ package config
 
 import (
 	"errors"
+	"github.com/larksuite/cli/brand"
+	"github.com/larksuite/cli/internal/secret"
 	"os"
 	"strings"
 	"testing"
@@ -202,5 +204,156 @@ func TestLoadOrNotConfigured_CorruptFile_PreservesCause(t *testing.T) {
 	// The underlying parse failure stays reachable through the unwrap chain.
 	if cfgErr.Cause == nil {
 		t.Error("Cause must wrap the underlying load error for errors.Is/Unwrap")
+	}
+}
+
+func TestProfileNotFoundError_NamesSelectorAndSource(t *testing.T) {
+	multi := &MultiAppConfig{
+		CurrentApp: "default",
+		Apps: []AppConfig{
+			{Name: "default", AppId: "app-default", AppSecret: secret.PlainSecret("s1"), Brand: brand.Feishu},
+			{Name: "session", AppId: "app-session", AppSecret: secret.PlainSecret("s2"), Brand: brand.Feishu},
+		},
+	}
+
+	for _, tc := range []struct {
+		name         string
+		profile      string
+		source       brand.ProfileSource
+		wantMessage  string
+		wantField    string
+		wantHintSubs []string
+	}{
+		{
+			name:        "environment selector",
+			profile:     "ghost",
+			source:      brand.ProfileFromEnvironment,
+			wantMessage: `profile "ghost" not found`,
+			wantField:   "LARKSUITE_CLI_PROFILE",
+			wantHintSubs: []string{
+				`LARKSUITE_CLI_PROFILE selected profile "ghost"`,
+				"unset LARKSUITE_CLI_PROFILE",
+				"default, session",
+			},
+		},
+		{
+			name:        "flag selector",
+			profile:     "ghost",
+			source:      brand.ProfileFromFlag,
+			wantMessage: `profile "ghost" not found`,
+			wantField:   "--profile",
+			wantHintSubs: []string{
+				`--profile selected profile "ghost"`,
+				"default, session",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := multi.RequireAppConfig(tc.profile, tc.source)
+			var cfgErr *errs.ConfigError
+			if !errors.As(err, &cfgErr) {
+				t.Fatalf("expected *errs.ConfigError, got %T %v", err, err)
+			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok {
+				t.Fatalf("ProblemOf(%T) = _, false; want typed problem", err)
+			}
+			if problem.Category != errs.CategoryConfig || problem.Subtype != errs.SubtypeNotConfigured {
+				t.Errorf("problem = %s/%s, want config/not_configured", problem.Category, problem.Subtype)
+			}
+			if cfgErr.Message != tc.wantMessage {
+				t.Errorf("message = %q, want %q", cfgErr.Message, tc.wantMessage)
+			}
+			if cfgErr.Field != tc.wantField {
+				t.Errorf("field = %q, want %q", cfgErr.Field, tc.wantField)
+			}
+			for _, sub := range tc.wantHintSubs {
+				if !strings.Contains(cfgErr.Hint, sub) {
+					t.Errorf("hint = %q, missing %q", cfgErr.Hint, sub)
+				}
+			}
+			// The remaining profiles are intact; re-initializing would be
+			// destructive misdirection for both selector sources.
+			if strings.Contains(cfgErr.Hint, "config init") {
+				t.Errorf("hint must not suggest config init; got %q", cfgErr.Hint)
+			}
+		})
+	}
+}
+
+func TestProfileNotFoundError_DanglingCurrentApp(t *testing.T) {
+	multi := &MultiAppConfig{
+		CurrentApp: "renamed-away",
+		Apps: []AppConfig{
+			{Name: "default", AppId: "app-default", AppSecret: secret.PlainSecret("s1"), Brand: brand.Feishu},
+		},
+	}
+	_, err := multi.RequireAppConfig("", brand.ProfileFromConfig)
+	var cfgErr *errs.ConfigError
+	if !errors.As(err, &cfgErr) {
+		t.Fatalf("expected *errs.ConfigError, got %T %v", err, err)
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("ProblemOf(%T) = _, false; want typed problem", err)
+	}
+	if problem.Category != errs.CategoryConfig || problem.Subtype != errs.SubtypeNotConfigured {
+		t.Errorf("problem = %s/%s, want config/not_configured", problem.Category, problem.Subtype)
+	}
+	if cfgErr.Message != `profile "renamed-away" not found` {
+		t.Errorf("message = %q, want the dangling currentApp named", cfgErr.Message)
+	}
+	if cfgErr.Field != "currentApp" {
+		t.Errorf("field = %q, want currentApp", cfgErr.Field)
+	}
+	for _, sub := range []string{"currentApp", "profile use", "default"} {
+		if !strings.Contains(cfgErr.Hint, sub) {
+			t.Errorf("hint = %q, missing %q", cfgErr.Hint, sub)
+		}
+	}
+	if strings.Contains(cfgErr.Hint, "config init") {
+		t.Errorf("hint must not suggest config init; got %q", cfgErr.Hint)
+	}
+}
+
+func TestProfileNotFoundError_EmptyConfigFallsBackToNotConfigured(t *testing.T) {
+	saveAndRestoreWorkspace(t)
+	workspace.SetCurrentWorkspace(workspace.WorkspaceLocal)
+	multi := &MultiAppConfig{}
+	_, err := multi.RequireAppConfig("", brand.ProfileFromConfig)
+	var cfgErr *errs.ConfigError
+	if !errors.As(err, &cfgErr) {
+		t.Fatalf("expected *errs.ConfigError, got %T %v", err, err)
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("ProblemOf(%T) = _, false; want typed problem", err)
+	}
+	if problem.Category != errs.CategoryConfig || problem.Subtype != errs.SubtypeNotConfigured {
+		t.Errorf("problem = %s/%s, want config/not_configured", problem.Category, problem.Subtype)
+	}
+	if cfgErr.Message != "not configured" {
+		t.Errorf("message = %q, want the NotConfiguredError fallback", cfgErr.Message)
+	}
+	if !strings.Contains(cfgErr.Hint, "config init") {
+		t.Errorf("empty config is the one case where init IS the fix; hint = %q", cfgErr.Hint)
+	}
+}
+
+func TestRequireAppConfig_ResolvesExisting(t *testing.T) {
+	multi := &MultiAppConfig{
+		CurrentApp: "default",
+		Apps: []AppConfig{
+			{Name: "default", AppId: "app-default", AppSecret: secret.PlainSecret("s1"), Brand: brand.Feishu},
+			{Name: "session", AppId: "app-session", AppSecret: secret.PlainSecret("s2"), Brand: brand.Feishu},
+		},
+	}
+	app, err := multi.RequireAppConfig("session", brand.ProfileFromEnvironment)
+	if err != nil || app == nil || app.AppId != "app-session" {
+		t.Fatalf("RequireAppConfig() = %v, %v; want app-session", app, err)
+	}
+	app, err = multi.RequireAppConfig("", brand.ProfileFromConfig)
+	if err != nil || app == nil || app.AppId != "app-default" {
+		t.Fatalf("RequireAppConfig() persisted = %v, %v; want app-default", app, err)
 	}
 }

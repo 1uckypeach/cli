@@ -44,22 +44,24 @@ explicit user confirmation — never run on your own initiative.`,
 			}
 
 			if reset {
-				app := multi.CurrentAppConfig(f.Invocation.Profile)
-				if app == nil {
-					return configpkg.NoActiveProfileError()
+				app, err := multi.RequireAppConfig(f.Invocation.Profile, f.Invocation.ProfileSource)
+				if err != nil {
+					return err
 				}
 				return resetStrictMode(f, multi, app, global, args)
 			}
 			if len(args) == 0 {
-				app := multi.CurrentAppConfig(f.Invocation.Profile)
-				if app == nil {
-					return configpkg.NoActiveProfileError()
+				app, err := multi.RequireAppConfig(f.Invocation.Profile, f.Invocation.ProfileSource)
+				if err != nil {
+					return err
 				}
 				return showStrictMode(cmd.Context(), f, multi, app)
 			}
+			// --global tolerates a missing profile: the mutation targets the
+			// shared scope, so only the profile-scoped path requires one.
 			app := multi.CurrentAppConfig(f.Invocation.Profile)
 			if !global && app == nil {
-				return configpkg.NoActiveProfileError()
+				return multi.ProfileNotFoundError(f.Invocation.Profile, f.Invocation.ProfileSource)
 			}
 			return setStrictMode(f, multi, app, args[0], global)
 		},
@@ -139,7 +141,7 @@ func setStrictMode(f *cmdutil.Factory, multi *configpkg.MultiAppConfig, app *con
 		}
 	} else {
 		if app == nil {
-			return configpkg.NoActiveProfileError()
+			return multi.ProfileNotFoundError(f.Invocation.Profile, f.Invocation.ProfileSource)
 		}
 		app.StrictMode = &mode
 	}

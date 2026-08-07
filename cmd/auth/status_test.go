@@ -19,7 +19,7 @@ func TestAuthStatusRun_SplitsBotAndUserIdentity(t *testing.T) {
 		AppID: "test-app", AppSecret: "secret", Brand: brand.Feishu,
 	})
 
-	if err := authStatusRun(&StatusOptions{Factory: f}); err != nil {
+	if err := authStatusRun(&StatusOptions{Factory: f}, nil); err != nil {
 		t.Fatalf("authStatusRun() error = %v", err)
 	}
 
@@ -55,7 +55,7 @@ func TestAuthStatusRun_VerifyReportsBotIdentity(t *testing.T) {
 		},
 	})
 
-	if err := authStatusRun(&StatusOptions{Factory: f, Verify: true}); err != nil {
+	if err := authStatusRun(&StatusOptions{Factory: f, Verify: true}, nil); err != nil {
 		t.Fatalf("authStatusRun() error = %v", err)
 	}
 

@@ -3,7 +3,12 @@
 
 package brand
 
-import "strings"
+import (
+	"net/url"
+	"strings"
+
+	"github.com/larksuite/cli/envnames"
+)
 
 // Brand represents the Lark platform brand.
 // "feishu" targets China-mainland, "lark" targets international.
@@ -22,6 +27,45 @@ func ParseBrand(value string) Brand {
 		return Lark
 	}
 	return Feishu
+}
+
+// ProfileSource identifies which input channel selected the invocation's
+// profile. Errors and status output use it to point at the thing the user
+// must actually fix: an argv flag they just typed, an environment variable
+// that may have been exported long ago, or the persisted config default.
+type ProfileSource uint8
+
+const (
+	ProfileFromConfig      ProfileSource = iota // no explicit selector; persisted currentApp applies
+	ProfileFromFlag                             // --profile on this invocation (including --profile=)
+	ProfileFromEnvironment                      // LARKSUITE_CLI_PROFILE
+)
+
+// String is the wire form used in machine-readable status output
+// (e.g. profile list's effectiveSource).
+func (s ProfileSource) String() string {
+	switch s {
+	case ProfileFromFlag:
+		return "flag"
+	case ProfileFromEnvironment:
+		return "environment"
+	default:
+		return "config"
+	}
+}
+
+// SelectorLabel returns the user-facing name of the explicit input channel —
+// the flag token or the environment variable name. Empty for the persisted
+// default, which has no selector to point at.
+func (s ProfileSource) SelectorLabel() string {
+	switch s {
+	case ProfileFromFlag:
+		return "--profile"
+	case ProfileFromEnvironment:
+		return envnames.CliProfile
+	default:
+		return ""
+	}
 }
 
 // OAuthTokenV3Path is the unified OAuth 2.0 Token Endpoint path on the accounts
@@ -62,4 +106,40 @@ func ResolveEndpoints(brand Brand) Endpoints {
 // ResolveOpenBaseURL returns the Open API base URL for the given brand.
 func ResolveOpenBaseURL(brand Brand) string {
 	return ResolveEndpoints(brand).Open
+}
+
+var platformEndpointHosts = func() map[string]struct{} {
+	hosts := make(map[string]struct{})
+	for _, brand := range []Brand{Feishu, Lark} {
+		endpoints := ResolveEndpoints(brand)
+		for _, rawURL := range []string{endpoints.Open, endpoints.Accounts, endpoints.MCP, endpoints.AppLink} {
+			parsed, err := url.Parse(rawURL)
+			if err == nil && parsed.Hostname() != "" {
+				hosts[strings.ToLower(parsed.Hostname())] = struct{}{}
+			}
+		}
+	}
+	return hosts
+}()
+
+// IsPlatformEndpointHost reports whether hostname exactly matches one of the
+// endpoint hosts produced by ResolveEndpoints. It intentionally does not use a
+// suffix match: lookalike external domains must never enter the platform
+// transport extension.
+func IsPlatformEndpointHost(hostname string) bool {
+	_, ok := platformEndpointHosts[strings.ToLower(hostname)]
+	return ok
+}
+
+// IsPlatformEndpointURL reports whether candidate uses a secure origin for a
+// configured platform endpoint. Non-TLS and non-standard-port lookalikes are
+// excluded even when their hostname matches.
+func IsPlatformEndpointURL(candidate *url.URL) bool {
+	if candidate == nil || !strings.EqualFold(candidate.Scheme, "https") {
+		return false
+	}
+	if port := candidate.Port(); port != "" && port != "443" {
+		return false
+	}
+	return IsPlatformEndpointHost(candidate.Hostname())
 }

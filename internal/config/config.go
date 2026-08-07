@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
+	"github.com/larksuite/cli/internal/recovery"
 	"unicode/utf8"
 
 	"github.com/larksuite/cli/brand"
@@ -82,6 +82,25 @@ func (m *MultiAppConfig) CurrentAppConfig(profileOverride string) *AppConfig {
 		return &m.Apps[0]
 	}
 	return nil
+}
+
+// EffectiveProfile resolves which profile this invocation actually uses and
+// which channel decided that. It is the single definition of "effective" for
+// status output (config show, profile list, profile use warnings); the
+// persisted CurrentApp answers a different question — which profile applies
+// when no selector is present — and must not be conflated with it.
+//
+// A nil app with a non-empty selector means the selector is dangling; the
+// caller decides between an error (RequireAppConfig) and a warning (listing
+// commands, which are the user's recovery surface).
+func (m *MultiAppConfig) EffectiveProfile(profile string, source brand.ProfileSource) (*AppConfig, brand.ProfileSource) {
+	app := m.CurrentAppConfig(profile)
+	if profile != "" {
+		return app, source
+	}
+	// An empty selector value (including an explicit --profile=) defers to
+	// the persisted state, so the persisted channel is what decided.
+	return app, brand.ProfileFromConfig
 }
 
 // FindApp looks up an app by name, then by appId. Returns nil if not found.
@@ -208,13 +227,31 @@ func SaveMultiAppConfig(config *MultiAppConfig) error {
 	return validate.AtomicWrite(workspace.GetConfigPath(), append(data, '\n'), 0600)
 }
 
+// RequireConfig loads the single-app config using the default profile resolution.
+func RequireConfig(kc keychain.KeychainAccess) (*CliConfig, error) {
+	return RequireConfigForProfile(kc, "")
+}
+
+// RequireConfigForProfile loads the single-app config for a specific profile.
+// Resolution priority: profileOverride > config.CurrentApp > Apps[0].
+func RequireConfigForProfile(kc keychain.KeychainAccess, profileOverride string) (*CliConfig, error) {
+	raw, err := LoadMultiAppConfig()
+	if err != nil || raw == nil || len(raw.Apps) == 0 {
+		return nil, NotConfiguredError()
+	}
+	// This legacy wrapper has no channel information for its override; the
+	// flag wording is the safe default (it never misattributes to the env).
+	return ResolveConfigFromMulti(raw, kc, profileOverride, brand.ProfileFromFlag)
+}
+
 // ResolveConfigFromMulti resolves a single-app config from an already-loaded MultiAppConfig.
 // This avoids re-reading the config file when the caller has already loaded it.
-func ResolveConfigFromMulti(raw *MultiAppConfig, kc keychain.KeychainAccess, profileOverride string) (*CliConfig, error) {
-	app := raw.CurrentAppConfig(profileOverride)
-	if app == nil {
-		return nil, errs.NewConfigError(errs.SubtypeNotConfigured, "profile %q not found", profileOverride).
-			WithHint("available profiles: %s", formatProfileNames(raw.ProfileNames()))
+// source records which channel selected profileOverride so a resolution
+// failure can name the input the user must fix.
+func ResolveConfigFromMulti(raw *MultiAppConfig, kc keychain.KeychainAccess, profileOverride string, source brand.ProfileSource) (*CliConfig, error) {
+	app, err := raw.RequireAppConfig(profileOverride, source)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := secret.ValidateSecretKeyMatch(app.AppId, app.AppSecret, reconfigureHint()); err != nil {
@@ -249,10 +286,22 @@ func ResolveConfigFromMulti(raw *MultiAppConfig, kc keychain.KeychainAccess, pro
 	return cfg, nil
 }
 
-// formatProfileNames joins profile names for display.
-func formatProfileNames(names []string) string {
-	if len(names) == 0 {
-		return "(none)"
+// RequireAuth loads config and ensures a user is logged in.
+func RequireAuth(kc keychain.KeychainAccess) (*CliConfig, error) {
+	return RequireAuthForProfile(kc, "")
+}
+
+// RequireAuthForProfile loads config for a profile and ensures a user is logged in.
+func RequireAuthForProfile(kc keychain.KeychainAccess, profileOverride string) (*CliConfig, error) {
+	cfg, err := RequireConfigForProfile(kc, profileOverride)
+	if err != nil {
+		return nil, err
 	}
-	return strings.Join(names, ", ")
+	if cfg.UserOpenId == "" {
+		return nil, recovery.Attach(
+			errs.NewAuthenticationError(errs.SubtypeTokenMissing, "not logged in"),
+			recovery.UserAuthorization(),
+		)
+	}
+	return cfg, nil
 }

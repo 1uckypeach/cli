@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	internaltransport "github.com/larksuite/cli/internal/transport"
 	"io"
 	"net/http"
 	"os"
@@ -43,6 +44,25 @@ type shortcutRoundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f shortcutRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+type shortcutPolicyDecorator struct {
+	base http.RoundTripper
+	fn   shortcutRoundTripFunc
+}
+
+func (t *shortcutPolicyDecorator) BaseRoundTripper() http.RoundTripper {
+	return t.base
+}
+
+func (t *shortcutPolicyDecorator) WithBaseRoundTripper(base http.RoundTripper) http.RoundTripper {
+	cloned := *t
+	cloned.base = base
+	return &cloned
+}
+
+func (t *shortcutPolicyDecorator) RoundTrip(req *http.Request) (*http.Response, error) {
+	return t.fn(req)
 }
 
 func shortcutJSONResponse(status int, body interface{}) *http.Response {
@@ -900,6 +920,50 @@ func TestStartURLDownloadBlockedURLCarriesParam(t *testing.T) {
 	}
 	if ve.Param != "--image" {
 		t.Fatalf("blocked URL Param = %q, want --image", ve.Param)
+	}
+}
+
+func TestStartURLDownloadUsesExternalRequestClass(t *testing.T) {
+	platform := &shortcutPolicyDecorator{
+		base: http.DefaultTransport,
+		fn: func(req *http.Request) (*http.Response, error) {
+			return shortcutRawResponse(http.StatusBadGateway, nil, nil), nil
+		},
+	}
+	external := &shortcutPolicyDecorator{
+		base: http.DefaultTransport,
+		fn: func(req *http.Request) (*http.Response, error) {
+			resp := shortcutRawResponse(http.StatusOK, []byte("image"), nil)
+			resp.Request = req
+			return resp, nil
+		},
+	}
+	runtime := &common.RuntimeContext{
+		Factory: &cmdutil.Factory{
+			HttpClient: func() (*http.Client, error) {
+				return &http.Client{
+					Transport: internaltransport.NewHTTPPolicyRouter(platform, external),
+				}, nil
+			},
+		},
+	}
+
+	resp, _, err := startURLDownload(
+		context.Background(),
+		runtime,
+		"https://open.feishu.cn/presigned/image.png",
+		"--image",
+	)
+	if err != nil {
+		t.Fatalf("startURLDownload() error = %v, want external route", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(body); got != "image" {
+		t.Fatalf("download body = %q, want external payload", got)
 	}
 }
 

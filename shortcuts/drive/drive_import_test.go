@@ -573,7 +573,7 @@ func driveImportMockEnv(t *testing.T, reg *httpmock.Registry, ticket string, pol
 }
 
 // driveImportTestConfig builds a CliConfig for the import fallback tests.
-// The brand defaults to BrandFeishu when omitted; pass brand.Lark to
+// The brand defaults to brand.Feishu when omitted; pass brand.Lark to
 // exercise the larksuite.com branch of BuildResourceURL.
 func driveImportTestConfig(suffix string, brands ...brand.Brand) *configpkg.CliConfig {
 	brand := brand.Feishu

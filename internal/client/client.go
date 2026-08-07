@@ -25,6 +25,7 @@ import (
 	"github.com/larksuite/cli/internal/errclass"
 	identitypkg "github.com/larksuite/cli/internal/identity"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/recovery"
 	"github.com/larksuite/cli/internal/util"
 )
 
@@ -73,10 +74,13 @@ func (c *APIClient) resolveAccessToken(ctx context.Context, as identitypkg.Ident
 // for the defensive empty-token branch) and is preserved for errors.Is /
 // errors.Unwrap traversal without being serialized on the wire.
 func newTokenMissingError(as identitypkg.Identity, cause error) error {
-	return errs.NewAuthenticationError(errs.SubtypeTokenMissing,
+	e := errs.NewAuthenticationError(errs.SubtypeTokenMissing,
 		"no access token available for %s", as).
-		WithHint("run: lark-cli auth login to re-authorize").
 		WithCause(cause)
+	if as == identitypkg.AsUser {
+		return recovery.Attach(e, recovery.UserAuthorization())
+	}
+	return e.WithHint("configure valid app credentials for the bot identity")
 }
 
 // buildApiReq converts a RawApiRequest into SDK types and collects
@@ -214,6 +218,9 @@ func (c *APIClient) DoStream(ctx context.Context, req *larkcore.ApiReq, as ident
 	resp, err := httpClient.Do(httpReq)
 	if err != nil {
 		cancel()
+		if _, ok := errs.ProblemOf(err); ok {
+			return nil, err
+		}
 		return nil, errs.NewNetworkError(classifyNetworkSubtype(err), "stream request failed: %s", err).WithCause(err)
 	}
 	resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: cancel}
