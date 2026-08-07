@@ -722,6 +722,13 @@ func (ctx *RuntimeContext) handleEmitterError(err error) {
 	ctx.outputErrOnce.Do(func() { ctx.outputErr = err })
 }
 
+// OutputError returns the first deferred output failure captured by Out,
+// OutRaw, or OutFormat. Commands that create local artifacts can use it to
+// roll those artifacts back before returning the final command error.
+func (ctx *RuntimeContext) OutputError() error {
+	return ctx.outputErr
+}
+
 func wrapLegacyPrettyRenderer(prettyFn func(w io.Writer)) output.PrettyRenderer {
 	if prettyFn == nil {
 		return nil
