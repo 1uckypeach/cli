@@ -34,7 +34,7 @@ func v2FetchFlags() []common.Flag {
 		{Name: "context-before", Desc: "range/keyword/section context: sibling blocks before selected top-level blocks", Type: "int", Default: "0"},
 		{Name: "context-after", Desc: "range/keyword/section context: sibling blocks after selected top-level blocks", Type: "int", Default: "0"},
 		{Name: "max-depth", Desc: "outline heading level cap; other scopes subtree depth where -1 is unlimited and 0 is block only", Type: "int", Default: "-1"},
-		{Name: "comments", Desc: "include visible unresolved local and whole-document comments; local comments are linked through comment-refs", Type: "bool"},
+		{Name: "comments", Desc: "include visible unresolved local and whole-document comments using bot identity; local comments are linked through comment-refs", Type: "bool"},
 	}
 }
 
@@ -54,10 +54,20 @@ func validateFetchV2(_ context.Context, runtime *common.RuntimeContext) error {
 	if err := validateFetchCommentOutput(runtime); err != nil {
 		return err
 	}
+	if err := validateFetchCommentIdentity(runtime); err != nil {
+		return err
+	}
 	if shouldIncludeFetchComments(runtime) {
 		return runtime.EnsureScopes([]string{docsFetchCommentReadScope})
 	}
 	return nil
+}
+
+func validateFetchCommentIdentity(runtime *common.RuntimeContext) error {
+	if !shouldIncludeFetchComments(runtime) || runtime.IsBot() {
+		return nil
+	}
+	return common.ValidationErrorf("--comments currently requires bot identity; use --as bot").WithParam("--as")
 }
 
 func validateFetchCommentOutput(runtime *common.RuntimeContext) error {

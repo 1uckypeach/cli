@@ -673,6 +673,50 @@ func TestValidateFetchCommentOutput(t *testing.T) {
 	}
 }
 
+func TestValidateFetchCommentIdentity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		identity core.Identity
+		scope    string
+		comments bool
+		wantErr  bool
+	}{
+		{name: "bot comments", identity: core.AsBot, scope: "full", comments: true},
+		{name: "user comments rejected", identity: core.AsUser, scope: "full", comments: true, wantErr: true},
+		{name: "user outline has no effective comments", identity: core.AsUser, scope: "outline", comments: true},
+		{name: "user without comments", identity: core.AsUser, scope: "full"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			base := newFetchBodyTestRuntime(context.Background())
+			runtime := common.TestNewRuntimeContextWithIdentity(base.Cmd, nil, tt.identity)
+			mustSetFetchFlag(t, runtime, "scope", tt.scope)
+			if tt.comments {
+				mustSetFetchFlag(t, runtime, "comments", "true")
+			}
+
+			err := validateFetchCommentIdentity(runtime)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("validateFetchCommentIdentity() succeeded, want validation error")
+				}
+				assertValidationContract(t, err, errs.SubtypeInvalidArgument, "--as")
+				if !strings.Contains(err.Error(), "--as bot") {
+					t.Fatalf("error does not explain the supported identity: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateFetchCommentIdentity() err=%v", err)
+			}
+		})
+	}
+}
+
 func TestDocsFetchV2ReferenceMapFlagIsNotAvailable(t *testing.T) {
 	t.Parallel()
 

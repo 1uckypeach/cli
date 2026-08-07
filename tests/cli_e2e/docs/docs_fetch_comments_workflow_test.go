@@ -6,7 +6,10 @@ package docs
 import (
 	"context"
 	"encoding/json"
+	"encoding/xml"
+	"io"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -64,6 +67,7 @@ func TestDocsFetchCommentsWorkflow(t *testing.T) {
 			!docsFetchReferenceGroupContains(fetched.Stdout, "document-comment", wholeText) {
 			t.Fatalf("comment reference groups missing:\n%s", fetched.Stdout)
 		}
+		assertDocsFetchCommentContract(t, fetched.Stdout, "xml", localText, wholeText)
 	})
 
 	t.Run("default remains comment free", func(t *testing.T) {
@@ -92,6 +96,7 @@ func TestDocsFetchCommentsWorkflow(t *testing.T) {
 		if !docsFetchReferenceGroupContains(result.Stdout, "comment", localText) || docsFetchReferenceGroupExists(result.Stdout, "document-comment") {
 			t.Fatalf("partial comment filtering mismatch:\n%s", result.Stdout)
 		}
+		assertDocsFetchCommentContract(t, result.Stdout, "xml", localText, "")
 	})
 
 	t.Run("markdown uses precise reference shells", func(t *testing.T) {
@@ -107,7 +112,170 @@ func TestDocsFetchCommentsWorkflow(t *testing.T) {
 			!docsFetchReferenceGroupContains(result.Stdout, "document-comment", wholeText) {
 			t.Fatalf("markdown comment sidecar mismatch:\n%s", result.Stdout)
 		}
+		assertDocsFetchCommentContract(t, result.Stdout, "markdown", localText, wholeText)
 	})
+}
+
+type docsFetchCommentEnvelope struct {
+	Data struct {
+		Document struct {
+			Content      string                                        `json:"content"`
+			ReferenceMap map[string]map[string]docsFetchReferenceEntry `json:"reference_map"`
+		} `json:"document"`
+	} `json:"data"`
+}
+
+type docsFetchReferenceEntry struct {
+	Data string `json:"data"`
+}
+
+var docsFetchCommentShellPattern = regexp.MustCompile(`<comment-ref\b[^>]*?/>`)
+
+func assertDocsFetchCommentContract(t *testing.T, stdout, markerMode, localText, wholeText string) {
+	t.Helper()
+
+	var envelope docsFetchCommentEnvelope
+	require.NoError(t, json.Unmarshal([]byte(stdout), &envelope))
+	document := envelope.Data.Document
+	localEntries := document.ReferenceMap["comment"]
+	documentEntries := document.ReferenceMap["document-comment"]
+	require.Len(t, localEntries, 1, "fixture creates exactly one local comment")
+	if wholeText == "" {
+		require.Empty(t, documentEntries, "partial fetch must omit whole-document comments")
+	} else {
+		require.Len(t, documentEntries, 1, "fixture creates exactly one whole-document comment")
+	}
+
+	localKeys := make(map[string]struct{}, len(localEntries))
+	for key, entry := range localEntries {
+		if !regexp.MustCompile(`^c[1-9][0-9]*$`).MatchString(key) {
+			t.Fatalf("local comment key %q is not an opaque cN surrogate", key)
+		}
+		localKeys[key] = struct{}{}
+		assertDiscussionXML(t, entry.Data, false)
+	}
+	if !docsFetchReferenceGroupContains(stdout, "comment", localText) {
+		t.Fatalf("local discussion does not contain %q", localText)
+	}
+	for key, entry := range documentEntries {
+		if !regexp.MustCompile(`^d[1-9][0-9]*$`).MatchString(key) {
+			t.Fatalf("document comment key %q is not an opaque dN surrogate", key)
+		}
+		assertDiscussionXML(t, entry.Data, true)
+	}
+	if wholeText != "" && !docsFetchReferenceGroupContains(stdout, "document-comment", wholeText) {
+		t.Fatalf("whole-document discussion does not contain %q", wholeText)
+	}
+
+	var bodyRefs map[string]struct{}
+	switch markerMode {
+	case "xml":
+		bodyRefs = collectCommentRefsFromXML(t, document.Content, true)
+		if strings.Contains(document.Content, "<comment-ref") {
+			t.Fatal("DocxXML output must use comment-refs attributes, not Markdown shells")
+		}
+	case "markdown":
+		if strings.Contains(document.Content, "comment-refs=") {
+			t.Fatal("Markdown output must not contain DocxXML comment-refs attributes")
+		}
+		shells := docsFetchCommentShellPattern.FindAllString(document.Content, -1)
+		bodyRefs = collectCommentRefsFromXML(t, strings.Join(shells, ""), false)
+	default:
+		t.Fatalf("unsupported marker mode %q", markerMode)
+	}
+	require.Equal(t, localKeys, bodyRefs, "body refs and local sidecar keys must form an exact closure")
+}
+
+func collectCommentRefsFromXML(t *testing.T, fragment string, includeBlockAttrs bool) map[string]struct{} {
+	t.Helper()
+
+	refs := make(map[string]struct{})
+	decoder := xml.NewDecoder(strings.NewReader("<root>" + fragment + "</root>"))
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err, "comment marker XML must be well-formed")
+		start, ok := token.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		for _, attr := range start.Attr {
+			isRefAttr := start.Name.Local == "comment-ref" && attr.Name.Local == "refs"
+			isRefAttr = isRefAttr || (includeBlockAttrs && attr.Name.Local == "comment-refs")
+			if !isRefAttr {
+				continue
+			}
+			for _, ref := range strings.Fields(attr.Value) {
+				refs[ref] = struct{}{}
+			}
+		}
+	}
+	return refs
+}
+
+func assertDiscussionXML(t *testing.T, data string, documentScope bool) {
+	t.Helper()
+
+	allowedChildren := map[string]bool{"quote": true, "message": true, "img": true, "reaction": true}
+	allowedAttrs := map[string]map[string]bool{
+		"discussion": {"scope": true, "timezone": true},
+		"quote":      {},
+		"message":    {"t": true, "u": true},
+		"img":        {},
+		"reaction":   {},
+	}
+	decoder := xml.NewDecoder(strings.NewReader(data))
+	depth := 0
+	sawRoot := false
+	sawQuote := false
+	scope := ""
+	timezone := ""
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err, "discussion sidecar must be well-formed XML")
+		switch typed := token.(type) {
+		case xml.StartElement:
+			if depth == 0 {
+				require.False(t, sawRoot, "discussion sidecar must have one root")
+				require.Equal(t, "discussion", typed.Name.Local)
+				sawRoot = true
+			} else if !allowedChildren[typed.Name.Local] {
+				t.Fatalf("unexpected discussion element <%s>", typed.Name.Local)
+			}
+			for _, attr := range typed.Attr {
+				if !allowedAttrs[typed.Name.Local][attr.Name.Local] {
+					t.Fatalf("unexpected %s attribute %q", typed.Name.Local, attr.Name.Local)
+				}
+				if typed.Name.Local == "discussion" && attr.Name.Local == "scope" {
+					scope = attr.Value
+				}
+				if typed.Name.Local == "discussion" && attr.Name.Local == "timezone" {
+					timezone = attr.Value
+				}
+			}
+			if typed.Name.Local == "quote" {
+				sawQuote = true
+			}
+			depth++
+		case xml.EndElement:
+			depth--
+			require.GreaterOrEqual(t, depth, 0)
+		}
+	}
+	require.True(t, sawRoot)
+	require.Zero(t, depth)
+	require.Equal(t, "Asia/Shanghai", timezone)
+	if documentScope {
+		require.Equal(t, "document", scope)
+		require.False(t, sawQuote, "whole-document discussions must not repeat a quote")
+	} else {
+		require.Empty(t, scope)
+	}
 }
 
 func addDocComment(t *testing.T, ctx context.Context, defaultAs, docToken, text string, locationArgs ...string) {
