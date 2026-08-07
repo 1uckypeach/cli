@@ -16,3 +16,5 @@ lark-cli vc +meeting-end --as bot --meeting-id 69999999 --dry-run
 The service rejects non-host bots, including the case where a non-host bot is the last remaining participant.
 
 This shortcut only accepts bot identity and calls `POST /open-apis/vc/v1/bots/end`. Billing, only-one-participant, offline and share-screen conditions do not authorize a non-Host bot to end the meeting.
+
+Required application scope: `vc:meeting.bot.manage:write`.

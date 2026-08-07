@@ -163,18 +163,18 @@ Shortcut 是对常用操作的高级封装（`lark-cli vc +<verb> [flags]`）。
 
 | Shortcut                                                        | 类型 | 说明                                                                         |
 | --------------------------------------------------------------- | -- | -------------------------------------------------------------------------- |
-| [`+meeting-start`](references/lark-vc-agent-meeting-start.md)   | 写  | Dry-run/manual probe of Calendar START_AND_JOIN; it cannot establish trusted Owner context |
+| [`+meeting-start`](references/lark-vc-agent-meeting-start.md)   | 写  | Start and join a Calendar meeting through START_AND_JOIN                    |
 | [`+meeting-join`](references/lark-vc-agent-meeting-join.md)     | 写  | Join an in-progress meeting by 9-digit meeting number                      |
-| [`+meeting-invite`](references/lark-vc-agent-meeting-invite.md) | 写  | Invite SELECTED or ALL eligible users through the Agent bot API            |
+| [`+meeting-invite`](references/lark-vc-agent-meeting-invite.md) | 写  | Invite SELECTED open_ids or ALL_SUGGESTED users through the Agent bot API   |
 | [`+meeting-end`](references/lark-vc-agent-meeting-end.md)       | 写  | End a meeting when the app bot is the current host                         |
 | [`+meeting-list-active`](references/lark-vc-agent-meeting-list-active.md) | 读  | List active meetings and discover meeting_id for event reads               |
 | [`+meeting-events`](references/lark-vc-agent-meeting-events.md) | 读  | List meeting events visible to the app agent (participant joined/left, transcript, chat, share) |
 | [`+meeting-message-send`](references/lark-vc-agent-meeting-message-send.md) | 写  | Send an in-meeting text message or reaction emoji                          |
 | [`+meeting-leave`](references/lark-vc-agent-meeting-leave.md)   | 写  | Leave a meeting by meeting\_id                                             |
 
-- [`+meeting-start`](references/lark-vc-agent-meeting-start.md)：外部 START_AND_JOIN 的 dry-run/手动探针；CLI 不发送 Owner，也不能建立可信 handoff，生产创会由 Agent runtime 发起。
+- [`+meeting-start`](references/lark-vc-agent-meeting-start.md)：Bot 身份发起并加入 Calendar VC；CLI 不发送 Owner，服务端从认证应用和 Calendar 关系权威解析并校验 Agent Owner。
 - [`+meeting-join`](references/lark-vc-agent-meeting-join.md)：入参格式、写操作可见性风险、入会失败排查。
-- [`+meeting-invite`](references/lark-vc-agent-meeting-invite.md)：Bot 身份的 SELECTED / ALL 邀请；SELECTED 最多 200 人，ALL 候选集由服务端解析。
+- [`+meeting-invite`](references/lark-vc-agent-meeting-invite.md)：Bot 身份的 SELECTED / ALL_SUGGESTED 邀请；SELECTED 接收用户 open_id，最多 200 人，ALL_SUGGESTED 候选集由服务端解析。
 - [`+meeting-end`](references/lark-vc-agent-meeting-end.md)：仅当前 Host Bot 可结束会议。
 - [`+meeting-list-active`](references/lark-vc-agent-meeting-list-active.md)：用户身份和应用身份的不同返回范围。
 - [`+meeting-events`](references/lark-vc-agent-meeting-events.md)：`meeting_id` 来源、身份延续、分页和错误码（10005 / 20001 / 20002）。
