@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"strings"
+	"sync"
 
 	"github.com/larksuite/cli/cmd/api"
 	"github.com/larksuite/cli/cmd/auth"
@@ -27,8 +28,10 @@ import (
 	"github.com/larksuite/cli/internal/build"
 	"github.com/larksuite/cli/internal/cmdpolicy"
 	"github.com/larksuite/cli/internal/cmdutil"
+	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/hook"
 	"github.com/larksuite/cli/internal/keychain"
+	"github.com/larksuite/cli/internal/meta"
 	internalplatform "github.com/larksuite/cli/internal/platform"
 	"github.com/larksuite/cli/internal/recovery"
 	"github.com/larksuite/cli/internal/registry"
@@ -203,7 +206,7 @@ func Build(ctx context.Context, inv cmdutil.InvocationContext, opts ...BuildOpti
 	if err != nil {
 		return newCatalogFailureRoot(ctx, cfg, err)
 	}
-	_, rootCmd, _ := assembleInternal(ctx, inv, catalog, nil, plugins, cfg)
+	_, rootCmd, _ := assembleInternal(ctx, inv, newBuildFactory(inv, cfg), catalog, nil, plugins, cfg)
 	return rootCmd
 }
 
@@ -247,13 +250,23 @@ func buildForArgsWithConfig(
 		cfg.snapshotOpener = func() (catalogSnapshot, error) { return registry.OpenSnapshot() }
 	}
 	plugins := frozenPlugins(cfg)
+	f := newBuildFactory(inv, cfg)
+	// Resolved at most once, and only by the branch that needs it. Reusing the
+	// Factory's resolver is required rather than convenient: it fails open the
+	// same way pruneForStrictMode does downstream, so a second detection here
+	// could make the listing and the pruned command tree disagree.
+	strictMode := sync.OnceValue(func() core.StrictMode {
+		return f.ResolveStrictMode(ctx)
+	})
 
 	// Version is the only deterministic no-Catalog invocation. Plugins are
 	// still installed below, and their Startup hooks run against the
 	// repository-owned root even though no Catalog commands are assembled.
-	preliminary := PlanAssembly(args, nil, nil)
+	// This first pass cannot answer catalog or Shortcut membership yet, so it
+	// only recognizes the branches that need neither.
+	preliminary := PlanAssembly(args, nil, nil, nil)
 	if preliminary.Mode == AssemblyNone {
-		runtime, root, reg := assembleInternal(ctx, inv, apicatalog.Catalog{}, []string{}, plugins, cfg)
+		runtime, root, reg := assembleInternal(ctx, inv, f, apicatalog.Catalog{}, []string{}, plugins, cfg)
 		return &buildResult{runtime: runtime, root: root, registry: reg}, nil
 	}
 
@@ -278,12 +291,12 @@ func buildForArgsWithConfig(
 	// Plugins can observe, wrap, restrict, and handle lifecycle events, but
 	// cannot add commands. Their frozen snapshot therefore does not broaden
 	// the built-in Catalog or Shortcut domains needed for this invocation.
-	plan := PlanAssembly(args, names, shortcuts.ShortcutServiceNames())
-	catalog, err := catalogForPlan(cfg, snapshot, plan)
+	plan := PlanAssembly(args, names, shortcuts.ShortcutServiceNames(), strictMode)
+	catalog, err := catalogForPlan(cfg, snapshot, plan, names)
 	if err != nil {
 		return nil, err
 	}
-	runtime, root, reg := assembleInternal(ctx, inv, catalog, plan.ShortcutDomains, plugins, cfg)
+	runtime, root, reg := assembleInternal(ctx, inv, f, catalog, plan.ShortcutDomains, plugins, cfg)
 	return &buildResult{runtime: runtime, root: root, registry: reg}, nil
 }
 
@@ -348,7 +361,7 @@ func buildInternalWithConfig(ctx context.Context, inv cmdutil.InvocationContext,
 		f.Recovery = runtime.recovery
 		return runtime, root, nil
 	}
-	return assembleInternal(ctx, inv, catalog, nil, frozenPlugins(cfg), cfg)
+	return assembleInternal(ctx, inv, newBuildFactory(inv, cfg), catalog, nil, frozenPlugins(cfg), cfg)
 }
 
 func fullCatalog(cfg *buildConfig) (apicatalog.Catalog, error) {
@@ -366,7 +379,13 @@ func catalogForPlan(
 	cfg *buildConfig,
 	snapshot catalogSnapshot,
 	plan AssemblyPlan,
+	names []string,
 ) (apicatalog.Catalog, error) {
+	// The index selection names services without reading a shard, so it is
+	// built from the manifest names in both the injected and snapshot paths.
+	if plan.Mode == AssemblyIndex {
+		return indexCatalog(names), nil
+	}
 	if cfg.apiCatalog != nil {
 		if plan.Mode == AssemblyFull {
 			return *cfg.apiCatalog, nil
@@ -377,6 +396,17 @@ func catalogForPlan(
 		return snapshot.FullCatalog()
 	}
 	return snapshot.Catalog(plan.CatalogServices...)
+}
+
+// indexCatalog builds the name-only catalog behind AssemblyIndex. The services
+// carry no ServicePath, which is what keeps them out of command registration —
+// they exist to be listed, not to be called.
+func indexCatalog(names []string) apicatalog.Catalog {
+	services := make([]meta.Service, 0, len(names))
+	for _, name := range names {
+		services = append(services, meta.Service{Name: name})
+	}
+	return apicatalog.New(apicatalog.SourceEmbedded, services)
 }
 
 func catalogServiceNames(catalog apicatalog.Catalog) []string {
@@ -430,9 +460,23 @@ func newCatalogFailureRoot(ctx context.Context, cfg *buildConfig, catalogErr err
 // install failed (FailClosed guard installed) or when no plugin produced
 // hooks; callers that wire Shutdown emit must nil-check before calling
 // hook.Emit.
+// newBuildFactory creates the Factory for one command build. It is separate
+// from assembleInternal because the assembly plan may need to resolve strict
+// mode before the catalog it selects exists, and NewDefault installs
+// process-wide workspace and transport state that must happen exactly once.
+func newBuildFactory(inv cmdutil.InvocationContext, cfg *buildConfig) *cmdutil.Factory {
+	f := cmdutil.NewDefault(cfg.streams, inv)
+	if cfg.keychain != nil {
+		f.Keychain = cfg.keychain
+	}
+	f.SkillContent = embeddedSkillContent
+	return f
+}
+
 func assembleInternal(
 	ctx context.Context,
 	inv cmdutil.InvocationContext,
+	f *cmdutil.Factory,
 	catalog apicatalog.Catalog,
 	shortcutDomains []string,
 	plugins []platform.Plugin,
@@ -447,12 +491,7 @@ func assembleInternal(
 	cmdpolicy.SetActive(nil)
 	internalplatform.SetActiveInventory(nil)
 
-	f := cmdutil.NewDefault(cfg.streams, inv)
 	f.APICatalog = catalog
-	if cfg.keychain != nil {
-		f.Keychain = cfg.keychain
-	}
-	f.SkillContent = embeddedSkillContent
 	runtime := &buildRuntime{Factory: f}
 	runtime.recovery = recovery.NewProjectorWithContext(func() *surface.Plan {
 		return runtime.surface

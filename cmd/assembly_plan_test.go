@@ -6,7 +6,85 @@ package cmd
 import (
 	"reflect"
 	"testing"
+
+	"github.com/larksuite/cli/internal/core"
 )
+
+// strictModeOffForTest is the ordinary case: no identity restriction, so the
+// listing needs no per-method filtering.
+func strictModeOffForTest() core.StrictMode { return core.StrictModeOff }
+
+// TestPlanAssemblyBareSchemaFollowsStrictMode pins the one branch whose
+// selection depends on identity. The service index names services and their
+// embedded descriptions, which the manifest alone can answer — but only while
+// no identity filter applies, since filtering is per method and reads shards.
+func TestPlanAssemblyBareSchemaFollowsStrictMode(t *testing.T) {
+	t.Parallel()
+
+	services := []string{"approval", "drive", "im"}
+	index := AssemblyPlan{Mode: AssemblyIndex, CatalogServices: []string{}, ShortcutDomains: []string{}}
+
+	tests := []struct {
+		name       string
+		strictMode func() core.StrictMode
+		want       AssemblyPlan
+	}{
+		{name: "off selects the name-only index", strictMode: strictModeOffForTest, want: index},
+		{
+			name:       "bot needs every shard to filter",
+			strictMode: func() core.StrictMode { return core.StrictModeBot },
+			want:       AssemblyPlan{Mode: AssemblyFull},
+		},
+		{
+			name:       "user needs every shard to filter",
+			strictMode: func() core.StrictMode { return core.StrictModeUser },
+			want:       AssemblyPlan{Mode: AssemblyFull},
+		},
+		// An absent getter means the caller cannot answer yet; that is not the
+		// same as answering "off", so the complete tree stands.
+		{name: "unknown keeps the full tree", strictMode: nil, want: AssemblyPlan{Mode: AssemblyFull}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := PlanAssembly([]string{"schema"}, services, nil, tt.strictMode)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("bare schema = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+// The getter exists so an invocation that never needs the identity never pays
+// for the credential lookup.
+func TestPlanAssemblyResolvesStrictModeOnlyWhenNeeded(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		argv []string
+		want int
+	}{
+		{name: "bare schema consults it once", argv: []string{"schema"}, want: 1},
+		{name: "domain never consults it", argv: []string{"drive", "files", "list"}, want: 0},
+		{name: "schema method never consults it", argv: []string{"schema", "drive.file.list"}, want: 0},
+		{name: "root help never consults it", argv: []string{"--help"}, want: 0},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			calls := 0
+			resolve := func() core.StrictMode {
+				calls++
+				return core.StrictModeOff
+			}
+			PlanAssembly(tt.argv, []string{"drive"}, []string{"drive"}, resolve)
+			if calls != tt.want {
+				t.Errorf("strict mode resolved %d times, want %d", calls, tt.want)
+			}
+		})
+	}
+}
 
 func TestPlanAssembly(t *testing.T) {
 	t.Parallel()
@@ -94,9 +172,9 @@ func TestPlanAssembly(t *testing.T) {
 		{name: "bare root", argv: nil, want: AssemblyPlan{Mode: AssemblyFull}},
 		{name: "root help long", argv: []string{"--help"}, want: AssemblyPlan{Mode: AssemblyFull}},
 		{name: "root help short", argv: []string{"-h"}, want: AssemblyPlan{Mode: AssemblyFull}},
-		{name: "bare schema", argv: []string{"schema"}, want: AssemblyPlan{Mode: AssemblyFull}},
-		{name: "schema unknown service", argv: []string{"schema", "unknown"}, want: AssemblyPlan{Mode: AssemblyFull}},
-		{name: "schema unknown service", argv: []string{"schema", "unknown.file.list"}, want: AssemblyPlan{Mode: AssemblyFull}},
+		{name: "bare schema", argv: []string{"schema"}, want: AssemblyPlan{Mode: AssemblyIndex, CatalogServices: []string{}, ShortcutDomains: []string{}}},
+		{name: "schema unknown service alone", argv: []string{"schema", "unknown"}, want: AssemblyPlan{Mode: AssemblyFull}},
+		{name: "schema unknown service in method path", argv: []string{"schema", "unknown.file.list"}, want: AssemblyPlan{Mode: AssemblyFull}},
 		{name: "schema empty segment", argv: []string{"schema", "drive..list"}, want: AssemblyPlan{Mode: AssemblyFull}},
 		{name: "schema flag before path", argv: []string{"schema", "--format", "json", "drive.file.list"}, want: AssemblyPlan{Mode: AssemblyFull}},
 		{name: "completion", argv: []string{"completion", "bash"}, want: AssemblyPlan{Mode: AssemblyFull}},
@@ -123,7 +201,7 @@ func TestPlanAssembly(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := PlanAssembly(tt.argv, services, shortcuts)
+			got := PlanAssembly(tt.argv, services, shortcuts, strictModeOffForTest)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("PlanAssembly(%q) = %#v, want %#v", tt.argv, got, tt.want)
 			}
@@ -145,7 +223,7 @@ func TestPlanAssemblyDoesNotInterpretLocalFlags(t *testing.T) {
 		{"drive", "-xyz", "calendar"},
 		{"drive", ""},
 	} {
-		if got := PlanAssembly(argv, []string{"calendar", "drive"}, []string{"drive"}); !reflect.DeepEqual(got, want) {
+		if got := PlanAssembly(argv, []string{"calendar", "drive"}, []string{"drive"}, strictModeOffForTest); !reflect.DeepEqual(got, want) {
 			t.Errorf("PlanAssembly(%q) = %#v, want %#v", argv, got, want)
 		}
 	}

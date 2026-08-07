@@ -39,7 +39,7 @@ func buildInternalForTest(
 	if err != nil {
 		t.Fatalf("load full Catalog: %v", err)
 	}
-	runtime, root, reg := assembleInternal(ctx, inv, catalog, nil, frozenPlugins(cfg), cfg)
+	runtime, root, reg := assembleInternal(ctx, inv, newBuildFactory(inv, cfg), catalog, nil, frozenPlugins(cfg), cfg)
 	return runtime.Factory, root, reg
 }
 

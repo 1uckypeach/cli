@@ -94,6 +94,10 @@ func TestBuildForArgsAssemblyLoading(t *testing.T) {
 		{name: "version", args: []string{"--version"}, wantOpens: 0},
 		{name: "target api", args: []string{"drive", "files", "list"}, wantOpens: 1, wantCatalogs: [][]string{{"drive"}}},
 		{name: "target schema", args: []string{"schema", "drive.file.comments.list"}, wantOpens: 1, wantCatalogs: [][]string{{"drive"}}},
+		{name: "target schema service", args: []string{"schema", "drive"}, wantOpens: 1, wantCatalogs: [][]string{{"drive"}}},
+		// The service index is answerable from the manifest alone, so the
+		// manifest is opened but no shard is ever parsed.
+		{name: "bare schema", args: []string{"schema"}, wantOpens: 1},
 		{name: "shortcut only", args: []string{"docs", "+fetch"}, wantOpens: 1, wantCatalogs: [][]string{nil}},
 		{name: "root help", args: []string{"--help"}, wantOpens: 1, wantFull: 1},
 		{name: "completion", args: []string{"completion", "zsh"}, wantOpens: 1, wantFull: 1},
@@ -127,6 +131,53 @@ func TestBuildForArgsAssemblyLoading(t *testing.T) {
 				t.Errorf("Catalog selected %d times, want at most once", snapshot.catalogCalls+snapshot.fullCalls)
 			}
 		})
+	}
+}
+
+// The name-only index assembly is a saving, not a different answer. The
+// flag-first form reaches the same listing through the full catalog, which
+// makes it the control: same bytes out, one of them without touching a shard.
+func TestBareSchemaIndexAssemblyMatchesFullAssembly(t *testing.T) {
+	run := func(t *testing.T, args []string) (string, *recordingSnapshot) {
+		t.Helper()
+		snapshot := newRecordingSnapshot(t)
+		opens := 0
+		var out bytes.Buffer
+		root, err := BuildForArgs(
+			context.Background(),
+			cmdutil.InvocationContext{},
+			args,
+			WithIO(strings.NewReader(""), &out, io.Discard),
+			WithoutPlugins(),
+			WithoutStrictMode(),
+			withRecordingSnapshot(snapshot, &opens),
+		)
+		if err != nil {
+			t.Fatalf("BuildForArgs(%q): %v", args, err)
+		}
+		root.SetArgs(args)
+		if err := root.Execute(); err != nil {
+			t.Fatalf("execute %q: %v", args, err)
+		}
+		return out.String(), snapshot
+	}
+
+	indexOut, indexSnapshot := run(t, []string{"schema"})
+	fullOut, fullSnapshot := run(t, []string{"schema", "--format", "json"})
+
+	if indexSnapshot.catalogCalls != 0 || indexSnapshot.fullCalls != 0 {
+		t.Errorf("bare schema parsed shards: Catalog=%d FullCatalog=%d, want 0 and 0",
+			indexSnapshot.catalogCalls, indexSnapshot.fullCalls)
+	}
+	if fullSnapshot.fullCalls != 1 {
+		t.Fatalf("control used FullCatalog %d times, want 1 — it is no longer a full-assembly control",
+			fullSnapshot.fullCalls)
+	}
+	if indexOut == "" {
+		t.Fatal("bare schema produced no output")
+	}
+	if indexOut != fullOut {
+		t.Errorf("index assembly output differs from full assembly\nindex:\n%s\nfull:\n%s", indexOut, fullOut)
 	}
 }
 

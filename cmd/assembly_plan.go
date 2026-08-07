@@ -3,13 +3,21 @@
 
 package cmd
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/larksuite/cli/internal/core"
+)
 
 // AssemblySelection describes how much of the command tree must be assembled.
 type AssemblySelection string
 
 const (
-	AssemblyNone   AssemblySelection = "none"
+	AssemblyNone AssemblySelection = "none"
+	// AssemblyIndex names every service without reading a single shard. It
+	// serves the bare `schema`, whose service index is built from the manifest
+	// names and the embedded descriptions alone.
+	AssemblyIndex  AssemblySelection = "index"
 	AssemblyTarget AssemblySelection = "target"
 	AssemblyFull   AssemblySelection = "full"
 )
@@ -24,10 +32,18 @@ type AssemblyPlan struct {
 // PlanAssembly conservatively determines which command domains an argv can
 // reach. It only recognizes root-global flags and top-level command positions;
 // Cobra remains the authority for parsing and validating the actual command.
+//
+// strictMode resolves the active identity restriction. It is a getter rather
+// than a value because only one branch consults it, so an invocation that never
+// asks never pays for the credential lookup. A nil getter means the caller
+// cannot answer yet, and every branch that would consult it falls back to the
+// complete tree. The decision is made once — a branch never retries as Full
+// after choosing a narrower selection.
 func PlanAssembly(
 	argv []string,
 	catalogServices []string,
 	shortcutDomains []string,
+	strictMode func() core.StrictMode,
 ) AssemblyPlan {
 	catalog := nameSet(catalogServices)
 	shortcuts := nameSet(shortcutDomains)
@@ -100,7 +116,7 @@ func PlanAssembly(
 			return fullAssemblyPlan()
 		}
 		if token == "schema" {
-			return planSchema(argv[i+1:], catalog)
+			return planSchema(argv[i+1:], catalog, strictMode)
 		}
 		// The first positional token in ordinary invocations is the domain,
 		// as in `drive files list` or `docs +fetch`.
@@ -123,10 +139,25 @@ func splitLongFlag(token string) (name string, hasValue bool) {
 	return name, false
 }
 
-func planSchema(argv []string, catalog map[string]struct{}) AssemblyPlan {
-	// Bare schema, schema help, and flag-first forms do not identify one
-	// service shard (for example `schema` or `schema --format json`).
-	if len(argv) == 0 || argv[0] == "" || strings.HasPrefix(argv[0], "-") {
+func planSchema(argv []string, catalog map[string]struct{}, strictMode func() core.StrictMode) AssemblyPlan {
+	// The bare form renders the service index, which needs service names and
+	// their embedded descriptions but no shard body. That holds only while
+	// strict mode is off: an active mode drops services whose every method the
+	// identity cannot reach, and deciding that reads each shard.
+	if len(argv) == 0 {
+		if strictModeIsOff(strictMode) {
+			return AssemblyPlan{
+				Mode:            AssemblyIndex,
+				CatalogServices: []string{},
+				ShortcutDomains: []string{},
+			}
+		}
+		return fullAssemblyPlan()
+	}
+	// Flag-first forms (`schema --format json`) reach the same listing, but
+	// recognizing them means parsing schema's own flags. The planner stays out
+	// of local flag semantics and leaves them to the complete tree.
+	if argv[0] == "" || strings.HasPrefix(argv[0], "-") {
 		return fullAssemblyPlan()
 	}
 	parts := strings.Split(argv[0], ".")
@@ -186,4 +217,14 @@ func nameSet(names []string) map[string]struct{} {
 
 func fullAssemblyPlan() AssemblyPlan {
 	return AssemblyPlan{Mode: AssemblyFull}
+}
+
+// strictModeIsOff reports whether the identity restriction is known to be
+// inactive. An absent getter is not an answer, so it reads as "not known to be
+// off" and the caller keeps the complete tree.
+func strictModeIsOff(resolve func() core.StrictMode) bool {
+	if resolve == nil {
+		return false
+	}
+	return !resolve().IsActive()
 }
