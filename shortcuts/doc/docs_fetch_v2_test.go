@@ -580,6 +580,45 @@ func TestBuildFetchBodyIncludesFetchExtraParamByDefault(t *testing.T) {
 	}
 }
 
+func TestBuildFetchBodyIncludesCommentsOnlyWhenEffective(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name         string
+		scope        string
+		wantComments bool
+	}{
+		{name: "full", scope: "full", wantComments: true},
+		{name: "partial", scope: "keyword", wantComments: true},
+		{name: "outline directory", scope: "outline", wantComments: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runtime := newFetchBodyTestRuntime(context.Background())
+			mustSetFetchFlag(t, runtime, "comments", "true")
+			mustSetFetchFlag(t, runtime, "scope", tt.scope)
+			if tt.scope == "keyword" {
+				mustSetFetchFlag(t, runtime, "keyword", "commented")
+			}
+			body := buildFetchBody(runtime)
+			var got map[string]bool
+			if err := json.Unmarshal([]byte(body["extra_param"].(string)), &got); err != nil {
+				t.Fatalf("decode extra_param: %v", err)
+			}
+			if got["include_comments"] != tt.wantComments {
+				t.Fatalf("include_comments=%v, want %v in %#v", got["include_comments"], tt.wantComments, got)
+			}
+		})
+	}
+}
+
+func TestDocsFetchDeclaresCommentReadConditionalScope(t *testing.T) {
+	t.Parallel()
+	if !reflect.DeepEqual(DocsFetch.ConditionalScopes, []string{docsFetchCommentReadScope}) {
+		t.Fatalf("ConditionalScopes=%v, want [%q]", DocsFetch.ConditionalScopes, docsFetchCommentReadScope)
+	}
+}
+
 func TestDocsFetchV2ReferenceMapFlagIsNotAvailable(t *testing.T) {
 	t.Parallel()
 
@@ -963,6 +1002,7 @@ func newFetchBodyTestRuntime(ctx context.Context) *common.RuntimeContext {
 	cmd.Flags().Int("context-before", fetchDefaultInt("context-before"), "")
 	cmd.Flags().Int("context-after", fetchDefaultInt("context-after"), "")
 	cmd.Flags().Int("max-depth", fetchDefaultInt("max-depth"), "")
+	cmd.Flags().Bool("comments", false, "")
 	return common.TestNewRuntimeContextWithCtx(ctx, cmd, nil)
 }
 
@@ -1019,6 +1059,7 @@ func newFetchShortcutTestRuntime(t *testing.T, apiVersion string, setFlags map[s
 	cmd.Flags().Int("context-before", fetchDefaultInt("context-before"), "")
 	cmd.Flags().Int("context-after", fetchDefaultInt("context-after"), "")
 	cmd.Flags().Int("max-depth", fetchDefaultInt("max-depth"), "")
+	cmd.Flags().Bool("comments", false, "")
 	cmd.Flags().String("offset", "", "")
 	cmd.Flags().String("limit", "", "")
 	if apiVersion != "" {
