@@ -509,6 +509,51 @@ func TestValidateFetchV2RejectsInvalidDocAndScope(t *testing.T) {
 	}
 }
 
+func TestValidateFetchV2RejectsInvalidCommentCombinations(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		identity  core.Identity
+		format    string
+		wantParam string
+	}{
+		{name: "lossy output", identity: core.AsBot, format: "pretty", wantParam: "--format"},
+		{name: "user identity", identity: core.AsUser, format: "json", wantParam: "--as"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			base := newFetchBodyTestRuntime(context.Background())
+			runtime := common.TestNewRuntimeContextWithIdentity(base.Cmd, nil, tt.identity)
+			runtime.Format = tt.format
+			mustSetFetchFlag(t, runtime, "comments", "true")
+
+			err := validateFetchV2(context.Background(), runtime)
+			if err == nil {
+				t.Fatal("validateFetchV2() succeeded, want validation error")
+			}
+			assertValidationContract(t, err, errs.SubtypeInvalidArgument, tt.wantParam)
+		})
+	}
+}
+
+func TestValidateFetchV2CommentsRunsConditionalScopeCheck(t *testing.T) {
+	t.Parallel()
+
+	config := &core.CliConfig{AppID: "test-app"}
+	factory, _, _, _ := cmdutil.TestFactory(t, config)
+	base := newFetchBodyTestRuntime(context.Background())
+	runtime := common.TestNewRuntimeContextForAPI(context.Background(), base.Cmd, config, factory, core.AsBot)
+	runtime.Format = "json"
+	mustSetFetchFlag(t, runtime, "comments", "true")
+
+	if err := validateFetchV2(context.Background(), runtime); err != nil {
+		t.Fatalf("validateFetchV2() err=%v", err)
+	}
+}
+
 func TestAddFetchDetailDowngradeWarningNoops(t *testing.T) {
 	t.Parallel()
 
@@ -637,6 +682,7 @@ func TestValidateFetchCommentOutput(t *testing.T) {
 		{name: "ndjson is not the documented lossless contract", outputFormat: "ndjson", docFormat: "xml", scope: "full", comments: true, wantErr: true},
 		{name: "yaml is not the lossless comment contract", outputFormat: "yaml", docFormat: "xml", scope: "full", comments: true, wantErr: true},
 		{name: "json preserves sidecar", outputFormat: "json", docFormat: "xml", scope: "full", comments: true},
+		{name: "json flag fallback preserves sidecar", docFormat: "xml", scope: "full", comments: true},
 		{name: "outline intentionally has no comments", outputFormat: "pretty", docFormat: "xml", scope: "outline", comments: true},
 		{name: "comments disabled", outputFormat: "pretty", docFormat: "xml", scope: "full"},
 	}
@@ -1088,6 +1134,7 @@ func TestDocsFetchRejectsLegacyFlags(t *testing.T) {
 
 func newFetchBodyTestRuntime(ctx context.Context) *common.RuntimeContext {
 	cmd := &cobra.Command{Use: "+fetch"}
+	cmd.Flags().String("format", "json", "")
 	cmd.Flags().String("doc", "doxcnFetchDryRun", "")
 	cmd.Flags().String("doc-format", fetchDefault("doc-format"), "")
 	cmd.Flags().String("detail", fetchDefault("detail"), "")
