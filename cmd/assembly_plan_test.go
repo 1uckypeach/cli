@@ -49,6 +49,23 @@ func TestPlanAssembly(t *testing.T) {
 			argv: []string{"schema", "drive.file.comments.list"},
 			want: AssemblyPlan{Mode: AssemblyTarget, CatalogServices: []string{"drive"}, ShortcutDomains: []string{}},
 		},
+		// The layered output makes the service and resource forms the ordinary
+		// way to browse, and each still resolves inside one shard.
+		{
+			name: "schema service",
+			argv: []string{"schema", "drive"},
+			want: AssemblyPlan{Mode: AssemblyTarget, CatalogServices: []string{"drive"}, ShortcutDomains: []string{}},
+		},
+		{
+			name: "schema resource",
+			argv: []string{"schema", "drive.file"},
+			want: AssemblyPlan{Mode: AssemblyTarget, CatalogServices: []string{"drive"}, ShortcutDomains: []string{}},
+		},
+		{
+			name: "schema spaced path",
+			argv: []string{"schema", "drive", "file", "list"},
+			want: AssemblyPlan{Mode: AssemblyTarget, CatalogServices: []string{"drive"}, ShortcutDomains: []string{}},
+		},
 		{
 			name: "catalog-only domain",
 			argv: []string{"approval", "instances", "list"},
@@ -78,8 +95,7 @@ func TestPlanAssembly(t *testing.T) {
 		{name: "root help long", argv: []string{"--help"}, want: AssemblyPlan{Mode: AssemblyFull}},
 		{name: "root help short", argv: []string{"-h"}, want: AssemblyPlan{Mode: AssemblyFull}},
 		{name: "bare schema", argv: []string{"schema"}, want: AssemblyPlan{Mode: AssemblyFull}},
-		{name: "schema service is broad", argv: []string{"schema", "drive"}, want: AssemblyPlan{Mode: AssemblyFull}},
-		{name: "schema spaced path is ambiguous", argv: []string{"schema", "drive", "file", "list"}, want: AssemblyPlan{Mode: AssemblyFull}},
+		{name: "schema unknown service", argv: []string{"schema", "unknown"}, want: AssemblyPlan{Mode: AssemblyFull}},
 		{name: "schema unknown service", argv: []string{"schema", "unknown.file.list"}, want: AssemblyPlan{Mode: AssemblyFull}},
 		{name: "schema empty segment", argv: []string{"schema", "drive..list"}, want: AssemblyPlan{Mode: AssemblyFull}},
 		{name: "schema flag before path", argv: []string{"schema", "--format", "json", "drive.file.list"}, want: AssemblyPlan{Mode: AssemblyFull}},

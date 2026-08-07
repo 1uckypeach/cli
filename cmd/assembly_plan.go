@@ -130,12 +130,6 @@ func planSchema(argv []string, catalog map[string]struct{}) AssemblyPlan {
 		return fullAssemblyPlan()
 	}
 	parts := strings.Split(argv[0], ".")
-	// Only a precise dotted method such as
-	// `schema drive.file.comments.list` can select a shard. Broad forms
-	// such as `schema drive` need the complete catalog.
-	if len(parts) < 3 {
-		return fullAssemblyPlan()
-	}
 	for _, part := range parts {
 		// Empty components (`schema drive..list`) are invalid but remain
 		// Cobra/schema concerns, so retain the full tree for diagnostics.
@@ -144,12 +138,18 @@ func planSchema(argv []string, catalog map[string]struct{}) AssemblyPlan {
 		}
 	}
 	service := parts[0]
-	// An unknown service in an otherwise dotted path must see the full
-	// catalog so the schema command can report the authoritative error.
+	// An unknown service must see the full catalog so the schema command can
+	// report the authoritative error. This is also what routes a pure-Shortcut
+	// domain such as `schema docs` to the full tree, where the resolve failure
+	// can name the real alternatives.
 	if _, ok := catalog[service]; !ok {
 		return fullAssemblyPlan()
 	}
-	// A valid precise method only needs its leading service shard.
+	// Every resolvable target names its service first, so the leading shard is
+	// enough for all of them: `schema drive`, `schema drive.file`, and
+	// `schema drive.file.comments.list` alike. The layered output makes the
+	// first two the ordinary way to browse rather than a curiosity, so routing
+	// them to the full catalog would forfeit the saving on the common path.
 	return AssemblyPlan{
 		Mode:            AssemblyTarget,
 		CatalogServices: []string{service},
