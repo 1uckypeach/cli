@@ -364,6 +364,28 @@ func TestHandleResponse_JSONWithError(t *testing.T) {
 	}
 }
 
+func TestHandleResponse_RateLimitIncludesRetryAfterSeconds(t *testing.T) {
+	resp := newApiRespWithStatus(http.StatusTooManyRequests,
+		[]byte(`{"code":99991400,"msg":"rate limited"}`),
+		map[string]string{
+			"Content-Type": "application/json",
+			"Retry-After":  "2",
+		})
+
+	err := HandleResponse(resp, ResponseOptions{
+		Out:    io.Discard,
+		ErrOut: io.Discard,
+		FileIO: &localfileio.LocalFileIO{},
+	})
+	var apiErr *errs.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("HandleResponse() error = %T %v, want *errs.APIError", err, err)
+	}
+	if apiErr.RetryAfterSeconds != 2 {
+		t.Fatalf("retry_after_seconds = %d, want 2", apiErr.RetryAfterSeconds)
+	}
+}
+
 func TestHandleResponse_BinaryAutoSave(t *testing.T) {
 	dir := t.TempDir()
 	origWd, _ := os.Getwd()
