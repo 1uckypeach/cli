@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -42,12 +43,19 @@ func init() {
 					}
 				}
 			}).
-			On(platform.Shutdown, "record", func(context.Context, *platform.LifecycleContext) error {
+			On(platform.Shutdown, "record", func(ctx context.Context, _ *platform.LifecycleContext) error {
 				marker := os.Getenv("LARK_CLI_SHUTDOWN_MARKER")
 				if marker == "" {
 					return errors.New("LARK_CLI_SHUTDOWN_MARKER is empty")
 				}
-				return os.WriteFile(marker, []byte("shutdown"), 0o600)
+				if err := os.WriteFile(marker, []byte("shutdown"), 0o600); err != nil {
+					return err
+				}
+				if os.Getenv("LARK_CLI_BLOCK_SHUTDOWN") == "1" {
+					<-ctx.Done()
+					return ctx.Err()
+				}
+				return nil
 			}).
 			FailOpen().
 			MustBuild())
@@ -59,51 +67,95 @@ func TestSIGINTRunsShutdownHookAndReturns130(t *testing.T) {
 		t.Skip("os.Interrupt cannot be sent to Windows processes")
 	}
 
-	bin := buildFork(t, "shutdown-signal", shutdownSignalPlugin)
-	markerDir := t.TempDir()
-	readyMarker := filepath.Join(markerDir, "ready")
-	shutdownMarker := filepath.Join(markerDir, "shutdown")
-
-	cmd := exec.Command(bin, "schema")
-	cmd.Env = append(isolatedEnv(t),
-		"LARK_CLI_READY_MARKER="+readyMarker,
-		"LARK_CLI_SHUTDOWN_MARKER="+shutdownMarker,
-	)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("start fork: %v", err)
-	}
-	t.Cleanup(func() {
-		if cmd.ProcessState == nil {
-			_ = cmd.Process.Kill()
-			_ = cmd.Wait()
-		}
-	})
-
-	waitForMarker(t, readyMarker, 10*time.Second)
-	if err := cmd.Process.Signal(os.Interrupt); err != nil {
+	fork := startSignalFork(t, false)
+	if err := fork.cmd.Process.Signal(os.Interrupt); err != nil {
 		t.Fatalf("send SIGINT: %v", err)
 	}
-
-	waitCh := make(chan error, 1)
-	go func() { waitCh <- cmd.Wait() }()
-	var waitErr error
-	select {
-	case waitErr = <-waitCh:
-	case <-time.After(10 * time.Second):
-		_ = cmd.Process.Kill()
-		t.Fatalf("fork did not exit after SIGINT; stdout=%s stderr=%s", stdout.String(), stderr.String())
-	}
+	waitErr := waitForForkExit(t, fork, 10*time.Second)
 
 	var exitErr *exec.ExitError
 	if !errors.As(waitErr, &exitErr) || exitErr.ExitCode() != 130 {
 		t.Fatalf("SIGINT exit error = %v, exit code = %d, want 130; stdout=%s stderr=%s",
-			waitErr, cmd.ProcessState.ExitCode(), stdout.String(), stderr.String())
+			waitErr, fork.cmd.ProcessState.ExitCode(), fork.stdout.String(), fork.stderr.String())
 	}
-	if data, err := os.ReadFile(shutdownMarker); err != nil || string(data) != "shutdown" {
+	if data, err := os.ReadFile(fork.shutdownMarker); err != nil || string(data) != "shutdown" {
 		t.Fatalf("Shutdown marker = %q, err=%v, want shutdown", data, err)
+	}
+}
+
+func TestSecondSIGINTForcesExitDuringShutdown(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("os.Interrupt cannot be sent to Windows processes")
+	}
+
+	fork := startSignalFork(t, true)
+	if err := fork.cmd.Process.Signal(os.Interrupt); err != nil {
+		t.Fatalf("send first SIGINT: %v", err)
+	}
+	waitForMarker(t, fork.shutdownMarker, 10*time.Second)
+	if err := fork.cmd.Process.Signal(os.Interrupt); err != nil {
+		t.Fatalf("send second SIGINT: %v", err)
+	}
+
+	waitErr := waitForForkExit(t, fork, time.Second)
+	var exitErr *exec.ExitError
+	if !errors.As(waitErr, &exitErr) {
+		t.Fatalf("second SIGINT wait error = %v, want signal exit", waitErr)
+	}
+	if exitErr.ExitCode() != -1 || !strings.Contains(waitErr.Error(), "interrupt") {
+		t.Fatalf("second SIGINT exit = %v, want interrupt signal termination; stderr=%s", waitErr, fork.stderr.String())
+	}
+}
+
+type signalFork struct {
+	cmd            *exec.Cmd
+	stdout         bytes.Buffer
+	stderr         bytes.Buffer
+	shutdownMarker string
+}
+
+func startSignalFork(t *testing.T, blockShutdown bool) *signalFork {
+	t.Helper()
+	bin := buildFork(t, "shutdown-signal", shutdownSignalPlugin)
+	markerDir := t.TempDir()
+	readyMarker := filepath.Join(markerDir, "ready")
+	fork := &signalFork{
+		cmd:            exec.Command(bin, "schema"),
+		shutdownMarker: filepath.Join(markerDir, "shutdown"),
+	}
+	fork.cmd.Env = append(isolatedEnv(t),
+		"LARK_CLI_READY_MARKER="+readyMarker,
+		"LARK_CLI_SHUTDOWN_MARKER="+fork.shutdownMarker,
+	)
+	if blockShutdown {
+		fork.cmd.Env = append(fork.cmd.Env, "LARK_CLI_BLOCK_SHUTDOWN=1")
+	}
+	fork.cmd.Stdout = &fork.stdout
+	fork.cmd.Stderr = &fork.stderr
+	if err := fork.cmd.Start(); err != nil {
+		t.Fatalf("start fork: %v", err)
+	}
+	t.Cleanup(func() {
+		if fork.cmd.ProcessState == nil {
+			_ = fork.cmd.Process.Kill()
+			_ = fork.cmd.Wait()
+		}
+	})
+	waitForMarker(t, readyMarker, 10*time.Second)
+	return fork
+}
+
+func waitForForkExit(t *testing.T, fork *signalFork, timeout time.Duration) error {
+	t.Helper()
+	waitCh := make(chan error, 1)
+	go func() { waitCh <- fork.cmd.Wait() }()
+	select {
+	case err := <-waitCh:
+		return err
+	case <-time.After(timeout):
+		_ = fork.cmd.Process.Kill()
+		t.Fatalf("fork did not exit within %s; stdout=%s stderr=%s", timeout, fork.stdout.String(), fork.stderr.String())
+		return nil
 	}
 }
 
