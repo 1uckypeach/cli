@@ -1,0 +1,434 @@
+{
+  "name": "vc",
+  "version": "v1",
+  "title": "视频会议 API",
+  "description": "video conferencing and meeting notes",
+  "servicePath": "/open-apis/vc/v1",
+  "resources": {
+    "meeting": {
+      "methods": {
+        "get": {
+          "id": "meeting.get",
+          "path": "meetings/{meeting_id}",
+          "httpMethod": "GET",
+          "description": "Obtain meeting details",
+          "parameters": {
+            "meeting_id": {
+              "type": "string",
+              "location": "path",
+              "required": true,
+              "description": "Meeting ID (Unique identifier of a video conference, generated after the conference is started)",
+              "example": "6911188411932033028"
+            },
+            "with_participants": {
+              "type": "boolean",
+              "location": "query",
+              "required": false,
+              "description": "Indicates whether the participant list is required",
+              "example": "false"
+            },
+            "with_meeting_ability": {
+              "type": "boolean",
+              "location": "query",
+              "required": false,
+              "description": "Indicates whether individual statistics is required in the meeting (only for tenant_access_token)",
+              "example": "false"
+            },
+            "user_id_type": {
+              "type": "string",
+              "location": "query",
+              "required": false,
+              "description": "",
+              "options": [
+                {
+                  "value": "user_id",
+                  "description": ""
+                },
+                {
+                  "value": "union_id",
+                  "description": ""
+                },
+                {
+                  "value": "open_id",
+                  "description": ""
+                }
+              ],
+              "enumName": "GetMeetingByIDUserIDType",
+              "enum": [
+                "user_id",
+                "union_id",
+                "open_id"
+              ]
+            },
+            "query_mode": {
+              "type": "integer",
+              "location": "query",
+              "required": false,
+              "description": "",
+              "options": [
+                {
+                  "value": "0",
+                  "description": "only get meeting"
+                },
+                {
+                  "value": "1",
+                  "description": "only get related artifacts"
+                }
+              ],
+              "enumName": "get_meeting_by_id_query_mode",
+              "enum": [
+                "0",
+                "1"
+              ]
+            }
+          },
+          "parameterOrder": [
+            "meeting_id"
+          ],
+          "responseBody": {
+            "meeting": {
+              "type": "object",
+              "description": "Meeting data",
+              "required": false,
+              "ref": "meeting",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "",
+                  "required": false
+                },
+                "topic": {
+                  "type": "string",
+                  "description": "",
+                  "required": false
+                },
+                "url": {
+                  "type": "string",
+                  "description": "",
+                  "required": false
+                },
+                "meeting_no": {
+                  "type": "string",
+                  "description": "",
+                  "required": false
+                },
+                "password": {
+                  "type": "string",
+                  "description": "",
+                  "required": false
+                },
+                "create_time": {
+                  "type": "string",
+                  "description": "",
+                  "required": false
+                },
+                "start_time": {
+                  "type": "string",
+                  "description": "",
+                  "required": false
+                },
+                "end_time": {
+                  "type": "string",
+                  "description": "",
+                  "required": false
+                },
+                "host_user": {
+                  "type": "object",
+                  "description": "Host",
+                  "required": false,
+                  "ref": "meeting_user",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "User ID",
+                      "required": false
+                    },
+                    "user_type": {
+                      "type": "integer",
+                      "description": "",
+                      "required": false,
+                      "options": [
+                        {
+                          "value": "1",
+                          "description": ""
+                        },
+                        {
+                          "value": "2",
+                          "description": ""
+                        },
+                        {
+                          "value": "3",
+                          "description": ""
+                        },
+                        {
+                          "value": "4",
+                          "description": ""
+                        },
+                        {
+                          "value": "5",
+                          "description": ""
+                        },
+                        {
+                          "value": "6",
+                          "description": ""
+                        },
+                        {
+                          "value": "7",
+                          "description": ""
+                        }
+                      ],
+                      "enum": [
+                        "1",
+                        "2",
+                        "3",
+                        "4",
+                        "5",
+                        "6",
+                        "7"
+                      ],
+                      "enumName": "user_type"
+                    }
+                  }
+                },
+                "meeting_connect": {
+                  "type": "boolean",
+                  "description": "",
+                  "required": false
+                },
+                "status": {
+                  "type": "integer",
+                  "description": "",
+                  "required": false,
+                  "options": [
+                    {
+                      "value": "1",
+                      "description": ""
+                    },
+                    {
+                      "value": "2",
+                      "description": ""
+                    },
+                    {
+                      "value": "3",
+                      "description": ""
+                    }
+                  ],
+                  "enum": [
+                    "1",
+                    "2",
+                    "3"
+                  ],
+                  "enumName": "meeting_status"
+                },
+                "participant_count": {
+                  "type": "string",
+                  "description": "",
+                  "required": false
+                },
+                "participant_count_accumulated": {
+                  "type": "string",
+                  "description": "",
+                  "required": false
+                },
+                "participants": {
+                  "type": "array",
+                  "description": "Participant list",
+                  "required": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "User ID",
+                      "required": false
+                    },
+                    "first_join_time": {
+                      "type": "string",
+                      "description": "",
+                      "required": false
+                    },
+                    "final_leave_time": {
+                      "type": "string",
+                      "description": "",
+                      "required": false
+                    },
+                    "in_meeting_duration": {
+                      "type": "string",
+                      "description": "",
+                      "required": false
+                    },
+                    "user_type": {
+                      "type": "integer",
+                      "description": "",
+                      "required": false,
+                      "options": [
+                        {
+                          "value": "1",
+                          "description": ""
+                        },
+                        {
+                          "value": "2",
+                          "description": ""
+                        },
+                        {
+                          "value": "3",
+                          "description": ""
+                        },
+                        {
+                          "value": "4",
+                          "description": ""
+                        },
+                        {
+                          "value": "5",
+                          "description": ""
+                        },
+                        {
+                          "value": "6",
+                          "description": ""
+                        },
+                        {
+                          "value": "7",
+                          "description": ""
+                        }
+                      ],
+                      "enum": [
+                        "1",
+                        "2",
+                        "3",
+                        "4",
+                        "5",
+                        "6",
+                        "7"
+                      ],
+                      "enumName": "user_type"
+                    },
+                    "is_host": {
+                      "type": "boolean",
+                      "description": "",
+                      "required": false
+                    },
+                    "is_cohost": {
+                      "type": "boolean",
+                      "description": "",
+                      "required": false
+                    },
+                    "is_external": {
+                      "type": "boolean",
+                      "description": "",
+                      "required": false
+                    },
+                    "status": {
+                      "type": "integer",
+                      "description": "",
+                      "required": false,
+                      "options": [
+                        {
+                          "value": "1",
+                          "description": ""
+                        },
+                        {
+                          "value": "2",
+                          "description": ""
+                        },
+                        {
+                          "value": "3",
+                          "description": ""
+                        },
+                        {
+                          "value": "4",
+                          "description": ""
+                        }
+                      ],
+                      "enum": [
+                        "1",
+                        "2",
+                        "3",
+                        "4"
+                      ],
+                      "enumName": "participant_status"
+                    }
+                  }
+                },
+                "ability": {
+                  "type": "object",
+                  "description": "",
+                  "required": false,
+                  "ref": "meeting_ability",
+                  "properties": {
+                    "use_video": {
+                      "type": "boolean",
+                      "description": "",
+                      "required": false
+                    },
+                    "use_audio": {
+                      "type": "boolean",
+                      "description": "",
+                      "required": false
+                    },
+                    "use_share_screen": {
+                      "type": "boolean",
+                      "description": "",
+                      "required": false
+                    },
+                    "use_follow_screen": {
+                      "type": "boolean",
+                      "description": "",
+                      "required": false
+                    },
+                    "use_recording": {
+                      "type": "boolean",
+                      "description": "",
+                      "required": false
+                    },
+                    "use_pstn": {
+                      "type": "boolean",
+                      "description": "",
+                      "required": false
+                    }
+                  }
+                },
+                "note_id": {
+                  "type": "string",
+                  "description": "",
+                  "required": false
+                }
+              }
+            },
+            "related_artifacts": {
+              "type": "object",
+              "description": "",
+              "required": false,
+              "ref": "meeting_related_artifacts",
+              "properties": {
+                "note_doc_token": {
+                  "type": "string",
+                  "description": "",
+                  "required": false,
+                  "annotations": [
+                    "lark:data:vc:meeting.artifact.note"
+                  ]
+                },
+                "verbatim_doc_token": {
+                  "type": "string",
+                  "description": "",
+                  "required": false,
+                  "annotations": [
+                    "lark:data:vc:meeting.artifact.verbatim"
+                  ]
+                }
+              }
+            }
+          },
+          "scopes": [
+            "vc:meeting:readonly",
+            "vc:meeting.meetingevent:read"
+          ],
+          "accessTokens": [
+            "user",
+            "tenant"
+          ],
+          "risk": "read",
+          "docUrl": "https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/vc-v1/meeting/get"
+        }
+      }
+    }
+  }
+}

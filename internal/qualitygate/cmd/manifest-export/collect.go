@@ -31,11 +31,19 @@ func collectHandAuthored(ctx context.Context) (manifest.Manifest, error) {
 }
 
 func collectCommandIndex(ctx context.Context) (manifest.Manifest, error) {
+	snapshot, err := registry.OpenSnapshot()
+	if err != nil {
+		return manifest.Manifest{}, err
+	}
+	catalog, err := snapshot.FullCatalog()
+	if err != nil {
+		return manifest.Manifest{}, err
+	}
 	root := rootcmd.Build(ctx, cmdutil.InvocationContext{},
 		rootcmd.WithIO(strings.NewReader(""), io.Discard, io.Discard),
 		rootcmd.WithoutPlugins(),
 		rootcmd.WithoutStrictMode(),
-		rootcmd.WithServiceCatalog(registry.EmbeddedCatalog()),
+		rootcmd.WithAPICatalog(catalog),
 	)
 
 	idx := collectFromRoot(root)

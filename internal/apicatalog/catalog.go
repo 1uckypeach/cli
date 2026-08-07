@@ -1,38 +1,45 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-// Package apicatalog is the single navigation Module over the API metadata. It
+// Package apicatalog is the single navigation module over API catalog data. It
 // owns every "which services/resources/methods exist and how does a path
 // resolve" question that was previously duplicated across cmd/schema,
 // cmd/service, internal/schema and internal/registry. It depends only on
-// internal/meta; registry is the source Adapter (EmbeddedCatalog/RuntimeCatalog),
-// so apicatalog never imports registry.
+// internal/meta; apicatalog never imports the snapshot loader.
 package apicatalog
 
 import (
 	"sort"
 	"strings"
+	"sync/atomic"
 
 	"github.com/larksuite/cli/internal/meta"
 )
 
-// Source records whether a catalog includes the remote overlay. It is carried
-// so callers (and tests) can assert determinism instead of guessing.
+// Source records the immutable origin of a Catalog.
 type Source string
 
 const (
-	SourceEmbedded Source = "embedded" // compiled-in metadata only; deterministic
-	SourceRuntime  Source = "runtime"  // embedded + remote overlay
+	SourceEmbedded Source = "embedded"
 )
 
 // MethodFilter optionally drops methods (e.g. by identity in strict mode).
 // A nil filter includes everything.
 type MethodFilter func(meta.Method) bool
 
+// Identity is an opaque, process-local identity for one immutable Catalog.
+// Copies of a Catalog retain the same identity; independently constructed
+// catalogs receive different identities even when their contents are equal.
+// The zero Catalog has the zero identity.
+type Identity uint64
+
+var nextIdentity atomic.Uint64
+
 // Catalog is a navigation view over services with a name index. It owns its
 // ordering — New sorts by name — so WalkMethods/Resolve/Complete are
 // deterministic regardless of how the source adapter ordered its input.
 type Catalog struct {
+	identity Identity
 	source   Source
 	services []meta.Service
 	byName   map[string]meta.Service
@@ -50,11 +57,21 @@ func New(source Source, services []meta.Service) Catalog {
 	for _, s := range sorted {
 		byName[s.Name] = s
 	}
-	return Catalog{source: source, services: sorted, byName: byName}
+	return Catalog{
+		identity: Identity(nextIdentity.Add(1)),
+		source:   source,
+		services: sorted,
+		byName:   byName,
+	}
 }
 
-// Source reports embedded vs runtime.
+// Source reports the catalog origin.
 func (c Catalog) Source() Source { return c.source }
+
+// Identity returns a fixed-size key suitable for caches whose values are
+// derived from this immutable Catalog. It avoids re-hashing catalog contents
+// on every cache lookup.
+func (c Catalog) Identity() Identity { return c.identity }
 
 // Services returns the services in name order. Treat the result as read-only:
 // it is the Catalog's own ordered slice and its element Resources maps are

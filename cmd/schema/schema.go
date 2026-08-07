@@ -98,7 +98,7 @@ func completeSchemaPath(
 ) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		mode := f.ResolveStrictMode(cmd.Context())
-		catalog := projectSchemaCatalog(registry.SchemaCatalog(), visibility)
+		catalog := projectSchemaCatalog(f.APICatalog, visibility)
 		completions, noSpace := catalog.Complete(args, toComplete, registry.FilterForStrictMode(mode))
 		directive := cobra.ShellCompDirectiveNoFileComp
 		if noSpace {
@@ -111,23 +111,13 @@ func completeSchemaPath(
 func schemaRunWithVisibility(opts *SchemaOptions, visibility CommandVisibility) error {
 	out := opts.Factory.IOStreams.Out
 	mode := opts.Factory.ResolveStrictMode(opts.Ctx)
-	return runSchemaWithVisibility(out, apicatalog.ParsePath(opts.Args), mode, visibility)
+	return runSchemaCatalog(out, apicatalog.ParsePath(opts.Args), mode, opts.Factory.APICatalog, visibility)
 }
 
-// runSchemaWithVisibility resolves the path through the schema catalog and renders the
-// matching envelope(s). The catalog owns navigation (Resolve + MethodRefs) and
-// schema owns rendering (Envelope/Envelopes); this adapter only chooses the
-// output shape — a single resolved method renders as one envelope object,
-// anything broader as an array — and maps resolve failures to hints.
-func runSchemaWithVisibility(
-	out io.Writer,
-	parts []string,
-	mode core.StrictMode,
-	visibility CommandVisibility,
-) error {
-	return runSchemaCatalog(out, parts, mode, registry.SchemaCatalog(), visibility)
-}
-
+// runSchemaCatalog resolves the path through the build-selected schema catalog
+// and renders the matching envelope(s). The catalog owns navigation (Resolve +
+// MethodRefs), while this adapter applies presentation visibility and chooses
+// the output shape.
 func runSchemaCatalog(
 	out io.Writer,
 	parts []string,
@@ -140,10 +130,8 @@ func runSchemaCatalog(
 	// bare `schema` should render an empty list rather than claim metadata is
 	// unavailable.
 	if len(catalog.Services()) == 0 {
-		// No embedded metadata and the runtime fallback is empty too: offline
-		// with a cold cache, remote meta off, or an unwritable cache dir.
 		return errs.NewValidationError(errs.SubtypeFailedPrecondition, "No API metadata available").
-			WithHint("this binary has no embedded API metadata; run any command with network access to the open platform once so metadata can be fetched and cached")
+			WithHint("the current command build did not select any API metadata")
 	}
 	catalog = projectSchemaCatalog(catalog, visibility)
 	target, err := catalog.Resolve(parts)
@@ -157,10 +145,10 @@ func runSchemaCatalog(
 				"Method %s not available in current identity mode", target.Method.SchemaPath()).
 				WithHint("strict mode hides methods the active account identity cannot call; it is shown for an identity (user or bot) that has the required access token")
 		}
-		output.PrintJson(out, schema.EnvelopeOf(refs[0]))
+		output.PrintJson(out, schema.EnvelopeOfCatalog(catalog, refs[0]))
 		return nil
 	}
-	output.PrintJson(out, schema.Envelopes(refs))
+	output.PrintJson(out, schema.EnvelopesCatalog(catalog, refs))
 	return nil
 }
 

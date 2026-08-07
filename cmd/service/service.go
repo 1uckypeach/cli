@@ -35,7 +35,7 @@ func RegisterServiceCommands(parent *cobra.Command, f *cmdutil.Factory) {
 }
 
 func RegisterServiceCommandsWithContext(ctx context.Context, parent *cobra.Command, f *cmdutil.Factory) {
-	RegisterServiceCommandsFromCatalog(ctx, parent, f, registry.RuntimeCatalog())
+	RegisterServiceCommandsFromCatalog(ctx, parent, f, f.APICatalog)
 }
 
 func RegisterServiceCommandsFromCatalog(ctx context.Context, parent *cobra.Command, f *cmdutil.Factory, catalog apicatalog.Catalog) {

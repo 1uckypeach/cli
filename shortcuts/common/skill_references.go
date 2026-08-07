@@ -23,7 +23,7 @@ func (ctx *RuntimeContext) ResolveAffordanceSkillReferences() []string {
 	if !ok {
 		return nil
 	}
-	raw, ok := affordance.For(service, methodID)
+	raw, ok := affordance.For(ctx.Factory.APICatalog, service, methodID)
 	if !ok {
 		return nil
 	}

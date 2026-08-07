@@ -15,7 +15,7 @@ import (
 // methodsForProjects walks the runtime catalog once and returns the methods in
 // the given projects that are reachable by the identity. Catalog navigation is
 // owned by apicatalog; the collectors below only apply scope policy.
-func methodsForProjects(projects []string, identity string) []apicatalog.MethodRef {
+func methodsForProjects(catalog apicatalog.Catalog, projects []string, identity string) []apicatalog.MethodRef {
 	want := make(map[string]bool, len(projects))
 	for _, p := range projects {
 		want[p] = true
@@ -25,7 +25,7 @@ func methodsForProjects(projects []string, identity string) []apicatalog.MethodR
 	// Walk only the requested services (in catalog name order) instead of every
 	// service's methods then discarding the rest.
 	var out []apicatalog.MethodRef
-	for _, svc := range RuntimeCatalog().Services() {
+	for _, svc := range catalog.Services() {
 		if want[svc.Name] {
 			out = append(out, apicatalog.ServiceMethods(svc, supported)...)
 		}
@@ -123,22 +123,13 @@ func FilterScopes(allScopes []string, domains []string, permissions []string) []
 	return result
 }
 
-var cachedAllScopes map[string][]string
-
-// CollectAllScopesFromMeta collects all unique scopes from from_meta/*.json
-// for the given identity ("user" or "tenant"). Results are deduplicated and sorted.
-func CollectAllScopesFromMeta(identity string) []string {
-	if cachedAllScopes == nil {
-		cachedAllScopes = make(map[string][]string)
-	}
-	if cached, ok := cachedAllScopes[identity]; ok {
-		return cached
-	}
-
+// CollectAllScopesFromCatalog collects all unique scopes from catalog for the
+// given identity ("user" or "tenant"). Results are deduplicated and sorted.
+func CollectAllScopesFromCatalog(catalog apicatalog.Catalog, identity string) []string {
 	wantToken := meta.TokenForIdentity(identity)
 	supported := func(m meta.Method) bool { return m.SupportsToken(wantToken) }
 	scopeSet := make(map[string]bool)
-	for _, ref := range RuntimeCatalog().WalkMethods(supported) {
+	for _, ref := range catalog.WalkMethods(supported) {
 		for _, s := range ref.Method.Scopes {
 			scopeSet[s] = true
 		}
@@ -149,17 +140,16 @@ func CollectAllScopesFromMeta(identity string) []string {
 		result = append(result, s)
 	}
 	sort.Strings(result)
-	cachedAllScopes[identity] = result
 	return result
 }
 
 // CollectScopesForProjects collects the recommended scope for each API method
 // in the specified from_meta projects. For each method, only the scope with
 // the highest priority score is selected.
-func CollectScopesForProjects(projects []string, identity string) []string {
+func CollectScopesForProjects(catalog apicatalog.Catalog, projects []string, identity string) []string {
 	priorities := LoadScopePriorities()
 	scopeSet := make(map[string]bool)
-	for _, ref := range methodsForProjects(projects, identity) {
+	for _, ref := range methodsForProjects(catalog, projects, identity) {
 		if best := bestScope(ref.Method.Scopes, priorities); best != "" {
 			scopeSet[best] = true
 		}
@@ -181,12 +171,12 @@ type ScopeSource struct {
 
 // CollectScopesWithSources is like CollectScopesForProjects but also records
 // which API method contributed each scope. Used by scope-audit.
-func CollectScopesWithSources(projects []string, identity string) ([]string, map[string]*ScopeSource) {
+func CollectScopesWithSources(catalog apicatalog.Catalog, projects []string, identity string) ([]string, map[string]*ScopeSource) {
 	priorities := LoadScopePriorities()
 	scopeSet := make(map[string]bool)
 	sources := make(map[string]*ScopeSource)
 
-	for _, ref := range methodsForProjects(projects, identity) {
+	for _, ref := range methodsForProjects(catalog, projects, identity) {
 		m := ref.Method
 		best := bestScope(m.Scopes, priorities)
 		if best == "" {
@@ -234,10 +224,10 @@ type CommandEntry struct {
 // Scope selection per method:
 //   - If the method has a "requiredScopes" field, all of those scopes are needed (conjunction).
 //   - Otherwise, only the highest-priority scope from "scopes" is shown (minimum privilege).
-func CollectCommandScopes(projects []string, identity string) []CommandEntry {
+func CollectCommandScopes(catalog apicatalog.Catalog, projects []string, identity string) []CommandEntry {
 	var entries []CommandEntry
 
-	for _, ref := range methodsForProjects(projects, identity) {
+	for _, ref := range methodsForProjects(catalog, projects, identity) {
 		m := ref.Method
 		if len(m.Scopes) == 0 {
 			continue
@@ -265,23 +255,31 @@ func CollectCommandScopes(projects []string, identity string) []CommandEntry {
 }
 
 // GetScopesForDomains returns scopes for specific projects (by project name).
-func GetScopesForDomains(projects []string, identity string) []string {
-	return CollectScopesForProjects(projects, identity)
+func GetScopesForDomains(catalog apicatalog.Catalog, projects []string, identity string) []string {
+	return CollectScopesForProjects(catalog, projects, identity)
 }
 
 // GetReadOnlyScopes returns read-only scopes from the recommended (best-per-method) scope set.
-func GetReadOnlyScopes(identity string) []string {
-	allProjects := ListFromMetaProjects()
-	return FilterScopes(CollectScopesForProjects(allProjects, identity), nil, []string{"read", "readonly"})
+func GetReadOnlyScopes(catalog apicatalog.Catalog, identity string) []string {
+	return FilterScopes(CollectScopesForProjects(catalog, catalogServiceNames(catalog), identity), nil, []string{"read", "readonly"})
 }
 
 // ResolveScopesFromFilters resolves scopes from project and permission filters.
-func ResolveScopesFromFilters(projects []string, permissions []string, identity string) []string {
-	return FilterScopes(CollectScopesForProjects(projects, identity), nil, permissions)
+func ResolveScopesFromFilters(catalog apicatalog.Catalog, projects []string, permissions []string, identity string) []string {
+	return FilterScopes(CollectScopesForProjects(catalog, projects, identity), nil, permissions)
 }
 
 // ComputeMinimumScopeSet computes the minimum set of scopes that covers all
 // from_meta API methods. Equivalent to CollectScopesForProjects with all projects.
-func ComputeMinimumScopeSet(identity string) []string {
-	return CollectScopesForProjects(ListFromMetaProjects(), identity)
+func ComputeMinimumScopeSet(catalog apicatalog.Catalog, identity string) []string {
+	return CollectScopesForProjects(catalog, catalogServiceNames(catalog), identity)
+}
+
+func catalogServiceNames(catalog apicatalog.Catalog) []string {
+	services := catalog.Services()
+	names := make([]string, 0, len(services))
+	for _, service := range services {
+		names = append(names, service.Name)
+	}
+	return names
 }

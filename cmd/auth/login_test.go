@@ -16,10 +16,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/internal/apicatalog"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/meta"
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/recovery"
 	"github.com/larksuite/cli/internal/registry"
@@ -29,6 +31,19 @@ import (
 )
 
 type failWriter struct{}
+
+func authTestCatalog(t *testing.T) apicatalog.Catalog {
+	t.Helper()
+	snapshot, err := registry.OpenSnapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := snapshot.FullCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return catalog
+}
 
 func (failWriter) Write([]byte) (int, error) {
 	return 0, errors.New("write failed")
@@ -136,13 +151,14 @@ func TestShortcutSupportsIdentity_BotOnly(t *testing.T) {
 }
 
 func TestCompleteDomain(t *testing.T) {
-	projects := registry.ListFromMetaProjects()
+	catalog := authTestCatalog(t)
+	projects := catalogServiceNames(catalog)
 	if len(projects) == 0 {
 		t.Skip("no from_meta data available")
 	}
 
 	// Complete from empty prefix
-	completions := completeDomain("")
+	completions := completeDomain(catalog, "")
 	if len(completions) == 0 {
 		t.Fatal("expected completions for empty prefix")
 	}
@@ -152,7 +168,7 @@ func TestCompleteDomain(t *testing.T) {
 	}
 
 	// Complete with partial prefix
-	completions = completeDomain("cal")
+	completions = completeDomain(authTestCatalog(t), "cal")
 	for _, c := range completions {
 		if c != "calendar" && c[:3] != "cal" {
 			t.Errorf("unexpected completion %q for prefix 'cal'", c)
@@ -161,13 +177,13 @@ func TestCompleteDomain(t *testing.T) {
 }
 
 func TestCompleteDomain_CommaSeparated(t *testing.T) {
-	projects := registry.ListFromMetaProjects()
+	projects := testCatalogServiceNames(t)
 	if len(projects) == 0 {
 		t.Skip("no from_meta data available")
 	}
 
 	// After a comma, should complete the next segment
-	completions := completeDomain("calendar,")
+	completions := completeDomain(authTestCatalog(t), "calendar,")
 	for _, c := range completions {
 		if c[:9] != "calendar," {
 			t.Errorf("expected 'calendar,' prefix, got %q", c)
@@ -176,13 +192,13 @@ func TestCompleteDomain_CommaSeparated(t *testing.T) {
 }
 
 func TestAllKnownDomains(t *testing.T) {
-	domains := allKnownDomains("")
+	domains := allKnownDomains(authTestCatalog(t), "")
 	if len(domains) == 0 {
 		t.Fatal("expected non-empty known domains")
 	}
 
 	// Should include from_meta projects
-	for _, p := range registry.ListFromMetaProjects() {
+	for _, p := range testCatalogServiceNames(t) {
 		if !domains[p] {
 			t.Errorf("expected from_meta project %q in known domains", p)
 		}
@@ -190,7 +206,7 @@ func TestAllKnownDomains(t *testing.T) {
 }
 
 func TestSortedKnownDomains(t *testing.T) {
-	sorted := sortedKnownDomains("")
+	sorted := sortedKnownDomains(authTestCatalog(t), "")
 	if len(sorted) == 0 {
 		t.Fatal("expected non-empty sorted domains")
 	}
@@ -200,7 +216,7 @@ func TestSortedKnownDomains(t *testing.T) {
 	}
 
 	// Should match allKnownDomains
-	known := allKnownDomains("")
+	known := allKnownDomains(authTestCatalog(t), "")
 	if len(sorted) != len(known) {
 		t.Errorf("sorted (%d) and known (%d) length mismatch", len(sorted), len(known))
 	}
@@ -226,12 +242,12 @@ func TestGetShortcutOnlyDomainNames_IncludesNote(t *testing.T) {
 }
 
 func TestCollectScopesForDomains(t *testing.T) {
-	projects := registry.ListFromMetaProjects()
+	projects := testCatalogServiceNames(t)
 	if len(projects) == 0 {
 		t.Skip("no from_meta data available")
 	}
 
-	scopes := collectScopesForDomains([]string{"calendar"}, "user", "")
+	scopes := collectScopesForDomains(authTestCatalog(t), []string{"calendar"}, "user", "")
 	if len(scopes) == 0 {
 		t.Fatal("expected non-empty scopes for calendar domain")
 	}
@@ -242,7 +258,7 @@ func TestCollectScopesForDomains(t *testing.T) {
 	}
 
 	// Should include at least the API scopes
-	apiScopes := registry.CollectScopesForProjects([]string{"calendar"}, "user")
+	apiScopes := registry.CollectScopesForProjects(authTestCatalog(t), []string{"calendar"}, "user")
 	for _, s := range apiScopes {
 		found := false
 		for _, cs := range scopes {
@@ -258,21 +274,45 @@ func TestCollectScopesForDomains(t *testing.T) {
 }
 
 func TestCollectScopesForDomains_NonexistentDomain(t *testing.T) {
-	scopes := collectScopesForDomains([]string{"nonexistent_domain_xyz"}, "user", "")
+	scopes := collectScopesForDomains(authTestCatalog(t), []string{"nonexistent_domain_xyz"}, "user", "")
 	if len(scopes) != 0 {
 		t.Errorf("expected empty scopes for nonexistent domain, got %d", len(scopes))
 	}
 }
 
+func TestLoginHelpers_APICatalog(t *testing.T) {
+	service := meta.ServiceFromMap(map[string]interface{}{
+		"name": "drive",
+		"resources": map[string]interface{}{
+			"files": map[string]interface{}{"methods": map[string]interface{}{
+				"list": map[string]interface{}{
+					"httpMethod":   "GET",
+					"accessTokens": []interface{}{"user"},
+					"scopes":       []interface{}{"drive:fixture:read"},
+				},
+			}},
+		},
+	})
+	catalog := apicatalog.New(apicatalog.SourceEmbedded, []meta.Service{service})
+
+	if got := completeDomain(catalog, ""); !slices.Equal(got, []string{"drive"}) {
+		t.Fatalf("completion = %v, want [drive]", got)
+	}
+	scopes := collectScopesForDomains(catalog, []string{"drive"}, "user", "")
+	if !slices.Contains(scopes, "drive:fixture:read") {
+		t.Fatalf("scopes %v do not include injected catalog scope", scopes)
+	}
+}
+
 func TestGetDomainMetadata_IncludesFromMeta(t *testing.T) {
-	domains := getDomainMetadata("zh")
+	domains := getDomainMetadata(authTestCatalog(t), "zh")
 	nameSet := make(map[string]bool)
 	for _, dm := range domains {
 		nameSet[dm.Name] = true
 	}
 
 	// from_meta projects must be present
-	for _, p := range registry.ListFromMetaProjects() {
+	for _, p := range testCatalogServiceNames(t) {
 		if !nameSet[p] {
 			t.Errorf("from_meta project %q missing from getDomainMetadata", p)
 		}
@@ -280,7 +320,7 @@ func TestGetDomainMetadata_IncludesFromMeta(t *testing.T) {
 }
 
 func TestGetDomainMetadata_IncludesShortcutOnlyDomains(t *testing.T) {
-	domains := getDomainMetadata("zh")
+	domains := getDomainMetadata(authTestCatalog(t), "zh")
 	nameSet := make(map[string]bool)
 	for _, dm := range domains {
 		nameSet[dm.Name] = true
@@ -294,7 +334,7 @@ func TestGetDomainMetadata_IncludesShortcutOnlyDomains(t *testing.T) {
 }
 
 func TestGetDomainMetadata_Sorted(t *testing.T) {
-	domains := getDomainMetadata("zh")
+	domains := getDomainMetadata(authTestCatalog(t), "zh")
 	for i := 1; i < len(domains); i++ {
 		if domains[i].Name < domains[i-1].Name {
 			t.Errorf("not sorted: %q before %q", domains[i-1].Name, domains[i].Name)
@@ -303,7 +343,7 @@ func TestGetDomainMetadata_Sorted(t *testing.T) {
 }
 
 func TestGetDomainMetadata_HasTitleAndDescription(t *testing.T) {
-	domains := getDomainMetadata("zh")
+	domains := getDomainMetadata(authTestCatalog(t), "zh")
 	for _, dm := range domains {
 		if dm.Title == "" {
 			t.Errorf("domain %q has empty Title", dm.Name)
@@ -322,12 +362,12 @@ func TestGetDomainMetadata_HasTitleAndDescription(t *testing.T) {
 // way. Asserting on the registry getters checks the config itself, before any
 // fallback can paper over the gap.
 //
-// EmbeddedServicesTyped is the overlay-free parse, so this stays deterministic
-// whatever ~/.lark-cli/cache/remote_meta.json happens to hold on the machine.
-// A domain that only ever arrives via remote overlay is out of reach here.
+// authTestCatalog opens only the embedded snapshot, so this stays deterministic
+// regardless of any runtime metadata cache on the machine. A domain that only
+// ever arrives from a runtime source is intentionally out of reach here.
 func TestEveryRegisteredDomain_HasBilingualDescription(t *testing.T) {
 	origin := make(map[string]string) // domain name → where it is registered
-	for _, svc := range registry.EmbeddedServicesTyped() {
+	for _, svc := range authTestCatalog(t).Services() {
 		origin[svc.Name] = "embedded API meta"
 	}
 	for _, sc := range shortcuts.AllShortcuts() {
@@ -1342,7 +1382,7 @@ func TestAuthLoginRun_JSONDeviceAuthorizationAgentHintIncludesRawURLGuidance(t *
 }
 
 func TestGetDomainMetadata_ExcludesEvent(t *testing.T) {
-	domains := getDomainMetadata("zh")
+	domains := getDomainMetadata(authTestCatalog(t), "zh")
 	for _, dm := range domains {
 		if dm.Name == "event" {
 			t.Error("event should not appear in interactive domain list")
@@ -1351,7 +1391,7 @@ func TestGetDomainMetadata_ExcludesEvent(t *testing.T) {
 }
 
 func TestAllKnownDomains_ExcludesAuthDomainChildren(t *testing.T) {
-	domains := allKnownDomains("")
+	domains := allKnownDomains(authTestCatalog(t), "")
 	if domains["whiteboard"] {
 		t.Error("whiteboard should not appear in known auth domains (it has auth_domain=docs)")
 	}
@@ -1361,7 +1401,7 @@ func TestAllKnownDomains_ExcludesAuthDomainChildren(t *testing.T) {
 }
 
 func TestCollectScopesForDomains_ExpandsAuthDomainChildren(t *testing.T) {
-	scopes := collectScopesForDomains([]string{"docs"}, "user", "")
+	scopes := collectScopesForDomains(authTestCatalog(t), []string{"docs"}, "user", "")
 	// docs domain should include whiteboard shortcut scopes (board:whiteboard:*)
 	found := false
 	for _, s := range scopes {
@@ -1376,7 +1416,7 @@ func TestCollectScopesForDomains_ExpandsAuthDomainChildren(t *testing.T) {
 }
 
 func TestGetDomainMetadata_ExcludesAuthDomainChildren(t *testing.T) {
-	domains := getDomainMetadata("zh")
+	domains := getDomainMetadata(authTestCatalog(t), "zh")
 	for _, dm := range domains {
 		if dm.Name == "whiteboard" {
 			t.Error("whiteboard should not appear in interactive domain list (has auth_domain=docs)")

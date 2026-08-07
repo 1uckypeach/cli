@@ -15,6 +15,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 
+	"github.com/larksuite/cli/internal/apicatalog"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
@@ -79,7 +80,7 @@ to generate QR codes (supports ASCII and PNG formats).`,
 			helpBrand = cfg.Brand
 		}
 	}
-	available := sortedKnownDomains(helpBrand)
+	available := sortedKnownDomains(f.APICatalog, helpBrand)
 	cmd.Flags().StringSliceVar(&opts.Domains, "domain", nil,
 		fmt.Sprintf("domain (repeatable or comma-separated, e.g. --domain calendar,task)\navailable: %s, all", strings.Join(available, ", ")))
 	cmd.Flags().StringSliceVar(&opts.Exclude, "exclude", nil,
@@ -89,15 +90,15 @@ to generate QR codes (supports ASCII and PNG formats).`,
 	cmd.Flags().StringVar(&opts.DeviceCode, "device-code", "", "poll and complete authorization with a device code from a previous --no-wait call")
 
 	cmdutil.RegisterFlagCompletion(cmd, "domain", func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		return completeDomain(toComplete), cobra.ShellCompDirectiveNoFileComp
+		return completeDomain(f.APICatalog, toComplete), cobra.ShellCompDirectiveNoFileComp
 	})
 
 	return cmd
 }
 
 // completeDomain returns completions for comma-separated domain values.
-func completeDomain(toComplete string) []string {
-	allDomains := registry.ListFromMetaProjects()
+func completeDomain(catalog apicatalog.Catalog, toComplete string) []string {
+	allDomains := catalogServiceNames(catalog)
 	parts := strings.Split(toComplete, ",")
 	prefix := parts[len(parts)-1]
 	base := strings.Join(parts[:len(parts)-1], ",")
@@ -151,14 +152,14 @@ func authLoginRun(opts *LoginOptions) error {
 	// Expand --domain all to all available domains (from_meta projects + shortcut services)
 	for _, d := range selectedDomains {
 		if strings.EqualFold(d, "all") {
-			selectedDomains = sortedKnownDomains(config.Brand)
+			selectedDomains = sortedKnownDomains(f.APICatalog, config.Brand)
 			break
 		}
 	}
 
 	// Validate domain names and suggest corrections for unknown ones
 	if len(selectedDomains) > 0 {
-		knownDomains := allKnownDomains(config.Brand)
+		knownDomains := allKnownDomains(f.APICatalog, config.Brand)
 		for _, d := range selectedDomains {
 			if !knownDomains[d] {
 				if suggestion := suggestDomain(d, knownDomains); suggestion != "" {
@@ -182,7 +183,7 @@ func authLoginRun(opts *LoginOptions) error {
 
 	if !hasAnyOption {
 		if !opts.JSON && f.IOStreams.IsTerminal {
-			result, err := runInteractiveLogin(f.IOStreams, lang.Base(), msg, config.Brand)
+			result, err := runInteractiveLogin(f.IOStreams, f.APICatalog, lang.Base(), msg, config.Brand)
 			if err != nil {
 				return err
 			}
@@ -220,10 +221,10 @@ func authLoginRun(opts *LoginOptions) error {
 	if len(selectedDomains) > 0 || opts.Recommend {
 		var candidateScopes []string
 		if len(selectedDomains) > 0 {
-			candidateScopes = collectScopesForDomains(selectedDomains, "user", config.Brand)
+			candidateScopes = collectScopesForDomains(f.APICatalog, selectedDomains, "user", config.Brand)
 		} else {
 			// --recommend without --domain: all domains
-			candidateScopes = collectScopesForDomains(sortedKnownDomains(config.Brand), "user", config.Brand)
+			candidateScopes = collectScopesForDomains(f.APICatalog, sortedKnownDomains(f.APICatalog, config.Brand), "user", config.Brand)
 		}
 
 		// Filter to auto-approve scopes if --recommend or interactive "common"
@@ -508,11 +509,11 @@ func findProfileByName(multi *core.MultiAppConfig, profileName string) *core.App
 // shortcut scopes for the given domain names.
 // Domains with auth_domain children are automatically expanded to include
 // their children's scopes.
-func collectScopesForDomains(domains []string, identity string, brand core.LarkBrand) []string {
+func collectScopesForDomains(catalog apicatalog.Catalog, domains []string, identity string, brand core.LarkBrand) []string {
 	scopeSet := make(map[string]bool)
 
 	// 1. API scopes from from_meta projects
-	for _, s := range registry.CollectScopesForProjects(domains, identity) {
+	for _, s := range registry.CollectScopesForProjects(catalog, domains, identity) {
 		scopeSet[s] = true
 	}
 
@@ -549,9 +550,9 @@ func collectScopesForDomains(domains []string, identity string, brand core.LarkB
 // allKnownDomains returns all valid auth domain names (from_meta projects +
 // shortcut services), excluding domains that have auth_domain set (they are
 // folded into their parent domain).
-func allKnownDomains(brand core.LarkBrand) map[string]bool {
+func allKnownDomains(catalog apicatalog.Catalog, brand core.LarkBrand) map[string]bool {
 	domains := make(map[string]bool)
-	for _, p := range registry.ListFromMetaProjects() {
+	for _, p := range catalogServiceNames(catalog) {
 		if !registry.HasAuthDomain(p) {
 			domains[p] = true
 		}
@@ -568,14 +569,23 @@ func allKnownDomains(brand core.LarkBrand) map[string]bool {
 }
 
 // sortedKnownDomains returns all valid domain names sorted alphabetically.
-func sortedKnownDomains(brand core.LarkBrand) []string {
-	m := allKnownDomains(brand)
+func sortedKnownDomains(catalog apicatalog.Catalog, brand core.LarkBrand) []string {
+	m := allKnownDomains(catalog, brand)
 	domains := make([]string, 0, len(m))
 	for d := range m {
 		domains = append(domains, d)
 	}
 	sort.Strings(domains)
 	return domains
+}
+
+func catalogServiceNames(catalog apicatalog.Catalog) []string {
+	services := catalog.Services()
+	names := make([]string, 0, len(services))
+	for _, service := range services {
+		names = append(names, service.Name)
+	}
+	return names
 }
 
 // shortcutSupportsIdentity checks if a shortcut supports the given identity ("user" or "bot").

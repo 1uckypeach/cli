@@ -58,6 +58,25 @@ func TestNew_PreservesOrderAndLookup(t *testing.T) {
 	}
 }
 
+func TestCatalogIdentity(t *testing.T) {
+	first := testCatalog()
+	copyOfFirst := first
+	second := testCatalog()
+
+	if first.Identity() == 0 {
+		t.Fatal("New returned the zero Catalog identity")
+	}
+	if copyOfFirst.Identity() != first.Identity() {
+		t.Fatal("copying a Catalog changed its identity")
+	}
+	if second.Identity() == first.Identity() {
+		t.Fatal("independently constructed Catalogs share an identity")
+	}
+	if (apicatalog.Catalog{}).Identity() != 0 {
+		t.Fatal("zero Catalog has a non-zero identity")
+	}
+}
+
 // TestNew_SortsAndIsolatesInput pins the ordering contract New owns: it sorts
 // arbitrary input by service name and shallow-copies the slice so later caller
 // mutation can't reorder the Catalog.

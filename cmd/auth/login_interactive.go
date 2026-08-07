@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/huh"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/apicatalog"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/output"
@@ -32,17 +33,17 @@ type interactiveResult struct {
 }
 
 // getDomainMetadata returns metadata for all known domains, sorted by name.
-func getDomainMetadata(lang string) []domainMeta {
+func getDomainMetadata(catalog apicatalog.Catalog, lang string) []domainMeta {
 	seen := make(map[string]bool)
 	var domains []domainMeta
 
 	// 1. Domains from from_meta projects (skip domains with auth_domain)
-	for _, project := range registry.ListFromMetaProjects() {
+	for _, project := range catalogServiceNames(catalog) {
 		if registry.HasAuthDomain(project) {
 			seen[project] = true
 			continue
 		}
-		dm := buildDomainMeta(project, lang)
+		dm := buildDomainMeta(catalog, project, lang)
 		domains = append(domains, dm)
 		seen[project] = true
 	}
@@ -51,7 +52,7 @@ func getDomainMetadata(lang string) []domainMeta {
 	shortcutOnlyNames := getShortcutOnlyDomainNames()
 	for _, name := range shortcutOnlyNames {
 		if !seen[name] {
-			dm := buildDomainMeta(name, lang)
+			dm := buildDomainMeta(catalog, name, lang)
 			domains = append(domains, dm)
 			seen[name] = true
 		}
@@ -66,7 +67,7 @@ func getDomainMetadata(lang string) []domainMeta {
 	for _, sc := range shortcuts.AllShortcuts() {
 		if !seen[sc.Service] {
 			if shortcutOnlySet[sc.Service] && !registry.HasAuthDomain(sc.Service) {
-				dm := buildDomainMeta(sc.Service, lang)
+				dm := buildDomainMeta(catalog, sc.Service, lang)
 				domains = append(domains, dm)
 			}
 			seen[sc.Service] = true
@@ -82,7 +83,7 @@ func getDomainMetadata(lang string) []domainMeta {
 // buildDomainMeta constructs a domainMeta for a given service name and language.
 // It reads from the service_descriptions.json config first, falling back to
 // from_meta spec fields if not found.
-func buildDomainMeta(name, lang string) domainMeta {
+func buildDomainMeta(catalog apicatalog.Catalog, name, lang string) domainMeta {
 	title := registry.GetServiceTitle(name, lang)
 	desc := registry.GetServiceDetailDescription(name, lang)
 	if title != "" || desc != "" {
@@ -94,7 +95,7 @@ func buildDomainMeta(name, lang string) domainMeta {
 	}
 	// Fallback: read from the typed service spec (legacy)
 	dm := domainMeta{Name: name}
-	if svc, ok := registry.ServiceTyped(name); ok {
+	if svc, ok := catalog.Service(name); ok {
 		dm.Title = svc.Title
 		dm.Description = svc.Description
 	}
@@ -102,8 +103,8 @@ func buildDomainMeta(name, lang string) domainMeta {
 }
 
 // runInteractiveLogin shows an interactive TUI form for domain and permission selection.
-func runInteractiveLogin(ios *cmdutil.IOStreams, lang string, msg *loginMsg, brand core.LarkBrand) (*interactiveResult, error) {
-	allDomains := getDomainMetadata(lang)
+func runInteractiveLogin(ios *cmdutil.IOStreams, catalog apicatalog.Catalog, lang string, msg *loginMsg, brand core.LarkBrand) (*interactiveResult, error) {
+	allDomains := getDomainMetadata(catalog, lang)
 
 	// Build multi-select options
 	options := make([]huh.Option[string], len(allDomains))
@@ -162,7 +163,7 @@ func runInteractiveLogin(ios *cmdutil.IOStreams, lang string, msg *loginMsg, bra
 	}
 
 	// Compute scope summary
-	scopes := collectScopesForDomains(selectedDomains, "user", brand)
+	scopes := collectScopesForDomains(catalog, selectedDomains, "user", brand)
 	if permLevel == "common" {
 		scopes = registry.FilterAutoApproveScopes(scopes)
 	}

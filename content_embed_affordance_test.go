@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/larksuite/cli/internal/affordance"
+	"github.com/larksuite/cli/internal/apicatalog"
 	"github.com/larksuite/cli/internal/meta"
 	docshortcuts "github.com/larksuite/cli/shortcuts/doc"
 )
@@ -98,7 +99,7 @@ func TestEmbeddedDocsAffordanceComplementsShortcutMetadata(t *testing.T) {
 				t.Fatalf("shortcut Tips = %q; docs affordance owns these tips and must remain the single source", shortcut.tips)
 			}
 
-			raw, ok := affordance.For("docs", command)
+			raw, ok := affordance.For(apicatalog.Catalog{}, "docs", command)
 			if !ok {
 				t.Fatalf("embedded affordance entry docs/%s is missing", command)
 			}
