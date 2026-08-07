@@ -15,6 +15,7 @@ import (
 	"github.com/larksuite/cli/cmd/service"
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/platform"
+	"github.com/larksuite/cli/internal/apicatalog"
 	"github.com/larksuite/cli/internal/build"
 	"github.com/larksuite/cli/internal/cmdmeta"
 	"github.com/larksuite/cli/internal/cmdpolicy"
@@ -74,16 +75,27 @@ func executeWithOptions(opts []BuildOption) int {
 	if !cfg.hideProfileSet {
 		HideProfile(isSingleAppMode())(cfg)
 	}
-	if !cfg.startupBrandSet {
-		WithStartupBrand(ResolveStartupBrand(inv.Profile))(cfg)
-	}
 	configureFlagCompletions(os.Args)
 
 	ctx := context.Background()
 	if deferProfileError {
 		cfg.deferStartup = true
 	}
-	runtime, rootCmd, reg := buildInternalWithConfig(ctx, inv, cfg)
+	result, buildErr := buildForArgsWithConfig(ctx, inv, rawInvocationArgs, cfg)
+	var runtime *buildRuntime
+	var rootCmd *cobra.Command
+	var reg *hook.Registry
+	if buildErr != nil {
+		f := cmdutil.NewDefault(cfg.streams, inv)
+		runtime = &buildRuntime{Factory: f, surface: surface.NewPlan(nil)}
+		runtime.recovery = recovery.NewProjector(func() *surface.Plan { return runtime.surface })
+		f.Recovery = runtime.recovery
+		rootCmd = newCatalogFailureRoot(ctx, cfg, buildErr)
+		rootCmd.SetArgs(rawInvocationArgs)
+	} else {
+		runtime, rootCmd, reg = result.runtime, result.root, result.registry
+		rootCmd.SetArgs(append([]string(nil), rawInvocationArgs...))
+	}
 	f := runtime.Factory
 
 	if deferProfileError {
@@ -801,6 +813,7 @@ func installHelpCommand(root *cobra.Command) {
 // customization is applied after this help func is installed.
 func installTipsHelpFunc(
 	root *cobra.Command,
+	catalog apicatalog.Catalog,
 	skillContent func() fs.FS,
 	skillReferences func() *skillref.Resolver,
 	projector *recovery.Projector,
@@ -822,18 +835,21 @@ func installTipsHelpFunc(
 		if skillReferences != nil {
 			refs = skillReferences()
 		}
-		content := skillContent()
+		var content fs.FS
+		if skillContent != nil {
+			content = skillContent()
+		}
 		if service.PrepareDomainHelpWithReferences(cmd, content, refs) {
 			defaultHelp(cmd, args)
 			return
 		}
-		if service.PrepareMethodHelpWithProjection(cmd, content, refs, func() bool {
-			return projector.CanReference(recovery.TargetSchema)
+		if service.PrepareMethodHelpWithProjection(catalog, cmd, content, refs, func() bool {
+			return projector == nil || projector.CanReference(recovery.TargetSchema)
 		}) {
 			defaultHelp(cmd, args)
 			return
 		}
-		if service.PrepareShortcutHelpWithReferences(cmd, content, refs) {
+		if service.PrepareShortcutHelpWithReferences(catalog, cmd, content, refs) {
 			defaultHelp(cmd, args)
 			return
 		}

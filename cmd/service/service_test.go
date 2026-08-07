@@ -21,6 +21,7 @@ import (
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/meta"
+	"github.com/larksuite/cli/internal/registry"
 	"github.com/spf13/cobra"
 )
 
@@ -115,6 +116,28 @@ func TestRegisterService(t *testing.T) {
 	meth, _, err := parent.Find([]string{"base", "tables", "list"})
 	if err != nil || meth.Name() != "list" {
 		t.Fatalf("expected 'list' command, got err=%v", err)
+	}
+}
+
+func TestRegisterServiceCommands_APICatalog(t *testing.T) {
+	snapshot, err := registry.OpenSnapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := snapshot.Catalog("drive")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := &cobra.Command{Use: "root"}
+	f := &cmdutil.Factory{APICatalog: catalog}
+
+	RegisterServiceCommandsWithContext(context.Background(), parent, f)
+
+	if cmd, _, err := parent.Find([]string{"drive"}); err != nil || cmd == parent {
+		t.Fatalf("drive command not registered: cmd=%v err=%v", cmd, err)
+	}
+	if cmd, _, err := parent.Find([]string{"calendar"}); err == nil && cmd != parent {
+		t.Fatalf("calendar command unexpectedly registered from drive-only catalog")
 	}
 }
 
@@ -278,6 +301,32 @@ func TestServiceMethod_DryRunWithJq(t *testing.T) {
 	}
 	if got, want := strings.TrimSpace(stdout.String()), "/open-apis/drive/v1/files/boxcn123abc/copy"; got != want {
 		t.Fatalf("jq output = %q, want %q", got, want)
+	}
+}
+
+func TestServiceMethod_DryRunPreservesLargeJSONIntegers(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, testConfig)
+	spec := meta.ServiceFromMap(map[string]interface{}{
+		"name": "svc", "servicePath": "/open-apis/svc/v1",
+	})
+	method := meta.FromMap(map[string]interface{}{
+		"path": "items", "httpMethod": "POST",
+	})
+	cmd := NewCmdServiceMethod(f, spec, method, "create", "items", nil)
+	cmd.SetArgs([]string{
+		"--params", `{"cursor":9223372036854775807}`,
+		"--data", `{"revision_id":9223372036854775807}`,
+		"--dry-run",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out := stdout.String()
+	if got := strings.Count(out, "9223372036854775807"); got != 2 {
+		t.Fatalf("large integers were not preserved in params and body (count=%d):\n%s", got, out)
+	}
+	if strings.Contains(out, "9223372036854776000") {
+		t.Fatalf("dry-run output contains float64-rounded integer:\n%s", out)
 	}
 }
 

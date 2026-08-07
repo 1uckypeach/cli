@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/larksuite/cli/internal/affordance"
+	"github.com/larksuite/cli/internal/apicatalog"
 	"github.com/larksuite/cli/internal/cmdmeta"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/meta"
@@ -145,14 +146,14 @@ func setMethodHelpData(cmd *cobra.Command, service, methodID, schemaPath, params
 // pointers: each is emitted only when it resolves in the skill tree (see
 // affordance.SkillStatPath), so a typo or a build without embedded skills never
 // prints a `skills read` that cannot be opened.
-func PrepareMethodHelp(cmd *cobra.Command, skillFS fs.FS) bool {
-	return PrepareMethodHelpWithReferences(cmd, skillFS, nil)
+func PrepareMethodHelp(catalog apicatalog.Catalog, cmd *cobra.Command, skillFS fs.FS) bool {
+	return PrepareMethodHelpWithReferences(catalog, cmd, skillFS, nil)
 }
 
 // PrepareMethodHelpWithReferences is PrepareMethodHelp with a build-local
 // canonical-to-runtime skill projection.
-func PrepareMethodHelpWithReferences(cmd *cobra.Command, skillFS fs.FS, references *skillref.Resolver) bool {
-	return prepareMethodHelp(cmd, skillFS, references, nil)
+func PrepareMethodHelpWithReferences(catalog apicatalog.Catalog, cmd *cobra.Command, skillFS fs.FS, references *skillref.Resolver) bool {
+	return prepareMethodHelp(catalog, cmd, skillFS, references, nil)
 }
 
 // PrepareMethodHelpWithProjection is PrepareMethodHelpWithReferences with the
@@ -160,15 +161,17 @@ func PrepareMethodHelpWithReferences(cmd *cobra.Command, skillFS fs.FS, referenc
 // helpers remain fully-visible by default; cmd.Build uses this form so the
 // framework-owned schema pointer follows the same surface as execution.
 func PrepareMethodHelpWithProjection(
+	catalog apicatalog.Catalog,
 	cmd *cobra.Command,
 	skillFS fs.FS,
 	references *skillref.Resolver,
 	canReferenceSchema func() bool,
 ) bool {
-	return prepareMethodHelp(cmd, skillFS, references, canReferenceSchema)
+	return prepareMethodHelp(catalog, cmd, skillFS, references, canReferenceSchema)
 }
 
 func prepareMethodHelp(
+	catalog apicatalog.Catalog,
 	cmd *cobra.Command,
 	skillFS fs.FS,
 	references *skillref.Resolver,
@@ -188,7 +191,7 @@ func prepareMethodHelp(
 	writeRisk(&b, cmd)
 
 	var skills []string
-	if raw, ok := affordanceRaw(cmd); ok {
+	if raw, ok := affordanceRaw(catalog, cmd); ok {
 		if a, ok := (meta.Method{Affordance: raw}).ParsedAffordance(); ok {
 			if block := renderAffordanceValue(a); block != "" {
 				b.WriteString("\n\n")
@@ -225,17 +228,17 @@ func prepareMethodHelp(
 // the overlay declares none; when the overlay has tips, the Go tips are dropped
 // (replaced, not merged) so tips never render twice. Authoring a ### Tips block
 // therefore silently retires that shortcut's Go Tips — consolidate into one.
-func PrepareShortcutHelp(cmd *cobra.Command, skillFS fs.FS) bool {
-	return PrepareShortcutHelpWithReferences(cmd, skillFS, nil)
+func PrepareShortcutHelp(catalog apicatalog.Catalog, cmd *cobra.Command, skillFS fs.FS) bool {
+	return PrepareShortcutHelpWithReferences(catalog, cmd, skillFS, nil)
 }
 
 // PrepareShortcutHelpWithReferences is PrepareShortcutHelp with a build-local
 // canonical-to-runtime skill projection.
-func PrepareShortcutHelpWithReferences(cmd *cobra.Command, skillFS fs.FS, references *skillref.Resolver) bool {
+func PrepareShortcutHelpWithReferences(catalog apicatalog.Catalog, cmd *cobra.Command, skillFS fs.FS, references *skillref.Resolver) bool {
 	if src, _ := cmdmeta.SourceOf(cmd); src != cmdmeta.SourceShortcut {
 		return false
 	}
-	raw, ok := affordanceRaw(cmd)
+	raw, ok := affordanceRaw(catalog, cmd)
 	if !ok {
 		return false
 	}
@@ -319,19 +322,25 @@ var affordanceLookup = affordance.For
 // RenderAffordanceForCmd renders a method command's affordance block, or "" when
 // it carries none.
 func RenderAffordanceForCmd(cmd *cobra.Command) string {
-	raw, ok := affordanceRaw(cmd)
+	return RenderAffordanceForCmdCatalog(apicatalog.Catalog{}, cmd)
+}
+
+// RenderAffordanceForCmdCatalog renders a method command using command-form
+// mappings from the catalog that built it.
+func RenderAffordanceForCmdCatalog(catalog apicatalog.Catalog, cmd *cobra.Command) string {
+	raw, ok := affordanceRaw(catalog, cmd)
 	if !ok {
 		return ""
 	}
 	return renderAffordance(meta.Method{Affordance: raw})
 }
 
-func affordanceRaw(cmd *cobra.Command) (json.RawMessage, bool) {
+func affordanceRaw(catalog apicatalog.Catalog, cmd *cobra.Command) (json.RawMessage, bool) {
 	service, methodID, ok := cmdmeta.AffordanceRef(cmd)
 	if !ok {
 		return nil, false
 	}
-	return affordanceLookup(service, methodID)
+	return affordanceLookup(catalog, service, methodID)
 }
 
 // renderAffordance renders a method's affordance as a help block, or "" when it

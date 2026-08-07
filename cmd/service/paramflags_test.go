@@ -12,6 +12,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/meta"
 	"github.com/larksuite/cli/internal/recovery"
+	"github.com/larksuite/cli/internal/registry"
 	"github.com/larksuite/cli/internal/surface"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -196,6 +197,14 @@ func TestServiceMethod_TypedFlag_OverridesNullParams(t *testing.T) {
 func TestRegisterServiceCommands_GeneratesFlagsNoPanic(t *testing.T) {
 	root := &cobra.Command{Use: "lark-cli"}
 	f := &cmdutil.Factory{}
+	snapshot, err := registry.OpenSnapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.APICatalog, err = snapshot.FullCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -557,6 +566,20 @@ func TestParamHelp_BothSurfacesRenderFieldFacts(t *testing.T) {
 		if !strings.Contains(help, fact) {
 			t.Errorf("params-only addendum missing fact %q:\n%s", fact, help)
 		}
+	}
+}
+
+func TestParamHelp_LargeIntegerBoundStaysExact(t *testing.T) {
+	f := meta.FromMap(map[string]interface{}{"parameters": map[string]interface{}{
+		"revision_id": map[string]interface{}{
+			"type":     "integer",
+			"location": "query",
+			"max":      "9223372036854775807",
+		},
+	}}).Params()[0]
+
+	if got := formatBoundsInline(f); got != "max: 9223372036854775807" {
+		t.Fatalf("formatBoundsInline = %q, want exact MaxInt64", got)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/internal/apicatalog"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/spf13/cobra"
 )
@@ -29,7 +30,7 @@ func rendersHelp(t *testing.T, cmd *cobra.Command) string {
 
 func TestHelpFunc_RendersRiskLineWhenAnnotated(t *testing.T) {
 	root := &cobra.Command{Use: "lark-cli"}
-	installTipsHelpFunc(root, nilSkills, nil, nil)
+	installTipsHelpFunc(root, apicatalog.Catalog{}, nilSkills, nil, nil)
 
 	child := &cobra.Command{Use: "delete", Short: "delete a file"}
 	cmdutil.SetRisk(child, "high-risk-write")
@@ -43,7 +44,7 @@ func TestHelpFunc_RendersRiskLineWhenAnnotated(t *testing.T) {
 
 func TestHelpFunc_NoRiskLineWhenUnannotated(t *testing.T) {
 	root := &cobra.Command{Use: "lark-cli"}
-	installTipsHelpFunc(root, nilSkills, nil, nil)
+	installTipsHelpFunc(root, apicatalog.Catalog{}, nilSkills, nil, nil)
 
 	child := &cobra.Command{Use: "list", Short: "list items"}
 	root.AddCommand(child)
@@ -56,7 +57,7 @@ func TestHelpFunc_NoRiskLineWhenUnannotated(t *testing.T) {
 
 func TestHelpFunc_RiskLinePrecedesTips(t *testing.T) {
 	root := &cobra.Command{Use: "lark-cli"}
-	installTipsHelpFunc(root, nilSkills, nil, nil)
+	installTipsHelpFunc(root, apicatalog.Catalog{}, nilSkills, nil, nil)
 
 	child := &cobra.Command{Use: "delete", Short: "delete a file"}
 	cmdutil.SetRisk(child, "high-risk-write")

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/larksuite/cli/internal/affordance"
+	"github.com/larksuite/cli/internal/apicatalog"
 	"github.com/larksuite/cli/internal/meta"
 	"github.com/larksuite/cli/shortcuts/common"
 )
@@ -37,7 +38,7 @@ func TestAllIMShortcutsUseAffordanceExamples(t *testing.T) {
 				}
 			}
 
-			raw, ok := affordance.For("im", sc.Command)
+			raw, ok := affordance.For(apicatalog.Catalog{}, "im", sc.Command)
 			if !ok {
 				t.Fatalf("missing affordance for registered shortcut %s", sc.Command)
 			}
@@ -63,7 +64,7 @@ func TestChatMembersTipsMovedToAffordance(t *testing.T) {
 
 	affordance.SetSource(os.DirFS("../../affordance"))
 	t.Cleanup(func() { affordance.SetSource(nil) })
-	raw, ok := affordance.For("im", "+chat-members-list")
+	raw, ok := affordance.For(apicatalog.Catalog{}, "im", "+chat-members-list")
 	if !ok {
 		t.Fatal("missing +chat-members-list affordance")
 	}
