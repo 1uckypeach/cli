@@ -29,7 +29,7 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 |`--doc`|是|文档 URL 或 token，支持 `/docx/`、`/wiki/` 和带 `#share-...` 的选区链接|
 |`--doc-format`|否|`xml`（默认）\| `markdown` \| `im-markdown`（供后续 `lark-im` 场景使用）|
 |`--detail`|否|`simple`（默认）\| `with-ids` \| `full`|
-|`--comments`|否|附带当前身份可见的未解决评论；默认关闭，须使用 `--format json` 保留评论 sidecar|
+|`--comments`|否|附带机器人身份可见的未解决评论；默认关闭，当前须使用 `--as bot --format json` 保留评论 sidecar|
 |`--revision-id`|否|文档版本号；`-1` 表示最新版本（默认）|
 |`--scope`|否|`outline` \| `range` \| `keyword` \| `section`；省略则读取整篇|
 |`--start-block-id`|否|`range` 的起点，或 `section` 的锚点（`section` 必填）|
@@ -111,6 +111,7 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 - `reference_map.comment.<ref>.data` 保存局部讨论；`reference_map.document-comment.<ref>.data` 保存全文讨论。
 - 讨论只表达引用文本、消息、图片占位和 reaction，不返回稳定评论 ID、状态或完整格式。需要继续回复、解决或精确管理评论时，改用 `lark-drive` 评论命令。
 - 全文读取返回局部评论和全文评论；`keyword` / `range` / `section` 只返回与片段相交的局部评论，不返回全文评论；`outline` 即使传了 `--comments` 也不查询评论。
+- reaction 属于 best-effort 展示信息；当一次读取需要 hydrate 超过 1000 条评论时会整体省略 reaction，以限制下游时延，评论正文和引用关系仍完整返回。
 - Markdown / IM Markdown 使用轻量 XML 壳 `<comment-ref refs="c1 c2"/>` 精确标记落点；重复文本、跨 block、列表和表格都不需要依靠 `<quote>` 猜位置。壳中的 ref 与 `reference_map.comment` 一一对应。
 - 指定历史 `--revision-id` 时，正文来自该历史版本；评论是“当前仍可见、仍未解决”的快照投影到这份正文。局部评论仅在该 revision 能解析到锚点时返回，全文评论仅在全文读取时返回；它不是历史时刻的评论回放。
 - 必须使用 `--format json`；其它展示格式无法无损保留正文与 `reference_map`（例如 `pretty` 只输出正文、`table` 会截断嵌套值），因此 CLI 会直接拒绝这些组合。
