@@ -108,7 +108,11 @@ func TestMinutesWordReplace_Execute(t *testing.T) {
 		Body: map[string]interface{}{
 			"code": 0,
 			"msg":  "ok",
-			"data": map[string]interface{}{},
+			"data": map[string]interface{}{
+				"replace_word_counts": []map[string]interface{}{
+					{"source_word": "foo", "replace_count": "2"},
+				},
+			},
 		},
 	})
 
@@ -123,22 +127,157 @@ func TestMinutesWordReplace_Execute(t *testing.T) {
 	}
 
 	var envelope struct {
+		OK   bool `json:"ok"`
 		Data struct {
-			MinuteToken  string `json:"minute_token"`
-			ReplaceWords []struct {
-				SourceWord string `json:"source_word"`
-				TargetWord string `json:"target_word"`
-			} `json:"replace_words"`
+			MinuteToken string `json:"minute_token"`
+			Message     string `json:"message"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
 		t.Fatalf("unmarshal stdout: %v", err)
 	}
+	if !envelope.OK {
+		t.Fatalf("ok = false, want true; stdout=%s", stdout.String())
+	}
 	if envelope.Data.MinuteToken != minutesWordReplaceTestToken {
 		t.Errorf("data.minute_token = %q, want %q", envelope.Data.MinuteToken, minutesWordReplaceTestToken)
 	}
-	if len(envelope.Data.ReplaceWords) != 1 || envelope.Data.ReplaceWords[0].SourceWord != "foo" || envelope.Data.ReplaceWords[0].TargetWord != "bar" {
-		t.Errorf("data.replace_words = %#v, want foo->bar", envelope.Data.ReplaceWords)
+	wantMsg := "Succeeded: foo; Failed: none. " + minutesWordReplaceDoNotRetrySucceeded
+	if envelope.Data.Message != wantMsg {
+		t.Errorf("message = %q, want %q", envelope.Data.Message, wantMsg)
+	}
+}
+
+func TestMinutesWordReplace_PartialSuccess(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
+	warmTokenCache(t)
+
+	reg.Register(&httpmock.Stub{
+		Method: http.MethodPut,
+		URL:    "/open-apis/minutes/v1/minutes/" + minutesWordReplaceTestToken + "/transcript/word",
+		Body: map[string]interface{}{
+			"code": 0,
+			"msg":  "ok",
+			"data": map[string]interface{}{
+				"replace_word_counts": []map[string]interface{}{
+					{"source_word": "missing", "replace_count": "0"},
+					{"source_word": "hello", "replace_count": "1"},
+				},
+			},
+		},
+	})
+
+	err := mountAndRun(t, MinutesWordReplace, []string{
+		"+word-replace",
+		"--minute-token", minutesWordReplaceTestToken,
+		"--replace-words", `[{"source_word":"missing","target_word":"Lark"},{"source_word":"hello","target_word":"hi"}]`,
+		"--format", "json", "--as", "user",
+	}, f, stdout)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var envelope struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			Message string `json:"message"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("unmarshal stdout: %v\nraw=%s", err, stdout.String())
+	}
+	if !envelope.OK {
+		t.Fatalf("ok = false, want true for partial success (aligned with OAPI); stdout=%s", stdout.String())
+	}
+	wantMsg := "Succeeded: hello; Failed: missing. " + minutesWordReplaceDoNotRetrySucceeded
+	if envelope.Data.Message != wantMsg {
+		t.Errorf("message = %q, want %q", envelope.Data.Message, wantMsg)
+	}
+}
+
+func TestMinutesWordReplace_MissingCountsIsNotAllSuccess(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
+	warmTokenCache(t)
+
+	// Server returns code=0 without replace_word_counts (old / incomplete deploy).
+	reg.Register(&httpmock.Stub{
+		Method: http.MethodPut,
+		URL:    "/open-apis/minutes/v1/minutes/" + minutesWordReplaceTestToken + "/transcript/word",
+		Body: map[string]interface{}{
+			"code": 0,
+			"msg":  "ok",
+			"data": map[string]interface{}{},
+		},
+	})
+
+	err := mountAndRun(t, MinutesWordReplace, []string{
+		"+word-replace",
+		"--minute-token", minutesWordReplaceTestToken,
+		"--replace-words", `[{"source_word":"hello","target_word":"hi"},{"source_word":"missing","target_word":"x"}]`,
+		"--format", "json", "--as", "user",
+	}, f, stdout)
+	if err == nil {
+		t.Fatal("expected failed_precondition when replace_word_counts is missing, got nil")
+	}
+	p, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("want typed errs.*, got %T: %v", err, err)
+	}
+	if p.Subtype != errs.SubtypeFailedPrecondition {
+		t.Errorf("subtype = %q, want %q", p.Subtype, errs.SubtypeFailedPrecondition)
+	}
+	if strings.Contains(stdout.String(), "Failed: none") {
+		t.Fatalf("must not invent all-success message, stdout=%s", stdout.String())
+	}
+}
+
+func TestMinutesWordReplace_AllCountsZero(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
+	warmTokenCache(t)
+
+	reg.Register(&httpmock.Stub{
+		Method: http.MethodPut,
+		URL:    "/open-apis/minutes/v1/minutes/" + minutesWordReplaceTestToken + "/transcript/word",
+		Body: map[string]interface{}{
+			"code": 0,
+			"msg":  "ok",
+			"data": map[string]interface{}{
+				"replace_word_counts": []map[string]interface{}{
+					{"source_word": "foo", "replace_count": "0"},
+					{"source_word": "bar", "replace_count": "0"},
+				},
+			},
+		},
+	})
+
+	err := mountAndRun(t, MinutesWordReplace, []string{
+		"+word-replace",
+		"--minute-token", minutesWordReplaceTestToken,
+		"--replace-words", `[{"source_word":"foo","target_word":"x"},{"source_word":"bar","target_word":"y"}]`,
+		"--format", "json", "--as", "user",
+	}, f, stdout)
+	if err == nil {
+		t.Fatal("expected failure exit signal, got nil")
+	}
+
+	p, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("want typed errs.*, got %T: %v", err, err)
+	}
+	if p.Subtype != errs.SubtypeNotFound {
+		t.Errorf("subtype = %q, want %q", p.Subtype, errs.SubtypeNotFound)
+	}
+	if p.Code != minutesWordReplaceWordsNotFound {
+		t.Errorf("code = %d, want %d", p.Code, minutesWordReplaceWordsNotFound)
+	}
+	if !strings.Contains(p.Message, "Failed: foo, bar") {
+		t.Errorf("message should list failed words, got: %s", p.Message)
+	}
+	if !strings.Contains(p.Message, "nothing was replaced") {
+		t.Errorf("message should state nothing was replaced, got: %s", p.Message)
 	}
 }
 
@@ -208,6 +347,10 @@ func TestMinutesWordReplace_OthersAreEditing(t *testing.T) {
 	}
 }
 
+// The stub reproduces a real gateway response observed against a live minute:
+// the bare internal code with no msg. The code is written as a literal so that
+// changing minutesWordReplaceWordsNotFound to a value the gateway never sends
+// fails this test instead of passing vacuously.
 func TestMinutesWordReplace_WordsNotFound(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
@@ -217,8 +360,8 @@ func TestMinutesWordReplace_WordsNotFound(t *testing.T) {
 		Method: http.MethodPut,
 		URL:    "/open-apis/minutes/v1/minutes/" + minutesWordReplaceTestToken + "/transcript/word",
 		Body: map[string]interface{}{
-			"code": minutesWordReplaceInvalidParams,
-			"msg":  "replace words not found in transcript",
+			"code": 40013,
+			"msg":  "",
 		},
 	})
 
@@ -242,13 +385,17 @@ func TestMinutesWordReplace_WordsNotFound(t *testing.T) {
 	if !strings.Contains(p.Message, minutesWordReplaceTestToken) {
 		t.Errorf("message should include minute token, got: %s", p.Message)
 	}
-	if !strings.Contains(p.Hint, "source_word") {
-		t.Errorf("hint should mention source_word, got: %s", p.Hint)
+	if !strings.Contains(p.Message, "nothing was replaced") {
+		t.Errorf("message should state nothing was replaced, got: %s", p.Message)
+	}
+	if !strings.Contains(p.Hint, "source_word") || !strings.Contains(p.Hint, "+detail") {
+		t.Errorf("hint should point at source_word and +detail, got: %s", p.Hint)
 	}
 }
 
-// A generic 40001 without the transcript marker must NOT be rewritten as
-// words_not_found; it should surface as the original invalid-params error.
+// Only the dedicated words-not-found code earns the not_found rewrite. A generic
+// invalid-params failure must surface as-is, even when its message happens to
+// mention the transcript.
 func TestMinutesWordReplace_GenericInvalidParamsNotRewritten(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
@@ -258,8 +405,8 @@ func TestMinutesWordReplace_GenericInvalidParamsNotRewritten(t *testing.T) {
 		Method: http.MethodPut,
 		URL:    "/open-apis/minutes/v1/minutes/" + minutesWordReplaceTestToken + "/transcript/word",
 		Body: map[string]interface{}{
-			"code": minutesWordReplaceInvalidParams,
-			"msg":  "Invalid Params",
+			"code": 40001,
+			"msg":  "replace words not found in transcript",
 		},
 	})
 
@@ -279,5 +426,13 @@ func TestMinutesWordReplace_GenericInvalidParamsNotRewritten(t *testing.T) {
 	}
 	if p.Subtype == errs.SubtypeNotFound && strings.Contains(p.Message, "None of the source words were found") {
 		t.Fatalf("generic 40001 must not be rewritten as not_found, got subtype=%q message=%q", p.Subtype, p.Message)
+	}
+}
+
+func TestFormatWordReplaceMessage(t *testing.T) {
+	got := formatWordReplaceMessage([]string{"hello"}, []string{"missing"})
+	want := "Succeeded: hello; Failed: missing. " + minutesWordReplaceDoNotRetrySucceeded
+	if got != want {
+		t.Fatalf("formatWordReplaceMessage() = %q, want %q", got, want)
 	}
 }

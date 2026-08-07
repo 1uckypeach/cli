@@ -137,7 +137,7 @@ lark-cli minutes +todo --minute-token <token> --as user --todos '[
 
 **无编辑权限**：若 CLI 返回 `error.subtype=permission_denied`，表示对**这条妙记**没有编辑权，应请所有者授权；**不要**误走 `auth login --scope`。
 
-**逐字稿关键词替换无命中**：`minutes +word-replace` 时，若 CLI 返回 `error.subtype=not_found`，表示传入的 `source_word` 在该妙记逐字稿中**一个都没匹配到**，未做任何替换。这是**参数问题不是权限问题**：先用 `minutes +detail --minute-tokens <token> --transcript` 读取当前逐字稿，核对 `source_word` 的精确写法与大小写后重试。
+**逐字稿关键词替换**：`minutes +word-replace` **至少一个关键词命中即为成功**（`ok:true`），`data.message` 会列出 Succeeded/Failed 关键词，并提示 `Do not reprocess words that already succeeded.`（勿再提交已成功的词）；**全部未命中**为失败（`error.subtype=not_found`）。这是**参数问题不是权限问题**：失败时先核对 `source_word` 后再只重试失败词。
 
 **替换 AI 总结全文**：见 [minutes +summary](references/lark-minutes-summary.md)。
 
