@@ -4,11 +4,11 @@
 package schema
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/larksuite/cli/internal/apicatalog"
-	"github.com/larksuite/cli/internal/registry"
 )
 
 // validEnvelope builds a baseline valid envelope used as a starting point in
@@ -142,7 +142,7 @@ func TestLintEnvelope_L2_TypeChecks(t *testing.T) {
 		{
 			name: "minimum >= maximum",
 			mutate: func(e *Envelope) {
-				min, max := 50.0, 10.0
+				min, max := json.Number("50"), json.Number("10")
 				e.InputSchema.Properties.Order = []string{"n"}
 				e.InputSchema.Properties.Map["n"] = Property{Type: "integer", Minimum: &min, Maximum: &max}
 			},
@@ -214,6 +214,28 @@ func TestLintEnvelope_L2_TypeChecks(t *testing.T) {
 				t.Errorf("expected error containing %q, got: %v", tt.wantSub, errs)
 			}
 		})
+	}
+}
+
+func TestLintEnvelope_LargeIntegerBoundsCompareExactly(t *testing.T) {
+	env := validEnvelope()
+	min, max := json.Number("9007199254740993"), json.Number("9007199254740994")
+	env.InputSchema.Properties.Order = []string{"n"}
+	env.InputSchema.Properties.Map["n"] = Property{
+		Type:    "integer",
+		Minimum: &min,
+		Maximum: &max,
+	}
+	for _, err := range lintEnvelope(env) {
+		if strings.Contains(err.Error(), "minimum") || strings.Contains(err.Error(), "maximum") {
+			t.Fatalf("exact adjacent integer bounds rejected: %v", err)
+		}
+	}
+}
+
+func TestExactJSONNumberRejectsQuotedNumber(t *testing.T) {
+	if got, ok := exactJSONNumber(json.Number(`"1"`)); ok || got != nil {
+		t.Fatalf("exactJSONNumber accepted quoted number: got=%v ok=%v", got, ok)
 	}
 }
 
@@ -345,9 +367,8 @@ func TestAllEnvelopesPass(t *testing.T) {
 	failCount := 0
 	knownWarnings := 0
 	knownEnvelopes := map[string]bool{}
-	// Use embedded data only so the gate is deterministic across machines
-	// (matches Task 17b: envelope assembly is overlay-independent).
-	for _, svc := range registry.EmbeddedServicesTyped() {
+	catalog := testFullCatalog(t)
+	for _, svc := range catalog.Services() {
 		envs := Envelopes(apicatalog.ServiceMethods(svc, nil))
 		for _, env := range envs {
 			errs := lintEnvelope(env)
@@ -378,7 +399,7 @@ func TestAllEnvelopesPass(t *testing.T) {
 	}
 
 	// L4 coverage report (warn-only via t.Logf)
-	all := Envelopes(registry.EmbeddedCatalog().WalkMethods(nil))
+	all := Envelopes(catalog.WalkMethods(nil))
 	c := measureCoverage(all)
 	for metric, rate := range c {
 		baseline := coverageBaseline[metric]

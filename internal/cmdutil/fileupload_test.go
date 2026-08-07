@@ -5,6 +5,7 @@ package cmdutil
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -368,6 +369,24 @@ func TestBuildFormdata(t *testing.T) {
 		}
 	})
 
+	t.Run("expanded numeric fields have a request budget", func(t *testing.T) {
+		stdin := bytes.NewReader([]byte("content"))
+		_, err := BuildFormdata(fio, "file", "", true, stdin, map[string]any{
+			"a": json.Number("1e-600000"),
+			"b": json.Number("1e-600000"),
+		})
+		if err == nil {
+			t.Fatal("expected oversized expanded form fields to fail")
+		}
+		var validationErr *errs.ValidationError
+		if !errors.As(err, &validationErr) {
+			t.Fatalf("expected typed validation error, got %T: %v", err, err)
+		}
+		if validationErr.Subtype != errs.SubtypeInvalidArgument || validationErr.Param != "--data" {
+			t.Fatalf("validation error = %#v, want invalid_argument for --data", validationErr)
+		}
+	})
+
 	t.Run("dataJSON nil is fine", func(t *testing.T) {
 		stdin := bytes.NewReader([]byte("content"))
 		fd, err := BuildFormdata(fio, "file", "", true, stdin, nil)
@@ -391,11 +410,8 @@ func TestBuildFormdata(t *testing.T) {
 	})
 }
 
-// TestFormatFormFieldValue locks in the fix for the float64 -> scientific
-// notation bug. JSON numbers unmarshal to float64, and fmt's default %v for
-// float64 delegates to %g which switches to scientific notation at ~1e6
-// (e.g. 1185356 -> "1.185356e+06"). Backends that parse the form field as an
-// integer reject that, surfacing as a generic "params error".
+// TestFormatFormFieldValue locks in decimal formatting for both the legacy
+// float64 input and exact json.Number values returned by Decoder.UseNumber.
 func TestFormatFormFieldValue(t *testing.T) {
 	t.Parallel()
 
@@ -410,6 +426,12 @@ func TestFormatFormFieldValue(t *testing.T) {
 		{"float64 huge", float64(20 * 1024 * 1024), "20971520"},
 		{"float64 negative", float64(-42), "-42"},
 		{"float64 fractional preserved", float64(3.14), "3.14"},
+		{"json number scientific integer", json.Number("1.185356e6"), "1185356"},
+		{"json number MaxInt64 scientific", json.Number("9.223372036854775807e18"), "9223372036854775807"},
+		{"json number negative scientific", json.Number("-4.2e2"), "-420"},
+		{"json number fractional scientific", json.Number("1.25e-3"), "0.00125"},
+		{"json number zero avoids exponent expansion", json.Number("0e-1048576"), "0"},
+		{"json number decimal unchanged", json.Number("3.14"), "3.14"},
 		{"string pass-through", "hello", "hello"},
 		{"bool true", true, "true"},
 		{"int via %v", 42, "42"},
@@ -425,5 +447,22 @@ func TestFormatFormFieldValue(t *testing.T) {
 				t.Fatalf("formatFormFieldValue(%v) = %q, want %q", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestParseOptionalBody_FileFormNumberFormatting(t *testing.T) {
+	body, err := ParseOptionalBody("POST", `{"size":1.185356e6,"revision_id":9223372036854775807}`, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields, ok := body.(map[string]any)
+	if !ok {
+		t.Fatalf("body type = %T, want map[string]any", body)
+	}
+	if got := formatFormFieldValue(fields["size"]); got != "1185356" {
+		t.Fatalf("size form field = %q, want 1185356", got)
+	}
+	if got := formatFormFieldValue(fields["revision_id"]); got != "9223372036854775807" {
+		t.Fatalf("revision_id form field = %q, want exact MaxInt64", got)
 	}
 }

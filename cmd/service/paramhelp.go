@@ -10,9 +10,9 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/larksuite/cli/internal/meta"
@@ -154,10 +154,8 @@ func formatBoundsInline(f meta.Field) string {
 	return ""
 }
 
-// formatBound renders a bound without a float artifact (100 not 100.000000).
-func formatBound(v float64) string {
-	return strconv.FormatFloat(v, 'f', -1, 64)
-}
+// formatBound returns the validated JSON number literal unchanged.
+func formatBound(v json.Number) string { return v.String() }
 
 // literalStr renders a coerced literal (default/example) for flag help,
 // returning "" for a nil or empty value so the caller can omit the clause.

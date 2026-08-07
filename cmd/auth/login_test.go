@@ -5,8 +5,10 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"slices"
@@ -14,17 +16,34 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/internal/apicatalog"
 	larkauth "github.com/larksuite/cli/internal/auth"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/internal/meta"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/recovery"
 	"github.com/larksuite/cli/internal/registry"
+	"github.com/larksuite/cli/shortcuts"
 	"github.com/larksuite/cli/shortcuts/common"
 	"github.com/zalando/go-keyring"
 )
 
 type failWriter struct{}
+
+func authTestCatalog(t *testing.T) apicatalog.Catalog {
+	t.Helper()
+	snapshot, err := registry.OpenSnapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := snapshot.FullCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return catalog
+}
 
 func (failWriter) Write([]byte) (int, error) {
 	return 0, errors.New("write failed")
@@ -132,13 +151,14 @@ func TestShortcutSupportsIdentity_BotOnly(t *testing.T) {
 }
 
 func TestCompleteDomain(t *testing.T) {
-	projects := registry.ListFromMetaProjects()
+	catalog := authTestCatalog(t)
+	projects := catalogServiceNames(catalog)
 	if len(projects) == 0 {
 		t.Skip("no from_meta data available")
 	}
 
 	// Complete from empty prefix
-	completions := completeDomain("")
+	completions := completeDomain(catalog, "")
 	if len(completions) == 0 {
 		t.Fatal("expected completions for empty prefix")
 	}
@@ -148,7 +168,7 @@ func TestCompleteDomain(t *testing.T) {
 	}
 
 	// Complete with partial prefix
-	completions = completeDomain("cal")
+	completions = completeDomain(authTestCatalog(t), "cal")
 	for _, c := range completions {
 		if c != "calendar" && c[:3] != "cal" {
 			t.Errorf("unexpected completion %q for prefix 'cal'", c)
@@ -157,13 +177,13 @@ func TestCompleteDomain(t *testing.T) {
 }
 
 func TestCompleteDomain_CommaSeparated(t *testing.T) {
-	projects := registry.ListFromMetaProjects()
+	projects := testCatalogServiceNames(t)
 	if len(projects) == 0 {
 		t.Skip("no from_meta data available")
 	}
 
 	// After a comma, should complete the next segment
-	completions := completeDomain("calendar,")
+	completions := completeDomain(authTestCatalog(t), "calendar,")
 	for _, c := range completions {
 		if c[:9] != "calendar," {
 			t.Errorf("expected 'calendar,' prefix, got %q", c)
@@ -172,13 +192,13 @@ func TestCompleteDomain_CommaSeparated(t *testing.T) {
 }
 
 func TestAllKnownDomains(t *testing.T) {
-	domains := allKnownDomains("")
+	domains := allKnownDomains(authTestCatalog(t), "")
 	if len(domains) == 0 {
 		t.Fatal("expected non-empty known domains")
 	}
 
 	// Should include from_meta projects
-	for _, p := range registry.ListFromMetaProjects() {
+	for _, p := range testCatalogServiceNames(t) {
 		if !domains[p] {
 			t.Errorf("expected from_meta project %q in known domains", p)
 		}
@@ -186,7 +206,7 @@ func TestAllKnownDomains(t *testing.T) {
 }
 
 func TestSortedKnownDomains(t *testing.T) {
-	sorted := sortedKnownDomains("")
+	sorted := sortedKnownDomains(authTestCatalog(t), "")
 	if len(sorted) == 0 {
 		t.Fatal("expected non-empty sorted domains")
 	}
@@ -196,7 +216,7 @@ func TestSortedKnownDomains(t *testing.T) {
 	}
 
 	// Should match allKnownDomains
-	known := allKnownDomains("")
+	known := allKnownDomains(authTestCatalog(t), "")
 	if len(sorted) != len(known) {
 		t.Errorf("sorted (%d) and known (%d) length mismatch", len(sorted), len(known))
 	}
@@ -222,12 +242,12 @@ func TestGetShortcutOnlyDomainNames_IncludesNote(t *testing.T) {
 }
 
 func TestCollectScopesForDomains(t *testing.T) {
-	projects := registry.ListFromMetaProjects()
+	projects := testCatalogServiceNames(t)
 	if len(projects) == 0 {
 		t.Skip("no from_meta data available")
 	}
 
-	scopes := collectScopesForDomains([]string{"calendar"}, "user", "")
+	scopes := collectScopesForDomains(authTestCatalog(t), []string{"calendar"}, "user", "")
 	if len(scopes) == 0 {
 		t.Fatal("expected non-empty scopes for calendar domain")
 	}
@@ -238,7 +258,7 @@ func TestCollectScopesForDomains(t *testing.T) {
 	}
 
 	// Should include at least the API scopes
-	apiScopes := registry.CollectScopesForProjects([]string{"calendar"}, "user")
+	apiScopes := registry.CollectScopesForProjects(authTestCatalog(t), []string{"calendar"}, "user")
 	for _, s := range apiScopes {
 		found := false
 		for _, cs := range scopes {
@@ -254,21 +274,45 @@ func TestCollectScopesForDomains(t *testing.T) {
 }
 
 func TestCollectScopesForDomains_NonexistentDomain(t *testing.T) {
-	scopes := collectScopesForDomains([]string{"nonexistent_domain_xyz"}, "user", "")
+	scopes := collectScopesForDomains(authTestCatalog(t), []string{"nonexistent_domain_xyz"}, "user", "")
 	if len(scopes) != 0 {
 		t.Errorf("expected empty scopes for nonexistent domain, got %d", len(scopes))
 	}
 }
 
+func TestLoginHelpers_APICatalog(t *testing.T) {
+	service := meta.ServiceFromMap(map[string]interface{}{
+		"name": "drive",
+		"resources": map[string]interface{}{
+			"files": map[string]interface{}{"methods": map[string]interface{}{
+				"list": map[string]interface{}{
+					"httpMethod":   "GET",
+					"accessTokens": []interface{}{"user"},
+					"scopes":       []interface{}{"drive:fixture:read"},
+				},
+			}},
+		},
+	})
+	catalog := apicatalog.New(apicatalog.SourceEmbedded, []meta.Service{service})
+
+	if got := completeDomain(catalog, ""); !slices.Equal(got, []string{"drive"}) {
+		t.Fatalf("completion = %v, want [drive]", got)
+	}
+	scopes := collectScopesForDomains(catalog, []string{"drive"}, "user", "")
+	if !slices.Contains(scopes, "drive:fixture:read") {
+		t.Fatalf("scopes %v do not include injected catalog scope", scopes)
+	}
+}
+
 func TestGetDomainMetadata_IncludesFromMeta(t *testing.T) {
-	domains := getDomainMetadata("zh")
+	domains := getDomainMetadata(authTestCatalog(t), "zh")
 	nameSet := make(map[string]bool)
 	for _, dm := range domains {
 		nameSet[dm.Name] = true
 	}
 
 	// from_meta projects must be present
-	for _, p := range registry.ListFromMetaProjects() {
+	for _, p := range testCatalogServiceNames(t) {
 		if !nameSet[p] {
 			t.Errorf("from_meta project %q missing from getDomainMetadata", p)
 		}
@@ -276,7 +320,7 @@ func TestGetDomainMetadata_IncludesFromMeta(t *testing.T) {
 }
 
 func TestGetDomainMetadata_IncludesShortcutOnlyDomains(t *testing.T) {
-	domains := getDomainMetadata("zh")
+	domains := getDomainMetadata(authTestCatalog(t), "zh")
 	nameSet := make(map[string]bool)
 	for _, dm := range domains {
 		nameSet[dm.Name] = true
@@ -290,7 +334,7 @@ func TestGetDomainMetadata_IncludesShortcutOnlyDomains(t *testing.T) {
 }
 
 func TestGetDomainMetadata_Sorted(t *testing.T) {
-	domains := getDomainMetadata("zh")
+	domains := getDomainMetadata(authTestCatalog(t), "zh")
 	for i := 1; i < len(domains); i++ {
 		if domains[i].Name < domains[i-1].Name {
 			t.Errorf("not sorted: %q before %q", domains[i-1].Name, domains[i].Name)
@@ -299,10 +343,58 @@ func TestGetDomainMetadata_Sorted(t *testing.T) {
 }
 
 func TestGetDomainMetadata_HasTitleAndDescription(t *testing.T) {
-	domains := getDomainMetadata("zh")
+	domains := getDomainMetadata(authTestCatalog(t), "zh")
 	for _, dm := range domains {
 		if dm.Title == "" {
 			t.Errorf("domain %q has empty Title", dm.Name)
+		}
+	}
+}
+
+// TestEveryRegisteredDomain_HasBilingualDescription reconciles every registered
+// business domain against service_descriptions.json.
+//
+// TestGetDomainMetadata_HasTitleAndDescription does not cover this. It asserts on
+// buildDomainMeta's output, which falls back to the typed service spec when the
+// config has no entry — and that spec carries one string for both languages. So a
+// domain missing from the config still passes it, while rendering (for example) a
+// Chinese description in English `--help`. attendance and mindnotes shipped that
+// way. Asserting on the registry getters checks the config itself, before any
+// fallback can paper over the gap.
+//
+// authTestCatalog opens only the embedded snapshot, so this stays deterministic
+// regardless of any runtime metadata cache on the machine. A domain that only
+// ever arrives from a runtime source is intentionally out of reach here.
+func TestEveryRegisteredDomain_HasBilingualDescription(t *testing.T) {
+	origin := make(map[string]string) // domain name → where it is registered
+	for _, svc := range authTestCatalog(t).Services() {
+		origin[svc.Name] = "embedded API meta"
+	}
+	for _, sc := range shortcuts.AllShortcuts() {
+		if _, ok := origin[sc.Service]; !ok {
+			origin[sc.Service] = "shortcut registration"
+		}
+	}
+	if len(origin) == 0 {
+		t.Fatal("no registered domains found — the reconciliation would be vacuous")
+	}
+
+	names := make([]string, 0, len(origin))
+	for name := range origin {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		for _, lang := range []string{"en", "zh"} {
+			if registry.GetServiceTitle(name, lang) == "" {
+				t.Errorf("domain %q (registered via %s) has no %s title in service_descriptions.json",
+					name, origin[name], lang)
+			}
+			if registry.GetServiceDescription(name, lang) == "" {
+				t.Errorf("domain %q (registered via %s) has no %s description in service_descriptions.json",
+					name, origin[name], lang)
+			}
 		}
 	}
 }
@@ -329,6 +421,63 @@ func TestAuthLoginRun_NonTerminal_NoFlags_RejectsWithHint(t *testing.T) {
 			t.Errorf("expected stderr to mention %q, got: %s", want, stderrStr)
 		}
 	}
+}
+
+func TestGenericUserAuthorizationStartCommandPassesLoginValidation(t *testing.T) {
+	const startCommand = "lark-cli auth login --recommend --no-wait --json"
+	if hint := recovery.UserAuthorization().String(); !strings.Contains(hint, startCommand) {
+		t.Fatalf("generic recovery = %q, want executable start command %q", hint, startCommand)
+	}
+
+	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+		ProfileName: "default",
+		AppID:       "cli_test",
+		AppSecret:   "secret",
+		Brand:       core.BrandFeishu,
+	})
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    larkauth.PathDeviceAuthorization,
+		Body: map[string]interface{}{
+			"device_code":               "device-code",
+			"user_code":                 "user-code",
+			"verification_uri":          "https://example.com/verify",
+			"verification_uri_complete": "https://example.com/verify?code=123",
+			"expires_in":                240,
+			"interval":                  5,
+		},
+	})
+
+	err := authLoginRun(&LoginOptions{
+		Factory:   f,
+		Ctx:       context.Background(),
+		Recommend: true,
+		NoWait:    true,
+		JSON:      true,
+	})
+	if err != nil {
+		t.Fatalf("generic recovery start command failed before returning a verification URL: %v", err)
+	}
+	var payload map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode login response: %v\nstdout=%s", err, stdout.String())
+	}
+	if got := payload["verification_url"]; got != "https://example.com/verify?code=123" {
+		t.Fatalf("verification_url = %#v, want mocked URL", got)
+	}
+	hint, ok := payload["hint"].(string)
+	if !ok {
+		t.Fatalf("hint = %#v, want string", payload["hint"])
+	}
+	if strings.Contains(hint, "lark-cli auth login --no-wait --json") {
+		t.Errorf("successful start response recommends an invalid optionless retry: %q", hint)
+	}
+	for _, want := range []string{"same `--scope`, `--domain`, or `--recommend` selection", "any `--exclude` values", "`--no-wait --json`"} {
+		if !strings.Contains(hint, want) {
+			t.Errorf("hint = %q, want executable fresh-login guidance containing %q", hint, want)
+		}
+	}
+	reg.Verify(t)
 }
 
 func TestEnsureRequestedScopesGranted(t *testing.T) {
@@ -1050,7 +1199,9 @@ func TestAuthLoginRun_NoWaitJSONHintIncludesRawURLGuidance(t *testing.T) {
 		"YOU must execute",
 		"lark-cli auth login --device-code <device_code>",
 		"Do NOT cache",
-		"lark-cli auth login --no-wait --json",
+		"same `--scope`, `--domain`, or `--recommend` selection",
+		"any `--exclude` values",
+		"`--no-wait --json`",
 	} {
 		if !strings.Contains(hint, want) {
 			t.Fatalf("hint missing %q, got:\n%s", want, hint)
@@ -1059,9 +1210,72 @@ func TestAuthLoginRun_NoWaitJSONHintIncludesRawURLGuidance(t *testing.T) {
 	for _, unwanted := range []string{
 		"Then immediately execute",
 		"Do not instruct the user to run this command themselves",
+		"lark-cli auth login --no-wait --json",
 	} {
 		if strings.Contains(hint, unwanted) {
 			t.Fatalf("hint should not contain %q, got:\n%s", unwanted, hint)
+		}
+	}
+}
+
+func TestNoWaitAgentHint_DefaultBytesStable(t *testing.T) {
+	const wantSHA256 = "bd1000350f418a4353807c45c68e1ee073127366bf9d8dd8a0a0f797e0adf8b7"
+	if got := fmt.Sprintf("%x", sha256.Sum256([]byte(noWaitAgentHint(recovery.RenderContext{})))); got != wantSHA256 {
+		t.Fatalf("default no-wait hint digest = %s, want legacy %s", got, wantSHA256)
+	}
+}
+
+func TestAuthLoginRun_NoWaitJSONHintPreservesExplicitProfile(t *testing.T) {
+	f, stdout, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+		ProfileName: "team-beta",
+		AppID:       "cli_test",
+		AppSecret:   "secret",
+		Brand:       core.BrandFeishu,
+	})
+	f.Invocation.Profile = "team-beta"
+
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    larkauth.PathDeviceAuthorization,
+		Body: map[string]interface{}{
+			"device_code":               "device-code",
+			"user_code":                 "user-code",
+			"verification_uri":          "https://example.com/verify",
+			"verification_uri_complete": "https://example.com/verify?code=123",
+			"expires_in":                240,
+			"interval":                  5,
+		},
+	})
+
+	if err := authLoginRun(&LoginOptions{
+		Factory: f,
+		Ctx:     context.Background(),
+		Scope:   "im:message:send",
+		NoWait:  true,
+		JSON:    true,
+	}); err != nil {
+		t.Fatalf("authLoginRun() error = %v", err)
+	}
+
+	var data map[string]interface{}
+	if err := json.NewDecoder(strings.NewReader(stdout.String())).Decode(&data); err != nil {
+		t.Fatalf("Decode(stdout) error = %v, stdout=%q", err, stdout.String())
+	}
+	hint, _ := data["hint"].(string)
+	for _, want := range []string{
+		"`lark-cli auth login --profile='team-beta' --device-code <device_code>`",
+		"rerun `lark-cli auth login --profile='team-beta'` with the same",
+	} {
+		if !strings.Contains(hint, want) {
+			t.Errorf("profile-aware no-wait JSON hint missing %q: %s", want, hint)
+		}
+	}
+	for _, stale := range []string{
+		"`lark-cli auth login --device-code <device_code>`",
+		"rerun `lark-cli auth login` with the same",
+	} {
+		if strings.Contains(hint, stale) {
+			t.Errorf("profile-aware no-wait JSON hint retained stale command %q: %s", stale, hint)
 		}
 	}
 }
@@ -1168,7 +1382,7 @@ func TestAuthLoginRun_JSONDeviceAuthorizationAgentHintIncludesRawURLGuidance(t *
 }
 
 func TestGetDomainMetadata_ExcludesEvent(t *testing.T) {
-	domains := getDomainMetadata("zh")
+	domains := getDomainMetadata(authTestCatalog(t), "zh")
 	for _, dm := range domains {
 		if dm.Name == "event" {
 			t.Error("event should not appear in interactive domain list")
@@ -1177,7 +1391,7 @@ func TestGetDomainMetadata_ExcludesEvent(t *testing.T) {
 }
 
 func TestAllKnownDomains_ExcludesAuthDomainChildren(t *testing.T) {
-	domains := allKnownDomains("")
+	domains := allKnownDomains(authTestCatalog(t), "")
 	if domains["whiteboard"] {
 		t.Error("whiteboard should not appear in known auth domains (it has auth_domain=docs)")
 	}
@@ -1187,7 +1401,7 @@ func TestAllKnownDomains_ExcludesAuthDomainChildren(t *testing.T) {
 }
 
 func TestCollectScopesForDomains_ExpandsAuthDomainChildren(t *testing.T) {
-	scopes := collectScopesForDomains([]string{"docs"}, "user", "")
+	scopes := collectScopesForDomains(authTestCatalog(t), []string{"docs"}, "user", "")
 	// docs domain should include whiteboard shortcut scopes (board:whiteboard:*)
 	found := false
 	for _, s := range scopes {
@@ -1202,7 +1416,7 @@ func TestCollectScopesForDomains_ExpandsAuthDomainChildren(t *testing.T) {
 }
 
 func TestGetDomainMetadata_ExcludesAuthDomainChildren(t *testing.T) {
-	domains := getDomainMetadata("zh")
+	domains := getDomainMetadata(authTestCatalog(t), "zh")
 	for _, dm := range domains {
 		if dm.Name == "whiteboard" {
 			t.Error("whiteboard should not appear in interactive domain list (has auth_domain=docs)")

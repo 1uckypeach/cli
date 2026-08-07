@@ -199,7 +199,11 @@ func materializePlaceholderExample(raw string, cmd manifest.Command) (materializ
 			if eq := strings.IndexByte(name, '='); eq >= 0 {
 				flagName := name[:eq]
 				flag := findManifestFlag(&cmd, flagName)
-				value, ok := materializePlaceholderValue(name[eq+1:], placeholderContextForFlag(flagName, flag))
+				contextName := flagName
+				if flag != nil {
+					contextName = flag.Name
+				}
+				value, ok := materializePlaceholderValue(name[eq+1:], placeholderContextForFlag(contextName, flag))
 				if !ok {
 					return materializedExample{}, false
 				}
@@ -208,7 +212,7 @@ func materializePlaceholderExample(raw string, cmd manifest.Command) (materializ
 			}
 			flag := findManifestFlag(&cmd, name)
 			if flag != nil && flag.TakesValue && i+1 < len(argv) {
-				value, ok := materializePlaceholderValue(argv[i+1], placeholderContextForFlag(name, flag))
+				value, ok := materializePlaceholderValue(argv[i+1], placeholderContextForFlag(flag.Name, flag))
 				if !ok {
 					return materializedExample{}, false
 				}
@@ -884,7 +888,6 @@ func runCommand(ctx context.Context, cliBin string, argv []string) commandResult
 		"LARKSUITE_CLI_APP_ID=dry-run",
 		"LARKSUITE_CLI_APP_SECRET=dry-run",
 		"LARKSUITE_CLI_BRAND=feishu",
-		"LARKSUITE_CLI_REMOTE_META=off",
 		"LARKSUITE_CLI_NO_UPDATE_NOTIFIER=1",
 		"LARKSUITE_CLI_NO_SKILLS_NOTIFIER=1",
 	)

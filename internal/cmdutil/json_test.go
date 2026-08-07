@@ -4,7 +4,9 @@
 package cmdutil
 
 import (
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/larksuite/cli/errs"
@@ -111,5 +113,47 @@ func TestParseJSONMap(t *testing.T) {
 				t.Error("ParseJSONMap() = nil map on success, want non-nil")
 			}
 		})
+	}
+}
+
+func TestParseOptionalBody_PreservesLargeInteger(t *testing.T) {
+	const input = `{"revision_id":9223372036854775807}`
+	got, err := ParseOptionalBody("POST", input, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, ok := got.(map[string]any)
+	if !ok {
+		t.Fatalf("body type = %T, want map[string]any", got)
+	}
+	n, ok := body["revision_id"].(json.Number)
+	if !ok || n.String() != "9223372036854775807" {
+		t.Fatalf("revision_id = %v (%T), want exact json.Number", body["revision_id"], body["revision_id"])
+	}
+	encoded, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(encoded) != input {
+		t.Fatalf("wire JSON = %s, want %s", encoded, input)
+	}
+}
+
+func TestParseJSONMap_PreservesLargeInteger(t *testing.T) {
+	const input = `{"revision_id":9223372036854775807}`
+	got, err := ParseJSONMap(input, "--params", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, ok := got["revision_id"].(json.Number)
+	if !ok || n.String() != "9223372036854775807" {
+		t.Fatalf("revision_id = %v (%T), want exact json.Number", got["revision_id"], got["revision_id"])
+	}
+	encoded, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(encoded)) != input {
+		t.Fatalf("wire JSON = %s, want %s", encoded, input)
 	}
 }

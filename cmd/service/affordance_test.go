@@ -9,9 +9,14 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/larksuite/cli/internal/affordance"
+	"github.com/larksuite/cli/internal/apicatalog"
 	"github.com/larksuite/cli/internal/cmdmeta"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/meta"
+	"github.com/larksuite/cli/internal/recovery"
+	"github.com/larksuite/cli/internal/skillref"
+	"github.com/larksuite/cli/internal/surface"
 	"github.com/spf13/cobra"
 )
 
@@ -81,7 +86,7 @@ func TestServiceMethod_AffordanceNotInLong(t *testing.T) {
 func TestRenderAffordanceForCmd(t *testing.T) {
 	orig := affordanceLookup
 	t.Cleanup(func() { affordanceLookup = orig })
-	affordanceLookup = func(service, methodID string) (json.RawMessage, bool) {
+	affordanceLookup = func(_ apicatalog.Catalog, service, methodID string) (json.RawMessage, bool) {
 		if service != "im" || methodID != "messages.create" {
 			return nil, false
 		}
@@ -112,7 +117,7 @@ func TestRenderAffordanceForCmd(t *testing.T) {
 func TestPrepareMethodHelp(t *testing.T) {
 	orig := affordanceLookup
 	t.Cleanup(func() { affordanceLookup = orig })
-	affordanceLookup = func(_, _ string) (json.RawMessage, bool) {
+	affordanceLookup = func(_ apicatalog.Catalog, _, _ string) (json.RawMessage, bool) {
 		return json.RawMessage(`{"use_when":["发文本消息"],"examples":[{"description":"发一条","command":"lark-cli im messages create ..."}]}`), true
 	}
 
@@ -120,7 +125,7 @@ func TestPrepareMethodHelp(t *testing.T) {
 	m := map[string]interface{}{"id": "messages.create", "path": "messages", "httpMethod": "POST", "description": "发送消息"}
 	cmd := NewCmdServiceMethod(f, imSpec(), meta.FromMap(m), "create", "messages", nil)
 
-	if !PrepareMethodHelp(cmd, nil) {
+	if !PrepareMethodHelp(apicatalog.Catalog{}, cmd, nil) {
 		t.Fatal("PrepareMethodHelp returned false for a service-method command")
 	}
 	long := cmd.Long
@@ -137,8 +142,42 @@ func TestPrepareMethodHelp(t *testing.T) {
 	}
 
 	// A non-service command (no schema-path annotation) is left untouched.
-	if PrepareMethodHelp(&cobra.Command{Use: "plain"}, nil) {
+	if PrepareMethodHelp(apicatalog.Catalog{}, &cobra.Command{Use: "plain"}, nil) {
 		t.Error("PrepareMethodHelp should return false for a non-service command")
+	}
+}
+
+func TestPrepareMethodHelpProjectsConcealedSchemaPointer(t *testing.T) {
+	orig := affordanceLookup
+	t.Cleanup(func() { affordanceLookup = orig })
+	affordanceLookup = func(_ apicatalog.Catalog, _, _ string) (json.RawMessage, bool) {
+		return json.RawMessage(`{"use_when":["发文本消息"]}`), true
+	}
+
+	f, _, _, _ := cmdutil.TestFactory(t, testConfig)
+	m := map[string]interface{}{
+		"id": "messages.create", "path": "messages", "httpMethod": "POST",
+		"description": "发送消息",
+	}
+	cmd := NewCmdServiceMethod(f, imSpec(), meta.FromMap(m), "create", "messages", nil)
+	plan := surface.NewPlan(map[surface.CommandID]surface.CommandState{
+		surface.CommandSchema: surface.CommandConcealed,
+	})
+	projector := recovery.NewProjector(func() *surface.Plan { return plan })
+
+	if !PrepareMethodHelpWithProjection(apicatalog.Catalog{}, cmd, nil, nil, func() bool {
+		return projector.CanReference(recovery.TargetSchema)
+	}) {
+		t.Fatal("PrepareMethodHelpWithProjection returned false for a service-method command")
+	}
+	if strings.Contains(cmd.Long, "lark-cli schema") ||
+		strings.Contains(cmd.Long, "Full parameter schema:") {
+		t.Fatalf("concealed schema left a dead method-help pointer:\n%s", cmd.Long)
+	}
+	for _, want := range []string{"发送消息", "When to use:", "发文本消息"} {
+		if !strings.Contains(cmd.Long, want) {
+			t.Errorf("schema projection removed unrelated help %q:\n%s", want, cmd.Long)
+		}
 	}
 }
 
@@ -149,7 +188,7 @@ func TestPrepareMethodHelp(t *testing.T) {
 func TestPrepareShortcutHelp(t *testing.T) {
 	orig := affordanceLookup
 	t.Cleanup(func() { affordanceLookup = orig })
-	affordanceLookup = func(service, methodID string) (json.RawMessage, bool) {
+	affordanceLookup = func(_ apicatalog.Catalog, service, methodID string) (json.RawMessage, bool) {
 		if service == "calendar" && methodID == "+create" {
 			return json.RawMessage(`{"use_when":["高层创建日程"],"skills":["lark-calendar"]}`), true
 		}
@@ -162,7 +201,7 @@ func TestPrepareShortcutHelp(t *testing.T) {
 	cmdutil.SetRisk(sc, "write")
 	cmdutil.SetTips(sc, []string{"start/end 收 ISO 8601"})
 
-	if !PrepareShortcutHelp(sc, nil) {
+	if !PrepareShortcutHelp(apicatalog.Catalog{}, sc, nil) {
 		t.Fatal("PrepareShortcutHelp returned false for a shortcut with an overlay")
 	}
 	for _, want := range []string{"Create an event", "Risk: write", "When to use:", "高层创建日程", "Tips:", "start/end 收 ISO 8601"} {
@@ -178,14 +217,14 @@ func TestPrepareShortcutHelp(t *testing.T) {
 	bare := &cobra.Command{Use: "+bare", Short: "x"}
 	cmdmeta.SetSource(bare, cmdmeta.SourceShortcut, false)
 	cmdmeta.SetAffordanceRef(bare, "calendar", "+bare")
-	if PrepareShortcutHelp(bare, nil) {
+	if PrepareShortcutHelp(apicatalog.Catalog{}, bare, nil) {
 		t.Error("PrepareShortcutHelp should return false when the shortcut has no overlay")
 	}
 
 	// Non-shortcut source is ignored even with a ref.
 	notSc := &cobra.Command{Use: "create", Short: "x"}
 	cmdmeta.SetAffordanceRef(notSc, "calendar", "+create")
-	if PrepareShortcutHelp(notSc, nil) {
+	if PrepareShortcutHelp(apicatalog.Catalog{}, notSc, nil) {
 		t.Error("PrepareShortcutHelp should return false for a non-shortcut command")
 	}
 }
@@ -196,7 +235,7 @@ func TestPrepareShortcutHelp(t *testing.T) {
 func TestRelatedSkillsStatGating(t *testing.T) {
 	orig := affordanceLookup
 	t.Cleanup(func() { affordanceLookup = orig })
-	affordanceLookup = func(_, _ string) (json.RawMessage, bool) {
+	affordanceLookup = func(_ apicatalog.Catalog, _, _ string) (json.RawMessage, bool) {
 		return json.RawMessage(`{"use_when":["x"],"skills":["lark-real","lark-typo","lark-real/references/deep.md","lark-real/references/missing.md"]}`), true
 	}
 	skillFS := fstest.MapFS{
@@ -208,7 +247,7 @@ func TestRelatedSkillsStatGating(t *testing.T) {
 	m := map[string]interface{}{"id": "messages.create", "path": "messages", "httpMethod": "POST", "description": "d"}
 
 	cmd := NewCmdServiceMethod(f, imSpec(), meta.FromMap(m), "create", "messages", nil)
-	if !PrepareMethodHelp(cmd, skillFS) {
+	if !PrepareMethodHelp(apicatalog.Catalog{}, cmd, skillFS) {
 		t.Fatal("PrepareMethodHelp returned false")
 	}
 	if !strings.Contains(cmd.Long, "skills read lark-real\n") {
@@ -227,19 +266,71 @@ func TestRelatedSkillsStatGating(t *testing.T) {
 
 	// nil skill FS: the whole Related-skills block is suppressed.
 	bare := NewCmdServiceMethod(f, imSpec(), meta.FromMap(m), "create", "messages", nil)
-	PrepareMethodHelp(bare, nil)
+	PrepareMethodHelp(apicatalog.Catalog{}, bare, nil)
 	if strings.Contains(bare.Long, "Related skills") {
 		t.Errorf("nil skillFS should suppress the skills block; got:\n%s", bare.Long)
 	}
 }
 
-// A shortcut that set a hand-authored Long (as the docs shortcuts do in
-// PostMount) keeps it as the lead: the affordance block is appended below, not
-// clobbered, and re-rendering does not double-append.
+func TestDomainSkillReferenceRequiresReadableCommandSurface(t *testing.T) {
+	content := fstest.MapFS{
+		"lark-im/SKILL.md": {Data: []byte("# im")},
+	}
+	resolver, err := skillref.New(content, nil)
+	if err != nil {
+		t.Fatalf("skillref.New(): %v", err)
+	}
+	root := &cobra.Command{Use: "lark-cli"}
+	domain := &cobra.Command{Use: "im", Short: "IM"}
+	cmdmeta.SetSource(domain, cmdmeta.SourceService, false)
+	domain.AddCommand(&cobra.Command{Use: "messages", Run: func(*cobra.Command, []string) {}})
+	root.AddCommand(domain)
+
+	if !PrepareDomainHelpWithReferences(domain, nil, resolver) {
+		t.Fatal("PrepareDomainHelp returned false")
+	}
+	if strings.Contains(domain.Long, "skills read") {
+		t.Fatalf("concealed skills/read leaked through resolver:\n%s", domain.Long)
+	}
+}
+
+func TestDomainSkillReferenceUsesDeclaredAffordanceName(t *testing.T) {
+	affordance.SetSource(fstest.MapFS{
+		"docs.md": {Data: []byte("# docs\n> skill: lark-doc\n")},
+	})
+	t.Cleanup(func() { affordance.SetSource(nil) })
+	content := fstest.MapFS{
+		"lark-doc/SKILL.md": {Data: []byte("# docs")},
+	}
+	resolver, err := skillref.New(content, nil)
+	if err != nil {
+		t.Fatalf("skillref.New(): %v", err)
+	}
+	root := &cobra.Command{Use: "lark-cli"}
+	domain := &cobra.Command{Use: "docs", Short: "Docs"}
+	cmdmeta.SetSource(domain, cmdmeta.SourceService, false)
+	cmdmeta.SetDomain(domain, "docs")
+	domain.AddCommand(&cobra.Command{Use: "documents", Run: func(*cobra.Command, []string) {}})
+	root.AddCommand(domain)
+
+	if !PrepareDomainHelpWithReferences(domain, content, resolver) {
+		t.Fatal("PrepareDomainHelp returned false")
+	}
+	if !strings.Contains(domain.Long, "skills read lark-doc") {
+		t.Fatalf("declared domain skill was not used:\n%s", domain.Long)
+	}
+	if strings.Contains(domain.Long, "skills read lark-docs") {
+		t.Fatalf("command-name inference overrode declared domain skill:\n%s", domain.Long)
+	}
+}
+
+// A shortcut that sets a hand-authored Long keeps it as the lead: the
+// affordance block is appended below, not clobbered, and re-rendering does not
+// double-append.
 func TestPrepareShortcutHelp_PreservesPostMountLong(t *testing.T) {
 	orig := affordanceLookup
 	t.Cleanup(func() { affordanceLookup = orig })
-	affordanceLookup = func(_, _ string) (json.RawMessage, bool) {
+	affordanceLookup = func(_ apicatalog.Catalog, _, _ string) (json.RawMessage, bool) {
 		return json.RawMessage(`{"use_when":["高层创建日程"]}`), true
 	}
 
@@ -248,7 +339,7 @@ func TestPrepareShortcutHelp_PreservesPostMountLong(t *testing.T) {
 	cmdmeta.SetSource(sc, cmdmeta.SourceShortcut, false)
 	cmdmeta.SetAffordanceRef(sc, "calendar", "+create")
 
-	if !PrepareShortcutHelp(sc, nil) {
+	if !PrepareShortcutHelp(apicatalog.Catalog{}, sc, nil) {
 		t.Fatal("PrepareShortcutHelp returned false for a shortcut with an overlay")
 	}
 	if !strings.HasPrefix(sc.Long, authored) {
@@ -258,7 +349,7 @@ func TestPrepareShortcutHelp_PreservesPostMountLong(t *testing.T) {
 		t.Errorf("affordance block should be appended below the base; got:\n%s", sc.Long)
 	}
 	// Re-render must reuse the captured base, not append the block twice.
-	PrepareShortcutHelp(sc, nil)
+	PrepareShortcutHelp(apicatalog.Catalog{}, sc, nil)
 	if n := strings.Count(sc.Long, "When to use:"); n != 1 {
 		t.Errorf("affordance appended %d times across re-renders, want 1:\n%s", n, sc.Long)
 	}
@@ -297,6 +388,26 @@ func TestPrepareDomainHelp_PreservesHandAuthoredLong(t *testing.T) {
 }
 
 // A service domain carries only a Short at help time; it seeds the base.
+// The domain-guide pointer is likewise gated: removing the domain's skill
+// drops the pointer instead of leaving it dangling.
+func TestPrepareDomainHelp_GatesGuidePointerOnFS(t *testing.T) {
+	present := domainCmd("Consume and manage real-time events", "")
+	if !PrepareDomainHelp(present, fstest.MapFS{"lark-event/SKILL.md": &fstest.MapFile{Data: []byte("x")}}) {
+		t.Fatal("PrepareDomainHelp returned false for a domain-tagged command")
+	}
+	if !strings.Contains(present.Long, "lark-cli skills read lark-event") {
+		t.Errorf("skill present should emit the domain-guide pointer; got:\n%s", present.Long)
+	}
+
+	removed := domainCmd("Consume and manage real-time events", "")
+	if !PrepareDomainHelp(removed, fstest.MapFS{}) {
+		t.Fatal("PrepareDomainHelp returned false for a domain-tagged command")
+	}
+	if strings.Contains(removed.Long, "skills read lark-event") {
+		t.Errorf("removed skill must leave no domain-guide pointer; got:\n%s", removed.Long)
+	}
+}
+
 func TestPrepareDomainHelp_FallsBackToShort(t *testing.T) {
 	dom := domainCmd("Message and group chat management", "")
 	if !PrepareDomainHelp(dom, nil) {

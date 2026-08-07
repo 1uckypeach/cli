@@ -8,6 +8,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/larksuite/cli/internal/apicatalog"
 	"github.com/larksuite/cli/internal/meta"
 )
 
@@ -36,7 +37,8 @@ func TestFor(t *testing.T) {
 	SetSource(fstest.MapFS{"approval.md": &fstest.MapFile{Data: []byte(fixtureMD)}})
 
 	// A seeded method in a seeded service resolves to its overlay.
-	raw, ok := For("approval", "instances.cc")
+	catalog := apicatalog.Catalog{}
+	raw, ok := For(catalog, "approval", "instances.cc")
 	if !ok {
 		t.Fatal(`For("approval","instances.cc") ok=false, want an overlay`)
 	}
@@ -56,17 +58,74 @@ func TestFor(t *testing.T) {
 	// Misses: unknown method in a known service, and an unknown service, both
 	// resolve to ok=false (no panic, no error) so callers treat them as "no
 	// guidance".
-	if _, ok := For("approval", "instances.no_such_method"); ok {
+	if _, ok := For(catalog, "approval", "instances.no_such_method"); ok {
 		t.Error("unknown method should be ok=false")
 	}
-	if _, ok := For("no_such_service", "x.y"); ok {
+	if _, ok := For(catalog, "no_such_service", "x.y"); ok {
 		t.Error("unknown service should be ok=false")
 	}
 
 	// A second lookup of the same service is served from cache (parsed at most
 	// once) and stays consistent.
-	if _, ok := For("approval", "instances.get"); !ok {
+	if _, ok := For(catalog, "approval", "instances.get"); !ok {
 		t.Error("second lookup in a cached service should still resolve")
+	}
+	if skill, ok := DomainSkill("approval"); !ok || skill != "lark-approval" {
+		t.Errorf("DomainSkill(approval) = %q, %v; want lark-approval, true", skill, ok)
+	}
+	if skill, ok := DomainSkill("no_such_service"); ok || skill != "" {
+		t.Errorf("DomainSkill(no_such_service) = %q, %v; want empty, false", skill, ok)
+	}
+}
+
+func TestFor_APICatalogCommandFormResolver(t *testing.T) {
+	prev := mdSource
+	t.Cleanup(func() { SetSource(prev) })
+	SetSource(fstest.MapFS{"drive.md": &fstest.MapFile{Data: []byte(
+		"# drive\n\n## files list\nList files.\n",
+	)}})
+	method := meta.FromMap(map[string]interface{}{"id": "file.list", "httpMethod": "GET"})
+	service := meta.ServiceFromMap(map[string]interface{}{
+		"name": "drive",
+		"resources": map[string]interface{}{
+			"files": map[string]interface{}{"methods": map[string]interface{}{"list": method}},
+		},
+	})
+	catalog := apicatalog.New(apicatalog.SourceEmbedded, []meta.Service{service})
+
+	if _, ok := For(catalog, "drive", "file.list"); !ok {
+		t.Fatal("catalog command form did not resolve to the metadata method ID")
+	}
+}
+
+func TestFor_CacheIsolatedByAPICatalogMapping(t *testing.T) {
+	prev := mdSource
+	t.Cleanup(func() { SetSource(prev) })
+	SetSource(fstest.MapFS{"drive.md": &fstest.MapFile{Data: []byte(
+		"# drive\n\n## files list\nList files.\n",
+	)}})
+	catalog := func(methodID string) apicatalog.Catalog {
+		service := meta.ServiceFromMap(map[string]interface{}{
+			"name": "drive",
+			"resources": map[string]interface{}{
+				"files": map[string]interface{}{"methods": map[string]interface{}{
+					"list": map[string]interface{}{"id": methodID, "httpMethod": "GET"},
+				}},
+			},
+		})
+		return apicatalog.New(apicatalog.SourceEmbedded, []meta.Service{service})
+	}
+	first := catalog("file.list")
+	second := catalog("file.list.v2")
+
+	if _, ok := For(first, "drive", "file.list"); !ok {
+		t.Fatal("first catalog mapping did not resolve")
+	}
+	if _, ok := For(second, "drive", "file.list.v2"); !ok {
+		t.Fatal("second catalog reused the first catalog's cached mapping")
+	}
+	if _, ok := For(second, "drive", "file.list"); ok {
+		t.Fatal("second catalog exposed an overlay keyed by the first catalog")
 	}
 }
 
@@ -75,7 +134,7 @@ func TestFor(t *testing.T) {
 func TestParseDomainMD_ParagraphNotDropped(t *testing.T) {
 	md := "# d\n\n## foo bar\nwhat it does.\n\n### Tips\n- a bullet\nplain paragraph note.\n\n### See also\nrun [[other cmd]] first.\n"
 	got := parseDomainMD([]byte(md), nil) // nil resolver -> space->dot, "foo bar" -> "foo.bar"
-	a, ok := got["foo.bar"]
+	a, ok := got.methods["foo.bar"]
 	if !ok {
 		t.Fatal("method not parsed")
 	}
@@ -96,10 +155,13 @@ func TestParseDomainMD_SkillsMerge(t *testing.T) {
 		"## bar\ndoes bar.\n"
 	got := parseDomainMD([]byte(md), nil)
 
-	if a := got["foo"]; len(a.Skills) != 2 || a.Skills[0] != "lark-d" || a.Skills[1] != "lark-workflow" {
+	if got.skill != "lark-d" {
+		t.Errorf("domain skill = %q, want lark-d", got.skill)
+	}
+	if a := got.methods["foo"]; len(a.Skills) != 2 || a.Skills[0] != "lark-d" || a.Skills[1] != "lark-workflow" {
 		t.Errorf("foo skills = %v, want [lark-d lark-workflow] (domain first, deduped)", a.Skills)
 	}
-	if a := got["bar"]; len(a.Skills) != 1 || a.Skills[0] != "lark-d" {
+	if a := got.methods["bar"]; len(a.Skills) != 1 || a.Skills[0] != "lark-d" {
 		t.Errorf("bar skills = %v, want [lark-d] (domain default inherited)", a.Skills)
 	}
 }
@@ -109,8 +171,8 @@ func TestParseDomainMD_SkillsMerge(t *testing.T) {
 func TestParseDomainMD_ShortcutHeadingVerbatim(t *testing.T) {
 	md := "# d\n\n## +create\ncreate via shortcut.\n"
 	got := parseDomainMD([]byte(md), nil)
-	if _, ok := got["+create"]; !ok {
-		t.Errorf("shortcut heading should key as %q; got keys %v", "+create", keysOf(got))
+	if _, ok := got.methods["+create"]; !ok {
+		t.Errorf("shortcut heading should key as %q; got keys %v", "+create", keysOf(got.methods))
 	}
 }
 

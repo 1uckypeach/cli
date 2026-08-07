@@ -14,6 +14,7 @@ const (
 const (
 	SubtypeInvalidArgument    Subtype = "invalid_argument"    // user-supplied flag / arg failed validation (gRPC INVALID_ARGUMENT alignment)
 	SubtypeFailedPrecondition Subtype = "failed_precondition" // request is valid but the system/resource state is not in the state required to execute; caller must change state (not retry) — e.g. ambiguous remote mapping (gRPC FAILED_PRECONDITION alignment)
+	SubtypeCommandUnavailable Subtype = "command_unavailable" // command not included in this build (integrator-restricted distribution); absent, not gated
 )
 
 // CategoryAuthentication subtypes
@@ -78,11 +79,12 @@ const (
 
 // CategoryInternal subtypes
 const (
-	SubtypeSDKError        Subtype = "sdk_error"        // lark SDK Do() returned an unexpected error
-	SubtypeInvalidResponse Subtype = "invalid_response" // SDK response body not parsable as JSON
-	SubtypeFileIO          Subtype = "file_io"          // local file I/O failure (mkdir / write / read)
-	SubtypeExternalTool    Subtype = "external_tool"    // an external tool the CLI shells out to (git, npx) failed at runtime; the tool output is in the message
-	SubtypeStorage         Subtype = "storage"          // local persistence failure (e.g. config file save)
+	SubtypeSDKError         Subtype = "sdk_error"         // lark SDK Do() returned an unexpected error
+	SubtypeInvalidResponse  Subtype = "invalid_response"  // SDK response body not parsable as JSON
+	SubtypeFileIO           Subtype = "file_io"           // local file I/O failure (mkdir / write / read)
+	SubtypeExternalTool     Subtype = "external_tool"     // an external tool the CLI shells out to (git, npx) failed at runtime; the tool output is in the message
+	SubtypeStorage          Subtype = "storage"           // local persistence failure (e.g. config file save)
+	SubtypeCatalogIntegrity Subtype = "catalog_integrity" // embedded API catalog manifest or service shard failed integrity validation
 	// Generic untyped error lifted to InternalError uses SubtypeUnknown.
 )
 

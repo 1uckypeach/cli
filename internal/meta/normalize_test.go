@@ -175,19 +175,28 @@ func TestField_CoercedDefaultAndExample(t *testing.T) {
 
 func TestField_Bounds(t *testing.T) {
 	f := Field{Min: "1", Max: "100"}
-	if v := f.MinBound(); v == nil || *v != 1 {
+	if v := f.MinBound(); v == nil || v.String() != "1" {
 		t.Errorf("MinBound = %v, want 1", v)
 	}
-	if v := f.MaxBound(); v == nil || *v != 100 {
+	if v := f.MaxBound(); v == nil || v.String() != "100" {
 		t.Errorf("MaxBound = %v, want 100", v)
 	}
-	if v := (Field{Min: "0.5"}).MinBound(); v == nil || *v != 0.5 {
+	if v := (Field{Min: "0.5"}).MinBound(); v == nil || v.String() != "0.5" {
 		t.Errorf("MinBound fractional = %v, want 0.5", v)
+	}
+	if v := (Field{Max: "9223372036854775807"}).MaxBound(); v == nil || v.String() != "9223372036854775807" {
+		t.Errorf("MaxBound MaxInt64 = %v, want exact literal", v)
+	}
+	if v := (Field{Max: "1.25e+10"}).MaxBound(); v == nil || v.String() != "1.25e+10" {
+		t.Errorf("MaxBound scientific = %v, want exact literal", v)
 	}
 	if v := (Field{}).MinBound(); v != nil {
 		t.Errorf("MinBound absent = %v, want nil", v)
 	}
 	if v := (Field{Max: "not_a_number"}).MaxBound(); v != nil {
 		t.Errorf("MaxBound unparseable = %v, want nil", v)
+	}
+	if v := (Field{Max: `"123"`}).MaxBound(); v != nil {
+		t.Errorf("MaxBound quoted number = %v, want nil", v)
 	}
 }

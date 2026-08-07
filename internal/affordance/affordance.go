@@ -16,15 +16,24 @@ import (
 	"sync"
 
 	"github.com/larksuite/cli/internal/apicatalog"
-	"github.com/larksuite/cli/internal/registry"
 )
 
 var (
 	mu        sync.Mutex
-	byService = map[string]map[string]json.RawMessage{}
-	tried     = map[string]bool{}
+	byCatalog = map[catalogCacheKey]serviceAffordance{}
+	tried     = map[catalogCacheKey]bool{}
 	mdSource  fs.FS // top-level affordance/*.md tree; nil in the minimal preview build
 )
+
+type catalogCacheKey struct {
+	service string
+	mapping string
+}
+
+type serviceAffordance struct {
+	skill   string
+	methods map[string]json.RawMessage
+}
 
 // SetSource installs the markdown guidance tree (the top-level affordance/
 // directory) as the source. Called once at startup before any lookup; clears
@@ -33,41 +42,69 @@ func SetSource(fsys fs.FS) {
 	mu.Lock()
 	defer mu.Unlock()
 	mdSource = fsys
-	byService = map[string]map[string]json.RawMessage{}
-	tried = map[string]bool{}
+	byCatalog = map[catalogCacheKey]serviceAffordance{}
+	tried = map[catalogCacheKey]bool{}
 }
 
 // For returns the raw affordance overlay for one method, loading the owning
 // service on first access. ok is false when there is no entry (absent source,
 // parse failure, or unknown method all collapse to "no guidance").
-func For(service, methodID string) (json.RawMessage, bool) {
+func For(catalog apicatalog.Catalog, service, methodID string) (json.RawMessage, bool) {
 	mu.Lock()
 	defer mu.Unlock()
-	if !tried[service] {
-		tried[service] = true
-		byService[service] = loadService(service)
+	key := cacheKey(catalog, service)
+	if !tried[key] {
+		tried[key] = true
+		byCatalog[key] = loadService(catalog, service)
 	}
-	raw, ok := byService[service][methodID]
+	raw, ok := byCatalog[key].methods[methodID]
 	return raw, ok && len(raw) > 0
 }
 
-// loadService parses a service's markdown guidance into per-method overlays,
-// marshalling each to JSON so downstream callers keep the same wire shape.
-func loadService(service string) map[string]json.RawMessage {
+// DomainSkill returns the service-level canonical skill declared by
+// `> skill:`. That declaration is independent of method command mappings.
+func DomainSkill(service string) (string, bool) {
+	mu.Lock()
+	defer mu.Unlock()
+	key := cacheKey(apicatalog.Catalog{}, service)
+	if !tried[key] {
+		tried[key] = true
+		byCatalog[key] = loadService(apicatalog.Catalog{}, service)
+	}
+	skill := byCatalog[key].skill
+	return skill, skill != ""
+}
+
+// cacheKey identifies the Catalog content that affects command-form mapping.
+func cacheKey(catalog apicatalog.Catalog, service string) catalogCacheKey {
+	var mapping strings.Builder
+	if svc, ok := catalog.Service(service); ok {
+		for _, ref := range apicatalog.ServiceMethods(svc, nil) {
+			mapping.WriteString(strings.Join(ref.CommandPath()[1:], " "))
+			mapping.WriteByte(0)
+			mapping.WriteString(ref.Method.ID)
+			mapping.WriteByte(0)
+		}
+	}
+	return catalogCacheKey{service: service, mapping: mapping.String()}
+}
+
+func loadService(catalog apicatalog.Catalog, service string) serviceAffordance {
 	if mdSource == nil {
-		return nil
+		return serviceAffordance{}
 	}
 	src, err := fs.ReadFile(mdSource, service+".md")
 	if err != nil {
-		return nil
+		return serviceAffordance{}
 	}
-	m := map[string]json.RawMessage{}
-	for id, a := range parseDomainMD(src, commandFormResolver(service)) {
+	parsed := parseDomainMD(src, commandFormResolver(catalog, service))
+	methods := map[string]json.RawMessage{}
+	for id, a := range parsed.methods {
 		if b, err := json.Marshal(a); err == nil {
-			m[id] = b
+			methods[id] = b
 		}
 	}
-	return m
+	return serviceAffordance{skill: parsed.skill, methods: methods}
 }
 
 // commandFormResolver maps a method's command-form heading ("user_mailbox.messages
@@ -75,9 +112,9 @@ func loadService(service string) map[string]json.RawMessage {
 // authoritative resource↔id table. Resource names are irregularly pluralised
 // (message/messages, user_mailbox/user_mailboxes), so this cannot be guessed; the
 // space→dot fallback covers domains where the two already coincide.
-func commandFormResolver(service string) func(string) string {
+func commandFormResolver(catalog apicatalog.Catalog, service string) func(string) string {
 	byForm := map[string]string{}
-	if svc, ok := registry.SchemaCatalog().Service(service); ok {
+	if svc, ok := catalog.Service(service); ok {
 		for _, ref := range apicatalog.ServiceMethods(svc, nil) {
 			byForm[strings.Join(ref.CommandPath()[1:], " ")] = ref.Method.ID
 		}

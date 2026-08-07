@@ -1,12 +1,11 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-// Package apicatalog is the single navigation Module over the API metadata. It
+// Package apicatalog is the single navigation module over API catalog data. It
 // owns every "which services/resources/methods exist and how does a path
 // resolve" question that was previously duplicated across cmd/schema,
 // cmd/service, internal/schema and internal/registry. It depends only on
-// internal/meta; registry is the source Adapter (EmbeddedCatalog/RuntimeCatalog),
-// so apicatalog never imports registry.
+// internal/meta; apicatalog never imports the snapshot loader.
 package apicatalog
 
 import (
@@ -16,13 +15,11 @@ import (
 	"github.com/larksuite/cli/internal/meta"
 )
 
-// Source records whether a catalog includes the remote overlay. It is carried
-// so callers (and tests) can assert determinism instead of guessing.
+// Source records the immutable origin of a Catalog.
 type Source string
 
 const (
-	SourceEmbedded Source = "embedded" // compiled-in metadata only; deterministic
-	SourceRuntime  Source = "runtime"  // embedded + remote overlay
+	SourceEmbedded Source = "embedded"
 )
 
 // MethodFilter optionally drops methods (e.g. by identity in strict mode).

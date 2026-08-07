@@ -4,8 +4,11 @@
 package schema
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/larksuite/cli/internal/core"
 )
@@ -122,8 +125,20 @@ func walkForL2(props *OrderedProps, errs *[]error) {
 		if p.Format == "binary" && p.Type != "string" {
 			*errs = append(*errs, fmt.Errorf("L2: field %q has format: binary but type = %q (want string)", k, p.Type))
 		}
-		if p.Minimum != nil && p.Maximum != nil && *p.Minimum >= *p.Maximum {
-			*errs = append(*errs, fmt.Errorf("L2: field %q minimum (%v) >= maximum (%v)", k, *p.Minimum, *p.Maximum))
+		if p.Minimum != nil && p.Maximum != nil {
+			min, minOK := exactJSONNumber(*p.Minimum)
+			max, maxOK := exactJSONNumber(*p.Maximum)
+			switch {
+			case !minOK || !maxOK:
+				*errs = append(*errs, fmt.Errorf("L2: field %q has an invalid minimum or maximum", k))
+			case min.Cmp(max) >= 0:
+				*errs = append(*errs, fmt.Errorf(
+					"L2: field %q minimum (%s) >= maximum (%s)",
+					k,
+					p.Minimum.String(),
+					p.Maximum.String(),
+				))
+			}
 		}
 		if n := len(p.EnumDescriptions); n > 0 && n != len(p.Enum) {
 			*errs = append(*errs, fmt.Errorf("L2: field %q enumDescriptions length (%d) != enum length (%d)", k, n, len(p.Enum)))
@@ -139,6 +154,27 @@ func walkForL2(props *OrderedProps, errs *[]error) {
 			walkForL2(p.Properties, errs)
 		}
 	}
+}
+
+// exactJSONNumber validates n as a JSON number and converts it to an exact
+// rational for comparisons. This preserves large integers, decimals, and
+// scientific notation without routing them through float64.
+func exactJSONNumber(n json.Number) (*big.Rat, bool) {
+	var raw json.RawMessage
+	if err := json.Unmarshal([]byte(n.String()), &raw); err != nil {
+		return nil, false
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var value any
+	if err := dec.Decode(&value); err != nil {
+		return nil, false
+	}
+	validated, ok := value.(json.Number)
+	if !ok {
+		return nil, false
+	}
+	return new(big.Rat).SetString(validated.String())
 }
 
 // validatePropertyTypes walks an OrderedProps tree and asserts:

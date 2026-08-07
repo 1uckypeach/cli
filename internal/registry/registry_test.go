@@ -7,14 +7,31 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/larksuite/cli/internal/apicatalog"
 )
 
-func ensureFreshRegistry(t *testing.T) {
+func snapshotServiceNames(t *testing.T) []string {
 	t.Helper()
-	resetInit()
-	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
-	t.Setenv("LARKSUITE_CLI_REMOTE_META", "off")
-	Init()
+	services := scopeTestCatalog(t).Services()
+	names := make([]string, 0, len(services))
+	for _, service := range services {
+		names = append(names, service.Name)
+	}
+	return names
+}
+
+func scopeTestCatalog(t *testing.T) apicatalog.Catalog {
+	t.Helper()
+	snapshot, err := OpenSnapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := snapshot.FullCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return catalog
 }
 
 func TestLoadScopePriorities(t *testing.T) {
@@ -101,10 +118,9 @@ func TestSelectRecommendedScope_Empty(t *testing.T) {
 }
 
 func TestComputeMinimumScopeSet(t *testing.T) {
-	ensureFreshRegistry(t)
-	minSet := ComputeMinimumScopeSet("user")
+	minSet := ComputeMinimumScopeSet(scopeTestCatalog(t), "user")
 	if len(minSet) == 0 {
-		if len(ListFromMetaProjects()) == 0 {
+		if len(snapshotServiceNames(t)) == 0 {
 			t.Skip("no from_meta data available")
 		}
 		t.Fatal("expected non-empty minimum scope set")
@@ -128,10 +144,9 @@ func TestComputeMinimumScopeSet(t *testing.T) {
 }
 
 func TestComputeMinimumScopeSet_Tenant(t *testing.T) {
-	ensureFreshRegistry(t)
-	minSet := ComputeMinimumScopeSet("tenant")
+	minSet := ComputeMinimumScopeSet(scopeTestCatalog(t), "tenant")
 	if len(minSet) == 0 {
-		if len(ListFromMetaProjects()) == 0 {
+		if len(snapshotServiceNames(t)) == 0 {
 			t.Skip("no from_meta data available")
 		}
 		t.Fatal("expected non-empty minimum scope set for tenant")
@@ -334,12 +349,12 @@ func TestGetRegistryDir(t *testing.T) {
 // --- Scope collection functions ---
 
 func TestCollectAllScopesFromMeta(t *testing.T) {
-	projects := ListFromMetaProjects()
+	projects := snapshotServiceNames(t)
 	if len(projects) == 0 {
 		t.Skip("no from_meta data available")
 	}
 
-	allScopes := CollectAllScopesFromMeta("user")
+	allScopes := CollectAllScopesFromCatalog(scopeTestCatalog(t), "user")
 	if len(allScopes) == 0 {
 		t.Fatal("expected non-empty scopes from from_meta")
 	}
@@ -350,7 +365,7 @@ func TestCollectAllScopesFromMeta(t *testing.T) {
 	}
 
 	// Should include more scopes than the minimum set (since minimum picks best per method)
-	minSet := ComputeMinimumScopeSet("user")
+	minSet := ComputeMinimumScopeSet(scopeTestCatalog(t), "user")
 	if len(allScopes) < len(minSet) {
 		t.Errorf("all scopes (%d) should be >= minimum set (%d)", len(allScopes), len(minSet))
 	}
@@ -359,13 +374,13 @@ func TestCollectAllScopesFromMeta(t *testing.T) {
 }
 
 func TestCollectAllScopesFromMeta_Caching(t *testing.T) {
-	projects := ListFromMetaProjects()
+	projects := snapshotServiceNames(t)
 	if len(projects) == 0 {
 		t.Skip("no from_meta data available")
 	}
 
-	result1 := CollectAllScopesFromMeta("user")
-	result2 := CollectAllScopesFromMeta("user")
+	result1 := CollectAllScopesFromCatalog(scopeTestCatalog(t), "user")
+	result2 := CollectAllScopesFromCatalog(scopeTestCatalog(t), "user")
 
 	if len(result1) != len(result2) {
 		t.Errorf("cached result length mismatch: %d vs %d", len(result1), len(result2))
@@ -373,13 +388,13 @@ func TestCollectAllScopesFromMeta_Caching(t *testing.T) {
 }
 
 func TestCollectScopesWithSources(t *testing.T) {
-	projects := ListFromMetaProjects()
+	projects := snapshotServiceNames(t)
 	if len(projects) == 0 {
 		t.Skip("no from_meta data available")
 	}
 
 	// Use calendar project which is well-known
-	scopes, sources := CollectScopesWithSources([]string{"calendar"}, "user")
+	scopes, sources := CollectScopesWithSources(scopeTestCatalog(t), []string{"calendar"}, "user")
 	if len(scopes) == 0 {
 		t.Fatal("expected non-empty scopes for calendar")
 	}
@@ -405,7 +420,7 @@ func TestCollectScopesWithSources(t *testing.T) {
 }
 
 func TestCollectScopesWithSources_EmptyProject(t *testing.T) {
-	scopes, sources := CollectScopesWithSources([]string{"nonexistent_project"}, "user")
+	scopes, sources := CollectScopesWithSources(scopeTestCatalog(t), []string{"nonexistent_project"}, "user")
 	if len(scopes) != 0 {
 		t.Errorf("expected empty scopes for nonexistent project, got %d", len(scopes))
 	}
@@ -415,12 +430,12 @@ func TestCollectScopesWithSources_EmptyProject(t *testing.T) {
 }
 
 func TestCollectCommandScopes(t *testing.T) {
-	projects := ListFromMetaProjects()
+	projects := snapshotServiceNames(t)
 	if len(projects) == 0 {
 		t.Skip("no from_meta data available")
 	}
 
-	entries := CollectCommandScopes([]string{"calendar"}, "user")
+	entries := CollectCommandScopes(scopeTestCatalog(t), []string{"calendar"}, "user")
 	if len(entries) == 0 {
 		t.Fatal("expected non-empty command entries for calendar")
 	}
@@ -449,21 +464,21 @@ func TestCollectCommandScopes(t *testing.T) {
 }
 
 func TestCollectCommandScopes_EmptyProject(t *testing.T) {
-	entries := CollectCommandScopes([]string{"nonexistent_project"}, "user")
+	entries := CollectCommandScopes(scopeTestCatalog(t), []string{"nonexistent_project"}, "user")
 	if len(entries) != 0 {
 		t.Errorf("expected empty entries for nonexistent project, got %d", len(entries))
 	}
 }
 
 func TestGetScopesForDomains(t *testing.T) {
-	projects := ListFromMetaProjects()
+	projects := snapshotServiceNames(t)
 	if len(projects) == 0 {
 		t.Skip("no from_meta data available")
 	}
 
 	// GetScopesForDomains is a wrapper for CollectScopesForProjects
-	scopes := GetScopesForDomains([]string{"calendar"}, "user")
-	expected := CollectScopesForProjects([]string{"calendar"}, "user")
+	scopes := GetScopesForDomains(scopeTestCatalog(t), []string{"calendar"}, "user")
+	expected := CollectScopesForProjects(scopeTestCatalog(t), []string{"calendar"}, "user")
 
 	if len(scopes) != len(expected) {
 		t.Errorf("GetScopesForDomains and CollectScopesForProjects differ: %d vs %d", len(scopes), len(expected))
@@ -471,12 +486,12 @@ func TestGetScopesForDomains(t *testing.T) {
 }
 
 func TestGetReadOnlyScopes(t *testing.T) {
-	projects := ListFromMetaProjects()
+	projects := snapshotServiceNames(t)
 	if len(projects) == 0 {
 		t.Skip("no from_meta data available")
 	}
 
-	readOnly := GetReadOnlyScopes("user")
+	readOnly := GetReadOnlyScopes(scopeTestCatalog(t), "user")
 	// May be empty if no read-only scopes exist, but should not panic
 	for _, s := range readOnly {
 		parts := strings.Split(s, ":")
@@ -494,13 +509,13 @@ func TestGetReadOnlyScopes(t *testing.T) {
 }
 
 func TestResolveScopesFromFilters(t *testing.T) {
-	projects := ListFromMetaProjects()
+	projects := snapshotServiceNames(t)
 	if len(projects) == 0 {
 		t.Skip("no from_meta data available")
 	}
 
 	// Should behave like CollectScopesForProjects + FilterScopes
-	scopes := ResolveScopesFromFilters([]string{"calendar"}, []string{"read", "readonly"}, "user")
+	scopes := ResolveScopesFromFilters(scopeTestCatalog(t), []string{"calendar"}, []string{"read", "readonly"}, "user")
 	for _, s := range scopes {
 		parts := strings.Split(s, ":")
 		if len(parts) < 3 {
@@ -516,14 +531,14 @@ func TestResolveScopesFromFilters(t *testing.T) {
 }
 
 func TestCollectScopesForProjects_MultipleProjects(t *testing.T) {
-	projects := ListFromMetaProjects()
+	projects := snapshotServiceNames(t)
 	if len(projects) < 2 {
 		t.Skip("need at least 2 from_meta projects")
 	}
 
 	// Multiple projects should yield more scopes than a single one
-	single := CollectScopesForProjects(projects[:1], "user")
-	multi := CollectScopesForProjects(projects[:2], "user")
+	single := CollectScopesForProjects(scopeTestCatalog(t), projects[:1], "user")
+	multi := CollectScopesForProjects(scopeTestCatalog(t), projects[:2], "user")
 
 	if len(multi) < len(single) {
 		t.Errorf("multi-project scopes (%d) should be >= single-project (%d)", len(multi), len(single))
@@ -531,9 +546,26 @@ func TestCollectScopesForProjects_MultipleProjects(t *testing.T) {
 }
 
 func TestCollectScopesForProjects_NonexistentProject(t *testing.T) {
-	scopes := CollectScopesForProjects([]string{"nonexistent_project_xyz"}, "user")
+	scopes := CollectScopesForProjects(scopeTestCatalog(t), []string{"nonexistent_project_xyz"}, "user")
 	if len(scopes) != 0 {
 		t.Errorf("expected empty scopes for nonexistent project, got %d", len(scopes))
+	}
+}
+
+func TestCollectScopesForProjects_APICatalog(t *testing.T) {
+	snapshot, err := OpenSnapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := snapshot.Catalog("drive")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scopes := CollectScopesForProjects(catalog, []string{"drive"}, "user"); len(scopes) == 0 {
+		t.Fatal("drive-only catalog returned no drive scopes")
+	}
+	if scopes := CollectScopesForProjects(catalog, []string{"calendar"}, "user"); len(scopes) != 0 {
+		t.Fatalf("drive-only catalog returned calendar scopes: %v", scopes)
 	}
 }
 

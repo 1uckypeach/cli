@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "services": [
+    {
+      "name": "approval",
+      "file": "services/approval.json",
+      "revision": 2,
+      "size": 72666,
+      "sha256": "f37218632195e8b872526e40049b5a6e132da6ab7120a9032e8971e776f34652"
+    },
+    {
+      "name": "attendance",
+      "file": "services/attendance.json",
+      "revision": 2,
+      "size": 15886,
+      "sha256": "b781ef394b14b59a53c3abc88f26a44dfffd48ff4d84dc2011f953fd5e3d2c14"
+    },
+    {
+      "name": "calendar",
+      "file": "services/calendar.json",
+      "revision": 2,
+      "size": 253554,
+      "sha256": "49ace10c1536416cb9f27ba8ef06fc6e151de906badd5eb46633c7fbc2bcca1f"
+    },
+    {
+      "name": "contact",
+      "file": "services/contact.json",
+      "revision": 2,
+      "size": 6273,
+      "sha256": "960ce8def1c3c6065e8b29ca46912cb3ac2264dfc4387df6aa274548905e7b10"
+    },
+    {
+      "name": "drive",
+      "file": "services/drive.json",
+      "revision": 3,
+      "size": 150240,
+      "sha256": "cff98ebe324ede15af499a2e1cdf820ef3f89cd578ad314f7f0fefdfc64eba0f"
+    },
+    {
+      "name": "im",
+      "file": "services/im.json",
+      "revision": 4,
+      "size": 223704,
+      "sha256": "ae6afcce816052ae9b234f6b17fa10319670dce4308319d8ee4a476bfb1d63cc"
+    },
+    {
+      "name": "mail",
+      "file": "services/mail.json",
+      "revision": 2,
+      "size": 260082,
+      "sha256": "025c119ea6b97f56824fa595b76a65d0802113a354e36454fd57660729d4254d"
+    },
+    {
+      "name": "mindnotes",
+      "file": "services/mindnotes.json",
+      "revision": 2,
+      "size": 20080,
+      "sha256": "b99517a8748d6e3d577ae23cdb7aa23615f99d09eaadb9ecf37f5eef9d795a4c"
+    },
+    {
+      "name": "minutes",
+      "file": "services/minutes.json",
+      "revision": 2,
+      "size": 3952,
+      "sha256": "ccc94c9e57e9c55b4c445f030b180127f3364a78efec571a8c9bf8221826d34b"
+    },
+    {
+      "name": "okr",
+      "file": "services/okr.json",
+      "revision": 2,
+      "size": 159458,
+      "sha256": "a4a5bb318cf0a47cc4e4b7b0afd7a61cc4af13b7db9f6c3ff4ee45dca73fdb4c"
+    },
+    {
+      "name": "sheets",
+      "file": "services/sheets.json",
+      "revision": 2,
+      "size": 22176,
+      "sha256": "06b7ed7b5be3cd7fbece6d18bc678a91538679e6e57212182a1560ff95c96e8f"
+    },
+    {
+      "name": "slides",
+      "file": "services/slides.json",
+      "revision": 2,
+      "size": 32979,
+      "sha256": "00915200b72f5e78dcce7ea6240addcb02cf08d520a102db58d4ad60ab4bde3f"
+    },
+    {
+      "name": "task",
+      "file": "services/task.json",
+      "revision": 2,
+      "size": 388970,
+      "sha256": "93d7d1edc3046187614be18f813bb37aa51a67f5685ddd7bbe14ad21b0f98d76"
+    },
+    {
+      "name": "vc",
+      "file": "services/vc.json",
+      "revision": 2,
+      "size": 14150,
+      "sha256": "fdb2f63eda5d9112e84a54998c0befb3494a078179ed4c197463446c4d7eee23"
+    },
+    {
+      "name": "wiki",
+      "file": "services/wiki.json",
+      "revision": 2,
+      "size": 64778,
+      "sha256": "0c3f36e82468603134558db241fec42cca4e073980cdd2f93aacfe3483ddd90f"
+    }
+  ]
+}

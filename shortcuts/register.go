@@ -40,6 +40,13 @@ import (
 	"github.com/larksuite/cli/shortcuts/wiki"
 )
 
+// serviceAliases maps singular spellings agents habitually type onto the
+// canonical service name. `slide update` was a documented dead end: the service
+// is `slides`, so the invocation died before the subcommand was even considered.
+var serviceAliases = map[string][]string{
+	"slides": {"slide"},
+}
+
 // Empty brand (no config loaded) is treated as no-restriction so bootstrap
 // paths and tests without config still see the full service list.
 var brandRestrictedServices = map[string][]core.LarkBrand{
@@ -58,7 +65,11 @@ func IsShortcutServiceAvailable(service string, brand core.LarkBrand) bool {
 }
 
 // allShortcuts aggregates shortcuts from all domain packages.
-var allShortcuts []common.Shortcut
+var (
+	allShortcuts         []common.Shortcut
+	shortcutsByService   map[string][]common.Shortcut
+	shortcutServiceNames []string
+)
 
 func init() {
 	allShortcuts = append(allShortcuts, apps.Shortcuts()...)
@@ -86,6 +97,15 @@ func init() {
 	allShortcuts = append(allShortcuts, whiteboard.Shortcuts()...)
 	allShortcuts = append(allShortcuts, wiki.Shortcuts()...)
 	allShortcuts = append(allShortcuts, okr.Shortcuts()...)
+
+	shortcutsByService = make(map[string][]common.Shortcut)
+	for _, shortcut := range allShortcuts {
+		if _, ok := shortcutsByService[shortcut.Service]; !ok {
+			shortcutServiceNames = append(shortcutServiceNames, shortcut.Service)
+		}
+		shortcutsByService[shortcut.Service] = append(shortcutsByService[shortcut.Service], shortcut)
+	}
+	slices.Sort(shortcutServiceNames)
 }
 
 // AllShortcuts returns a copy of all registered shortcuts (for dump-shortcuts).
@@ -95,12 +115,34 @@ func AllShortcuts() []common.Shortcut {
 	return append([]common.Shortcut(nil), allShortcuts...)
 }
 
+// ShortcutServiceNames returns the sorted domains that provide shortcuts.
+func ShortcutServiceNames() []string {
+	return slices.Clone(shortcutServiceNames)
+}
+
 // RegisterShortcuts registers all +shortcut commands on the program.
 func RegisterShortcuts(program *cobra.Command, f *cmdutil.Factory) {
 	RegisterShortcutsWithContext(context.Background(), program, f)
 }
 
 func RegisterShortcutsWithContext(ctx context.Context, program *cobra.Command, f *cmdutil.Factory) {
+	RegisterShortcutsForDomainsWithContext(ctx, program, f, nil)
+}
+
+// RegisterShortcutsForDomainsWithContext registers shortcuts from the selected
+// domains. A nil selection mounts every domain; a non-nil empty selection
+// mounts none.
+func RegisterShortcutsForDomainsWithContext(
+	ctx context.Context,
+	program *cobra.Command,
+	f *cmdutil.Factory,
+	domains []string,
+) {
+	selectedServices := selectShortcutServices(domains)
+	if len(selectedServices) == 0 {
+		return
+	}
+
 	// Factory.Config may be nil in tests that pass a zero-value factory.
 	var brand core.LarkBrand
 	if f != nil && f.Config != nil {
@@ -109,13 +151,8 @@ func RegisterShortcutsWithContext(ctx context.Context, program *cobra.Command, f
 		}
 	}
 
-	// Group by service
-	byService := make(map[string][]common.Shortcut)
-	for _, s := range allShortcuts {
-		byService[s.Service] = append(byService[s.Service], s)
-	}
-
-	for service, shortcuts := range byService {
+	for _, service := range selectedServices {
+		shortcuts := shortcutsByService[service]
 		// Find existing service command or create one
 		var svc *cobra.Command
 		for _, c := range program.Commands() {
@@ -147,10 +184,16 @@ func RegisterShortcutsWithContext(ctx context.Context, program *cobra.Command, f
 		// before shortcuts run). Without this, only pure-shortcut
 		// services like `docs` would get tagged.
 		cmdmeta.SetDomain(svc, service)
-		if service == "docs" {
-			doc.ConfigureServiceHelp(svc)
+		// Applied OUTSIDE the create branch for the same reason as the domain tag:
+		// OpenAPI auto-registration has usually created the service command
+		// already, so setting Aliases only where the command is constructed would
+		// be dead code — it compiles, the tests pass, and `lark-cli slide …` still
+		// answers "unknown command".
+		for _, alias := range serviceAliases[service] {
+			if !slices.Contains(svc.Aliases, alias) {
+				svc.Aliases = append(svc.Aliases, alias)
+			}
 		}
-
 		for _, shortcut := range shortcuts {
 			shortcut.MountWithContext(ctx, svc, f)
 		}
@@ -168,6 +211,26 @@ func RegisterShortcutsWithContext(ctx context.Context, program *cobra.Command, f
 			installBrandRestrictionGuard(svc, service, brand)
 		}
 	}
+}
+
+func selectShortcutServices(domains []string) []string {
+	if domains == nil {
+		return ShortcutServiceNames()
+	}
+
+	selected := make(map[string]struct{}, len(domains))
+	for _, domain := range domains {
+		if _, ok := shortcutsByService[domain]; ok {
+			selected[domain] = struct{}{}
+		}
+	}
+
+	services := make([]string, 0, len(selected))
+	for service := range selected {
+		services = append(services, service)
+	}
+	slices.Sort(services)
+	return services
 }
 
 // Mirrors internal/cmdpolicy/apply.go::installDenyStub: DisableFlagParsing +

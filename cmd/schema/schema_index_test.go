@@ -9,14 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/core"
 )
 
 func TestRunSchema_BareRendersServiceIndex(t *testing.T) {
 	var buf bytes.Buffer
-	if err := runSchema(&buf, nil, core.StrictModeOff, ""); err != nil {
-		t.Fatalf("runSchema: %v", err)
+	if err := runSchemaCatalog(&buf, nil, core.StrictModeOff, schemaTestCatalog(t), nil, ""); err != nil {
+		t.Fatalf("runSchemaCatalog: %v", err)
 	}
 	var got struct {
 		Kind     string `json:"kind"`
@@ -47,8 +46,8 @@ func TestRunSchema_BareRendersServiceIndex(t *testing.T) {
 
 func TestRunSchema_ServiceRendersMethodIndex(t *testing.T) {
 	var buf bytes.Buffer
-	if err := runSchema(&buf, []string{"im"}, core.StrictModeOff, ""); err != nil {
-		t.Fatalf("runSchema: %v", err)
+	if err := runSchemaCatalog(&buf, []string{"im"}, core.StrictModeOff, schemaTestCatalog(t), nil, ""); err != nil {
+		t.Fatalf("runSchemaCatalog: %v", err)
 	}
 	var got struct {
 		Kind    string `json:"kind"`
@@ -88,8 +87,8 @@ func TestRunSchema_ServiceRendersMethodIndex(t *testing.T) {
 
 func TestRunSchema_ResourceRendersMethodIndex(t *testing.T) {
 	var buf bytes.Buffer
-	if err := runSchema(&buf, []string{"im", "chat.members"}, core.StrictModeOff, ""); err != nil {
-		t.Fatalf("runSchema: %v", err)
+	if err := runSchemaCatalog(&buf, []string{"im", "chat.members"}, core.StrictModeOff, schemaTestCatalog(t), nil, ""); err != nil {
+		t.Fatalf("runSchemaCatalog: %v", err)
 	}
 	var got struct {
 		Kind    string `json:"kind"`
@@ -105,8 +104,8 @@ func TestRunSchema_ResourceRendersMethodIndex(t *testing.T) {
 
 func TestRunSchema_JQFiltersIndex(t *testing.T) {
 	var buf bytes.Buffer
-	if err := runSchema(&buf, []string{"im"}, core.StrictModeOff, ".methods | length"); err != nil {
-		t.Fatalf("runSchema: %v", err)
+	if err := runSchemaCatalog(&buf, []string{"im"}, core.StrictModeOff, schemaTestCatalog(t), nil, ".methods | length"); err != nil {
+		t.Fatalf("runSchemaCatalog: %v", err)
 	}
 	if got := strings.TrimSpace(buf.String()); got == "" || got == "null" {
 		t.Errorf("jq output = %q, want a method count", got)
@@ -115,9 +114,9 @@ func TestRunSchema_JQFiltersIndex(t *testing.T) {
 
 func TestRunSchema_JQFiltersEnvelope(t *testing.T) {
 	var buf bytes.Buffer
-	if err := runSchema(&buf, []string{"im", "chat.members", "get"}, core.StrictModeOff,
+	if err := runSchemaCatalog(&buf, []string{"im", "chat.members", "get"}, core.StrictModeOff, schemaTestCatalog(t), nil,
 		".inputSchema.properties.params.required"); err != nil {
-		t.Fatalf("runSchema: %v", err)
+		t.Fatalf("runSchemaCatalog: %v", err)
 	}
 	if strings.TrimSpace(buf.String()) == "" {
 		t.Error("jq must apply to the single-method envelope too")
@@ -127,7 +126,7 @@ func TestRunSchema_JQFiltersEnvelope(t *testing.T) {
 // The -q flag has to reach runSchema through the command layer, not just be
 // accepted: a registered-but-unwired flag would silently ignore the expression.
 func TestSchemaCmd_JQFlagIsWired(t *testing.T) {
-	f, stdout, _, _ := cmdutil.TestFactory(t, nil)
+	f, stdout, _, _ := schemaTestFactory(t, nil)
 
 	cmd := NewCmdSchema(f, nil)
 	cmd.SetArgs([]string{"im", "-q", ".kind"})
@@ -140,7 +139,7 @@ func TestSchemaCmd_JQFlagIsWired(t *testing.T) {
 }
 
 func TestSchemaCmd_JQRejectsInvalidExpression(t *testing.T) {
-	f, _, _, _ := cmdutil.TestFactory(t, nil)
+	f, _, _, _ := schemaTestFactory(t, nil)
 
 	cmd := NewCmdSchema(f, nil)
 	cmd.SetArgs([]string{"im", "-q", ".methods |"})
@@ -151,8 +150,8 @@ func TestSchemaCmd_JQRejectsInvalidExpression(t *testing.T) {
 
 func TestRunSchema_MethodOutputUnchanged(t *testing.T) {
 	var buf bytes.Buffer
-	if err := runSchema(&buf, []string{"im", "chat.members", "get"}, core.StrictModeOff, ""); err != nil {
-		t.Fatalf("runSchema: %v", err)
+	if err := runSchemaCatalog(&buf, []string{"im", "chat.members", "get"}, core.StrictModeOff, schemaTestCatalog(t), nil, ""); err != nil {
+		t.Fatalf("runSchemaCatalog: %v", err)
 	}
 	var got map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {

@@ -193,9 +193,14 @@ func skeletonValue(f meta.Field, depth int) string {
 		// a value or a string's length (see meta.Field.MinBound), and a length
 		// reading is meaningless only for numbers.
 		if ct == "integer" || ct == "number" {
-			if min := f.MinBound(); min != nil && *min > 0 {
-				if v, ok := skeletonLiteral(*min); ok {
-					return v
+			// The bound is carried as a json.Number so a large integer floor
+			// survives verbatim; only the sign test needs a float, and that
+			// comparison is exact enough for it.
+			if min := f.MinBound(); min != nil {
+				if floor, err := min.Float64(); err == nil && floor > 0 {
+					if v, ok := skeletonLiteral(*min); ok {
+						return v
+					}
 				}
 			}
 		}

@@ -10,7 +10,7 @@
 ## Build & Test
 
 ```bash
-make build             # Build (runs fetch_meta first)
+make build             # Build from the committed API Catalog Snapshot
 make unit-test         # Required before PR (runs with -race where supported, e.g. amd64/arm64)
 make live-skills-test  # Opt-in real Skills CLI tests; runs with isolated user directories
 make test              # Full: vet + unit + integration
@@ -54,7 +54,7 @@ Both notices recommend the same fix command: `lark-cli update`. The skills notic
 | `cmd/root.go` | Entry point, command registration, strict mode pruning |
 | `cmd/profile/` | Multi-profile management (add/list/use/rename/remove) |
 | `cmd/config/` | Config init, show, strict-mode |
-| `cmd/service/` | Auto-registered API commands from embedded metadata |
+| `cmd/service/` | Auto-registered API commands from the embedded Catalog Snapshot |
 | `shortcuts/common/runner.go` | Shortcut execution pipeline, Flag.Input (@file/stdin) resolution |
 | `shortcuts/` | Domain-specific shortcut implementations |
 | `internal/cmdutil/factory.go` | Factory pattern — identity resolution, credential, config |
