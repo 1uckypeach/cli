@@ -619,6 +619,60 @@ func TestDocsFetchDeclaresCommentReadConditionalScope(t *testing.T) {
 	}
 }
 
+func TestValidateFetchCommentOutput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		outputFormat string
+		docFormat    string
+		scope        string
+		comments     bool
+		wantErr      bool
+	}{
+		{name: "xml pretty loses sidecar", outputFormat: "pretty", docFormat: "xml", scope: "full", comments: true, wantErr: true},
+		{name: "markdown pretty loses sidecar", outputFormat: "pretty", docFormat: "markdown", scope: "keyword", comments: true, wantErr: true},
+		{name: "table truncates nested document", outputFormat: "table", docFormat: "xml", scope: "full", comments: true, wantErr: true},
+		{name: "csv cannot preserve nested document", outputFormat: "csv", docFormat: "xml", scope: "full", comments: true, wantErr: true},
+		{name: "ndjson is not the documented lossless contract", outputFormat: "ndjson", docFormat: "xml", scope: "full", comments: true, wantErr: true},
+		{name: "yaml is not the lossless comment contract", outputFormat: "yaml", docFormat: "xml", scope: "full", comments: true, wantErr: true},
+		{name: "json preserves sidecar", outputFormat: "json", docFormat: "xml", scope: "full", comments: true},
+		{name: "outline intentionally has no comments", outputFormat: "pretty", docFormat: "xml", scope: "outline", comments: true},
+		{name: "comments disabled", outputFormat: "pretty", docFormat: "xml", scope: "full"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runtime := newFetchBodyTestRuntime(context.Background())
+			runtime.Format = tt.outputFormat
+			mustSetFetchFlag(t, runtime, "doc-format", tt.docFormat)
+			mustSetFetchFlag(t, runtime, "scope", tt.scope)
+			if tt.scope == "keyword" {
+				mustSetFetchFlag(t, runtime, "keyword", "commented")
+			}
+			if tt.comments {
+				mustSetFetchFlag(t, runtime, "comments", "true")
+			}
+
+			err := validateFetchCommentOutput(runtime)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("validateFetchCommentOutput() succeeded, want validation error")
+				}
+				assertValidationContract(t, err, errs.SubtypeInvalidArgument, "--format")
+				if !strings.Contains(err.Error(), "reference_map") || !strings.Contains(err.Error(), "--format json") {
+					t.Fatalf("error does not explain the lossless alternative: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateFetchCommentOutput() err=%v", err)
+			}
+		})
+	}
+}
+
 func TestDocsFetchV2ReferenceMapFlagIsNotAvailable(t *testing.T) {
 	t.Parallel()
 

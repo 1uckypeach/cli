@@ -22,7 +22,7 @@ import (
 // It is gated because the live credential needs both comment read and write
 // scopes, which are intentionally absent from the default test app.
 func TestDocsFetchCommentsWorkflow(t *testing.T) {
-	clie2e.SkipWithoutUserToken(t)
+	clie2e.SkipWithoutTenantAccessToken(t)
 	if os.Getenv("LARK_DOCS_FETCH_COMMENTS_E2E") == "" {
 		t.Skip("set LARK_DOCS_FETCH_COMMENTS_E2E=1 to run the document comment fetch workflow")
 	}
@@ -30,7 +30,7 @@ func TestDocsFetchCommentsWorkflow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	t.Cleanup(cancel)
 	parentT := t
-	const defaultAs = "user"
+	const defaultAs = "bot"
 	suffix := clie2e.GenerateSuffix()
 	anchorText := "comment anchor " + suffix
 	localText := "local review " + suffix
@@ -39,8 +39,8 @@ func TestDocsFetchCommentsWorkflow(t *testing.T) {
 	folderToken := drive.CreateDriveFolder(t, parentT, ctx, "lark-cli-e2e-fetch-comments-"+suffix, defaultAs, "")
 	docToken := createDocWithRetry(t, parentT, ctx, folderToken, "fetch comments "+suffix, anchorText+"\n\nsecondary block", defaultAs)
 
-	addDocComment(t, ctx, docToken, localText, "--selection-with-ellipsis", anchorText)
-	addDocComment(t, ctx, docToken, wholeText, "--full-comment")
+	addDocComment(t, ctx, defaultAs, docToken, localText, "--selection-with-ellipsis", anchorText)
+	addDocComment(t, ctx, defaultAs, docToken, wholeText, "--full-comment")
 
 	var fetched *clie2e.Result
 	t.Run("xml full", func(t *testing.T) {
@@ -94,7 +94,7 @@ func TestDocsFetchCommentsWorkflow(t *testing.T) {
 		}
 	})
 
-	t.Run("markdown uses sidecar without body annotations", func(t *testing.T) {
+	t.Run("markdown uses precise reference shells", func(t *testing.T) {
 		result, err := clie2e.RunCmd(ctx, clie2e.Request{
 			Args:      []string{"docs", "+fetch", "--doc", docToken, "--comments", "--doc-format", "markdown"},
 			DefaultAs: defaultAs,
@@ -102,7 +102,7 @@ func TestDocsFetchCommentsWorkflow(t *testing.T) {
 		require.NoError(t, err)
 		result.AssertExitCode(t, 0)
 		content := gjson.Get(result.Stdout, "data.document.content").String()
-		if strings.Contains(content, "comment-refs") ||
+		if strings.Contains(content, "comment-refs") || !strings.Contains(content, `<comment-ref refs="`) ||
 			!docsFetchReferenceGroupContains(result.Stdout, "comment", localText) ||
 			!docsFetchReferenceGroupContains(result.Stdout, "document-comment", wholeText) {
 			t.Fatalf("markdown comment sidecar mismatch:\n%s", result.Stdout)
@@ -110,7 +110,7 @@ func TestDocsFetchCommentsWorkflow(t *testing.T) {
 	})
 }
 
-func addDocComment(t *testing.T, ctx context.Context, docToken, text string, locationArgs ...string) {
+func addDocComment(t *testing.T, ctx context.Context, defaultAs, docToken, text string, locationArgs ...string) {
 	t.Helper()
 	content, err := json.Marshal([]map[string]string{{"type": "text", "text": text}})
 	require.NoError(t, err)
@@ -121,7 +121,7 @@ func addDocComment(t *testing.T, ctx context.Context, docToken, text string, loc
 		"--content", string(content),
 	}
 	args = append(args, locationArgs...)
-	result, err := clie2e.RunCmdWithRetry(ctx, clie2e.Request{Args: args, DefaultAs: "user"}, clie2e.RetryOptions{})
+	result, err := clie2e.RunCmdWithRetry(ctx, clie2e.Request{Args: args, DefaultAs: defaultAs}, clie2e.RetryOptions{})
 	require.NoError(t, err)
 	result.AssertExitCode(t, 0)
 	result.AssertStdoutStatus(t, true)

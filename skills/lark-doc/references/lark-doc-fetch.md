@@ -8,6 +8,9 @@
 # 读取整篇文档
 lark-cli docs +fetch --doc "文档URL或token"
 
+# 读取正文，并附带可见的未解决评论；JSON 会同时保留正文和评论 sidecar
+lark-cli docs +fetch --doc "文档URL或token" --comments --format json --as bot
+
 # 按 URL 中的 #share 锚点局部读取
 lark-cli docs +fetch --doc '文档URL#share-anchor'
 
@@ -26,6 +29,7 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 |`--doc`|是|文档 URL 或 token，支持 `/docx/`、`/wiki/` 和带 `#share-...` 的选区链接|
 |`--doc-format`|否|`xml`（默认）\| `markdown` \| `im-markdown`（供后续 `lark-im` 场景使用）|
 |`--detail`|否|`simple`（默认）\| `with-ids` \| `full`|
+|`--comments`|否|附带当前身份可见的未解决评论；默认关闭，须使用 `--format json` 保留评论 sidecar|
 |`--revision-id`|否|文档版本号；`-1` 表示最新版本（默认）|
 |`--scope`|否|`outline` \| `range` \| `keyword` \| `section`；省略则读取整篇|
 |`--start-block-id`|否|`range` 的起点，或 `section` 的锚点（`section` 必填）|
@@ -98,6 +102,44 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 }
 ```
 `content` 的格式由 `--doc-format` 决定。`reference_map` 是正文引用数据的结构化 sidecar：一级键 `block_type` 表示引用所在的块类型，二级键 `ref` 对应正文中的临时引用；每个引用的值是由 `real-attr-key` 和 `real-attr-value` 组成的真实属性映射，具体属性由块类型决定。没有提取数据时，`reference_map` 可能为空。`content` 和 `reference_map` 属于同一份响应，保留或回放内容时应配套处理。`tips` 给出安全回放或降级提示。`im-markdown` 仅用于获取内容后在 `lark-im` 场景下使用。设置 `--scope` 时会被 `<fragment>` 包裹，详见上文"局部读取的输出结构"。
+
+### 理解 `--comments` 的返回
+
+评论采用紧凑、只读的 AI 上下文，不代替 `drive +list-comments` 等完整评论 API：
+
+- XML 正文中的局部评论落点使用 `comment-refs="c1 c2"`；同一条评论跨多个 block 时会在这些 block 上重复同一个 ref。
+- `reference_map.comment.<ref>.data` 保存局部讨论；`reference_map.document-comment.<ref>.data` 保存全文讨论。
+- 讨论只表达引用文本、消息、图片占位和 reaction，不返回稳定评论 ID、状态或完整格式。需要继续回复、解决或精确管理评论时，改用 `lark-drive` 评论命令。
+- 全文读取返回局部评论和全文评论；`keyword` / `range` / `section` 只返回与片段相交的局部评论，不返回全文评论；`outline` 即使传了 `--comments` 也不查询评论。
+- Markdown / IM Markdown 使用轻量 XML 壳 `<comment-ref refs="c1 c2"/>` 精确标记落点；重复文本、跨 block、列表和表格都不需要依靠 `<quote>` 猜位置。壳中的 ref 与 `reference_map.comment` 一一对应。
+- 指定历史 `--revision-id` 时，正文来自该历史版本；评论是“当前仍可见、仍未解决”的快照投影到这份正文。局部评论仅在该 revision 能解析到锚点时返回，全文评论仅在全文读取时返回；它不是历史时刻的评论回放。
+- 必须使用 `--format json`；其它展示格式无法无损保留正文与 `reference_map`（例如 `pretty` 只输出正文、`table` 会截断嵌套值），因此 CLI 会直接拒绝这些组合。
+- 评论或锚点依赖不可用时，正文仍正常返回，评论整体省略，并在 `tips` 中出现 `comments_omitted:<reason>`。
+
+当前服务端能够完整校验 tenant access token（`--as bot`）的评论 scope。user access token 的精确 token scope 尚未由网关可信透传，因此 `--as user` 的评论读取会安全拒绝；完成 OGW 条件鉴权后再开放，不能用普通 user/app/tenant 授权状态代替本 token scope。
+
+```xml
+<p comment-refs="c1">评论引用的正文</p>
+```
+
+Markdown / IM Markdown 中同一落点写作：
+
+```xml
+<comment-ref refs="c1"/>评论引用的正文
+```
+
+对应的 `reference_map.comment.c1.data`：
+
+```xml
+<discussion timezone="Asia/Shanghai">
+<quote>评论引用的正文</quote>
+<message t="2026-07-23 16:50" u="曹杰">
+问题一：在职转移会删除协作者权限
+<img/>
+<reaction>👍 方树煜、曹杰</reaction>
+</message>
+</discussion>
+```
 
 ### 理解局部读取结果
 

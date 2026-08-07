@@ -11,6 +11,7 @@ import (
 
 	clie2e "github.com/larksuite/cli/tests/cli_e2e"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestDocsFetchDryRunCommentsOptIn(t *testing.T) {
@@ -36,6 +37,30 @@ func TestDocsFetchDryRunCommentsOptIn(t *testing.T) {
 	if !extra["include_comments"] {
 		t.Fatalf("include_comments missing from extra_param=%s\nstdout:\n%s", raw, result.Stdout)
 	}
+}
+
+func TestDocsFetchCommentsRejectsLossyOutputBeforeDryRun(t *testing.T) {
+	setDocsDryRunEnv(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+	result, err := clie2e.RunCmd(ctx, clie2e.Request{
+		Args: []string{
+			"docs", "+fetch",
+			"--doc", "doxcnDryRunComments",
+			"--comments",
+			"--format", "pretty",
+			"--dry-run",
+		},
+		DefaultAs: "bot",
+	})
+	require.NoError(t, err)
+	result.AssertExitCode(t, 2)
+	require.Empty(t, result.Stdout, "validation failure must not emit a dry-run request")
+	require.Equal(t, "validation", gjson.Get(result.Stderr, "error.type").String(), result.Stderr)
+	require.Equal(t, "invalid_argument", gjson.Get(result.Stderr, "error.subtype").String(), result.Stderr)
+	require.Equal(t, "--format", gjson.Get(result.Stderr, "error.param").String(), result.Stderr)
+	require.Contains(t, gjson.Get(result.Stderr, "error.message").String(), "--format json", result.Stderr)
 }
 
 func TestDocsFetchDryRunIgnoresAPIVersionCompatFlag(t *testing.T) {
