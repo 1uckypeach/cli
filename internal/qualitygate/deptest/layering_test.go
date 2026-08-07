@@ -102,6 +102,17 @@ var rules = []Rule{
 			examplesPrefix + "/audit-observer",
 			examplesPrefix + "/readonly-policy",
 		},
+		// A sidecar interceptor test has to build the very router the
+		// interceptor is installed into, which is internal/transport plus the
+		// packages that router is assembled from. Production files under
+		// extension/ stay denied, so the public surface guarantee is unchanged.
+		TestExempt: []string{
+			modulePath + "/internal/transport",
+			modulePath + "/internal/envvars",
+			modulePath + "/internal/secaudit",
+			modulePath + "/internal/vfs",
+			modulePath + "/internal/workspace",
+		},
 	},
 	{
 		// Demos exist to show the wrapper-main pattern, so the assembled CLI and
@@ -184,6 +195,10 @@ var rules = []Rule{
 		// The command-tree collector has to walk the assembled tree to export it;
 		// deptest_test.go asserts that dependency exists. It stays under the rule
 		// for shortcuts and events.
+		// Event pipeline tests compile the real event catalog to assert against;
+		// events.All() is the fixture, not a runtime dependency. Production files
+		// under internal/ stay denied, so no runtime cycle becomes possible.
+		TestExempt: []string{modulePath + "/events"},
 		ExceptEdges: []layeringEdge{
 			{From: modulePath + "/internal/qualitygate/cmd/manifest-export", Denied: modulePath + "/cmd"},
 		},
@@ -1025,6 +1040,13 @@ func TestLayeringRuleContracts(t *testing.T) {
 				examplesPrefix + "/audit-observer",
 				examplesPrefix + "/readonly-policy",
 			},
+			TestExempt: []string{
+				modulePath + "/internal/transport",
+				modulePath + "/internal/envvars",
+				modulePath + "/internal/secaudit",
+				modulePath + "/internal/vfs",
+				modulePath + "/internal/workspace",
+			},
 		},
 		{
 			Name:       "examples-surface-only",
@@ -1088,6 +1110,7 @@ func TestLayeringRuleContracts(t *testing.T) {
 				modulePath + "/shortcuts",
 				modulePath + "/events",
 			},
+			TestExempt: []string{modulePath + "/events"},
 			ExceptEdges: []layeringEdge{
 				{From: modulePath + "/internal/qualitygate/cmd/manifest-export", Denied: modulePath + "/cmd"},
 			},
