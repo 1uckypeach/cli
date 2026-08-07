@@ -5,18 +5,25 @@ package slides
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
+	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/shortcuts/common"
+	"github.com/spf13/cobra"
 )
 
 func TestSlidesScreenshotDeclaredScopes(t *testing.T) {
@@ -29,9 +36,417 @@ func TestSlidesScreenshotDeclaredScopes(t *testing.T) {
 	}
 
 	got := SlidesScreenshot.DeclaredScopesForIdentity("user")
-	want := []string{"slides:presentation:screenshot", "wiki:node:read"}
+	want := []string{"slides:presentation:screenshot", "wiki:node:read", "slides:presentation:read"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("declared scopes = %#v, want %#v", got, want)
+	}
+}
+
+func TestSlidesScreenshotAllFlagContract(t *testing.T) {
+	var allFlag *common.Flag
+	for i := range SlidesScreenshot.Flags {
+		if SlidesScreenshot.Flags[i].Name == "all" {
+			allFlag = &SlidesScreenshot.Flags[i]
+			break
+		}
+	}
+	if allFlag == nil {
+		t.Fatal("--all flag is not declared")
+	}
+	if allFlag.Type != "bool" {
+		t.Fatalf("--all type = %q, want bool", allFlag.Type)
+	}
+}
+
+func TestSlidesScreenshotAllRejectsConflictingFlags(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       []string
+		wantParams []string
+	}{
+		{name: "slide ID", args: []string{"--slide-id", "s1"}, wantParams: []string{"--all", "--slide-id"}},
+		{name: "slide number", args: []string{"--slide-number", "1"}, wantParams: []string{"--all", "--slide-number"}},
+		{name: "slide alias", args: []string{"--slide", "s1"}, wantParams: []string{"--all", "--slide"}},
+		{name: "render content", args: []string{"--content", `<slide><data/></slide>`}, wantParams: []string{"--all", "--content"}},
+		{name: "single output", args: []string{"--output", "one.png"}, wantParams: []string{"--all", "--output"}},
+		{name: "render output name", args: []string{"--output-name", "one"}, wantParams: []string{"--all", "--output-name"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+			args := append([]string{"+screenshot", "--presentation", "pres_abc", "--all"}, tt.args...)
+			args = append(args, "--as", "user")
+			err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, args)
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeInvalidArgument {
+				t.Fatalf("problem = %#v, want validation/invalid_argument", problem)
+			}
+			var validationErr *errs.ValidationError
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("error type = %T, want *errs.ValidationError", err)
+			}
+			gotParams := make([]string, 0, len(validationErr.Params))
+			for _, param := range validationErr.Params {
+				gotParams = append(gotParams, param.Name)
+			}
+			if !reflect.DeepEqual(gotParams, tt.wantParams) {
+				t.Fatalf("params = %#v, want %#v", gotParams, tt.wantParams)
+			}
+		})
+	}
+}
+
+func TestSlidesScreenshotAllDryRunDescribesDynamicSerialBatches(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{
+		"+screenshot",
+		"--presentation", "pres_abc",
+		"--all",
+		"--output-dir", "shots",
+		"--dry-run",
+		"--as", "user",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var envelope struct {
+		Data struct {
+			API []struct {
+				Method string                 `json:"method"`
+				URL    string                 `json:"url"`
+				Body   map[string]interface{} `json:"body"`
+			} `json:"api"`
+			Mode        string `json:"mode"`
+			BatchSize   int    `json:"batch_size"`
+			Concurrency int    `json:"concurrency"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode dry-run output: %v\nraw=%s", err, stdout.String())
+	}
+	if len(envelope.Data.API) != 2 {
+		t.Fatalf("api calls = %d, want enumeration GET plus screenshot POST template\nraw=%s", len(envelope.Data.API), stdout.String())
+	}
+	if envelope.Data.API[0].Method != "GET" || envelope.Data.API[0].URL != "/open-apis/slides_ai/v1/xml_presentations/pres_abc" {
+		t.Fatalf("enumeration step = %#v", envelope.Data.API[0])
+	}
+	if envelope.Data.API[1].Method != "POST" || !strings.HasSuffix(envelope.Data.API[1].URL, "/slide_images") {
+		t.Fatalf("screenshot step = %#v", envelope.Data.API[1])
+	}
+	if envelope.Data.Mode != "all" || envelope.Data.BatchSize != 10 || envelope.Data.Concurrency != 1 {
+		t.Fatalf("orchestration = mode:%q batch:%d concurrency:%d", envelope.Data.Mode, envelope.Data.BatchSize, envelope.Data.Concurrency)
+	}
+}
+
+func TestExtractSlidesScreenshotAllSlideIDs(t *testing.T) {
+	tests := []struct {
+		name    string
+		xml     string
+		want    []string
+		wantErr string
+	}{
+		{
+			name: "ordered top-level slides with namespace",
+			xml:  `<presentation xmlns="https://www.larkoffice.com/sml/2.0"><slide id="s1"><data/></slide><slide id="s2"><data><shape><slide id="nested"/></shape></data></slide></presentation>`,
+			want: []string{"s1", "s2"},
+		},
+		{name: "empty deck", xml: `<presentation/>`, wantErr: "contains no slides"},
+		{name: "missing ID", xml: `<presentation><slide/></presentation>`, wantErr: "empty id"},
+		{name: "duplicate ID", xml: `<presentation><slide id="s1"/><slide id="s1"/></presentation>`, wantErr: `duplicate slide id "s1"`},
+		{name: "invalid XML", xml: `<presentation><slide`, wantErr: "parse presentation XML"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := extractSlidesScreenshotAllSlideIDs(tt.xml)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error = %v, want containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("slide IDs = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSlidesScreenshotAllBatchesAndLimits(t *testing.T) {
+	ids := make([]string, 23)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("s%02d", i+1)
+	}
+	batches, err := slidesScreenshotAllBatches(ids)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wantSizes := []int{10, 10, 3}
+	if len(batches) != len(wantSizes) {
+		t.Fatalf("batches = %d, want %d", len(batches), len(wantSizes))
+	}
+	for i, want := range wantSizes {
+		if len(batches[i]) != want {
+			t.Fatalf("batch %d size = %d, want %d", i+1, len(batches[i]), want)
+		}
+	}
+
+	tooMany := make([]string, maxSlidesPerAllScreenshot+1)
+	for i := range tooMany {
+		tooMany[i] = fmt.Sprintf("s%d", i+1)
+	}
+	_, err = slidesScreenshotAllBatches(tooMany)
+	if err == nil {
+		t.Fatal("expected full-deck limit error")
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeFailedPrecondition {
+		t.Fatalf("problem = %#v, want validation/failed_precondition", problem)
+	}
+}
+
+func TestSlidesScreenshotAllExecutesSerialBatches(t *testing.T) {
+	dir := t.TempDir()
+	withSlidesTestWorkingDir(t, dir)
+
+	ids := make([]string, 23)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("s%02d", i+1)
+	}
+	presentationXML := `<presentation xmlns="https://www.larkoffice.com/sml/2.0">`
+	for _, id := range ids {
+		presentationXML += `<slide id="` + id + `"><data/></slide>`
+	}
+	presentationXML += `</presentation>`
+
+	f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/slides_ai/v1/xml_presentations/pres_all",
+		Body: map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{
+				"xml_presentation": map[string]interface{}{"content": presentationXML, "revision_id": 42},
+			},
+		},
+	})
+
+	batchStubs := make([]*httpmock.Stub, 0, 3)
+	for batchIndex := 0; batchIndex < 3; batchIndex++ {
+		start := batchIndex * maxSlidesPerScreenshot
+		end := start + maxSlidesPerScreenshot
+		if end > len(ids) {
+			end = len(ids)
+		}
+		images := make([]map[string]interface{}, 0, end-start)
+		for _, id := range ids[start:end] {
+			images = append(images, map[string]interface{}{
+				"slide_id": id,
+				"format":   1,
+				"data":     base64.StdEncoding.EncodeToString([]byte("png-" + id)),
+			})
+		}
+		stub := &httpmock.Stub{
+			Method: "POST",
+			URL:    "/open-apis/slides_ai/v1/xml_presentations/pres_all/slide_images",
+			Body: map[string]interface{}{
+				"code": 0,
+				"data": map[string]interface{}{"slide_images": images},
+			},
+		}
+		batchStubs = append(batchStubs, stub)
+		reg.Register(stub)
+	}
+
+	err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{
+		"+screenshot",
+		"--presentation", "pres_all",
+		"--all",
+		"--output-dir", "shots",
+		"--as", "user",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantSizes := []int{10, 10, 3}
+	for i, stub := range batchStubs {
+		var body struct {
+			SlideIDs []string `json:"slide_ids"`
+		}
+		if err := json.Unmarshal(stub.CapturedBody, &body); err != nil {
+			t.Fatalf("decode batch %d body: %v", i+1, err)
+		}
+		if len(body.SlideIDs) != wantSizes[i] {
+			t.Fatalf("batch %d size = %d, want %d", i+1, len(body.SlideIDs), wantSizes[i])
+		}
+		start := i * maxSlidesPerScreenshot
+		if !reflect.DeepEqual(body.SlideIDs, ids[start:start+wantSizes[i]]) {
+			t.Fatalf("batch %d IDs = %#v", i+1, body.SlideIDs)
+		}
+	}
+
+	data := decodeShortcutData(t, stdout)
+	if data["mode"] != "all" || data["source_revision_id"] != float64(42) {
+		t.Fatalf("mode/revision = %#v/%#v", data["mode"], data["source_revision_id"])
+	}
+	summary, _ := data["summary"].(map[string]interface{})
+	if summary["total"] != float64(23) || summary["succeeded"] != float64(23) || summary["batches_completed"] != float64(3) {
+		t.Fatalf("summary = %#v", summary)
+	}
+	items, _ := data["screenshots"].([]interface{})
+	if len(items) != len(ids) {
+		t.Fatalf("screenshots = %d, want %d", len(items), len(ids))
+	}
+	for i, raw := range items {
+		item, _ := raw.(map[string]interface{})
+		if item["slide_id"] != ids[i] {
+			t.Fatalf("screenshot %d slide_id = %v, want %s", i, item["slide_id"], ids[i])
+		}
+		if _, err := os.Stat(item["path"].(string)); err != nil {
+			t.Fatalf("screenshot %d path: %v", i, err)
+		}
+	}
+}
+
+func TestSlidesScreenshotAllRetryUsesServerDelay(t *testing.T) {
+	cfg := slidesTestConfig(t, "")
+	f, _, _, reg := cmdutil.TestFactory(t, cfg)
+	reg.Register(&httpmock.Stub{
+		Method:  "POST",
+		URL:     "/open-apis/slides_ai/v1/xml_presentations/pres_all/slide_images",
+		Headers: http.Header{"Content-Type": {"application/json"}, "Retry-After": {"7"}},
+		Body:    map[string]interface{}{"code": 99991400, "msg": "rate limited"},
+	})
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/slides_ai/v1/xml_presentations/pres_all/slide_images",
+		Body: map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{"slide_images": []map[string]interface{}{{
+				"slide_id": "s1", "format": 1, "data": base64.StdEncoding.EncodeToString([]byte("png")),
+			}}},
+		},
+	})
+
+	runtime := common.TestNewRuntimeContextForAPI(context.Background(), &cobra.Command{Use: "+screenshot"}, cfg, f, core.AsUser)
+	var waits []time.Duration
+	retry := newSlidesScreenshotAllRetryState()
+	retry.wait = func(_ context.Context, delay time.Duration) error {
+		waits = append(waits, delay)
+		return nil
+	}
+	data, err := retry.doBatch(context.Background(), runtime,
+		"/open-apis/slides_ai/v1/xml_presentations/pres_all/slide_images", []string{"s1"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(common.GetSlice(data, "slide_images")) != 1 {
+		t.Fatalf("data = %#v, want one slide image", data)
+	}
+	if !reflect.DeepEqual(waits, []time.Duration{7 * time.Second}) {
+		t.Fatalf("waits = %#v, want 7s from Retry-After", waits)
+	}
+	if retry.totalRetries != 1 {
+		t.Fatalf("total retries = %d, want 1", retry.totalRetries)
+	}
+}
+
+func TestSlidesScreenshotAllRetryBudgets(t *testing.T) {
+	if slidesScreenshotAllCanRetry(errs.NewNetworkError(errs.SubtypeNetworkDNS, "dns")) {
+		t.Fatal("DNS errors must not be retried")
+	}
+	for _, subtype := range []errs.Subtype{errs.SubtypeNetworkTransport, errs.SubtypeNetworkTimeout, errs.SubtypeNetworkServer} {
+		if !slidesScreenshotAllCanRetry(errs.NewNetworkError(subtype, "temporary")) {
+			t.Fatalf("network subtype %q should be retried", subtype)
+		}
+	}
+
+	retry := newSlidesScreenshotAllRetryState()
+	retry.totalRetries = maxSlidesScreenshotAllTotalRetries
+	if retry.canRetryBatch(0, errs.NewAPIError(errs.SubtypeRateLimit, "slow down").WithRetryable()) {
+		t.Fatal("global retry budget must stop another attempt")
+	}
+	retry.totalRetries = 0
+	if retry.canRetryBatch(maxSlidesScreenshotAllBatchRetries, errs.NewAPIError(errs.SubtypeRateLimit, "slow down").WithRetryable()) {
+		t.Fatal("per-batch retry budget must stop another attempt")
+	}
+}
+
+func TestSlidesScreenshotAllPartialFailurePreservesSavedFiles(t *testing.T) {
+	dir := t.TempDir()
+	withSlidesTestWorkingDir(t, dir)
+	ids := make([]string, 11)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("s%02d", i+1)
+	}
+	presentationXML := `<presentation>`
+	for _, id := range ids {
+		presentationXML += `<slide id="` + id + `"/>`
+	}
+	presentationXML += `</presentation>`
+
+	f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	reg.Register(&httpmock.Stub{
+		Method: "GET", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_all",
+		Body: map[string]interface{}{"code": 0, "data": map[string]interface{}{
+			"xml_presentation": map[string]interface{}{"content": presentationXML, "revision_id": 9},
+		}},
+	})
+	images := make([]map[string]interface{}, 10)
+	for i := range images {
+		images[i] = map[string]interface{}{
+			"slide_id": ids[i], "format": 1, "data": base64.StdEncoding.EncodeToString([]byte("png-" + ids[i])),
+		}
+	}
+	reg.Register(&httpmock.Stub{
+		Method: "POST", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_all/slide_images",
+		Body: map[string]interface{}{"code": 0, "data": map[string]interface{}{"slide_images": images}},
+	})
+	reg.Register(&httpmock.Stub{
+		Method: "POST", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_all/slide_images",
+		Body: map[string]interface{}{"code": 1061002, "msg": "invalid params"},
+	})
+
+	err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{
+		"+screenshot", "--presentation", "pres_all", "--all", "--output-dir", "shots", "--as", "user",
+	})
+	if err == nil {
+		t.Fatal("expected partial-failure exit signal")
+	}
+	var envelope struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			Status        string                   `json:"status"`
+			Screenshots   []map[string]interface{} `json:"screenshots"`
+			FailedBatches []map[string]interface{} `json:"failed_batches"`
+			Summary       map[string]interface{}   `json:"summary"`
+		} `json:"data"`
+	}
+	if decodeErr := json.Unmarshal(stdout.Bytes(), &envelope); decodeErr != nil {
+		t.Fatalf("decode output: %v\n%s", decodeErr, stdout.String())
+	}
+	if envelope.OK || envelope.Data.Status != "partial_failure" {
+		t.Fatalf("envelope = %#v, want ok:false partial_failure", envelope)
+	}
+	if len(envelope.Data.Screenshots) != 10 || len(envelope.Data.FailedBatches) != 1 {
+		t.Fatalf("screenshots/failed batches = %d/%d, want 10/1", len(envelope.Data.Screenshots), len(envelope.Data.FailedBatches))
+	}
+	if envelope.Data.Summary["failed"] != float64(1) || envelope.Data.Summary["batches_completed"] != float64(1) {
+		t.Fatalf("summary = %#v", envelope.Data.Summary)
+	}
+	for _, item := range envelope.Data.Screenshots {
+		if _, statErr := os.Stat(item["path"].(string)); statErr != nil {
+			t.Fatalf("saved screenshot missing: %v", statErr)
+		}
 	}
 }
 

@@ -26,6 +26,7 @@ import (
 const (
 	defaultSlidesScreenshotDir = ".lark-slides/screenshots"
 	maxSlidesPerScreenshot     = 10
+	maxSlidesPerAllScreenshot  = 100
 )
 
 var (
@@ -42,14 +43,17 @@ var SlidesScreenshot = common.Shortcut{
 	Description: "Save up to 10 slide screenshots to local files without printing Base64 image data",
 	Risk:        "read",
 	Scopes:      []string{"slides:presentation:screenshot"},
-	// wiki:node:read is required only when --presentation is a wiki URL.
-	ConditionalScopes: []string{"wiki:node:read"},
+	// Conditional scopes feed command-specific auth hints and diagnostics; the
+	// selected path is enforced in Validate, so ordinary screenshot calls do not
+	// require wiki/read scopes.
+	ConditionalScopes: []string{"wiki:node:read", "slides:presentation:read"},
 	AuthTypes:         []string{"user", "bot"},
 	Flags: []common.Flag{
 		listModePresentationRefFlag(),
 		{Name: "slide-id", Aliases: []string{"slide-ids", "slides"}, Type: "string_slice", Desc: "slide page identifier (repeat or comma-separated for multiple slides; max 10 pages per request)"},
 		{Name: "slide-number", Aliases: []string{"slide-numbers"}, Type: "int_array", Desc: "slide page number (repeat for multiple slides; max 10 pages per request)"},
 		{Name: "slide", Desc: "hidden alias routed to --slide-number for digits, otherwise --slide-id", Hidden: true},
+		{Name: "all", Type: "bool", Desc: "screenshot every slide using internal serial batches (max 100 slides)"},
 		{Name: "content", Desc: "slide XML content to render directly instead of fetching existing slides", Input: []string{common.File, common.Stdin}},
 		{Name: "output", Desc: "preferred relative output path for a single screenshot (extension optional; .png, .jpg, or .jpeg)"},
 		{Name: "output-dir", Default: defaultSlidesScreenshotDir, Desc: "relative directory for saved screenshots"},
@@ -57,6 +61,15 @@ var SlidesScreenshot = common.Shortcut{
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		renderMode := runtime.Changed("content")
+		allMode := runtime.Bool("all")
+		if allMode {
+			if err := validateSlidesScreenshotAllFlags(runtime); err != nil {
+				return err
+			}
+			if err := runtime.EnsureScopes([]string{"slides:presentation:read"}); err != nil {
+				return err
+			}
+		}
 		selectorCount := 1
 		if renderMode {
 			if strings.TrimSpace(runtime.Str("content")) == "" {
@@ -82,7 +95,7 @@ var SlidesScreenshot = common.Shortcut{
 					return err
 				}
 			}
-			if len(slideIDs) == 0 && len(slideNumbers) == 0 {
+			if !allMode && len(slideIDs) == 0 && len(slideNumbers) == 0 {
 				return slidesScreenshotMissingSelectorError()
 			}
 			selectorCount = len(slideIDs) + len(slideNumbers)
@@ -129,6 +142,9 @@ var SlidesScreenshot = common.Shortcut{
 		}
 		if err := validateSlidesScreenshotSelectorLimit(len(slideIDs) + len(slideNumbers)); err != nil {
 			return common.NewDryRunAPI().Set("error", err.Error())
+		}
+		if runtime.Bool("all") {
+			return dryRunAllSlidesScreenshot(runtime, ref)
 		}
 
 		presentationID := ref.Token
@@ -177,6 +193,13 @@ var SlidesScreenshot = common.Shortcut{
 		if err != nil {
 			return err
 		}
+		if runtime.Bool("all") {
+			outputTarget, err := resolveSlidesScreenshotOutputTarget(runtime)
+			if err != nil {
+				return err
+			}
+			return executeAllSlidesScreenshot(ctx, runtime, presentationID, outputTarget)
+		}
 		if len(slideIDs) == 0 && len(slideNumbers) == 0 {
 			return slidesScreenshotMissingSelectorError()
 		}
@@ -217,6 +240,43 @@ var SlidesScreenshot = common.Shortcut{
 		runtime.Out(result, nil)
 		return nil
 	},
+}
+
+func validateSlidesScreenshotAllFlags(runtime *common.RuntimeContext) error {
+	params := []errs.InvalidParam{{Name: "--all", Reason: "cannot be combined with explicit slide selection, render mode, or single-file output"}}
+	for _, name := range []string{"slide-id", "slide-number", "slide", "content", "output", "output-name"} {
+		if runtime.Changed(name) {
+			params = append(params, errs.InvalidParam{Name: "--" + name, Reason: "cannot be combined with --all"})
+		}
+	}
+	if len(params) == 1 {
+		return nil
+	}
+	return errs.NewValidationError(errs.SubtypeInvalidArgument, "--all cannot be combined with slide selectors, --content, --output, or --output-name").
+		WithParams(params...)
+}
+
+func dryRunAllSlidesScreenshot(runtime *common.RuntimeContext, ref presentationRef) *common.DryRunAPI {
+	presentationID := ref.Token
+	dry := common.NewDryRunAPI().Desc("Enumerate the full presentation, then screenshot all slides in serial batches of up to 10")
+	if ref.Kind == "wiki" {
+		presentationID = "<resolved_slides_token>"
+		dry.GET("/open-apis/wiki/v2/spaces/get_node").
+			Desc("[1] Resolve wiki node to slides presentation").
+			Params(map[string]interface{}{"token": ref.Token})
+	}
+	dry.GET(fmt.Sprintf("/open-apis/slides_ai/v1/xml_presentations/%s", validate.EncodePathSegment(presentationID))).
+		Desc("Enumerate ordered slide IDs and source revision")
+	dry.POST(fmt.Sprintf("/open-apis/slides_ai/v1/xml_presentations/%s/slide_images", validate.EncodePathSegment(presentationID))).
+		Desc("Dynamic fan-out: repeat serially for each batch of at most 10 enumerated slide IDs").
+		Body(map[string]interface{}{"slide_ids": []string{"<enumerated_slide_ids_batch>"}})
+	return dry.
+		Set("mode", "all").
+		Set("batch_size", maxSlidesPerScreenshot).
+		Set("max_slides", maxSlidesPerAllScreenshot).
+		Set("concurrency", 1).
+		Set("output_dir", runtime.Str("output-dir")).
+		Set("base64_output", "suppressed; decoded to local files during execution")
 }
 
 func dryRunRenderScreenshot(runtime *common.RuntimeContext) *common.DryRunAPI {

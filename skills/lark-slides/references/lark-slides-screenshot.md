@@ -23,15 +23,25 @@ lark-cli slides +screenshot --as user \
 
 ## 截图全部页面
 
-枚举全部页面的 `slide_id` 或页码，按每批最多 10 页分组并串行调用 `slides +screenshot`，复用同一个 `--output-dir`；记录失败批次，已完成批次不重复执行。
+整份演示文稿截图直接使用显式 `--all`；CLI 会自动枚举页面并按每批最多 10 页串行执行，整份最多 100 页。不要先 `+xml-get` 后手工拆批：
+
+```bash
+lark-cli slides +screenshot --as user \
+  --presentation '<xml_presentation_id 或 slides/wiki URL>' \
+  --all \
+  --output-dir .lark-slides/screenshots/example-deck-task
+```
+
+CLI 会对临时错误做有限自动重试。部分失败时命令非零退出并返回 `status: "partial_failure"`：保留 `screenshots` 中已保存文件，从 `failed_batches[].slide_ids` 排除已成功 ID 后，只用指定页模式处理剩余页面，不重跑整份 `--all`。
 
 ## 参数
 
 | 参数 | 必需 | 说明 |
 |------|------|------|
 | `--presentation` | list 模式必需 | `xml_presentation_id`、`/slides/` URL，或解析后为 slides 的 `/wiki/` URL。传 `--content` 时不能使用 |
-| `--slide-id` | list 模式与 `--slide-number` 二选一 | 页面 short ID；不能与 `--slide-number` 同时使用；多页截图时重复传入，或用逗号分隔一次传多个（如 `--slide-id slide_1,slide_2`）；一次最多 10 个 ID |
-| `--slide-number` | list 模式与 `--slide-id` 二选一 | 页面页号；不能与 `--slide-id` 同时使用；多页截图时重复传入，或用逗号分隔一次传多个（如 `--slide-number 1,2,3`）；一次最多 10 个页码 |
+| `--all` | 否 | 截图整份演示文稿，最多 100 页；不能与页面 selector、`--content` 或单文件 `--output` 混用 |
+| `--slide-id` | 指定页模式与 `--slide-number` 二选一 | 页面 short ID；不能与 `--slide-number` 同时使用；多页截图时重复传入，或用逗号分隔一次传多个（如 `--slide-id slide_1,slide_2`）；一次最多 10 个 ID |
+| `--slide-number` | 指定页模式与 `--slide-id` 二选一 | 页面页号；不能与 `--slide-id` 同时使用；多页截图时重复传入，或用逗号分隔一次传多个（如 `--slide-number 1,2,3`）；一次最多 10 个页码 |
 | `--content` | render 模式必需 | 要直接渲染的 `<slide>` XML 片段；支持直接传值、`@file`、`-` stdin。传入后不能同时传 `--slide-id` / `--slide-number` |
 | `--output` | 否 | 单张截图的期望相对输出路径，可不写扩展名，显式扩展名只支持 `.png`、`.jpg`、`.jpeg`。只能选择一页，不能与 `--output-dir` / `--output-name` 同时使用；最终路径以返回的 `output` 为准 |
 | `--output-dir` | 否 | 输出目录，默认 `.lark-slides/screenshots`；必须是当前目录内的相对路径 |
@@ -59,7 +69,7 @@ lark-cli slides +screenshot --as user \
 
 ### 多页截图
 
-一次不要超过 10 页；如需更多页面，分批调用。可以重复传参，也可以用逗号分隔一次传多个：
+指定页面模式一次最多 10 页，可以重复传参，也可以用逗号分隔一次传多个；需要整份截图时改用 `--all`：
 
 ```bash
 lark-cli slides +screenshot --as user \
@@ -101,13 +111,15 @@ lark-cli slides +screenshot --as user \
 }
 ```
 
+`--all` 成功时还会返回 `mode: "all"` 和 `summary`；部分失败时 stdout 仍保留已成功的 `screenshots`，并通过 `failed_batches` 描述受影响批次。
+
 ## 注意事项
 
 1. 优先使用 `slides +screenshot` 保存本地图片，不要把图片 Base64 打到 stdout。
-2. 已存在 PPT 页面截图时，不传 `--content`，用 `--presentation` + `--slide-id` 或 `--slide-number`。
+2. 已存在 PPT 页面截图时，不传 `--content`；指定页用 `--presentation` + `--slide-id` / `--slide-number`，整份用 `--presentation` + `--all`。
 3. 本地 XML 预览时，传 `--content @file` 或 `--content -`，内容应为单个 `<slide>` XML 片段；此时不要传 `--presentation` / `--slide-id` / `--slide-number`。
 4. `slide_id` 是页面 short ID，页码请用 `--slide-number`。
-5. list 模式下 `--slide-id` 与 `--slide-number` 必须二选一；同一类型 selector 一次最多传 10 个，更多页面请分批截图。
+5. 指定页模式下 `--slide-id` 与 `--slide-number` 必须二选一，且一次最多 10 页；整份截图使用 `--all`，由 CLI 自动分批。
 6. 单张使用 `--output`，多张使用 `--output-dir`，由 CLI 按页面信息生成文件名。新建或大幅改写 Deck 时，截图目录复用 planning 阶段的 `<deck-or-task-id>`；已有 Deck 没有 task ID 时，使用 presentation ID 作为目录名。
 7. CLI 不转换图片格式，也不要求模型预判服务端格式。未写扩展名时自动追加真实扩展名；请求扩展名与真实格式不一致时保留目录和名称、修正扩展名，例如请求 `slide3.png` 而服务端返回 JPEG 时实际保存为 `slide3.jpg`。
 8. 发生扩展名修正或同名避让时会返回原始 `requested_output`、实际绝对路径 `output` 和 `output_adjusted: true`；后续必须使用 `output` / `screenshots[].path`，不要继续猜测请求路径。

@@ -107,6 +107,29 @@ func TestSlidesScreenshotAliasesLiveE2E(t *testing.T) {
 	require.False(t, screenshots[0].Get("data").Exists(), "stdout must not expose screenshot payload: %s", screenshotResult.Stdout)
 	require.NotContains(t, screenshotResult.Stdout, "data:image/", "stdout must not expose screenshot payload")
 
+	allResult, err := clie2e.RunCmd(ctx, clie2e.Request{
+		Args: []string{
+			"slides", "+screenshot",
+			"--presentation", presentationID,
+			"--all",
+			"--output-dir", "all-shots",
+		},
+		DefaultAs: "bot",
+		WorkDir:   workDir,
+	})
+	require.NoError(t, err)
+	allResult.AssertExitCode(t, 0)
+	allResult.AssertStdoutStatus(t, true)
+	require.Equal(t, "all", gjson.Get(allResult.Stdout, "data.mode").String(), allResult.Stdout)
+	require.Equal(t, int64(1), gjson.Get(allResult.Stdout, "data.summary.total").Int(), allResult.Stdout)
+	require.Equal(t, int64(1), gjson.Get(allResult.Stdout, "data.summary.succeeded").Int(), allResult.Stdout)
+	require.Equal(t, int64(1), gjson.Get(allResult.Stdout, "data.summary.batches_completed").Int(), allResult.Stdout)
+	require.Equal(t, slideID, gjson.Get(allResult.Stdout, "data.screenshots.0.slide_id").String(), allResult.Stdout)
+	requireScreenshotPathUnderDir(t,
+		gjson.Get(allResult.Stdout, "data.screenshots.0.path").String(),
+		filepath.Join(workDir, "all-shots"),
+	)
+
 	requestedExt := ".png"
 	if format == "png" {
 		requestedExt = ".jpg"
