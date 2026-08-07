@@ -14,7 +14,11 @@ import (
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
-const docsFetchExtraParam = `{"enable_user_cite_reference_map":true,"return_html5_block_data":true}`
+const (
+	docsFetchCommentReadScope   = "docs:document.comment:read"
+	docsFetchExtraParam         = `{"enable_user_cite_reference_map":true,"return_html5_block_data":true}`
+	docsFetchCommentsExtraParam = `{"enable_user_cite_reference_map":true,"include_comments":true,"return_html5_block_data":true}`
+)
 
 // v2FetchFlags returns the flag definitions for the v2 (OpenAPI) fetch path.
 func v2FetchFlags() []common.Flag {
@@ -30,6 +34,7 @@ func v2FetchFlags() []common.Flag {
 		{Name: "context-before", Desc: "range/keyword/section context: sibling blocks before selected top-level blocks", Type: "int", Default: "0"},
 		{Name: "context-after", Desc: "range/keyword/section context: sibling blocks after selected top-level blocks", Type: "int", Default: "0"},
 		{Name: "max-depth", Desc: "outline heading level cap; other scopes subtree depth where -1 is unlimited and 0 is block only", Type: "int", Default: "-1"},
+		{Name: "comments", Desc: "include visible unresolved local and whole-document comments; local comments are linked through comment-refs", Type: "bool"},
 	}
 }
 
@@ -45,6 +50,9 @@ func validateFetchV2(_ context.Context, runtime *common.RuntimeContext) error {
 	}
 	if err := validateReadModeFlags(runtime); err != nil {
 		return err
+	}
+	if shouldIncludeFetchComments(runtime) {
+		return runtime.EnsureScopes([]string{docsFetchCommentReadScope})
 	}
 	return nil
 }
@@ -94,7 +102,7 @@ func executeFetchV2(_ context.Context, runtime *common.RuntimeContext) error {
 func buildFetchBody(runtime *common.RuntimeContext) map[string]interface{} {
 	body := map[string]interface{}{
 		"format":      effectiveFetchFormat(runtime),
-		"extra_param": docsFetchExtraParam,
+		"extra_param": buildFetchExtraParam(runtime),
 	}
 	if v := runtime.Int("revision-id"); v > 0 {
 		body["revision_id"] = v
@@ -129,6 +137,19 @@ func buildFetchBody(runtime *common.RuntimeContext) map[string]interface{} {
 	injectDocsScene(runtime, body)
 
 	return body
+}
+
+func buildFetchExtraParam(runtime *common.RuntimeContext) string {
+	if shouldIncludeFetchComments(runtime) {
+		return docsFetchCommentsExtraParam
+	}
+	return docsFetchExtraParam
+}
+
+func shouldIncludeFetchComments(runtime *common.RuntimeContext) bool {
+	// Outline is a directory-only view and intentionally performs no comment
+	// query, even when a caller reuses a flag bundle containing --comments.
+	return runtime.Bool("comments") && effectiveFetchReadMode(runtime) != "outline"
 }
 
 func effectiveFetchFormat(runtime *common.RuntimeContext) string {

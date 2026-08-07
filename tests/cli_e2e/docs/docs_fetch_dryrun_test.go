@@ -5,12 +5,38 @@ package docs
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
 	clie2e "github.com/larksuite/cli/tests/cli_e2e"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDocsFetchDryRunCommentsOptIn(t *testing.T) {
+	setDocsDryRunEnv(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+	result, err := clie2e.RunCmd(ctx, clie2e.Request{
+		Args: []string{
+			"docs", "+fetch",
+			"--doc", "doxcnDryRunComments",
+			"--comments",
+			"--dry-run",
+		},
+		DefaultAs: "bot",
+	})
+	require.NoError(t, err)
+	result.AssertExitCode(t, 0)
+
+	raw := clie2e.DryRunGet(result.Stdout, "api.0.body.extra_param").String()
+	var extra map[string]bool
+	require.NoError(t, json.Unmarshal([]byte(raw), &extra))
+	if !extra["include_comments"] {
+		t.Fatalf("include_comments missing from extra_param=%s\nstdout:\n%s", raw, result.Stdout)
+	}
+}
 
 func TestDocsFetchDryRunIgnoresAPIVersionCompatFlag(t *testing.T) {
 	setDocsDryRunEnv(t)
