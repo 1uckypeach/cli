@@ -19,16 +19,18 @@ const (
 	meetingBotInvitePath = "/open-apis/vc/v1/bots/invite"
 	meetingBotEndPath    = "/open-apis/vc/v1/bots/end"
 
-	meetingInviteScopeSelected = "selected"
-	meetingInviteScopeAll      = "all"
-	meetingInviteeLimit        = 200
+	meetingInviteTypeAllSuggested  = "ALL_SUGGESTED"
+	meetingInviteTypeSelected      = "SELECTED"
+	meetingInviteeLimit            = 200
+	meetingInviteTypeAllValue      = 1
+	meetingInviteTypeSelectedValue = 2
 )
 
-// VCMeetingStart probes the external START_AND_JOIN API as the app bot.
+// VCMeetingStart starts and joins a Calendar meeting as the app bot.
 var VCMeetingStart = common.Shortcut{
 	Service:     "vc",
 	Command:     "+meeting-start",
-	Description: "Probe Calendar START_AND_JOIN as the app bot",
+	Description: "Start and join a Calendar meeting as the app bot",
 	Risk:        "write",
 	Scopes:      []string{"vc:meeting.bot.join:write"},
 	AuthTypes:   []string{"bot"},
@@ -79,8 +81,11 @@ var VCMeetingInvite = common.Shortcut{
 	HasFormat:   true,
 	Flags: []common.Flag{
 		{Name: "meeting-id", Required: true, Desc: "meeting ID"},
-		{Name: "scope", Required: true, Desc: "invite scope: SELECTED or ALL"},
-		{Name: "invitee-user-ids", Desc: "comma-separated numeric user IDs for SELECTED scope (maximum 200)"},
+		{Name: "type", Required: true, Desc: "invite type", Enum: []string{meetingInviteTypeAllSuggested, meetingInviteTypeSelected}},
+		{Name: "open-ids", Type: "string_slice", Desc: "user open_ids for SELECTED (maximum 200)"},
+	},
+	Normalize: func(_ context.Context, flags *common.FlagContext) error {
+		return flags.SetCanonical("type", strings.ToUpper(strings.TrimSpace(flags.Str("type"))))
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		_, err := buildMeetingInviteBody(runtime)
@@ -121,7 +126,7 @@ var VCMeetingEnd = common.Shortcut{
 	Command:     "+meeting-end",
 	Description: "End a meeting as the host app bot",
 	Risk:        "write",
-	Scopes:      []string{"vc:meeting.bot.join:write"},
+	Scopes:      []string{"vc:meeting.bot.manage:write"},
 	AuthTypes:   []string{"bot"},
 	HasFormat:   true,
 	Flags: []common.Flag{
@@ -161,7 +166,7 @@ func buildMeetingStartBody(runtime *common.RuntimeContext) (map[string]interface
 		return nil, err
 	}
 	body := buildMeetingJoinBody(runtime)
-	body["meeting_action"] = "start_and_join"
+	body["action"] = 2
 	return body, nil
 }
 
@@ -173,64 +178,59 @@ func buildMeetingInviteBody(runtime *common.RuntimeContext) (map[string]interfac
 	if err := validateMeetingIDFlag(runtime.Str("meeting-id")); err != nil {
 		return nil, err
 	}
-	scope := strings.ToLower(strings.TrimSpace(runtime.Str("scope")))
-	ids, err := parseMeetingInviteeUserIDs(runtime.Str("invitee-user-ids"))
-	if err != nil {
-		return nil, err
-	}
-	switch scope {
-	case meetingInviteScopeSelected:
-		if len(ids) == 0 {
-			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--invitee-user-ids is required when --scope is SELECTED").WithParam("--invitee-user-ids")
+	inviteType := strings.ToUpper(strings.TrimSpace(runtime.Str("type")))
+	openIDs := normalizeMeetingInviteOpenIDs(runtime.StrSlice("open-ids"))
+	var inviteTypeValue int
+	switch inviteType {
+	case meetingInviteTypeSelected:
+		inviteTypeValue = meetingInviteTypeSelectedValue
+		if len(openIDs) == 0 {
+			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--open-ids is required when --type is SELECTED").WithParam("--open-ids")
 		}
-		if len(ids) > meetingInviteeLimit {
-			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--invitee-user-ids accepts at most %d users, got %d", meetingInviteeLimit, len(ids)).WithParam("--invitee-user-ids")
+		if len(openIDs) > meetingInviteeLimit {
+			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--open-ids accepts at most %d users, got %d", meetingInviteeLimit, len(openIDs)).WithParam("--open-ids")
 		}
-	case meetingInviteScopeAll:
-		if len(ids) != 0 {
-			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--invitee-user-ids must not be set when --scope is ALL").WithParam("--invitee-user-ids")
+		for _, openID := range openIDs {
+			if !strings.HasPrefix(openID, "ou_") {
+				return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--open-ids only accepts user open_id values (ou_xxx)").WithParam("--open-ids")
+			}
+		}
+	case meetingInviteTypeAllSuggested:
+		inviteTypeValue = meetingInviteTypeAllValue
+		if len(openIDs) != 0 {
+			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--open-ids must not be set when --type is ALL_SUGGESTED").WithParam("--open-ids")
 		}
 	case "":
-		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--scope is required").WithParam("--scope")
+		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--type is required").WithParam("--type")
 	default:
-		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--scope must be SELECTED or ALL, got %q", runtime.Str("scope")).WithParam("--scope")
+		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--type must be ALL_SUGGESTED or SELECTED, got %q", runtime.Str("type")).WithParam("--type")
 	}
 
-	invitees := make([]map[string]interface{}, 0, len(ids))
-	for _, id := range ids {
-		if !isDigits(id) {
-			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--invitee-user-ids must contain numeric user IDs").WithParam("--invitee-user-ids")
-		}
-		invitees = append(invitees, map[string]interface{}{
-			"id":        id,
-			"user_type": 1,
-		})
-	}
 	body := map[string]interface{}{
 		"meeting_id": strings.TrimSpace(runtime.Str("meeting-id")),
-		"scope":      scope,
+		"type":       inviteTypeValue,
 	}
-	if scope == meetingInviteScopeSelected {
-		body["invitees"] = invitees
+	if inviteType == meetingInviteTypeSelected {
+		body["open_ids"] = openIDs
 	}
 	return body, nil
 }
 
-func parseMeetingInviteeUserIDs(value string) ([]string, error) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return nil, nil
-	}
-	parts := strings.Split(value, ",")
-	ids := make([]string, 0, len(parts))
-	for _, part := range parts {
-		id := strings.TrimSpace(part)
-		if id == "" {
-			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--invitee-user-ids must not contain empty values").WithParam("--invitee-user-ids")
+func normalizeMeetingInviteOpenIDs(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	openIDs := make([]string, 0, len(values))
+	for _, value := range values {
+		openID := strings.TrimSpace(value)
+		if openID == "" {
+			continue
 		}
-		ids = append(ids, id)
+		if _, ok := seen[openID]; ok {
+			continue
+		}
+		seen[openID] = struct{}{}
+		openIDs = append(openIDs, openID)
 	}
-	return ids, nil
+	return openIDs
 }
 
 func buildMeetingEndBody(runtime *common.RuntimeContext) (map[string]interface{}, error) {
