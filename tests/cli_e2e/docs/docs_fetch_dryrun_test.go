@@ -63,6 +63,31 @@ func TestDocsFetchCommentsRejectsLossyOutputBeforeDryRun(t *testing.T) {
 	require.Contains(t, gjson.Get(result.Stderr, "error.message").String(), "--format json", result.Stderr)
 }
 
+func TestDocsFetchCommentsRejectsIMMarkdownBeforeDryRun(t *testing.T) {
+	setDocsDryRunEnv(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+	result, err := clie2e.RunCmd(ctx, clie2e.Request{
+		Args: []string{
+			"docs", "+fetch",
+			"--doc", "doxcnDryRunComments",
+			"--comments",
+			"--doc-format", "im-markdown",
+			"--dry-run",
+		},
+		DefaultAs: "bot",
+	})
+	require.NoError(t, err)
+	result.AssertExitCode(t, 2)
+	require.Empty(t, result.Stdout, "validation failure must not emit a dry-run request")
+	require.Equal(t, "validation", gjson.Get(result.Stderr, "error.type").String(), result.Stderr)
+	require.Equal(t, "invalid_argument", gjson.Get(result.Stderr, "error.subtype").String(), result.Stderr)
+	require.Equal(t, "--doc-format", gjson.Get(result.Stderr, "error.param").String(), result.Stderr)
+	require.Contains(t, gjson.Get(result.Stderr, "error.message").String(), "XML or Markdown", result.Stderr)
+	require.Contains(t, gjson.Get(result.Stderr, "error.message").String(), "IM Markdown remains unchanged", result.Stderr)
+}
+
 func TestDocsFetchDryRunIgnoresAPIVersionCompatFlag(t *testing.T) {
 	setDocsDryRunEnv(t)
 

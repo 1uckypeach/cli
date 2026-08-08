@@ -70,26 +70,6 @@ func TestApplyFetchIMMarkdown(t *testing.T) {
 	}
 }
 
-func TestConvertToIMMarkdownPreservesCommentReferenceShells(t *testing.T) {
-	t.Parallel()
-
-	input := `<fragment mode="range">` + "\n" +
-		`<comment-ref refs="c1"/>paragraph` + "\n" +
-		`- <comment-ref refs="c1 c2"/>list item` + "\n" +
-		`| <comment-ref refs="c3"/>cell | other |` + "\n" +
-		`</fragment>`
-	got := convertToIMMarkdown(input, imMarkdownContext{})
-	for _, marker := range []string{
-		`<comment-ref refs="c1"/>`,
-		`<comment-ref refs="c1 c2"/>`,
-		`<comment-ref refs="c3"/>`,
-	} {
-		if strings.Count(got, marker) != 1 {
-			t.Fatalf("comment marker %q was not preserved exactly once: %q", marker, got)
-		}
-	}
-}
-
 func TestConvertToIMMarkdownTitle(t *testing.T) {
 	t.Parallel()
 
