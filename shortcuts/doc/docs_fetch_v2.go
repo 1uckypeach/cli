@@ -34,7 +34,7 @@ func v2FetchFlags() []common.Flag {
 		{Name: "context-before", Desc: "range/keyword/section context: sibling blocks before selected top-level blocks", Type: "int", Default: "0"},
 		{Name: "context-after", Desc: "range/keyword/section context: sibling blocks after selected top-level blocks", Type: "int", Default: "0"},
 		{Name: "max-depth", Desc: "outline heading level cap; other scopes subtree depth where -1 is unlimited and 0 is block only", Type: "int", Default: "-1"},
-		{Name: "comments", Desc: "include visible unresolved local and whole-document comments in XML or Markdown using bot identity; local comments are linked through comment-refs", Type: "bool"},
+		{Name: "comments", Desc: "include visible unresolved local and whole-document comments in XML using bot identity; local comments are linked through comment-refs", Type: "bool"},
 	}
 }
 
@@ -74,10 +74,10 @@ func validateFetchCommentIdentity(runtime *common.RuntimeContext) error {
 }
 
 func validateFetchCommentDocFormat(runtime *common.RuntimeContext) error {
-	if !shouldIncludeFetchComments(runtime) || !isIMMarkdownFetch(runtime) {
+	if !shouldIncludeFetchComments(runtime) || effectiveFetchFormat(runtime) == "xml" {
 		return nil
 	}
-	return common.ValidationErrorf("--comments supports only XML or Markdown; IM Markdown remains unchanged. Use --doc-format markdown, or omit --comments").WithParam("--doc-format")
+	return common.ValidationErrorf("--comments supports only XML; Markdown and IM Markdown remain unchanged. Use --doc-format xml, or omit --comments").WithParam("--doc-format")
 }
 
 func validateFetchCommentOutput(runtime *common.RuntimeContext) error {

@@ -521,6 +521,7 @@ func TestValidateFetchV2RejectsInvalidCommentCombinations(t *testing.T) {
 	}{
 		{name: "lossy output", identity: core.AsBot, format: "pretty", wantParam: "--format"},
 		{name: "user identity", identity: core.AsUser, format: "json", wantParam: "--as"},
+		{name: "Markdown", identity: core.AsBot, format: "json", docFormat: "markdown", wantParam: "--doc-format"},
 		{name: "IM Markdown", identity: core.AsBot, format: "json", docFormat: "im-markdown", wantParam: "--doc-format"},
 	}
 
@@ -555,7 +556,7 @@ func TestValidateFetchCommentDocFormat(t *testing.T) {
 		wantErr   bool
 	}{
 		{name: "XML comments", docFormat: "xml", scope: "full", comments: true},
-		{name: "Markdown comments", docFormat: "markdown", scope: "full", comments: true},
+		{name: "Markdown comments rejected", docFormat: "markdown", scope: "full", comments: true, wantErr: true},
 		{name: "IM Markdown comments rejected", docFormat: "im-markdown", scope: "full", comments: true, wantErr: true},
 		{name: "IM Markdown without comments unchanged", docFormat: "im-markdown", scope: "full"},
 		{name: "IM Markdown outline has no effective comments", docFormat: "im-markdown", scope: "outline", comments: true},
@@ -577,7 +578,7 @@ func TestValidateFetchCommentDocFormat(t *testing.T) {
 					t.Fatal("validateFetchCommentDocFormat() succeeded, want validation error")
 				}
 				assertValidationContract(t, err, errs.SubtypeInvalidArgument, "--doc-format")
-				if !strings.Contains(err.Error(), "XML or Markdown") || !strings.Contains(err.Error(), "IM Markdown remains unchanged") {
+				if !strings.Contains(err.Error(), "only XML") || !strings.Contains(err.Error(), "Markdown and IM Markdown remain unchanged") {
 					t.Fatalf("error does not explain the supported formats and compatibility boundary: %v", err)
 				}
 				return
