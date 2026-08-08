@@ -1,0 +1,125 @@
+// Copyright (c) 2026 Lark Technologies Pte. Ltd.
+// SPDX-License-Identifier: MIT
+
+package docs
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+	"time"
+
+	clie2e "github.com/larksuite/cli/tests/cli_e2e"
+	"github.com/stretchr/testify/require"
+)
+
+func TestDocsLocalShortcutsDryRun(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	t.Setenv("LARKSUITE_CLI_APP_ID", "app")
+	t.Setenv("LARKSUITE_CLI_APP_SECRET", "secret")
+	t.Setenv("LARKSUITE_CLI_BRAND", "feishu")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+
+	tests := []struct {
+		name       string
+		args       []string
+		wantMethod string
+		wantURL    string
+		assertBody func(t *testing.T, body map[string]interface{})
+	}{
+		{
+			name: "local fetch page",
+			args: []string{
+				"docs", "+local_fetch",
+				"--doc", "doccnLocalDryRun",
+				"--scope", "page",
+				"--detail", "full",
+				"--start-page-index", "1",
+				"--end-page-index", "2",
+				"--dry-run",
+			},
+			wantMethod: "POST",
+			wantURL:    "/open-apis/docs_ai/v1/documents/doccnLocalDryRun/fetch",
+			assertBody: func(t *testing.T, body map[string]interface{}) {
+				t.Helper()
+				require.Equal(t, "xml", body["format"])
+				require.NotContains(t, body, "extra_param")
+				readOption := body["read_option"].(map[string]interface{})
+				require.Equal(t, "page", readOption["read_mode"])
+				require.Equal(t, "1", readOption["start_page_index"])
+				require.Equal(t, "2", readOption["end_page_index"])
+			},
+		},
+		{
+			name: "local update table",
+			args: []string{
+				"docs", "+local_update",
+				"--doc", "doccnLocalDryRun",
+				"--command", "table_merge_cells",
+				"--block-id", "table_block",
+				"--table-option", `{"range":"A1:C3"}`,
+				"--dry-run",
+			},
+			wantMethod: "PUT",
+			wantURL:    "/open-apis/docs_ai/v1/documents/doccnLocalDryRun",
+			assertBody: func(t *testing.T, body map[string]interface{}) {
+				t.Helper()
+				require.Equal(t, "xml", body["format"])
+				require.Equal(t, "table_merge_cells", body["command"])
+				var extra map[string]interface{}
+				require.NoError(t, json.Unmarshal([]byte(body["extra_param"].(string)), &extra))
+				require.Equal(t, map[string]interface{}{"range": "A1:C3"}, extra["table_option"])
+			},
+		},
+		{
+			name:       "ooxml fetch",
+			args:       []string{"docs", "+ooxml_fetch", "--doc", "doccnLocalDryRun", "--dry-run"},
+			wantMethod: "POST",
+			wantURL:    "/open-apis/docs_ai/v1/documents/doccnLocalDryRun/fetch",
+			assertBody: func(t *testing.T, body map[string]interface{}) {
+				t.Helper()
+				var extra map[string]interface{}
+				require.NoError(t, json.Unmarshal([]byte(body["extra_param"].(string)), &extra))
+				require.Equal(t, "LocalOOXMLFetch", extra["ToolName"])
+			},
+		},
+		{
+			name: "ooxml update",
+			args: []string{
+				"docs", "+ooxml_update",
+				"--doc", "doccnLocalDryRun",
+				"--file-path", "/tmp/edited.docx",
+				"--dry-run",
+			},
+			wantMethod: "PUT",
+			wantURL:    "/open-apis/docs_ai/v1/documents/doccnLocalDryRun",
+			assertBody: func(t *testing.T, body map[string]interface{}) {
+				t.Helper()
+				var extra map[string]interface{}
+				require.NoError(t, json.Unmarshal([]byte(body["extra_param"].(string)), &extra))
+				require.Equal(t, "LocalOOXMLUpdate", extra["ToolName"])
+				require.Equal(t, "/tmp/edited.docx", extra["file_path"])
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := clie2e.RunCmd(ctx, clie2e.Request{
+				Args:      tt.args,
+				DefaultAs: "bot",
+			})
+			require.NoError(t, err)
+			result.AssertExitCode(t, 0)
+			require.Equal(t, tt.wantMethod, clie2e.DryRunGet(result.Stdout, "api.0.method").String())
+			require.Equal(t, tt.wantURL, clie2e.DryRunGet(result.Stdout, "api.0.url").String())
+
+			bodyRaw := clie2e.DryRunGet(result.Stdout, "api.0.body").Raw
+			var body map[string]interface{}
+			require.NoError(t, json.Unmarshal([]byte(bodyRaw), &body))
+			tt.assertBody(t, body)
+		})
+	}
+}
