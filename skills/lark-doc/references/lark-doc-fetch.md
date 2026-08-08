@@ -114,7 +114,7 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 - reaction 属于 best-effort 展示信息；当一次读取需要 hydrate 超过 1000 条评论时会整体省略 reaction，以限制下游时延，评论正文和引用关系仍完整返回。
 - Markdown / IM Markdown 使用轻量 XML 壳 `<comment-ref refs="c1 c2"/>` 精确标记落点；重复文本、跨 block、列表和表格都不需要依靠 `<quote>` 猜位置。壳中的 ref 与 `reference_map.comment` 一一对应。
 - 指定历史 `--revision-id` 时，正文来自该历史版本；评论是“当前仍可见、仍未解决”的快照投影到这份正文。局部评论仅在该 revision 能解析到锚点时返回，全文评论仅在全文读取时返回；它不是历史时刻的评论回放。
-- 必须使用 `--format json`；其它展示格式无法无损保留正文与 `reference_map`（例如 `pretty` 只输出正文、`table` 会截断嵌套值），因此 CLI 会直接拒绝这些组合。
+- 必须使用 `--format json`；其它展示格式无法无损保留正文与 `reference_map`（例如 `pretty` 只输出正文），因此 CLI 会直接拒绝这些组合。
 - 评论或锚点依赖不可用时，正文仍正常返回，评论整体省略，并在 `tips` 中出现 `comments_omitted:<reason>`。
 
 当前服务端能够完整校验 tenant access token（`--as bot`）的评论 scope。user access token 的精确 token scope 尚未由网关可信透传，因此 `--as user` 的评论读取会安全拒绝；完成 OGW 条件鉴权后再开放，不能用普通 user/app/tenant 授权状态代替本 token scope。

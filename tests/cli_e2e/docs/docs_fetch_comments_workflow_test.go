@@ -39,6 +39,8 @@ func TestDocsFetchCommentsWorkflow(t *testing.T) {
 	localText := "local review " + suffix
 	wholeText := "whole document review " + suffix
 
+	// Both creation helpers register parentT cleanup immediately. Cleanup is
+	// LIFO, so the document is deleted before its containing folder.
 	folderToken := drive.CreateDriveFolder(t, parentT, ctx, "lark-cli-e2e-fetch-comments-"+suffix, defaultAs, "")
 	docToken := createDocWithRetry(t, parentT, ctx, folderToken, "fetch comments "+suffix, anchorText+"\n\nsecondary block", defaultAs)
 
