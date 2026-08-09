@@ -56,10 +56,13 @@ func TestDocsFetchCommentsDeniedDocumentDoesNotLeakToBot(t *testing.T) {
 	folderToken := drive.CreateDriveFolder(t, t, ctx, "lark-cli-e2e-fetch-comments-denied-"+suffix, "user", "")
 	docToken := createDocWithRetry(t, t, ctx, folderToken, "fetch comments denied "+suffix, anchorText, "user")
 	addDocComment(t, ctx, "user", docToken, commentText, "--full-comment")
-	ownerResult, err := clie2e.RunCmd(ctx, clie2e.Request{
+	ownerResult, err := clie2e.RunCmdWithRetry(ctx, clie2e.Request{
 		Args:      []string{"docs", "+fetch", "--doc", docToken, "--doc-format", "xml"},
 		DefaultAs: "user",
-	})
+	}, clie2e.RetryOptions{ShouldRetry: func(result *clie2e.Result) bool {
+		return result == nil || result.ExitCode != 0 ||
+			!docsFetchReferenceGroupContains(result.Stdout, "comments", commentText)
+	}})
 	require.NoError(t, err)
 	ownerResult.AssertExitCode(t, 0)
 	ownerResult.AssertStdoutStatus(t, true)
