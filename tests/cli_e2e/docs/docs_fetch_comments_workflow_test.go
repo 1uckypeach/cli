@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"os"
 	"regexp"
@@ -32,6 +33,90 @@ func TestDocsFetchCommentsWorkflowAsBot(t *testing.T) {
 func TestDocsFetchCommentsWorkflowAsUser(t *testing.T) {
 	clie2e.SkipWithoutUserToken(t)
 	testDocsFetchCommentsWorkflow(t, "user")
+}
+
+// TestDocsFetchCommentsDeniedDocumentDoesNotLeakToBot creates a user-owned
+// document that is not shared with the bot, then verifies that the bot cannot
+// obtain either the body or its comments. This is intentionally a separate
+// workflow from the positive fixture: permission denial must be proven with a
+// real document ACL, not an empty/invalid --doc argument.
+func TestDocsFetchCommentsDeniedDocumentDoesNotLeakToBot(t *testing.T) {
+	clie2e.SkipWithoutUserToken(t)
+	clie2e.SkipWithoutTenantAccessToken(t)
+	if os.Getenv("LARK_DOCS_FETCH_COMMENTS_E2E") == "" {
+		t.Skip("set LARK_DOCS_FETCH_COMMENTS_E2E=1 to run the document comment fetch workflow")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	t.Cleanup(cancel)
+
+	suffix := clie2e.GenerateSuffix()
+	anchorText := "private document anchor " + suffix
+	commentText := "private document comment " + suffix
+	folderToken := drive.CreateDriveFolder(t, t, ctx, "lark-cli-e2e-fetch-comments-denied-"+suffix, "user", "")
+	docToken := createDocWithRetry(t, t, ctx, folderToken, "fetch comments denied "+suffix, anchorText, "user")
+	addDocComment(t, ctx, "user", docToken, commentText, "--full-comment")
+
+	result, err := clie2e.RunCmd(ctx, clie2e.Request{
+		Args:      []string{"docs", "+fetch", "--doc", docToken, "--doc-format", "xml"},
+		DefaultAs: "bot",
+	})
+	require.NoError(t, err)
+	require.NotZero(t, result.ExitCode, "bot unexpectedly read a user-private document")
+
+	combined := result.Stdout + "\n" + result.Stderr
+	require.NotContains(t, combined, anchorText, "permission error leaked document body")
+	require.NotContains(t, combined, commentText, "permission error leaked comment content")
+	require.False(t, gjson.Get(result.Stdout, "data.document").Exists(), "permission error returned a document payload")
+	require.Equal(t, "bot", gjson.Get(result.Stderr, "identity").String())
+	require.NotZero(t, gjson.Get(result.Stderr, "error.code").Int(), "permission denial must return a structured API error")
+}
+
+func TestFirstCommentRefAnchor(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:    "nested inline content",
+			content: `<doc><p comment-refs="c1"> alpha <b>beta</b> gamma </p></doc>`,
+			want:    "alpha beta gamma",
+		},
+		{
+			name:    "skip empty referenced block",
+			content: `<doc><p comment-refs="c1"><img src="token"/></p><p comment-refs="c2">usable anchor</p></doc>`,
+			want:    "usable anchor",
+		},
+		{
+			name:    "rune safe limit",
+			content: `<doc><p comment-refs="c1">` + strings.Repeat("评", 81) + `</p></doc>`,
+			want:    strings.Repeat("评", 80),
+		},
+		{
+			name:    "missing comment refs",
+			content: `<doc><p>plain body</p></doc>`,
+			wantErr: true,
+		},
+		{
+			name:    "malformed document XML",
+			content: `<doc><p comment-refs="c1">broken</doc>`,
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := firstCommentRefAnchor(test.content)
+			if test.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.want, got)
+		})
+	}
 }
 
 func testDocsFetchCommentsWorkflow(t *testing.T, defaultAs string) {
@@ -78,6 +163,7 @@ func testDocsFetchCommentsWorkflow(t *testing.T, defaultAs string) {
 		require.NoError(t, err)
 		fetched.AssertExitCode(t, 0)
 		fetched.AssertStdoutStatus(t, true)
+		require.Equal(t, defaultAs, gjson.Get(fetched.Stdout, "identity").String())
 		if !strings.Contains(gjson.Get(fetched.Stdout, "data.document.content").String(), "comment-refs=") {
 			t.Fatalf("local comment marker missing:\n%s", fetched.Stdout)
 		}
@@ -102,6 +188,7 @@ func testDocsFetchCommentsWorkflow(t *testing.T, defaultAs string) {
 				})
 				require.NoError(t, err)
 				result.AssertExitCode(t, 0)
+				require.Equal(t, defaultAs, gjson.Get(result.Stdout, "identity").String())
 				content := gjson.Get(result.Stdout, "data.document.content").String()
 				if strings.Contains(content, "comment-refs=") || docsFetchReferenceGroupExists(result.Stdout, "comments") {
 					t.Fatalf("%s fetch must not carry XML comment protocol:\n%s", docFormat, result.Stdout)
@@ -120,6 +207,7 @@ func testDocsFetchCommentsWorkflow(t *testing.T, defaultAs string) {
 		})
 		require.NoError(t, err)
 		result.AssertExitCode(t, 0)
+		require.Equal(t, defaultAs, gjson.Get(result.Stdout, "identity").String())
 		if !docsFetchReferenceGroupContains(result.Stdout, "comments", localText) ||
 			docsFetchReferenceGroupContains(result.Stdout, "comments", secondaryLocalText) ||
 			docsFetchReferenceGroupContains(result.Stdout, "comments", wholeText) {
@@ -163,6 +251,7 @@ func testDocsFetchCommentsReadOnlyFixture(t *testing.T, defaultAs, docToken stri
 		require.NoError(t, err)
 		fetched.AssertExitCode(t, 0)
 		fetched.AssertStdoutStatus(t, true)
+		require.Equal(t, defaultAs, gjson.Get(fetched.Stdout, "identity").String())
 		summary := assertDocsFetchReadOnlyContract(t, fetched.Stdout, true)
 		require.Positive(t, summary.localCount, "the shared fixture must contain local comments")
 		require.Equal(t, 200, summary.wholeCount, "the large shared fixture must exercise the whole-comment cap")
@@ -179,6 +268,7 @@ func testDocsFetchCommentsReadOnlyFixture(t *testing.T, defaultAs, docToken stri
 				require.NoError(t, err)
 				result.AssertExitCode(t, 0)
 				result.AssertStdoutStatus(t, true)
+				require.Equal(t, defaultAs, gjson.Get(result.Stdout, "identity").String())
 				content := gjson.Get(result.Stdout, "data.document.content").String()
 				if strings.Contains(content, "comment-refs=") || docsFetchReferenceGroupExists(result.Stdout, "comments") {
 					t.Fatalf("%s fetch must not carry XML comment protocol:\n%s", docFormat, result.Stdout)
@@ -189,7 +279,7 @@ func testDocsFetchCommentsReadOnlyFixture(t *testing.T, defaultAs, docToken stri
 
 	t.Run("partial returns only intersecting local comments", func(t *testing.T) {
 		require.NotNil(t, fetched)
-		keyword := firstLocalCommentQuote(t, fetched.Stdout)
+		keyword := firstLocalCommentAnchor(t, fetched.Stdout)
 		result, err := clie2e.RunCmd(ctx, clie2e.Request{
 			Args: []string{
 				"docs", "+fetch", "--doc", docToken, "--doc-format", "xml",
@@ -200,6 +290,7 @@ func testDocsFetchCommentsReadOnlyFixture(t *testing.T, defaultAs, docToken stri
 		require.NoError(t, err)
 		result.AssertExitCode(t, 0)
 		result.AssertStdoutStatus(t, true)
+		require.Equal(t, defaultAs, gjson.Get(result.Stdout, "identity").String())
 		summary := assertDocsFetchReadOnlyContract(t, result.Stdout, false)
 		require.Positive(t, summary.localCount, "keyword fetch must retain at least one intersecting local comment")
 		require.Zero(t, summary.wholeCount, "keyword fetch must omit whole-document comments")
@@ -207,12 +298,13 @@ func testDocsFetchCommentsReadOnlyFixture(t *testing.T, defaultAs, docToken stri
 
 	t.Run("outline remains comment free", func(t *testing.T) {
 		result, err := clie2e.RunCmd(ctx, clie2e.Request{
-			Args:      []string{"docs", "+fetch", "--doc", docToken, "--doc-format", "xml", "--scope", "outline"},
+			Args:      []string{"docs", "+fetch", "--doc", docToken, "--doc-format", "xml", "--scope", "outline", "--max-depth", "3"},
 			DefaultAs: defaultAs,
 		})
 		require.NoError(t, err)
 		result.AssertExitCode(t, 0)
 		result.AssertStdoutStatus(t, true)
+		require.Equal(t, defaultAs, gjson.Get(result.Stdout, "identity").String())
 		require.False(t, docsFetchReferenceGroupExists(result.Stdout, "comments"))
 		require.NotContains(t, gjson.Get(result.Stdout, "data.document.content").String(), "comment-refs=")
 	})
@@ -307,41 +399,62 @@ func assertDocsFetchReadOnlyContract(t *testing.T, stdout string, allowWhole boo
 	return docsFetchReadOnlySummary{localCount: len(localKeys), wholeCount: len(wholeKeys), truncated: truncated}
 }
 
-func firstLocalCommentQuote(t *testing.T, stdout string) string {
+func firstLocalCommentAnchor(t *testing.T, stdout string) string {
 	t.Helper()
 
 	var envelope docsFetchCommentEnvelope
 	require.NoError(t, json.Unmarshal([]byte(stdout), &envelope))
-	for key, entry := range envelope.Data.Document.ReferenceMap["comments"] {
-		if key == "tips" {
-			continue
+	anchor, err := firstCommentRefAnchor(envelope.Data.Document.Content)
+	require.NoError(t, err)
+	return anchor
+}
+
+func firstCommentRefAnchor(content string) (string, error) {
+	decoder := xml.NewDecoder(strings.NewReader(content))
+	depth := 0
+	captureDepth := -1
+	var anchor strings.Builder
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			break
 		}
-		decoder := xml.NewDecoder(strings.NewReader(entry.Data))
-		for {
-			token, err := decoder.Token()
-			if err == io.EOF {
-				break
-			}
-			require.NoError(t, err, "comment sidecar must be well-formed XML")
-			start, ok := token.(xml.StartElement)
-			if !ok || start.Name.Local != "quote" {
+		if err != nil {
+			return "", fmt.Errorf("parse document XML: %w", err)
+		}
+		switch typed := token.(type) {
+		case xml.StartElement:
+			depth++
+			if captureDepth >= 0 {
 				continue
 			}
-			var quote string
-			require.NoError(t, decoder.DecodeElement(&quote, &start))
-			quote = strings.TrimSpace(quote)
-			if quote == "" {
-				break
+			for _, attr := range typed.Attr {
+				if attr.Name.Local == "comment-refs" && strings.TrimSpace(attr.Value) != "" {
+					captureDepth = depth
+					anchor.Reset()
+					break
+				}
 			}
-			runes := []rune(quote)
-			if len(runes) > 80 {
-				quote = string(runes[:80])
+		case xml.CharData:
+			if captureDepth >= 0 {
+				anchor.Write([]byte(typed))
 			}
-			return quote
+		case xml.EndElement:
+			if captureDepth == depth {
+				candidate := strings.Join(strings.Fields(anchor.String()), " ")
+				captureDepth = -1
+				if candidate != "" {
+					runes := []rune(candidate)
+					if len(runes) > 80 {
+						candidate = string(runes[:80])
+					}
+					return candidate, nil
+				}
+			}
+			depth--
 		}
 	}
-	t.Fatal("the shared fixture must contain a non-empty local comment quote")
-	return ""
+	return "", fmt.Errorf("document has no non-empty block with comment-refs")
 }
 
 func assertDocsFetchCommentContract(t *testing.T, stdout string, expected []docsFetchExpectedComment) {
