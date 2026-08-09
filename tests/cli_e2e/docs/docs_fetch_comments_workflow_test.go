@@ -165,7 +165,8 @@ func testDocsFetchCommentsReadOnlyFixture(t *testing.T, defaultAs, docToken stri
 		fetched.AssertStdoutStatus(t, true)
 		summary := assertDocsFetchReadOnlyContract(t, fetched.Stdout, true)
 		require.Positive(t, summary.localCount, "the shared fixture must contain local comments")
-		require.Positive(t, summary.wholeCount, "the shared fixture must contain whole-document comments")
+		require.Equal(t, 200, summary.wholeCount, "the large shared fixture must exercise the whole-comment cap")
+		require.True(t, summary.truncated, "the large shared fixture must emit the truncation tip")
 	})
 
 	t.Run("Markdown protocols do not expose XML comment sidecars", func(t *testing.T) {
@@ -250,6 +251,7 @@ type docsFetchExpectedComment struct {
 type docsFetchReadOnlySummary struct {
 	localCount int
 	wholeCount int
+	truncated  bool
 }
 
 func assertDocsFetchReadOnlyContract(t *testing.T, stdout string, allowWhole bool) docsFetchReadOnlySummary {
@@ -265,9 +267,11 @@ func assertDocsFetchReadOnlyContract(t *testing.T, stdout string, allowWhole boo
 
 	localKeys := make(map[string]struct{})
 	wholeKeys := make(map[string]struct{})
+	truncated := false
 	for key, entry := range entries {
 		if key == "tips" {
 			require.Equal(t, "Comments are truncated. Use the comment API to fetch complete content.", entry.Data)
+			truncated = true
 			continue
 		}
 		if !docsFetchCommentRefPattern.MatchString(key) {
@@ -298,7 +302,9 @@ func assertDocsFetchReadOnlyContract(t *testing.T, stdout string, allowWhole boo
 			t.Fatalf("whole-document comment %q must not be attached to a body block", ref)
 		}
 	}
-	return docsFetchReadOnlySummary{localCount: len(localKeys), wholeCount: len(wholeKeys)}
+	require.LessOrEqual(t, len(localKeys), 1000, "local comment cap must be enforced")
+	require.LessOrEqual(t, len(wholeKeys), 200, "whole-document comment cap must be enforced")
+	return docsFetchReadOnlySummary{localCount: len(localKeys), wholeCount: len(wholeKeys), truncated: truncated}
 }
 
 func firstLocalCommentQuote(t *testing.T, stdout string) string {
