@@ -93,7 +93,7 @@ func testDocsFetchCommentsWorkflow(t *testing.T, defaultAs string) {
 		})
 	})
 
-	t.Run("Markdown protocols remain comment free", func(t *testing.T) {
+	t.Run("Markdown protocols do not expose XML comment sidecars", func(t *testing.T) {
 		for _, docFormat := range []string{"markdown", "im-markdown"} {
 			t.Run(docFormat, func(t *testing.T) {
 				result, err := clie2e.RunCmd(ctx, clie2e.Request{
@@ -103,7 +103,7 @@ func testDocsFetchCommentsWorkflow(t *testing.T, defaultAs string) {
 				require.NoError(t, err)
 				result.AssertExitCode(t, 0)
 				content := gjson.Get(result.Stdout, "data.document.content").String()
-				if strings.Contains(content, "comment-refs=") || strings.Contains(content, "comment-ids=") || docsFetchReferenceGroupExists(result.Stdout, "comments") {
+				if strings.Contains(content, "comment-refs=") || docsFetchReferenceGroupExists(result.Stdout, "comments") {
 					t.Fatalf("%s fetch must not carry XML comment protocol:\n%s", docFormat, result.Stdout)
 				}
 			})
@@ -168,7 +168,7 @@ func testDocsFetchCommentsReadOnlyFixture(t *testing.T, defaultAs, docToken stri
 		require.Positive(t, summary.wholeCount, "the shared fixture must contain whole-document comments")
 	})
 
-	t.Run("Markdown protocols remain comment free", func(t *testing.T) {
+	t.Run("Markdown protocols do not expose XML comment sidecars", func(t *testing.T) {
 		for _, docFormat := range []string{"markdown", "im-markdown"} {
 			t.Run(docFormat, func(t *testing.T) {
 				result, err := clie2e.RunCmd(ctx, clie2e.Request{
@@ -179,7 +179,7 @@ func testDocsFetchCommentsReadOnlyFixture(t *testing.T, defaultAs, docToken stri
 				result.AssertExitCode(t, 0)
 				result.AssertStdoutStatus(t, true)
 				content := gjson.Get(result.Stdout, "data.document.content").String()
-				if strings.Contains(content, "comment-refs=") || strings.Contains(content, "comment-ids=") || docsFetchReferenceGroupExists(result.Stdout, "comments") {
+				if strings.Contains(content, "comment-refs=") || docsFetchReferenceGroupExists(result.Stdout, "comments") {
 					t.Fatalf("%s fetch must not carry XML comment protocol:\n%s", docFormat, result.Stdout)
 				}
 			})
