@@ -6,12 +6,12 @@ package docs
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"testing"
 	"time"
 
 	clie2e "github.com/larksuite/cli/tests/cli_e2e"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestDocsFetchDryRunXMLIncludesCommentsForUserAndBot(t *testing.T) {
@@ -114,8 +114,16 @@ func TestDocsFetchCommentsFlagIsRemovedFromHelpAndRejected(t *testing.T) {
 	require.NoError(t, err)
 	result.AssertExitCode(t, 2)
 	require.Empty(t, result.Stdout)
-	require.Contains(t, strings.ToLower(result.Stderr), "unknown flag")
-	require.Contains(t, result.Stderr, "--comments")
+
+	errJSON := gjson.Get(result.Stderr, "error")
+	require.True(t, errJSON.Exists(), "stderr missing typed error envelope:\n%s", result.Stderr)
+	require.Equal(t, "validation", errJSON.Get("type").String(), result.Stderr)
+	require.Equal(t, "invalid_argument", errJSON.Get("subtype").String(), result.Stderr)
+	require.Contains(t, errJSON.Get("message").String(), `unknown flag "--comments"`, result.Stderr)
+	require.Equal(t, int64(1), errJSON.Get("params.#").Int(), result.Stderr)
+	require.Equal(t, "--comments", errJSON.Get("params.0.name").String(), result.Stderr)
+	require.Equal(t, "unknown flag", errJSON.Get("params.0.reason").String(), result.Stderr)
+	require.NotEmpty(t, errJSON.Get("hint").String(), "unknown flag error must include recovery guidance: %s", result.Stderr)
 }
 
 func TestDocsFetchDryRunIgnoresAPIVersionCompatFlag(t *testing.T) {
