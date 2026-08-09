@@ -56,6 +56,16 @@ func TestDocsFetchCommentsDeniedDocumentDoesNotLeakToBot(t *testing.T) {
 	folderToken := drive.CreateDriveFolder(t, t, ctx, "lark-cli-e2e-fetch-comments-denied-"+suffix, "user", "")
 	docToken := createDocWithRetry(t, t, ctx, folderToken, "fetch comments denied "+suffix, anchorText, "user")
 	addDocComment(t, ctx, "user", docToken, commentText, "--full-comment")
+	ownerResult, err := clie2e.RunCmd(ctx, clie2e.Request{
+		Args:      []string{"docs", "+fetch", "--doc", docToken, "--doc-format", "xml"},
+		DefaultAs: "user",
+	})
+	require.NoError(t, err)
+	ownerResult.AssertExitCode(t, 0)
+	ownerResult.AssertStdoutStatus(t, true)
+	require.Equal(t, "user", gjson.Get(ownerResult.Stdout, "identity").String())
+	require.Contains(t, gjson.Get(ownerResult.Stdout, "data.document.content").String(), anchorText)
+	require.True(t, docsFetchReferenceGroupContains(ownerResult.Stdout, "comments", commentText), "owner fetch must prove the private fixture and its comment exist")
 
 	result, err := clie2e.RunCmd(ctx, clie2e.Request{
 		Args:      []string{"docs", "+fetch", "--doc", docToken, "--doc-format", "xml"},
@@ -69,30 +79,38 @@ func TestDocsFetchCommentsDeniedDocumentDoesNotLeakToBot(t *testing.T) {
 	require.NotContains(t, combined, commentText, "permission error leaked comment content")
 	require.False(t, gjson.Get(result.Stdout, "data.document").Exists(), "permission error returned a document payload")
 	require.Equal(t, "bot", gjson.Get(result.Stderr, "identity").String())
-	require.NotZero(t, gjson.Get(result.Stderr, "error.code").Int(), "permission denial must return a structured API error")
+	require.Equal(t, "api", gjson.Get(result.Stderr, "error.type").String(), "denial must be a structured upstream API failure")
+	require.EqualValues(t, 3380004, gjson.Get(result.Stderr, "error.code").Int(), "denial must be the ai_edit document-ACL error")
+	require.Contains(t, gjson.Get(result.Stderr, "error.message").String(), "No permission to operate on this document")
+	require.False(t, gjson.Get(result.Stderr, "error.retryable").Bool(), "document ACL denial must not be retryable")
 }
 
 func TestFirstCommentRefAnchor(t *testing.T) {
 	tests := []struct {
 		name    string
 		content string
-		want    string
+		want    docsFetchLocalAnchor
 		wantErr bool
 	}{
 		{
 			name:    "nested inline content",
-			content: `<doc><p comment-refs="c1"> alpha <b>beta</b> gamma </p></doc>`,
-			want:    "alpha beta gamma",
+			content: `<doc><p comment-refs="c1"> alpha <b comment-refs="c2">beta</b> gamma </p></doc>`,
+			want:    docsFetchLocalAnchor{keyword: "alpha beta gamma", refs: []string{"c1", "c2"}},
 		},
 		{
 			name:    "skip empty referenced block",
 			content: `<doc><p comment-refs="c1"><img src="token"/></p><p comment-refs="c2">usable anchor</p></doc>`,
-			want:    "usable anchor",
+			want:    docsFetchLocalAnchor{keyword: "usable anchor", refs: []string{"c2"}},
 		},
 		{
 			name:    "rune safe limit",
 			content: `<doc><p comment-refs="c1">` + strings.Repeat("评", 81) + `</p></doc>`,
-			want:    strings.Repeat("评", 80),
+			want:    docsFetchLocalAnchor{keyword: strings.Repeat("评", 80), refs: []string{"c1"}},
+		},
+		{
+			name:    "skip non unique keyword",
+			content: `<doc><p comment-refs="c1">same</p><p>same</p><p comment-refs="c2">unique</p></doc>`,
+			want:    docsFetchLocalAnchor{keyword: "unique", refs: []string{"c2"}},
 		},
 		{
 			name:    "missing comment refs",
@@ -279,11 +297,12 @@ func testDocsFetchCommentsReadOnlyFixture(t *testing.T, defaultAs, docToken stri
 
 	t.Run("partial returns only intersecting local comments", func(t *testing.T) {
 		require.NotNil(t, fetched)
-		keyword := firstLocalCommentAnchor(t, fetched.Stdout)
+		anchor := firstLocalCommentAnchor(t, fetched.Stdout)
+		expectedRootIDs := rootCommentIDsForRefs(t, fetched.Stdout, anchor.refs)
 		result, err := clie2e.RunCmd(ctx, clie2e.Request{
 			Args: []string{
 				"docs", "+fetch", "--doc", docToken, "--doc-format", "xml",
-				"--scope", "keyword", "--keyword", keyword,
+				"--scope", "keyword", "--keyword", anchor.keyword,
 			},
 			DefaultAs: defaultAs,
 		})
@@ -294,6 +313,8 @@ func testDocsFetchCommentsReadOnlyFixture(t *testing.T, defaultAs, docToken stri
 		summary := assertDocsFetchReadOnlyContract(t, result.Stdout, false)
 		require.Positive(t, summary.localCount, "keyword fetch must retain at least one intersecting local comment")
 		require.Zero(t, summary.wholeCount, "keyword fetch must omit whole-document comments")
+		require.False(t, summary.truncated, "keyword fetch must not emit full-document truncation tips")
+		require.Equal(t, expectedRootIDs, localRootCommentIDs(t, result.Stdout), "keyword fetch must return exactly the comments attached to the selected unique body block")
 	})
 
 	t.Run("outline remains comment free", func(t *testing.T) {
@@ -344,6 +365,11 @@ type docsFetchReadOnlySummary struct {
 	localCount int
 	wholeCount int
 	truncated  bool
+}
+
+type docsFetchLocalAnchor struct {
+	keyword string
+	refs    []string
 }
 
 func assertDocsFetchReadOnlyContract(t *testing.T, stdout string, allowWhole bool) docsFetchReadOnlySummary {
@@ -399,7 +425,7 @@ func assertDocsFetchReadOnlyContract(t *testing.T, stdout string, allowWhole boo
 	return docsFetchReadOnlySummary{localCount: len(localKeys), wholeCount: len(wholeKeys), truncated: truncated}
 }
 
-func firstLocalCommentAnchor(t *testing.T, stdout string) string {
+func firstLocalCommentAnchor(t *testing.T, stdout string) docsFetchLocalAnchor {
 	t.Helper()
 
 	var envelope docsFetchCommentEnvelope
@@ -409,52 +435,120 @@ func firstLocalCommentAnchor(t *testing.T, stdout string) string {
 	return anchor
 }
 
-func firstCommentRefAnchor(content string) (string, error) {
+type commentRefAnchorCapture struct {
+	depth int
+	refs  []string
+	text  strings.Builder
+}
+
+func firstCommentRefAnchor(content string) (docsFetchLocalAnchor, error) {
 	decoder := xml.NewDecoder(strings.NewReader(content))
 	depth := 0
-	captureDepth := -1
-	var anchor strings.Builder
+	var documentText strings.Builder
+	var captures []*commentRefAnchorCapture
+	var active []*commentRefAnchorCapture
 	for {
 		token, err := decoder.Token()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return "", fmt.Errorf("parse document XML: %w", err)
+			return docsFetchLocalAnchor{}, fmt.Errorf("parse document XML: %w", err)
 		}
 		switch typed := token.(type) {
 		case xml.StartElement:
 			depth++
-			if captureDepth >= 0 {
-				continue
-			}
+			var refs []string
 			for _, attr := range typed.Attr {
 				if attr.Name.Local == "comment-refs" && strings.TrimSpace(attr.Value) != "" {
-					captureDepth = depth
-					anchor.Reset()
+					refs = strings.Fields(attr.Value)
 					break
 				}
 			}
+			if len(refs) > 0 {
+				for _, parent := range active {
+					parent.refs = append(parent.refs, refs...)
+				}
+				capture := &commentRefAnchorCapture{depth: depth, refs: append([]string(nil), refs...)}
+				captures = append(captures, capture)
+				active = append(active, capture)
+			}
 		case xml.CharData:
-			if captureDepth >= 0 {
-				anchor.Write([]byte(typed))
+			documentText.Write([]byte(typed))
+			for _, capture := range active {
+				capture.text.Write([]byte(typed))
 			}
 		case xml.EndElement:
-			if captureDepth == depth {
-				candidate := strings.Join(strings.Fields(anchor.String()), " ")
-				captureDepth = -1
-				if candidate != "" {
-					runes := []rune(candidate)
-					if len(runes) > 80 {
-						candidate = string(runes[:80])
-					}
-					return candidate, nil
+			for i := len(active) - 1; i >= 0; i-- {
+				if active[i].depth == depth {
+					active = append(active[:i], active[i+1:]...)
 				}
 			}
 			depth--
 		}
 	}
-	return "", fmt.Errorf("document has no non-empty block with comment-refs")
+
+	normalizedDocumentText := strings.Join(strings.Fields(documentText.String()), " ")
+	for _, capture := range captures {
+		keyword := strings.Join(strings.Fields(capture.text.String()), " ")
+		if keyword == "" {
+			continue
+		}
+		runes := []rune(keyword)
+		if len(runes) > 80 {
+			keyword = string(runes[:80])
+		}
+		if strings.Count(normalizedDocumentText, keyword) != 1 {
+			continue
+		}
+		return docsFetchLocalAnchor{keyword: keyword, refs: dedupeStrings(capture.refs)}, nil
+	}
+	return docsFetchLocalAnchor{}, fmt.Errorf("document has no unique non-empty block with comment-refs")
+}
+
+func dedupeStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
+}
+
+func rootCommentIDsForRefs(t *testing.T, stdout string, refs []string) map[string]struct{} {
+	t.Helper()
+	var envelope docsFetchCommentEnvelope
+	require.NoError(t, json.Unmarshal([]byte(stdout), &envelope))
+	entries := envelope.Data.Document.ReferenceMap["comments"]
+	rootIDs := make(map[string]struct{}, len(refs))
+	for _, ref := range refs {
+		entry, exists := entries[ref]
+		require.True(t, exists, "body comment ref %q must resolve in the full sidecar", ref)
+		shape := assertCommentXML(t, entry.Data)
+		require.False(t, shape.isWhole, "body comment ref %q must resolve to a local comment", ref)
+		rootIDs[shape.commentID] = struct{}{}
+	}
+	return rootIDs
+}
+
+func localRootCommentIDs(t *testing.T, stdout string) map[string]struct{} {
+	t.Helper()
+	var envelope docsFetchCommentEnvelope
+	require.NoError(t, json.Unmarshal([]byte(stdout), &envelope))
+	rootIDs := make(map[string]struct{})
+	for key, entry := range envelope.Data.Document.ReferenceMap["comments"] {
+		if key == "tips" {
+			continue
+		}
+		shape := assertCommentXML(t, entry.Data)
+		require.False(t, shape.isWhole, "keyword sidecar must contain only local comments")
+		rootIDs[shape.commentID] = struct{}{}
+	}
+	return rootIDs
 }
 
 func assertDocsFetchCommentContract(t *testing.T, stdout string, expected []docsFetchExpectedComment) {

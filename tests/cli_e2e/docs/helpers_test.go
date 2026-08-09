@@ -18,7 +18,7 @@ func createDocWithRetry(t *testing.T, parentT *testing.T, ctx context.Context, f
 
 	require.NotEmpty(t, folderToken, "folder token is required")
 
-	result, err := clie2e.RunCmdWithRetry(ctx, clie2e.Request{
+	result, err := clie2e.RunCmd(ctx, clie2e.Request{
 		Args: []string{
 			"docs", "+create",
 			"--parent-token", folderToken,
@@ -26,7 +26,7 @@ func createDocWithRetry(t *testing.T, parentT *testing.T, ctx context.Context, f
 			"--content", "# " + title + "\n\n" + markdown,
 		},
 		DefaultAs: defaultAs,
-	}, clie2e.RetryOptions{})
+	})
 	require.NoError(t, err)
 	result.AssertExitCode(t, 0)
 	result.AssertStdoutStatus(t, true)
