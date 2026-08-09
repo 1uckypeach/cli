@@ -124,7 +124,7 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 - 需要同时处理正文和评论时使用 `--format json`。显式 `--format pretty` 仍只输出正文，不渲染 `reference_map` sidecar。
 - 评论或锚点依赖不可用时，正文仍正常返回，评论整体省略，并在 `tips` 中出现 `comments_omitted:<reason>`。
 
-`--as user` 和 `--as bot` 都支持 XML 评论读取，且不需要评论专属 scope。服务端始终使用当前 UAT 用户或 TAT bot/service principal 的同一可信身份检查文档与评论权限；bot 不继承 app owner、安装者或租户管理员的评论权限。
+`--as user` 和 `--as bot` 都支持 XML 评论读取，且只需当前身份具备文档阅读权限，不需要评论专属 scope。服务端始终使用当前 UAT 用户或 TAT bot/service principal 的同一可信身份读取其可见评论；bot 不继承 app owner、安装者或租户管理员的可见范围。
 
 ```xml
 <p comment-refs="c1">评论引用的正文</p>
