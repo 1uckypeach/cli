@@ -119,7 +119,7 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 - `<comment>` 只表达引用文本、`<msg>` 消息以及有效的图片、文档引用和 reaction。根 `id` 是评论 API 可继续使用的正整数评论 ID；状态和完整格式仍应通过 `lark-drive` 评论命令获取。
 - 全文读取最多返回 1000 条局部评论和 200 条全文评论；`keyword` / `range` / `section` 只返回与片段相交的局部评论，不返回全文评论；`outline` 不查询评论。发生截断时只增加 `reference_map.comments.tips`。
 - reaction 属于 best-effort 展示信息；省略 reaction 不影响评论正文和引用关系。
-- Markdown 与 IM Markdown 的请求和正文协议保持不变，不承载评论锚点或评论 sidecar。需要评论时使用默认的 `--doc-format xml`。
+- Markdown 与 IM Markdown 不启用本节的 `comment-refs` / comments sidecar 协议，正文沿用既有输出，不做额外评论处理。需要紧凑评论上下文时使用默认的 `--doc-format xml`。
 - 指定历史 `--revision-id` 时，正文来自该历史版本；评论是“当前仍可见、仍未解决”的快照投影到这份正文。局部评论仅在该 revision 能解析到锚点时返回，全文评论仅在全文读取时返回；它不是历史时刻的评论回放。
 - 需要同时处理正文和评论时使用 `--format json`。显式 `--format pretty` 仍只输出正文，不渲染 `reference_map` sidecar。
 - 评论或锚点依赖不可用时，正文仍正常返回，评论整体省略，并在 `tips` 中出现 `comments_omitted:<reason>`。
