@@ -14,13 +14,13 @@ metadata:
 
 **CRITICAL：先判断场景，再读取该场景的参考文件；不要在任务开始时一次性读取全部参考文件。每个文件只在首次进入对应阶段时读取一次。**
 
-**身份：文档操作推荐显式指定 `--as user`。当前 `docs +fetch --comments` 例外：服务端尚不能可信校验 user access token 的精确评论 scope，按读取参考暂用 `--as bot`，不要尝试绕过安全拒绝。**
+**身份：文档操作推荐显式指定 `--as user`。XML 读取默认附带当前身份可见的未解决评论；`--as user` 与 `--as bot` 都受各自的文档和评论权限约束。**
 
 **所有表示本地文件的 `@path` 均使用 `@./xxx` 形式的相对路径，并以运行 `lark-cli` 时的当前工作目录（CWD）为基准。**
 
 ### 文档内容
 
-- **读取 / 摘要 — [`+fetch`](references/lark-doc-fetch.md)**：先读参考再获取文档；需要把正文与可见未解决评论一起交给模型时，使用 `--comments`。
+- **读取 / 摘要 — [`+fetch`](references/lark-doc-fetch.md)**：先读参考再获取文档；默认 XML 输出会把正文与当前身份可见的未解决评论一起交给模型。
 - **从零创作 — [`创建工作流`](references/lark-doc-create-workflow.md)**：先完整执行创建工作流，**简单任务不是跳过的理由**；
 - **导入 / 空文档 — [`+create`](references/lark-doc-create.md)**：仅创建空文档或原样导入用户提供的完整内容时，跳过创建工作流。
 - **编辑 / block 直达链接 — [`+update`](references/lark-doc-update.md)**：语义改写、润色、重组、补写或排版均按 update 参考完成。
@@ -46,4 +46,4 @@ metadata:
 ## 不在本 Skill 范围
 
 - **Drive 文件级操作**：找文档、导入导出、云空间文件上传 / 下载 / 权限管理 → [`lark-drive`](../lark-drive/SKILL.md)。复制文档、创建副本或另存为副本时，按其指引使用 `lark-cli drive files copy`；不要用 `docs +fetch` + `docs +create` 重建正文。
-- **独立评论操作**：添加、分页查看、回复评论或增删 reaction → [`lark-drive`](../lark-drive/SKILL.md)；只需在读取正文时附带紧凑评论上下文，可使用 `docs +fetch --comments`。
+- **独立评论操作**：添加、分页查看、回复评论或增删 reaction → [`lark-drive`](../lark-drive/SKILL.md)；只需紧凑评论上下文时，直接使用默认 XML 的 `docs +fetch`。

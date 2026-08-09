@@ -509,102 +509,6 @@ func TestValidateFetchV2RejectsInvalidDocAndScope(t *testing.T) {
 	}
 }
 
-func TestValidateFetchV2RejectsInvalidCommentCombinations(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		identity  core.Identity
-		format    string
-		docFormat string
-		wantParam string
-	}{
-		{name: "lossy output", identity: core.AsBot, format: "pretty", wantParam: "--format"},
-		{name: "user identity", identity: core.AsUser, format: "json", wantParam: "--as"},
-		{name: "Markdown", identity: core.AsBot, format: "json", docFormat: "markdown", wantParam: "--doc-format"},
-		{name: "IM Markdown", identity: core.AsBot, format: "json", docFormat: "im-markdown", wantParam: "--doc-format"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			base := newFetchBodyTestRuntime(context.Background())
-			runtime := common.TestNewRuntimeContextWithIdentity(base.Cmd, nil, tt.identity)
-			runtime.Format = tt.format
-			mustSetFetchFlag(t, runtime, "comments", "true")
-			if tt.docFormat != "" {
-				mustSetFetchFlag(t, runtime, "doc-format", tt.docFormat)
-			}
-
-			err := validateFetchV2(context.Background(), runtime)
-			if err == nil {
-				t.Fatal("validateFetchV2() succeeded, want validation error")
-			}
-			assertValidationContract(t, err, errs.SubtypeInvalidArgument, tt.wantParam)
-		})
-	}
-}
-
-func TestValidateFetchCommentDocFormat(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		docFormat string
-		scope     string
-		comments  bool
-		wantErr   bool
-	}{
-		{name: "XML comments", docFormat: "xml", scope: "full", comments: true},
-		{name: "Markdown comments rejected", docFormat: "markdown", scope: "full", comments: true, wantErr: true},
-		{name: "IM Markdown comments rejected", docFormat: "im-markdown", scope: "full", comments: true, wantErr: true},
-		{name: "IM Markdown without comments unchanged", docFormat: "im-markdown", scope: "full"},
-		{name: "IM Markdown outline has no effective comments", docFormat: "im-markdown", scope: "outline", comments: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			runtime := newFetchBodyTestRuntime(context.Background())
-			mustSetFetchFlag(t, runtime, "doc-format", tt.docFormat)
-			mustSetFetchFlag(t, runtime, "scope", tt.scope)
-			if tt.comments {
-				mustSetFetchFlag(t, runtime, "comments", "true")
-			}
-
-			err := validateFetchCommentDocFormat(runtime)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("validateFetchCommentDocFormat() succeeded, want validation error")
-				}
-				assertValidationContract(t, err, errs.SubtypeInvalidArgument, "--doc-format")
-				if !strings.Contains(err.Error(), "only XML") || !strings.Contains(err.Error(), "Markdown and IM Markdown remain unchanged") {
-					t.Fatalf("error does not explain the supported formats and compatibility boundary: %v", err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("validateFetchCommentDocFormat() err=%v", err)
-			}
-		})
-	}
-}
-
-func TestValidateFetchV2CommentsRunsConditionalScopeCheck(t *testing.T) {
-	t.Parallel()
-
-	config := &core.CliConfig{AppID: "test-app"}
-	factory, _, _, _ := cmdutil.TestFactory(t, config)
-	base := newFetchBodyTestRuntime(context.Background())
-	runtime := common.TestNewRuntimeContextForAPI(context.Background(), base.Cmd, config, factory, core.AsBot)
-	runtime.Format = "json"
-	mustSetFetchFlag(t, runtime, "comments", "true")
-
-	if err := validateFetchV2(context.Background(), runtime); err != nil {
-		t.Fatalf("validateFetchV2() err=%v", err)
-	}
-}
-
 func TestAddFetchDetailDowngradeWarningNoops(t *testing.T) {
 	t.Parallel()
 
@@ -668,30 +572,49 @@ func TestBuildFetchBodyIncludesFetchExtraParamByDefault(t *testing.T) {
 	if got["return_html5_block_data"] != true {
 		t.Fatalf("return_html5_block_data = %#v, want true in %#v", got["return_html5_block_data"], got)
 	}
+	if got["include_comments"] != true {
+		t.Fatalf("include_comments = %#v, want true in %#v", got["include_comments"], got)
+	}
 	if _, ok := got["reference_map_mode"]; ok {
 		t.Fatalf("extra_param should not use legacy reference_map_mode: %#v", got)
 	}
-	if len(got) != 2 {
-		t.Fatalf("extra_param should only contain fetch reference_map and html5 data toggles: %#v", got)
+	if len(got) != 3 {
+		t.Fatalf("XML extra_param should contain only the two export toggles and include_comments: %#v", got)
 	}
 }
 
-func TestBuildFetchBodyIncludesCommentsOnlyWhenEffective(t *testing.T) {
+func TestDocsScriptFetchDoesNotEnableComments(t *testing.T) {
+	t.Parallel()
+
+	body := docsScriptFetchBody(newFetchBodyTestRuntime(context.Background()))
+	var extra map[string]bool
+	if err := json.Unmarshal([]byte(body.ExtraParam), &extra); err != nil {
+		t.Fatalf("decode docs +script extra_param: %v", err)
+	}
+	if _, ok := extra["include_comments"]; ok {
+		t.Fatalf("docs +script must keep its existing comment-free request: %#v", extra)
+	}
+}
+
+func TestBuildFetchBodyIncludesCommentsOnlyForXML(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
 		name         string
+		docFormat    string
 		scope        string
 		wantComments bool
 	}{
-		{name: "full", scope: "full", wantComments: true},
-		{name: "partial", scope: "keyword", wantComments: true},
-		{name: "outline directory", scope: "outline", wantComments: false},
+		{name: "XML full", docFormat: "xml", scope: "full", wantComments: true},
+		{name: "XML partial", docFormat: "xml", scope: "keyword", wantComments: true},
+		{name: "XML outline", docFormat: "xml", scope: "outline", wantComments: true},
+		{name: "Markdown full", docFormat: "markdown", scope: "full"},
+		{name: "IM Markdown partial", docFormat: "im-markdown", scope: "keyword"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			runtime := newFetchBodyTestRuntime(context.Background())
-			mustSetFetchFlag(t, runtime, "comments", "true")
+			mustSetFetchFlag(t, runtime, "doc-format", tt.docFormat)
 			mustSetFetchFlag(t, runtime, "scope", tt.scope)
 			if tt.scope == "keyword" {
 				mustSetFetchFlag(t, runtime, "keyword", "commented")
@@ -708,118 +631,35 @@ func TestBuildFetchBodyIncludesCommentsOnlyWhenEffective(t *testing.T) {
 	}
 }
 
-func TestDocsFetchDeclaresCommentReadConditionalScope(t *testing.T) {
+func TestDocsFetchHasNoCommentSpecificConditionalScope(t *testing.T) {
 	t.Parallel()
-	if !reflect.DeepEqual(DocsFetch.ConditionalScopes, []string{docsFetchCommentReadScope}) {
-		t.Fatalf("ConditionalScopes=%v, want [%q]", DocsFetch.ConditionalScopes, docsFetchCommentReadScope)
+	if len(DocsFetch.ConditionalScopes) != 0 {
+		t.Fatalf("ConditionalScopes=%v, want none", DocsFetch.ConditionalScopes)
 	}
 }
 
-func TestValidateFetchCommentOutput(t *testing.T) {
+func TestValidateFetchV2AcceptsXMLPrettyForUserAndBot(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name         string
-		outputFormat string
-		docFormat    string
-		scope        string
-		comments     bool
-		wantErr      bool
-	}{
-		{name: "xml pretty loses sidecar", outputFormat: "pretty", docFormat: "xml", scope: "full", comments: true, wantErr: true},
-		{name: "markdown pretty loses sidecar", outputFormat: "pretty", docFormat: "markdown", scope: "keyword", comments: true, wantErr: true},
-		{name: "table truncates nested document", outputFormat: "table", docFormat: "xml", scope: "full", comments: true, wantErr: true},
-		{name: "csv cannot preserve nested document", outputFormat: "csv", docFormat: "xml", scope: "full", comments: true, wantErr: true},
-		{name: "ndjson is not the documented lossless contract", outputFormat: "ndjson", docFormat: "xml", scope: "full", comments: true, wantErr: true},
-		{name: "yaml is not the lossless comment contract", outputFormat: "yaml", docFormat: "xml", scope: "full", comments: true, wantErr: true},
-		{name: "json preserves sidecar", outputFormat: "json", docFormat: "xml", scope: "full", comments: true},
-		{name: "json flag fallback preserves sidecar", docFormat: "xml", scope: "full", comments: true},
-		{name: "outline intentionally has no comments", outputFormat: "pretty", docFormat: "xml", scope: "outline", comments: true},
-		{name: "comments disabled", outputFormat: "pretty", docFormat: "xml", scope: "full"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			runtime := newFetchBodyTestRuntime(context.Background())
-			runtime.Format = tt.outputFormat
-			mustSetFetchFlag(t, runtime, "doc-format", tt.docFormat)
-			mustSetFetchFlag(t, runtime, "scope", tt.scope)
-			if tt.scope == "keyword" {
-				mustSetFetchFlag(t, runtime, "keyword", "commented")
-			}
-			if tt.comments {
-				mustSetFetchFlag(t, runtime, "comments", "true")
-			}
-
-			err := validateFetchCommentOutput(runtime)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("validateFetchCommentOutput() succeeded, want validation error")
-				}
-				assertValidationContract(t, err, errs.SubtypeInvalidArgument, "--format")
-				if !strings.Contains(err.Error(), "reference_map") || !strings.Contains(err.Error(), "--format json") {
-					t.Fatalf("error does not explain the lossless alternative: %v", err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("validateFetchCommentOutput() err=%v", err)
-			}
-		})
-	}
-}
-
-func TestValidateFetchCommentIdentity(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		identity core.Identity
-		scope    string
-		comments bool
-		wantErr  bool
-	}{
-		{name: "bot comments", identity: core.AsBot, scope: "full", comments: true},
-		{name: "user comments rejected", identity: core.AsUser, scope: "full", comments: true, wantErr: true},
-		{name: "user outline has no effective comments", identity: core.AsUser, scope: "outline", comments: true},
-		{name: "user without comments", identity: core.AsUser, scope: "full"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, identity := range []core.Identity{core.AsUser, core.AsBot} {
+		t.Run(string(identity), func(t *testing.T) {
 			t.Parallel()
 			base := newFetchBodyTestRuntime(context.Background())
-			runtime := common.TestNewRuntimeContextWithIdentity(base.Cmd, nil, tt.identity)
-			mustSetFetchFlag(t, runtime, "scope", tt.scope)
-			if tt.comments {
-				mustSetFetchFlag(t, runtime, "comments", "true")
-			}
-
-			err := validateFetchCommentIdentity(runtime)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("validateFetchCommentIdentity() succeeded, want validation error")
-				}
-				assertValidationContract(t, err, errs.SubtypeInvalidArgument, "--as")
-				if !strings.Contains(err.Error(), "--as bot") {
-					t.Fatalf("error does not explain the supported identity: %v", err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("validateFetchCommentIdentity() err=%v", err)
+			runtime := common.TestNewRuntimeContextWithIdentity(base.Cmd, nil, identity)
+			runtime.Format = "pretty"
+			if err := validateFetchV2(context.Background(), runtime); err != nil {
+				t.Fatalf("validateFetchV2() err=%v", err)
 			}
 		})
 	}
 }
 
-func TestDocsFetchV2ReferenceMapFlagIsNotAvailable(t *testing.T) {
+func TestDocsFetchV2RemovedFlagsAreNotAvailable(t *testing.T) {
 	t.Parallel()
 
 	for _, flag := range v2FetchFlags() {
-		if flag.Name == "reference-map" {
-			t.Fatal("fetch should not expose reference-map flag")
+		if flag.Name == "reference-map" || flag.Name == "comments" {
+			t.Fatalf("fetch should not expose removed flag --%s", flag.Name)
 		}
 	}
 }
@@ -914,6 +754,76 @@ func TestDocsFetchIMMarkdownIgnoresHTML5BlockInsideCodeFence(t *testing.T) {
 	}
 	if _, ok := doc["reference_map"]; ok {
 		t.Fatalf("fenced html5-block should not create reference_map side effects: %#v", doc["reference_map"])
+	}
+}
+
+func TestDocsFetchXMLOutputContract(t *testing.T) {
+	const (
+		content     = `<p comment-refs="c1">body</p>`
+		commentData = `<comment id="1"><msg user="Reviewer">looks good</msg></comment>`
+	)
+
+	for _, outputFormat := range []string{"json", "pretty"} {
+		t.Run(outputFormat, func(t *testing.T) {
+			t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+			docToken := "doxcnFetchComments" + outputFormat
+			f, stdout, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-fetch-comments-"+outputFormat))
+			stub := registerDocsAIStub(reg, "POST", "/open-apis/docs_ai/v1/documents/"+docToken+"/fetch", map[string]interface{}{
+				"document": map[string]interface{}{
+					"document_id": docToken,
+					"revision_id": float64(1),
+					"content":     content,
+					"reference_map": map[string]interface{}{
+						"comments": map[string]interface{}{
+							"c1": map[string]interface{}{"data": commentData},
+						},
+					},
+				},
+			})
+
+			err := mountAndRunDocs(t, DocsFetch, []string{
+				"+fetch",
+				"--doc", docToken,
+				"--doc-format", "xml",
+				"--format", outputFormat,
+				"--as", "bot",
+			}, f, stdout)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			body := decodeRequestBody(t, stub.CapturedBody)
+			var extra map[string]bool
+			if err := json.Unmarshal([]byte(body["extra_param"].(string)), &extra); err != nil {
+				t.Fatalf("decode extra_param: %v", err)
+			}
+			if extra["include_comments"] != true {
+				t.Fatalf("request extra_param = %#v, want include_comments=true", extra)
+			}
+
+			if outputFormat == "pretty" {
+				if got := stdout.String(); got != content+"\n" {
+					t.Fatalf("pretty stdout = %q, want body only", got)
+				}
+				return
+			}
+
+			var envelope map[string]interface{}
+			if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+				t.Fatalf("decode JSON output: %v\nraw=%s", err, stdout.String())
+			}
+			data, _ := envelope["data"].(map[string]interface{})
+			document, _ := data["document"].(map[string]interface{})
+			if got := document["content"]; got != content {
+				t.Fatalf("document.content = %#v, want %q", got, content)
+			}
+			referenceMap, _ := document["reference_map"].(map[string]interface{})
+			comments, _ := referenceMap["comments"].(map[string]interface{})
+			comment, _ := comments["c1"].(map[string]interface{})
+			if got := comment["data"]; got != commentData {
+				t.Fatalf("comments.c1.data = %#v, want %q", got, commentData)
+			}
+		})
 	}
 }
 
@@ -1198,7 +1108,6 @@ func newFetchBodyTestRuntime(ctx context.Context) *common.RuntimeContext {
 	cmd.Flags().Int("context-before", fetchDefaultInt("context-before"), "")
 	cmd.Flags().Int("context-after", fetchDefaultInt("context-after"), "")
 	cmd.Flags().Int("max-depth", fetchDefaultInt("max-depth"), "")
-	cmd.Flags().Bool("comments", false, "")
 	return common.TestNewRuntimeContextWithCtx(ctx, cmd, nil)
 }
 
@@ -1255,7 +1164,6 @@ func newFetchShortcutTestRuntime(t *testing.T, apiVersion string, setFlags map[s
 	cmd.Flags().Int("context-before", fetchDefaultInt("context-before"), "")
 	cmd.Flags().Int("context-after", fetchDefaultInt("context-after"), "")
 	cmd.Flags().Int("max-depth", fetchDefaultInt("max-depth"), "")
-	cmd.Flags().Bool("comments", false, "")
 	cmd.Flags().String("offset", "", "")
 	cmd.Flags().String("limit", "", "")
 	if apiVersion != "" {

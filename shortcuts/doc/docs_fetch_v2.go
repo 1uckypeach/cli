@@ -15,9 +15,8 @@ import (
 )
 
 const (
-	docsFetchCommentReadScope   = "docs:document.comment:read"
-	docsFetchExtraParam         = `{"enable_user_cite_reference_map":true,"return_html5_block_data":true}`
-	docsFetchCommentsExtraParam = `{"enable_user_cite_reference_map":true,"include_comments":true,"return_html5_block_data":true}`
+	docsFetchExtraParam    = `{"enable_user_cite_reference_map":true,"return_html5_block_data":true}`
+	docsFetchXMLExtraParam = `{"enable_user_cite_reference_map":true,"include_comments":true,"return_html5_block_data":true}`
 )
 
 // v2FetchFlags returns the flag definitions for the v2 (OpenAPI) fetch path.
@@ -34,7 +33,6 @@ func v2FetchFlags() []common.Flag {
 		{Name: "context-before", Desc: "range/keyword/section context: sibling blocks before selected top-level blocks", Type: "int", Default: "0"},
 		{Name: "context-after", Desc: "range/keyword/section context: sibling blocks after selected top-level blocks", Type: "int", Default: "0"},
 		{Name: "max-depth", Desc: "outline heading level cap; other scopes subtree depth where -1 is unlimited and 0 is block only", Type: "int", Default: "-1"},
-		{Name: "comments", Desc: "include visible unresolved local and whole-document comments in XML using bot identity; local comments are linked through comment-refs", Type: "bool"},
 	}
 }
 
@@ -50,46 +48,6 @@ func validateFetchV2(_ context.Context, runtime *common.RuntimeContext) error {
 	}
 	if err := validateReadModeFlags(runtime); err != nil {
 		return err
-	}
-	if err := validateFetchCommentDocFormat(runtime); err != nil {
-		return err
-	}
-	if err := validateFetchCommentOutput(runtime); err != nil {
-		return err
-	}
-	if err := validateFetchCommentIdentity(runtime); err != nil {
-		return err
-	}
-	if shouldIncludeFetchComments(runtime) {
-		return runtime.EnsureScopes([]string{docsFetchCommentReadScope})
-	}
-	return nil
-}
-
-func validateFetchCommentIdentity(runtime *common.RuntimeContext) error {
-	if !shouldIncludeFetchComments(runtime) || runtime.IsBot() {
-		return nil
-	}
-	return common.ValidationErrorf("--comments currently requires bot identity; use --as bot").WithParam("--as")
-}
-
-func validateFetchCommentDocFormat(runtime *common.RuntimeContext) error {
-	if !shouldIncludeFetchComments(runtime) || effectiveFetchFormat(runtime) == "xml" {
-		return nil
-	}
-	return common.ValidationErrorf("--comments supports only XML; Markdown and IM Markdown remain unchanged. Use --doc-format xml, or omit --comments").WithParam("--doc-format")
-}
-
-func validateFetchCommentOutput(runtime *common.RuntimeContext) error {
-	if !shouldIncludeFetchComments(runtime) {
-		return nil
-	}
-	outputFormat := strings.TrimSpace(runtime.Format)
-	if outputFormat == "" {
-		outputFormat = strings.TrimSpace(runtime.Str("format"))
-	}
-	if outputFormat != "json" {
-		return common.ValidationErrorf("--comments requires JSON output because %s output cannot losslessly preserve document.content together with the comment reference_map; use --format json", outputFormat).WithParam("--format")
 	}
 	return nil
 }
@@ -177,16 +135,10 @@ func buildFetchBody(runtime *common.RuntimeContext) map[string]interface{} {
 }
 
 func buildFetchExtraParam(runtime *common.RuntimeContext) string {
-	if shouldIncludeFetchComments(runtime) {
-		return docsFetchCommentsExtraParam
+	if effectiveFetchFormat(runtime) == "xml" {
+		return docsFetchXMLExtraParam
 	}
 	return docsFetchExtraParam
-}
-
-func shouldIncludeFetchComments(runtime *common.RuntimeContext) bool {
-	// Outline is a directory-only view and intentionally performs no comment
-	// query, even when a caller reuses a flag bundle containing --comments.
-	return runtime.Bool("comments") && effectiveFetchReadMode(runtime) != "outline"
 }
 
 func effectiveFetchFormat(runtime *common.RuntimeContext) string {

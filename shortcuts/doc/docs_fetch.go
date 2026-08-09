@@ -15,14 +15,13 @@ func v1FetchFlags() []common.Flag {
 }
 
 var DocsFetch = common.Shortcut{
-	Service:           "docs",
-	Command:           "+fetch",
-	Description:       "Fetch Lark document content",
-	Risk:              "read",
-	Scopes:            []string{"docx:document:readonly"},
-	ConditionalScopes: []string{"docs:document.comment:read"},
-	AuthTypes:         []string{"user", "bot"},
-	HasFormat:         true,
+	Service:     "docs",
+	Command:     "+fetch",
+	Description: "Fetch Lark document content",
+	Risk:        "read",
+	Scopes:      []string{"docx:document:readonly"},
+	AuthTypes:   []string{"user", "bot"},
+	HasFormat:   true,
 	Flags: concatFlags(
 		[]common.Flag{
 			docsAPIVersionCompatFlag(),

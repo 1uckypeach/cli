@@ -8,8 +8,8 @@
 # 读取整篇文档
 lark-cli docs +fetch --doc "文档URL或token"
 
-# 读取正文，并附带可见的未解决评论；JSON 会同时保留正文和评论 sidecar
-lark-cli docs +fetch --doc "文档URL或token" --comments --format json --as bot
+# 读取正文，并附带当前用户可见的未解决评论；JSON 会同时保留正文和评论 sidecar
+lark-cli docs +fetch --doc "文档URL或token" --doc-format xml --format json --as user
 
 # 按 URL 中的 #share 锚点局部读取
 lark-cli docs +fetch --doc '文档URL#share-anchor'
@@ -29,7 +29,6 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 |`--doc`|是|文档 URL 或 token，支持 `/docx/`、`/wiki/` 和带 `#share-...` 的选区链接|
 |`--doc-format`|否|`xml`（默认）\| `markdown` \| `im-markdown`（供后续 `lark-im` 场景使用）|
 |`--detail`|否|`simple`（默认）\| `with-ids` \| `full`|
-|`--comments`|否|附带机器人身份可见的未解决评论；仅支持 `xml`，默认关闭，当前须使用 `--as bot --format json` 保留评论 sidecar|
 |`--revision-id`|否|文档版本号；`-1` 表示最新版本（默认）|
 |`--scope`|否|`outline` \| `range` \| `keyword` \| `section`；省略则读取整篇|
 |`--start-block-id`|否|`range` 的起点，或 `section` 的锚点（`section` 必填）|
@@ -97,7 +96,10 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
         },
         "comments": {
           "c1": {
-            "data": "<discussion timezone=\"Asia/Shanghai\" comment-id=\"739284756192837\">...</discussion>"
+            "data": "<comment id=\"739284756192837\">...</comment>"
+          },
+          "tips": {
+            "data": "Comments are truncated. Use the comment API to fetch complete content."
           }
         }
       },
@@ -106,23 +108,23 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
   }
 }
 ```
-`content` 的格式由 `--doc-format` 决定。`reference_map` 是正文引用数据的结构化 sidecar，一级键表示引用组：普通资源组通常以 `block_type` 命名，二级键 `ref` 对应正文中的临时引用，其值由真实属性组成；保留组 `comments` 使用 `<ref>.data` 保存评论讨论，仅在有效的 `--comments` 请求中出现。没有提取数据时，`reference_map` 可能为空。`content` 和 `reference_map` 属于同一份响应，保留或回放内容时应配套处理。`tips` 给出安全回放或降级提示。`im-markdown` 仅用于获取内容后在 `lark-im` 场景下使用。设置 `--scope` 时会被 `<fragment>` 包裹，详见上文"局部读取的输出结构"。
+`content` 的格式由 `--doc-format` 决定。`reference_map` 是正文引用数据的结构化 sidecar，一级键表示引用组：普通资源组通常以 `block_type` 命名，二级键 `ref` 对应正文中的临时引用，其值由真实属性组成；保留组 `comments` 使用 `<ref>.data` 保存评论。默认 XML 读取在存在可见评论时返回该组；没有提取数据时，`reference_map` 可能为空。`comments.tips.data` 表示评论因数量上限被截断，文档顶层 `tips` 则给出安全回放或依赖降级提示。`content` 和 `reference_map` 属于同一份响应，保留或回放内容时应配套处理。`im-markdown` 仅用于获取内容后在 `lark-im` 场景下使用。设置 `--scope` 时会被 `<fragment>` 包裹，详见下文“局部读取的输出结构”。
 
-### 理解 `--comments` 的返回
+### 理解 XML 评论返回
 
 评论采用紧凑、只读的 AI 上下文，不代替 `drive +list-comments` 等完整评论 API：
 
 - XML 正文中的局部评论落点使用 `comment-refs="c1 c2"`；同一条评论跨多个 block 时会在这些 block 上重复同一个 ref。
-- 局部评论和全文评论统一放在 `reference_map.comments.<ref>.data`；全文评论没有正文落点，也可以没有 `<quote>`。
-- 讨论只表达引用文本、消息、图片占位和 reaction。`discussion.comment-id` 暴露该讨论第一条可见评论的 ID，方便模型继续调用完整评论 API；状态和完整格式仍应通过 `lark-drive` 评论命令获取。
-- 全文读取返回局部评论和全文评论；`keyword` / `range` / `section` 只返回与片段相交的局部评论，不返回全文评论；`outline` 即使传了 `--comments` 也不查询评论。
+- 局部评论和全文评论统一放在 `reference_map.comments.<ref>.data`；全文评论使用 `<comment id="..." is_whole="true">`，没有正文落点，也不输出 `<quote>`。
+- `<comment>` 只表达引用文本、`<msg>` 消息以及有效的图片、文档引用和 reaction。根 `id` 是评论 API 可继续使用的正整数评论 ID；状态和完整格式仍应通过 `lark-drive` 评论命令获取。
+- 全文读取最多返回 1000 条局部评论和 200 条全文评论；`keyword` / `range` / `section` 只返回与片段相交的局部评论，不返回全文评论；`outline` 不查询评论。发生截断时只增加 `reference_map.comments.tips`。
 - reaction 属于 best-effort 展示信息；省略 reaction 不影响评论正文和引用关系。
-- Markdown 与 IM Markdown 协议保持不变，不承载评论锚点；`--comments` 与这两种格式组合时 CLI 会直接拒绝。需要评论时使用 `--doc-format xml`。
+- Markdown 与 IM Markdown 的请求和正文协议保持不变，不承载评论锚点或评论 sidecar。需要评论时使用默认的 `--doc-format xml`。
 - 指定历史 `--revision-id` 时，正文来自该历史版本；评论是“当前仍可见、仍未解决”的快照投影到这份正文。局部评论仅在该 revision 能解析到锚点时返回，全文评论仅在全文读取时返回；它不是历史时刻的评论回放。
-- 必须使用 `--format json`；其它展示格式无法无损保留正文与 `reference_map`（例如 `pretty` 只输出正文），因此 CLI 会直接拒绝这些组合。
+- 需要同时处理正文和评论时使用 `--format json`。显式 `--format pretty` 仍只输出正文，不渲染 `reference_map` sidecar。
 - 评论或锚点依赖不可用时，正文仍正常返回，评论整体省略，并在 `tips` 中出现 `comments_omitted:<reason>`。
 
-当前服务端能够完整校验 tenant access token（`--as bot`）的评论 scope。user access token 的精确 token scope 尚未由网关可信透传，因此 `--as user` 的评论读取会安全拒绝；完成 OGW 条件鉴权后再开放，不能用普通 user/app/tenant 授权状态代替本 token scope。
+`--as user` 和 `--as bot` 都支持 XML 评论读取，且不需要评论专属 scope。服务端始终使用当前 UAT 用户或 TAT bot/service principal 的同一可信身份检查文档与评论权限；bot 不继承 app owner、安装者或租户管理员的评论权限。
 
 ```xml
 <p comment-refs="c1">评论引用的正文</p>
@@ -131,14 +133,15 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 对应的 `reference_map.comments.c1.data`：
 
 ```xml
-<discussion timezone="Asia/Shanghai" comment-id="739284756192837">
+<comment id="739284756192837">
 <quote>评论引用的正文</quote>
-<message time="2026-07-23 16:50" user="曹杰">
+<msg user="曹杰">
 问题一：在职转移会删除协作者权限
-<img/>
-<reaction>👍 方树煜、曹杰</reaction>
-</message>
-</discussion>
+<img src="IMG_TOKEN"/>
+<cite type="doc" doc-id="DOC_TOKEN"/>
+<reaction key="THUMBSUP" users="方树煜、曹杰"/>
+</msg>
+</comment>
 ```
 
 ### 理解局部读取结果

@@ -20,12 +20,19 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// TestDocsFetchCommentsWorkflow creates its own document and comments so the
-// opt-in fetch contract can be exercised without a long-lived shared fixture.
-// It is gated because the live credential needs both comment read and write
-// scopes, which are intentionally absent from the default test app.
-func TestDocsFetchCommentsWorkflow(t *testing.T) {
+// The live workflows create their own documents and comments so both UAT and
+// TAT default-on fetch behavior can be exercised without shared fixtures.
+func TestDocsFetchCommentsWorkflowAsBot(t *testing.T) {
 	clie2e.SkipWithoutTenantAccessToken(t)
+	testDocsFetchCommentsWorkflow(t, "bot")
+}
+
+func TestDocsFetchCommentsWorkflowAsUser(t *testing.T) {
+	clie2e.SkipWithoutUserToken(t)
+	testDocsFetchCommentsWorkflow(t, "user")
+}
+
+func testDocsFetchCommentsWorkflow(t *testing.T, defaultAs string) {
 	if os.Getenv("LARK_DOCS_FETCH_COMMENTS_E2E") == "" {
 		t.Skip("set LARK_DOCS_FETCH_COMMENTS_E2E=1 to run the document comment fetch workflow")
 	}
@@ -33,7 +40,6 @@ func TestDocsFetchCommentsWorkflow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	t.Cleanup(cancel)
 	parentT := t
-	const defaultAs = "bot"
 	suffix := clie2e.GenerateSuffix()
 	anchorText := "comment anchor " + suffix
 	secondaryText := "secondary block " + suffix
@@ -54,7 +60,7 @@ func TestDocsFetchCommentsWorkflow(t *testing.T) {
 	t.Run("xml full", func(t *testing.T) {
 		var err error
 		fetched, err = clie2e.RunCmdWithRetry(ctx, clie2e.Request{
-			Args:      []string{"docs", "+fetch", "--doc", docToken, "--comments", "--doc-format", "xml"},
+			Args:      []string{"docs", "+fetch", "--doc", docToken, "--doc-format", "xml"},
 			DefaultAs: defaultAs,
 		}, clie2e.RetryOptions{ShouldRetry: func(result *clie2e.Result) bool {
 			return result == nil || result.ExitCode != 0 ||
@@ -74,30 +80,34 @@ func TestDocsFetchCommentsWorkflow(t *testing.T) {
 			!docsFetchReferenceGroupContains(fetched.Stdout, "comments", wholeText) {
 			t.Fatalf("comment reference groups missing:\n%s", fetched.Stdout)
 		}
-		assertDocsFetchCommentContract(t, fetched.Stdout, []docsFetchExpectedDiscussion{
+		assertDocsFetchCommentContract(t, fetched.Stdout, []docsFetchExpectedComment{
 			{text: localText, commentID: localCommentID, local: true},
 			{text: secondaryLocalText, commentID: secondaryCommentID, local: true},
 			{text: wholeText, commentID: wholeCommentID},
 		})
 	})
 
-	t.Run("default remains comment free", func(t *testing.T) {
-		result, err := clie2e.RunCmd(ctx, clie2e.Request{
-			Args:      []string{"docs", "+fetch", "--doc", docToken, "--doc-format", "xml"},
-			DefaultAs: defaultAs,
-		})
-		require.NoError(t, err)
-		result.AssertExitCode(t, 0)
-		content := gjson.Get(result.Stdout, "data.document.content").String()
-		if strings.Contains(content, "comment-refs=") || strings.Contains(content, "comment-ids=") || docsFetchReferenceGroupExists(result.Stdout, "comments") {
-			t.Fatalf("comments must remain opt-in:\n%s", result.Stdout)
+	t.Run("Markdown protocols remain comment free", func(t *testing.T) {
+		for _, docFormat := range []string{"markdown", "im-markdown"} {
+			t.Run(docFormat, func(t *testing.T) {
+				result, err := clie2e.RunCmd(ctx, clie2e.Request{
+					Args:      []string{"docs", "+fetch", "--doc", docToken, "--doc-format", docFormat},
+					DefaultAs: defaultAs,
+				})
+				require.NoError(t, err)
+				result.AssertExitCode(t, 0)
+				content := gjson.Get(result.Stdout, "data.document.content").String()
+				if strings.Contains(content, "comment-refs=") || strings.Contains(content, "comment-ids=") || docsFetchReferenceGroupExists(result.Stdout, "comments") {
+					t.Fatalf("%s fetch must not carry XML comment protocol:\n%s", docFormat, result.Stdout)
+				}
+			})
 		}
 	})
 
-	t.Run("partial returns only intersecting local discussion", func(t *testing.T) {
+	t.Run("partial returns only intersecting local comment", func(t *testing.T) {
 		result, err := clie2e.RunCmd(ctx, clie2e.Request{
 			Args: []string{
-				"docs", "+fetch", "--doc", docToken, "--comments", "--doc-format", "xml",
+				"docs", "+fetch", "--doc", docToken, "--doc-format", "xml",
 				"--scope", "keyword", "--keyword", anchorText,
 			},
 			DefaultAs: defaultAs,
@@ -109,9 +119,22 @@ func TestDocsFetchCommentsWorkflow(t *testing.T) {
 			docsFetchReferenceGroupContains(result.Stdout, "comments", wholeText) {
 			t.Fatalf("partial comment filtering mismatch:\n%s", result.Stdout)
 		}
-		assertDocsFetchCommentContract(t, result.Stdout, []docsFetchExpectedDiscussion{
+		assertDocsFetchCommentContract(t, result.Stdout, []docsFetchExpectedComment{
 			{text: localText, commentID: localCommentID, local: true},
 		})
+	})
+
+	t.Run("pretty remains body only", func(t *testing.T) {
+		result, err := clie2e.RunCmd(ctx, clie2e.Request{
+			Args:      []string{"docs", "+fetch", "--doc", docToken, "--doc-format", "xml", "--format", "pretty"},
+			DefaultAs: defaultAs,
+		})
+		require.NoError(t, err)
+		result.AssertExitCode(t, 0)
+		require.Contains(t, result.Stdout, anchorText)
+		require.NotContains(t, result.Stdout, `"reference_map"`)
+		require.NotContains(t, result.Stdout, localText)
+		require.NotContains(t, result.Stdout, wholeText)
 	})
 }
 
@@ -128,20 +151,20 @@ type docsFetchReferenceEntry struct {
 	Data string `json:"data"`
 }
 
-type docsFetchExpectedDiscussion struct {
+type docsFetchExpectedComment struct {
 	text      string
 	commentID string
 	local     bool
 }
 
-func assertDocsFetchCommentContract(t *testing.T, stdout string, expected []docsFetchExpectedDiscussion) {
+func assertDocsFetchCommentContract(t *testing.T, stdout string, expected []docsFetchExpectedComment) {
 	t.Helper()
 
 	var envelope docsFetchCommentEnvelope
 	require.NoError(t, json.Unmarshal([]byte(stdout), &envelope))
 	document := envelope.Data.Document
 	entries := document.ReferenceMap["comments"]
-	require.Len(t, entries, len(expected), "comments sidecar must contain only the fixture discussions relevant to this fetch")
+	require.Len(t, entries, len(expected), "comments sidecar must contain only the fixture comments relevant to this fetch")
 	require.False(t, docsFetchReferenceGroupExists(stdout, "comment"), "legacy local-comment group must be absent")
 	require.False(t, docsFetchReferenceGroupExists(stdout, "document-comment"), "legacy whole-comment group must be absent")
 
@@ -152,14 +175,15 @@ func assertDocsFetchCommentContract(t *testing.T, stdout string, expected []docs
 		if !docsFetchCommentRefPattern.MatchString(key) {
 			t.Fatalf("comment key %q is not an opaque cN surrogate", key)
 		}
-		shape := assertDiscussionXML(t, entry.Data)
+		shape := assertCommentXML(t, entry.Data)
 		matched := false
 		for _, want := range expected {
 			if !strings.Contains(entry.Data, want.text) {
 				continue
 			}
-			require.Equal(t, want.commentID, shape.commentID, "discussion must expose the root ID returned by comment creation")
-			require.Equal(t, want.local, shape.hasQuote, "only local discussions carry a quote")
+			require.Equal(t, want.commentID, shape.commentID, "comment must expose the root ID returned by comment creation")
+			require.Equal(t, want.local, shape.hasQuote, "only local comments carry a quote")
+			require.Equal(t, !want.local, shape.isWhole, "only whole-document comments carry is_whole=true")
 			found[want.text] = struct{}{}
 			if want.local {
 				localKeys[key] = struct{}{}
@@ -170,12 +194,12 @@ func assertDocsFetchCommentContract(t *testing.T, stdout string, expected []docs
 			break
 		}
 		if !matched {
-			t.Fatalf("unexpected discussion %q in comments sidecar: %s", key, entry.Data)
+			t.Fatalf("unexpected comment %q in comments sidecar: %s", key, entry.Data)
 		}
 	}
 	for _, want := range expected {
 		if _, ok := found[want.text]; !ok {
-			t.Fatalf("expected discussion containing %q was not returned", want.text)
+			t.Fatalf("expected comment containing %q was not returned", want.text)
 		}
 	}
 
@@ -189,14 +213,14 @@ func assertDocsFetchCommentContract(t *testing.T, stdout string, expected []docs
 	require.Equal(t, localKeys, bodyRefs, "body refs and local sidecar keys must form an exact closure")
 	for ref := range wholeKeys {
 		if _, exists := bodyRefs[ref]; exists {
-			t.Fatalf("whole-document discussion %q must not be attached to a body block", ref)
+			t.Fatalf("whole-document comment %q must not be attached to a body block", ref)
 		}
 	}
 }
 
 var (
 	docsFetchCommentRefPattern = regexp.MustCompile(`^c[1-9][0-9]*$`)
-	docsFetchCommentIDPattern  = regexp.MustCompile(`^[0-9]+$`)
+	docsFetchCommentIDPattern  = regexp.MustCompile(`^[1-9][0-9]*$`)
 )
 
 func collectCommentRefsFromXML(t *testing.T, fragment string) map[string]struct{} {
@@ -229,34 +253,36 @@ func collectCommentRefsFromXML(t *testing.T, fragment string) map[string]struct{
 	return refs
 }
 
-type docsFetchDiscussionShape struct {
+type docsFetchCommentShape struct {
 	hasQuote  bool
 	commentID string
+	isWhole   bool
 }
 
-func assertDiscussionXML(t *testing.T, data string) docsFetchDiscussionShape {
+func assertCommentXML(t *testing.T, data string) docsFetchCommentShape {
 	t.Helper()
 
-	allowedAttrs := map[string]map[string]bool{
-		"discussion": {"timezone": true, "comment-id": true},
-		"quote":      {},
-		"message":    {"time": true, "user": true},
-		"img":        {},
-		"reaction":   {},
+	allowedAttrOrder := map[string][]string{
+		"comment":  {"id", "is_whole"},
+		"quote":    {},
+		"msg":      {"user"},
+		"img":      {"src"},
+		"cite":     {"type", "doc-id"},
+		"reaction": {"key", "users", "count", "partial"},
 	}
 	decoder := xml.NewDecoder(strings.NewReader(data))
 	stack := make([]string, 0, 3)
 	sawRoot := false
 	sawQuote := false
 	messageCount := 0
-	timezone := ""
 	commentID := ""
+	isWhole := false
 	for {
 		token, err := decoder.Token()
 		if err == io.EOF {
 			break
 		}
-		require.NoError(t, err, "discussion sidecar must be well-formed XML")
+		require.NoError(t, err, "comment sidecar must be well-formed XML")
 		switch typed := token.(type) {
 		case xml.StartElement:
 			parent := ""
@@ -264,57 +290,86 @@ func assertDiscussionXML(t *testing.T, data string) docsFetchDiscussionShape {
 				parent = stack[len(stack)-1]
 			}
 			switch typed.Name.Local {
-			case "discussion":
-				require.Empty(t, parent, "discussion must be the single root")
-				require.False(t, sawRoot, "discussion sidecar must have one root")
+			case "comment":
+				require.Empty(t, parent, "comment must be the single root")
+				require.False(t, sawRoot, "comment sidecar must have one root")
 				sawRoot = true
-			case "quote", "message":
-				require.Equal(t, "discussion", parent, "%s must be a direct discussion child", typed.Name.Local)
-			case "img", "reaction":
-				require.Equal(t, "message", parent, "%s must belong to one message", typed.Name.Local)
+			case "quote", "msg":
+				require.Equal(t, "comment", parent, "%s must be a direct comment child", typed.Name.Local)
+			case "img", "cite", "reaction":
+				require.Equal(t, "msg", parent, "%s must belong to one msg", typed.Name.Local)
 			default:
-				t.Fatalf("unexpected discussion element <%s>", typed.Name.Local)
+				t.Fatalf("unexpected comment element <%s>", typed.Name.Local)
 			}
-			messageTime := ""
-			messageUser := ""
+
+			allowed := allowedAttrOrder[typed.Name.Local]
+			lastPosition := -1
 			for _, attr := range typed.Attr {
-				if !allowedAttrs[typed.Name.Local][attr.Name.Local] {
+				position := -1
+				for i, name := range allowed {
+					if attr.Name.Local == name {
+						position = i
+						break
+					}
+				}
+				if position < 0 {
 					t.Fatalf("unexpected %s attribute %q", typed.Name.Local, attr.Name.Local)
 				}
-				if typed.Name.Local == "discussion" && attr.Name.Local == "timezone" {
-					timezone = attr.Value
+				if position <= lastPosition {
+					t.Fatalf("%s attributes are out of contract order: %#v", typed.Name.Local, typed.Attr)
 				}
-				if typed.Name.Local == "discussion" && attr.Name.Local == "comment-id" {
+				lastPosition = position
+				if typed.Name.Local == "comment" && attr.Name.Local == "id" {
 					commentID = attr.Value
 				}
-				if typed.Name.Local == "message" && attr.Name.Local == "time" {
-					messageTime = attr.Value
+				if typed.Name.Local == "comment" && attr.Name.Local == "is_whole" {
+					require.Equal(t, "true", attr.Value, "is_whole must use the true literal when present")
+					isWhole = true
 				}
-				if typed.Name.Local == "message" && attr.Name.Local == "user" {
-					messageUser = attr.Value
+				if typed.Name.Local == "cite" && attr.Name.Local == "type" {
+					require.Equal(t, "doc", attr.Value, "cite type must be doc")
 				}
+			}
+			if typed.Name.Local == "comment" {
+				require.NotEmpty(t, typed.Attr, "comment must include id")
+				require.Equal(t, "id", typed.Attr[0].Name.Local, "comment id must be the first attribute")
 			}
 			if typed.Name.Local == "quote" {
+				require.False(t, sawQuote, "comment may contain at most one quote")
 				sawQuote = true
 			}
-			if typed.Name.Local == "message" {
-				require.NotEmpty(t, messageTime, "message must include a non-empty time attribute")
-				require.NotEmpty(t, messageUser, "message must include a non-empty user attribute")
+			if typed.Name.Local == "msg" {
+				require.Len(t, typed.Attr, 1, "msg must include only user")
+				require.Equal(t, "user", typed.Attr[0].Name.Local, "msg must include user even when the name is empty")
 				messageCount++
+			}
+			if typed.Name.Local == "img" {
+				require.Len(t, typed.Attr, 1, "img must include only src")
+				require.Equal(t, "src", typed.Attr[0].Name.Local)
+				require.NotEmpty(t, typed.Attr[0].Value)
+			}
+			if typed.Name.Local == "cite" {
+				require.Len(t, typed.Attr, 2, "cite must include type and doc-id")
+				require.Equal(t, "doc-id", typed.Attr[1].Name.Local)
+				require.NotEmpty(t, typed.Attr[1].Value)
+			}
+			if typed.Name.Local == "reaction" {
+				require.NotEmpty(t, typed.Attr, "reaction must include key")
+				require.Equal(t, "key", typed.Attr[0].Name.Local, "reaction key must be the first attribute")
+				require.NotEmpty(t, strings.TrimSpace(typed.Attr[0].Value))
 			}
 			stack = append(stack, typed.Name.Local)
 		case xml.EndElement:
 			require.NotEmpty(t, stack, "unexpected closing element </%s>", typed.Name.Local)
-			require.Equal(t, stack[len(stack)-1], typed.Name.Local, "discussion elements must close in order")
+			require.Equal(t, stack[len(stack)-1], typed.Name.Local, "comment elements must close in order")
 			stack = stack[:len(stack)-1]
 		}
 	}
 	require.True(t, sawRoot)
 	require.Empty(t, stack)
-	require.Equal(t, "Asia/Shanghai", timezone)
-	require.True(t, docsFetchCommentIDPattern.MatchString(commentID), "discussion must expose the first visible numeric comment-id")
-	require.Positive(t, messageCount, "discussion must contain at least one message")
-	return docsFetchDiscussionShape{hasQuote: sawQuote, commentID: commentID}
+	require.True(t, docsFetchCommentIDPattern.MatchString(commentID), "comment must expose a positive numeric id")
+	require.Positive(t, messageCount, "comment must contain at least one msg")
+	return docsFetchCommentShape{hasQuote: sawQuote, commentID: commentID, isWhole: isWhole}
 }
 
 func addDocComment(t *testing.T, ctx context.Context, defaultAs, docToken, text string, locationArgs ...string) string {
