@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Copyright (c) 2026 Lark Technologies Pte. Ltd.
+# SPDX-License-Identifier: MIT
+
+set -euo pipefail
+
+staged_files="$(git diff --cached --name-only --diff-filter=ACMR)"
+if printf '%s\n' "$staged_files" | grep -Eq '^(go\.mod|go\.sum|package\.json|package-lock\.json)$' \
+  && ! printf '%s\n' "$staged_files" | grep -Fxq 'THIRD_PARTY_NOTICES.md'; then
+  echo "Dependency metadata changed. Run 'make third-party-notices', review it, and stage THIRD_PARTY_NOTICES.md." >&2
+  exit 1
+fi

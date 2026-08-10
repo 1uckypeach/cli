@@ -318,6 +318,10 @@ For major changes, we recommend discussing with us first via an Issue.
 
 Before opening a PR, see [AGENTS.md](./AGENTS.md) for the local build, test, and PR checklist used by contributors and AI agents.
 
+### Third-party dependency notices
+
+Install the repository hook once with `make install-git-hooks`. When adding, removing, or upgrading a Go or npm production dependency, run `make third-party-notices`, review the generated `THIRD_PARTY_NOTICES.md`, and commit it with the dependency change. CI verifies the file independently; the hook is only a local reminder.
+
 ## License
 
 This project is licensed under the **MIT License**.
