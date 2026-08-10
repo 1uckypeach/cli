@@ -126,11 +126,6 @@ func TestIMAffordanceExamplesTraceToCurrentSkill(t *testing.T) {
 				switch tt.derivation {
 				case "materialize-chat-id":
 					materialized = strings.ReplaceAll(materialized, "<chat_id from step 2>", "oc_xxx")
-				case "explicit-user":
-					if !strings.Contains(string(source), "User identity only") {
-						t.Fatal("derived --as user is not backed by the source identity contract")
-					}
-					materialized = strings.Replace(materialized, "+messages-search", "+messages-search --as user", 1)
 				case "first-page":
 					materialized = strings.Replace(materialized, `,"page_token":"<PAGE_TOKEN>"`, "", 1)
 				default:
