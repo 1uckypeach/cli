@@ -2,7 +2,7 @@
 
 使用文本或 block 指令精确更新飞书云文档。默认使用 XML；仅在用户明确要求或必须保真 Markdown 时使用 Markdown。
 
-写入前必须按 `--doc-format` 读取对应格式参考：`xml` 读取 [`lark-doc-xml.md`](lark-doc-xml.md)，`markdown` 读取 [`lark-doc-md.md`](lark-doc-md.md)；
+写入前必须按 `--doc-format` 读取对应格式参考：`xml` 读取 [`lark-doc-xml.md`](lark-doc-xml.md)，`markdown` 读取 [`lark-doc-md.md`](lark-doc-md.md)。包括 `str_replace`：只要 `--doc-format markdown`，就必须先读取 `lark-doc-md.md`，不能凭通用 Markdown 经验构造内容。
 
 ## 常用示例
 
@@ -15,6 +15,7 @@ lark-cli docs +update --doc "xx" --command str_replace --pattern "旧内容" --c
 
 # 替换或插入 block
 lark-cli docs +update --doc "xx" --command block_replace --block-id blkTarget --content '<p>新段落</p>'
+lark-cli docs +update --doc "xx" --command block_replace --start-block-id blkFirst --end-block-id blkLast --content '<p>替换整个连续区间</p>'
 lark-cli docs +update --doc "xx" --command block_insert_after --block-id blkAnchor --content '<h2>新章节</h2><p>章节内容</p>'
 
 # 删除多个 block
@@ -51,7 +52,9 @@ lark-cli docs +update --doc "xx" --command block_delete --block-id "blkA,blkB"
 |`--doc-format`|否|`xml`（默认）或 `markdown`|
 |`--content`|视指令|写入内容；`str_replace` 传空字符串可删除文本|
 |`--pattern`|视指令|`str_replace` 的简单行内匹配文本；不要用于多行、整段或多个 block|
-|`--block-id`|视指令|目标 block ID；批量删除时用逗号分隔；`-1` 表示文档末尾，`0` 表示文档开头（仅适用于支持这些锚点的指令）|
+|`--block-id`|视指令|目标 block ID；多 block 替换或批量删除时用逗号分隔；`-1` 表示文档末尾，`0` 表示文档开头（仅适用于支持这些锚点的指令）|
+|`--start-block-id`|视指令|`block_replace` 连续范围的起点（闭区间）；必须与 `--end-block-id` 同时使用，且不能与 `--block-id` 混用|
+|`--end-block-id`|视指令|`block_replace` 连续范围的终点（闭区间）；必须与 `--start-block-id` 同时使用，且不能与 `--block-id` 混用|
 |`--src-block-ids`|视指令|要复制或移动的源 block ID，多个 ID 用逗号分隔|
 |`--reference-map`|否|保留或回放既有 `reference_map`，需与 `--content` 配合；支持 JSON、任务目录内的相对 `@file` 或 stdin `-`|
 |`--revision-id`|否|基准版本号，默认 `-1`（最新版本）|
@@ -63,7 +66,7 @@ lark-cli docs +update --doc "xx" --command block_delete --block-id "blkA,blkB"
 |`str_replace`|全文查找替换；支持富文本内的文本替换，但不支持资源替换；涉及多个 block 时建议用 `block_replace`；空 `--content` 表示删除|`--pattern`、`--content`|
 |`block_insert_after`|在指定 block 后插入内容；逐章填充时指定对应标题的 block ID|`--block-id`、`--content`|
 |`block_copy_insert_after`|按 ID 顺序复制源 block，源 block 不变；基础标签均支持，资源块仅支持 `img`、`source`、`whiteboard`、`sheet`、`chat_card`、`sub-page-list`，不支持 `task`、`bitable`、`base_ref`、`synced_reference`、`synced_source`、`okr`|`--block-id`、`--src-block-ids`|
-|`block_replace`|替换指定 block；同一 block 一次操作中只能替换一次|`--block-id`、`--content`|
+|`block_replace`|替换一个或多个 block。可用逗号分隔的 `--block-id` 显式指定多个 block；也可用同一父节点下、文档顺序正向的 `--start-block-id`/`--end-block-id` 指定闭区间。区间端点和中间 block 都必须有 ID；不支持跨容器、反向或祖先/后代区间|`--content`，以及 `--block-id` 或 `--start-block-id`+`--end-block-id`|
 |`block_delete`|删除一个或多个 block|`--block-id`|
 |`block_move_after`|移动已有 block，支持所有块类型；|`--block-id`、`--src-block-ids`|
 |`append`|仅在文末追加，等价于 `block_insert_after --block-id -1`|`--content`|
@@ -88,7 +91,6 @@ lark-cli docs +update --doc "xx" --command block_delete --block-id "blkA,blkB"
       ]
     },
     "result": "success",
-    "updated_blocks_count": 1,
     "warnings": [],
     "tips": ""
   }
@@ -98,7 +100,6 @@ lark-cli docs +update --doc "xx" --command block_delete --block-id "blkA,blkB"
 |字段|说明|
 |-|-|
 |`result`|`success` \| `partial_success` \| `failed`|
-|`updated_blocks_count`|实际更新的 block 数量|
 |`warnings`|服务端返回的警告列表；即使 `result=success` 也要检查是否存在降级或未完全处理的内容|
 |`tips`|服务端返回的后续处理建议；为空表示没有额外建议，非空本身不表示更新失败|
 |`document.new_blocks`|新增 block；`block_id` 用于后续编辑，资源块的 `block_token` 可交给对应 skill 继续处理|

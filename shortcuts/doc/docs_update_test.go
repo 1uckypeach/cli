@@ -138,12 +138,34 @@ func TestDocsUpdateV2BlockIDFlagDocumentsServiceSentinels(t *testing.T) {
 		t.Fatal("block-id flag not found")
 	}
 	for _, want := range []string{
+		"multi-block replace",
 		"passed through to the service",
 		"-1 means document end",
 		"0 means document start",
 	} {
 		if !strings.Contains(desc, want) {
 			t.Fatalf("block-id help = %q, want it to contain %q", desc, want)
+		}
+	}
+}
+
+func TestDocsUpdateV2ExposesBlockReplaceRangeFlags(t *testing.T) {
+	t.Parallel()
+
+	flags := make(map[string]common.Flag)
+	for _, flag := range v2UpdateFlags() {
+		flags[flag.Name] = flag
+	}
+	for _, name := range []string{"start-block-id", "end-block-id"} {
+		flag, ok := flags[name]
+		if !ok {
+			t.Fatalf("%s flag not found", name)
+		}
+		if flag.Hidden {
+			t.Fatalf("%s flag should be public", name)
+		}
+		if !strings.Contains(flag.Desc, "inclusive") || !strings.Contains(flag.Desc, "block_replace") {
+			t.Fatalf("%s help = %q, want inclusive block_replace range semantics", name, flag.Desc)
 		}
 	}
 }
@@ -195,6 +217,81 @@ func TestBuildUpdateBodyIncludesReferenceMap(t *testing.T) {
 	}
 	if got, want := body["block_id"], "-1"; got != want {
 		t.Fatalf("block_id = %#v, want %q", got, want)
+	}
+}
+
+func TestBuildUpdateBodyIncludesBlockReplaceRange(t *testing.T) {
+	t.Parallel()
+
+	runtime := newUpdateShortcutTestRuntime(t, "", map[string]string{
+		"command":        "block_replace",
+		"block-id":       "",
+		"start-block-id": " li1 ",
+		"end-block-id":   " li3 ",
+		"content":        "replacement",
+	})
+	if err := validateUpdateV2(context.Background(), runtime); err != nil {
+		t.Fatalf("validateUpdateV2() error = %v", err)
+	}
+
+	body := buildUpdateBody(runtime)
+	if _, ok := body["block_id"]; ok {
+		t.Fatalf("block_id should be omitted for a range: %#v", body)
+	}
+	if got := body["start_block_id"]; got != "li1" {
+		t.Fatalf("start_block_id = %#v, want li1", got)
+	}
+	if got := body["end_block_id"]; got != "li3" {
+		t.Fatalf("end_block_id = %#v, want li3", got)
+	}
+}
+
+func TestValidateUpdateV2RejectsInvalidBlockReplaceRange(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		setFlags  map[string]string
+		wantParam string
+		want      []string
+	}{
+		{
+			name: "missing end",
+			setFlags: map[string]string{
+				"command":        "block_replace",
+				"block-id":       "",
+				"start-block-id": "li1",
+			},
+			want: []string{"--start-block-id", "--end-block-id"},
+		},
+		{
+			name: "conflicting block id",
+			setFlags: map[string]string{
+				"command":        "block_replace",
+				"block-id":       "li1",
+				"start-block-id": "li1",
+				"end-block-id":   "li3",
+			},
+			want: []string{"--block-id", "--start-block-id", "--end-block-id"},
+		},
+		{
+			name: "unsupported command",
+			setFlags: map[string]string{
+				"command":        "block_delete",
+				"block-id":       "li1",
+				"start-block-id": "li1",
+				"end-block-id":   "li3",
+			},
+			want: []string{"--start-block-id", "--end-block-id"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runtime := newUpdateShortcutTestRuntime(t, "", tt.setFlags)
+			err := validateUpdateV2(context.Background(), runtime)
+			assertValidationContract(t, err, errs.SubtypeInvalidArgument, tt.wantParam, tt.want...)
+		})
 	}
 }
 
@@ -328,6 +425,8 @@ func newUpdateShortcutTestRuntime(t *testing.T, apiVersion string, setFlags map[
 	cmd.Flags().String("reference-map", "", "")
 	cmd.Flags().String("pattern", "", "")
 	cmd.Flags().String("block-id", "", "")
+	cmd.Flags().String("start-block-id", "", "")
+	cmd.Flags().String("end-block-id", "", "")
 	cmd.Flags().String("src-block-ids", "", "")
 	cmd.Flags().String("mode", "", "")
 	cmd.Flags().String("markdown", "", "")
