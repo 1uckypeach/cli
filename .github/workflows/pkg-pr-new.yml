@@ -12,6 +12,7 @@ jobs:
   publish:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -20,9 +21,20 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          node-version: lts/*
+          python-version: '3.x'
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22.14.0'
+          package-manager-cache: false
+
+      - name: Install pinned npm
+        run: npm install --global npm@11.16.0
+
+      - name: Check third-party notices
+        run: make check-third-party-notices
 
       - name: Build preview package
         run: ./scripts/build-pkg-pr-new.sh
