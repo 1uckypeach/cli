@@ -46,15 +46,10 @@ var SlidesUpdateSlide = common.Shortcut{
 	// wiki:node:read is required only when --presentation is a wiki URL.
 	ConditionalScopes: []string{"wiki:node:read"},
 	AuthTypes:         []string{"user", "bot"},
-	Tips: []string{
-		"Read the page first with `slides +xml-get --slide-id <id>`, edit that XML, hand it back whole",
-		"Anything left out of --content is removed from the page — pass the full page, not a fragment",
-		"Editing one element is cheaper with `slides +replace-slide`",
-	},
-	Flags:    updateSlideFlags,
-	Validate: updateSlideValidate,
-	DryRun:   updateSlideDryRun,
-	Execute:  updateSlideExecute,
+	Flags:             updateSlideFlags,
+	Validate:          updateSlideValidate,
+	DryRun:            updateSlideDryRun,
+	Execute:           updateSlideExecute,
 }
 
 // SlidesUpdate registers `slides +update` as a hidden alias.

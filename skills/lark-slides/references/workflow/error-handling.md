@@ -54,6 +54,7 @@
 | 3350001 | XML 非 well-formed、XML 结构不符合服务端要求，或 replace 片段问题 | 优先检查未转义字符；replace 场景再看 `block_id` 和 `<content/>` |
 | 3350002 | `revision_id` 大于当前版本 | 用 `-1` 取当前版本，或重新用 `slides +xml-get` 取最新 `revision_id` |
 | validation: unsafe file path | `--file` 给了绝对路径或上层路径 | `--file` 必须是 CWD 内相对路径；先 `cd` 到素材目录再执行 |
+| `cannot read file ".xml"` | CLI 收到的 `@file` 路径已经是 `.xml`，通常是 shell 变量为空或被外层 shell 提前展开 | 用 `file="${xml:?xml is empty}.xml"` 检查变量、用 `[[ -f "$file" ]]` 检查文件，再传 `--content - < "$file"`；仅把 `$xml` 改成 `${xml}` 不能解决空变量问题 |
 
 ## Command-Specific References
 

@@ -12,8 +12,8 @@ lark-cli slides +update-slide --as user \
   --content @page.xml
 
 # XML 从 stdin 读
-cat page.xml | lark-cli slides +update-slide --as user \
-  --presentation "$PRES" --slide-id "$SLIDE" --content -
+lark-cli slides +update-slide --as user \
+  --presentation "$PRES" --slide-id "$SLIDE" --content - < page.xml
 
 # wiki 链接直接传（CLI 自动解析并校验 obj_type=slides）
 lark-cli slides +update-slide --as user \
@@ -23,6 +23,25 @@ lark-cli slides +update-slide --as user \
 # 预览请求，不实际写入
 lark-cli slides +update-slide --as user \
   --presentation "$PRES" --slide-id "$SLIDE" --content @page.xml --dry-run
+```
+
+循环中通过变量生成文件名时，先构造并校验路径，再优先从 stdin 读取。`${xml:?xml is empty}` 会在变量未设置或为空时立即终止；仅把 `$xml` 改成 `${xml}` 不能解决空变量问题。
+
+```bash
+set -Eeuo pipefail
+
+for slide_xml in "slide-id-1:page-01" "slide-id-2:page-02"; do
+  slide="${slide_xml%%:*}"
+  xml="${slide_xml#*:}"
+  file="${xml:?xml is empty}.xml"
+  [[ -f "$file" ]] || {
+    printf 'missing XML file: %q\n' "$file" >&2
+    exit 1
+  }
+
+  lark-cli slides +update-slide --as user \
+    --presentation "$PRES" --slide-id "$slide" --content - < "$file"
+done
 ```
 
 ## 参数
