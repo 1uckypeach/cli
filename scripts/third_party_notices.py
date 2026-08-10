@@ -308,9 +308,9 @@ def _parse_json_stream(value: str) -> list[dict]:
         try:
             record, position = decoder.raw_decode(value, position)
         except json.JSONDecodeError as error:
-            raise NoticeError("invalid JSON from go list -m -json all") from error
+            raise NoticeError("invalid JSON from Go command") from error
         if not isinstance(record, dict):
-            raise NoticeError("invalid module record from go list -m -json all")
+            raise NoticeError("invalid module record from Go command")
         records.append(record)
     return records
 
@@ -352,12 +352,20 @@ def collect_go_components(repo_root: Path, budget: ReadBudget) -> list[Component
     records = _go_runtime_module_records(repo_root)
     missing_directories = [record for record in records if not isinstance(record.get("Dir"), str)]
     if missing_directories:
-        try:
-            downloaded = subprocess.run(
-                ["go", "mod", "download", "-json", "all"], cwd=repo_root, capture_output=True, text=True, check=True
-            )
-        except (OSError, subprocess.CalledProcessError) as error:
-            raise NoticeError("go mod download -json all failed while locating module source") from error
+        with tempfile.TemporaryDirectory(prefix="third-party-notices-go-download-") as temporary:
+            temp_root = Path(temporary)
+            _copy_input_file(repo_root, temp_root, "go.mod")
+            _copy_input_file(repo_root, temp_root, "go.sum")
+            try:
+                downloaded = subprocess.run(
+                    ["go", "mod", "download", "-mod=mod", f"-modfile={temp_root / 'go.mod'}", "-json", "all"],
+                    cwd=repo_root,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+            except (OSError, subprocess.CalledProcessError) as error:
+                raise NoticeError("go mod download failed while locating module source") from error
         locations = {
             (record.get("Path"), record.get("Version")): record.get("Dir")
             for record in _parse_json_stream(downloaded.stdout)
