@@ -258,13 +258,20 @@ func buildForArgsWithConfig(
 	strictMode := sync.OnceValue(func() core.StrictMode {
 		return f.ResolveStrictMode(ctx)
 	})
+	// The index selection registers no service commands and therefore cannot
+	// observe a plugin concealment (see planSchema), so the planner has to know
+	// whether any plugin will register one. Reading the declaration rather than
+	// the installed rules is what makes the answer available this early, and it
+	// is authoritative: the framework aborts an install whose Restricts flag
+	// disagrees with whether Install actually calls Restrict.
+	pluginRestricts := func() bool { return anyPluginRestricts(plugins) }
 
 	// Version is the only deterministic no-Catalog invocation. Plugins are
 	// still installed below, and their Startup hooks run against the
 	// repository-owned root even though no Catalog commands are assembled.
 	// This first pass cannot answer catalog or Shortcut membership yet, so it
 	// only recognizes the branches that need neither.
-	preliminary := PlanAssembly(args, nil, nil, nil)
+	preliminary := PlanAssembly(args, nil, nil, nil, nil)
 	if preliminary.Mode == AssemblyNone {
 		runtime, root, reg := assembleInternal(ctx, inv, f, apicatalog.Catalog{}, []string{}, plugins, cfg)
 		return &buildResult{runtime: runtime, root: root, registry: reg}, nil
@@ -291,7 +298,7 @@ func buildForArgsWithConfig(
 	// Plugins can observe, wrap, restrict, and handle lifecycle events, but
 	// cannot add commands. Their frozen snapshot therefore does not broaden
 	// the built-in Catalog or Shortcut domains needed for this invocation.
-	plan := PlanAssembly(args, names, shortcuts.ShortcutServiceNames(), strictMode)
+	plan := PlanAssembly(args, names, shortcuts.ShortcutServiceNames(), strictMode, pluginRestricts)
 	catalog, err := catalogForPlan(cfg, snapshot, plan, names)
 	if err != nil {
 		return nil, err
@@ -337,6 +344,20 @@ func frozenPlugins(cfg *buildConfig) []platform.Plugin {
 		return nil
 	}
 	return platform.RegisteredPlugins()
+}
+
+// anyPluginRestricts reports whether any frozen plugin declares it will register
+// a command restriction. Capabilities is a pre-flight declaration, which is what
+// makes the answer available before the plugins are installed; the framework
+// keeps it honest by aborting an install whose declaration disagrees with
+// whether Install actually calls Restrict.
+func anyPluginRestricts(plugins []platform.Plugin) bool {
+	for _, p := range plugins {
+		if p.Capabilities().Restricts {
+			return true
+		}
+	}
+	return false
 }
 
 // buildInternalWithConfig assembles the complete command tree from an

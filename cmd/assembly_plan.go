@@ -39,11 +39,19 @@ type AssemblyPlan struct {
 // cannot answer yet, and every branch that would consult it falls back to the
 // complete tree. The decision is made once — a branch never retries as Full
 // after choosing a narrower selection.
+//
+// pluginRestricts reports whether any installed plugin declares it will register
+// a command restriction. Identity is not the only channel that hides commands,
+// and the two must be gated alike: a restriction conceals its denied paths, but
+// concealment is recorded only against commands present in the tree, so a
+// selection that registers no service commands cannot observe it. Same getter
+// and nil semantics as strictMode.
 func PlanAssembly(
 	argv []string,
 	catalogServices []string,
 	shortcutDomains []string,
 	strictMode func() core.StrictMode,
+	pluginRestricts func() bool,
 ) AssemblyPlan {
 	catalog := nameSet(catalogServices)
 	shortcuts := nameSet(shortcutDomains)
@@ -116,7 +124,7 @@ func PlanAssembly(
 			return fullAssemblyPlan()
 		}
 		if token == "schema" {
-			return planSchema(argv[i+1:], catalog, strictMode)
+			return planSchema(argv[i+1:], catalog, strictMode, pluginRestricts)
 		}
 		// The first positional token in ordinary invocations is the domain,
 		// as in `drive files list` or `docs +fetch`.
@@ -139,13 +147,26 @@ func splitLongFlag(token string) (name string, hasValue bool) {
 	return name, false
 }
 
-func planSchema(argv []string, catalog map[string]struct{}, strictMode func() core.StrictMode) AssemblyPlan {
+func planSchema(
+	argv []string,
+	catalog map[string]struct{},
+	strictMode func() core.StrictMode,
+	pluginRestricts func() bool,
+) AssemblyPlan {
 	// The bare form renders the service index, which needs service names and
-	// their embedded descriptions but no shard body. That holds only while
-	// strict mode is off: an active mode drops services whose every method the
-	// identity cannot reach, and deciding that reads each shard.
+	// their embedded descriptions but no shard body. That holds only while both
+	// channels that hide commands are known to be inactive.
+	//
+	// Strict mode: an active mode drops services whose every method the identity
+	// cannot reach, and deciding that reads each shard.
+	//
+	// Plugin restriction: the index registers no service commands, and a
+	// concealment is recorded only for a command found in the tree. With nothing
+	// registered the concealment is never recorded, the surface plan defaults to
+	// available, and the listing would name services the same build hides from
+	// root help — the one outcome the renderer's own invariant forbids.
 	if len(argv) == 0 {
-		if strictModeIsOff(strictMode) {
+		if strictModeIsOff(strictMode) && noPluginRestricts(pluginRestricts) {
 			return AssemblyPlan{
 				Mode:            AssemblyIndex,
 				CatalogServices: []string{},
@@ -227,4 +248,14 @@ func strictModeIsOff(resolve func() core.StrictMode) bool {
 		return false
 	}
 	return !resolve().IsActive()
+}
+
+// noPluginRestricts reports whether the build is known to carry no plugin
+// command restriction. An absent getter is not an answer, so it reads as "not
+// known to be free of them" and the caller keeps the complete tree.
+func noPluginRestricts(resolve func() bool) bool {
+	if resolve == nil {
+		return false
+	}
+	return !resolve()
 }

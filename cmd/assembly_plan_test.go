@@ -14,6 +14,14 @@ import (
 // listing needs no per-method filtering.
 func strictModeOffForTest() core.StrictMode { return core.StrictModeOff }
 
+// noPluginRestrictsForTest is the ordinary case: no plugin declares a command
+// restriction, so nothing is concealed that the listing would have to match.
+func noPluginRestrictsForTest() bool { return false }
+
+// pluginRestrictsForTest is a build carrying a policy plugin. The plugin's own
+// rule is irrelevant here — the declaration alone is what the planner reads.
+func pluginRestrictsForTest() bool { return true }
+
 // TestPlanAssemblyBareSchemaFollowsStrictMode pins the one branch whose
 // selection depends on identity. The service index names services and their
 // embedded descriptions, which the manifest alone can answer — but only while
@@ -48,7 +56,47 @@ func TestPlanAssemblyBareSchemaFollowsStrictMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := PlanAssembly([]string{"schema"}, services, nil, tt.strictMode)
+			got := PlanAssembly([]string{"schema"}, services, nil, tt.strictMode, noPluginRestrictsForTest)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("bare schema = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestPlanAssemblyBareSchemaFollowsPluginRestrictions pins the second channel
+// that hides commands. Identity is not the only one, and this one fails in the
+// opposite direction from the shard cost that motivates the index: a plugin
+// restriction conceals its denied paths, but a concealment is recorded only
+// against a command present in the tree, and the name-only index registers
+// none. Answering from it would name services the same build hides from root
+// help — wider than the tree, which is what the renderer's invariant forbids.
+func TestPlanAssemblyBareSchemaFollowsPluginRestrictions(t *testing.T) {
+	t.Parallel()
+
+	services := []string{"approval", "drive", "im"}
+	index := AssemblyPlan{Mode: AssemblyIndex, CatalogServices: []string{}, ShortcutDomains: []string{}}
+
+	tests := []struct {
+		name            string
+		pluginRestricts func() bool
+		want            AssemblyPlan
+	}{
+		{name: "none selects the name-only index", pluginRestricts: noPluginRestrictsForTest, want: index},
+		{
+			name:            "a declared restriction needs the tree that records concealment",
+			pluginRestricts: pluginRestrictsForTest,
+			want:            AssemblyPlan{Mode: AssemblyFull},
+		},
+		// Same asymmetry as strict mode: not being able to answer is not the
+		// same as answering "there are none".
+		{name: "unknown keeps the full tree", pluginRestricts: nil, want: AssemblyPlan{Mode: AssemblyFull}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := PlanAssembly([]string{"schema"}, services, nil, strictModeOffForTest, tt.pluginRestricts)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("bare schema = %#v, want %#v", got, tt.want)
 			}
@@ -78,7 +126,7 @@ func TestPlanAssemblyResolvesStrictModeOnlyWhenNeeded(t *testing.T) {
 				calls++
 				return core.StrictModeOff
 			}
-			PlanAssembly(tt.argv, []string{"drive"}, []string{"drive"}, resolve)
+			PlanAssembly(tt.argv, []string{"drive"}, []string{"drive"}, resolve, noPluginRestrictsForTest)
 			if calls != tt.want {
 				t.Errorf("strict mode resolved %d times, want %d", calls, tt.want)
 			}
@@ -201,7 +249,7 @@ func TestPlanAssembly(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := PlanAssembly(tt.argv, services, shortcuts, strictModeOffForTest)
+			got := PlanAssembly(tt.argv, services, shortcuts, strictModeOffForTest, noPluginRestrictsForTest)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("PlanAssembly(%q) = %#v, want %#v", tt.argv, got, tt.want)
 			}
@@ -223,7 +271,7 @@ func TestPlanAssemblyDoesNotInterpretLocalFlags(t *testing.T) {
 		{"drive", "-xyz", "calendar"},
 		{"drive", ""},
 	} {
-		if got := PlanAssembly(argv, []string{"calendar", "drive"}, []string{"drive"}, strictModeOffForTest); !reflect.DeepEqual(got, want) {
+		if got := PlanAssembly(argv, []string{"calendar", "drive"}, []string{"drive"}, strictModeOffForTest, noPluginRestrictsForTest); !reflect.DeepEqual(got, want) {
 			t.Errorf("PlanAssembly(%q) = %#v, want %#v", argv, got, want)
 		}
 	}

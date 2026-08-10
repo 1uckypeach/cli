@@ -26,7 +26,7 @@ func FuzzPlanAssemblyNeverPanics(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, raw string) {
-		plan := PlanAssembly(strings.Fields(raw), services, shortcuts, strictModeOffForTest)
+		plan := PlanAssembly(strings.Fields(raw), services, shortcuts, strictModeOffForTest, noPluginRestrictsForTest)
 		switch plan.Mode {
 		case AssemblyNone, AssemblyIndex, AssemblyTarget, AssemblyFull:
 		default:
@@ -57,7 +57,7 @@ func FuzzPlanAssemblyUnknownFlagValueIsNotDomain(f *testing.F) {
 		if flagName == "" || flagName == "profile" || strings.ContainsAny(flagName, "=\t\r\n ") {
 			t.Skip()
 		}
-		plan := PlanAssembly([]string{"--" + flagName, "drive"}, []string{"drive"}, []string{"drive"}, strictModeOffForTest)
+		plan := PlanAssembly([]string{"--" + flagName, "drive"}, []string{"drive"}, []string{"drive"}, strictModeOffForTest, noPluginRestrictsForTest)
 		if plan.Mode != AssemblyFull {
 			t.Fatalf("unknown flag %q produced %#v, want Full", flagName, plan)
 		}
