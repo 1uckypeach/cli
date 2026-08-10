@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Lark Technologies Pte. Ltd.
+# SPDX-License-Identifier: MIT
+
 """Generate a deterministic, fail-closed third-party notices document."""
 
 from __future__ import annotations
@@ -22,6 +25,41 @@ MAX_TOTAL_BYTES = 16 * 1024 * 1024
 LICENSE_BASENAMES = ("LICENSE", "COPYING")
 NOTICE_BASENAMES = ("NOTICE",)
 PROHIBITED_LICENSE_WORDS = ("GPL", "LGPL", "AGPL", "SSPL", "GENERAL PUBLIC LICENSE", "SERVER SIDE PUBLIC")
+MIT_REQUIRED_CLAUSES = (
+    "permission is hereby granted, free of charge",
+    "the above copyright notice and this permission notice shall be included in all copies or substantial portions of the software",
+    "the software is provided as is",
+    "in no event shall the authors or copyright holders be liable for any claim",
+)
+APACHE_REQUIRED_CLAUSES = (
+    "apache license",
+    "version 2.0",
+    "terms and conditions for use, reproduction, and distribution",
+    "grant of copyright license",
+    "grant of patent license",
+    "redistribution",
+    "submission of contributions",
+    "trademarks",
+    "disclaimer of warranty",
+    "limitation of liability",
+    "accepting warranty or additional liability",
+)
+ISC_REQUIRED_CLAUSES = (
+    "permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted",
+    "the above copyright notice and this permission notice shall be included in all copies",
+    "the author disclaims all warranties with regard to this software",
+    "in no event shall the author be liable for any special, direct, indirect, or consequential damages",
+)
+BSD_REQUIRED_CLAUSES = (
+    "redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met",
+    "redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer",
+    "redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer",
+    "this software is provided by the copyright holders and contributors as is",
+)
+BSD_LIABILITY_CLAUSES = (
+    "in no event shall the copyright holder or contributors be liable for any direct, indirect, incidental, special, exemplary, or consequential damages",
+    "in no event shall the copyright owner or contributors be liable for any direct, indirect, incidental, special, exemplary, or consequential damages",
+)
 RELEASE_TARGETS = (
     ("darwin", "amd64"),
     ("darwin", "arm64"),
@@ -174,28 +212,40 @@ def _reject_prohibited(value: str) -> None:
         raise NoticeError(f"prohibited license: {value}")
 
 
+def _normalized_license_text(value: str) -> str:
+    return re.sub(r"[\"“”]", "", re.sub(r"\s+", " ", value)).casefold()
+
+
+def _has_required_clauses(license_text: str, clauses: Iterable[str]) -> bool:
+    normalized = _normalized_license_text(license_text)
+    return all(clause in normalized for clause in clauses)
+
+
 def _detect_bsd_license(license_text: str) -> str:
-    upper_text = license_text.upper()
-    if "ALL ADVERTISING MATERIALS" in upper_text:
+    normalized = _normalized_license_text(license_text)
+    if "all advertising materials" in normalized:
         raise NoticeError("unsupported BSD-4-Clause license")
-    if "REDISTRIBUTION AND USE IN SOURCE AND BINARY FORMS" not in upper_text:
-        raise NoticeError("license cannot be identified as BSD-2-Clause or BSD-3-Clause")
-    if "NEITHER THE NAME OF" in upper_text:
+    if (
+        not _has_required_clauses(license_text, BSD_REQUIRED_CLAUSES)
+        or not any(clause in normalized for clause in BSD_LIABILITY_CLAUSES)
+    ):
+        raise NoticeError("incomplete BSD-2-Clause or BSD-3-Clause license")
+    if "neither the name of" in normalized:
         return "BSD-3-Clause"
     return "BSD-2-Clause"
 
 
 def _detect_license_ids(license_text: str) -> set[str]:
     _reject_prohibited(license_text)
-    upper_text = license_text.upper()
+    normalized = _normalized_license_text(license_text)
     detected = set()
-    if "APACHE LICENSE" in upper_text and "VERSION 2.0" in upper_text:
+    if _has_required_clauses(license_text, APACHE_REQUIRED_CLAUSES):
         detected.add("Apache-2.0")
-    if "PERMISSION IS HEREBY GRANTED, FREE OF CHARGE" in upper_text:
+    if _has_required_clauses(license_text, MIT_REQUIRED_CLAUSES):
         detected.add("MIT")
-    if "PERMISSION TO USE, COPY, MODIFY, AND/OR DISTRIBUTE" in upper_text:
+    if _has_required_clauses(license_text, ISC_REQUIRED_CLAUSES):
         detected.add("ISC")
-    if "REDISTRIBUTION AND USE IN SOURCE AND BINARY FORMS" in upper_text:
+    if "redistribution and use in source and binary forms" in normalized:
         detected.add(_detect_bsd_license(license_text))
     return detected
 
@@ -236,11 +286,13 @@ def normalize_license_id(value: object, license_text: str) -> str:
 def _copyright_lines(*texts: str) -> str:
     lines = []
     for text in texts:
-        lines.extend(
-            line.strip()
-            for line in text.splitlines()
-            if line.lstrip().lower().startswith("copyright") or line.lstrip().startswith("©")
-        )
+        for line in text.splitlines():
+            stripped = line.strip()
+            normalized = stripped.lower()
+            if normalized.startswith(("copyright notice", "copyright license")):
+                continue
+            if normalized.startswith("copyright") or stripped.startswith("©"):
+                lines.append(stripped)
     return "\n".join(dict.fromkeys(lines)) or "Not specified"
 
 

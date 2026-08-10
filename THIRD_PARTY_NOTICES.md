@@ -151,7 +151,6 @@ SOFTWARE.
 - Source: https://pkg.go.dev/github.com/atotto/clipboard@v0.1.4
 - License: BSD-3-Clause
 - Copyright: Copyright (c) 2013 Ato Araki. All rights reserved.
-copyright notice, this list of conditions and the following disclaimer
 
 ### License Text
 ```text
@@ -693,7 +692,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 - License: BSD-3-Clause
 - Copyright: Copyright (c) 2013, The GoGo Authors. All rights reserved.
 Copyright 2010 The Go Authors.  All rights reserved.
-copyright notice, this list of conditions and the following disclaimer
 
 ### License Text
 ```text
@@ -740,7 +738,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 - Source: https://pkg.go.dev/github.com/google/uuid@v1.6.0
 - License: BSD-3-Clause
 - Copyright: Copyright (c) 2009,2014 Google Inc. All rights reserved.
-copyright notice, this list of conditions and the following disclaimer
 
 ### License Text
 ```text
@@ -813,9 +810,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 - Version: v1.1.0
 - Source: https://pkg.go.dev/github.com/inconshreveable/mousetrap@v1.1.0
 - License: Apache-2.0
-- Copyright: copyright notice that is included in or attached to the work
-copyright license to reproduce, prepare Derivative Works of,
-Copyright 2022 Alan Shreve (@inconshreveable)
+- Copyright: Copyright 2022 Alan Shreve (@inconshreveable)
 
 ### License Text
 ```text
@@ -1493,8 +1488,7 @@ THE SOFTWARE.
 - Version: v1.10.2
 - Source: https://pkg.go.dev/github.com/spf13/cobra@v1.10.2
 - License: Apache-2.0
-- Copyright: copyright notice that is included in or attached to the work
-copyright license to reproduce, prepare Derivative Works of,
+- Copyright: Not specified
 
 ### License Text
 ```text
@@ -1682,7 +1676,6 @@ copyright license to reproduce, prepare Derivative Works of,
 - License: BSD-3-Clause
 - Copyright: Copyright (c) 2012 Alex Ogier. All rights reserved.
 Copyright (c) 2012 The Go Authors. All rights reserved.
-copyright notice, this list of conditions and the following disclaimer
 
 ### License Text
 ```text
@@ -1789,7 +1782,6 @@ SOFTWARE.
 - Source: https://pkg.go.dev/golang.org/x/image@v0.30.0
 - License: BSD-3-Clause
 - Copyright: Copyright 2009 The Go Authors.
-copyright notice, this list of conditions and the following disclaimer
 
 ### License Text
 ```text
@@ -1829,7 +1821,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 - Source: https://pkg.go.dev/golang.org/x/net@v0.33.0
 - License: BSD-3-Clause
 - Copyright: Copyright 2009 The Go Authors.
-copyright notice, this list of conditions and the following disclaimer
 
 ### License Text
 ```text
@@ -1869,7 +1860,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 - Source: https://pkg.go.dev/golang.org/x/sync@v0.16.0
 - License: BSD-3-Clause
 - Copyright: Copyright 2009 The Go Authors.
-copyright notice, this list of conditions and the following disclaimer
 
 ### License Text
 ```text
@@ -1909,7 +1899,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 - Source: https://pkg.go.dev/golang.org/x/sys@v0.33.0
 - License: BSD-3-Clause
 - Copyright: Copyright 2009 The Go Authors.
-copyright notice, this list of conditions and the following disclaimer
 
 ### License Text
 ```text
@@ -1949,7 +1938,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 - Source: https://pkg.go.dev/golang.org/x/term@v0.27.0
 - License: BSD-3-Clause
 - Copyright: Copyright 2009 The Go Authors.
-copyright notice, this list of conditions and the following disclaimer
 
 ### License Text
 ```text
@@ -1989,7 +1977,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 - Source: https://pkg.go.dev/golang.org/x/text@v0.28.0
 - License: BSD-3-Clause
 - Copyright: Copyright 2009 The Go Authors.
-copyright notice, this list of conditions and the following disclaimer
 
 ### License Text
 ```text
@@ -2027,7 +2014,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 - Component: gopkg.in/yaml.v3
 - Version: v3.0.1
 - Source: https://pkg.go.dev/gopkg.in/yaml.v3@v3.0.1
-- License: Apache-2.0 OR MIT
+- License: MIT
 - Copyright: copyright staring in 2011 when the project was ported over:
 Copyright (c) 2006-2010 Kirill Simonov
 Copyright (c) 2006-2011 Kirill Simonov

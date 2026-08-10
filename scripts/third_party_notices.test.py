@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Lark Technologies Pte. Ltd.
+# SPDX-License-Identifier: MIT
+
 """Behavior tests for the third-party notice generator."""
 
 import importlib.util
@@ -25,24 +28,90 @@ Copyright (c) 2024 Example Authors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the \"Software\"), to deal
-in the Software without restriction.
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 """
 APACHE_TEXT = """Apache License
 Version 2.0, January 2004
 http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+1. Grant of Copyright License.
+2. Grant of Patent License.
+4. Redistribution.
+5. Submission of Contributions.
+6. Trademarks.
+7. Disclaimer of Warranty.
+8. Limitation of Liability.
+9. Accepting Warranty or Additional Liability.
 """
 BSD_2_TEXT = """BSD 2-Clause License
 
 Copyright (c) 2024 Example Authors
 
-Redistribution and use in source and binary forms, with or without modification, are permitted.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 BSD_3_TEXT = """BSD 3-Clause License
 
 Copyright (c) 2024 Example Authors
 
-Redistribution and use in source and binary forms, with or without modification, are permitted.
-Neither the name of Example Authors nor the names of its contributors may be used to endorse products.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of Example Authors nor the names of its contributors may
+   be used to endorse or promote products derived from this software without
+   specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
 
@@ -94,6 +163,27 @@ class ThirdPartyNoticesTests(unittest.TestCase):
     def test_bsd_license_is_classified_by_its_text(self):
         self.assertEqual(notices.normalize_license_id("BSD", BSD_2_TEXT), "BSD-2-Clause")
         self.assertEqual(notices.normalize_license_id("BSD", BSD_3_TEXT), "BSD-3-Clause")
+
+    def test_truncated_approved_license_text_fails_closed(self):
+        cases = (
+            ("MIT", "Permission is hereby granted, free of charge"),
+            ("Apache-2.0", "Apache License\nVersion 2.0"),
+            ("BSD-2-Clause", "Redistribution and use in source and binary forms"),
+            ("ISC", "Permission to use, copy, modify, and/or distribute"),
+        )
+
+        for declared, text in cases:
+            with self.subTest(declared=declared):
+                with self.assertRaises(notices.NoticeError):
+                    notices.normalize_license_id(declared, text)
+
+    def test_copyright_clauses_are_not_rendered_as_attribution(self):
+        self.assertEqual(
+            notices._copyright_lines(
+                "Copyright 2024 Example\nCopyright notice, this list of conditions must be retained\n© 2025 Another"
+            ),
+            "Copyright 2024 Example\n© 2025 Another",
+        )
 
     def test_runtime_module_collection_deduplicates_release_targets(self):
         module = {"Path": "example.com/runtime", "Version": "v1.2.3", "Dir": "/tmp/runtime"}
@@ -163,8 +253,7 @@ class ThirdPartyNoticesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             budget = notices.ReadBudget()
-            text = ("Copyright (c) Example\nPermission is hereby granted, free of charge, to any person "
-                    "obtaining a copy\n" + "x" * (notices.MAX_FILE_BYTES - 200_000))
+            text = MIT_TEXT + "x" * (notices.MAX_FILE_BYTES - 200_000)
             packages = [make_package(root, f"package-{index}", "MIT", text) for index in range(9)]
 
             for package in packages[:8]:
