@@ -200,7 +200,7 @@ func testDocsFetchCommentsWorkflow(t *testing.T, defaultAs string) {
 		})
 	})
 
-	t.Run("Markdown protocols do not expose XML comment sidecars", func(t *testing.T) {
+	t.Run("Markdown protocols return sidecars without inline anchors", func(t *testing.T) {
 		for _, docFormat := range []string{"markdown", "im-markdown"} {
 			t.Run(docFormat, func(t *testing.T) {
 				result, err := clie2e.RunCmd(ctx, clie2e.Request{
@@ -210,10 +210,11 @@ func testDocsFetchCommentsWorkflow(t *testing.T, defaultAs string) {
 				require.NoError(t, err)
 				result.AssertExitCode(t, 0)
 				require.Equal(t, defaultAs, gjson.Get(result.Stdout, "identity").String())
-				content := gjson.Get(result.Stdout, "data.document.content").String()
-				if strings.Contains(content, "comment-refs=") || docsFetchReferenceGroupExists(result.Stdout, "comments") {
-					t.Fatalf("%s fetch must not carry XML comment protocol:\n%s", docFormat, result.Stdout)
-				}
+				assertDocsFetchMarkdownCommentContract(t, result.Stdout, []docsFetchExpectedComment{
+					{text: localText, commentID: localCommentID, local: true},
+					{text: secondaryLocalText, commentID: secondaryCommentID, local: true},
+					{text: wholeText, commentID: wholeCommentID},
+				})
 			})
 		}
 	})
@@ -279,7 +280,7 @@ func testDocsFetchCommentsReadOnlyFixture(t *testing.T, defaultAs, docToken stri
 		require.True(t, summary.truncated, "the large shared fixture must emit the truncation tip")
 	})
 
-	t.Run("Markdown protocols do not expose XML comment sidecars", func(t *testing.T) {
+	t.Run("Markdown protocols return sidecars without inline anchors", func(t *testing.T) {
 		for _, docFormat := range []string{"markdown", "im-markdown"} {
 			t.Run(docFormat, func(t *testing.T) {
 				result, err := clie2e.RunCmd(ctx, clie2e.Request{
@@ -290,10 +291,10 @@ func testDocsFetchCommentsReadOnlyFixture(t *testing.T, defaultAs, docToken stri
 				result.AssertExitCode(t, 0)
 				result.AssertStdoutStatus(t, true)
 				require.Equal(t, defaultAs, gjson.Get(result.Stdout, "identity").String())
-				content := gjson.Get(result.Stdout, "data.document.content").String()
-				if strings.Contains(content, "comment-refs=") || docsFetchReferenceGroupExists(result.Stdout, "comments") {
-					t.Fatalf("%s fetch must not carry XML comment protocol:\n%s", docFormat, result.Stdout)
-				}
+				summary := assertDocsFetchMarkdownReadOnlyContract(t, result.Stdout, true)
+				require.Positive(t, summary.localCount, "the shared fixture must contain local comments")
+				require.Equal(t, 200, summary.wholeCount, "the large shared fixture must exercise the whole-comment cap")
+				require.True(t, summary.truncated, "the large shared fixture must emit the truncation tip")
 			})
 		}
 	})
@@ -376,6 +377,14 @@ type docsFetchLocalAnchor struct {
 }
 
 func assertDocsFetchReadOnlyContract(t *testing.T, stdout string, allowWhole bool) docsFetchReadOnlySummary {
+	return assertDocsFetchReadOnlyContractForOutput(t, stdout, allowWhole, true)
+}
+
+func assertDocsFetchMarkdownReadOnlyContract(t *testing.T, stdout string, allowWhole bool) docsFetchReadOnlySummary {
+	return assertDocsFetchReadOnlyContractForOutput(t, stdout, allowWhole, false)
+}
+
+func assertDocsFetchReadOnlyContractForOutput(t *testing.T, stdout string, allowWhole, expectInlineAnchors bool) docsFetchReadOnlySummary {
 	t.Helper()
 
 	var envelope docsFetchCommentEnvelope
@@ -415,6 +424,10 @@ func assertDocsFetchReadOnlyContract(t *testing.T, stdout string, allowWhole boo
 	}
 	if strings.Contains(document.Content, "<comment-ref") {
 		t.Fatal("DocxXML output must use comment-refs attributes, not Markdown shells")
+	}
+	if !expectInlineAnchors {
+		require.NotContains(t, document.Content, "comment-refs=", "Markdown body must not expose XML comment anchors")
+		return docsFetchReadOnlySummary{localCount: len(localKeys), wholeCount: len(wholeKeys), truncated: truncated}
 	}
 	bodyRefs := collectCommentRefsFromXML(t, document.Content)
 	require.Equal(t, localKeys, bodyRefs, "body refs and local sidecar keys must form an exact closure")
@@ -555,6 +568,14 @@ func localRootCommentIDs(t *testing.T, stdout string) map[string]struct{} {
 }
 
 func assertDocsFetchCommentContract(t *testing.T, stdout string, expected []docsFetchExpectedComment) {
+	assertDocsFetchCommentContractForOutput(t, stdout, expected, true)
+}
+
+func assertDocsFetchMarkdownCommentContract(t *testing.T, stdout string, expected []docsFetchExpectedComment) {
+	assertDocsFetchCommentContractForOutput(t, stdout, expected, false)
+}
+
+func assertDocsFetchCommentContractForOutput(t *testing.T, stdout string, expected []docsFetchExpectedComment, expectInlineAnchors bool) {
 	t.Helper()
 
 	var envelope docsFetchCommentEnvelope
@@ -605,6 +626,10 @@ func assertDocsFetchCommentContract(t *testing.T, stdout string, expected []docs
 	}
 	if strings.Contains(document.Content, "<comment-ref") {
 		t.Fatal("DocxXML output must use comment-refs attributes, not Markdown shells")
+	}
+	if !expectInlineAnchors {
+		require.NotContains(t, document.Content, "comment-refs=", "Markdown body must not expose XML comment anchors")
+		return
 	}
 	bodyRefs := collectCommentRefsFromXML(t, document.Content)
 	require.Equal(t, localKeys, bodyRefs, "body refs and local sidecar keys must form an exact closure")

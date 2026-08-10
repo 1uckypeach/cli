@@ -596,18 +596,17 @@ func TestDocsScriptFetchDoesNotEnableComments(t *testing.T) {
 	}
 }
 
-func TestBuildFetchBodyIncludesCommentsOnlyForXML(t *testing.T) {
+func TestBuildFetchBodyIncludesCommentsForEveryDocumentFormat(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
-		name         string
-		docFormat    string
-		scope        string
-		wantComments bool
+		name      string
+		docFormat string
+		scope     string
 	}{
-		{name: "XML full", docFormat: "xml", scope: "full", wantComments: true},
-		{name: "XML partial", docFormat: "xml", scope: "keyword", wantComments: true},
-		{name: "XML outline", docFormat: "xml", scope: "outline", wantComments: true},
+		{name: "XML full", docFormat: "xml", scope: "full"},
+		{name: "XML partial", docFormat: "xml", scope: "keyword"},
+		{name: "XML outline", docFormat: "xml", scope: "outline"},
 		{name: "Markdown full", docFormat: "markdown", scope: "full"},
 		{name: "IM Markdown partial", docFormat: "im-markdown", scope: "keyword"},
 	} {
@@ -624,10 +623,69 @@ func TestBuildFetchBodyIncludesCommentsOnlyForXML(t *testing.T) {
 			if err := json.Unmarshal([]byte(body["extra_param"].(string)), &got); err != nil {
 				t.Fatalf("decode extra_param: %v", err)
 			}
-			if got["include_comments"] != tt.wantComments {
-				t.Fatalf("include_comments=%v, want %v in %#v", got["include_comments"], tt.wantComments, got)
+			if got["include_comments"] != true {
+				t.Fatalf("include_comments=%v, want true in %#v", got["include_comments"], got)
 			}
 		})
+	}
+}
+
+func TestDocsCommandsHideOutputFormatCompatibilityFlag(t *testing.T) {
+	t.Parallel()
+
+	for _, shortcut := range []common.Shortcut{DocsFetch, DocsCreate, DocsUpdate} {
+		shortcut := shortcut
+		t.Run(shortcut.Command, func(t *testing.T) {
+			t.Parallel()
+			f, _, _, _ := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-hidden-format"))
+			parent := &cobra.Command{Use: "docs"}
+			shortcut.Mount(parent, f)
+			cmd, _, err := parent.Find([]string{shortcut.Command})
+			if err != nil {
+				t.Fatalf("find %s: %v", shortcut.Command, err)
+			}
+			formatFlag := cmd.Flags().Lookup("format")
+			if formatFlag == nil {
+				t.Fatal("hidden compatibility flag --format is not registered")
+			}
+			if !formatFlag.Hidden {
+				t.Fatal("--format must be hidden from help")
+			}
+			if got := formatFlag.DefValue; got != "json" {
+				t.Fatalf("--format default = %q, want json", got)
+			}
+			jsonFlag := cmd.Flags().Lookup("json")
+			if jsonFlag == nil {
+				t.Fatal("hidden compatibility flag --json is not registered")
+			}
+			if !jsonFlag.Hidden {
+				t.Fatal("--json must be hidden because JSON is already the default")
+			}
+			if err := cmd.ParseFlags([]string{"--format", "pretty"}); err != nil {
+				t.Fatalf("legacy --format must remain parse-compatible: %v", err)
+			}
+			if err := cmd.ParseFlags([]string{"--json"}); err != nil {
+				t.Fatalf("legacy --json must remain parse-compatible: %v", err)
+			}
+		})
+	}
+}
+
+func TestDocsFetchHelpMetadataExplainsCommentSidecar(t *testing.T) {
+	t.Parallel()
+
+	f, _, _, _ := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-fetch-comment-help"))
+	parent := &cobra.Command{Use: "docs"}
+	DocsFetch.Mount(parent, f)
+	cmd, _, err := parent.Find([]string{DocsFetch.Command})
+	if err != nil {
+		t.Fatalf("find %s: %v", DocsFetch.Command, err)
+	}
+	help := strings.Join(cmdutil.GetTips(cmd), "\n")
+	for _, want := range []string{"document.reference_map.comments", "comment-refs", "Markdown"} {
+		if !strings.Contains(help, want) {
+			t.Fatalf("fetch help tips = %q, want mention of %q", help, want)
+		}
 	}
 }
 
