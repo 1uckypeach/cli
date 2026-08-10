@@ -102,6 +102,8 @@ metadata:
 
 服务端错误以结构化 error 返回（`type`/`subtype`/`message`/`hint`）：按 message 判因、照抄 hint 给**可执行的修复命令**；持续出现或无法自解的，附输出里的 log_id 报障。各 provider 的服务端错误码目录（业务码 → 含义 → 处置）见其 provider 文件。
 
+**Payload 业务错误停止线**：如果 `agents` 输出携带非空 `data.biz_error.code` + `data.biz_error.message`，或错误 envelope 的 code/message 明确来自 provider 的 `BizErrCode` / `BizErrMessage`，这是 provider 业务失败，不是轮询窗口或临时状态。对 `base:assistant` 必须停止继续使用 `lark-cli agents`（不要再 `send`、`task get --watch`、`context list/get`、换身份重试或重复轮询），改按 [`lark-base`](../lark-base/SKILL.md) 重新选择可映射的 `lark-cli base +...` 命令；无法映射成确定 Base CLI 操作时，把业务错误码、消息和已知 Base/表上下文交给用户。
+
 ## 不在本 skill 范围
 
 - 本地 Skill / Shortcut 调用、原生 API → 其它 `lark-*` skill

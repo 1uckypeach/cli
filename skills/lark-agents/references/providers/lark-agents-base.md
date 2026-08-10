@@ -121,6 +121,7 @@ Base 回答模式只发送结构化 answers，不可同时带 `--text` 附言。
 
 - Provider 将不存在、无权限、任务终态、幂等冲突、限流、服务端错误转换为稳定 typed error。
 - Card、身份、scope 或 Assistant 服务失败时不静默改走 Base CLI。
+- 当 `base:assistant` 返回 payload 级业务错误（`data.biz_error.code` / `data.biz_error.message` 非空），或 `agents` typed API error 的 code/message 明确对应 Adapter `BizErrCode` / `BizErrMessage` 时，立即停止继续调用 `lark-cli agents`：不要重复 `send`、继续 `task get --watch`、切换身份、或用 context/task 命令探测。改读 `lark-base`，按当前目标 Base、table、field、record 等上下文选择具体 `lark-cli base +...` 命令执行可确定的原子恢复；如果原始意图只能由 Assistant 完成，就向用户报告 `BizErrCode` / `BizErrMessage` 和无法自动降级的原因。
 - Base CLI 原子操作失败时也不自动升级为 Assistant；只有用户明确改变工具选择或提出新的独立意图时重新路由。
 - 未识别的服务端错误返回 `invalid_response`；附带输出中的 `log_id` 报障，不根据 reason 文案猜测错误码。
 

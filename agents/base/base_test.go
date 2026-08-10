@@ -240,6 +240,25 @@ func TestAgentBizErrPayloads(t *testing.T) {
 		}
 	})
 
+	t.Run("get task accepts adapter task envelope with snake biz error", func(t *testing.T) {
+		rt := &fakeRuntime{
+			params: map[string]string{"base_token": "b1"},
+			responses: []json.RawMessage{
+				dataResponse(t, `{"biz_err_code":5000,"biz_err_message":"[MOCK] quota limit exceeded","task":{"schema_version":1,"task_id":"1001","context_id":"c1","status":"completed","created_at":"1786347806","updated_at":"1786347832","outputs":[]}}`),
+			},
+		}
+		task, err := assistantSpec.GetTask.Handler(context.Background(), rt, "1001")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task.State != iagents.StateCompleted || !task.IsTerminal {
+			t.Fatalf("task state=%s terminal=%t", task.State, task.IsTerminal)
+		}
+		if task.BizError == nil || task.BizError.Code != "5000" || task.BizError.Message != "[MOCK] quota limit exceeded" {
+			t.Fatalf("task biz_error=%+v", task.BizError)
+		}
+	})
+
 	t.Run("list task item carries biz error", func(t *testing.T) {
 		rt := &fakeRuntime{
 			params: map[string]string{"base_token": "b1"},

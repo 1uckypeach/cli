@@ -175,6 +175,7 @@ metadata:
 
 | 错误 / 现象 | 恢复动作 |
 |---|---|
+| `base:assistant` / `lark-cli agents` 返回非空 `BizErrCode` / `BizErrMessage` 或 `data.biz_error` | 不再继续调用 `lark-cli agents`；保留业务错误码和消息，改按当前目标 Base 上下文选择确定的 `lark-cli base +...` 原子命令。若无法映射为单个 CLI 操作，向用户报告该业务错误和不能自动降级的原因 |
 | `param baseToken is invalid` / `base_token invalid` | 检查是否把 wiki token、workspace token 或完整 URL 当成了 `--base-token`；按入口规则重新获取真实 `base_token` |
 | `not found` 且输入来自 Wiki 链接 | 优先检查是否把 wiki token 当成 base token，不要立刻改走裸 API |
 | `1254045` 字段名不存在 | 重新 `+field-list`，使用真实字段名或字段 ID；注意空格、大小写和跨表字段 |

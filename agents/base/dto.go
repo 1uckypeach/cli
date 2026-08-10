@@ -87,6 +87,35 @@ type adapterTask struct {
 	Artifacts []adapterArtifact `json:"artifacts,omitempty"`
 }
 
+func (t *adapterTask) UnmarshalJSON(data []byte) error {
+	type taskAlias adapterTask
+	var raw struct {
+		adapterBizErr
+		SnakeBizErr adapterBizErr `json:"-"`
+		Task        *taskAlias    `json:"task,omitempty"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if err := decodeBizErrFields(data, &raw.SnakeBizErr); err != nil {
+		return err
+	}
+	if raw.Task != nil {
+		*t = adapterTask(*raw.Task)
+		t.adapterBizErr = mergeBizErr(t.adapterBizErr, raw.adapterBizErr)
+		t.adapterBizErr = mergeBizErr(t.adapterBizErr, raw.SnakeBizErr)
+		return nil
+	}
+	var decoded taskAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*t = adapterTask(decoded)
+	t.adapterBizErr = mergeBizErr(t.adapterBizErr, raw.adapterBizErr)
+	t.adapterBizErr = mergeBizErr(t.adapterBizErr, raw.SnakeBizErr)
+	return nil
+}
+
 type adapterTaskList struct {
 	adapterBizErr
 
@@ -250,13 +279,8 @@ func decodeAdapterList[T any](data []byte, itemsField string) ([]T, bool, string
 		return nil, false, "", adapterBizErr{}, err
 	}
 	var bizErr adapterBizErr
-	if raw, ok := envelope["BizErrCode"]; ok {
-		bizErr.BizErrCode = append(json.RawMessage(nil), raw...)
-	}
-	if raw, ok := envelope["BizErrMessage"]; ok {
-		if err := json.Unmarshal(raw, &bizErr.BizErrMessage); err != nil {
-			return nil, false, "", adapterBizErr{}, fmt.Errorf("decode Base Agent list response %q: %w", "BizErrMessage", err)
-		}
+	if err := decodeBizErrFields(trimmed, &bizErr); err != nil {
+		return nil, false, "", adapterBizErr{}, fmt.Errorf("decode Base Agent list response business error: %w", err)
 	}
 	itemsRaw, ok := envelope[itemsField]
 	if !ok || bytes.Equal(bytes.TrimSpace(itemsRaw), []byte("null")) {
@@ -294,6 +318,38 @@ func decodeAdapterList[T any](data []byte, itemsField string) ([]T, bool, string
 type adapterBizErr struct {
 	BizErrCode    json.RawMessage `json:"BizErrCode,omitempty"`
 	BizErrMessage string          `json:"BizErrMessage,omitempty"`
+}
+
+func decodeBizErrFields(data []byte, out *adapterBizErr) error {
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return err
+	}
+	for _, field := range []string{"BizErrCode", "biz_err_code"} {
+		if raw, ok := envelope[field]; ok {
+			out.BizErrCode = append(json.RawMessage(nil), raw...)
+			break
+		}
+	}
+	for _, field := range []string{"BizErrMessage", "biz_err_message"} {
+		if raw, ok := envelope[field]; ok {
+			if err := json.Unmarshal(raw, &out.BizErrMessage); err != nil {
+				return fmt.Errorf("%s: %w", field, err)
+			}
+			break
+		}
+	}
+	return nil
+}
+
+func mergeBizErr(base, overlay adapterBizErr) adapterBizErr {
+	if len(base.BizErrCode) == 0 && len(overlay.BizErrCode) > 0 {
+		base.BizErrCode = append(json.RawMessage(nil), overlay.BizErrCode...)
+	}
+	if base.BizErrMessage == "" && overlay.BizErrMessage != "" {
+		base.BizErrMessage = overlay.BizErrMessage
+	}
+	return base
 }
 
 type adapterBusinessError struct {
