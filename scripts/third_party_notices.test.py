@@ -9,9 +9,8 @@ import json
 import shutil
 import sys
 import tempfile
-import unittest
 from pathlib import Path
-from unittest import mock
+from unittest import TestCase, main, mock
 
 
 SCRIPT = Path(__file__).with_name("third_party_notices.py")
@@ -126,7 +125,7 @@ def make_package(root: Path, name: str, license_name: str, license_text: str) ->
     return package
 
 
-class ThirdPartyNoticesTests(unittest.TestCase):
+class ThirdPartyNoticesTests(TestCase):
     def test_render_sorts_components_stably(self):
         components = [
             notices.Component("zeta", "2.0.0", "https://z", "MIT", "Copyright Z", "z text"),
@@ -294,4 +293,4 @@ class ThirdPartyNoticesTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    main()
