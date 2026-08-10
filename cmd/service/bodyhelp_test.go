@@ -95,6 +95,60 @@ func TestBodyHelp_NestedFieldsOneLevel(t *testing.T) {
 	}
 }
 
+// A second-level field with children of its own is where this contract goes
+// quiet: the skeleton writes {} for it, which is what a genuinely empty object
+// gets too, and no line below names what it holds. Reporting the count is what
+// lets a caller tell the two apart — without it, "consult the schema only for
+// deep nesting" cannot be acted on, because spotting the nesting is exactly
+// what is missing.
+func TestBodyHelp_MarksFieldsWhoseChildrenAreNotShown(t *testing.T) {
+	fields := []meta.Field{{
+		Name: "task", Type: "object", Description: "任务",
+		Properties: map[string]meta.Field{
+			"due": {
+				Name: "due", Type: "object", Description: "截止时间",
+				Properties: map[string]meta.Field{
+					"timestamp":  {Name: "timestamp", Type: "string"},
+					"is_all_day": {Name: "is_all_day", Type: "boolean"},
+				},
+			},
+			"summary": {Name: "summary", Type: "string", Description: "标题"},
+		},
+	}}
+	got := bodyHelp(fields)
+
+	if !strings.Contains(got, "nested: 2 fields not shown") {
+		t.Errorf("a truncated object must report what it hides, got:\n%s", got)
+	}
+	// summary has no children, and task's own children do get rendered, so
+	// neither may claim to be hiding anything.
+	for _, line := range strings.Split(got, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "summary ") && !strings.HasPrefix(trimmed, "task ") {
+			continue
+		}
+		if strings.Contains(line, "nested:") {
+			t.Errorf("field with nothing hidden must not be marked: %q", line)
+		}
+	}
+}
+
+// One hidden field reads "1 field", not "1 fields".
+func TestBodyHelp_NestedCountIsSingularForOne(t *testing.T) {
+	fields := []meta.Field{{
+		Name: "wrapper", Type: "object",
+		Properties: map[string]meta.Field{
+			"rules": {
+				Name: "rules", Type: "object",
+				Properties: map[string]meta.Field{"only": {Name: "only", Type: "string"}},
+			},
+		},
+	}}
+	if got := bodyHelp(fields); !strings.Contains(got, "nested: 1 field not shown") {
+		t.Errorf("a single hidden field must not read as plural, got:\n%s", got)
+	}
+}
+
 // The skeleton is meant to be copied straight into --data, so it has to parse.
 func TestBodyHelp_SkeletonIsValidJSON(t *testing.T) {
 	fields := []meta.Field{

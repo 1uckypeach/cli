@@ -32,15 +32,19 @@ func bodyHelp(fields []meta.Field) string {
 	b.WriteString("  " + bodySkeleton(fields) + "\n")
 	b.WriteString("  Fields:\n")
 	for _, f := range fields {
-		writeFieldLine(&b, f, "    ")
+		writeFieldLine(&b, f, "    ", false)
 		for _, ch := range f.Children() {
-			writeFieldLine(&b, ch, "      ")
+			// Second level is where rendering stops, so a child that has
+			// children of its own is the point where the contract goes silent.
+			writeFieldLine(&b, ch, "      ", true)
 		}
 	}
 	return b.String()
 }
 
-func writeFieldLine(b *strings.Builder, f meta.Field, indent string) {
+// atDepthLimit says this line is the deepest one rendered, so any children of
+// its own will not appear below it.
+func writeFieldLine(b *strings.Builder, f meta.Field, indent string, atDepthLimit bool) {
 	req := "optional"
 	if f.Required {
 		req = "required"
@@ -69,6 +73,20 @@ func writeFieldLine(b *strings.Builder, f meta.Field, indent string) {
 	}
 	if bounds := formatBoundsInline(f); bounds != "" {
 		line += "  " + bounds
+	}
+	// A field whose children are out of budget gets {} in the skeleton, which is
+	// the same shape a genuinely empty object gets. Left at that the two are
+	// indistinguishable, and "consult the schema only for deep nesting" has
+	// nothing to act on — the caller would need to already know the nesting is
+	// there in order to know to look for it.
+	if atDepthLimit {
+		if n := len(f.Children()); n > 0 {
+			noun := "fields"
+			if n == 1 {
+				noun = "field"
+			}
+			line += fmt.Sprintf("  nested: %d %s not shown", n, noun)
+		}
 	}
 	b.WriteString(line + "\n")
 }
@@ -154,6 +172,10 @@ func skeletonValue(f meta.Field, depth int) string {
 	ct := f.CanonicalType()
 	switch ct {
 	case "object":
+		// Both reasons to stop collapse to {} here, unlike the array case below:
+		// JSON offers no second empty object to tell them apart, so the shape
+		// cannot carry the distinction. The facts line carries it instead — a
+		// field truncated for budget is marked with the count it is hiding.
 		if depth <= 0 || len(f.Properties) == 0 {
 			return "{}"
 		}
