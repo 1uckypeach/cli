@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
@@ -19,6 +20,7 @@ import (
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/registry"
 	"github.com/larksuite/cli/internal/schema"
+	"github.com/larksuite/cli/shortcuts"
 	"github.com/spf13/cobra"
 )
 
@@ -223,6 +225,19 @@ func safeSeg(seg string) string {
 	return "<name>"
 }
 
+// isShortcutOnlyDomain reports whether name is a domain that exists as a command
+// but contributes no API methods. The shortcut registry is the same index the
+// domain help and `auth login` consume for the shortcut-domain listing, so a
+// hint built from it names a command the caller will actually find.
+//
+// A domain the current build prunes down to nothing would still be listed here,
+// which is the one case where the returned hint can outlive its command; the
+// listing is deliberately static because the alternative — reading the live
+// Cobra tree — is not available at this depth.
+func isShortcutOnlyDomain(name string) bool {
+	return slices.Contains(shortcuts.ShortcutServiceNames(), name)
+}
+
 // domainOrPlaceholder keeps a hint's example command runnable-looking even when
 // no domain segment was supplied.
 func domainOrPlaceholder(domain string) string {
@@ -371,13 +386,21 @@ func resolveError(err error, parts []string) error {
 
 	switch re.Kind {
 	case apicatalog.ErrService:
-		// Not "unknown": a domain that only provides +shortcuts is absent from
-		// the API catalog but very much exists as a command, so calling it
-		// unknown contradicts what `lark-cli --help` just showed and sends the
-		// caller looking for a naming mismatch that isn't there.
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "No API methods for: %s", safeSeg(re.Subject)).
-			WithHint("Available: %s; a domain that only provides +shortcuts has no API methods and is not listed here — run `lark-cli %s --help` to see its commands, or `lark-cli --help` to list all domains",
-				strings.Join(re.Candidates, ", "), domainOrPlaceholder(domain))
+		// A domain that only provides +shortcuts is absent from the API catalog
+		// but very much exists as a command, so calling it unknown contradicts
+		// what `lark-cli --help` just showed and sends the caller looking for a
+		// naming mismatch that isn't there. A name that is no domain at all gets
+		// the opposite treatment: claiming it "has no API methods" asserts it
+		// exists, and pointing at `lark-cli <name> --help` hands back a command
+		// that fails the same way — one dead end traded for another.
+		if isShortcutOnlyDomain(re.Subject) {
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "No API methods for: %s", safeSeg(re.Subject)).
+				WithHint("Available: %s; a domain that only provides +shortcuts has no API methods and is not listed here — run `lark-cli %s --help` to see its commands, or `lark-cli --help` to list all domains",
+					strings.Join(re.Candidates, ", "), domainOrPlaceholder(domain))
+		}
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown service: %s", safeSeg(re.Subject)).
+			WithHint("Available: %s; run `lark-cli --help` to list all domains, including the ones that only provide +shortcuts",
+				strings.Join(re.Candidates, ", "))
 	case apicatalog.ErrResource:
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown resource: %s", re.Subject).
 			WithHint("Available: %s%s", strings.Join(re.Candidates, ", "), indexHint)

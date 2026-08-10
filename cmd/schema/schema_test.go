@@ -303,11 +303,11 @@ func TestSchemaCmd_UnknownService(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for unknown service")
 	}
-	// The message says what is missing (no API methods) rather than calling the
-	// name unknown: the same path is reached by shortcut-only domains, which do
-	// exist as commands.
-	if !strings.Contains(err.Error(), "No API methods for") {
-		t.Errorf("expected 'No API methods for' error, got: %v", err)
+	// A name that is no domain at all must be called unknown. "No API methods
+	// for" asserts the name exists, which is the wording reserved for
+	// shortcut-only domains (see TestResolveError_ShortcutOnlyDomainPointsAtHelp).
+	if !strings.Contains(err.Error(), "Unknown service") {
+		t.Errorf("expected 'Unknown service' error, got: %v", err)
 	}
 	if !strings.Contains(err.Error(), "nonexistent_service") {
 		t.Errorf("error must name the rejected service, got: %v", err)
@@ -321,6 +321,14 @@ func TestSchemaCmd_UnknownService(t *testing.T) {
 	}
 	if !strings.Contains(ve.Hint, "Available:") {
 		t.Errorf("expected hint listing available services, got: %q", ve.Hint)
+	}
+	// The hint must not hand back a command that fails the same way the rejected
+	// call just did — that trades one dead end for another.
+	if strings.Contains(ve.Hint, "lark-cli nonexistent_service") {
+		t.Errorf("hint must not suggest running the rejected name as a command, got: %q", ve.Hint)
+	}
+	if !strings.Contains(ve.Hint, "lark-cli --help") {
+		t.Errorf("hint must offer a usable next step, got: %q", ve.Hint)
 	}
 }
 
