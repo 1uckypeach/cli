@@ -87,6 +87,10 @@ class ThirdPartyNoticesTests(unittest.TestCase):
             with self.assertRaises(notices.NoticeError):
                 notices.component_from_node_package(package, notices.ReadBudget())
 
+    def test_declared_license_must_match_its_text(self):
+        with self.assertRaises(notices.NoticeError):
+            notices.normalize_license_id("MIT", APACHE_TEXT)
+
     def test_bsd_license_is_classified_by_its_text(self):
         self.assertEqual(notices.normalize_license_id("BSD", BSD_2_TEXT), "BSD-2-Clause")
         self.assertEqual(notices.normalize_license_id("BSD", BSD_3_TEXT), "BSD-3-Clause")

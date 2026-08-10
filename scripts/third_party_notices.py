@@ -185,6 +185,21 @@ def _detect_bsd_license(license_text: str) -> str:
     return "BSD-2-Clause"
 
 
+def _detect_license_ids(license_text: str) -> set[str]:
+    _reject_prohibited(license_text)
+    upper_text = license_text.upper()
+    detected = set()
+    if "APACHE LICENSE" in upper_text and "VERSION 2.0" in upper_text:
+        detected.add("Apache-2.0")
+    if "PERMISSION IS HEREBY GRANTED, FREE OF CHARGE" in upper_text:
+        detected.add("MIT")
+    if "PERMISSION TO USE, COPY, MODIFY, AND/OR DISTRIBUTE" in upper_text:
+        detected.add("ISC")
+    if "REDISTRIBUTION AND USE IN SOURCE AND BINARY FORMS" in upper_text:
+        detected.add(_detect_bsd_license(license_text))
+    return detected
+
+
 def normalize_license_id(value: object, license_text: str) -> str:
     """Return an allowed SPDX-like identifier, or fail closed."""
     declared = ""
@@ -192,34 +207,27 @@ def normalize_license_id(value: object, license_text: str) -> str:
         declared = value.strip()
     elif isinstance(value, dict) and isinstance(value.get("type"), str):
         declared = value["type"].strip()
+    detected = _detect_license_ids(license_text)
     if declared:
         _reject_prohibited(declared)
         normalized = declared.upper().replace(" ", "")
         if normalized in {"MIT", "MITLICENSE"}:
-            return "MIT"
-        if normalized in {"ISC", "ISCLICENSE"}:
-            return "ISC"
-        if normalized.startswith("APACHE-2") or normalized in {"APACHE2.0", "APACHELICENSE2.0"}:
-            return "Apache-2.0"
-        if normalized.startswith("BSD-2"):
-            return "BSD-2-Clause"
-        if normalized.startswith("BSD-3"):
-            return "BSD-3-Clause"
-        if normalized in {"BSD", "BSDLICENSE"}:
+            expected = "MIT"
+        elif normalized in {"ISC", "ISCLICENSE"}:
+            expected = "ISC"
+        elif normalized.startswith("APACHE-2") or normalized in {"APACHE2.0", "APACHELICENSE2.0"}:
+            expected = "Apache-2.0"
+        elif normalized.startswith("BSD-2"):
+            expected = "BSD-2-Clause"
+        elif normalized.startswith("BSD-3"):
+            expected = "BSD-3-Clause"
+        elif normalized in {"BSD", "BSDLICENSE"}:
             return _detect_bsd_license(license_text)
-        raise NoticeError(f"unknown or unsupported license: {declared}")
-
-    _reject_prohibited(license_text)
-    upper_text = license_text.upper()
-    detected = []
-    if "APACHE LICENSE" in upper_text and "VERSION 2.0" in upper_text:
-        detected.append("Apache-2.0")
-    if "PERMISSION IS HEREBY GRANTED, FREE OF CHARGE" in upper_text:
-        detected.append("MIT")
-    if "PERMISSION TO USE, COPY, MODIFY, AND/OR DISTRIBUTE" in upper_text:
-        detected.append("ISC")
-    if "REDISTRIBUTION AND USE IN SOURCE AND BINARY FORMS" in upper_text:
-        detected.append(_detect_bsd_license(license_text))
+        else:
+            raise NoticeError(f"unknown or unsupported license: {declared}")
+        if expected not in detected:
+            raise NoticeError(f"license text does not match declared license: {declared}")
+        return expected
     if not detected:
         raise NoticeError("license cannot be identified from dependency metadata or text")
     return " OR ".join(sorted(detected))
