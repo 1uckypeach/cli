@@ -176,6 +176,60 @@ func TestNewCmdServiceMethod_POSTHasDataFlag(t *testing.T) {
 	}
 }
 
+func TestMailSenderListCreateAddressesFlagBuildsItemsBody(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, testConfig)
+	cmd := NewCmdServiceMethod(f, mailSpec(), mailSenderListMethod("allow_senders", "create"), "create", "user_mailbox.allow_senders", nil)
+	cmd.SetArgs([]string{
+		"--user-mailbox-id", "me",
+		"--addresses", "alice@example.com",
+		"--addresses", "example.org",
+		"--sender-type", "2",
+		"--dry-run",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out := stdout.String()
+	for _, want := range []string{
+		`"url": "/open-apis/mail/v1/user_mailboxes/me/allow_senders/batch_create"`,
+		`"items"`,
+		`"sender": "alice@example.com"`,
+		`"sender": "example.org"`,
+		`"sender_type": 2`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("dry-run output missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestMailSenderListDeleteAddressesFlagBuildsSendersBody(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, testConfig)
+	cmd := NewCmdServiceMethod(f, mailSpec(), mailSenderListMethod("blocked_senders", "delete"), "delete", "user_mailbox.blocked_senders", nil)
+	cmd.SetArgs([]string{
+		"--user-mailbox-id", "me",
+		"--addresses", "spam@example.com",
+		"--addresses", "bad.example",
+		"--dry-run",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out := stdout.String()
+	for _, want := range []string{
+		`"url": "/open-apis/mail/v1/user_mailboxes/me/blocked_senders/batch_remove"`,
+		`"senders"`,
+		`"spam@example.com"`,
+		`"bad.example"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("dry-run output missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestNewCmdServiceMethod_RunFCallback(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, testConfig)
 
@@ -199,6 +253,33 @@ func TestNewCmdServiceMethod_RunFCallback(t *testing.T) {
 	if captured.SchemaPath != "drive.files.list" {
 		t.Errorf("expected SchemaPath=drive.files.list, got %s", captured.SchemaPath)
 	}
+}
+
+func mailSpec() meta.Service {
+	return meta.ServiceFromMap(map[string]interface{}{
+		"name":        "mail",
+		"servicePath": "/open-apis/mail/v1",
+	})
+}
+
+func mailSenderListMethod(resource, action string) meta.Method {
+	body := map[string]interface{}{}
+	pathAction := "batch_create"
+	if action == "delete" {
+		pathAction = "batch_remove"
+		body["senders"] = map[string]interface{}{"type": "array", "required": true}
+	} else {
+		body["items"] = map[string]interface{}{"type": "array", "required": true}
+	}
+	return meta.FromMap(map[string]interface{}{
+		"id":         "user_mailbox." + resource + "." + action,
+		"path":       "user_mailboxes/{user_mailbox_id}/" + resource + "/" + pathAction,
+		"httpMethod": "POST",
+		"parameters": map[string]interface{}{
+			"user_mailbox_id": map[string]interface{}{"type": "string", "location": "path", "required": true},
+		},
+		"requestBody": body,
+	})
 }
 
 // ── dry-run / buildServiceRequest ──

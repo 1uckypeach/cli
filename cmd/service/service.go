@@ -144,6 +144,8 @@ type ServiceMethodOptions struct {
 	DryRun     bool
 	File       string   // --file flag value
 	FileFields []string // auto-detected file field names from metadata
+	Addresses  []string // mail sender-list shorthand for request body senders/items
+	SenderType int      // mail sender-list create shorthand: 1=email address, 2=domain
 
 	// binder owns the generated typed param flags — registration and the
 	// --params overlay — replacing the raw paramFlags side-channel.
@@ -310,6 +312,7 @@ func buildMethodCommand(ctx context.Context, f *cmdutil.Factory, spec methodComm
 	if len(spec.fileFields) > 0 && spec.acceptsBody {
 		cmd.Flags().StringVar(&opts.File, "file", "", "File upload [field=]path. Supports - and stdin.")
 	}
+	registerSenderListBodyFlags(cmd, opts, spec)
 	cmdutil.RegisterFlagCompletion(cmd, "format", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return []string{"json", "ndjson", "table", "csv"}, cobra.ShellCompDirectiveNoFileComp
 	})
@@ -336,6 +339,9 @@ func buildMethodCommand(ctx context.Context, f *cmdutil.Factory, spec methodComm
 		}
 	}
 	tagFlagGroup(cmd.Flags(), "file", groupBody)
+	for _, name := range []string{"addresses", "sender-type"} {
+		tagFlagGroup(cmd.Flags(), name, groupBody)
+	}
 	if fl := cmd.Flags().Lookup("params"); fl != nil {
 		annotate(fl, flagGroupAnnotation, []string{groupRaw})
 		// Keep the precedence rule on the flag's own one line (not a multi-line
@@ -658,6 +664,9 @@ func buildServiceRequest(opts *ServiceMethodOptions) (client.RawApiRequest, *cmd
 		if err != nil {
 			return client.RawApiRequest{}, nil, err
 		}
+		if data, err = overlaySenderListBodyFlags(opts, data); err != nil {
+			return client.RawApiRequest{}, nil, err
+		}
 		request.Data = data
 		if opts.Output != "" {
 			request.ExtraOpts = append(request.ExtraOpts, larkcore.WithFileDownload())
@@ -665,6 +674,60 @@ func buildServiceRequest(opts *ServiceMethodOptions) (client.RawApiRequest, *cmd
 	}
 
 	return request, nil, nil
+}
+
+func registerSenderListBodyFlags(cmd *cobra.Command, opts *ServiceMethodOptions, spec methodCommandSpec) {
+	if !spec.acceptsBody || !isMailSenderListWrite(spec.schemaPath) {
+		return
+	}
+	cmd.Flags().StringArrayVar(&opts.Addresses, "addresses", nil, "sender email addresses or domains. Repeat for multiple values.")
+	if strings.HasSuffix(spec.schemaPath, ".create") {
+		cmd.Flags().IntVar(&opts.SenderType, "sender-type", 1, "sender type for --addresses: 1=email address, 2=domain")
+	}
+}
+
+func isMailSenderListWrite(schemaPath string) bool {
+	switch schemaPath {
+	case "mail.user_mailbox.allow_senders.create",
+		"mail.user_mailbox.allow_senders.delete",
+		"mail.user_mailbox.blocked_senders.create",
+		"mail.user_mailbox.blocked_senders.delete":
+		return true
+	default:
+		return false
+	}
+}
+
+func overlaySenderListBodyFlags(opts *ServiceMethodOptions, data any) (any, error) {
+	if opts.Cmd == nil || !opts.Cmd.Flags().Changed("addresses") {
+		return data, nil
+	}
+	if len(opts.Addresses) == 0 {
+		return data, errs.NewValidationError(errs.SubtypeInvalidArgument, "--addresses must include at least one sender").WithParam("--addresses")
+	}
+	body, ok := data.(map[string]any)
+	if data == nil {
+		body = map[string]any{}
+	} else if !ok {
+		return data, errs.NewValidationError(errs.SubtypeInvalidArgument, "--addresses requires --data to be a JSON object when both are set").WithParam("--data")
+	}
+	if strings.HasSuffix(opts.SchemaPath, ".delete") {
+		body["senders"] = append([]string(nil), opts.Addresses...)
+		return body, nil
+	}
+	senderType := opts.SenderType
+	if senderType != 1 && senderType != 2 {
+		return data, errs.NewValidationError(errs.SubtypeInvalidArgument, "--sender-type must be 1 (email address) or 2 (domain)").WithParam("--sender-type")
+	}
+	items := make([]map[string]any, 0, len(opts.Addresses))
+	for _, address := range opts.Addresses {
+		items = append(items, map[string]any{
+			"sender":      address,
+			"sender_type": senderType,
+		})
+	}
+	body["items"] = items
+	return body, nil
 }
 
 func serviceDryRun(f *cmdutil.Factory, request client.RawApiRequest, config *core.CliConfig, format string) error {
