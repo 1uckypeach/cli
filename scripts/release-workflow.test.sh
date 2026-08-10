@@ -160,6 +160,8 @@ toolchain_verify_run = build_steps.fetch(toolchain_verify_index).fetch("run")
 contract_error("release toolchain verification must reject an empty binary set") unless toolchain_verify_run.include?("${#release_binaries[@]} > 0")
 contract_error("release toolchain verification must inspect embedded build metadata") unless toolchain_verify_run.include?('go version -m "$binary"')
 contract_error("release toolchain verification must compare against the configured version") unless toolchain_verify_run.include?('expected="go${RELEASE_GO_VERSION}"')
+contract_error("release toolchain verification must check every binary") unless toolchain_verify_run.include?('for binary in "${release_binaries[@]}"; do')
+contract_error("release toolchain verification must reject mismatches") unless toolchain_verify_run.include?('[[ "$actual" == "$expected" ]]')
 
 macos = jobs.fetch("verify-macos")
 expect_equal(macos.fetch("strategy").fetch("matrix").fetch("include"), [
