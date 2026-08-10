@@ -48,6 +48,7 @@ fmt-check:
 	fi
 
 script-test:
+	python3 scripts/third_party_notices.test.py
 	bash scripts/resolve-changed-from.test.sh
 	bash scripts/ci-workflow.test.sh
 	bash scripts/pkg-pr-new-workflow.test.sh
