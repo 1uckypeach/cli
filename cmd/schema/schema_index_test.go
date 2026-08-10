@@ -14,7 +14,7 @@ import (
 
 func TestRunSchema_BareRendersServiceIndex(t *testing.T) {
 	var buf bytes.Buffer
-	if err := runSchemaCatalog(&buf, nil, core.StrictModeOff, schemaTestCatalog(t), nil, ""); err != nil {
+	if err := runSchemaCatalog(&buf, nil, core.StrictModeOff, schemaTestCatalog(t), nil, "", nil); err != nil {
 		t.Fatalf("runSchemaCatalog: %v", err)
 	}
 	var got struct {
@@ -46,7 +46,7 @@ func TestRunSchema_BareRendersServiceIndex(t *testing.T) {
 
 func TestRunSchema_ServiceRendersMethodIndex(t *testing.T) {
 	var buf bytes.Buffer
-	if err := runSchemaCatalog(&buf, []string{"im"}, core.StrictModeOff, schemaTestCatalog(t), nil, ""); err != nil {
+	if err := runSchemaCatalog(&buf, []string{"im"}, core.StrictModeOff, schemaTestCatalog(t), nil, "", nil); err != nil {
 		t.Fatalf("runSchemaCatalog: %v", err)
 	}
 	var got struct {
@@ -87,7 +87,7 @@ func TestRunSchema_ServiceRendersMethodIndex(t *testing.T) {
 
 func TestRunSchema_ResourceRendersMethodIndex(t *testing.T) {
 	var buf bytes.Buffer
-	if err := runSchemaCatalog(&buf, []string{"im", "chat.members"}, core.StrictModeOff, schemaTestCatalog(t), nil, ""); err != nil {
+	if err := runSchemaCatalog(&buf, []string{"im", "chat.members"}, core.StrictModeOff, schemaTestCatalog(t), nil, "", nil); err != nil {
 		t.Fatalf("runSchemaCatalog: %v", err)
 	}
 	var got struct {
@@ -104,7 +104,7 @@ func TestRunSchema_ResourceRendersMethodIndex(t *testing.T) {
 
 func TestRunSchema_JQFiltersIndex(t *testing.T) {
 	var buf bytes.Buffer
-	if err := runSchemaCatalog(&buf, []string{"im"}, core.StrictModeOff, schemaTestCatalog(t), nil, ".methods | length"); err != nil {
+	if err := runSchemaCatalog(&buf, []string{"im"}, core.StrictModeOff, schemaTestCatalog(t), nil, ".methods | length", nil); err != nil {
 		t.Fatalf("runSchemaCatalog: %v", err)
 	}
 	if got := strings.TrimSpace(buf.String()); got == "" || got == "null" {
@@ -115,7 +115,7 @@ func TestRunSchema_JQFiltersIndex(t *testing.T) {
 func TestRunSchema_JQFiltersEnvelope(t *testing.T) {
 	var buf bytes.Buffer
 	if err := runSchemaCatalog(&buf, []string{"im", "chat.members", "get"}, core.StrictModeOff, schemaTestCatalog(t), nil,
-		".inputSchema.properties.params.required"); err != nil {
+		".inputSchema.properties.params.required", nil); err != nil {
 		t.Fatalf("runSchemaCatalog: %v", err)
 	}
 	if strings.TrimSpace(buf.String()) == "" {
@@ -150,7 +150,7 @@ func TestSchemaCmd_JQRejectsInvalidExpression(t *testing.T) {
 
 func TestRunSchema_MethodOutputUnchanged(t *testing.T) {
 	var buf bytes.Buffer
-	if err := runSchemaCatalog(&buf, []string{"im", "chat.members", "get"}, core.StrictModeOff, schemaTestCatalog(t), nil, ""); err != nil {
+	if err := runSchemaCatalog(&buf, []string{"im", "chat.members", "get"}, core.StrictModeOff, schemaTestCatalog(t), nil, "", nil); err != nil {
 		t.Fatalf("runSchemaCatalog: %v", err)
 	}
 	var got map[string]any

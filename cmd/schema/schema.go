@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"slices"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
@@ -20,7 +19,6 @@ import (
 	"github.com/larksuite/cli/internal/output"
 	"github.com/larksuite/cli/internal/registry"
 	"github.com/larksuite/cli/internal/schema"
-	"github.com/larksuite/cli/shortcuts"
 	"github.com/spf13/cobra"
 )
 
@@ -47,6 +45,12 @@ type SchemaOptions struct {
 
 	// JqExpr filters the JSON output when non-empty.
 	JqExpr string
+
+	// CommandExists reports whether a top-level name is a command in this build.
+	// A rejection hint that offers `lark-cli <name> --help` is a claim about the
+	// command tree, so the tree answers it. A nil value means the answer is
+	// unavailable and no such hint is offered.
+	CommandExists func(name string) bool
 }
 
 // NewCmdSchema creates the schema command. If runF is non-nil it is called instead of the default runner (test hook).
@@ -72,6 +76,7 @@ func NewCmdSchemaWithVisibility(
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.Args = append([]string(nil), args...)
 			opts.Ctx = cmd.Context()
+			opts.CommandExists = topLevelCommandLookup(cmd.Root())
 			// schema has no --output, so the mutual-exclusion arm never fires
 			// here; going through the shared validator keeps the error text for a
 			// bad expression identical to every other command's.
@@ -124,10 +129,24 @@ func completeSchemaPath(
 	}
 }
 
+// topLevelCommandLookup answers whether a name is one of root's subcommands.
+// Hidden commands count: hiding a command keeps it out of listings but leaves
+// `lark-cli <name> --help` working, which is exactly what the hint promises.
+func topLevelCommandLookup(root *cobra.Command) func(string) bool {
+	return func(name string) bool {
+		for _, c := range root.Commands() {
+			if c.Name() == name {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 func schemaRunWithVisibility(opts *SchemaOptions, visibility CommandVisibility) error {
 	out := opts.Factory.IOStreams.Out
 	mode := opts.Factory.ResolveStrictMode(opts.Ctx)
-	return runSchemaCatalog(out, apicatalog.ParsePath(opts.Args), mode, opts.Factory.APICatalog, visibility, opts.JqExpr)
+	return runSchemaCatalog(out, apicatalog.ParsePath(opts.Args), mode, opts.Factory.APICatalog, visibility, opts.JqExpr, opts.CommandExists)
 }
 
 // runSchemaCatalog resolves the path through the build-selected schema catalog
@@ -146,6 +165,7 @@ func runSchemaCatalog(
 	catalog apicatalog.Catalog,
 	visibility CommandVisibility,
 	jqExpr string,
+	commandExists func(string) bool,
 ) error {
 	// Test the source catalog before presentation projection. A distribution
 	// that intentionally conceals every generated method still has metadata;
@@ -158,7 +178,7 @@ func runSchemaCatalog(
 	catalog = projectSchemaCatalog(catalog, visibility)
 	target, err := catalog.Resolve(parts)
 	if err != nil {
-		return resolveError(err, parts)
+		return resolveError(err, parts, commandExists)
 	}
 	filter := registry.FilterForStrictMode(mode)
 
@@ -223,19 +243,6 @@ func safeSeg(seg string) string {
 		return seg
 	}
 	return "<name>"
-}
-
-// isShortcutOnlyDomain reports whether name is a domain that exists as a command
-// but contributes no API methods. The shortcut registry is the same index the
-// domain help and `auth login` consume for the shortcut-domain listing, so a
-// hint built from it names a command the caller will actually find.
-//
-// A domain the current build prunes down to nothing would still be listed here,
-// which is the one case where the returned hint can outlive its command; the
-// listing is deliberately static because the alternative — reading the live
-// Cobra tree — is not available at this depth.
-func isShortcutOnlyDomain(name string) bool {
-	return slices.Contains(shortcuts.ShortcutServiceNames(), name)
 }
 
 // domainOrPlaceholder keeps a hint's example command runnable-looking even when
@@ -358,7 +365,7 @@ func appendPath(parent []string, segment string) []string {
 // hints route the caller back to a usable surface instead of dead-ending:
 // shortcuts are documented only in help, and an unresolvable typed path gets
 // both the candidate list and the service's method index.
-func resolveError(err error, parts []string) error {
+func resolveError(err error, parts []string, commandExists func(string) bool) error {
 	var re *apicatalog.ResolveError
 	if !errors.As(err, &re) {
 		return err
@@ -386,20 +393,20 @@ func resolveError(err error, parts []string) error {
 
 	switch re.Kind {
 	case apicatalog.ErrService:
-		// A domain that only provides +shortcuts is absent from the API catalog
-		// but very much exists as a command, so calling it unknown contradicts
-		// what `lark-cli --help` just showed and sends the caller looking for a
-		// naming mismatch that isn't there. A name that is no domain at all gets
-		// the opposite treatment: claiming it "has no API methods" asserts it
-		// exists, and pointing at `lark-cli <name> --help` hands back a command
-		// that fails the same way — one dead end traded for another.
-		if isShortcutOnlyDomain(re.Subject) {
+		// A name that is a command — a +shortcut-only domain, or a CLI command
+		// like `auth` — is absent from the API catalog yet very much exists, so
+		// calling it unknown contradicts what `lark-cli --help` just showed and
+		// sends the caller looking for a naming mismatch that isn't there. A name
+		// that is no command gets the opposite treatment: claiming it "has no API
+		// methods" asserts it exists, and pointing at `lark-cli <name> --help`
+		// hands back a command failing the same way — one dead end for another.
+		if commandExists != nil && commandExists(re.Subject) {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "No API methods for: %s", safeSeg(re.Subject)).
-				WithHint("Available: %s; a domain that only provides +shortcuts has no API methods and is not listed here — run `lark-cli %s --help` to see its commands, or `lark-cli --help` to list all domains",
-					strings.Join(re.Candidates, ", "), domainOrPlaceholder(domain))
+				WithHint("Available: %s; %s is a command with no API methods, so it is not listed here — run `lark-cli %s --help` to see what it does, or `lark-cli --help` to list every command",
+					strings.Join(re.Candidates, ", "), domainOrPlaceholder(domain), domainOrPlaceholder(domain))
 		}
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown service: %s", safeSeg(re.Subject)).
-			WithHint("Available: %s; run `lark-cli --help` to list all domains, including the ones that only provide +shortcuts",
+			WithHint("Available: %s; run `lark-cli --help` to list every command, including the domains that only provide +shortcuts",
 				strings.Join(re.Candidates, ", "))
 	case apicatalog.ErrResource:
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown resource: %s", re.Subject).

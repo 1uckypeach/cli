@@ -18,6 +18,7 @@ import (
 	"github.com/larksuite/cli/internal/httpmock"
 	"github.com/larksuite/cli/internal/meta"
 	"github.com/larksuite/cli/internal/registry"
+	"github.com/spf13/cobra"
 )
 
 func schemaTestFactory(t *testing.T, config *core.CliConfig) (*cmdutil.Factory, *bytes.Buffer, *bytes.Buffer, *httpmock.Registry) {
@@ -367,7 +368,7 @@ func TestSchemaCmd_UnknownMethod_TypedValidation(t *testing.T) {
 
 func TestResolveError_ShortcutPathPointsAtHelp(t *testing.T) {
 	var buf bytes.Buffer
-	err := runSchemaCatalog(&buf, []string{"im", "+messages-send"}, core.StrictModeOff, schemaTestCatalog(t), nil, "")
+	err := runSchemaCatalog(&buf, []string{"im", "+messages-send"}, core.StrictModeOff, schemaTestCatalog(t), nil, "", nil)
 	if err == nil {
 		t.Fatal("a +shortcut path must not resolve")
 	}
@@ -388,7 +389,7 @@ func TestResolveError_ShortcutPathPointsAtHelp(t *testing.T) {
 
 func TestResolveError_UnknownResourceAlsoPointsAtSchemaIndex(t *testing.T) {
 	var buf bytes.Buffer
-	err := runSchemaCatalog(&buf, []string{"mail", "nonexist"}, core.StrictModeOff, schemaTestCatalog(t), nil, "")
+	err := runSchemaCatalog(&buf, []string{"mail", "nonexist"}, core.StrictModeOff, schemaTestCatalog(t), nil, "", nil)
 	if err == nil {
 		t.Fatal("an unknown resource must not resolve")
 	}
@@ -404,7 +405,7 @@ func TestResolveError_UnknownResourceAlsoPointsAtSchemaIndex(t *testing.T) {
 
 func TestResolveError_SanitizesEchoedInput(t *testing.T) {
 	var buf bytes.Buffer
-	err := runSchemaCatalog(&buf, []string{"im", "+bad\x1b[31mname"}, core.StrictModeOff, schemaTestCatalog(t), nil, "")
+	err := runSchemaCatalog(&buf, []string{"im", "+bad\x1b[31mname"}, core.StrictModeOff, schemaTestCatalog(t), nil, "", nil)
 	if err == nil {
 		t.Fatal("must not resolve")
 	}
@@ -419,7 +420,7 @@ func TestResolveError_SanitizesEchoedInput(t *testing.T) {
 // reorder how the rejection reads.
 func TestResolveError_SanitizesShortcutMessageToo(t *testing.T) {
 	var buf bytes.Buffer
-	err := runSchemaCatalog(&buf, []string{"im", "+bad‮name"}, core.StrictModeOff, schemaTestCatalog(t), nil, "")
+	err := runSchemaCatalog(&buf, []string{"im", "+bad‮name"}, core.StrictModeOff, schemaTestCatalog(t), nil, "", nil)
 	if err == nil {
 		t.Fatal("must not resolve")
 	}
@@ -435,12 +436,13 @@ func TestResolveError_SanitizesShortcutMessageToo(t *testing.T) {
 	}
 }
 
-// A domain that only provides +shortcuts is absent from the API catalog but
-// exists as a command, so the rejection must not call it unknown and must point
-// back at the help tree.
-func TestResolveError_ShortcutOnlyDomainPointsAtHelp(t *testing.T) {
+// A name that is absent from the API catalog but present in the command tree —
+// a +shortcut-only domain, or a CLI command like `auth` — must not be called
+// unknown, and the rejection must point back at the help tree.
+func TestResolveError_ExistingCommandWithoutAPIPointsAtHelp(t *testing.T) {
 	var buf bytes.Buffer
-	err := runSchemaCatalog(&buf, []string{"docs"}, core.StrictModeOff, schemaTestCatalog(t), nil, "")
+	exists := func(name string) bool { return name == "docs" }
+	err := runSchemaCatalog(&buf, []string{"docs"}, core.StrictModeOff, schemaTestCatalog(t), nil, "", exists)
 	if err == nil {
 		t.Fatal("a shortcut-only domain has no API methods and must not resolve")
 	}
@@ -461,6 +463,36 @@ func TestResolveError_ShortcutOnlyDomainPointsAtHelp(t *testing.T) {
 	}
 }
 
+// The command tree, not the shortcut registry, decides which branch a name
+// takes: CLI commands such as `auth` provide no API methods and no +shortcuts,
+// yet `lark-cli auth --help` works, so calling them unknown misleads just as
+// much as it does for a shortcut-only domain.
+func TestSchemaCmd_CLICommandIsNotCalledUnknown(t *testing.T) {
+	for _, name := range []string{"auth", "config", "whoami"} {
+		f, _, _, _ := schemaTestFactory(t, nil)
+		root := &cobra.Command{Use: "lark-cli"}
+		root.AddCommand(&cobra.Command{Use: name, RunE: func(*cobra.Command, []string) error { return nil }})
+		root.AddCommand(NewCmdSchema(f, nil))
+		root.SetArgs([]string{"schema", name})
+		root.SetOut(&bytes.Buffer{})
+		root.SetErr(&bytes.Buffer{})
+		err := root.Execute()
+		if err == nil {
+			t.Fatalf("%s has no API methods and must not resolve", name)
+		}
+		problem, ok := errs.ProblemOf(err)
+		if !ok {
+			t.Fatalf("%s: error must carry a problem envelope", name)
+		}
+		if strings.Contains(problem.Message, "Unknown service") {
+			t.Errorf("%s: message must not claim the command is unknown, got %q", name, problem.Message)
+		}
+		if !strings.Contains(problem.Hint, "lark-cli "+name+" --help") {
+			t.Errorf("%s: hint must point at the command's own help, got %q", name, problem.Hint)
+		}
+	}
+}
+
 // Base completion navigation (dotted + space forms, strict-mode filtering,
 // dotted-resource handling) lives in internal/apicatalog. The tests below pin
 // cmd/schema's build-local surface projection around that navigator.
@@ -475,7 +507,7 @@ func TestSchemaSurfaceProjectionFiltersExecutionListingAndCompletion(t *testing.
 	// methods. Both services survive projection here because each keeps at least
 	// one visible method.
 	var out bytes.Buffer
-	if err := runSchemaCatalog(&out, nil, core.StrictModeOff, catalog, visible, ""); err != nil {
+	if err := runSchemaCatalog(&out, nil, core.StrictModeOff, catalog, visible, "", nil); err != nil {
 		t.Fatalf("broad schema failed: %v", err)
 	}
 	var index struct {
@@ -503,7 +535,7 @@ func TestSchemaSurfaceProjectionFiltersExecutionListingAndCompletion(t *testing.
 	// A concealed method can only surface in the method index, so that is where
 	// listing-side projection has to be asserted.
 	out.Reset()
-	if err := runSchemaCatalog(&out, []string{"mail"}, core.StrictModeOff, catalog, visible, ""); err != nil {
+	if err := runSchemaCatalog(&out, []string{"mail"}, core.StrictModeOff, catalog, visible, "", nil); err != nil {
 		t.Fatalf("mail method index failed: %v", err)
 	}
 	var methodIndex struct {
@@ -533,6 +565,7 @@ func TestSchemaSurfaceProjectionFiltersExecutionListingAndCompletion(t *testing.
 		catalog,
 		visible,
 		"",
+		nil,
 	)
 	if err == nil {
 		t.Fatal("concealed exact method unexpectedly resolved")
@@ -600,10 +633,10 @@ func TestSchemaSurfaceProjectionPreservesDefaultAndDeniedVisibleCatalog(t *testi
 	allVisible := func([]string) bool { return true }
 
 	var defaultOut, projectedOut bytes.Buffer
-	if err := runSchemaCatalog(&defaultOut, nil, core.StrictModeOff, catalog, nil, ""); err != nil {
+	if err := runSchemaCatalog(&defaultOut, nil, core.StrictModeOff, catalog, nil, "", nil); err != nil {
 		t.Fatalf("default schema failed: %v", err)
 	}
-	if err := runSchemaCatalog(&projectedOut, nil, core.StrictModeOff, catalog, allVisible, ""); err != nil {
+	if err := runSchemaCatalog(&projectedOut, nil, core.StrictModeOff, catalog, allVisible, "", nil); err != nil {
 		t.Fatalf("all-visible schema failed: %v", err)
 	}
 	if defaultOut.String() != projectedOut.String() {
