@@ -112,24 +112,13 @@ class ThirdPartyNoticesTests(unittest.TestCase):
         self.assertEqual(run.call_count, len(notices.RELEASE_TARGETS))
         self.assertEqual(run.call_args.kwargs["env"]["CGO_ENABLED"], "0")
 
-    def test_missing_module_directory_uses_an_isolated_modfile(self):
+    def test_missing_module_directory_fails_closed(self):
         module = {"Path": "example.com/runtime", "Version": "v1.2.3"}
-        downloaded = dict(module, Dir="/tmp/runtime")
-        completed = mock.Mock(stdout=json.dumps(downloaded))
-        component = notices.Component("runtime", "v1.2.3", "https://example.invalid", "MIT", "Copyright", "text")
-
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)
-            (repo / "go.mod").write_text("module example.com/project\n", encoding="utf-8")
-            (repo / "go.sum").write_text("", encoding="utf-8")
-            with mock.patch.object(notices, "_go_runtime_module_records", return_value=[module]), \
-                    mock.patch.object(notices.subprocess, "run", return_value=completed) as run, \
-                    mock.patch.object(notices, "component_from_go_module", return_value=component):
-                self.assertEqual(notices.collect_go_components(repo, notices.ReadBudget()), [component])
-
-        command = run.call_args.args[0]
-        self.assertIn("-mod=mod", command)
-        self.assertTrue(any(argument.startswith("-modfile=") for argument in command))
+            with mock.patch.object(notices, "_go_runtime_module_records", return_value=[module]):
+                with self.assertRaisesRegex(notices.NoticeError, "example.com/runtime@v1.2.3"):
+                    notices.collect_go_components(repo, notices.ReadBudget())
 
     def test_license_hyphen_variant_is_accepted(self):
         with tempfile.TemporaryDirectory() as directory:

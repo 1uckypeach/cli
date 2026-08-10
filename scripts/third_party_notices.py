@@ -352,30 +352,8 @@ def collect_go_components(repo_root: Path, budget: ReadBudget) -> list[Component
     records = _go_runtime_module_records(repo_root)
     missing_directories = [record for record in records if not isinstance(record.get("Dir"), str)]
     if missing_directories:
-        with tempfile.TemporaryDirectory(prefix="third-party-notices-go-download-") as temporary:
-            temp_root = Path(temporary)
-            _copy_input_file(repo_root, temp_root, "go.mod")
-            _copy_input_file(repo_root, temp_root, "go.sum")
-            try:
-                downloaded = subprocess.run(
-                    ["go", "mod", "download", "-mod=mod", f"-modfile={temp_root / 'go.mod'}", "-json", "all"],
-                    cwd=repo_root,
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-            except (OSError, subprocess.CalledProcessError) as error:
-                raise NoticeError("go mod download failed while locating module source") from error
-        locations = {
-            (record.get("Path"), record.get("Version")): record.get("Dir")
-            for record in _parse_json_stream(downloaded.stdout)
-            if isinstance(record.get("Dir"), str)
-        }
-        for record in missing_directories:
-            directory = locations.get((record.get("Path"), record.get("Version")))
-            if not isinstance(directory, str):
-                raise NoticeError(f"cannot locate module source for {record.get('Path')}@{record.get('Version')}")
-            record["Dir"] = directory
+        modules = ", ".join(f"{record.get('Path')}@{record.get('Version')}" for record in missing_directories)
+        raise NoticeError(f"go list did not locate module source: {modules}")
     return [component_from_go_module(record, budget) for record in records]
 
 
