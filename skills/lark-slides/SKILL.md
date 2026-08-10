@@ -108,7 +108,7 @@ metadata:
 
 **CRITICAL — 将完整 `<slide>` XML 提交给 `slides +create`、`slides +add-slide` 或 `slides +update-slide` 之前，MUST 先把待提交 XML 保存到本地文件并运行唯一版式准出入口 [`scripts/xml_lint.py`](scripts/xml_lint.py)；`summary.error_count` 必须为 0 才能调用接口。**
 
-**CRITICAL — 创建、大幅改写或每次通过 `slides +update-slide` 整页写回后，MUST 按 [workflow/validation-xml.md](references/workflow/validation-xml.md) 做显式验证：回读全文 XML、核对页数和关键元素，并使用 [`scripts/xml_lint.py`](scripts/xml_lint.py) 统一检查 XML、越界、重叠、空白页和内容稀疏风险。**
+**CRITICAL — 创建、大幅改写或整页写回后，MUST 按 [workflow/validation-xml.md](references/workflow/validation-xml.md) 做显式验证：回读全文 XML、核对页数和关键元素，并使用 [`scripts/xml_lint.py`](scripts/xml_lint.py) 统一检查 XML、越界、重叠、空白页和内容稀疏风险。**
 
 **CRITICAL — 创建前自检或失败排障时，MUST 按 [workflow/error-handling.md](references/workflow/error-handling.md) 检查 XML 转义、结构、shell 截断、图片 token、3350001 和布局风险。**
 
