@@ -39,7 +39,7 @@ func mailRulesReorderMethod() meta.Method {
 }
 
 func TestMailRulesReorderCompletesPartialRuleIDs(t *testing.T) {
-	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, reg := mailRulesReorderFactory(t, &core.CliConfig{
 		AppID: "test-mail-rules-reorder", AppSecret: "test-secret", Brand: core.BrandFeishu,
 	})
 	reg.Register(mailRulesListStub([]interface{}{
@@ -69,8 +69,67 @@ func TestMailRulesReorderCompletesPartialRuleIDs(t *testing.T) {
 	}
 }
 
+func TestMailRulesReorderCompletesEmptyRuleIDs(t *testing.T) {
+	f, reg := mailRulesReorderFactory(t, &core.CliConfig{
+		AppID: "test-mail-rules-reorder-empty", AppSecret: "test-secret", Brand: core.BrandFeishu,
+	})
+	reg.Register(mailRulesListStub([]interface{}{
+		map[string]interface{}{"rule_id": "rule-a"},
+		map[string]interface{}{"rule_id": "rule-b"},
+	}))
+	reorderStub := mailRulesReorderStubBody(map[string]interface{}{"code": 0, "msg": "ok", "data": map[string]interface{}{"ok": true}})
+	reg.Register(reorderStub)
+
+	cmd := NewCmdServiceMethod(f, mailSpec(), mailRulesReorderMethod(), "reorder", "user_mailbox.rules", nil)
+	cmd.SetArgs([]string{
+		"--as", "bot",
+		"--params", `{"user_mailbox_id":"me"}`,
+		"--data", `{"rule_ids":[]}`,
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	reg.Verify(t)
+	got := capturedRuleIDs(t, reorderStub)
+	want := []string{"rule-a", "rule-b"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("rule_ids = %v, want %v", got, want)
+	}
+}
+
+func TestMailRulesReorderCompletesUniquePrefix(t *testing.T) {
+	f, reg := mailRulesReorderFactory(t, &core.CliConfig{
+		AppID: "test-mail-rules-reorder-prefix", AppSecret: "test-secret", Brand: core.BrandFeishu,
+	})
+	reg.Register(mailRulesListStub([]interface{}{
+		map[string]interface{}{"rule_id": "rule-alpha"},
+		map[string]interface{}{"rule_id": "rule-beta"},
+		map[string]interface{}{"rule_id": "rule-gamma"},
+	}))
+	reorderStub := mailRulesReorderStubBody(map[string]interface{}{"code": 0, "msg": "ok", "data": map[string]interface{}{"ok": true}})
+	reg.Register(reorderStub)
+
+	cmd := NewCmdServiceMethod(f, mailSpec(), mailRulesReorderMethod(), "reorder", "user_mailbox.rules", nil)
+	cmd.SetArgs([]string{
+		"--as", "bot",
+		"--params", `{"user_mailbox_id":"me"}`,
+		"--data", `{"rule_ids":["rule-g"]}`,
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	reg.Verify(t)
+	got := capturedRuleIDs(t, reorderStub)
+	want := []string{"rule-gamma", "rule-alpha", "rule-beta"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("rule_ids = %v, want %v", got, want)
+	}
+}
+
 func TestMailRulesReorderKeepsCompleteRuleIDs(t *testing.T) {
-	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, reg := mailRulesReorderFactory(t, &core.CliConfig{
 		AppID: "test-mail-rules-reorder-complete", AppSecret: "test-secret", Brand: core.BrandFeishu,
 	})
 	reg.Register(mailRulesListStub([]interface{}{
@@ -100,7 +159,7 @@ func TestMailRulesReorderKeepsCompleteRuleIDs(t *testing.T) {
 }
 
 func TestMailRulesReorderDuplicateIDsDoesNotCallHTTP(t *testing.T) {
-	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, reg := mailRulesReorderFactory(t, &core.CliConfig{
 		AppID: "test-mail-rules-reorder-duplicate", AppSecret: "test-secret", Brand: core.BrandFeishu,
 	})
 	cmd := NewCmdServiceMethod(f, mailSpec(), mailRulesReorderMethod(), "reorder", "user_mailbox.rules", nil)
@@ -114,6 +173,7 @@ func TestMailRulesReorderDuplicateIDsDoesNotCallHTTP(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected duplicate ID validation error")
 	}
+	requireMailRulesProblem(t, err, errs.CategoryValidation, errs.SubtypeInvalidArgument)
 	var validation *errs.ValidationError
 	if !errors.As(err, &validation) {
 		t.Fatalf("error = %T, want *errs.ValidationError: %v", err, err)
@@ -125,7 +185,7 @@ func TestMailRulesReorderDuplicateIDsDoesNotCallHTTP(t *testing.T) {
 }
 
 func TestMailRulesReorderUnknownIDsDoesNotCallReorder(t *testing.T) {
-	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, reg := mailRulesReorderFactory(t, &core.CliConfig{
 		AppID: "test-mail-rules-reorder-unknown", AppSecret: "test-secret", Brand: core.BrandFeishu,
 	})
 	reg.Register(mailRulesListStub([]interface{}{
@@ -143,6 +203,7 @@ func TestMailRulesReorderUnknownIDsDoesNotCallReorder(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected unknown ID validation error")
 	}
+	requireMailRulesProblem(t, err, errs.CategoryValidation, errs.SubtypeInvalidArgument)
 	var validation *errs.ValidationError
 	if !errors.As(err, &validation) {
 		t.Fatalf("error = %T, want *errs.ValidationError: %v", err, err)
@@ -153,8 +214,38 @@ func TestMailRulesReorderUnknownIDsDoesNotCallReorder(t *testing.T) {
 	reg.Verify(t)
 }
 
+func TestMailRulesReorderAmbiguousPrefixDoesNotCallReorder(t *testing.T) {
+	f, reg := mailRulesReorderFactory(t, &core.CliConfig{
+		AppID: "test-mail-rules-reorder-ambiguous", AppSecret: "test-secret", Brand: core.BrandFeishu,
+	})
+	reg.Register(mailRulesListStub([]interface{}{
+		map[string]interface{}{"rule_id": "rule-alpha"},
+		map[string]interface{}{"rule_id": "rule-archive"},
+	}))
+	cmd := NewCmdServiceMethod(f, mailSpec(), mailRulesReorderMethod(), "reorder", "user_mailbox.rules", nil)
+	cmd.SetArgs([]string{
+		"--as", "bot",
+		"--params", `{"user_mailbox_id":"me"}`,
+		"--data", `{"rule_ids":["rule-a"]}`,
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected ambiguous prefix validation error")
+	}
+	requireMailRulesProblem(t, err, errs.CategoryValidation, errs.SubtypeInvalidArgument)
+	var validation *errs.ValidationError
+	if !errors.As(err, &validation) {
+		t.Fatalf("error = %T, want *errs.ValidationError: %v", err, err)
+	}
+	if validation.Param != "rule_ids" || !strings.Contains(validation.Message, "rule-a") {
+		t.Fatalf("validation = %+v, want ambiguous rule-a on rule_ids", validation)
+	}
+	reg.Verify(t)
+}
+
 func TestMailRulesReorderListFailureDoesNotCallReorder(t *testing.T) {
-	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, reg := mailRulesReorderFactory(t, &core.CliConfig{
 		AppID: "test-mail-rules-reorder-list-failure", AppSecret: "test-secret", Brand: core.BrandFeishu,
 	})
 	reg.Register(&httpmock.Stub{
@@ -173,10 +264,7 @@ func TestMailRulesReorderListFailureDoesNotCallReorder(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected list failure")
 	}
-	p, ok := errs.ProblemOf(err)
-	if !ok {
-		t.Fatalf("expected typed error, got %T: %v", err, err)
-	}
+	p := requireMailRulesProblem(t, err, errs.CategoryAPI, errs.SubtypeUnknown)
 	if p.Hint == "" || !strings.Contains(p.Hint, "reorder was not called") {
 		t.Fatalf("hint = %q, want reorder not called guidance", p.Hint)
 	}
@@ -184,7 +272,7 @@ func TestMailRulesReorderListFailureDoesNotCallReorder(t *testing.T) {
 }
 
 func TestMailRulesReorderBackendFailureIncludesRetryHint(t *testing.T) {
-	f, _, _, reg := cmdutil.TestFactory(t, &core.CliConfig{
+	f, reg := mailRulesReorderFactory(t, &core.CliConfig{
 		AppID: "test-mail-rules-reorder-backend-failure", AppSecret: "test-secret", Brand: core.BrandFeishu,
 	})
 	reg.Register(mailRulesListStub([]interface{}{
@@ -204,14 +292,40 @@ func TestMailRulesReorderBackendFailureIncludesRetryHint(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected reorder backend failure")
 	}
-	p, ok := errs.ProblemOf(err)
-	if !ok {
-		t.Fatalf("expected typed error, got %T: %v", err, err)
-	}
+	p := requireMailRulesProblem(t, err, errs.CategoryAPI, errs.SubtypeUnknown)
 	if p.Hint == "" || !strings.Contains(p.Hint, "list again") {
 		t.Fatalf("hint = %q, want list-again retry guidance", p.Hint)
 	}
 	reg.Verify(t)
+}
+
+func TestMailRulesReorderPreservesRuleIDWhitespace(t *testing.T) {
+	got, err := stringList([]interface{}{" rule-a "})
+	if err != nil {
+		t.Fatalf("stringList() error = %v", err)
+	}
+	if len(got) != 1 || got[0] != " rule-a " {
+		t.Fatalf("stringList() = %#v, want exact supplied ID", got)
+	}
+}
+
+func mailRulesReorderFactory(t *testing.T, config *core.CliConfig) (*cmdutil.Factory, *httpmock.Registry) {
+	t.Helper()
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	f, _, _, reg := cmdutil.TestFactory(t, config)
+	return f, reg
+}
+
+func requireMailRulesProblem(t *testing.T, err error, category errs.Category, subtype errs.Subtype) *errs.Problem {
+	t.Helper()
+	p, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("expected typed error, got %T: %v", err, err)
+	}
+	if p.Category != category || p.Subtype != subtype {
+		t.Fatalf("problem = %s/%s, want %s/%s", p.Category, p.Subtype, category, subtype)
+	}
+	return p
 }
 
 func mailRulesListStub(items []interface{}) *httpmock.Stub {

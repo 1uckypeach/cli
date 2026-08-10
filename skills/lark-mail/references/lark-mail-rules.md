@@ -23,7 +23,7 @@ Quick codes above: condition `type=6` = subject, `operator=1` = contains, action
 
 ## 调整规则顺序
 
-`reorder` 可只传需要提前或调整相对顺序的部分 `rule_id`。CLI 会先读取当前完整规则列表，并把未输入的规则按当前相对顺序追加到请求末尾；如果输入包含重复或不存在的 ID，会在本地报错且不会调用 reorder。
+`reorder` 可只传需要提前或调整相对顺序的部分 `rule_id`。CLI 会先读取当前完整规则列表，并把未输入的规则按当前相对顺序追加到请求末尾；输入可使用唯一的规则 ID 前缀，前缀匹配多个规则或未匹配任何规则时会在本地报错且不会调用 reorder。重复 ID 同样会在本地报错。
 
 ```bash
 lark-cli mail user_mailbox.rules reorder --as user \
