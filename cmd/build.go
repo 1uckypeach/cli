@@ -353,11 +353,27 @@ func frozenPlugins(cfg *buildConfig) []platform.Plugin {
 // whether Install actually calls Restrict.
 func anyPluginRestricts(plugins []platform.Plugin) bool {
 	for _, p := range plugins {
-		if p.Capabilities().Restricts {
+		if pluginDeclaresRestrict(p) {
 			return true
 		}
 	}
 	return false
+}
+
+// pluginDeclaresRestrict reads one plugin's declaration without letting a faulty
+// plugin decide how the CLI fails. Capabilities is third-party code, and calling
+// it this early moves it ahead of the install pipeline that owns panics from it:
+// unguarded, a panic here would escape as a stack trace instead of the
+// capabilities_panic envelope install produces. Recovering keeps that report
+// where it belongs, and a plugin that cannot answer is counted as restricting —
+// the same direction every other unknown takes.
+func pluginDeclaresRestrict(p platform.Plugin) (declares bool) {
+	defer func() {
+		if recover() != nil {
+			declares = true
+		}
+	}()
+	return p.Capabilities().Restricts
 }
 
 // buildInternalWithConfig assembles the complete command tree from an

@@ -1055,3 +1055,55 @@ func cloneStringSlices(values map[string][]string) map[string][]string {
 	}
 	return out
 }
+
+// restrictDeclPlugin varies only the declaration the planner reads, including
+// the case where reading it fails.
+type restrictDeclPlugin struct {
+	name   string
+	caps   platform.Capabilities
+	panics bool
+}
+
+func (p restrictDeclPlugin) Name() string    { return p.name }
+func (p restrictDeclPlugin) Version() string { return "1.0.0" }
+func (p restrictDeclPlugin) Capabilities() platform.Capabilities {
+	if p.panics {
+		panic("deliberate capabilities panic")
+	}
+	return p.caps
+}
+func (p restrictDeclPlugin) Install(platform.Registrar) error { return nil }
+
+// TestAnyPluginRestricts covers the signal the schema index is gated on. The
+// panic case is the one worth pinning: Capabilities is third-party code called
+// ahead of the install pipeline that owns its failures, so planning must not
+// turn a faulty plugin into a stack trace, nor read the missing answer as "no
+// restriction".
+func TestAnyPluginRestricts(t *testing.T) {
+	t.Parallel()
+
+	plain := restrictDeclPlugin{name: "plain"}
+	policy := restrictDeclPlugin{name: "policy", caps: platform.Capabilities{Restricts: true}}
+	faulty := restrictDeclPlugin{name: "faulty", panics: true}
+
+	tests := []struct {
+		name    string
+		plugins []platform.Plugin
+		want    bool
+	}{
+		{name: "no plugins at all", plugins: nil, want: false},
+		{name: "none declares a restriction", plugins: []platform.Plugin{plain}, want: false},
+		{name: "one declares a restriction", plugins: []platform.Plugin{plain, policy}, want: true},
+		{name: "a panicking declaration counts as restricting", plugins: []platform.Plugin{faulty}, want: true},
+		{name: "a panicking one does not hide a later declaration", plugins: []platform.Plugin{faulty, policy}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := anyPluginRestricts(tt.plugins); got != tt.want {
+				t.Errorf("anyPluginRestricts = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
