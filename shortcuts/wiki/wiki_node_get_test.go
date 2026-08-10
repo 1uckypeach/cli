@@ -489,6 +489,24 @@ func mountWikiNodeGetWithFlagOut(t *testing.T, factory *cmdutil.Factory, w *byte
 	return nil
 }
 
+func TestWikiNodeGetMountedMissingTokenPreservesLegacyError(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	factory, stdout, _, _ := cmdutil.TestFactory(t, wikiTestConfig())
+
+	err := mountAndRunWiki(t, WikiNodeGet, []string{"+node-get", "--as", "bot", "--dry-run"}, factory, stdout)
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeInvalidArgument || problem.Message != "--node-token is required" {
+		t.Fatalf("error = %v, problem = %#v", err, problem)
+	}
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) || validationErr.Param != "--node-token" {
+		t.Fatalf("error = %#v, want --node-token ValidationError", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+}
+
 func TestWikiNodeGetMountedLegacyTokenFlagWarnsButWorks(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
@@ -536,6 +554,42 @@ func TestWikiNodeGetMountedLegacyTokenFlagWarnsButWorks(t *testing.T) {
 	}
 }
 
+func TestWikiNodeGetMountedAcceptsTokenFlagsEqualAfterTrimming(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	factory, stdout, _, reg := cmdutil.TestFactory(t, wikiTestConfig())
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/wiki/v2/spaces/get_node",
+		Body: map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{
+				"node": map[string]interface{}{
+					"space_id":   "space_123",
+					"node_token": testWikiNodeToken,
+					"obj_token":  "docxXYZ",
+					"obj_type":   "docx",
+					"node_type":  "origin",
+					"title":      "Trim Equal",
+				},
+			},
+		},
+	})
+
+	err := mountAndRunWiki(t, WikiNodeGet, []string{
+		"+node-get",
+		"--node-token", "  " + testWikiNodeToken + "  ",
+		"--token", testWikiNodeToken,
+		"--as", "bot",
+	}, factory, stdout)
+	if err != nil {
+		t.Fatalf("trim-equal aliases should be accepted: %v", err)
+	}
+	if data := decodeWikiEnvelope(t, stdout); data["title"] != "Trim Equal" {
+		t.Fatalf("data = %#v", data)
+	}
+}
+
 func TestWikiNodeGetMountedRejectsConflictingTokenFlags(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 
@@ -550,6 +604,57 @@ func TestWikiNodeGetMountedRejectsConflictingTokenFlags(t *testing.T) {
 	}, factory, stdout)
 	if err == nil || !strings.Contains(err.Error(), "both set with different values") {
 		t.Fatalf("expected conflict error, got %v", err)
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeInvalidArgument {
+		t.Fatalf("problem = %#v, want validation/invalid_argument", problem)
+	}
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) || validationErr.Param != "--token" {
+		t.Fatalf("error = %#v, want --token ValidationError", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+}
+
+func TestWikiNodeGetWarnsWhenSpaceIDCannotBeVerified(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	const nodeToken = "Abcdn_EXAMPLE_NOSPACE_TOKEN_27"
+	factory, stdout, stderr, reg := cmdutil.TestFactory(t, wikiTestConfig())
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/wiki/v2/spaces/get_node",
+		Body: map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{
+				"node": map[string]interface{}{
+					"node_token": nodeToken,
+					"obj_token":  "docxXYZ",
+					"obj_type":   "docx",
+					"node_type":  "origin",
+					"title":      "No Space ID",
+				},
+			},
+		},
+	})
+
+	err := mountAndRunWiki(t, WikiNodeGet, []string{
+		"+node-get",
+		"--node-token", nodeToken,
+		"--space-id", "space_expected",
+		"--as", "bot",
+	}, factory, stdout)
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if data := decodeWikiEnvelope(t, stdout); data["title"] != "No Space ID" {
+		t.Fatalf("data = %#v", data)
+	}
+	wantWarning := `Warning: --space-id "space_expected" could not be verified; the resolved node carries no space_id.`
+	if !strings.Contains(stderr.String(), wantWarning) {
+		t.Fatalf("stderr = %q, want %q", stderr.String(), wantWarning)
 	}
 }
 

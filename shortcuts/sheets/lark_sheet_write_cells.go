@@ -17,9 +17,9 @@ import (
 	"unicode"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/shortcuts/common"
-	"github.com/spf13/cobra"
 )
 
 // ─── lark_sheet_write_cells ───────────────────────────────────────────
@@ -367,71 +367,138 @@ func cellsSetStyleInput(runtime flagView, token, sheetID, sheetName string) (map
 	return input, nil
 }
 
+type csvPutArgs struct {
+	CSVPutGeneratedInput `arg:"inline"`
+
+	Ref                   spreadsheetRef         `arg:"local"`
+	Sheet                 string                 `arg:"local"`
+	SheetByName           bool                   `arg:"local"`
+	CSVResolvedFromSource bool                   `arg:"local"`
+	ToolInput             map[string]interface{} `arg:"local"`
+}
+
+type csvPutData struct {
+	UpdatedCells int    `json:"updated_cells" schema:"required;minimum=0" doc:"number of cells updated"`
+	WritesRange  string `json:"writes_range" schema:"required" doc:"actual rectangle written by the CSV paste"`
+}
+
+func csvPutFlagView(args *csvPutArgs) mapFlagView {
+	raw := map[string]interface{}{"csv": args.CSV}
+	if args.URL.Value != "" {
+		raw["url"] = args.URL.Value
+	}
+	if args.SpreadsheetToken.Value != "" {
+		raw["spreadsheet-token"] = args.SpreadsheetToken.Value
+	}
+	if args.SheetID.Value != "" {
+		raw["sheet-id"] = args.SheetID.Value
+	}
+	if args.SheetName.Value != "" {
+		raw["sheet-name"] = args.SheetName.Value
+	}
+	if args.Range.Value != "" {
+		raw["range"] = args.Range.Value
+	}
+	if args.StartCell.Set {
+		raw["start-cell"] = args.StartCell.Value
+	}
+	if args.AllowOverwrite.Set {
+		raw["allow-overwrite"] = args.AllowOverwrite.Value
+	}
+	view := newMapFlagViewForCommand("+csv-put", raw)
+	if args.CSVResolvedFromSource {
+		view.inputResolved = map[string]bool{"csv": true}
+	}
+	return view
+}
+
 // CsvPut wraps set_range_from_csv: dump a CSV blob into a sheet. A cell whose
 // text starts with = is evaluated as a formula; use +cells-set for styles / notes / images.
-var CsvPut = common.Shortcut{
-	Service:     "sheets",
-	Command:     "+csv-put",
-	Description: "Paste RFC-4180 CSV into a sheet at --start-cell (values or formulas: a leading = is evaluated as a formula; no styles / comments; auto-expands sheet if needed).",
-	Risk:        "write",
-	Scopes:      []string{"sheets:spreadsheet:write_only"},
-	AuthTypes:   []string{"user", "bot"},
-	HasFormat:   true,
-	Flags:       flagsFor("+csv-put"), // includes the hidden --range alias (defined in the base flags table)
-	PostMount: func(cmd *cobra.Command) {
-		// --range is an accepted alias for --start-cell (see csvPutInput).
-		// Neither is individually required; exactly one must be set. flag-defs
-		// marks --start-cell required, so clear that annotation and switch to a
-		// one-required group — otherwise cobra rejects `--range A1` for a
-		// missing --start-cell before the handler ever runs.
-		if fl := cmd.Flags().Lookup("start-cell"); fl != nil {
-			delete(fl.Annotations, cobra.BashCompOneRequiredFlag)
-		}
-		cmd.MarkFlagsOneRequired("start-cell", "range")
-		cmd.MarkFlagsMutuallyExclusive("start-cell", "range")
+var CsvPut = common.Define(common.Definition[csvPutArgs, csvPutData]{
+	Metadata: common.CommandMetadata{
+		Service: "sheets", Command: "+csv-put",
+		Description: "Paste RFC-4180 CSV into a sheet at --start-cell (values or formulas: a leading = is evaluated as a formula; no styles / comments; auto-expands sheet if needed).",
+		Risk:        common.RiskWrite,
+		Authorization: common.AuthorizationDefinition{Identities: map[common.Identity]common.IdentityAuthorization{
+			common.IdentityUser: {RequiredScopes: []string{"sheets:spreadsheet:write_only"}, ConditionalScopes: []common.ConditionalScope{{Scopes: []string{"wiki:node:read"}, When: "--url resolves to a Wiki node", Params: []string{"url"}}}},
+			common.IdentityBot:  {RequiredScopes: []string{"sheets:spreadsheet:write_only"}, ConditionalScopes: []common.ConditionalScope{{Scopes: []string{"wiki:node:read"}, When: "--url resolves to a Wiki node", Params: []string{"url"}}}},
+		}},
 	},
-	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		if err := guardCSVValueIsNotFilePath(runtime); err != nil {
-			return err
-		}
-		return validateViaInput(csvPutInput)(ctx, runtime)
+	Input: common.InputDefinition{
+		Fields: []common.InputField{{Name: "range", CLI: common.CLIInput{Hidden: true}}},
+		Relations: []common.Relation{
+			{Kind: common.RelationExactlyOne, Params: []string{"start-cell", "range"}, Presence: common.PresenceExplicit, Stage: common.StageSourcePreRun},
+			{Kind: common.RelationExactlyOne, Params: []string{"url", "spreadsheet-token"}, Presence: common.PresenceNonZero, Stage: common.StageAfterPrepare},
+			{Kind: common.RelationExactlyOne, Params: []string{"sheet-id", "sheet-name"}, Presence: common.PresenceNonZero, Stage: common.StageAfterPrepare},
+		},
 	},
-	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
-		token, _ := resolveSpreadsheetToken(runtime)
-		sheetID, sheetName, _ := resolveSheetSelector(runtime)
-		input, _ := csvPutInput(runtime, token, sheetID, sheetName)
-		dr := invokeToolDryRun(token, ToolKindWrite, "set_range_from_csv", input)
-		if rng, ok := csvPutWriteRangeFromInput(input); ok {
-			dr = dr.Set("writes_range", rng)
-		}
-		return dr
-	},
-	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		token, err := resolveSpreadsheetTokenExec(runtime)
-		if err != nil {
-			return err
-		}
-		sheetID, sheetName, err := resolveSheetSelector(runtime)
-		if err != nil {
-			return err
-		}
-		input, err := csvPutInput(runtime, token, sheetID, sheetName)
-		if err != nil {
-			return err
-		}
-		out, err := callTool(ctx, runtime, token, ToolKindWrite, "set_range_from_csv", input)
-		if err != nil {
-			return err
-		}
-		if rng, ok := csvPutWriteRangeFromInput(input); ok {
-			if m, isMap := out.(map[string]interface{}); isMap {
-				m["writes_range"] = rng
+	Output: common.OutputDefinition{Mode: common.OutputFixedJSON},
+	Hooks: common.Hooks[csvPutArgs, csvPutData]{
+		Normalize: func(_ context.Context, command common.CommandContext, args *csvPutArgs) error {
+			args.CSVResolvedFromSource = command.InputResolvedFromSource("csv")
+			if err := guardCSVContentIsNotFilePath(command.FileIO(), args.CSV, args.CSVResolvedFromSource); err != nil {
+				return err
 			}
-		}
-		runtime.Out(out, nil)
-		return nil
+			view := csvPutFlagView(args)
+			ref, err := parseSpreadsheetRef(view)
+			if err != nil {
+				return err
+			}
+			sheetID, sheetName, err := resolveSheetSelector(view)
+			if err != nil {
+				return err
+			}
+			input, err := csvPutInput(view, ref.Token, sheetID, sheetName)
+			if err != nil {
+				return err
+			}
+			args.Ref, args.ToolInput = ref, input
+			args.SheetByName = sheetName != ""
+			if args.SheetByName {
+				args.Sheet = sheetName
+			} else {
+				args.Sheet = sheetID
+			}
+			return nil
+		},
+		DryRun: func(_ context.Context, _ common.CommandContext, args *csvPutArgs) *common.DryRunAPI {
+			dry := invokeToolDryRun(args.Ref.Token, ToolKindWrite, "set_range_from_csv", args.ToolInput)
+			if writeRange, ok := csvPutWriteRangeFromInput(args.ToolInput); ok {
+				dry = dry.Set("writes_range", writeRange)
+			}
+			return dry
+		},
+		Execute: func(ctx context.Context, command common.CommandContext, args *csvPutArgs) (common.Result[csvPutData], error) {
+			token := args.Ref.Token
+			if args.Ref.Kind == spreadsheetRefWiki {
+				resolved, err := resolveWikiNodeToSpreadsheetTokenTyped(ctx, command, token)
+				if err != nil {
+					return common.Result[csvPutData]{}, err
+				}
+				token = resolved
+			}
+			view := csvPutFlagView(args)
+			sheetID, sheetName := args.Sheet, ""
+			if args.SheetByName {
+				sheetID, sheetName = "", args.Sheet
+			}
+			input, err := csvPutInput(view, token, sheetID, sheetName)
+			if err != nil {
+				return common.Result[csvPutData]{}, err
+			}
+			out, err := callToolCommand(ctx, command, token, ToolKindWrite, "set_range_from_csv", input)
+			if err != nil {
+				return common.Result[csvPutData]{}, err
+			}
+			outputMap, ok := out.(map[string]interface{})
+			if !ok {
+				return common.Result[csvPutData]{}, errs.NewInternalError(errs.SubtypeInvalidResponse, "set_range_from_csv returned non-object output")
+			}
+			writeRange, _ := csvPutWriteRangeFromInput(input)
+			return common.Success(csvPutData{UpdatedCells: common.GetInt(outputMap, "updated_cells"), WritesRange: writeRange}), nil
+		},
 	},
-}
+})
 
 // csvPutWriteRangeFromInput computes the rectangle +csv-put will actually write,
 // from the built tool input (start_cell + csv). +csv-put pastes from the anchor
@@ -499,10 +566,14 @@ func csvPutWriteRangeFromInput(input map[string]interface{}) (string, bool) {
 // place and may legitimately look like anything, including a path. That
 // also makes stdin the guard-proof way to write such text verbatim.
 func guardCSVValueIsNotFilePath(runtime *common.RuntimeContext) error {
-	if runtime.InputResolvedFromSource("csv") {
+	return guardCSVContentIsNotFilePath(runtime.FileIO(), runtime.Str("csv"), runtime.InputResolvedFromSource("csv"))
+}
+
+func guardCSVContentIsNotFilePath(fio fileio.FileIO, csvContent string, resolvedFromSource bool) error {
+	if resolvedFromSource {
 		return nil
 	}
-	raw := strings.TrimSpace(runtime.Str("csv"))
+	raw := strings.TrimSpace(csvContent)
 	if raw == "" {
 		return nil
 	}
@@ -510,7 +581,7 @@ func guardCSVValueIsNotFilePath(runtime *common.RuntimeContext) error {
 	// into command-shaped text: the value is untrusted, and a hint like
 	// "--csv - < $(id).csv" hands an agent a copy-pasteable command that a
 	// POSIX shell would expand.
-	if fio := runtime.FileIO(); fio != nil {
+	if fio != nil {
 		info, err := fio.Stat(raw)
 		if err == nil && info != nil && !info.IsDir() {
 			return sheetsValidationForFlag("csv",

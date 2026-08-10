@@ -4,6 +4,7 @@
 package apps
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -57,6 +58,25 @@ func TestAppsDBEnvDiff_SuccessRendersChanges(t *testing.T) {
 	got := stdout.String()
 	if !strings.Contains(got, "dev → online (1 changes)") || !strings.Contains(got, "ALTER TABLE orders ADD COLUMN note text") {
 		t.Fatalf("pretty diff malformed:\n%s", got)
+	}
+}
+
+func TestAppsDBEnvDiffSpinnerStopsOnAPIError(t *testing.T) {
+	factory, stdout, reg := newAppsExecuteFactory(t)
+	stderr, ok := factory.IOStreams.ErrOut.(*bytes.Buffer)
+	if !ok {
+		t.Fatalf("stderr writer = %T, want *bytes.Buffer", factory.IOStreams.ErrOut)
+	}
+	factory.IOStreams.StderrIsTerminal = true
+	reg.Register(&httpmock.Stub{Method: "POST", URL: dbEnvMigrateURL, Body: map[string]interface{}{"code": 999999, "msg": "migration unavailable"}})
+	err := runAppsShortcut(t, AppsDBEnvDiff, []string{"+db-env-diff", "--app-id", "app_x", "--as", "user"}, factory, stdout)
+	if err == nil || stdout.Len() != 0 {
+		t.Fatalf("stdout=%q, error=%v", stdout.String(), err)
+	}
+	for _, marker := range []string{"Previewing migration diff", "\x1b[?25l", "\x1b[?25h"} {
+		if !strings.Contains(stderr.String(), marker) {
+			t.Errorf("stderr missing %q: %q", marker, stderr.String())
+		}
 	}
 }
 

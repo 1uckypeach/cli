@@ -39,74 +39,112 @@ import (
 // idempotent stamps; only +batch-update lets callers flip it via
 // --continue-on-error.
 
-// BatchUpdate accepts a CLI-shape operations array (each item
-// {shortcut, input}); on Validate / DryRun / Execute we translate each
-// sub-op via batchOpDispatch (see batch_op_dispatch.go) into the MCP
-// {tool_name, input(+operation)} form before calling the underlying
-// batch_update tool.
-var BatchUpdate = common.Shortcut{
-	Service:     "sheets",
-	Command:     "+batch-update",
-	Description: "Execute a batch of write shortcuts in one request; fail-fast on the first failing sub-op (already-applied sub-ops are NOT rolled back).",
-	Risk:        "high-risk-write",
-	Scopes:      []string{"sheets:spreadsheet:write_only"},
-	AuthTypes:   []string{"user", "bot"},
-	HasFormat:   true,
-	Flags:       flagsFor("+batch-update"),
-	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		token, err := resolveSpreadsheetToken(runtime)
-		if err != nil {
-			return err
-		}
-		// Run the full translation in Validate so shape errors surface before
-		// DryRun / Execute. Translator is pure (no network), so re-running it
-		// in DryRun / Execute below is fine.
-		if _, err := batchUpdateInput(runtime, token); err != nil {
-			return err
-		}
-		return nil
-	},
-	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
-		token, _ := resolveSpreadsheetToken(runtime)
-		input, _ := batchUpdateInput(runtime, token)
-		dr := invokeToolDryRun(token, ToolKindWrite, "batch_update", input)
-		if warnings := batchWarnings(runtime); len(warnings) > 0 {
-			dr.Set("warning_message", strings.Join(warnings, "\n"))
-		}
-		return dr
-	},
-	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		token, err := resolveSpreadsheetTokenExec(runtime)
-		if err != nil {
-			return err
-		}
-		input, err := batchUpdateInput(runtime, token)
-		if err != nil {
-			return err
-		}
-		for _, w := range batchWarnings(runtime) {
-			fmt.Fprintln(runtime.IO().ErrOut, w)
-		}
-		out, err := callTool(ctx, runtime, token, ToolKindWrite, "batch_update", input)
-		if err != nil {
-			return err
-		}
-		runtime.Out(out, nil)
-		return nil
-	},
-	Tips: []string{
-		"high-risk-write: preview with --dry-run, get the user's explicit consent, then re-run with --yes appended — do not pass --yes before the user has confirmed (without it the call exits 10 asking for confirmation).",
-		"Execution is fail-fast, NOT transactional: on \"N succeeded, M failed\" the succeeded sub-ops stay applied (no rollback) — fix the failure and resend ONLY the operations from the first failed index onward; resending the whole batch re-applies the succeeded ones. Pass --continue-on-error to keep going past failures instead.",
-		"Each sub-op is {shortcut, input}. Do NOT pass input.operation (implied by shortcut name) or input.excel_id / input.url (set at the +batch-update top level).",
-	},
+type batchUpdateArgs struct {
+	BatchUpdateGeneratedInput `arg:"inline"`
+	Ref                       spreadsheetRef `arg:"local"`
 }
+
+type batchUpdateData = any
+
+func batchUpdateFlagView(args *batchUpdateArgs) mapFlagView {
+	raw := map[string]interface{}{"operations": args.Operations}
+	if args.URL.Set {
+		raw["url"] = args.URL.Value
+	}
+	if args.SpreadsheetToken.Set {
+		raw["spreadsheet-token"] = args.SpreadsheetToken.Value
+	}
+	if args.ContinueOnError.Set {
+		raw["continue-on-error"] = args.ContinueOnError.Value
+	}
+	return newMapFlagViewForCommand("+batch-update", raw)
+}
+
+// BatchUpdate accepts a CLI-shape operations array (each item
+// {shortcut, input}); hooks translate each sub-op via batchOpDispatch into the
+// MCP {tool_name, input(+operation)} form before invoking batch_update.
+var BatchUpdate = common.Define(common.Definition[batchUpdateArgs, batchUpdateData]{
+	Metadata: common.CommandMetadata{
+		Service: "sheets", Command: "+batch-update",
+		Description: "Execute a batch of write shortcuts in one request; fail-fast on the first failing sub-op (already-applied sub-ops are NOT rolled back).",
+		Risk:        common.RiskHighRiskWrite,
+		Tips: []string{
+			"high-risk-write: preview with --dry-run, get the user's explicit consent, then re-run with --yes appended — do not pass --yes before the user has confirmed (without it the call exits 10 asking for confirmation).",
+			"Execution is fail-fast, NOT transactional: on \"N succeeded, M failed\" the succeeded sub-ops stay applied (no rollback) — fix the failure and resend ONLY the operations from the first failed index onward; resending the whole batch re-applies the succeeded ones. Pass --continue-on-error to keep going past failures instead.",
+			"Each sub-op is {shortcut, input}. Do NOT pass input.operation (implied by shortcut name) or input.excel_id / input.url (set at the +batch-update top level).",
+		},
+		Authorization: common.AuthorizationDefinition{Identities: map[common.Identity]common.IdentityAuthorization{
+			common.IdentityUser: {RequiredScopes: []string{"sheets:spreadsheet:write_only"}, ConditionalScopes: []common.ConditionalScope{{Scopes: []string{"wiki:node:read"}, When: "--url resolves to a Wiki node", Params: []string{"url"}}}},
+			common.IdentityBot:  {RequiredScopes: []string{"sheets:spreadsheet:write_only"}, ConditionalScopes: []common.ConditionalScope{{Scopes: []string{"wiki:node:read"}, When: "--url resolves to a Wiki node", Params: []string{"url"}}}},
+		}},
+	},
+	Input: common.InputDefinition{
+		Fields:    []common.InputField{{Name: "operations", Shape: batchOperationsInputShape()}},
+		Relations: []common.Relation{{Kind: common.RelationExactlyOne, Params: []string{"url", "spreadsheet-token"}, Presence: common.PresenceNonZero, Stage: common.StageAfterPrepare}},
+	},
+	// The Legacy command forwarded the tool's complete JSON value. Data=any is
+	// intentional here: nil omits envelope.data, while objects, arrays, and
+	// scalars pass through unchanged.
+	Output: common.OutputDefinition{Mode: common.OutputFixedJSON},
+	Hooks: common.Hooks[batchUpdateArgs, batchUpdateData]{
+		Normalize: func(_ context.Context, _ common.CommandContext, args *batchUpdateArgs) error {
+			ref, err := parseSpreadsheetRef(batchUpdateFlagView(args))
+			if err != nil {
+				return err
+			}
+			args.Ref = ref
+			return nil
+		},
+		Validate: func(_ context.Context, _ common.CommandContext, args *batchUpdateArgs) error {
+			_, err := batchUpdateInputFromView(batchUpdateFlagView(args), args.Ref.Token, args.ContinueOnError)
+			return err
+		},
+		DryRun: func(_ context.Context, _ common.CommandContext, args *batchUpdateArgs) *common.DryRunAPI {
+			view := batchUpdateFlagView(args)
+			input, _ := batchUpdateInputFromView(view, args.Ref.Token, args.ContinueOnError)
+			dry := invokeToolDryRun(args.Ref.Token, ToolKindWrite, "batch_update", input)
+			if warnings := batchWarningsFromView(view); len(warnings) > 0 {
+				dry.Set("warning_message", strings.Join(warnings, "\n"))
+			}
+			return dry
+		},
+		Execute: func(ctx context.Context, command common.CommandContext, args *batchUpdateArgs) (common.Result[batchUpdateData], error) {
+			token := args.Ref.Token
+			if args.Ref.Kind == spreadsheetRefWiki {
+				resolved, err := resolveWikiNodeToSpreadsheetTokenTyped(ctx, command, token)
+				if err != nil {
+					return common.Result[batchUpdateData]{}, err
+				}
+				token = resolved
+			}
+			view := batchUpdateFlagView(args)
+			input, err := batchUpdateInputFromView(view, token, args.ContinueOnError)
+			if err != nil {
+				return common.Result[batchUpdateData]{}, err
+			}
+			for _, warning := range batchWarningsFromView(view) {
+				fmt.Fprintln(command.Stderr(), warning)
+			}
+			out, err := callToolCommand(ctx, command, token, ToolKindWrite, "batch_update", input, toolCallOptions{CallerAuthoredOperations: true})
+			if err != nil {
+				return common.Result[batchUpdateData]{}, err
+			}
+			return common.Success[batchUpdateData](out), nil
+		},
+	},
+})
 
 // batchUpdateInput translates the user-supplied CLI-shape operations array
 // into the MCP batch_update payload. Returns ValidationErrorf-typed errors
 // (errs.ValidationError) on any per-op shape problem (translator validates
 // each entry).
 func batchUpdateInput(runtime *common.RuntimeContext, token string) (map[string]interface{}, error) {
-	rawOps, err := parseBatchOperationsFlag(runtime)
+	provided := common.Provided[bool]{Value: runtime.Bool("continue-on-error"), Set: runtime.Changed("continue-on-error")}
+	return batchUpdateInputFromView(runtime, token, provided)
+}
+
+func batchUpdateInputFromView(view flagView, token string, continueOnError common.Provided[bool]) (map[string]interface{}, error) {
+	rawOps, err := parseBatchOperationsFlag(view)
 	if err != nil {
 		return nil, err
 	}
@@ -114,22 +152,16 @@ func batchUpdateInput(runtime *common.RuntimeContext, token string) (map[string]
 	if err != nil {
 		return nil, err
 	}
-	input := map[string]interface{}{
-		"excel_id":   token,
-		"operations": translated,
-	}
-	if runtime.Changed("continue-on-error") {
-		// An explicit --continue-on-error always wins over the envelope, so
-		// --continue-on-error=false keeps the strict-transaction default even
-		// when the --operations envelope carries continue_on_error:true.
-		if runtime.Bool("continue-on-error") {
+	input := map[string]interface{}{"excel_id": token, "operations": translated}
+	if continueOnError.Set {
+		// An explicit false overrides an envelope's true while remaining absent
+		// from the wire, preserving the legacy fail-fast default.
+		if continueOnError.Value {
 			input["continue_on_error"] = true
 		}
-	} else if envelope, _ := parseJSONFlag(runtime, "operations"); envelope != nil {
-		// No explicit flag: honor an inline override when --operations is an
-		// envelope object rather than a bare operations array.
-		if m, ok := envelope.(map[string]interface{}); ok {
-			if v, ok := m["continue_on_error"].(bool); ok && v {
+	} else if envelope, _ := parseJSONFlag(view, "operations"); envelope != nil {
+		if object, ok := envelope.(map[string]interface{}); ok {
+			if enabled, ok := object["continue_on_error"].(bool); ok && enabled {
 				input["continue_on_error"] = true
 			}
 		}
@@ -144,12 +176,16 @@ func batchUpdateInput(runtime *common.RuntimeContext, token string) (map[string]
 // in one place so DryRun and Execute cannot drift apart on which ones they
 // report.
 func batchWarnings(runtime *common.RuntimeContext) []string {
+	return batchWarningsFromView(runtime)
+}
+
+func batchWarningsFromView(view flagView) []string {
 	var out []string
-	if batchNeedsDimInsertBeforeStyleWarning(runtime) {
+	if batchNeedsDimInsertBeforeStyleWarningFromView(view) {
 		out = append(out, dimInsertBeforeStyleWarning)
 	}
-	out = append(out, batchCollidingDimFreezeNotes(runtime)...)
-	return append(out, batchLegacyDimFreezeNotes(runtime)...)
+	out = append(out, batchCollidingDimFreezeNotesFromView(view)...)
+	return append(out, batchLegacyDimFreezeNotesFromView(view)...)
 }
 
 // batchCollidingDimFreezeNotes reports +dim-freeze sub-ops that target the SAME
@@ -163,7 +199,11 @@ func batchWarnings(runtime *common.RuntimeContext) []string {
 // carrier) is not batchable, so folding into ONE sub-op is the only fix — hence
 // a note rather than a suggestion to reorder.
 func batchCollidingDimFreezeNotes(runtime *common.RuntimeContext) []string {
-	rawOps, err := parseBatchOperationsFlag(runtime)
+	return batchCollidingDimFreezeNotesFromView(runtime)
+}
+
+func batchCollidingDimFreezeNotesFromView(view flagView) []string {
+	rawOps, err := parseBatchOperationsFlag(view)
 	if err != nil {
 		return nil // a malformed --operations is the translator's to report.
 	}
@@ -241,7 +281,11 @@ func batchCollidingDimFreezeNotes(runtime *common.RuntimeContext) []string {
 // wording comes from the shared helper, so it cannot drift from the standalone
 // one.
 func batchLegacyDimFreezeNotes(runtime *common.RuntimeContext) []string {
-	rawOps, err := parseBatchOperationsFlag(runtime)
+	return batchLegacyDimFreezeNotesFromView(runtime)
+}
+
+func batchLegacyDimFreezeNotesFromView(view flagView) []string {
+	rawOps, err := parseBatchOperationsFlag(view)
 	if err != nil {
 		return nil // a malformed --operations is the translator's to report.
 	}
@@ -266,7 +310,11 @@ func batchLegacyDimFreezeNotes(runtime *common.RuntimeContext) []string {
 }
 
 func batchNeedsDimInsertBeforeStyleWarning(runtime *common.RuntimeContext) bool {
-	rawOps, err := parseBatchOperationsFlag(runtime)
+	return batchNeedsDimInsertBeforeStyleWarningFromView(runtime)
+}
+
+func batchNeedsDimInsertBeforeStyleWarningFromView(view flagView) bool {
+	rawOps, err := parseBatchOperationsFlag(view)
 	if err != nil {
 		return false
 	}
@@ -305,7 +353,7 @@ func batchNeedsDimInsertBeforeStyleWarning(runtime *common.RuntimeContext) bool 
 // parseBatchOperationsFlag accepts --operations as either a JSON array (the
 // operations list directly) or an envelope object { operations, continue_on_error }
 // for back-compat with the legacy --data shape. Returns the operations array.
-func parseBatchOperationsFlag(runtime *common.RuntimeContext) ([]interface{}, error) {
+func parseBatchOperationsFlag(runtime flagView) ([]interface{}, error) {
 	v, err := parseJSONFlag(runtime, "operations")
 	if err != nil {
 		return nil, err

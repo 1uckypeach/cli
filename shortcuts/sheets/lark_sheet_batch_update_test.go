@@ -5,8 +5,11 @@ package sheets
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/larksuite/cli/errs"
 )
 
 // TestBatchUpdate_TranslatesShortcutToToolName verifies +batch-update
@@ -55,6 +58,65 @@ func TestBatchUpdate_TranslatesShortcutToToolName(t *testing.T) {
 	in1, _ := op1["input"].(map[string]interface{})
 	if in1["operation"] != "insert" {
 		t.Errorf("op[1].input.operation = %v, want \"insert\"", in1["operation"])
+	}
+}
+
+func TestBatchUpdate_TypedOutputPreservesCompleteLegacyJSONProtocol(t *testing.T) {
+	operations := `[{"shortcut":"+cells-set","input":{"sheet_id":"sh1","range":"A1","cells":[[{"value":42}]]}}]`
+	tests := []struct {
+		name        string
+		toolOutput  string
+		want        any
+		wantPresent bool
+	}{
+		{name: "object", toolOutput: `{"updated":1,"nested":{"unknown":"value"}}`, want: map[string]any{"updated": float64(1), "nested": map[string]any{"unknown": "value"}}, wantPresent: true},
+		{name: "array", toolOutput: `["updated",{"count":1}]`, want: []any{"updated", map[string]any{"count": float64(1)}}, wantPresent: true},
+		{name: "string", toolOutput: `"updated"`, want: "updated", wantPresent: true},
+		{name: "number", toolOutput: `7`, want: float64(7), wantPresent: true},
+		{name: "boolean", toolOutput: `true`, want: true, wantPresent: true},
+		{name: "null output omits data", toolOutput: `null`},
+		{name: "empty output omits data", toolOutput: ""},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			stdout, err := runShortcutWithStubs(t, BatchUpdate, []string{"--url", testURL, "--operations", operations, "--yes"},
+				toolOutputStub(testToken, "write", test.toolOutput))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var envelope map[string]interface{}
+			if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+				t.Fatalf("stdout = %q: %v", stdout, err)
+			}
+			data, exists := envelope["data"]
+			if exists != test.wantPresent {
+				t.Fatalf("data = %#v, exists = %v; want exists = %v", data, exists, test.wantPresent)
+			}
+			if test.wantPresent && !reflect.DeepEqual(data, test.want) {
+				t.Fatalf("data = %#v, want %#v", data, test.want)
+			}
+		})
+	}
+}
+
+func TestBatchUpdate_TypedAPIErrorPreservesCallerAuthoredRecovery(t *testing.T) {
+	operations := `[{"shortcut":"+cells-set","input":{"sheet_id":"sh1","range":"A1","cells":[[{"value":42}]]}},{"shortcut":"+cells-clear","input":{"sheet_id":"sh1","range":"B1"}}]`
+	inner := `{"message":"batch_update: 1 succeeded, 1 failed","failures":[{"index":1,"tool_name":"clear_cell_range","error":"bad range"}]}`
+	outer, err := json.Marshal(map[string]interface{}{"error": inner, "errorType": "param_error"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub := toolOutputStub(testToken, "write", "")
+	stub.Body = map[string]interface{}{"code": 999999, "msg": string(outer), "data": map[string]interface{}{}}
+	stdout, err := runShortcutWithStubs(t, BatchUpdate, []string{"--url", testURL, "--operations", operations, "--yes"}, stub)
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryAPI || stdout != "" {
+		t.Fatalf("stdout = %q, error = %#v, problem = %#v", stdout, err, problem)
+	}
+	for _, want := range []string{"operations[1]", "resend only operations[1:] onward", "no rollback"} {
+		if !strings.Contains(problem.Message, want) {
+			t.Errorf("message missing %q: %s", want, problem.Message)
+		}
 	}
 }
 

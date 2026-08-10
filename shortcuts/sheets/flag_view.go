@@ -54,9 +54,10 @@ type flagView interface {
 // translators branch on Changed() (e.g. omit target_index unless --index was
 // set) and others read defaulted values (e.g. row-count defaults to 200).
 type mapFlagView struct {
-	raw      map[string]interface{} // user-supplied sub-op input (drives Changed)
-	defaults map[string]interface{} // flag defaults (value fallback only)
-	command  string                 // shortcut command (e.g. "+chart-create"); used by schema validator
+	raw           map[string]interface{} // user-supplied sub-op input (drives Changed)
+	defaults      map[string]interface{} // flag defaults (value fallback only)
+	inputResolved map[string]bool        // standalone Typed inputs loaded from @file/stdin; empty for batch sub-ops
+	command       string                 // shortcut command (e.g. "+chart-create"); used by schema validator
 }
 
 func (m mapFlagView) Command() string { return m.command }
@@ -239,7 +240,7 @@ func (m mapFlagView) Changed(name string) bool {
 	return ok
 }
 
-func (m mapFlagView) InputResolvedFromSource(name string) bool { return false }
+func (m mapFlagView) InputResolvedFromSource(name string) bool { return m.inputResolved[name] }
 
 // validateRawTypes rejects sub-op input fields whose JSON type contradicts the
 // flag's declared type in flag-defs. +batch-update skips parse-time schema

@@ -14,7 +14,6 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/shortcuts/common"
-	"github.com/spf13/cobra"
 )
 
 // wikiNodeGetURLObjTypes maps a Lark URL path prefix (slash-bounded) to the
@@ -43,93 +42,119 @@ var wikiNodeGetObjTypeEnum = []string{
 	"doc", "docx", "sheet", "bitable", "mindnote", "slides", "file",
 }
 
+type wikiNodeGetArgs struct {
+	NodeToken string          `flag:"node-token" schema:"required;minLength=1" doc:"wiki node_token, obj_token, or a Lark URL embedding one of them"`
+	ObjType   string          `flag:"obj-type" schema:"optional;enum=doc|docx|sheet|bitable|mindnote|slides|file" doc:"obj_type when node-token is an obj_token; inferred from a typed URL when omitted"`
+	SpaceID   string          `flag:"space-id" schema:"optional" doc:"optional assertion that the resolved node belongs to this space"`
+	Spec      wikiNodeGetSpec `arg:"local"`
+}
+
+type wikiNodeGetData struct {
+	Creator         string `json:"creator" schema:"required" doc:"creator open ID when returned"`
+	HasChild        bool   `json:"has_child" schema:"required" doc:"whether the node has children"`
+	NodeCreateTime  string `json:"node_create_time" schema:"required" doc:"node creation time as Unix seconds when returned"`
+	NodeToken       string `json:"node_token" schema:"required;minLength=1" doc:"wiki node token"`
+	NodeType        string `json:"node_type" schema:"required" doc:"wiki node type"`
+	ObjCreateTime   string `json:"obj_create_time" schema:"required" doc:"object creation time as Unix seconds when returned"`
+	ObjEditTime     string `json:"obj_edit_time" schema:"required" doc:"object edit time as Unix seconds when returned"`
+	ObjToken        string `json:"obj_token" schema:"required" doc:"underlying document token"`
+	ObjType         string `json:"obj_type" schema:"required;enum=doc|docx|sheet|bitable|mindnote|slides|file" doc:"underlying document type"`
+	OriginNodeToken string `json:"origin_node_token" schema:"required" doc:"origin node token; empty for an origin node"`
+	Owner           string `json:"owner" schema:"required" doc:"owner open ID when returned"`
+	ParentNodeToken string `json:"parent_node_token" schema:"required" doc:"parent node token; empty for a root node"`
+	SpaceID         string `json:"space_id" schema:"required" doc:"wiki space ID"`
+	Title           string `json:"title" schema:"required" doc:"node title"`
+	UpdatedAt       string `json:"updated_at" schema:"required" doc:"UTC object edit time; empty when unavailable"`
+}
+
+func wikiNodeGetDataFromMap(out map[string]interface{}) wikiNodeGetData {
+	return wikiNodeGetData{
+		Creator: common.GetString(out, "creator"), HasChild: common.GetBool(out, "has_child"), NodeCreateTime: common.GetString(out, "node_create_time"),
+		NodeToken: common.GetString(out, "node_token"), NodeType: common.GetString(out, "node_type"), ObjCreateTime: common.GetString(out, "obj_create_time"),
+		ObjEditTime: common.GetString(out, "obj_edit_time"), ObjToken: common.GetString(out, "obj_token"), ObjType: common.GetString(out, "obj_type"),
+		OriginNodeToken: common.GetString(out, "origin_node_token"), Owner: common.GetString(out, "owner"), ParentNodeToken: common.GetString(out, "parent_node_token"),
+		SpaceID: common.GetString(out, "space_id"), Title: common.GetString(out, "title"), UpdatedAt: common.GetString(out, "updated_at"),
+	}
+}
+
+func (data wikiNodeGetData) toMap() map[string]interface{} {
+	return map[string]interface{}{
+		"creator": data.Creator, "has_child": data.HasChild, "node_create_time": data.NodeCreateTime, "node_token": data.NodeToken,
+		"node_type": data.NodeType, "obj_create_time": data.ObjCreateTime, "obj_edit_time": data.ObjEditTime, "obj_token": data.ObjToken,
+		"obj_type": data.ObjType, "origin_node_token": data.OriginNodeToken, "owner": data.Owner, "parent_node_token": data.ParentNodeToken,
+		"space_id": data.SpaceID, "title": data.Title, "updated_at": data.UpdatedAt,
+	}
+}
+
 // WikiNodeGet wraps wiki.spaces.get_node so callers can resolve a node by
 // node_token, obj_token, or a Lark URL without hand-rolling a
 // `wiki spaces get_node --params ...` invocation. The shortcut prints a
 // formatted view of the node (title / obj_type / obj_token / parent /
 // creator / updated_at) and is intended as the "what am I about to
 // touch?" step before +move / +node-copy / +delete-space.
-var WikiNodeGet = common.Shortcut{
-	Service:     "wiki",
-	Command:     "+node-get",
-	Description: "Get wiki node details by node_token, obj_token, or Lark URL",
-	Risk:        "read",
-	Scopes:      []string{"wiki:node:retrieve"},
-	AuthTypes:   []string{"user", "bot"},
-	HasFormat:   true,
-	Flags: []common.Flag{
-		// --node-token is the canonical flag, matching sibling wiki commands
-		// (+node-delete / +node-copy / +move). --token is the original name
-		// and is kept as a hidden deprecated alias for backward compatibility;
-		// MarkDeprecated (registered in PostMount) prints a stderr warning
-		// when --token is used.
-		{Name: "node-token", Desc: "wiki node_token, obj_token, or a Lark URL embedding one of them"},
-		{Name: "token", Desc: "DEPRECATED: use --node-token", Hidden: true},
-		{Name: "obj-type", Desc: "obj_type when --node-token is an obj_token; auto-inferred from URL path when omitted", Enum: wikiNodeGetObjTypeEnum},
-		{Name: "space-id", Desc: "optional: assert the resolved node lives in this space"},
+var WikiNodeGet = common.Define(common.Definition[wikiNodeGetArgs, wikiNodeGetData]{
+	Metadata: common.CommandMetadata{
+		Service: "wiki", Command: "+node-get", Description: "Get wiki node details by node_token, obj_token, or Lark URL", Risk: common.RiskRead,
+		Tips: []string{
+			"--node-token accepts a raw wiki node_token, obj_token, or a Lark URL like https://feishu.cn/wiki/<token> or https://feishu.cn/docx/<token>.",
+			"For raw obj_tokens, pass --obj-type so the API knows how to resolve them; URL inputs infer it from the path.",
+			"Pair with +move / +node-copy / +delete-space to confirm space_id, obj_type, and parent before mutating.",
+			"--token is the deprecated original name and still works for backward compatibility; new scripts should use --node-token.",
+		},
+		Authorization: common.AuthorizationDefinition{Identities: map[common.Identity]common.IdentityAuthorization{
+			common.IdentityUser: {RequiredScopes: []string{"wiki:node:retrieve"}},
+			common.IdentityBot:  {RequiredScopes: []string{"wiki:node:retrieve"}},
+		}},
 	},
-	Tips: []string{
-		"--node-token accepts a raw wiki node_token, obj_token, or a Lark URL like https://feishu.cn/wiki/<token> or https://feishu.cn/docx/<token>.",
-		"For raw obj_tokens, pass --obj-type so the API knows how to resolve them; URL inputs infer it from the path.",
-		"Pair with +move / +node-copy / +delete-space to confirm space_id, obj_type, and parent before mutating.",
-		"--token is the deprecated original name and still works for backward compatibility; new scripts should use --node-token.",
+	Input: common.InputDefinition{Fields: []common.InputField{
+		{Name: "node-token", CLI: common.CLIInput{Aliases: []common.FlagAlias{
+			{Name: "token", Mode: common.AliasIndependent, Conflict: common.AliasTrimmedEqualOrError, Hidden: true, Deprecated: true},
+		}}},
+	}},
+	Output: common.OutputDefinition{Data: common.DataDefinition{Overrides: []common.DataField{
+		{Path: "/updated_at", Shape: common.OneOfShape{Variants: []common.ValueShape{
+			common.StringShape{Format: "date-time"}, common.ConstShape{Value: ""},
+		}}},
+	}}},
+	Hooks: common.Hooks[wikiNodeGetArgs, wikiNodeGetData]{
+		Normalize: func(_ context.Context, _ common.CommandContext, args *wikiNodeGetArgs) error {
+			spec, err := parseWikiNodeGetSpec(args.NodeToken, args.ObjType, args.SpaceID)
+			if err != nil {
+				return err
+			}
+			args.Spec = spec
+			return nil
+		},
+		DryRun: func(_ context.Context, _ common.CommandContext, args *wikiNodeGetArgs) *common.DryRunAPI {
+			return buildWikiNodeGetDryRun(args.Spec)
+		},
+		Execute: func(ctx context.Context, command common.CommandContext, args *wikiNodeGetArgs) (common.Result[wikiNodeGetData], error) {
+			spec := args.Spec
+			fmt.Fprintf(command.Stderr(), "Fetching wiki node %s...\n", common.MaskToken(spec.Token))
+			data, err := common.CallTypedAPI(ctx, command, "GET", "/open-apis/wiki/v2/spaces/get_node", spec.RequestParams(), nil)
+			if err != nil {
+				return common.Result[wikiNodeGetData]{}, err
+			}
+			raw := common.GetMap(data, "node")
+			node, err := parseWikiNodeRecord(raw)
+			if err != nil {
+				return common.Result[wikiNodeGetData]{}, err
+			}
+			if spec.SpaceID != "" && node.SpaceID != "" && spec.SpaceID != node.SpaceID {
+				return common.Result[wikiNodeGetData]{}, errs.NewValidationError(errs.SubtypeInvalidArgument,
+					"--space-id %q does not match the resolved node space %q (node_token=%s)", spec.SpaceID, node.SpaceID, node.NodeToken).WithParam("--space-id")
+			}
+			if spec.SpaceID != "" && node.SpaceID == "" {
+				fmt.Fprintf(command.Stderr(), "Warning: --space-id %q could not be verified; the resolved node carries no space_id.\n", spec.SpaceID)
+			}
+			return common.Success(wikiNodeGetDataFromMap(wikiNodeGetOutput(node, raw))), nil
+		},
+		Renderers: map[string]common.Renderer[wikiNodeGetData]{"pretty": func(w io.Writer, data wikiNodeGetData) error {
+			renderWikiNodeGetPretty(w, data.toMap())
+			return nil
+		}},
 	},
-	PostMount: func(cmd *cobra.Command) {
-		// cobra's MarkDeprecated prints "Flag --token has been deprecated, use --node-token instead"
-		// to stderr on use, and hides the flag from --help (matching the Hidden: true marker above).
-		_ = cmd.Flags().MarkDeprecated("token", "use --node-token instead")
-	},
-	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		_, err := readWikiNodeGetSpec(runtime)
-		return err
-	},
-	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
-		spec, err := readWikiNodeGetSpec(runtime)
-		if err != nil {
-			return common.NewDryRunAPI().Set("error", err.Error())
-		}
-		return buildWikiNodeGetDryRun(spec)
-	},
-	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		spec, err := readWikiNodeGetSpec(runtime)
-		if err != nil {
-			return err
-		}
-
-		fmt.Fprintf(runtime.IO().ErrOut, "Fetching wiki node %s...\n", common.MaskToken(spec.Token))
-
-		data, err := runtime.CallAPITyped("GET", "/open-apis/wiki/v2/spaces/get_node", spec.RequestParams(), nil)
-		if err != nil {
-			return err
-		}
-		raw := common.GetMap(data, "node")
-		node, err := parseWikiNodeRecord(raw)
-		if err != nil {
-			return err
-		}
-
-		if spec.SpaceID != "" && node.SpaceID != "" && spec.SpaceID != node.SpaceID {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument,
-				"--space-id %q does not match the resolved node space %q (node_token=%s)",
-				spec.SpaceID, node.SpaceID, node.NodeToken,
-			).WithParam("--space-id")
-		}
-		if spec.SpaceID != "" && node.SpaceID == "" {
-			// The cross-check was requested but get_node returned no space_id,
-			// so it silently passed. Surface that the assertion was a no-op
-			// rather than letting the caller assume it was verified.
-			fmt.Fprintf(runtime.IO().ErrOut,
-				"Warning: --space-id %q could not be verified; the resolved node carries no space_id.\n",
-				spec.SpaceID)
-		}
-
-		out := wikiNodeGetOutput(node, raw)
-		runtime.OutFormat(out, nil, func(w io.Writer) {
-			renderWikiNodeGetPretty(w, out)
-		})
-		return nil
-	},
-}
+})
 
 // wikiNodeGetSpec is the normalized input for the shortcut.
 type wikiNodeGetSpec struct {

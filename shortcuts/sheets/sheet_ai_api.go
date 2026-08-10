@@ -110,6 +110,46 @@ func callTool(
 	return out, nil
 }
 
+type toolCallOptions struct {
+	CallerAuthoredOperations bool
+}
+
+// callToolCommand is the Typed Shortcut counterpart of callTool. It preserves
+// the same API classification and tool-specific error projection while using
+// the restricted CommandContext surface.
+func callToolCommand(ctx context.Context, command common.CommandContext, token string, kind ToolKind, toolName string, input map[string]interface{}, options ...toolCallOptions) (interface{}, error) {
+	body, err := buildToolBody(toolName, input)
+	if err != nil {
+		return nil, err
+	}
+	data, err := common.CallTypedAPI(ctx, command, "POST", toolInvokePath(token, kind), nil, body)
+	if err != nil {
+		if problem, ok := errs.ProblemOf(err); ok && problem.Category == errs.CategoryAPI {
+			continueOnError, _ := input["continue_on_error"].(bool)
+			callerAuthoredOperations := false
+			if len(options) > 0 {
+				callerAuthoredOperations = options[0].CallerAuthoredOperations
+			}
+			flat := flattenToolErrorMsg(problem.Message, continueOnError, callerAuthoredOperations)
+			if problem.Subtype == errs.SubtypeUnknown {
+				problem.Subtype = errs.SubtypeServerError
+			}
+			problem.Message = fmt.Sprintf("tool %q failed: [%d] %s", toolName, problem.Code, flat)
+		}
+		return nil, err
+	}
+	rawOutput, _ := data["output"].(string)
+	if rawOutput == "" {
+		return nil, nil
+	}
+	var out interface{}
+	if err := json.Unmarshal([]byte(rawOutput), &out); err != nil {
+		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
+			"tool %q returned invalid JSON output: %v", toolName, err).WithCause(err)
+	}
+	return out, nil
+}
+
 // flattenToolErrorMsg unwraps the nested-escaped-JSON error payload some
 // sheet-ai tools put in msg — batch_update in particular wraps its result as
 // {"error":"{\"message\":\"batch_update: N succeeded, M failed\",

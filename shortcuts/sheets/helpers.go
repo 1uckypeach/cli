@@ -140,8 +140,8 @@ type spreadsheetRef struct {
 //
 // A raw --spreadsheet-token is always treated as a spreadsheet token; wiki nodes
 // only ever arrive as a /wiki/ URL.
-func parseSpreadsheetRef(runtime *common.RuntimeContext) (spreadsheetRef, error) {
-	if err := common.ExactlyOneTyped(runtime, "url", "spreadsheet-token"); err != nil {
+func parseSpreadsheetRef(runtime flagView) (spreadsheetRef, error) {
+	if err := exactlyOneFlagView(runtime, "url", "spreadsheet-token"); err != nil {
 		return spreadsheetRef{}, err
 	}
 	if token := strings.TrimSpace(runtime.Str("spreadsheet-token")); token != "" {
@@ -261,13 +261,32 @@ func resolveWikiNodeToSpreadsheetToken(runtime *common.RuntimeContext, nodeToken
 	return objToken, nil
 }
 
+func resolveWikiNodeToSpreadsheetTokenTyped(ctx context.Context, command common.CommandContext, nodeToken string) (string, error) {
+	if err := command.RequireConditionalScopes("wiki:node:read"); err != nil {
+		return "", err
+	}
+	data, err := common.CallTypedAPI(ctx, command, "GET", "/open-apis/wiki/v2/spaces/get_node", map[string]interface{}{"token": nodeToken}, nil)
+	if err != nil {
+		return "", err
+	}
+	node := common.GetMap(data, "node")
+	objType, objToken := common.GetString(node, "obj_type"), common.GetString(node, "obj_token")
+	if objType == "" || objToken == "" {
+		return "", errs.NewInternalError(errs.SubtypeInvalidResponse, "wiki get_node returned incomplete node data for %q", nodeToken)
+	}
+	if objType != "sheet" {
+		return "", sheetsValidationForFlag("url", "wiki URL resolves to obj_type=%q, but a spreadsheet (obj_type=sheet) is required", objType)
+	}
+	return objToken, nil
+}
+
 // resolveSheetSelector validates the --sheet-id / --sheet-name XOR and
 // returns whichever was supplied. Network-free.
 //
 // Returned tuple: (sheetID, sheetName). Exactly one is non-empty — callers
 // pass both through to the tool input; the server picks whichever fits.
-func resolveSheetSelector(runtime *common.RuntimeContext) (sheetID, sheetName string, err error) {
-	if err := common.ExactlyOneTyped(runtime, "sheet-id", "sheet-name"); err != nil {
+func resolveSheetSelector(runtime flagView) (sheetID, sheetName string, err error) {
+	if err := exactlyOneFlagView(runtime, "sheet-id", "sheet-name"); err != nil {
 		return "", "", err
 	}
 	if id := strings.TrimSpace(runtime.Str("sheet-id")); id != "" {
@@ -281,6 +300,20 @@ func resolveSheetSelector(runtime *common.RuntimeContext) (sheetID, sheetName st
 		return "", "", sheetsValidationCauseForFlag("sheet-name", err)
 	}
 	return "", name, nil
+}
+
+func exactlyOneFlagView(runtime flagView, first, second string) error {
+	firstSet := runtime.Str(first) != ""
+	secondSet := runtime.Str(second) != ""
+	if !firstSet && !secondSet {
+		return common.ValidationErrorf("specify at least one of --%s or --%s", first, second).
+			WithParams(sheetsInvalidParam(first, "required; specify at least one"), sheetsInvalidParam(second, "required; specify at least one"))
+	}
+	if firstSet && secondSet {
+		return common.ValidationErrorf("--%s and --%s are mutually exclusive", first, second).
+			WithParams(sheetsInvalidParam(first, "mutually exclusive"), sheetsInvalidParam(second, "mutually exclusive"))
+	}
+	return nil
 }
 
 // validateViaInput shrinks a shortcut's Validate to the minimal

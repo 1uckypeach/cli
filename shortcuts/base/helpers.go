@@ -19,6 +19,9 @@ import (
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/cmdutil"
+	"github.com/larksuite/cli/internal/core"
+	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -391,6 +394,34 @@ func baseV3Raw(runtime *common.RuntimeContext, method, path string, params map[s
 }
 
 func baseV3RawContext(ctx context.Context, runtime *common.RuntimeContext, method, path string, params map[string]interface{}, data interface{}) (map[string]interface{}, error) {
+	req := baseV3Request(method, path, params, data)
+	resp, err := runtime.DoAPIWithContext(ctx, req, baseV3AppHeaderOption(runtime.Config.AppID))
+	if err != nil {
+		return nil, baseAPIBoundaryError(err, "API call failed")
+	}
+	return classifyAndDecodeBaseV3Response(resp, runtime.APIClassifyContext())
+}
+
+// baseV3CallTyped is the Base-domain API boundary for Typed shortcuts. Request
+// options intentionally preserve the Legacy order: X-App-Id is installed
+// first, then ShortcutHeaderOpts replaces the SDK Header value. The observable
+// Shortcut request therefore continues to omit X-App-Id; changing the SDK's
+// non-merging WithHeaders behavior is a separate behavior change.
+func baseV3CallTyped(ctx context.Context, command common.CommandContext, method, path string, params map[string]interface{}, data interface{}, commandPath string) (map[string]interface{}, error) {
+	apiClient, err := command.APIClient()
+	if err != nil {
+		return nil, baseAPIBoundaryError(err, "API call failed")
+	}
+	config := command.Config()
+	resp, err := apiClient.DoSDKRequest(ctx, baseV3Request(method, path, params, data), core.Identity(command.Identity()), baseV3TypedRequestOptions(ctx, config.AppID)...)
+	if err != nil {
+		return nil, baseAPIBoundaryError(err, "API call failed")
+	}
+	result, err := classifyAndDecodeBaseV3Response(resp, baseV3TypedClassifyContext(config, command.Identity(), commandPath))
+	return handleBaseAPIResult(result, err, "API call failed")
+}
+
+func baseV3Request(method, path string, params map[string]interface{}, data interface{}) *larkcore.ApiReq {
 	queryParams := make(larkcore.QueryParams)
 	for k, v := range params {
 		switch val := v.(type) {
@@ -406,23 +437,40 @@ func baseV3RawContext(ctx context.Context, runtime *common.RuntimeContext, metho
 			queryParams.Set(k, fmt.Sprintf("%v", v))
 		}
 	}
-	req := &larkcore.ApiReq{
+	return &larkcore.ApiReq{
 		HttpMethod:  strings.ToUpper(method),
 		ApiPath:     path,
 		Body:        data,
 		QueryParams: queryParams,
 	}
-	h := make(http.Header)
-	h.Set("X-App-Id", runtime.Config.AppID)
-	resp, err := runtime.DoAPIWithContext(ctx, req, larkcore.WithHeaders(h))
-	if err != nil {
-		return nil, baseAPIBoundaryError(err, "API call failed")
+}
+
+func baseV3AppHeaderOption(appID string) larkcore.RequestOptionFunc {
+	header := make(http.Header)
+	header.Set("X-App-Id", appID)
+	return larkcore.WithHeaders(header)
+}
+
+func baseV3TypedRequestOptions(ctx context.Context, appID string) []larkcore.RequestOptionFunc {
+	options := []larkcore.RequestOptionFunc{baseV3AppHeaderOption(appID)}
+	if shortcutOption := cmdutil.ShortcutHeaderOpts(ctx); shortcutOption != nil {
+		options = append(options, shortcutOption)
 	}
-	if _, err := runtime.ClassifyAPIResponse(resp); err != nil {
+	return options
+}
+
+func baseV3TypedClassifyContext(config core.CliConfig, identity common.Identity, commandPath string) errclass.ClassifyContext {
+	return errclass.ClassifyContext{
+		Brand: string(config.Brand), AppID: config.AppID, Identity: string(identity), LarkCmd: commandPath,
+	}
+}
+
+func classifyAndDecodeBaseV3Response(resp *larkcore.ApiResp, classifyContext errclass.ClassifyContext) (map[string]interface{}, error) {
+	if _, err := common.ClassifyAPIResponseWith(resp, classifyContext); err != nil {
 		if statusErr := baseHTTPStatusErrorFromInvalidResponse(resp, err); statusErr != nil {
 			return nil, statusErr
 		}
-		return nil, enrichBaseAPIErrorFromBody(err, resp.RawBody, runtime.APIClassifyContext())
+		return nil, enrichBaseAPIErrorFromBody(err, resp.RawBody, classifyContext)
 	}
 	result, parseErr := decodeBaseV3Response(resp.RawBody)
 	if parseErr != nil {

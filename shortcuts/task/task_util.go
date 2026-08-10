@@ -4,6 +4,7 @@
 package task
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -95,6 +96,11 @@ var taskAPIHints = map[int]string{
 
 func callTaskAPITyped(runtime *common.RuntimeContext, method, url string, params map[string]interface{}, body interface{}) (map[string]interface{}, error) {
 	data, err := runtime.CallAPITyped(method, url, params, body)
+	return data, applyTaskAPIHint(err)
+}
+
+func callTaskAPITypedCommand(ctx context.Context, command common.CommandContext, method, url string, params map[string]interface{}, body interface{}) (map[string]interface{}, error) {
+	data, err := common.CallTypedAPI(ctx, command, method, url, params, body)
 	return data, applyTaskAPIHint(err)
 }
 

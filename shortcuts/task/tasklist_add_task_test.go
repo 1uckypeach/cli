@@ -6,6 +6,7 @@ package task
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -85,6 +86,49 @@ func TestAddTaskToTasklist_UserMissingScopeProjectsInlineHint(t *testing.T) {
 	}
 }
 
+func TestAddTaskToTasklist_DryRunPreviewsOnlyFirstTask(t *testing.T) {
+	f, stdout, _, _ := taskShortcutTestFactory(t)
+	args := []string{
+		"+tasklist-task-add",
+		"--tasklist-id", "https://applink.feishu.cn/client/todo/task_list?guid=tl-from-url&extra=ignored",
+		"--task-id", " first/task? , second-task ",
+		"--section-guid", " sec-456 ",
+		"--dry-run",
+		"--as", "bot",
+	}
+	if err := runMountedTaskShortcut(t, AddTaskToTasklist, args, f, stdout); err != nil {
+		t.Fatalf("dry-run: %v", err)
+	}
+
+	var envelope struct {
+		Data struct {
+			API []struct {
+				Method string         `json:"method"`
+				URL    string         `json:"url"`
+				Params map[string]any `json:"params"`
+				Body   map[string]any `json:"body"`
+			} `json:"api"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode stdout: %v\n%s", err, stdout.String())
+	}
+	if len(envelope.Data.API) != 1 {
+		t.Fatalf("api calls = %d, want one-call legacy preview", len(envelope.Data.API))
+	}
+	call := envelope.Data.API[0]
+	if call.Method != http.MethodPost || call.URL != "/open-apis/task/v2/tasks/first%2Ftask%3F/add_tasklist" {
+		t.Fatalf("call = %s %s, want first task only", call.Method, call.URL)
+	}
+	if call.Params["user_id_type"] != "open_id" {
+		t.Fatalf("params = %#v, want user_id_type=open_id", call.Params)
+	}
+	wantBody := map[string]any{"tasklist_guid": "tl-from-url", "section_guid": "sec-456"}
+	if !taskJSONEqual(call.Body, wantBody) {
+		t.Fatalf("body = %#v, want %#v", call.Body, wantBody)
+	}
+}
+
 func TestAddTaskToTasklist_Success(t *testing.T) {
 	f, stdout, _, reg := taskShortcutTestFactory(t)
 	warmTenantToken(t, f, reg)
@@ -123,6 +167,105 @@ func TestAddTaskToTasklist_Success(t *testing.T) {
 // partial-failure exit signal (exit 1) via runtime.OutPartialFailure. The
 // failed_tasks[].type carries the typed subtype (e.g. "permission_denied",
 // "not_found") read off errs.ProblemOf.
+func TestAddTaskToTasklist_SuccessFanOutPreservesOrderAndOutput(t *testing.T) {
+	f, stdout, _, reg := taskShortcutTestFactory(t)
+	warmTenantToken(t, f, reg)
+
+	first := &httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/task/v2/tasks/task-one/add_tasklist",
+		Body: map[string]any{
+			"code": 0,
+			"data": map[string]any{"task": map[string]any{
+				"guid": "task-one",
+				"url":  "https://applink.feishu.cn/client/todo/task?guid=task-one&from=server",
+			}},
+		},
+	}
+	second := &httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/task/v2/tasks/task-two/add_tasklist",
+		Body: map[string]any{
+			"code": 0,
+			"data": map[string]any{"task": map[string]any{
+				"guid": "task-two",
+				"url":  "https://applink.feishu.cn/client/todo/task?guid=task-two",
+			}},
+		},
+	}
+	reg.Register(first)
+	reg.Register(second)
+
+	args := []string{
+		"+tasklist-task-add",
+		"--tasklist-id", "tl-123",
+		"--task-id", " task-one, ,task-two ",
+		"--section-guid", " sec-456 ",
+		"--as", "bot",
+	}
+	if err := runMountedTaskShortcut(t, AddTaskToTasklist, args, f, stdout); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	for i, stub := range []*httpmock.Stub{first, second} {
+		var body map[string]any
+		if err := json.Unmarshal(stub.CapturedBody, &body); err != nil {
+			t.Fatalf("decode body %d: %v", i, err)
+		}
+		want := map[string]any{"tasklist_guid": "tl-123", "section_guid": "sec-456"}
+		if !taskJSONEqual(body, want) {
+			t.Fatalf("body %d = %#v, want %#v", i, body, want)
+		}
+	}
+
+	var envelope struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			TasklistGUID string `json:"tasklist_guid"`
+			Successful   []struct {
+				GUID string `json:"guid"`
+				URL  string `json:"url"`
+			} `json:"successful_tasks"`
+			Failed []any `json:"failed_tasks"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode stdout: %v\n%s", err, stdout.String())
+	}
+	if !envelope.OK || envelope.Data.TasklistGUID != "tl-123" || len(envelope.Data.Successful) != 2 || len(envelope.Data.Failed) != 0 {
+		t.Fatalf("envelope = %#v", envelope)
+	}
+	if envelope.Data.Successful[0].GUID != "task-one" || envelope.Data.Successful[1].GUID != "task-two" {
+		t.Fatalf("successful order = %#v", envelope.Data.Successful)
+	}
+	if envelope.Data.Successful[0].URL != "https://applink.feishu.cn/client/todo/task?guid=task-one" {
+		t.Fatalf("truncated URL = %q", envelope.Data.Successful[0].URL)
+	}
+}
+
+func TestAddTaskToTasklist_AllBlankItemsReturnLegacyZeroItemSuccess(t *testing.T) {
+	f, stdout, _, reg := taskShortcutTestFactory(t)
+	warmTenantToken(t, f, reg)
+
+	err := runMountedTaskShortcut(t, AddTaskToTasklist, []string{
+		"+tasklist-task-add", "--tasklist-id", "tl-123", "--task-id", " , , ", "--as", "bot",
+	}, f, stdout)
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode stdout: %v", err)
+	}
+	if envelope["ok"] != true {
+		t.Fatalf("ok = %#v, want true", envelope["ok"])
+	}
+	data, _ := envelope["data"].(map[string]any)
+	if data["successful_tasks"] != nil || data["failed_tasks"] != nil {
+		t.Fatalf("zero-item legacy slices = %#v/%#v, want null/null", data["successful_tasks"], data["failed_tasks"])
+	}
+}
+
 func TestAddTaskToTasklist_PartialFailure(t *testing.T) {
 	f, stdout, _, reg := taskShortcutTestFactory(t)
 	warmTenantToken(t, f, reg)
@@ -187,4 +330,30 @@ func TestAddTaskToTasklist_PartialFailure(t *testing.T) {
 	if strings.Contains(out, "permission_error") {
 		t.Errorf("legacy type \"permission_error\" leaked into output: %s", out)
 	}
+
+	var envelope struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			Successful []map[string]any `json:"successful_tasks"`
+			Failed     []map[string]any `json:"failed_tasks"`
+		} `json:"data"`
+	}
+	if decodeErr := json.Unmarshal(stdout.Bytes(), &envelope); decodeErr != nil {
+		t.Fatalf("decode partial stdout: %v", decodeErr)
+	}
+	if envelope.OK || len(envelope.Data.Successful) != 1 || len(envelope.Data.Failed) != 2 {
+		t.Fatalf("partial envelope = %#v", envelope)
+	}
+	if envelope.Data.Failed[0]["guid"] != "task-perm" || envelope.Data.Failed[0]["type"] != string(errs.SubtypePermissionDenied) {
+		t.Fatalf("first failed item = %#v", envelope.Data.Failed[0])
+	}
+	if envelope.Data.Failed[1]["guid"] != "task-missing" || envelope.Data.Failed[1]["type"] != string(errs.SubtypeNotFound) {
+		t.Fatalf("second failed item = %#v", envelope.Data.Failed[1])
+	}
+}
+
+func taskJSONEqual(a, b any) bool {
+	aa, _ := json.Marshal(a)
+	bb, _ := json.Marshal(b)
+	return string(aa) == string(bb)
 }

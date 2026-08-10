@@ -4,6 +4,8 @@
 package application
 
 import (
+	"context"
+
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/shortcuts/common"
 )
@@ -42,6 +44,19 @@ func commandNotFoundError(name string) error {
 // read scope on the current identity.
 func resolveCommandID(runtime *common.RuntimeContext, name string) (string, error) {
 	data, err := runtime.CallAPITyped("GET", slashCommandBasePath, nil, nil)
+	if err != nil {
+		return "", err
+	}
+	items, _ := data["items"].([]interface{})
+	id := matchCommandID(items, name)
+	if id == "" {
+		return "", commandNotFoundError(name)
+	}
+	return id, nil
+}
+
+func resolveCommandIDTyped(ctx context.Context, command common.CommandContext, name string) (string, error) {
+	data, err := common.CallTypedAPI(ctx, command, "GET", slashCommandBasePath, nil, nil)
 	if err != nil {
 		return "", err
 	}

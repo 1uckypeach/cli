@@ -4,6 +4,7 @@
 package sheets
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/larksuite/cli/shortcuts/common"
@@ -123,7 +124,12 @@ func TestFlagsFor_EveryRegisteredCommandHasDefs(t *testing.T) {
 			if ft != jt {
 				t.Errorf("%s --%s type: go=%s json=%s", s.Command, f.Name, ft, jt)
 			}
-			if f.Required != (df.Required == "required") {
+			// +csv-put accepts the hidden --range compatibility anchor, so its
+			// Typed Definition models start-cell/range as an exactly-one relation
+			// instead of marking start-cell individually required. The mounted
+			// contract remains pinned by csv_put_legacy_contract_test.
+			isCSVPutAnchor := s.Command == "+csv-put" && f.Name == "start-cell"
+			if !isCSVPutAnchor && f.Required != (df.Required == "required") {
 				t.Errorf("%s --%s required: go=%v json=%s", s.Command, f.Name, f.Required, df.Required)
 			}
 			if f.Default != df.Default {
@@ -132,11 +138,37 @@ func TestFlagsFor_EveryRegisteredCommandHasDefs(t *testing.T) {
 			if f.Hidden != df.Hidden {
 				t.Errorf("%s --%s hidden: go=%v json=%v", s.Command, f.Name, f.Hidden, df.Hidden)
 			}
+			if s.Command == "+csv-put" && f.Desc != df.Desc {
+				t.Errorf("%s --%s description differs from canonical flag-defs.json", s.Command, f.Name)
+			}
+			if !reflect.DeepEqual(f.Enum, df.Enum) {
+				t.Errorf("%s --%s enum: go=%v json=%v", s.Command, f.Name, f.Enum, df.Enum)
+			}
+			if !reflect.DeepEqual(f.Input, df.Input) {
+				t.Errorf("%s --%s input sources: go=%v json=%v", s.Command, f.Name, f.Input, df.Input)
+			}
 		}
 		for name := range want {
 			if !got[name] {
 				t.Errorf("%s --%s in JSON but missing from Go Flags", s.Command, name)
 			}
+		}
+	}
+}
+
+// TestCSVPutUsesGeneratedTypedInputFragment pins the production consumption
+// side of the opt-in generator, not only the existence of generated source.
+func TestCSVPutUsesGeneratedTypedInputFragment(t *testing.T) {
+	t.Parallel()
+	argsType := reflect.TypeFor[csvPutArgs]()
+	field, ok := argsType.FieldByName("CSVPutGeneratedInput")
+	if !ok || !field.Anonymous || field.Type != reflect.TypeFor[CSVPutGeneratedInput]() || field.Tag.Get("arg") != "inline" {
+		t.Fatalf("csvPutArgs generated inline field = %#v, found = %v", field, ok)
+	}
+	for _, name := range []string{"URL", "SpreadsheetToken", "SheetID", "SheetName", "StartCell", "CSV", "AllowOverwrite", "Range"} {
+		promoted, ok := argsType.FieldByName(name)
+		if !ok || len(promoted.Index) != 2 || promoted.Index[0] != field.Index[0] {
+			t.Errorf("generated field %s is not promoted through CSVPutGeneratedInput: %#v", name, promoted)
 		}
 	}
 }

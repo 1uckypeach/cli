@@ -233,6 +233,94 @@ func TestMapNoteError_Passthrough(t *testing.T) {
 	}
 }
 
+func TestNoteDetailMountedSuccessPreservesRequestAndDataContract(t *testing.T) {
+	factory, stdout, stderr, reg := noteShortcutTestFactory(t)
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/vc/v1/notes/note_success",
+		Body: map[string]any{
+			"code": 0,
+			"data": map[string]any{
+				"note": map[string]any{
+					"creator_id":        "ou_creator",
+					"create_time":       nil,
+					"note_display_type": float64(displayTypeUnified),
+					"artifacts": []any{
+						map[string]any{"artifact_type": float64(artifactTypeMainDoc), "doc_token": "doc_main"},
+						map[string]any{"artifact_type": float64(artifactTypeVerbatim), "doc_token": "doc_verbatim"},
+					},
+					"references": []any{
+						map[string]any{"doc_token": "doc_shared_1"},
+						map[string]any{"doc_token": "doc_shared_2"},
+					},
+				},
+			},
+		},
+	})
+
+	err := runNoteShortcut(t, NoteDetail, []string{"+detail", "--note-id", "note_success", "--as", "user"}, factory, stdout)
+	if err != nil {
+		t.Fatalf("run note detail: %v", err)
+	}
+	data := decodeNoteEnvelope(t, stdout)
+	note, ok := data["note"].(map[string]any)
+	if !ok {
+		t.Fatalf("data.note = %#v, want object", data["note"])
+	}
+	want := map[string]any{
+		"note_id":            "note_success",
+		"creator_id":         "ou_creator",
+		"create_time":        "",
+		"note_display_type":  "unified",
+		"note_doc_token":     "doc_main",
+		"verbatim_doc_token": "doc_verbatim",
+		"shared_doc_tokens":  []any{"doc_shared_1", "doc_shared_2"},
+	}
+	if !valuesEqual(note, want) {
+		t.Fatalf("data.note = %#v, want %#v", note, want)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestNoteDetailMountedValidationContract(t *testing.T) {
+	tests := []struct {
+		name      string
+		noteID    string
+		wantCause bool
+	}{
+		{name: "blank", noteID: "   "},
+		{name: "unsafe resource name", noteID: "note?bad", wantCause: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			factory, stdout, _, _ := noteShortcutTestFactory(t)
+			err := runNoteShortcut(t, NoteDetail, []string{"+detail", "--note-id", tt.noteID, "--as", "user"}, factory, stdout)
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok {
+				t.Fatalf("error = %T %v, want typed problem", err, err)
+			}
+			if problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeInvalidArgument {
+				t.Fatalf("category/subtype = %s/%s, want validation/invalid_argument", problem.Category, problem.Subtype)
+			}
+			var validationErr *errs.ValidationError
+			if !errors.As(err, &validationErr) || validationErr.Param != "--note-id" {
+				t.Fatalf("error = %#v, want --note-id ValidationError", err)
+			}
+			if got := errors.Unwrap(err) != nil; got != tt.wantCause {
+				t.Fatalf("has cause = %v, want %v", got, tt.wantCause)
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("stdout = %q, want empty", stdout.String())
+			}
+		})
+	}
+}
+
 func TestNoteDetailEmptyDetailPreservesSentinelCause(t *testing.T) {
 	factory, stdout, _, reg := noteShortcutTestFactory(t)
 	reg.Register(&httpmock.Stub{

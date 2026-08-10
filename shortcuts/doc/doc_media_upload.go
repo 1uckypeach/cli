@@ -14,108 +14,70 @@ import (
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
-var DocMediaUpload = common.Shortcut{
-	Service:     "docs",
-	Command:     "+media-upload",
-	Description: "Upload media file (image/attachment) to a document block",
-	Risk:        "write",
-	Scopes:      []string{"docs:document.media:upload"},
-	AuthTypes:   []string{"user", "bot"},
-	Flags: []common.Flag{
-		{Name: "file", Desc: "local file path (files > 20MB use multipart upload automatically)", Required: true},
-		{Name: "parent-type", Desc: "parent type: docx_image | docx_file | whiteboard | mindnote_image", Required: true},
-		{Name: "parent-node", Desc: "parent node ID (block_id for docx, board_token for whiteboard, mindnote token for mindnote)", Required: true},
-		{Name: "doc-id", Desc: "document ID (for drive_route_token)"},
-	},
-	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
-		filePath := runtime.Str("file")
-		parentType := runtime.Str("parent-type")
-		parentNode := runtime.Str("parent-node")
-		docId := runtime.Str("doc-id")
-		body := map[string]interface{}{
-			"file_name":   filepath.Base(filePath),
-			"parent_type": parentType,
-			"parent_node": parentNode,
-		}
-		if docId != "" {
-			body["extra"] = fmt.Sprintf(`{"drive_route_token":"%s"}`, docId)
-		}
-		dry := common.NewDryRunAPI()
-		if docMediaShouldUseMultipart(runtime.FileIO(), filePath) {
-			prepareBody := map[string]interface{}{
-				"file_name":   filepath.Base(filePath),
-				"parent_type": parentType,
-				"parent_node": parentNode,
-				"size":        "<file_size>",
-			}
-			if extra, ok := body["extra"]; ok {
-				prepareBody["extra"] = extra
-			}
-			dry.Desc("chunked media upload (files > 20MB)").
-				POST("/open-apis/drive/v1/medias/upload_prepare").
-				Body(prepareBody).
-				POST("/open-apis/drive/v1/medias/upload_part").
-				Body(map[string]interface{}{
-					"upload_id": "<upload_id>",
-					"seq":       "<chunk_index>",
-					"size":      "<chunk_size>",
-					"file":      "<chunk_binary>",
-				}).
-				POST("/open-apis/drive/v1/medias/upload_finish").
-				Body(map[string]interface{}{
-					"upload_id": "<upload_id>",
-					"block_num": "<block_num>",
-				})
-			return dry
-		}
-
-		body["file"] = "@" + filePath
-		body["size"] = "<file_size>"
-		return dry.Desc("multipart/form-data upload").
-			POST("/open-apis/drive/v1/medias/upload_all").
-			Body(body)
-	},
-	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		filePath := runtime.Str("file")
-		parentType := runtime.Str("parent-type")
-		parentNode := runtime.Str("parent-node")
-		docId := runtime.Str("doc-id")
-
-		// Validate file
-		stat, err := runtime.FileIO().Stat(filePath)
-		if err != nil {
-			return wrapDocInputFileErr(err, "file not found")
-		}
-		if !stat.Mode().IsRegular() {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "file must be a regular file: %s", filePath).WithParam("--file")
-		}
-
-		fileName := filepath.Base(filePath)
-		fmt.Fprintf(runtime.IO().ErrOut, "Uploading: %s (%d bytes)\n", fileName, stat.Size())
-		if stat.Size() > common.MaxDriveMediaUploadSinglePartSize {
-			fmt.Fprintf(runtime.IO().ErrOut, "File exceeds 20MB, using multipart upload\n")
-		}
-
-		fileToken, err := uploadDocMediaFile(runtime, UploadDocMediaFileConfig{
-			FilePath:   filePath,
-			FileName:   fileName,
-			FileSize:   stat.Size(),
-			ParentType: parentType,
-			ParentNode: parentNode,
-			DocID:      docId,
-		})
-		if err != nil {
-			return err
-		}
-
-		runtime.Out(map[string]interface{}{
-			"file_token": fileToken,
-			"file_name":  fileName,
-			"size":       stat.Size(),
-		}, nil)
-		return nil
-	},
+type docMediaUploadArgs struct {
+	File       string `flag:"file" schema:"required" doc:"local file path (files > 20MB use multipart upload automatically)"`
+	ParentType string `flag:"parent-type" schema:"required" doc:"parent type: docx_image | docx_file | whiteboard | mindnote_image"`
+	ParentNode string `flag:"parent-node" schema:"required" doc:"parent node ID (block_id for docx, board_token for whiteboard, mindnote token for mindnote)"`
+	DocID      string `flag:"doc-id" schema:"optional" doc:"document ID (for drive_route_token)"`
 }
+
+type docMediaUploadData struct {
+	FileName  string `json:"file_name" schema:"required;minLength=1" doc:"uploaded file name"`
+	FileToken string `json:"file_token" schema:"required;minLength=1" doc:"uploaded media file token"`
+	Size      int64  `json:"size" schema:"required;minimum=0" doc:"uploaded file size in bytes"`
+}
+
+var DocMediaUpload = common.Define(common.Definition[docMediaUploadArgs, docMediaUploadData]{
+	Metadata: common.CommandMetadata{
+		Service: "docs", Command: "+media-upload", Description: "Upload media file (image/attachment) to a document block", Risk: common.RiskWrite,
+		Authorization: common.AuthorizationDefinition{Identities: map[common.Identity]common.IdentityAuthorization{
+			common.IdentityUser: {RequiredScopes: []string{"docs:document.media:upload"}},
+			common.IdentityBot:  {RequiredScopes: []string{"docs:document.media:upload"}},
+		}},
+	},
+	Output: common.OutputDefinition{Mode: common.OutputFixedJSON},
+	Hooks: common.Hooks[docMediaUploadArgs, docMediaUploadData]{
+		DryRun: func(_ context.Context, command common.CommandContext, args *docMediaUploadArgs) *common.DryRunAPI {
+			body := map[string]interface{}{"file_name": filepath.Base(args.File), "parent_type": args.ParentType, "parent_node": args.ParentNode}
+			if args.DocID != "" {
+				body["extra"] = fmt.Sprintf(`{"drive_route_token":"%s"}`, args.DocID)
+			}
+			dry := common.NewDryRunAPI()
+			if docMediaShouldUseMultipart(command.FileIO(), args.File) {
+				prepareBody := map[string]interface{}{"file_name": filepath.Base(args.File), "parent_type": args.ParentType, "parent_node": args.ParentNode, "size": "<file_size>"}
+				if extra, ok := body["extra"]; ok {
+					prepareBody["extra"] = extra
+				}
+				return dry.Desc("chunked media upload (files > 20MB)").POST("/open-apis/drive/v1/medias/upload_prepare").Body(prepareBody).
+					POST("/open-apis/drive/v1/medias/upload_part").Body(map[string]interface{}{"upload_id": "<upload_id>", "seq": "<chunk_index>", "size": "<chunk_size>", "file": "<chunk_binary>"}).
+					POST("/open-apis/drive/v1/medias/upload_finish").Body(map[string]interface{}{"upload_id": "<upload_id>", "block_num": "<block_num>"})
+			}
+			body["file"], body["size"] = "@"+args.File, "<file_size>"
+			return dry.Desc("multipart/form-data upload").POST("/open-apis/drive/v1/medias/upload_all").Body(body)
+		},
+		Execute: func(ctx context.Context, command common.CommandContext, args *docMediaUploadArgs) (common.Result[docMediaUploadData], error) {
+			stat, err := command.FileIO().Stat(args.File)
+			if err != nil {
+				return common.Result[docMediaUploadData]{}, wrapDocInputFileErr(err, "file not found")
+			}
+			if !stat.Mode().IsRegular() {
+				return common.Result[docMediaUploadData]{}, errs.NewValidationError(errs.SubtypeInvalidArgument, "file must be a regular file: %s", args.File).WithParam("--file")
+			}
+			fileName := filepath.Base(args.File)
+			fmt.Fprintf(command.Stderr(), "Uploading: %s (%d bytes)\n", fileName, stat.Size())
+			if stat.Size() > common.MaxDriveMediaUploadSinglePartSize {
+				fmt.Fprintln(command.Stderr(), "File exceeds 20MB, using multipart upload")
+			}
+			fileToken, err := uploadDocMediaFileCommand(ctx, command, UploadDocMediaFileConfig{
+				FilePath: args.File, FileName: fileName, FileSize: stat.Size(), ParentType: args.ParentType, ParentNode: args.ParentNode, DocID: args.DocID,
+			})
+			if err != nil {
+				return common.Result[docMediaUploadData]{}, err
+			}
+			return common.Success(docMediaUploadData{FileName: fileName, FileToken: fileToken, Size: stat.Size()}), nil
+		},
+	},
+})
 
 // UploadDocMediaFileConfig groups the inputs to uploadDocMediaFile so the
 // call site names each value at call time, avoiding the "8 positional
@@ -141,37 +103,46 @@ type UploadDocMediaFileConfig struct {
 }
 
 func uploadDocMediaFile(runtime *common.RuntimeContext, cfg UploadDocMediaFileConfig) (string, error) {
-	var extra string
-	if cfg.DocID != "" {
-		var err error
-		extra, err = buildDriveRouteExtra(cfg.DocID)
-		if err != nil {
-			return "", err
-		}
+	extra, err := docMediaRouteExtra(cfg.DocID)
+	if err != nil {
+		return "", err
 	}
-
-	// Doc media uploads share the generic Drive media transport. The doc-specific
-	// routing only shows up in parent_type/parent_node and optional route extra.
 	if cfg.FileSize <= common.MaxDriveMediaUploadSinglePartSize {
-		return common.UploadDriveMediaAllTyped(runtime, common.DriveMediaUploadAllConfig{
-			FilePath:   cfg.FilePath,
-			Reader:     cfg.Reader,
-			FileName:   cfg.FileName,
-			FileSize:   cfg.FileSize,
-			ParentType: cfg.ParentType,
-			ParentNode: &cfg.ParentNode,
-			Extra:      extra,
-		})
+		return common.UploadDriveMediaAllTyped(runtime, docMediaUploadAllConfig(cfg, extra))
 	}
-	return common.UploadDriveMediaMultipartTyped(runtime, common.DriveMediaMultipartUploadConfig{
-		FilePath:   cfg.FilePath,
-		Reader:     cfg.Reader,
-		FileName:   cfg.FileName,
-		FileSize:   cfg.FileSize,
-		ParentType: cfg.ParentType,
-		ParentNode: cfg.ParentNode,
-		Extra:      extra,
-	})
+	return common.UploadDriveMediaMultipartTyped(runtime, docMediaMultipartConfig(cfg, extra))
+}
+
+func uploadDocMediaFileCommand(ctx context.Context, command common.CommandContext, cfg UploadDocMediaFileConfig) (string, error) {
+	extra, err := docMediaRouteExtra(cfg.DocID)
+	if err != nil {
+		return "", err
+	}
+	if cfg.FileSize <= common.MaxDriveMediaUploadSinglePartSize {
+		return common.UploadDriveMediaAllCommand(ctx, command, docMediaUploadAllConfig(cfg, extra))
+	}
+	return common.UploadDriveMediaMultipartCommand(ctx, command, docMediaMultipartConfig(cfg, extra))
+}
+
+func docMediaRouteExtra(docID string) (string, error) {
+	if docID == "" {
+		return "", nil
+	}
+	return buildDriveRouteExtra(docID)
+}
+
+func docMediaUploadAllConfig(cfg UploadDocMediaFileConfig, extra string) common.DriveMediaUploadAllConfig {
+	return common.DriveMediaUploadAllConfig{
+		FilePath: cfg.FilePath, Reader: cfg.Reader, FileName: cfg.FileName, FileSize: cfg.FileSize,
+		ParentType: cfg.ParentType, ParentNode: &cfg.ParentNode, Extra: extra,
+	}
+}
+
+func docMediaMultipartConfig(cfg UploadDocMediaFileConfig, extra string) common.DriveMediaMultipartUploadConfig {
+	return common.DriveMediaMultipartUploadConfig{
+		FilePath: cfg.FilePath, Reader: cfg.Reader, FileName: cfg.FileName, FileSize: cfg.FileSize,
+		ParentType: cfg.ParentType, ParentNode: cfg.ParentNode, Extra: extra,
+	}
 }
 
 func docMediaShouldUseMultipart(fio fileio.FileIO, filePath string) bool {

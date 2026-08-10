@@ -51,8 +51,10 @@ func TestWikiListShortcutsDeclareNarrowScopes(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if !reflect.DeepEqual(tc.shortcut.Scopes, tc.want) {
-				t.Fatalf("%s scopes = %v, want %v", tc.name, tc.shortcut.Scopes, tc.want)
+			for _, identity := range []string{"user", "bot"} {
+				if got := tc.shortcut.ScopesForIdentity(identity); !reflect.DeepEqual(got, tc.want) {
+					t.Fatalf("%s %s scopes = %v, want %v", tc.name, identity, got, tc.want)
+				}
 			}
 		})
 	}
@@ -677,6 +679,20 @@ func TestWikiNodeCopyCopiesNodeToTargetParent(t *testing.T) {
 }
 
 // ── +space-list / +node-list pagination & format ─────────────────────────────
+
+func TestWikiSpaceListCountMetaSupportsJQ(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	factory, stdout, _, registry := cmdutil.TestFactory(t, wikiTestConfig())
+	registry.Register(&httpmock.Stub{Method: "GET", URL: wikiSpacesAPIPath, Body: map[string]interface{}{
+		"code": 0, "data": map[string]interface{}{"has_more": false, "items": []interface{}{map[string]interface{}{"space_id": "space_1", "name": "Engineering"}}},
+	}})
+	if err := mountAndRunWiki(t, WikiSpaceList, []string{"+space-list", "--jq", ".meta.count", "--as", "bot"}, factory, stdout); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(stdout.String()); got != "1" {
+		t.Fatalf("jq output=%q, want 1", got)
+	}
+}
 
 func TestWikiSpaceListRejectsInvalidPageSize(t *testing.T) {
 	t.Parallel()

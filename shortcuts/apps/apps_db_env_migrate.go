@@ -20,50 +20,59 @@ const dbEnvMigrateHint = "ensure the app is multi-env (`+db-env-create`) and has
 //
 // POST /apps/{app_id}/db/env_migrate，body {dry_run:true}，同步返 {from,to,changes[]}。
 // 与 +db-env-migrate 同端点、dry_run 区分；预览也需 spark:app:write scope。
-var AppsDBEnvDiff = common.Shortcut{
-	Service:     appsService,
-	Command:     "+db-env-diff",
-	Description: "Preview pending dev→online schema changes (no apply)",
-	Risk:        "read",
-	Tips: []string{
-		"Example: lark-cli apps +db-env-diff --app-id <app_id>",
-		"Apply the previewed changes with +db-env-migrate --yes.",
-	},
-	Scopes:    []string{"spark:app:write"},
-	AuthTypes: []string{"user"},
-	HasFormat: true,
-	Flags: []common.Flag{
-		{Name: "app-id", Desc: "Miaoda app id", Required: true},
-	},
-	Validate: func(ctx context.Context, rctx *common.RuntimeContext) error {
-		_, err := requireAppID(rctx.Str("app-id"))
-		return err
-	},
-	DryRun: func(ctx context.Context, rctx *common.RuntimeContext) *common.DryRunAPI {
-		appID, _ := requireAppID(rctx.Str("app-id"))
-		return common.NewDryRunAPI().POST(appEnvMigratePath(appID)).Desc("Preview dev→online migration").Body(map[string]interface{}{"dry_run": true})
-	},
-	Execute: func(ctx context.Context, rctx *common.RuntimeContext) error {
-		appID, err := requireAppID(rctx.Str("app-id"))
-		if err != nil {
-			return err
-		}
-		stop := rctx.StartSpinner("Previewing migration diff (dev → online)")
-		defer stop()
-		data, err := rctx.CallAPITyped("POST", appEnvMigratePath(appID), nil, map[string]interface{}{"dry_run": true})
-		stop()
-		if err != nil {
-			return withAppsHint(err, dbEnvMigrateHint)
-		}
-		from, to := common.GetString(data, "from"), common.GetString(data, "to")
-		changes := projectMigrationChanges(data["changes"])
-		out := map[string]interface{}{"from": from, "to": to, "changes": changes}
-		rctx.OutFormat(out, nil, func(w io.Writer) {
-			renderMigrationDiff(w, from, to, changes)
-		})
-		return nil
-	},
+type appsDBEnvDiffArgs struct {
+	AppID string `flag:"app-id" schema:"required" doc:"Miaoda app id"`
 }
+
+type appsDBEnvDiffData struct {
+	Changes []migrationChange `json:"changes" schema:"required;nonnullable" doc:"pending schema changes"`
+	From    string            `json:"from" schema:"required" doc:"source environment"`
+	To      string            `json:"to" schema:"required" doc:"target environment"`
+}
+
+var AppsDBEnvDiff = common.Define(common.Definition[appsDBEnvDiffArgs, appsDBEnvDiffData]{
+	Metadata: common.CommandMetadata{
+		Service: appsService, Command: "+db-env-diff", Description: "Preview pending dev→online schema changes (no apply)", Risk: common.RiskRead,
+		Tips: []string{
+			"Example: lark-cli apps +db-env-diff --app-id <app_id>",
+			"Apply the previewed changes with +db-env-migrate --yes.",
+		},
+		Authorization: common.AuthorizationDefinition{Identities: map[common.Identity]common.IdentityAuthorization{
+			common.IdentityUser: {RequiredScopes: []string{"spark:app:write"}},
+		}},
+	},
+	Hooks: common.Hooks[appsDBEnvDiffArgs, appsDBEnvDiffData]{
+		Validate: func(_ context.Context, _ common.CommandContext, args *appsDBEnvDiffArgs) error {
+			_, err := requireAppID(args.AppID)
+			return err
+		},
+		DryRun: func(_ context.Context, _ common.CommandContext, args *appsDBEnvDiffArgs) *common.DryRunAPI {
+			appID, _ := requireAppID(args.AppID)
+			return common.NewDryRunAPI().POST(appEnvMigratePath(appID)).Desc("Preview dev→online migration").Body(map[string]interface{}{"dry_run": true})
+		},
+		Execute: func(ctx context.Context, command common.CommandContext, args *appsDBEnvDiffArgs) (common.Result[appsDBEnvDiffData], error) {
+			appID, err := requireAppID(args.AppID)
+			if err != nil {
+				return common.Result[appsDBEnvDiffData]{}, err
+			}
+			stop := command.StartSpinner("Previewing migration diff (dev → online)")
+			defer stop()
+			data, err := common.CallTypedAPI(ctx, command, "POST", appEnvMigratePath(appID), nil, map[string]interface{}{"dry_run": true})
+			stop()
+			if err != nil {
+				return common.Result[appsDBEnvDiffData]{}, withAppsHint(err, dbEnvMigrateHint)
+			}
+			result := appsDBEnvDiffData{
+				Changes: projectMigrationChanges(data["changes"]), From: common.GetString(data, "from"), To: common.GetString(data, "to"),
+			}
+			return common.Success(result), nil
+		},
+		Renderers: map[string]common.Renderer[appsDBEnvDiffData]{"pretty": func(w io.Writer, data appsDBEnvDiffData) error {
+			renderMigrationDiff(w, data.From, data.To, data.Changes)
+			return nil
+		}},
+	},
+})
 
 // AppsDBEnvMigrate 把 dev 的待发布结构变更发布到 online（异步，CLI 轮询至完成）。
 //
@@ -161,9 +170,9 @@ var AppsDBEnvMigrate = common.Shortcut{
 }
 
 type migrationChange struct {
-	Type      string `json:"type"`
-	Table     string `json:"table"`
-	Statement string `json:"statement"`
+	Type      string `json:"type" schema:"required" doc:"schema change type"`
+	Table     string `json:"table" schema:"required" doc:"affected table"`
+	Statement string `json:"statement" schema:"required" doc:"schema change statement"`
 }
 
 // projectMigrationChanges 把服务端原始变更项投影为白名单 migrationChange（type/table/statement）。

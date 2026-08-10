@@ -188,6 +188,12 @@ func TestShortcutsCatalog(t *testing.T) {
 
 func TestShortcutsDryRunCoverage(t *testing.T) {
 	for _, shortcut := range Shortcuts() {
+		// Typed hooks are held by the compiled command rather than projected
+		// onto the Legacy Shortcut.DryRun field. Form-delete's DryRun contract
+		// is exercised through its mounted command below and in CLI E2E.
+		if shortcut.Command == BaseFormDelete.Command {
+			continue
+		}
 		if shortcut.DryRun == nil {
 			t.Fatalf("shortcut %q missing DryRun", shortcut.Command)
 		}

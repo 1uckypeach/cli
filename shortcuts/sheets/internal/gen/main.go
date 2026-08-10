@@ -1,8 +1,9 @@
 // Copyright (c) 2026 Lark Technologies Pte. Ltd.
 // SPDX-License-Identifier: MIT
 
-// Command gen regenerates flag_defs_gen.go and flag_schemas_gen.go from the
-// data/*.json spec artifacts, so command startup pays no JSON unmarshal.
+// Command gen regenerates flag_defs_gen.go, flag_schemas_gen.go, and opt-in
+// Typed input fragments from the data/*.json spec artifacts, so command startup
+// pays no JSON unmarshal and migrated commands do not duplicate flat inputs.
 //
 // Invoked via `go generate ./shortcuts/sheets/...` (see ../../generate.go).
 // data/*.json stays the canonical source (synced from sheet-skill-spec); the
@@ -66,6 +67,7 @@ func main() {
 	dir := sheetsDir()
 	genFlagDefs(dir)
 	genFlagSchemas(dir)
+	genTypedInputs(dir)
 }
 
 const flagDefsHeader = `// Copyright (c) 2026 Lark Technologies Pte. Ltd.

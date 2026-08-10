@@ -160,22 +160,19 @@ func TestDocMediaUploadDryRunUsesMultipartForLargeFile(t *testing.T) {
 	withDocsWorkingDir(t, tmpDir)
 	writeSizedDocTestFile(t, "large.bin", common.MaxDriveMediaUploadSinglePartSize+1)
 
-	cmd := &cobra.Command{Use: "docs +media-upload"}
-	cmd.Flags().String("file", "", "")
-	cmd.Flags().String("parent-type", "", "")
-	cmd.Flags().String("parent-node", "", "")
-	cmd.Flags().String("doc-id", "", "")
-	if err := cmd.Flags().Set("file", "./large.bin"); err != nil {
-		t.Fatalf("set --file: %v", err)
+	factory, stdout, _, _ := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-media-upload-dry-run"))
+	if err := mountAndRunDocs(t, DocMediaUpload, []string{
+		"+media-upload", "--file", "./large.bin", "--parent-type", "docx_file", "--parent-node", "blk_parent", "--dry-run", "--as", "bot",
+	}, factory, stdout); err != nil {
+		t.Fatalf("media upload dry-run: %v", err)
 	}
-	if err := cmd.Flags().Set("parent-type", "docx_file"); err != nil {
-		t.Fatalf("set --parent-type: %v", err)
+	var envelope struct {
+		Data docDryRunOutput `json:"data"`
 	}
-	if err := cmd.Flags().Set("parent-node", "blk_parent"); err != nil {
-		t.Fatalf("set --parent-node: %v", err)
+	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode dry-run envelope: %v; output=%s", err, stdout.String())
 	}
-
-	dry := decodeDocDryRun(t, DocMediaUpload.DryRun(context.Background(), common.TestNewRuntimeContext(cmd, nil)))
+	dry := envelope.Data
 	if dry.Description != "chunked media upload (files > 20MB)" {
 		t.Fatalf("dry-run description = %q", dry.Description)
 	}
@@ -193,6 +190,117 @@ func TestDocMediaUploadDryRunUsesMultipartForLargeFile(t *testing.T) {
 	}
 	if got, _ := dry.API[0].Body["parent_node"].(string); got != "blk_parent" {
 		t.Fatalf("prepare parent_node = %q, want %q", got, "blk_parent")
+	}
+}
+
+func TestDocMediaUploadExecuteUsesTypedMediaBoundary(t *testing.T) {
+	tmpDir := t.TempDir()
+	withDocsWorkingDir(t, tmpDir)
+	if err := os.WriteFile("small.bin", []byte("media-content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	factory, stdout, stderr, registry := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-media-upload-execute"))
+	stub := &httpmock.Stub{Method: "POST", URL: "/open-apis/drive/v1/medias/upload_all", Body: map[string]interface{}{
+		"code": 0, "data": map[string]interface{}{"file_token": "file_typed_upload"},
+	}}
+	registry.Register(stub)
+	if err := mountAndRunDocs(t, DocMediaUpload, []string{
+		"+media-upload", "--file", "small.bin", "--parent-type", "docx_file", "--parent-node", "blk_parent", "--as", "bot",
+	}, factory, stdout); err != nil {
+		t.Fatal(err)
+	}
+	var envelope struct {
+		Data docMediaUploadData `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("stdout=%q: %v", stdout.String(), err)
+	}
+	if envelope.Data.FileToken != "file_typed_upload" || envelope.Data.FileName != "small.bin" || envelope.Data.Size != int64(len("media-content")) {
+		t.Fatalf("data=%#v", envelope.Data)
+	}
+	if !strings.Contains(stderr.String(), "Uploading: small.bin") || !strings.Contains(string(stub.CapturedBody), "blk_parent") {
+		t.Fatalf("stderr=%q body=%q", stderr.String(), string(stub.CapturedBody))
+	}
+}
+
+func TestDocMediaUploadExecuteUsesTypedMultipartBoundary(t *testing.T) {
+	tmpDir := t.TempDir()
+	withDocsWorkingDir(t, tmpDir)
+	fileSize := common.MaxDriveMediaUploadSinglePartSize + 1
+	writeSizedDocTestFile(t, "large.bin", fileSize)
+
+	factory, stdout, stderr, registry := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-media-upload-multipart"))
+	step := 0
+	prepare := &httpmock.Stub{
+		Method: "POST", URL: "/open-apis/drive/v1/medias/upload_prepare",
+		Body: map[string]interface{}{"code": 0, "data": map[string]interface{}{
+			"upload_id": "upload_typed_multipart", "block_size": fileSize, "block_num": 1,
+		}},
+		OnMatch: func(*http.Request) {
+			if step != 0 {
+				t.Errorf("prepare step=%d, want 0", step)
+			}
+			step++
+		},
+	}
+	part := &httpmock.Stub{
+		Method: "POST", URL: "/open-apis/drive/v1/medias/upload_part",
+		Body: map[string]interface{}{"code": 0, "data": map[string]interface{}{}},
+		OnMatch: func(*http.Request) {
+			if step != 1 {
+				t.Errorf("part step=%d, want 1", step)
+			}
+			step++
+		},
+	}
+	finish := &httpmock.Stub{
+		Method: "POST", URL: "/open-apis/drive/v1/medias/upload_finish",
+		Body: map[string]interface{}{"code": 0, "data": map[string]interface{}{"file_token": "file_typed_multipart"}},
+		OnMatch: func(*http.Request) {
+			if step != 2 {
+				t.Errorf("finish step=%d, want 2", step)
+			}
+			step++
+		},
+	}
+	registry.Register(prepare)
+	registry.Register(part)
+	registry.Register(finish)
+
+	if err := mountAndRunDocs(t, DocMediaUpload, []string{
+		"+media-upload", "--file", "large.bin", "--parent-type", "docx_file", "--parent-node", "blk_parent", "--doc-id", "dox_route", "--as", "bot",
+	}, factory, stdout); err != nil {
+		t.Fatal(err)
+	}
+	if step != 3 {
+		t.Fatalf("completed steps=%d, want 3", step)
+	}
+	var envelope struct {
+		Data docMediaUploadData `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("stdout=%q: %v", stdout.String(), err)
+	}
+	if envelope.Data.FileToken != "file_typed_multipart" || envelope.Data.FileName != "large.bin" || envelope.Data.Size != fileSize {
+		t.Fatalf("data=%#v", envelope.Data)
+	}
+	prepareBody := decodeCapturedDocBody(t, prepare.CapturedBody)
+	if prepareBody["file_name"] != "large.bin" || prepareBody["parent_type"] != "docx_file" || prepareBody["parent_node"] != "blk_parent" || prepareBody["size"] != float64(fileSize) || !strings.Contains(fmt.Sprint(prepareBody["extra"]), "dox_route") {
+		t.Fatalf("prepare body=%#v", prepareBody)
+	}
+	for _, want := range [][]byte{[]byte(`name="upload_id"`), []byte("upload_typed_multipart"), []byte(`name="seq"`), []byte(`name="size"`)} {
+		if !bytes.Contains(part.CapturedBody, want) {
+			t.Fatalf("part body missing %q", want)
+		}
+	}
+	finishBody := decodeCapturedDocBody(t, finish.CapturedBody)
+	if finishBody["upload_id"] != "upload_typed_multipart" || finishBody["block_num"] != float64(1) {
+		t.Fatalf("finish body=%#v", finishBody)
+	}
+	for _, want := range []string{"File exceeds 20MB, using multipart upload", "Multipart upload initialized", "Block 1/1 uploaded"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("stderr missing %q: %s", want, stderr.String())
+		}
 	}
 }
 
@@ -832,6 +940,15 @@ type docCommandOutput struct {
 		SizeBytes   int64  `json:"size_bytes"`
 		ContentType string `json:"content_type"`
 	} `json:"data"`
+}
+
+func decodeCapturedDocBody(t *testing.T, body []byte) map[string]interface{} {
+	t.Helper()
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("decode captured body %q: %v", string(body), err)
+	}
+	return decoded
 }
 
 func writeSizedDocTestFile(t *testing.T, name string, size int64) {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/httpmock"
 )
 
@@ -227,16 +228,42 @@ func TestBaseFormExecuteUpdate(t *testing.T) {
 
 func TestBaseFormExecuteDelete(t *testing.T) {
 	factory, stdout, reg := newExecuteFactory(t)
-	reg.Register(&httpmock.Stub{
+	stub := &httpmock.Stub{
 		Method: "DELETE",
 		URL:    "/open-apis/base/v3/bases/app_x/tables/tbl_x/forms/vew_form1",
 		Body:   map[string]interface{}{"code": 0, "data": map[string]interface{}{}},
-	})
+	}
+	reg.Register(stub)
 	if err := runShortcut(t, BaseFormDelete, []string{"+form-delete", "--base-token", "app_x", "--table-id", "tbl_x", "--form-id", "vew_form1", "--yes"}, factory, stdout); err != nil {
 		t.Fatalf("err=%v", err)
 	}
 	if got := stdout.String(); !strings.Contains(got, `"deleted": true`) || !strings.Contains(got, `"form_id": "vew_form1"`) {
 		t.Fatalf("stdout=%s", got)
+	}
+	if got := stub.CapturedHeaders.Get("X-App-Id"); got != "" {
+		t.Fatalf("X-App-Id=%q, want absent to preserve Legacy WithHeaders overwrite behavior", got)
+	}
+	if got := stub.CapturedHeaders.Get(cmdutil.HeaderShortcut); got != "base:+form-delete" {
+		t.Fatalf("%s=%q, want %q", cmdutil.HeaderShortcut, got, "base:+form-delete")
+	}
+	if got := stub.CapturedHeaders.Get(cmdutil.HeaderExecutionId); got == "" {
+		t.Fatalf("%s must be present", cmdutil.HeaderExecutionId)
+	}
+}
+
+func TestBaseFormDeleteFormatRemainsFixedJSON(t *testing.T) {
+	factory, stdout, reg := newExecuteFactory(t)
+	reg.Register(&httpmock.Stub{
+		Method: "DELETE",
+		URL:    "/open-apis/base/v3/bases/app_x/tables/tbl_x/forms/vew_form1",
+		Body:   map[string]interface{}{"code": 0, "data": map[string]interface{}{}},
+	})
+	args := []string{"+form-delete", "--base-token", "app_x", "--table-id", "tbl_x", "--form-id", "vew_form1", "--yes", "--format", "pretty"}
+	if err := runShortcut(t, BaseFormDelete, args, factory, stdout); err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if got := stdout.String(); !strings.Contains(got, `"ok": true`) || !strings.Contains(got, `"form_id": "vew_form1"`) {
+		t.Fatalf("--format pretty must preserve Legacy JSON envelope, stdout=%s", got)
 	}
 }
 

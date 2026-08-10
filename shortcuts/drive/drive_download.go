@@ -105,137 +105,116 @@ func driveDownloadShouldFailOnMetadataTitleError(ctx context.Context, err error)
 	return false
 }
 
-var DriveDownload = common.Shortcut{
-	Service:     "drive",
-	Command:     "+download",
-	Description: "Download a file from Drive to local",
-	Risk:        "read",
-	Scopes:      []string{"drive:file:download"},
-	// Metadata is only required when --output is omitted and the CLI needs the
-	// remote title as the pre-download fallback filename.
-	ConditionalScopes: []string{driveMetadataReadScope},
-	AuthTypes:         []string{"user", "bot"},
-	Flags: []common.Flag{
-		{Name: "file-token", Desc: "file token", Required: true},
-		{Name: "output", Desc: "local save path"},
-		{Name: "overwrite", Type: "bool", Desc: "overwrite existing output file"},
-	},
-	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		fileToken := runtime.Str("file-token")
-		outputPath := runtime.Str("output")
+type driveDownloadArgs struct {
+	FileToken string `flag:"file-token" schema:"required" doc:"file token"`
+	Output    string `flag:"output" schema:"optional" doc:"local save path"`
+	Overwrite bool   `flag:"overwrite" schema:"optional" doc:"overwrite existing output file"`
+}
 
-		if err := validate.ResourceName(fileToken, "--file-token"); err != nil {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", err).WithParam("--file-token")
-		}
-		if outputPath == "" {
-			if err := runtime.EnsureScopes([]string{driveMetadataReadScope}); err != nil {
-				return err
+type driveDownloadData struct {
+	SavedPath string `json:"saved_path" schema:"required;minLength=1" doc:"resolved local path of the saved file"`
+	SizeBytes int64  `json:"size_bytes" schema:"required;minimum=0" doc:"number of bytes written"`
+}
+
+var DriveDownload = common.Define(common.Definition[driveDownloadArgs, driveDownloadData]{
+	Metadata: common.CommandMetadata{
+		Service: "drive", Command: "+download", Description: "Download a file from Drive to local", Risk: common.RiskRead,
+		Authorization: common.AuthorizationDefinition{Identities: map[common.Identity]common.IdentityAuthorization{
+			common.IdentityUser: {RequiredScopes: []string{"drive:file:download"}, ConditionalScopes: []common.ConditionalScope{{Scopes: []string{driveMetadataReadScope}, When: "--output is omitted and the default filename needs metadata", Params: []string{"output"}}}},
+			common.IdentityBot:  {RequiredScopes: []string{"drive:file:download"}, ConditionalScopes: []common.ConditionalScope{{Scopes: []string{driveMetadataReadScope}, When: "--output is omitted and the default filename needs metadata", Params: []string{"output"}}}},
+		}},
+	},
+	Output: common.OutputDefinition{
+		Mode:      common.OutputFixedJSON,
+		Artifacts: []common.ArtifactDefinition{{Name: "download", ItemsPath: "", PathField: "/saved_path", SizeField: "/size_bytes"}},
+	},
+	Hooks: common.Hooks[driveDownloadArgs, driveDownloadData]{
+		Validate: func(_ context.Context, command common.CommandContext, args *driveDownloadArgs) error {
+			if err := validate.ResourceName(args.FileToken, "--file-token"); err != nil {
+				return errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", err).WithParam("--file-token")
+			}
+			if args.Output == "" {
+				return command.RequireConditionalScopes(driveMetadataReadScope)
+			}
+			if _, err := command.ResolveSavePath(args.Output); err != nil {
+				return errs.NewValidationError(errs.SubtypeInvalidArgument, "unsafe output path: %s", err).WithParam("--output")
 			}
 			return nil
-		}
-		if _, resolveErr := runtime.ResolveSavePath(outputPath); resolveErr != nil {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "unsafe output path: %s", resolveErr).WithParam("--output")
-		}
-		return nil
-	},
-	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
-		fileToken := runtime.Str("file-token")
-		outputPath := runtime.Str("output")
-		plan := common.NewDryRunAPI()
-		downloadDesc := "[1] Download file bytes to the explicit output path"
-		if outputPath == "" {
-			outputPath = "<Content-Disposition filename | metadata title | token>"
-			downloadDesc = "[2] Download file bytes; Content-Disposition filename wins over metadata title when present"
-			plan.
-				POST("/open-apis/drive/v1/metas/batch_query").
-				Desc("[1] Resolve metadata title before downloading; fails before the download request if metadata scope is missing").
-				Body(map[string]interface{}{
-					"request_docs": []map[string]interface{}{
-						{
-							"doc_token": fileToken,
-							"doc_type":  "file",
-						},
-					},
-				})
-		}
-		return plan.
-			GET("/open-apis/drive/v1/files/:file_token/download").
-			Desc(downloadDesc).
-			Set("file_token", fileToken).
-			Set("output", outputPath)
-	},
-	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		fileToken := runtime.Str("file-token")
-		outputPath := runtime.Str("output")
-		overwrite := runtime.Bool("overwrite")
-
-		// Early path validation + overwrite check
-		if outputPath != "" {
-			if _, resolveErr := runtime.ResolveSavePath(outputPath); resolveErr != nil {
-				return errs.NewValidationError(errs.SubtypeInvalidArgument, "unsafe output path: %s", resolveErr).WithParam("--output")
+		},
+		DryRun: func(_ context.Context, _ common.CommandContext, args *driveDownloadArgs) *common.DryRunAPI {
+			outputPath := args.Output
+			plan := common.NewDryRunAPI()
+			downloadDesc := "[1] Download file bytes to the explicit output path"
+			if outputPath == "" {
+				outputPath = "<Content-Disposition filename | metadata title | token>"
+				downloadDesc = "[2] Download file bytes; Content-Disposition filename wins over metadata title when present"
+				plan.POST("/open-apis/drive/v1/metas/batch_query").
+					Desc("[1] Resolve metadata title before downloading; fails before the download request if metadata scope is missing").
+					Body(map[string]interface{}{"request_docs": []map[string]interface{}{{"doc_token": args.FileToken, "doc_type": "file"}}})
 			}
-			if _, statErr := runtime.FileIO().Stat(outputPath); statErr == nil && !overwrite {
-				return errs.NewValidationError(errs.SubtypeInvalidArgument, "output file already exists: %s (use --overwrite to replace)", outputPath).WithParam("--output")
-			}
-		}
-
-		var metadataTitle string
-		if outputPath == "" {
-			title, err := common.FetchDriveMetaTitle(runtime, fileToken, "file")
-			if err != nil {
-				if driveDownloadShouldFailOnMetadataTitleError(ctx, err) {
-					if ctxErr := ctx.Err(); ctxErr != nil {
-						return ctxErr
-					}
-					return err
+			return plan.GET("/open-apis/drive/v1/files/:file_token/download").Desc(downloadDesc).
+				Set("file_token", args.FileToken).Set("output", outputPath)
+		},
+		Execute: func(ctx context.Context, command common.CommandContext, args *driveDownloadArgs) (common.Result[driveDownloadData], error) {
+			outputPath := args.Output
+			if outputPath != "" {
+				if _, err := command.ResolveSavePath(outputPath); err != nil {
+					return common.Result[driveDownloadData]{}, errs.NewValidationError(errs.SubtypeInvalidArgument, "unsafe output path: %s", err).WithParam("--output")
 				}
-				fmt.Fprintf(runtime.IO().ErrOut, "warning: metadata title lookup failed; continuing with Content-Disposition or token filename: %v\n", err)
-			} else {
-				metadataTitle = title
+				if _, err := command.FileIO().Stat(outputPath); err == nil && !args.Overwrite {
+					return common.Result[driveDownloadData]{}, errs.NewValidationError(errs.SubtypeInvalidArgument, "output file already exists: %s (use --overwrite to replace)", outputPath).WithParam("--output")
+				}
 			}
-		}
 
-		fmt.Fprintf(runtime.IO().ErrOut, "Downloading: %s\n", common.MaskToken(fileToken))
+			var metadataTitle string
+			if outputPath == "" {
+				title, err := common.FetchDriveMetaTitleCommand(ctx, command, args.FileToken, "file")
+				if err != nil {
+					if driveDownloadShouldFailOnMetadataTitleError(ctx, err) {
+						if contextErr := ctx.Err(); contextErr != nil {
+							return common.Result[driveDownloadData]{}, contextErr
+						}
+						return common.Result[driveDownloadData]{}, err
+					}
+					fmt.Fprintf(command.Stderr(), "warning: metadata title lookup failed; continuing with Content-Disposition or token filename: %v\n", err)
+				} else {
+					metadataTitle = title
+				}
+			}
 
-		resp, err := runtime.DoAPIStream(ctx, &larkcore.ApiReq{
-			HttpMethod: http.MethodGet,
-			ApiPath:    fmt.Sprintf("/open-apis/drive/v1/files/%s/download", validate.EncodePathSegment(fileToken)),
-		})
-		if err != nil {
-			return withDriveDownloadForbiddenPreviewHint(wrapDriveNetworkErr(err, "download failed: %s", err), fileToken)
-		}
-		defer resp.Body.Close()
-
-		if outputPath == "" {
-			var resolveErr error
-			outputPath, resolveErr = driveDownloadDefaultOutputPath(resp.Header, metadataTitle, fileToken, func(path string) error {
-				_, err := runtime.ResolveSavePath(path)
-				return err
+			fmt.Fprintf(command.Stderr(), "Downloading: %s\n", common.MaskToken(args.FileToken))
+			response, err := common.DoTypedAPIStream(ctx, command, &larkcore.ApiReq{
+				HttpMethod: http.MethodGet,
+				ApiPath:    fmt.Sprintf("/open-apis/drive/v1/files/%s/download", validate.EncodePathSegment(args.FileToken)),
 			})
-			if resolveErr != nil {
-				return errs.NewInternalError(errs.SubtypeFileIO, "cannot derive a safe default output path: %s", resolveErr).WithCause(resolveErr)
+			if err != nil {
+				wrapped := withDriveDownloadForbiddenPreviewHint(wrapDriveNetworkErr(err, "download failed: %s", err), args.FileToken)
+				return common.Result[driveDownloadData]{}, wrapped
 			}
-		}
-		if _, statErr := runtime.FileIO().Stat(outputPath); statErr == nil && !overwrite {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "output file already exists: %s (use --overwrite to replace)", outputPath).WithParam("--output")
-		}
+			defer response.Body.Close()
 
-		result, err := runtime.FileIO().Save(outputPath, fileio.SaveOptions{
-			ContentType:   resp.Header.Get("Content-Type"),
-			ContentLength: resp.ContentLength,
-		}, resp.Body)
-		if err != nil {
-			return driveSaveError(err)
-		}
-
-		savedPath, _ := runtime.ResolveSavePath(outputPath)
-		if savedPath == "" {
-			savedPath = outputPath
-		}
-		runtime.Out(map[string]interface{}{
-			"saved_path": savedPath,
-			"size_bytes": result.Size(),
-		}, nil)
-		return nil
+			if outputPath == "" {
+				var resolveErr error
+				outputPath, resolveErr = driveDownloadDefaultOutputPath(response.Header, metadataTitle, args.FileToken, func(candidate string) error {
+					_, err := command.ResolveSavePath(candidate)
+					return err
+				})
+				if resolveErr != nil {
+					return common.Result[driveDownloadData]{}, errs.NewInternalError(errs.SubtypeFileIO, "cannot derive a safe default output path: %s", resolveErr).WithCause(resolveErr)
+				}
+			}
+			if _, err := command.FileIO().Stat(outputPath); err == nil && !args.Overwrite {
+				return common.Result[driveDownloadData]{}, errs.NewValidationError(errs.SubtypeInvalidArgument, "output file already exists: %s (use --overwrite to replace)", outputPath).WithParam("--output")
+			}
+			saved, err := command.FileIO().Save(outputPath, fileio.SaveOptions{ContentType: response.Header.Get("Content-Type"), ContentLength: response.ContentLength}, response.Body)
+			if err != nil {
+				return common.Result[driveDownloadData]{}, driveSaveError(err)
+			}
+			savedPath, _ := command.ResolveSavePath(outputPath)
+			if savedPath == "" {
+				savedPath = outputPath
+			}
+			return common.Success(driveDownloadData{SavedPath: savedPath, SizeBytes: saved.Size()}), nil
+		},
 	},
-}
+})

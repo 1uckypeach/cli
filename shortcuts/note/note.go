@@ -61,6 +61,10 @@ func FetchDetail(_ context.Context, runtime *common.RuntimeContext, noteID strin
 	if err != nil {
 		return nil, err
 	}
+	return parseDetailData(noteID, data)
+}
+
+func parseDetailData(noteID string, data map[string]any) (*Detail, error) {
 	noteObj, _ := data["note"].(map[string]any)
 	if noteObj == nil {
 		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "note detail is empty").WithCause(ErrEmptyDetail)

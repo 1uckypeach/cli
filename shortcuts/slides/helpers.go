@@ -4,6 +4,7 @@
 package slides
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -106,6 +107,29 @@ func resolvePresentationID(runtime *common.RuntimeContext, ref presentationRef) 
 		// emits exclusively "slides" or "wiki". A hit here means an internal
 		// invariant broke (e.g. a new kind added without updating this switch),
 		// not bad user input — classify as internal, not validation.
+		return "", errs.NewInternalError(errs.SubtypeUnknown, "unsupported presentation ref kind %q", ref.Kind)
+	}
+}
+
+func resolvePresentationIDTyped(ctx context.Context, command common.CommandContext, ref presentationRef) (string, error) {
+	switch ref.Kind {
+	case "slides":
+		return ref.Token, nil
+	case "wiki":
+		data, err := common.CallTypedAPI(ctx, command, "GET", "/open-apis/wiki/v2/spaces/get_node", map[string]interface{}{"token": ref.Token}, nil)
+		if err != nil {
+			return "", err
+		}
+		node := common.GetMap(data, "node")
+		objType, objToken := common.GetString(node, "obj_type"), common.GetString(node, "obj_token")
+		if objType == "" || objToken == "" {
+			return "", errs.NewInternalError(errs.SubtypeInvalidResponse, "wiki get_node returned incomplete node data")
+		}
+		if objType != "slides" {
+			return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "wiki resolved to %q, but slides shortcuts require a slides presentation", objType).WithParam("--presentation")
+		}
+		return objToken, nil
+	default:
 		return "", errs.NewInternalError(errs.SubtypeUnknown, "unsupported presentation ref kind %q", ref.Kind)
 	}
 }

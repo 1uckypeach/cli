@@ -5,6 +5,7 @@ package slides
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -16,8 +17,16 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
+	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/spf13/cobra"
 )
+
+type slidesScreenshotScopeResolver struct{ scopes string }
+
+func (r slidesScreenshotScopeResolver) ResolveToken(context.Context, credential.TokenSpec) (*credential.TokenResult, error) {
+	return &credential.TokenResult{Token: "token", Scopes: r.scopes}, nil
+}
 
 func TestSlidesScreenshotDeclaredScopes(t *testing.T) {
 	base := []string{"slides:presentation:screenshot"}
@@ -32,6 +41,48 @@ func TestSlidesScreenshotDeclaredScopes(t *testing.T) {
 	want := []string{"slides:presentation:screenshot", "wiki:node:read"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("declared scopes = %#v, want %#v", got, want)
+	}
+}
+
+func TestSlidesScreenshotChecksWikiScopeOnlyForWikiReference(t *testing.T) {
+	run := func(t *testing.T, presentation string) error {
+		t.Helper()
+		factory, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+		factory.Credential = credential.NewCredentialProvider(nil, nil, slidesScreenshotScopeResolver{scopes: "slides:presentation:screenshot"}, nil)
+		return runSlidesShortcut(t, factory, stdout, SlidesScreenshot, []string{
+			"+screenshot", "--presentation", presentation, "--slide-id", "slide_1", "--dry-run", "--as", "user",
+		})
+	}
+
+	if err := run(t, "pres_direct"); err != nil {
+		t.Fatalf("direct presentation: %v", err)
+	}
+	err := run(t, "https://example.feishu.cn/wiki/wikScopeCheck")
+	var permission *errs.PermissionError
+	if !errors.As(err, &permission) || permission.Identity != "user" || !reflect.DeepEqual(permission.MissingScopes, []string{"wiki:node:read"}) {
+		t.Fatalf("wiki presentation error = %#v (%v)", permission, err)
+	}
+}
+
+func TestSlidesScreenshotAuthorizationHelp(t *testing.T) {
+	factory, _, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	service := &cobra.Command{Use: "slides"}
+	SlidesScreenshot.Mount(service, factory)
+	command, _, err := service.Find([]string{SlidesScreenshot.Command})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output strings.Builder
+	command.SetOut(&output)
+	command.SetErr(&output)
+	if err := command.Help(); err != nil {
+		t.Fatal(err)
+	}
+	got := output.String()
+	for _, want := range []string{"slides:presentation:screenshot", "wiki:node:read", "when: --presentation resolves to a Wiki node", "related parameters: --presentation"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("Help missing %q:\n%s", want, got)
+		}
 	}
 }
 
@@ -357,6 +408,7 @@ func TestSlidesScreenshotWritesFilesAndSuppressesBase64(t *testing.T) {
 		"--presentation", "pres_abc",
 		"--slide-id", "slide_1",
 		"--output-dir", "shots",
+		"--format", "table", // Legacy Out accepted --format but still emitted JSON.
 		"--as", "user",
 	})
 	if err != nil {
@@ -1492,6 +1544,49 @@ func TestSlidesScreenshotDryRunSelectsListOrRenderAPI(t *testing.T) {
 			t.Fatalf("dry-run output_dir must be omitted with --output: %s", out)
 		}
 	})
+}
+
+func TestSlidesScreenshotWikiDryRunPreservesTwoStepOrchestration(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{
+		"+screenshot",
+		"--presentation", "https://example.feishu.cn/wiki/wikcnScreenshot",
+		"--slide-id", "slide_1",
+		"--dry-run",
+		"--as", "user",
+	})
+	if err != nil {
+		t.Fatalf("dry-run: %v", err)
+	}
+
+	var envelope struct {
+		Data struct {
+			Description string `json:"description"`
+			API         []struct {
+				Method string         `json:"method"`
+				URL    string         `json:"url"`
+				Params map[string]any `json:"params"`
+				Body   map[string]any `json:"body"`
+			} `json:"api"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode stdout: %v\n%s", err, stdout.String())
+	}
+	if !strings.Contains(envelope.Data.Description, "2-step orchestration") || len(envelope.Data.API) != 2 {
+		t.Fatalf("dry-run = %#v", envelope.Data)
+	}
+	resolve, screenshot := envelope.Data.API[0], envelope.Data.API[1]
+	if resolve.Method != "GET" || resolve.URL != "/open-apis/wiki/v2/spaces/get_node" || resolve.Params["token"] != "wikcnScreenshot" {
+		t.Fatalf("resolve call = %#v", resolve)
+	}
+	wantScreenshotURL := "/open-apis/slides_ai/v1/xml_presentations/%3Cresolved_slides_token%3E/slide_images"
+	if screenshot.Method != "POST" || screenshot.URL != wantScreenshotURL {
+		t.Fatalf("screenshot call = %#v, want URL %s", screenshot, wantScreenshotURL)
+	}
+	if !reflect.DeepEqual(screenshot.Body["slide_ids"], []any{"slide_1"}) {
+		t.Fatalf("slide_ids = %#v", screenshot.Body["slide_ids"])
+	}
 }
 
 func TestSlidesScreenshotDryRunReportsRequestedOutput(t *testing.T) {
