@@ -6,6 +6,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -123,6 +124,39 @@ func TestMailRulesReorderCompletesUniquePrefix(t *testing.T) {
 	reg.Verify(t)
 	got := capturedRuleIDs(t, reorderStub)
 	want := []string{"rule-gamma", "rule-alpha", "rule-beta"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("rule_ids = %v, want %v", got, want)
+	}
+}
+
+func TestMailRulesReorderCompletesRuleIDsFromLaterPage(t *testing.T) {
+	f, reg := mailRulesReorderFactory(t, &core.CliConfig{
+		AppID: "test-mail-rules-reorder-paginated", AppSecret: "test-secret", Brand: core.BrandFeishu,
+	})
+	registerMailRulesListPageStub(t, reg, "", "next-1", []interface{}{
+		map[string]interface{}{"rule_id": "rule-a"},
+		map[string]interface{}{"rule_id": "rule-b"},
+	})
+	registerMailRulesListPageStub(t, reg, "next-1", "", []interface{}{
+		map[string]interface{}{"rule_id": "rule-c"},
+		map[string]interface{}{"rule_id": "rule-d"},
+	})
+	reorderStub := mailRulesReorderStubBody(map[string]interface{}{"code": 0, "msg": "ok", "data": map[string]interface{}{"ok": true}})
+	reg.Register(reorderStub)
+
+	cmd := NewCmdServiceMethod(f, mailSpec(), mailRulesReorderMethod(), "reorder", "user_mailbox.rules", nil)
+	cmd.SetArgs([]string{
+		"--as", "bot",
+		"--params", `{"user_mailbox_id":"me"}`,
+		"--data", `{"rule_ids":["rule-c"]}`,
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	reg.Verify(t)
+	got := capturedRuleIDs(t, reorderStub)
+	want := []string{"rule-c", "rule-a", "rule-b", "rule-d"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("rule_ids = %v, want %v", got, want)
 	}
@@ -341,6 +375,31 @@ func mailRulesListStub(items []interface{}) *httpmock.Stub {
 			},
 		},
 	}
+}
+
+func registerMailRulesListPageStub(t *testing.T, reg *httpmock.Registry, wantPageToken, nextPageToken string, items []interface{}) {
+	t.Helper()
+	data := map[string]interface{}{
+		"items":    items,
+		"has_more": nextPageToken != "",
+	}
+	if nextPageToken != "" {
+		data["page_token"] = nextPageToken
+	}
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/mail/v1/user_mailboxes/me/rules",
+		OnMatch: func(req *http.Request) {
+			if got := req.URL.Query().Get("page_token"); got != wantPageToken {
+				t.Errorf("page_token = %q, want %q", got, wantPageToken)
+			}
+		},
+		Body: map[string]interface{}{
+			"code": 0,
+			"msg":  "ok",
+			"data": data,
+		},
+	})
 }
 
 func mailRulesReorderStubBody(body map[string]interface{}) *httpmock.Stub {
