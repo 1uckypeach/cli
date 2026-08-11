@@ -39,6 +39,7 @@ metadata:
 | 用户**已提供** Mermaid/PlantUML/SVG 代码，或明确指定用该格式 | 使用该代码 → [`+update`](references/lark-whiteboard-update.md)，`--input_format` 取单值 `mermaid` / `plantuml` / `svg`；写入非空已有画板并需要 overwrite 时，先确认会整板重建；若 SVG 用于修改已有画板，先走 [`routes/svg-edit.md`](routes/svg-edit.md) 有损确认 | overwrite / append | 按用户要求 |
 | 从零新建复杂图表（架构/流程/组织等） | → **[§ 创作 Workflow](references/lark-whiteboard-workflow.md#创作-workflow)** | 首次写入 | — |
 | 修改 / 增补已有画板 | → **[§ 编辑 Workflow](references/lark-whiteboard-workflow.md#编辑-workflow)** | 见该表 | 见该表 |
+| 撤销一次异常/误操作，回退到某个历史版本 | [`+reset-version`](references/lark-whiteboard-reset-version.md)，`--target-revision` 取上次 [`+update`](references/lark-whiteboard-update.md)（raw）返回的 `previous_revision` | 整板覆盖 | 覆盖为目标版本 |
 
 ## Shortcuts
 
@@ -46,6 +47,7 @@ metadata:
 |---------------------------------------------------|---|
 | [`+export`](references/lark-whiteboard-export.md) | 导出画板为预览图片、SVG 矢量图、代码或原始节点结构。 |
 | [`+update`](references/lark-whiteboard-update.md) | 更新画板，支持 PlantUML、Mermaid、SVG 或 OpenAPI 原生格式 |
+| [`+reset-version`](references/lark-whiteboard-reset-version.md) | 回退画板到指定历史版本，用于撤销异常/误操作 |
 
 ---
 

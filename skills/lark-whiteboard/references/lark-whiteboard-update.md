@@ -29,6 +29,12 @@
 
 而当需要绘制架构图，组织架构图，泳道图，对比图，鱼骨图，柱状图，折线图，树状图，漏斗图，金字塔图，循环/飞轮图，里程碑或其他较为复杂的图表时，推荐参考 [§ 渲染 & 写入画板](lark-whiteboard-workflow.md#渲染--写入画板) 使用 whiteboard-cli 工具创作。
 
+## 返回值中的 `previous_revision`（回退依据）
+
+以 `raw` 格式更新成功时，返回值 `previous_revision` 是**本次写入前的画板版本号**。若本次更新有误，用它作为 [`+reset-version`](lark-whiteboard-reset-version.md) 的 `--target-revision` 即可回退到写入前状态。写入后请记录该值。
+
+> `plantuml` / `mermaid` / `svg` 格式不返回 `previous_revision`。
+
 ## 示例
 
 ### 示例 1：使用 PlantUML 代码更新画板（从 stdin 读取）

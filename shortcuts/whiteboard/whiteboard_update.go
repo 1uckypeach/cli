@@ -272,12 +272,21 @@ func updateWhiteboardByRawNodes(ctx context.Context, runtime *common.RuntimeCont
 	if err != nil {
 		return err
 	}
+	// previous_revision is the whiteboard revision right before this write. Surface
+	// it so a bad edit can be rolled back with `+reset-version --target-revision`.
+	prevRevision := common.GetString(data, "previous_revision")
 	outData := map[string]string{"created_node_ids": strings.Join(nodeIDs, ",")}
+	if prevRevision != "" {
+		outData["previous_revision"] = prevRevision
+	}
 	runtime.OutFormat(outData, nil, func(w io.Writer) {
 		if outData["created_node_ids"] != "" {
 			fmt.Fprintf(w, "%d new nodes created.\n", len(nodeIDs))
 		}
 		fmt.Fprintf(w, "Update whiteboard success")
+		if prevRevision != "" {
+			fmt.Fprintf(w, "\nRevision before this write: %s (use `whiteboard +reset-version --target-revision %s` to roll back)", prevRevision, prevRevision)
+		}
 	})
 
 	return nil

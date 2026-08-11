@@ -421,7 +421,8 @@ func TestWhiteboardUpdateExecute_RawFormat(t *testing.T) {
 			"code": 0,
 			"msg":  "success",
 			"data": map[string]interface{}{
-				"ids": []string{"node1", "node2"},
+				"ids":               []string{"node1", "node2"},
+				"previous_revision": "10221",
 			},
 		},
 	})
@@ -430,6 +431,10 @@ func TestWhiteboardUpdateExecute_RawFormat(t *testing.T) {
 	args := []string{"+update", "--whiteboard-token", "test-token-123", "--input_format", "raw", "--source", source}
 	if err := runUpdateShortcut(t, WhiteboardUpdate, args, factory, stdout); err != nil {
 		t.Fatalf("err=%v", err)
+	}
+	// previous_revision must be surfaced so agents can roll back a bad edit via +reset-version.
+	if !strings.Contains(stdout.String(), "10221") {
+		t.Fatalf("stdout missing previous_revision 10221; got %s", stdout.String())
 	}
 }
 
