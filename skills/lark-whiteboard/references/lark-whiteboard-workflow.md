@@ -84,7 +84,7 @@ ParseImage 只用于“把一张本地图片里的结构解析成目标画板内
 
 执行步骤：
 
-1. 按 `lark-shared` 选择身份；首版 `+parse-image` 只使用 `--as user`。
+1. 按 `lark-shared` 选择身份；`+parse-image` 支持 `--as <identity>` 和 `--as bot`；按目标画板权限选择身份，并在提交、查询和验证中保持一致。
 2. 若目标画板可能已有内容，默认 `overwrite=false` 追加。只有用户明确要求覆盖/替换，才传 `--overwrite`。
 3. 如需指定 Canvas Agent 模式，传 `--mode mini|flash|agentic|agentic_max`；不传时服务端默认 `flash`。
 4. 先 dry-run:
@@ -93,7 +93,7 @@ ParseImage 只用于“把一张本地图片里的结构解析成目标画板内
 lark-cli whiteboard +parse-image \
   --whiteboard-token <board_token> \
   --image <local_image_path> \
-  --as user \
+  --as <identity> \
   --dry-run
 ```
 
@@ -103,7 +103,7 @@ lark-cli whiteboard +parse-image \
 lark-cli whiteboard +parse-image \
   --whiteboard-token <board_token> \
   --image <local_image_path> \
-  --as user
+  --as <identity>
 ```
 
 6. 提交成功只表示服务端任务已创建，不表示画板已经写入完成。记录返回的 `task_id` 和 `next_command`。
@@ -114,7 +114,7 @@ lark-cli whiteboard +parse-image-result \
   --whiteboard-token <board_token> \
   --task-id <task_id> \
   --wait \
-  --as user
+  --as <identity>
 ```
 
 8. 成功后如需证明画板内容，继续用 `+export --output-type raw` 或 preview 验证。
@@ -212,7 +212,7 @@ replace 用完整最终 artifact 丢弃非空画板的全部旧状态：
 
 ### 渲染路由
 
-**先确定模型家族**：按训练来源选择 `Claude` / `Gemini` / `GPT` / `GLM` / `Doubao 或 Seed` / `Other`。模型家族只决定本地产物表达方式，不改变 mutation semantics，也不是 `--as user/bot` 的认证身份。
+**先确定模型家族**：按训练来源选择 `Claude` / `Gemini` / `GPT` / `GLM` / `Doubao 或 Seed` / `Other`。模型家族只决定本地产物表达方式，不改变 mutation semantics，也不是 `--as <identity>/bot` 的认证身份。
 
 先处理用户显式格式约束：
 

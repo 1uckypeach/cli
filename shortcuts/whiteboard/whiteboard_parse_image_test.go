@@ -201,6 +201,43 @@ func TestWhiteboardParseImageExecute_AcceptsImageShorthand(t *testing.T) {
 	}
 }
 
+func TestWhiteboardParseImageExecute_PreservesBotIdentityInNextCommand(t *testing.T) {
+	factory, stdout, reg := parseImageTestFactory(t)
+	tmpDir := t.TempDir()
+	cmdutil.TestChdir(t, tmpDir)
+	if err := os.WriteFile("diagram.png", []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}, 0o644); err != nil {
+		t.Fatalf("write image: %v", err)
+	}
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/board/v1/whiteboards/test-board/parse_image",
+		Body: map[string]interface{}{
+			"code": 0,
+			"msg":  "success",
+			"data": map[string]interface{}{
+				"task_id": "7670003",
+				"status":  "pending",
+			},
+		},
+	})
+
+	err := runParseImageShortcut(t, []string{
+		"+parse-image",
+		"--whiteboard-token", "test-board",
+		"--image", "./diagram.png",
+		"--idempotent-token", "parse-token-12345",
+		"--as", "bot",
+	}, factory, stdout)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	data := decodeParseImageEnvelope(t, stdout)
+	next, _ := data["next_command"].(string)
+	if !strings.Contains(next, "--as bot") {
+		t.Fatalf("next_command = %q, want bot identity", next)
+	}
+}
+
 func TestWhiteboardParseImageValidateRejectsUnsupportedImage(t *testing.T) {
 	factory, stdout, _ := parseImageTestFactory(t)
 	err := runParseImageShortcut(t, []string{

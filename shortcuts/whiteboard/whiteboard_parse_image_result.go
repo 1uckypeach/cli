@@ -14,7 +14,7 @@ import (
 )
 
 var wbParseImageResultScopes = []string{"board:whiteboard:node:read"}
-var wbParseImageResultAuthTypes = []string{"user"}
+var wbParseImageResultAuthTypes = []string{"user", "bot"}
 var wbParseImageResultFlags = []common.Flag{
 	{Name: "whiteboard-token", Desc: "whiteboard token used when the parse-image task was submitted.", Required: true},
 	{Name: "task-id", Desc: "task ID returned by whiteboard +parse-image.", Required: true},
@@ -93,14 +93,14 @@ func waitParseImageResult(ctx context.Context, runtime *common.RuntimeContext, t
 			if time.Now().Add(interval).After(deadline) {
 				return errs.NewNetworkError(errs.SubtypeNetworkTimeout, "timed out waiting for ParseImage task %s after %s", runtime.Str("task-id"), timeout).
 					WithRetryable().
-					WithHint("retry status lookup with: %s", parseImageResultCommand(runtime.Str("whiteboard-token"), runtime.Str("task-id")))
+					WithHint("retry status lookup with: %s", parseImageResultCommand(runtime.Str("whiteboard-token"), runtime.Str("task-id"), runtime.As()))
 			}
 			select {
 			case <-ctx.Done():
 				return errs.NewNetworkError(errs.SubtypeNetworkTimeout, "cancelled while waiting for ParseImage task %s", runtime.Str("task-id")).
 					WithCause(ctx.Err()).
 					WithRetryable().
-					WithHint("retry status lookup with: %s", parseImageResultCommand(runtime.Str("whiteboard-token"), runtime.Str("task-id")))
+					WithHint("retry status lookup with: %s", parseImageResultCommand(runtime.Str("whiteboard-token"), runtime.Str("task-id"), runtime.As()))
 			case <-time.After(interval):
 			}
 		default:

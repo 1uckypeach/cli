@@ -1,6 +1,6 @@
 # whiteboard +parse-image
 
-> **前置条件:** 先阅读 [`../../lark-shared/SKILL.md`](../../lark-shared/SKILL.md) 了解认证、全局参数和安全规则。首版 ParseImage shortcut 只使用 `--as user`。
+> **前置条件:** 先阅读 [`../../lark-shared/SKILL.md`](../../lark-shared/SKILL.md) 了解认证、全局参数和安全规则。ParseImage shortcut 支持 `--as <identity>` 和 `--as bot`，按目标画板权限选择并保持同一身份。
 
 提交一张本地图片，由服务端自动解析成画板内容并写入目标画板。该能力走 Engine 后台任务: CLI 只提交图片和查询任务状态，不下载 SVG，不调用本地 `whiteboard-cli` 做图片解析。
 
@@ -35,7 +35,7 @@
 lark-cli whiteboard +parse-image \
   --whiteboard-token <whiteboard_token> \
   --image ./input.png \
-  --as user \
+  --as <identity> \
   --dry-run
 ```
 
@@ -46,7 +46,7 @@ lark-cli whiteboard +parse-image \
   --whiteboard-token <whiteboard_token> \
   --image ./input.png \
   --mode agentic_max \
-  --as user
+  --as <identity>
 ```
 
 覆盖写入时必须显式传 `--overwrite`:
@@ -56,7 +56,7 @@ lark-cli whiteboard +parse-image \
   --whiteboard-token <whiteboard_token> \
   --image ./input.png \
   --overwrite \
-  --as user
+  --as <identity>
 ```
 
 提交成功输出 `task_id`、`status` 和可恢复命令 `next_command`。`status=pending` 只表示任务已创建，不表示画板已经写入完成。
@@ -83,7 +83,7 @@ lark-cli whiteboard +parse-image \
 lark-cli whiteboard +parse-image-result \
   --whiteboard-token <whiteboard_token> \
   --task-id <task_id> \
-  --as user
+  --as <identity>
 ```
 
 等待完成:
@@ -93,7 +93,7 @@ lark-cli whiteboard +parse-image-result \
   --whiteboard-token <whiteboard_token> \
   --task-id <task_id> \
   --wait \
-  --as user
+  --as <identity>
 ```
 
 成功时输出 `ids`、`extra` 和 `previous_revision`。如果还在处理中，输出 `pending` 或 `running`。失败时保持结构化错误，不返回 SVG、TOS URL、Canvas 原始错误或完整画板数据。

@@ -15,11 +15,12 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
+	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
 var wbParseImageScopes = []string{"board:whiteboard:node:create"}
-var wbParseImageAuthTypes = []string{"user"}
+var wbParseImageAuthTypes = []string{"user", "bot"}
 var wbParseImageFlags = []common.Flag{
 	{Name: "whiteboard-token", Desc: "whiteboard token of the target whiteboard. You need edit permission on the whiteboard.", Required: true},
 	{Name: "image", Desc: "local image path to parse into whiteboard content. Supports PNG, JPG, JPEG, GIF, and WEBP. Shorthand: -i.", Required: true},
@@ -124,7 +125,7 @@ func wbParseImageExecute(_ context.Context, runtime *common.RuntimeContext) erro
 	out := map[string]interface{}{
 		"task_id":      taskID,
 		"status":       status,
-		"next_command": parseImageResultCommand(runtime.Str("whiteboard-token"), taskID),
+		"next_command": parseImageResultCommand(runtime.Str("whiteboard-token"), taskID, runtime.As()),
 	}
 	runtime.OutFormat(out, nil, func(w io.Writer) {
 		fmt.Fprintf(w, "ParseImage submitted: task_id=%s status=%s\n", taskID, status)
@@ -133,8 +134,8 @@ func wbParseImageExecute(_ context.Context, runtime *common.RuntimeContext) erro
 	return nil
 }
 
-func parseImageResultCommand(whiteboardToken, taskID string) string {
-	return fmt.Sprintf("lark-cli whiteboard +parse-image-result --whiteboard-token %s --task-id %s --as user", whiteboardToken, taskID)
+func parseImageResultCommand(whiteboardToken, taskID string, identity core.Identity) string {
+	return fmt.Sprintf("lark-cli whiteboard +parse-image-result --whiteboard-token %s --task-id %s --as %s", whiteboardToken, taskID, string(identity))
 }
 
 func installParseImageShorthand(cmd *cobra.Command) {

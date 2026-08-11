@@ -193,6 +193,40 @@ func TestWhiteboardParseImageResultWaitTimeoutReturnsTypedError(t *testing.T) {
 	}
 }
 
+func TestWhiteboardParseImageResultWaitTimeoutPreservesBotIdentity(t *testing.T) {
+	factory, stdout, reg := parseImageTestFactory(t)
+	reg.Register(&httpmock.Stub{
+		Method:   "GET",
+		URL:      "/open-apis/board/v1/whiteboards/test-board/parse_image/7670001",
+		Reusable: true,
+		Body: map[string]interface{}{
+			"code": 0,
+			"msg":  "success",
+			"data": map[string]interface{}{
+				"task_id": "7670001",
+				"status":  "running",
+			},
+		},
+	})
+
+	err := runParseImageResultShortcut(t, []string{
+		"+parse-image-result",
+		"--whiteboard-token", "test-board",
+		"--task-id", "7670001",
+		"--wait",
+		"--timeout", "1ms",
+		"--interval", "1ms",
+		"--as", "bot",
+	}, factory, stdout)
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok || !strings.Contains(problem.Hint, "--as bot") {
+		t.Fatalf("error hint should preserve bot identity, got problem=%+v err=%v", problem, err)
+	}
+}
+
 func decodeParseImageResultBody(t *testing.T, raw []byte) map[string]interface{} {
 	t.Helper()
 	var out map[string]interface{}
