@@ -38,6 +38,8 @@ func TestCatalogSnapshotServicesPassPublicationSafety(t *testing.T) {
 func TestCatalogPIIUsesJSONContext(t *testing.T) {
 	safe := `{
 		"calendar_id":{"description":"日历 ID","example":"feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn"},
+		"english_calendar":{"calendar_id":{"description":"Calendar ID","example":"feishu.cn_abcdefgh12@group.calendar.feishu.cn"}},
+		"english_organizer":{"organizer_calendar_id":{"description":"Organizer calendar ID","example":"feishu.cn_1234abcd56@group.calendar.feishu.cn"}},
 		"smtp_message_id":{"description":"RFC协议id","example":"ay0azrJDvbs3FJAg@outlook.com"},
 		"in_reply_to":{"description":"In-Reply-To邮件头","example":"06d20.dbf451a3.808a.475a.acc9.1363dfd20f36@larksuite.com"},
 		"reply_to":{"description":"Reply-To邮件头","example":"06d20.dbf451a3.808a.475a.acc9.1363dfd20f36@larksuite.com"},
@@ -56,7 +58,7 @@ func TestCatalogPIIUsesJSONContext(t *testing.T) {
 		`{"third_party_email":{"description":"外部邮箱","example":"person.name@bytedance.com"}}`,
 		`{"calendar_id":{"description":"日历 ID","example":"person.name@group.calendar.outlook.com"}}`,
 		`{"calendar_id":{"description":"日历 ID","example":"person.name@group.calendar.feishu.cn"}}`,
-		`{"calendar_id":{"description":"联系人邮箱","example":"feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn"}}`,
+		`{"owner":{"description":"Calendar ID","example":"feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn"}}`,
 		`{"smtp_message_id":{"description":"RFC协议id","example":"realuser123456@outlook.com"}}`,
 		`{"smtp_message_id":{"description":"RFC协议id","example":"RealUserName1234@outlook.com"}}`,
 		`{"smtp_message_id":{"description":"RFC协议id","example":"JohnSmithABCD12x@bytedance.com"}}`,
@@ -73,6 +75,26 @@ func TestCatalogPIIUsesJSONContext(t *testing.T) {
 		if len(got) != 1 || got[0].Rule != "public_content_catalog_pii" {
 			t.Fatalf("realistic identity must be a PII finding: %#v", got)
 		}
+	}
+}
+
+func TestCatalogExamplesTrustPublicResourceLinkIdentifiers(t *testing.T) {
+	safe := `{"share_link":{"description":"Public group link","example":"https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=abc1234-ab12-cd34-ef56-abc123def45678"}}`
+	if got := ScanFile("internal/registry/catalog/services/test.json", []byte(safe)); len(got) != 0 {
+		t.Fatalf("trusted resource-link example produced findings: %#v", got)
+	}
+
+	for name, unsafe := range map[string]string{
+		"credential in description": `{"share_link":{"description":"client_secret=abc%2Fdef%3Drealvalue"}}`,
+		"credential in example":     `{"share_link":{"example":"client_secret=abc%2Fdef%3Drealvalue"}}`,
+		"link under another field":  `{"other_field":{"example":"https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=abc1234-ab12-cd34-ef56-abc123def45678"}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := ScanFile("internal/registry/catalog/services/test.json", []byte(unsafe))
+			if !findingRules(got)["public_content_generic_credential"] {
+				t.Fatalf("non-trusted credential context must remain a finding: %#v", got)
+			}
+		})
 	}
 }
 

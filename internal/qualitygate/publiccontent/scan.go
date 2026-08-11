@@ -21,7 +21,24 @@ const (
 )
 
 func ScanFile(path string, data []byte) []Finding {
-	return scanText(filepath.ToSlash(path), "file", string(data), isDetectorRuleFile(path))
+	file := filepath.ToSlash(path)
+	findings := scanText(file, "file", string(data), isDetectorRuleFile(path))
+	if !isCatalogFile(file) {
+		return findings
+	}
+
+	trustedLines := catalogTrustedGenericCredentialLines(data)
+	if len(trustedLines) == 0 {
+		return findings
+	}
+	filtered := findings[:0]
+	for _, finding := range findings {
+		if finding.Rule == "public_content_generic_credential" && trustedLines[finding.Line] {
+			continue
+		}
+		filtered = append(filtered, finding)
+	}
+	return filtered
 }
 
 func semanticCandidate(file, source, text string, line int) []Finding {

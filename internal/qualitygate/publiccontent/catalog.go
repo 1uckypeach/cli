@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -343,7 +344,7 @@ func safeCalendarResourceID(local, domain, field, description, value string) boo
 	}
 	switch field {
 	case "calendar_id", "organizer_calendar_id":
-		return strings.Contains(description, "日历 id")
+		return true
 	case "app_link":
 		expectedPrefix := core.ResolveEndpoints(core.BrandFeishu).AppLink +
 			"/client/calendar/event/detail?"
@@ -352,6 +353,88 @@ func safeCalendarResourceID(local, domain, field, description, value string) boo
 	default:
 		return false
 	}
+}
+
+type catalogCredentialLineState struct {
+	trusted bool
+	unsafe  bool
+}
+
+func catalogTrustedGenericCredentialLines(data []byte) map[int]bool {
+	root, err := parseCatalogJSON(data)
+	if err != nil {
+		return nil
+	}
+	states := map[int]catalogCredentialLineState{}
+	walkCatalogCredentialContext(root, "", "", states)
+	trusted := map[int]bool{}
+	for line, state := range states {
+		if state.trusted && !state.unsafe {
+			trusted[line] = true
+		}
+	}
+	return trusted
+}
+
+func walkCatalogCredentialContext(node *catalogJSONNode, key, parentKey string, states map[int]catalogCredentialLineState) {
+	switch {
+	case node.object:
+		for _, child := range node.children {
+			walkCatalogCredentialContext(child, child.key, key, states)
+		}
+	case node.array:
+		for _, child := range node.children {
+			walkCatalogCredentialContext(child, key, parentKey, states)
+		}
+	default:
+		for _, finding := range scanText("catalog-value", "file", node.text, false) {
+			if finding.Rule != "public_content_generic_credential" {
+				continue
+			}
+			state := states[node.line]
+			if (key == "example" || key == "default") && safeCatalogResourceLink(parentKey, node.text) {
+				state.trusted = true
+			} else {
+				state.unsafe = true
+			}
+			states[node.line] = state
+		}
+	}
+}
+
+func safeCatalogResourceLink(field, value string) bool {
+	if field != "share_link" {
+		return false
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "https" || parsed.Host != "applink.feishu.cn" ||
+		parsed.Path != "/client/chat/chatter/add_by_link" || parsed.User != nil || parsed.Fragment != "" {
+		return false
+	}
+	query := parsed.Query()
+	if len(query) != 1 || len(query["link_token"]) != 1 {
+		return false
+	}
+	return catalogPublicResourceIdentifier(query.Get("link_token"))
+}
+
+func catalogPublicResourceIdentifier(value string) bool {
+	parts := strings.Split(value, "-")
+	canonicalUUID := len(parts) == 5 && len(parts[0]) == 8 && len(parts[1]) == 4 &&
+		len(parts[2]) == 4 && len(parts[3]) == 4 && len(parts[4]) == 12
+	publicLinkID := len(parts) == 5 && len(parts[0]) == 7 && len(parts[1]) == 4 &&
+		len(parts[2]) == 4 && len(parts[3]) == 4 && len(parts[4]) == 14
+	if !canonicalUUID && !publicLinkID {
+		return false
+	}
+	for _, part := range parts {
+		for _, char := range part {
+			if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'z')) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func placeholderEmailParts(local, domain string) bool {
