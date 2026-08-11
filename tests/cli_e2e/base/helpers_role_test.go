@@ -27,6 +27,11 @@ func TestExtractCreatedRoleID(t *testing.T) {
 			want:   "rol_string",
 		},
 		{
+			name:   "string encoded business envelope",
+			stdout: `{"ok":true,"data":{"data":"{\"data\":{\"role_id\":\"rol_nested_string\"}}"}}`,
+			want:   "rol_nested_string",
+		},
+		{
 			name:   "business envelope",
 			stdout: `{"ok":true,"data":{"data":{"data":{"role_id":"rol_business"}}}}`,
 			want:   "rol_business",
