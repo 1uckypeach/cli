@@ -25,6 +25,10 @@ MAX_TOTAL_BYTES = 16 * 1024 * 1024
 LICENSE_BASENAMES = ("LICENSE", "COPYING")
 NOTICE_BASENAMES = ("NOTICE",)
 PROHIBITED_LICENSE_WORDS = ("GPL", "LGPL", "AGPL", "SSPL", "GENERAL PUBLIC LICENSE", "SERVER SIDE PUBLIC")
+ADDITIONAL_RESTRICTION_PATTERN = re.compile(
+    r"\b(?:non[- ]commercial|commercial use (?:is )?(?:prohibited|forbidden|restricted)|not for commercial (?:use|purposes))\b",
+    re.IGNORECASE,
+)
 
 # SPDX license texts, with copyright headers and the non-operative Apache appendix
 # intentionally omitted. Matching requires the complete operative text in order;
@@ -257,6 +261,16 @@ def _reject_prohibited(value: str) -> None:
         raise NoticeError(f"prohibited license: {value}")
 
 
+def _warn_additional_restriction(name: str, version: str, license_text: str) -> None:
+    """Keep the original text, while drawing attention to obvious added restrictions."""
+    if ADDITIONAL_RESTRICTION_PATTERN.search(license_text):
+        print(
+            f"third_party_notices: warning: {name}@{version} contains a possible additional license restriction; "
+            "the original text is included in THIRD_PARTY_NOTICES.md and should be reviewed",
+            file=sys.stderr,
+        )
+
+
 def _normalized_license_text(value: str) -> str:
     without_list_markers = re.sub(r"(?m)^\s*(?:\d+\.|\*)\s+", "", value)
     return re.sub(r"[\"“”]", "", re.sub(r"\s+", " ", without_list_markers)).casefold()
@@ -379,6 +393,7 @@ def _component_from_package(
         license_id = normalize_license_id(declared_license, license_text)
     except NoticeError as error:
         raise NoticeError(f"{name}@{version}: {error}") from error
+    _warn_additional_restriction(name, version, license_text)
     return Component(
         name=name,
         version=version,

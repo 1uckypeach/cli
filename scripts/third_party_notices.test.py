@@ -5,6 +5,7 @@
 """Behavior tests for the third-party notice generator."""
 
 import importlib.util
+import io
 import json
 import sys
 import tempfile
@@ -107,6 +108,19 @@ END OF TERMS AND CONDITIONS"""
 
         with self.assertRaises(notices.NoticeError):
             notices.normalize_license_id("Apache-2.0", headings_only)
+
+    def test_additional_restriction_warns_without_blocking_notice_generation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            package = make_package(
+                Path(directory), "restricted-package", "MIT", MIT_TEXT + "\nCommercial use is prohibited.\n"
+            )
+            stderr = io.StringIO()
+
+            with mock.patch.object(notices.sys, "stderr", stderr):
+                component = notices.component_from_node_package(package, notices.ReadBudget())
+
+        self.assertEqual(component.license_id, "MIT")
+        self.assertIn("possible additional license restriction", stderr.getvalue())
 
     def test_copyright_clauses_are_not_rendered_as_attribution(self):
         self.assertEqual(
