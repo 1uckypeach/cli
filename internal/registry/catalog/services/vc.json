@@ -149,7 +149,8 @@
                     "id": {
                       "type": "string",
                       "description": "User ID",
-                      "required": false
+                      "required": false,
+                      "example": "ou_3ec3f6a28a0d08c45d895276e8e5e19b"
                     },
                     "user_type": {
                       "type": "integer",
@@ -251,7 +252,8 @@
                     "id": {
                       "type": "string",
                       "description": "User ID",
-                      "required": false
+                      "required": false,
+                      "example": "ou_3ec3f6a28a0d08c45d895276e8e5e19b"
                     },
                     "first_join_time": {
                       "type": "string",
@@ -430,6 +432,7 @@
                   "type": "string",
                   "description": "智能纪要的 doc_token;- 文档一旦生成，就可以查到对应 token;- 无字段权限时，该 key 不会出现在 related_artifacts 结构当中;- 有字段权限而无内容时，related_artifacts 结构中会包含该 key，同时其值为空字符串",
                   "required": false,
+                  "example": "J1X5wG7bFilbFDk42VNdhfS6n6g",
                   "annotations": [
                     "lark:data:vc:meeting.artifact.note"
                   ]
@@ -438,6 +441,7 @@
                   "type": "string",
                   "description": "逐字稿的 doc_token;- 文档一旦生成，就可以查到对应 token;- 无字段权限时，该 key 不会出现在 related_artifacts 结构当中;- 有字段权限而无内容时，related_artifacts 结构中会包含该 key，同时其值为空字符串",
                   "required": false,
+                  "example": "J1X5wG7bFilbFDk42VNdhfS6n6g",
                   "annotations": [
                     "lark:data:vc:meeting.artifact.verbatim"
                   ]

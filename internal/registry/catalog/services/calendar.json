@@ -75,6 +75,7 @@
                   "type": "string",
                   "description": "日历OpenId",
                   "required": true,
+                  "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn",
                   "annotations": [
                     "readOnly"
                   ]
@@ -255,7 +256,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Calendar ID.; When creating a shared calendar, the calendar ID will be returned. You can also call the following interfaces to get the ID of a calendar.;- [Query Primary Calendar Information](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/primary);- [Query Calendar List](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/list);- [Search Calendars](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/search)"
+              "description": "Calendar ID.; When creating a shared calendar, the calendar ID will be returned. You can also call the following interfaces to get the ID of a calendar.;- [Query Primary Calendar Information](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/primary);- [Query Calendar List](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/list);- [Search Calendars](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/search)",
+              "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn"
             }
           },
           "parameterOrder": [
@@ -283,7 +285,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Calendar ID. ; When creating a shared calendar, the calendar ID will be returned. You can also call the following interfaces to get the ID of a calendar.;- [Query Primary Calendar Information](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/primary);- [Query Calendar List](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/list);- [Search Calendars](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/search)"
+              "description": "Calendar ID. ; When creating a shared calendar, the calendar ID will be returned. You can also call the following interfaces to get the ID of a calendar.;- [Query Primary Calendar Information](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/primary);- [Query Calendar List](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/list);- [Search Calendars](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/search)",
+              "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn"
             }
           },
           "parameterOrder": [
@@ -294,6 +297,7 @@
               "type": "string",
               "description": "日历OpenId",
               "required": false,
+              "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn",
               "annotations": [
                 "readOnly"
               ]
@@ -481,13 +485,15 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups"
+              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups",
+              "example": "ListCalendarsPageToken_xxx"
             },
             "sync_token": {
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "Incremental synchronization mark, no need to fill in for the first request. When the page query ends (the returned value of page_token is empty), the interface will return the sync_token field. The next call can use this sync_token to incrementally obtain calendar change data"
+              "description": "Incremental synchronization mark, no need to fill in for the first request. When the page query ends (the returned value of page_token is empty), the interface will return the sync_token field. The next call can use this sync_token to incrementally obtain calendar change data",
+              "example": "ListCalendarsSyncToken_xxx"
             }
           },
           "responseBody": {
@@ -500,12 +506,14 @@
             "page_token": {
               "type": "string",
               "description": "Page identifier, when has_more is true, a new page_token will also be returned. Otherwise, page_token will not be returned",
-              "required": false
+              "required": false,
+              "example": "ListCalendarsPageToken_xxx"
             },
             "sync_token": {
               "type": "string",
               "description": "Incremental synchronization mark. When has_more is false, it will synchronously return a new sync_token, and the next request needs to carry the sync_token to incrementally obtain the calendar change data.;Note: The returned sync_token is valid within 90 days",
-              "required": false
+              "required": false,
+              "example": "ListCalendarsSyncToken_xxx"
             },
             "calendar_list": {
               "type": "array",
@@ -516,6 +524,7 @@
                   "type": "string",
                   "description": "日历OpenId",
                   "required": true,
+                  "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn",
                   "annotations": [
                     "readOnly"
                   ]
@@ -697,7 +706,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Calendar ID. ; When creating a shared calendar, the calendar ID will be returned. You can also call the following interfaces to get the ID of a calendar.;- [Query Primary Calendar Information](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/primary);- [Query Calendar List](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/list);- [Search Calendars](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/search)"
+              "description": "Calendar ID. ; When creating a shared calendar, the calendar ID will be returned. You can also call the following interfaces to get the ID of a calendar.;- [Query Primary Calendar Information](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/primary);- [Query Calendar List](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/list);- [Search Calendars](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/search)",
+              "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn"
             }
           },
           "parameterOrder": [
@@ -766,6 +776,7 @@
                   "type": "string",
                   "description": "日历OpenId",
                   "required": true,
+                  "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn",
                   "annotations": [
                     "readOnly"
                   ]
@@ -971,7 +982,8 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "应用身份下指定操作用户的日历日程数据"
+              "description": "应用身份下指定操作用户的日历日程数据",
+              "example": "ou_7d8a6e6df7621556ce0d21922b676706ccs"
             }
           },
           "responseBody": {
@@ -990,6 +1002,7 @@
                       "type": "string",
                       "description": "日历OpenId",
                       "required": true,
+                      "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn",
                       "annotations": [
                         "readOnly"
                       ]
@@ -1212,6 +1225,7 @@
                   "type": "string",
                   "description": "日历OpenId",
                   "required": true,
+                  "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn",
                   "annotations": [
                     "readOnly"
                   ]
@@ -1402,7 +1416,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Calendar ID. For details, see [Calendar-related IDs](https://open.feishu.cn/document/ukTMukTMukTM/uETM3YjLxEzN24SMxcjN#f066a96c)"
+              "description": "Calendar ID. For details, see [Calendar-related IDs](https://open.feishu.cn/document/ukTMukTMukTM/uETM3YjLxEzN24SMxcjN#f066a96c)",
+              "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn"
             },
             "event_id": {
               "type": "string",
@@ -1556,7 +1571,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "The calendar ID corresponding to the event. To learn more, see [Calendar ID Introduction](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/introduction)"
+              "description": "The calendar ID corresponding to the event. To learn more, see [Calendar ID Introduction](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/introduction)",
+              "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn"
             },
             "event_id": {
               "type": "string",
@@ -1647,6 +1663,7 @@
                   "type": "string",
                   "description": "chat类型参与人的群组chat_id",
                   "required": false,
+                  "example": "oc_a0553eda9014c201e6969b478895c230",
                   "annotations": [
                     "open:open_x_id"
                   ]
@@ -1655,6 +1672,7 @@
                   "type": "string",
                   "description": "resource类型参与人的会议室room_id",
                   "required": false,
+                  "example": "omm_83d09ad4f6896e02029a6a075f71c9d1",
                   "annotations": [
                     "open:open_x_id"
                   ]
@@ -1945,6 +1963,7 @@
                   "type": "string",
                   "description": "chat类型参与人的群组chat_id",
                   "required": false,
+                  "example": "oc_a0553eda9014c201e6969b478895c230",
                   "annotations": [
                     "open:open_x_id"
                   ]
@@ -1953,6 +1972,7 @@
                   "type": "string",
                   "description": "resource类型参与人的会议室room_id",
                   "required": false,
+                  "example": "omm_83d09ad4f6896e02029a6a075f71c9d1",
                   "annotations": [
                     "open:open_x_id"
                   ]
@@ -2028,7 +2048,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Calendar ID. For details, see [Calendar-related IDs](https://open.feishu.cn/document/ukTMukTMukTM/uETM3YjLxEzN24SMxcjN#f066a96c)"
+              "description": "Calendar ID. For details, see [Calendar-related IDs](https://open.feishu.cn/document/ukTMukTMukTM/uETM3YjLxEzN24SMxcjN#f066a96c)",
+              "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn"
             },
             "event_id": {
               "type": "string",
@@ -2073,7 +2094,8 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "分页标记，第一次请求不填，表示从头开始遍历；分页查询结果还有更多项时会同时返回新的 page_token，下次遍历可采用该page_token 获取查询结果"
+              "description": "分页标记，第一次请求不填，表示从头开始遍历；分页查询结果还有更多项时会同时返回新的 page_token，下次遍历可采用该page_token 获取查询结果",
+              "example": "780TRhwXXXXX"
             },
             "page_size": {
               "type": "integer",
@@ -2088,7 +2110,8 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "应用身份下指定操作用户的日历日程数据"
+              "description": "应用身份下指定操作用户的日历日程数据",
+              "example": "ou_7d8a6e6df7621556ce0d21922b676706ccs"
             }
           },
           "parameterOrder": [
@@ -2308,6 +2331,7 @@
                   "type": "string",
                   "description": "chat类型参与人的群组chat_id",
                   "required": false,
+                  "example": "oc_a0553eda9014c201e6969b478895c230",
                   "annotations": [
                     "open:open_x_id"
                   ]
@@ -2316,6 +2340,7 @@
                   "type": "string",
                   "description": "resource类型参与人的会议室room_id",
                   "required": false,
+                  "example": "omm_83d09ad4f6896e02029a6a075f71c9d1",
                   "annotations": [
                     "open:open_x_id"
                   ]
@@ -2368,7 +2393,8 @@
             "page_token": {
               "type": "string",
               "description": "下次请求需要带上的分页标记，90 天有效期",
-              "required": false
+              "required": false,
+              "example": "38RTjheyXXXX"
             }
           },
           "scopes": [
@@ -2397,13 +2423,15 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Calendar ID.; The calendar ID is returned when creating a shared calendar. You can also call the following interface to obtain the ID of a certain calendar.;- [Query primary calendar information](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/primary);- [Query calendar list](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/list);- [Search calendar](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/search)"
+              "description": "Calendar ID.; The calendar ID is returned when creating a shared calendar. You can also call the following interface to obtain the ID of a certain calendar.;- [Query primary calendar information](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/primary);- [Query calendar list](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/list);- [Search calendar](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/search)",
+              "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn"
             },
             "idempotency_key": {
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "Create an idempotent key for the event. This key is unique under the application and calendar dimensions and is used to avoid repeated creation of resources. It is recommended to follow the format of the example value"
+              "description": "Create an idempotent key for the event. This key is unique under the application and calendar dimensions and is used to avoid repeated creation of resources. It is recommended to follow the format of the example value",
+              "example": "25fdf41b-8c80-2ce1-e94c-de8b5e7aa7e6"
             },
             "user_id_type": {
               "type": "string",
@@ -2628,7 +2656,8 @@
                     "owner_id": {
                       "type": "string",
                       "description": "Set the user ID of the conference owner, the ID type needs to be the same as user_id;_type remains consistent.; This parameter must meet all of the following conditions to take effect:;- Apply identity (tenant_access_token) request and operate event on the application calendar.;- The owner can only be set when the event is set to a VC meeting for the first time.;- owner cannot be a non-user identity.;- owner cannot be an external tenant user identity",
-                      "required": false
+                      "required": false,
+                      "example": "ou_7d8a6e6df7621556ce0d21922b676706ccs"
                     },
                     "join_meeting_permission": {
                       "type": "string",
@@ -2916,7 +2945,8 @@
                 "file_token": {
                   "type": "string",
                   "description": "附件token",
-                  "required": false
+                  "required": false,
+                  "example": "xAAAAA"
                 }
               }
             },
@@ -3030,7 +3060,8 @@
             "description_rich": {
               "type": "string",
               "description": "日程描述，Markdown 富文本（推荐创建/更新日程统一使用本字段）。与纯文本 description 互斥，二者至多传其一，切勿同时传。支持加粗、斜体、下划线（<u>...</u>）、删除线、链接 [文本](url)、标题（# 到 ###，最多三级）、引用（> ）、有序/无序列表、GFM 表格、图片 ![alt](url)。飞书文档 URL 会自动解析为内联文档。注意：图片仅支持传入已上传的图片 URL，本地图片不会自动上传；需要本地图片自动上传请改用 lark-cli calendar +create 快捷命令",
-              "required": false
+              "required": false,
+              "example": "**重点**：见 [设计文档](https://open.feishu.cn/docx/xxx)"
             }
           },
           "responseBody": {
@@ -3044,6 +3075,7 @@
                   "type": "string",
                   "description": "日程ID",
                   "required": true,
+                  "example": "75d28f9b-e35c-4230-8a83-4a661497db54_0",
                   "annotations": [
                     "readOnly"
                   ]
@@ -3052,6 +3084,7 @@
                   "type": "string",
                   "description": "日程组织者日历ID",
                   "required": false,
+                  "example": "feishu.cn_example0000@group.calendar.feishu.cn",
                   "annotations": [
                     "readOnly"
                   ]
@@ -3406,6 +3439,7 @@
                   "type": "string",
                   "description": "例外日程的原重复日程的event_id",
                   "required": false,
+                  "example": "75d28f9b-e35c-4230-8a83-4a661497db54_0",
                   "annotations": [
                     "readOnly"
                   ]
@@ -3498,6 +3532,7 @@
                   "type": "string",
                   "description": "日程的app_link,跳转到具体的某个日程",
                   "required": false,
+                  "example": "https://applink.larkoffice.com/client/calendar/event/detail?calendarId=7039673579105026066&key=aeac9c56-aeb1-4179-a21b-02f278f59048&originalTime=0&startTime=1700496000",
                   "annotations": [
                     "readOnly"
                   ]
@@ -3510,7 +3545,8 @@
                     "file_token": {
                       "type": "string",
                       "description": "附件token",
-                      "required": false
+                      "required": false,
+                      "example": "xAAAAA"
                     },
                     "file_size": {
                       "type": "string",
@@ -3647,7 +3683,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "The calendar ID where the event is located. See [Calendar ID Description](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/introduction)"
+              "description": "The calendar ID where the event is located. See [Calendar ID Description](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/introduction)",
+              "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn"
             },
             "event_id": {
               "type": "string",
@@ -3705,7 +3742,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "The calendar ID where the event is located. For information about calendar ID, please refer to [Calendar ID Description](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/introduction)"
+              "description": "The calendar ID where the event is located. For information about calendar ID, please refer to [Calendar ID Description](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/introduction)",
+              "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn"
             },
             "event_id": {
               "type": "string",
@@ -3765,7 +3803,8 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "应用身份下指定操作用户的日历日程数据"
+              "description": "应用身份下指定操作用户的日历日程数据",
+              "example": "ou_7d8a6e6df7621556ce0d21922b676706ccs"
             }
           },
           "parameterOrder": [
@@ -3783,6 +3822,7 @@
                   "type": "string",
                   "description": "日程ID",
                   "required": true,
+                  "example": "75d28f9b-e35c-4230-8a83-4a661497db54_0",
                   "annotations": [
                     "readOnly"
                   ]
@@ -3791,6 +3831,7 @@
                   "type": "string",
                   "description": "日程组织者日历ID",
                   "required": false,
+                  "example": "feishu.cn_example0000@group.calendar.feishu.cn",
                   "annotations": [
                     "readOnly"
                   ]
@@ -4145,6 +4186,7 @@
                   "type": "string",
                   "description": "例外日程的原重复日程的event_id",
                   "required": false,
+                  "example": "75d28f9b-e35c-4230-8a83-4a661497db54_0",
                   "annotations": [
                     "readOnly"
                   ]
@@ -4237,6 +4279,7 @@
                   "type": "string",
                   "description": "日程的app_link,跳转到具体的某个日程",
                   "required": false,
+                  "example": "https://applink.larkoffice.com/client/calendar/event/detail?calendarId=7039673579105026066&key=aeac9c56-aeb1-4179-a21b-02f278f59048&originalTime=0&startTime=1700496000",
                   "annotations": [
                     "readOnly"
                   ]
@@ -4370,12 +4413,14 @@
                     "user_id": {
                       "type": "string",
                       "description": "User type The user ID of the invitee. The ID type is consistent with the value of user_id_type. For information about user IDs, see [User-related ID concepts](https://open.feishu.cn/document/home/user-identity-introduction/introduction).; Note: When is_external returns true, this field will only return open_id or union_id",
-                      "required": false
+                      "required": false,
+                      "example": "ou_ 8bfcecaf02c9d8d026de984db04cf5b9"
                     },
                     "chat_id": {
                       "type": "string",
                       "description": "chat类型参与人的群组chat_id",
                       "required": false,
+                      "example": "oc_a0553eda9014c201e6969b478895c230",
                       "annotations": [
                         "open:open_x_id"
                       ]
@@ -4384,6 +4429,7 @@
                       "type": "string",
                       "description": "resource类型参与人的会议室room_id",
                       "required": false,
+                      "example": "omm_83d09ad4f6896e02029a6a075f71c9d1",
                       "annotations": [
                         "open:open_x_id"
                       ]
@@ -4418,7 +4464,8 @@
                     "file_token": {
                       "type": "string",
                       "description": "附件token",
-                      "required": false
+                      "required": false,
+                      "example": "xAAAAA"
                     },
                     "file_size": {
                       "type": "string",
@@ -4546,7 +4593,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Calendar ID. For information about calendar ID, please refer to [Calendar ID Description](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/introduction)"
+              "description": "Calendar ID. For information about calendar ID, please refer to [Calendar ID Description](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar/introduction)",
+              "example": "feishu.cn_example0000@group.calendar.feishu.cn"
             },
             "start_time": {
               "type": "string",
@@ -4600,7 +4648,8 @@
                 "event_id": {
                   "type": "string",
                   "description": "日程实例ID",
-                  "required": true
+                  "required": true,
+                  "example": "75d28f9b-e35c-4230-8a83-4a661497db54_1602504000"
                 },
                 "summary": {
                   "type": "string",
@@ -4701,12 +4750,14 @@
                 "app_link": {
                   "type": "string",
                   "description": "日程的app_link,跳转到具体的某个日程",
-                  "required": false
+                  "required": false,
+                  "example": "https://applink.larkoffice.com/client/calendar/event/detail?calendarId=7039673579105026066&key=aeac9c56-aeb1-4179-a21b-02f278f59048&originalTime=0&startTime=1700496000"
                 },
                 "organizer_calendar_id": {
                   "type": "string",
                   "description": "日程组织者日历ID",
-                  "required": false
+                  "required": false,
+                  "example": "feishu.cn_example0000@group.calendar.feishu.cn"
                 },
                 "vchat": {
                   "type": "object",
@@ -4923,7 +4974,8 @@
                 "recurring_event_id": {
                   "type": "string",
                   "description": "例外日程的原重复日程的event_id",
-                  "required": false
+                  "required": false,
+                  "example": "75d28f9b-e35c-4230-8a83-4a661497db54_0"
                 },
                 "event_organizer": {
                   "type": "object",
@@ -5081,6 +5133,7 @@
                       "type": "string",
                       "description": "chat类型参与人的群组chat_id",
                       "required": false,
+                      "example": "oc_a0553eda9014c201e6969b478895c230",
                       "annotations": [
                         "open:open_x_id"
                       ]
@@ -5089,6 +5142,7 @@
                       "type": "string",
                       "description": "resource类型参与人的会议室room_id",
                       "required": false,
+                      "example": "omm_83d09ad4f6896e02029a6a075f71c9d1",
                       "annotations": [
                         "open:open_x_id"
                       ]
@@ -5190,13 +5244,15 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Calendar ID. For details, see [Calendar-related IDs](https://open.feishu.cn/document/ukTMukTMukTM/uETM3YjLxEzN24SMxcjN#f066a96c)"
+              "description": "Calendar ID. For details, see [Calendar-related IDs](https://open.feishu.cn/document/ukTMukTMukTM/uETM3YjLxEzN24SMxcjN#f066a96c)",
+              "example": "feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn"
             },
             "event_id": {
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Event ID.; The event ID is returned when creating a event. You can also call the following interface to obtain the ID of a certain calendar.;- [Get event list](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar-event/list);- [Search event](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar-event/search)"
+              "description": "Event ID.; The event ID is returned when creating a event. You can also call the following interface to obtain the ID of a certain calendar.;- [Get event list](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar-event/list);- [Search event](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/calendar-v4/calendar-event/search)",
+              "example": "00592a0e-7edf-4678-bc9d-1b77383ef08e_0"
             },
             "user_id_type": {
               "type": "string",
@@ -5422,7 +5478,8 @@
                     "owner_id": {
                       "type": "string",
                       "description": "Set the user ID of the conference owner. The ID type must be consistent with user_id_type.; This parameter must meet all of the following conditions to take effect:;- Apply identity (tenant_access_token) request and operate event on the application calendar.;- The owner can only be set when the event is set to a VC meeting for the first time.;- owner cannot be a non-user identity.;- owner cannot be an external tenant user identity",
-                      "required": false
+                      "required": false,
+                      "example": "ou_7d8a6e6df7621556ce0d21922b676706ccs"
                     },
                     "join_meeting_permission": {
                       "type": "string",
@@ -5710,7 +5767,8 @@
                 "file_token": {
                   "type": "string",
                   "description": "附件token",
-                  "required": false
+                  "required": false,
+                  "example": "xAAAAA"
                 },
                 "is_deleted": {
                   "type": "boolean",
@@ -5833,7 +5891,8 @@
             "description_rich": {
               "type": "string",
               "description": "日程描述，Markdown 富文本（推荐创建/更新日程统一使用本字段）。与纯文本 description 互斥，二者至多传其一，切勿同时传。支持加粗、斜体、下划线（<u>...</u>）、删除线、链接 [文本](url)、标题（# 到 ###，最多三级）、引用（> ）、有序/无序列表、GFM 表格、图片 ![alt](url)。飞书文档 URL 会自动解析为内联文档。注意：图片仅支持传入已上传的图片 URL，本地图片不会自动上传；需要本地图片自动上传请改用 lark-cli calendar +update 快捷命令。默认值：空，表示不更新该字段",
-              "required": false
+              "required": false,
+              "example": "**重点**：见 [设计文档](https://open.feishu.cn/docx/xxx)"
             }
           },
           "responseBody": {
@@ -5847,6 +5906,7 @@
                   "type": "string",
                   "description": "日程ID",
                   "required": true,
+                  "example": "75d28f9b-e35c-4230-8a83-4a661497db54_0",
                   "annotations": [
                     "readOnly"
                   ]
@@ -5855,6 +5915,7 @@
                   "type": "string",
                   "description": "日程组织者日历ID",
                   "required": false,
+                  "example": "feishu.cn_example0000@group.calendar.feishu.cn",
                   "annotations": [
                     "readOnly"
                   ]
@@ -6209,6 +6270,7 @@
                   "type": "string",
                   "description": "例外日程的原重复日程的event_id",
                   "required": false,
+                  "example": "75d28f9b-e35c-4230-8a83-4a661497db54_0",
                   "annotations": [
                     "readOnly"
                   ]
@@ -6301,6 +6363,7 @@
                   "type": "string",
                   "description": "日程的app_link,跳转到具体的某个日程",
                   "required": false,
+                  "example": "https://applink.larkoffice.com/client/calendar/event/detail?calendarId=7039673579105026066&key=aeac9c56-aeb1-4179-a21b-02f278f59048&originalTime=0&startTime=1700496000",
                   "annotations": [
                     "readOnly"
                   ]
@@ -6313,7 +6376,8 @@
                     "file_token": {
                       "type": "string",
                       "description": "附件token",
-                      "required": false
+                      "required": false,
+                      "example": "xAAAAA"
                     },
                     "file_size": {
                       "type": "string",
@@ -6450,7 +6514,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "日历ID"
+              "description": "日历ID",
+              "example": "feishu.cn_example0000@group.calendar.feishu.cn"
             },
             "page_token": {
               "type": "string",
@@ -6581,7 +6646,7 @@
                       "type": "string",
                       "description": "日程的 app_link，跳转到具体的某个日程",
                       "required": false,
-                      "example": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=feishu.cn_xxxxxxxxxx@group.calendar.feishu.cn&key=xxxxxxxx"
+                      "example": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=user@example.com&key=xxxxxxxx"
                     },
                     "calendar_id": {
                       "type": "string",
@@ -6592,7 +6657,8 @@
                     "event_id": {
                       "type": "string",
                       "description": "日程 ID。后续可通过该 ID 查询、更新或删除日程信息",
-                      "required": false
+                      "required": false,
+                      "example": "00592a0e-7edf-4678-bc9d-1b77383ef08e_0"
                     },
                     "start": {
                       "type": "object",
@@ -6651,13 +6717,15 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "日历ID"
+              "description": "日历ID",
+              "example": "feishu.cn_example0000@group.calendar.feishu.cn"
             },
             "event_id": {
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "日程ID"
+              "description": "日程ID",
+              "example": "75d28f9b-e35c-4230-8a83-4a661497db54_0"
             }
           },
           "parameterOrder": [

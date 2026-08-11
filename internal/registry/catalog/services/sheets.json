@@ -22,7 +22,8 @@
             "folder_token": {
               "type": "string",
               "description": "Folder token. You can get the folder token in two ways:;- URL of the folder: https://sample.feishu.cn/drive/folder/==fldbcO1UuPz8VwnpPx5a92abcef==;- Call the open platform interface to get it:; - Call the [get my space (root folder) metadata](https://open.feishu.cn/document/ukTMukTMukTM/ugTNzUjL4UzM14CO1MTN/get-root-folder-meta) interface to get the root directory (i.e. root folder) token.; - Continue to call the [get list of files in folder](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/drive-v1/file/list) interface to get the token for the folder in the root directory.; Note: To create a spreadsheet in the knowledge base, you need to call the [Create knowledge space node](https://open.feishu.cn/document/ukTMukTMukTM/uUDN04SN0QjL1QDN/wiki-v2/space-node/create) API and select the table (sheet) type",
-              "required": false
+              "required": false,
+              "example": "fldbcO1UuPz8VwnpPx5a92abcef"
             },
             "without_mount": {
               "type": "boolean",
@@ -50,12 +51,14 @@
                 "folder_token": {
                   "type": "string",
                   "description": "Folder token. You can get the folder token in two ways:;- URL of the folder: https://sample.feishu.cn/drive/folder/==fldbcO1UuPz8VwnpPx5a92abcef==;- Call the open platform interface to get it:; - Call the [get my space (root folder) metadata](https://open.feishu.cn/document/ukTMukTMukTM/ugTNzUjL4UzM14CO1MTN/get-root-folder-meta) interface to get the root directory (i.e. root folder) token.; - Continue to call the [get list of files in folder](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/drive-v1/file/list) interface to get the token for the folder in the root directory.; Note: To create a spreadsheet in the knowledge base, you need to call the [Create knowledge space node](https://open.feishu.cn/document/ukTMukTMukTM/uUDN04SN0QjL1QDN/wiki-v2/space-node/create) API and select the table (sheet) type",
-                  "required": false
+                  "required": false,
+                  "example": "fldbcO1UuPz8VwnpPx5a92abcef"
                 },
                 "url": {
                   "type": "string",
                   "description": "Document URL",
                   "required": false,
+                  "example": "https://example.feishu.cn/sheets/Iow7sNNEphp3WbtnbCscPqabcef",
                   "annotations": [
                     "readOnly"
                   ]
@@ -64,6 +67,7 @@
                   "type": "string",
                   "description": "Spreadsheet token",
                   "required": false,
+                  "example": "Iow7sNNEphp3WbtnbCscPqabcef",
                   "annotations": [
                     "readOnly"
                   ]
@@ -103,7 +107,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Table token. Refer to the [Spreadsheet Overview](https://open.feishu.cn/document/ukTMukTMukTM/uATMzUjLwEzM14CMxMTN/overview) to obtain the token"
+              "description": "Table token. Refer to the [Spreadsheet Overview](https://open.feishu.cn/document/ukTMukTMukTM/uATMzUjLwEzM14CMxMTN/overview) to obtain the token",
+              "example": "Iow7sNNEphp3WbtnbCscPqabcef"
             },
             "user_id_type": {
               "type": "string",
@@ -152,6 +157,7 @@
                   "type": "string",
                   "description": "Spreadsheet owner",
                   "required": false,
+                  "example": "u_48d0958ee4b2ab3eaf0b5f6c968abcef",
                   "annotations": [
                     "readOnly",
                     "open:x_user_id"
@@ -161,6 +167,7 @@
                   "type": "string",
                   "description": "Spreadsheet token",
                   "required": false,
+                  "example": "Iow7sNNEphp3WbtnbCscPqabcef",
                   "annotations": [
                     "readOnly"
                   ]
@@ -169,6 +176,7 @@
                   "type": "string",
                   "description": "Spreadsheet url",
                   "required": false,
+                  "example": "https://example.feishu.cn/sheets/Iow7sNNEphp3WbtnbCscPqabcef",
                   "annotations": [
                     "readOnly"
                   ]
@@ -200,7 +208,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Table token. Refer to the [Spreadsheet Overview](https://open.feishu.cn/document/ukTMukTMukTM/uATMzUjLwEzM14CMxMTN/overview) to obtain the token"
+              "description": "Table token. Refer to the [Spreadsheet Overview](https://open.feishu.cn/document/ukTMukTMukTM/uATMzUjLwEzM14CMxMTN/overview) to obtain the token",
+              "example": "Iow7sNNEphp3WbtnbCscPqabcef"
             }
           },
           "parameterOrder": [
@@ -241,7 +250,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Spreadsheet token"
+              "description": "Spreadsheet token",
+              "example": "shtcnmBA\\*****yGehy8"
             },
             "sheet_id": {
               "type": "string",
@@ -317,7 +327,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Spreadsheet token"
+              "description": "Spreadsheet token",
+              "example": "shtcnmBA\\*****yGehy8"
             },
             "sheet_id": {
               "type": "string",
@@ -354,7 +365,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Spreadsheet token"
+              "description": "Spreadsheet token",
+              "example": "shtcnmBA\\*****yGehy8"
             },
             "sheet_id": {
               "type": "string",
@@ -431,7 +443,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Spreadsheet token"
+              "description": "Spreadsheet token",
+              "example": "shtcnmBA\\*****yGehy8"
             },
             "sheet_id": {
               "type": "string",
@@ -505,7 +518,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Sheet token,[how to get related cloud document resources]((https://open.feishu.cn/document/ukTMukTMukTM/uczNzUjL3czM14yN3MTN))"
+              "description": "Sheet token,[how to get related cloud document resources]((https://open.feishu.cn/document/ukTMukTMukTM/uczNzUjL3czM14yN3MTN))",
+              "example": "shtcnmBA*****yGehy8"
             },
             "sheet_id": {
               "type": "string",

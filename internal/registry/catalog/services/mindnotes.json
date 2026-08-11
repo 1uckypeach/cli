@@ -17,7 +17,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Mindnote唯一标识"
+              "description": "Mindnote唯一标识",
+              "example": "D05hbLa3dm08GbnerjwbvNmUcgf"
             },
             "user_id_type": {
               "type": "string",
@@ -52,7 +53,8 @@
             "client_token": {
               "type": "string",
               "description": "操作的唯一标识，更新请求中使用此值表示幂等的进行此次更新",
-              "required": false
+              "required": false,
+              "example": "fe599b60-450f-46ff-b2ef-9f6675625b97"
             },
             "nodes": {
               "type": "array",
@@ -223,7 +225,8 @@
                     "token": {
                       "type": "string",
                       "description": "图片token",
-                      "required": true
+                      "required": true,
+                      "example": "img_abc123"
                     }
                   }
                 },
@@ -284,7 +287,8 @@
             "client_token": {
               "type": "string",
               "description": "操作的唯一标识，更新请求中使用此值表示幂等的进行此次更新",
-              "required": false
+              "required": false,
+              "example": "fe599b60-450f-46ff-b2ef-9f6675625b97"
             },
             "ids": {
               "type": "array",
@@ -313,7 +317,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Mindnote唯一标识"
+              "description": "Mindnote唯一标识",
+              "example": "D05hbLa3dm08GbnerjwbvNmUcgf"
             },
             "user_id_type": {
               "type": "string",
@@ -514,7 +519,8 @@
                     "token": {
                       "type": "string",
                       "description": "图片token",
-                      "required": true
+                      "required": true,
+                      "example": "img_abc123"
                     }
                   }
                 },

@@ -158,6 +158,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -190,6 +191,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -276,7 +278,8 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups"
+              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups",
+              "example": "eVQrYzJBNDNONlk4VFZBZVlSdzlKdFJ4bVVHVExENDNKVHoxaVdiVnViQT0="
             },
             "owner_type": {
               "type": "string",
@@ -311,7 +314,8 @@
             "page_token": {
               "type": "string",
               "description": "Page identifier, when has_more is true, a new page_token will also be returned. Otherwise, page_token will not be returned",
-              "required": false
+              "required": false,
+              "example": "eVQrYzJBNDNONlk4VFZBZVlSdzlKdFJ4bVVHVExENDNKVHoxaVdiVnViQT0="
             },
             "items": {
               "type": "array",
@@ -455,7 +459,8 @@
               "type": "string",
               "location": "query",
               "required": true,
-              "description": "User ID. The ID type must match the value of the user_id_type parameter"
+              "description": "User ID. The ID type must match the value of the user_id_type parameter",
+              "example": "ou_3bbe8a09c20e89cce9bff989ed840674"
             },
             "user_id_type": {
               "type": "string",
@@ -497,7 +502,8 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups"
+              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups",
+              "example": "eVQrYzJBNDNONlk4VFZBZVlSdzlKdFJ4bVVHVExENDNKVHoxaVdiVnViQT0="
             }
           },
           "responseBody": {
@@ -567,6 +573,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -758,6 +765,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -984,6 +992,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -1295,7 +1304,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Identify department by department_id. The ID type must match the value of the department_id_type parameter"
+              "description": "Identify department by department_id. The ID type must match the value of the department_id_type parameter",
+              "example": "od_3bbe8a09c20e89cce9bff989ed840674"
             },
             "page_size": {
               "type": "integer",
@@ -1311,7 +1321,8 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups"
+              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups",
+              "example": "eVQrYzJBNDNONlk4VFZBZVlSdzlKdFJ4bVVHVExENDNKVHoxaVdiVnViQT0="
             },
             "user_id_type": {
               "type": "string",
@@ -1375,7 +1386,8 @@
             "page_token": {
               "type": "string",
               "description": "Page identifier, when has_more is true, a new page_token will also be returned. Otherwise, page_token will not be returned",
-              "required": false
+              "required": false,
+              "example": "eVQrYzJBNDNONlk4VFZBZVlSdzlKdFJ4bVVHVExENDNKVHoxaVdiVnViQT0="
             },
             "items": {
               "type": "array",
@@ -1425,6 +1437,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -1772,6 +1785,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -2112,6 +2126,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -2359,6 +2374,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -2548,6 +2564,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -2887,6 +2904,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -3096,6 +3114,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -3303,6 +3322,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -3604,6 +3624,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -3783,7 +3804,8 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups"
+              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups",
+              "example": "eVQrYzJBNDNONlk4VFZBZVlSdzlKdFJ4bVVHVExENDNKVHoxaVdiVnViQT0="
             },
             "align_type": {
               "type": "string",
@@ -3868,7 +3890,8 @@
             "page_token": {
               "type": "string",
               "description": "Page identifier, when has_more is true, a new page_token will also be returned. Otherwise, page_token will not be returned",
-              "required": false
+              "required": false,
+              "example": "eVQrYzJBNDNONlk4VFZBZVlSdzlKdFJ4bVVHVExENDNKVHoxaVdiVnViQT0="
             },
             "items": {
               "type": "array",
@@ -3918,6 +3941,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -3950,6 +3974,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -4131,6 +4156,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"
@@ -4493,7 +4519,8 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups"
+              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups",
+              "example": "eVQrYzJBNDNONlk4VFZBZVlSdzlKdFJ4bVVHVExENDNKVHoxaVdiVnViQT0="
             },
             "user_id_type": {
               "type": "string",
@@ -4557,7 +4584,8 @@
             "page_token": {
               "type": "string",
               "description": "Page identifier, when has_more is true, a new page_token will also be returned. Otherwise, page_token will not be returned",
-              "required": false
+              "required": false,
+              "example": "eVQrYzJBNDNONlk4VFZBZVlSdzlKdFJ4bVVHVExENDNKVHoxaVdiVnViQT0="
             },
             "items": {
               "type": "array",
@@ -4607,6 +4635,7 @@
                       "type": "string",
                       "description": "Employee ID",
                       "required": false,
+                      "example": "ou_3bbe8a09c20e89cce9bff989ed840674",
                       "annotations": [
                         "open:x_user_id",
                         "tolerate_idtrans_failure"

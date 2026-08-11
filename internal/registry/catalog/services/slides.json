@@ -22,7 +22,8 @@
                 "presentation_id": {
                   "type": "string",
                   "description": "演示文稿的ID",
-                  "required": false
+                  "required": false,
+                  "example": "S7YwsFIGIlnS2qdscKDc1Yabcef"
                 },
                 "revision_id": {
                   "type": "integer",
@@ -93,7 +94,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "演示文稿唯一标识"
+              "description": "演示文稿唯一标识",
+              "example": "zTqAwsEb4clrjOLd3drAcNZabcef"
             },
             "revision_id": {
               "type": "integer",
@@ -125,7 +127,8 @@
                 "presentation_id": {
                   "type": "string",
                   "description": "演示文稿的ID",
-                  "required": false
+                  "required": false,
+                  "example": "S7YwsFIGIlnS2qdscKDc1Yabcef"
                 },
                 "revision_id": {
                   "type": "integer",
@@ -168,13 +171,15 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "演示文稿唯一标识"
+              "description": "演示文稿唯一标识",
+              "example": "zTqAwsEb4clrjOLd3drAcNZabcef"
             },
             "page_token": {
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "分页游标"
+              "description": "分页游标",
+              "example": "MTY4NzI1MjQwMDAwMA=="
             },
             "page_size": {
               "type": "integer",
@@ -253,7 +258,8 @@
             "page_token": {
               "type": "string",
               "description": "下一页分页游标",
-              "required": false
+              "required": false,
+              "example": "MTY4NzI1MjQwMDAwMQ=="
             }
           },
           "scopes": [
@@ -276,7 +282,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "演示文稿唯一标识"
+              "description": "演示文稿唯一标识",
+              "example": "zTqAwsEb4clrjOLd3drAcNZabcef"
             }
           },
           "parameterOrder": [
@@ -364,7 +371,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "演示文稿唯一标识"
+              "description": "演示文稿唯一标识",
+              "example": "zTqAwsEb4clrjOLd3drAcNZabcef"
             },
             "task_id": {
               "type": "string",
@@ -444,7 +452,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "演示文稿唯一标识"
+              "description": "演示文稿唯一标识",
+              "example": "zTqAwsEb4clrjOLd3drAcNZabcef"
             },
             "revision_id": {
               "type": "integer",
@@ -491,14 +500,16 @@
             "before_slide_id": {
               "type": "string",
               "description": "插入到指定页面之前，为空时插入到末尾",
-              "required": false
+              "required": false,
+              "example": "slidecn20m4XJ1hJXXxXXX"
             }
           },
           "responseBody": {
             "slide_id": {
               "type": "string",
               "description": "新创建页面的唯一标识",
-              "required": false
+              "required": false,
+              "example": "slidecn20m4XJ1hJXXxXXX"
             },
             "revision_id": {
               "type": "integer",
@@ -535,13 +546,15 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "演示文稿唯一标识"
+              "description": "演示文稿唯一标识",
+              "example": "zTqAwsEb4clrjOLd3drAcNZabcef"
             },
             "slide_id": {
               "type": "string",
               "location": "query",
               "required": true,
-              "description": "页面唯一标识"
+              "description": "页面唯一标识",
+              "example": "slidecn20m4XJ1hJXXxXXX"
             },
             "revision_id": {
               "type": "integer",
@@ -594,13 +607,15 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "演示文稿唯一标识"
+              "description": "演示文稿唯一标识",
+              "example": "zTqAwsEb4clrjOLd3drAcNZabcef"
             },
             "slide_id": {
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "页面唯一标识"
+              "description": "页面唯一标识",
+              "example": "slidecn20m4XJ1hJXXxXXX"
             },
             "revision_id": {
               "type": "integer",
@@ -673,13 +688,15 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "演示文稿唯一标识"
+              "description": "演示文稿唯一标识",
+              "example": "zTqAwsEb4clrjOLd3drAcNZabcef"
             },
             "slide_id": {
               "type": "string",
               "location": "query",
               "required": true,
-              "description": "页面唯一标识"
+              "description": "页面唯一标识",
+              "example": "slidecn20m4XJ1hJXXxXXX"
             },
             "revision_id": {
               "type": "integer",
@@ -805,7 +822,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "演示文稿唯一标识"
+              "description": "演示文稿唯一标识",
+              "example": "zTqAwsEb4clrjOLd3drAcNZabcef"
             }
           },
           "parameterOrder": [

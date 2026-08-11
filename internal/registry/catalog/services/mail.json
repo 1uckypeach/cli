@@ -82,7 +82,8 @@
                 "email": {
                   "type": "string",
                   "description": "email address",
-                  "required": false
+                  "required": false,
+                  "example": "user@example.com"
                 },
                 "display_name": {
                   "type": "string",
@@ -489,7 +490,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "A scheduled email ID has been set"
+              "description": "A scheduled email ID has been set",
+              "example": "268dce11-85f7-427d-8756-6be3abc850fd"
             }
           },
           "parameterOrder": [
@@ -527,7 +529,8 @@
             "raw": {
               "type": "string",
               "description": "Base64url-encoded full RFC 5822 (EML) message content, including all headers (Subject, From, To, Cc, Bcc, etc.) and message body (MIME structure with internal connection pictures and attachments). The original EML size cannot exceed 37.5MB",
-              "required": false
+              "required": false,
+              "example": "Q29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PSJ1cy1hc2NpaSIKTUlNRS1WZXJzaW9uOiAxLjAKQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogN2JpdAp0bzogInRvIiA8dG9AeHh4Lnh4Pgpmcm9tOiAiZnJvbSIgPGZyb21AeHh4Lnh4PgpzdWJqZWN0OiB0aGlzIGlzIGEgc3ViamVjdAoKdGhpcyBpcyB0aGUgbWVzc2FnZSBib2R5Lg"
             }
           },
           "responseBody": {
@@ -540,7 +543,8 @@
                 "id": {
                   "type": "string",
                   "description": "Draft ID",
-                  "required": false
+                  "required": false,
+                  "example": "268dce11-85f7-427d-8756-6be3abc850fd"
                 },
                 "message": {
                   "type": "object",
@@ -552,6 +556,7 @@
                       "type": "string",
                       "description": "MIME mail data, based on base64url encoding",
                       "required": false,
+                      "example": "Q29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PSJ1cy1hc2NpaSIKTUlNRS1WZXJzaW9uOiAxLjAKQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogN2JpdAp0bzogInRvIiA8dG9AeHh4Lnh4Pgpmcm9tOiAiZnJvbSIgPGZyb21AeHh4Lnh4PgpzdWJqZWN0OiB0aGlzIGlzIGEgc3ViamVjdAoKdGhpcyBpcyB0aGUgbWVzc2FnZSBib2R5Lg",
                       "annotations": [
                         "writeOnly"
                       ]
@@ -604,7 +609,8 @@
                     "smtp_message_id": {
                       "type": "string",
                       "description": "RFC protocol id",
-                      "required": false
+                      "required": false,
+                      "example": "message-id@example.com"
                     },
                     "message_id": {
                       "type": "string",
@@ -620,7 +626,8 @@
                     "body_plain_text": {
                       "type": "string",
                       "description": "Body plain text (base64url)",
-                      "required": false
+                      "required": false,
+                      "example": "SGVsbG8sIHRoaXMgaXMgYSBkcmFmdCBlbWFpbC4"
                     },
                     "thread_id": {
                       "type": "string",
@@ -704,6 +711,7 @@
                       "type": "string",
                       "description": "日历邀请内容(base64url)。当邮件包含标准RFC 5545格式的日历邀请时返回，解码后为ICS文本",
                       "required": false,
+                      "example": "QkVHSU46VkNBTEVOREFSDQpWRVJTSU9OOjIuMA0KLi4uDQpFTkQ6VkNBTEVOREFS",
                       "annotations": [
                         "lark:data:message.body"
                       ]
@@ -715,7 +723,8 @@
             "reference": {
               "type": "string",
               "description": "草稿预览链接",
-              "required": false
+              "required": false,
+              "example": "https://{domain}/mail?draftId=MWFhMjA5NzctYTE5OC00ZDcxLTkxYTctNjY1MDVjNDc4MmJm&scene=send-preview&mailbox=user%40company.com"
             }
           },
           "scopes": [
@@ -745,7 +754,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Draft ID, which can be obtained through the list draft list interface"
+              "description": "Draft ID, which can be obtained through the list draft list interface",
+              "example": "268dce11-85f7-427d-8756-6be3abc850fd"
             }
           },
           "parameterOrder": [
@@ -779,7 +789,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Draft ID. You can obtain it from the List drafts API"
+              "description": "Draft ID. You can obtain it from the List drafts API",
+              "example": "268dce11-85f7-427d-8756-6be3abc850fd"
             },
             "format": {
               "type": "string",
@@ -822,7 +833,8 @@
                 "id": {
                   "type": "string",
                   "description": "Draft ID",
-                  "required": false
+                  "required": false,
+                  "example": "268dce11-85f7-427d-8756-6be3abc850fd"
                 },
                 "message": {
                   "type": "object",
@@ -860,7 +872,8 @@
                     "body_html": {
                       "type": "string",
                       "description": "Body (base64url)",
-                      "required": false
+                      "required": false,
+                      "example": "PHA-SGVsbG8sIHRoaXMgaXMgYSBkcmFmdCBlbWFpbC48L3A-"
                     },
                     "internal_date": {
                       "type": "string",
@@ -877,7 +890,8 @@
                     "smtp_message_id": {
                       "type": "string",
                       "description": "RFC protocol id",
-                      "required": false
+                      "required": false,
+                      "example": "message-id@example.com"
                     },
                     "message_id": {
                       "type": "string",
@@ -893,7 +907,8 @@
                     "body_plain_text": {
                       "type": "string",
                       "description": "Body plain text (base64url)",
-                      "required": false
+                      "required": false,
+                      "example": "SGVsbG8sIHRoaXMgaXMgYSBkcmFmdCBlbWFpbC4"
                     },
                     "thread_id": {
                       "type": "string",
@@ -977,6 +992,7 @@
                       "type": "string",
                       "description": "日历邀请内容(base64url)。当邮件包含标准RFC 5545格式的日历邀请时返回，解码后为ICS文本",
                       "required": false,
+                      "example": "QkVHSU46VkNBTEVOREFSDQpWRVJTSU9OOjIuMA0KLi4uDQpFTkQ6VkNBTEVOREFS",
                       "annotations": [
                         "lark:data:message.body"
                       ]
@@ -1022,7 +1038,8 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups"
+              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups",
+              "example": "xxx"
             }
           },
           "parameterOrder": [
@@ -1037,14 +1054,16 @@
                 "id": {
                   "type": "string",
                   "description": "Draft ID",
-                  "required": false
+                  "required": false,
+                  "example": "268dce11-85f7-427d-8756-6be3abc850fd"
                 }
               }
             },
             "page_token": {
               "type": "string",
               "description": "分页标记，当 has_more 为 true 时，会同时返回新的 page_token，否则不返回 page_token",
-              "required": false
+              "required": false,
+              "example": "xxx"
             },
             "has_more": {
               "type": "boolean",
@@ -1079,7 +1098,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Draft ID, which can be obtained through the Create Draft, Update Draft, or List Draft List interfaces"
+              "description": "Draft ID, which can be obtained through the Create Draft, Update Draft, or List Draft List interfaces",
+              "example": "268dce11-85f7-427d-8756-6be3abc850fd"
             }
           },
           "parameterOrder": [
@@ -1176,7 +1196,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Draft ID, which can be obtained by creating a draft or listing a draft interface"
+              "description": "Draft ID, which can be obtained by creating a draft or listing a draft interface",
+              "example": "268dce11-85f7-427d-8756-6be3abc850fd"
             }
           },
           "parameterOrder": [
@@ -1187,7 +1208,8 @@
             "raw": {
               "type": "string",
               "description": "Base64url-encoded full RFC 5822 (EML) email content, which replaces the original draft content as a whole. The original EML size cannot exceed 37.5MB",
-              "required": true
+              "required": true,
+              "example": "Q29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PSJ1cy1hc2NpaSIKTUlNRS1WZXJzaW9uOiAxLjAKQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogN2JpdAp0bzogInRvIiA8dG9AeHh4Lnh4Pgpmcm9tOiAiZnJvbSIgPGZyb21AeHh4Lnh4PgpzdWJqZWN0OiB0aGlzIGlzIGEgc3ViamVjdAoKdGhpcyBpcyB0aGUgbWVzc2FnZSBib2R5Lg"
             }
           },
           "responseBody": {
@@ -1200,7 +1222,8 @@
                 "id": {
                   "type": "string",
                   "description": "Draft ID",
-                  "required": false
+                  "required": false,
+                  "example": "268dce11-85f7-427d-8756-6be3abc850fd"
                 },
                 "message": {
                   "type": "object",
@@ -1212,6 +1235,7 @@
                       "type": "string",
                       "description": "MIME mail data, based on base64url encoding",
                       "required": false,
+                      "example": "Q29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PSJ1cy1hc2NpaSIKTUlNRS1WZXJzaW9uOiAxLjAKQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogN2JpdAp0bzogInRvIiA8dG9AeHh4Lnh4Pgpmcm9tOiAiZnJvbSIgPGZyb21AeHh4Lnh4PgpzdWJqZWN0OiB0aGlzIGlzIGEgc3ViamVjdAoKdGhpcyBpcyB0aGUgbWVzc2FnZSBib2R5Lg",
                       "annotations": [
                         "writeOnly"
                       ]
@@ -1246,7 +1270,8 @@
                     "body_html": {
                       "type": "string",
                       "description": "Body (base64url)",
-                      "required": false
+                      "required": false,
+                      "example": "PHA-SGVsbG8sIHRoaXMgaXMgYSBkcmFmdCBlbWFpbC48L3A-"
                     },
                     "internal_date": {
                       "type": "string",
@@ -1263,7 +1288,8 @@
                     "smtp_message_id": {
                       "type": "string",
                       "description": "RFC protocol id",
-                      "required": false
+                      "required": false,
+                      "example": "message-id@example.com"
                     },
                     "message_id": {
                       "type": "string",
@@ -1279,7 +1305,8 @@
                     "body_plain_text": {
                       "type": "string",
                       "description": "Body plain text (base64url)",
-                      "required": false
+                      "required": false,
+                      "example": "SGVsbG8sIHRoaXMgaXMgYSBkcmFmdCBlbWFpbC4"
                     },
                     "thread_id": {
                       "type": "string",
@@ -1363,6 +1390,7 @@
                       "type": "string",
                       "description": "日历邀请内容(base64url)。当邮件包含标准RFC 5545格式的日历邀请时返回，解码后为ICS文本",
                       "required": false,
+                      "example": "QkVHSU46VkNBTEVOREFSDQpWRVJTSU9OOjIuMA0KLi4uDQpFTkQ6VkNBTEVOREFS",
                       "annotations": [
                         "lark:data:message.body"
                       ]
@@ -1374,7 +1402,8 @@
             "reference": {
               "type": "string",
               "description": "草稿预览链接",
-              "required": false
+              "required": false,
+              "example": "https://{domain}/mail?draftId=MWFhMjA5NzctYTE5OC00ZDcxLTkxYTctNjY1MDVjNDc4MmJm&scene=send-preview&mailbox=user%40company.com"
             }
           },
           "scopes": [
@@ -1704,6 +1733,7 @@
               "description": "Complete information about the mail folder, including folder ID, name, attribution level, type, and unread statistics",
               "required": false,
               "ref": "folder",
+              "example": "{\"id\":\"fld_1234567890abcdef\",\"name\":\"收件箱\",\"parent_folder_id\":\"0\",\"folder_type\":1,\"unread_message_count\":12,\"unread_thread_count\":8}",
               "properties": {
                 "id": {
                   "type": "string",
@@ -2547,7 +2577,8 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups"
+              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups",
+              "example": "xxx"
             }
           },
           "parameterOrder": [
@@ -2630,7 +2661,8 @@
             "page_token": {
               "type": "string",
               "description": "分页标记，当 has_more 为 true 时，会同时返回新的 page_token，否则不返回 page_token",
-              "required": false
+              "required": false,
+              "example": "xxx"
             },
             "has_more": {
               "type": "boolean",
@@ -2757,7 +2789,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Message ID, the method for obtaining ID is shown in [List Emails](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/mail-v1/user_mailbox-message/list)"
+              "description": "Message ID, the method for obtaining ID is shown in [List Emails](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/mail-v1/user_mailbox-message/list)",
+              "example": "TUlHc1NoWFhJMXgyUi9VZTNVL3h6UnlkRUdzPQ=="
             },
             "attachment_ids": {
               "type": "list",
@@ -2779,12 +2812,14 @@
                 "attachment_id": {
                   "type": "string",
                   "description": "Attachment ID",
-                  "required": false
+                  "required": false,
+                  "example": "[\"YQqYbQHoQoDqXjxWKhJbo8Gicjf\"]"
                 },
                 "download_url": {
                   "type": "string",
                   "description": "Download link",
-                  "required": false
+                  "required": false,
+                  "example": "https://api-drive-stream.blmpb.com/space/api/box/stream/download/authcode/?code=YTZiZGViMDg3NzRjMzEwOWRkMGI1MTJlYmQxYTFmYTBfZTA5ZjZiOWU4NDYzMzkxMDUyOTIxMzBmNTVjMjAyZTFfSUQ6NzI4MTE4Nzg1OTE5NTc3Mjk0N18xNjk1ODg4NjQyOjE2OTU4ODg3MDJfVjM"
                 }
               }
             },
@@ -2801,12 +2836,14 @@
                 "attachment_id": {
                   "type": "string",
                   "description": "附件 ID",
-                  "required": false
+                  "required": false,
+                  "example": "YQqYbQHoQoDqXjxWKhJbo8Gicjf"
                 },
                 "reason": {
                   "type": "string",
                   "description": "失败原因",
-                  "required": false
+                  "required": false,
+                  "example": "attachment_not_found"
                 }
               }
             }
@@ -2885,6 +2922,7 @@
                   "type": "string",
                   "description": "MIME mail data, based on base64url encoding",
                   "required": false,
+                  "example": "Q29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PSJ1cy1hc2NpaSIKTUlNRS1WZXJzaW9uOiAxLjAKQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogN2JpdAp0bzogInRvIiA8dG9AeHh4Lnh4Pgpmcm9tOiAiZnJvbSIgPGZyb21AeHh4Lnh4PgpzdWJqZWN0OiB0aGlzIGlzIGEgc3ViamVjdAoKdGhpcyBpcyB0aGUgbWVzc2FnZSBib2R5Lg",
                   "annotations": [
                     "writeOnly"
                   ]
@@ -2991,6 +3029,7 @@
                   "type": "string",
                   "description": "Body (base64url)",
                   "required": false,
+                  "example": "PHA-SGVsbG8sIHRoaXMgaXMgYSBkcmFmdCBlbWFpbC48L3A-",
                   "annotations": [
                     "lark:data:message.body"
                   ]
@@ -3010,7 +3049,8 @@
                 "smtp_message_id": {
                   "type": "string",
                   "description": "RFC protocol id",
-                  "required": false
+                  "required": false,
+                  "example": "message-id@example.com"
                 },
                 "message_id": {
                   "type": "string",
@@ -3045,6 +3085,7 @@
                       "type": "string",
                       "description": "Attachment ID",
                       "required": false,
+                      "example": "YQqYbQHoQoDqXjxWKhJbo8Gicjf",
                       "annotations": [
                         "readOnly"
                       ]
@@ -3093,6 +3134,7 @@
                   "type": "string",
                   "description": "正文纯文本(base64url)",
                   "required": false,
+                  "example": "SGVsbG8sIHRoaXMgaXMgYSBkcmFmdCBlbWFpbC4",
                   "annotations": [
                     "lark:data:message.body"
                   ]
@@ -3334,6 +3376,7 @@
                   "type": "string",
                   "description": "日历邀请内容(base64url)。当邮件包含标准RFC 5545格式的日历邀请时返回，解码后为ICS文本",
                   "required": false,
+                  "example": "QkVHSU46VkNBTEVOREFSDQpWRVJTSU9OOjIuMA0KLi4uDQpFTkQ6VkNBTEVOREFS",
                   "annotations": [
                     "lark:data:message.body"
                   ]
@@ -3460,7 +3503,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Message ID, the method for obtaining ID is shown in [List Emails](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/mail-v1/user_mailbox-message/list)"
+              "description": "Message ID, the method for obtaining ID is shown in [List Emails](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/mail-v1/user_mailbox-message/list)",
+              "example": "TUlHc1NoWFhJMXgyUi9VZTNVL3h6UnlkRUdzPQ=="
             },
             "format": {
               "type": "string",
@@ -3603,6 +3647,7 @@
                   "type": "string",
                   "description": "Body (base64url)",
                   "required": false,
+                  "example": "PHA-SGVsbG8sIHRoaXMgaXMgYSBkcmFmdCBlbWFpbC48L3A-",
                   "annotations": [
                     "lark:data:message.body"
                   ]
@@ -3622,7 +3667,8 @@
                 "smtp_message_id": {
                   "type": "string",
                   "description": "RFC protocol id",
-                  "required": false
+                  "required": false,
+                  "example": "message-id@example.com"
                 },
                 "message_id": {
                   "type": "string",
@@ -3648,6 +3694,7 @@
                       "type": "string",
                       "description": "Attachment ID",
                       "required": false,
+                      "example": "YQqYbQHoQoDqXjxWKhJbo8Gicjf",
                       "annotations": [
                         "readOnly"
                       ]
@@ -3696,6 +3743,7 @@
                   "type": "string",
                   "description": "正文纯文本(base64url)",
                   "required": false,
+                  "example": "SGVsbG8sIHRoaXMgaXMgYSBkcmFmdCBlbWFpbC4",
                   "annotations": [
                     "lark:data:message.body"
                   ]
@@ -3937,6 +3985,7 @@
                   "type": "string",
                   "description": "日历邀请内容(base64url)。当邮件包含标准RFC 5545格式的日历邀请时返回，解码后为ICS文本",
                   "required": false,
+                  "example": "QkVHSU46VkNBTEVOREFSDQpWRVJTSU9OOjIuMA0KLi4uDQpFTkQ6VkNBTEVOREFS",
                   "annotations": [
                     "lark:data:message.body"
                   ]
@@ -3986,7 +4035,8 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups"
+              "description": "Page identifier. It is not filled in the first request, indicating traversal from the beginning; when there will be more groups, the new page_token will be returned at the same time, and the next traversal can use the page_token to get more groups",
+              "example": "xxx"
             },
             "folder_id": {
               "type": "string",
@@ -4022,7 +4072,8 @@
             "page_token": {
               "type": "string",
               "description": "分页标记，当 has_more 为 true 时，会同时返回新的 page_token，否则不返回 page_token",
-              "required": false
+              "required": false,
+              "example": "xxx"
             },
             "has_more": {
               "type": "boolean",
@@ -4235,7 +4286,8 @@
               "type": "string",
               "location": "path",
               "required": true,
-              "description": "Mail ID, which can be obtained by listing the mail interface"
+              "description": "Mail ID, which can be obtained by listing the mail interface",
+              "example": "NzR3Zkd5NGhBTS9NVkZnSklidDVGT3VoQmM4PQ=="
             }
           },
           "parameterOrder": [
@@ -5624,12 +5676,14 @@
                 "attachment_id": {
                   "type": "string",
                   "description": "Attachment ID",
-                  "required": false
+                  "required": false,
+                  "example": "[\"YQqYbQHoQoDqXjxWKhJbo8Gicjf\"]"
                 },
                 "download_url": {
                   "type": "string",
                   "description": "Download link",
-                  "required": false
+                  "required": false,
+                  "example": "https://api-drive-stream.blmpb.com/space/api/box/stream/download/authcode/?code=YTZiZGViMDg3NzRjMzEwOWRkMGI1MTJlYmQxYTFmYTBfZTA5ZjZiOWU4NDYzMzkxMDUyOTIxMzBmNTVjMjAyZTFfSUQ6NzI4MTE4Nzg1OTE5NTc3Mjk0N18xNjk1ODg4NjQyOjE2OTU4ODg3MDJfVjM"
                 }
               }
             },
@@ -5641,12 +5695,14 @@
                 "attachment_id": {
                   "type": "string",
                   "description": "附件 ID",
-                  "required": false
+                  "required": false,
+                  "example": "YQqYbQHoQoDqXjxWKhJbo8Gicjf"
                 },
                 "reason": {
                   "type": "string",
                   "description": "失败原因",
-                  "required": false
+                  "required": false,
+                  "example": "attachment_not_found"
                 }
               }
             }
@@ -5784,7 +5840,8 @@
                     "id": {
                       "type": "string",
                       "description": "附件 id（Drive file_key，用于引用 Drive medias 上传接口返回的 file_key）",
-                      "required": false
+                      "required": false,
+                      "example": "boxcnrHpsg1QDqXPrJXWPwbqsKh"
                     },
                     "attachment_type": {
                       "type": "integer",
@@ -5937,7 +5994,8 @@
                     "id": {
                       "type": "string",
                       "description": "附件 id（Drive file_key，用于引用 Drive medias 上传接口返回的 file_key）",
-                      "required": false
+                      "required": false,
+                      "example": "boxcnrHpsg1QDqXPrJXWPwbqsKh"
                     },
                     "attachment_type": {
                       "type": "integer",
@@ -6171,7 +6229,8 @@
                     "id": {
                       "type": "string",
                       "description": "附件 id（Drive file_key，用于引用 Drive medias 上传接口返回的 file_key）",
-                      "required": false
+                      "required": false,
+                      "example": "boxcnrHpsg1QDqXPrJXWPwbqsKh"
                     },
                     "attachment_type": {
                       "type": "integer",
@@ -6415,7 +6474,8 @@
                     "id": {
                       "type": "string",
                       "description": "附件 id（Drive file_key，用于引用 Drive medias 上传接口返回的 file_key）",
-                      "required": false
+                      "required": false,
+                      "example": "boxcnrHpsg1QDqXPrJXWPwbqsKh"
                     },
                     "attachment_type": {
                       "type": "integer",
@@ -6568,7 +6628,8 @@
                     "id": {
                       "type": "string",
                       "description": "附件 id（Drive file_key，用于引用 Drive medias 上传接口返回的 file_key）",
-                      "required": false
+                      "required": false,
+                      "example": "boxcnrHpsg1QDqXPrJXWPwbqsKh"
                     },
                     "attachment_type": {
                       "type": "integer",
@@ -6849,6 +6910,7 @@
                       "type": "string",
                       "description": "Body (base64url)",
                       "required": false,
+                      "example": "PHA-SGVsbG8sIHRoaXMgaXMgYSBkcmFmdCBlbWFpbC48L3A-",
                       "annotations": [
                         "lark:data:message.body"
                       ]
@@ -6868,7 +6930,8 @@
                     "smtp_message_id": {
                       "type": "string",
                       "description": "RFC protocol id",
-                      "required": false
+                      "required": false,
+                      "example": "message-id@example.com"
                     },
                     "message_id": {
                       "type": "string",
@@ -6888,6 +6951,7 @@
                       "type": "string",
                       "description": "正文纯文本(base64url)",
                       "required": false,
+                      "example": "SGVsbG8sIHRoaXMgaXMgYSBkcmFmdCBlbWFpbC4",
                       "annotations": [
                         "lark:data:message.body"
                       ]
@@ -6974,6 +7038,7 @@
                       "type": "string",
                       "description": "日历邀请内容(base64url)。当邮件包含标准RFC 5545格式的日历邀请时返回，解码后为ICS文本",
                       "required": false,
+                      "example": "QkVHSU46VkNBTEVOREFSDQpWRVJTSU9OOjIuMA0KLi4uDQpFTkQ6VkNBTEVOREFS",
                       "annotations": [
                         "lark:data:message.body"
                       ]
@@ -7019,7 +7084,8 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "分页标记，第一次请求不填，表示从头开始遍历；分页查询结果还有更多项时会同时返回新的 page_token，下次遍历可采用该 page_token 获取查询结果"
+              "description": "分页标记，第一次请求不填，表示从头开始遍历；分页查询结果还有更多项时会同时返回新的 page_token，下次遍历可采用该 page_token 获取查询结果",
+              "example": "xxx"
             },
             "folder_id": {
               "type": "string",
@@ -7069,7 +7135,8 @@
             "page_token": {
               "type": "string",
               "description": "分页标记，当 has_more 为 true 时，会同时返回新的 page_token，否则不返回 page_token",
-              "required": false
+              "required": false,
+              "example": "xxx"
             },
             "has_more": {
               "type": "boolean",

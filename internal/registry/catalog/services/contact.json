@@ -113,7 +113,8 @@
                     "icon_key": {
                       "type": "string",
                       "description": "状态图标标识",
-                      "required": false
+                      "required": false,
+                      "example": "GeneralInMeetingBusy"
                     },
                     "effective_interval": {
                       "type": "object",
