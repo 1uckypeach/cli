@@ -2,6 +2,86 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.0.86] - 2026-08-11
+
+### Features
+
+- **drive**: add wiki url/token support to +download and +preview (#2220)
+- report upload file events (#2093)
+- **slides**: normalize replace-slide part aliases (#2225)
+- **drive**: add +member-remove shortcut (#1994)
+- support shared vc live references and document context (#2249)
+- **wiki**: improve node creation and terminal errors (#2266)
+- **base**: require --fields on +table-create (#2221)
+- support bot identity (#2288)
+- **affordance**: support domain skill lists (#2291)
+- expose compact task fields (#2109)
+- **drive**: document copy workflow guidance (#2184)
+- add apps database sync shortcuts for Base-to-database import (#2251)
+- **apps**: add +user-id-convert shortcut for Miaoda↔Feishu ID conversion (#2270)
+- **slides**: inline slides reference docs into help output (#2181)
+
+### Bug Fixes
+
+- **wiki**: correct copy semantics and rename routing (#2238)
+- **slides**: move add-slide and delete-slide reference docs to cli/ directory (#2272)
+- **drive**: harden export and push failure recovery (#2279)
+- **wiki**: clarify resource permission recovery (#2281)
+
+### Documentation
+
+- improve agent contribution guidance (#2259)
+- document supported image formats in lark-slides media-upload (#2269)
+- **calendar**: clarify identity selection for scheduling (#2280)
+- **slides**: use built-in --jq in cli examples and fix workflow link labels (#2286)
+
+### Refactoring
+
+- reorganize lark slides skill references (#2207)
+
+### Misc
+
+- prune unsupported iconpark index entries (#2252)
+- verify release Go toolchain (#2256)
+
+## [v1.0.85] - 2026-08-07
+
+### Features
+
+- **event**: compile the catalog and harden the consume pipeline (#2142)
+- support bot identity for search shortcuts (#2194)
+- **drive**: add +update-title shortcut (#2172)
+- **sheets**: add ai formula verify (#1959)
+- **drive**: add +copy shortcut (#2129)
+- add frontend as third app type for apps domain (#2072)
+- **sheets**: harden error prescriptions, batch updates, and read workflows
+- **slides**: accept slide XML files in +create (#2197)
+- **docs**: add local authoring and resource workflows (#1921)
+- preflight export permission for downloads (#2218)
+
+### Bug Fixes
+
+- **base**: guide complete dashboard data recovery (#2144)
+- **apps**: isolate git credential helper chain for scoped repos (#2188)
+- **im**: unpin search identity after bot support landed (#2208)
+- **auth**: harden token refresh and concurrency handling (#2135)
+- **registry**: describe the attendance and mindnotes domains (#2210)
+- reject truncated wiki node tokens (#2203)
+- **apps**: detect the no-database failure by code or message (#2217)
+- **base**: improve field creation and query guidance (#2114)
+- **slides**: restore update-slide skill guidance (#2227)
+- align slides xml-get skill flags (#2237)
+- **im**: harden resource downloads with validated ranged streams (#2223)
+
+### Documentation
+
+- **skills**: sync lark whiteboard skill (#2215)
+- **doc**: clarify history edit time format (#1962)
+
+### Misc
+
+- feat (apps): add miaoda app collaborator management (#2230)
+
 ## [v1.0.84] - 2026-08-05
 
 ### Features
@@ -1822,6 +1902,8 @@ Bundled AI agent skills for intelligent assistance:
 - Bilingual documentation (English & Chinese).
 - CI/CD pipelines: linting, testing, coverage reporting, and automated releases.
 
+[v1.0.86]: https://github.com/larksuite/cli/releases/tag/v1.0.86
+[v1.0.85]: https://github.com/larksuite/cli/releases/tag/v1.0.85
 [v1.0.84]: https://github.com/larksuite/cli/releases/tag/v1.0.84
 [v1.0.83]: https://github.com/larksuite/cli/releases/tag/v1.0.83
 [v1.0.82]: https://github.com/larksuite/cli/releases/tag/v1.0.82

@@ -14,8 +14,8 @@ import (
 )
 
 // Shared helpers for the whole-page slides commands. They lived in
-// slides_replace_pages.go until that command was retired in favour of
-// +update-slide; +add-slide and +delete-slide still use them.
+// slides_replace_pages.go, which is now deprecated in favour of +update-slide
+// but still registered; +add-slide and +delete-slide still use them.
 
 // validateCompleteSlideXML checks that content is exactly one complete <slide>
 // document: a single <slide> root, nothing but whitespace outside it, and every
@@ -47,6 +47,16 @@ func validateCompleteSlideXML(content string) error {
 			depth++
 		case xml.EndElement:
 			depth--
+		case xml.ProcInst:
+			// An `<?xml ...?>` prolog copied from a generic XML sample is
+			// well-formed, so nothing local used to object and it reached the
+			// backend, which answers 4001000 buildSnNode once the presentation
+			// already exists. Every caller of this validator posts to
+			// .../slide, and that is the endpoint that rejects it. Measured, so
+			// it does not get "made consistent" later: .../slide/replace takes
+			// the same prolog and applies the content, which is why
+			// +update-slide and +replace-slide stay permissive.
+			return invalidSlideXMLStructureError("<?%s ...?> declaration is not supported; remove it so the document starts with <slide>", t.Target)
 		case xml.CharData:
 			if depth == 0 && strings.TrimSpace(string(t)) != "" {
 				return invalidSlideXMLStructureError("non-whitespace text outside root element")

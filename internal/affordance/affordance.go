@@ -31,8 +31,9 @@ type catalogCacheKey struct {
 }
 
 type serviceAffordance struct {
-	skill   string
-	methods map[string]json.RawMessage
+	skill        string
+	domainSkills []string
+	methods      map[string]json.RawMessage
 }
 
 // SetSource installs the markdown guidance tree (the top-level affordance/
@@ -75,6 +76,25 @@ func DomainSkill(service string) (string, bool) {
 	return skill, skill != ""
 }
 
+// DomainSkills returns the skill references configured for service-level help.
+// The canonical `> skill:` entry is first when present, followed by entries in
+// the domain's `## Skills` section. The returned slice is a copy so callers
+// cannot mutate the lazy parse cache.
+func DomainSkills(service string) ([]string, bool) {
+	mu.Lock()
+	defer mu.Unlock()
+	key := cacheKey(apicatalog.Catalog{}, service)
+	if !tried[key] {
+		tried[key] = true
+		byCatalog[key] = loadService(apicatalog.Catalog{}, service)
+	}
+	skills := byCatalog[key].domainSkills
+	if len(skills) == 0 {
+		return nil, false
+	}
+	return append([]string(nil), skills...), true
+}
+
 // cacheKey identifies the immutable Catalog instance that owns command-form
 // mapping. Catalog.Identity is fixed-size and O(1), so schema assembly does not
 // rebuild and hash the service's complete method mapping for every lookup.
@@ -82,6 +102,9 @@ func cacheKey(catalog apicatalog.Catalog, service string) catalogCacheKey {
 	return catalogCacheKey{catalog: catalog.Identity(), service: service}
 }
 
+// loadService parses a service's markdown guidance into its domain metadata
+// and per-method overlays, marshalling each method to JSON so downstream
+// callers keep the same wire shape.
 func loadService(catalog apicatalog.Catalog, service string) serviceAffordance {
 	if mdSource == nil {
 		return serviceAffordance{}
@@ -97,11 +120,15 @@ func loadService(catalog apicatalog.Catalog, service string) serviceAffordance {
 			methods[id] = b
 		}
 	}
-	return serviceAffordance{skill: parsed.skill, methods: methods}
+	return serviceAffordance{
+		skill:        parsed.skill,
+		domainSkills: parsed.domainSkills,
+		methods:      methods,
+	}
 }
 
 // commandFormResolver maps a method's command-form heading ("user_mailbox.messages
-// list") to its method id ("user_mailbox.message.list") via the registry's
+// list") to its method id ("user_mailbox.message.list") via the injected catalog's
 // authoritative resource↔id table. Resource names are irregularly pluralised
 // (message/messages, user_mailbox/user_mailboxes), so this cannot be guessed; the
 // space→dot fallback covers domains where the two already coincide.
