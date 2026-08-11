@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"unicode"
 
@@ -17,9 +16,9 @@ import (
 )
 
 const (
-	localDocFormat           = "xml"
-	localOOXMLFetchToolName  = "LocalOOXMLFetch"
-	localOOXMLUpdateToolName = "LocalOOXMLUpdate"
+	localDocFormat       = "xml"
+	localEditModeDocxXML = "docx_xml"
+	localEditModeOOXML   = "ooxml"
 )
 
 var validLocalUpdateCommands = map[string]bool{
@@ -73,7 +72,7 @@ var DocsLocalUpdate = common.Shortcut{
 		{Name: "content", Desc: "DocxXML content; explicitly pass an empty value where the command contract requires empty content", Input: []string{common.File, common.Stdin}},
 		{Name: "pattern", Desc: "unique text matched by str_replace"},
 		{Name: "block-id", Desc: "target block id; table commands require the table block id"},
-		{Name: "table-option", Desc: "single JSON object for table_* commands; the CLI serializes it into extra_param.table_option", Input: []string{common.File, common.Stdin}},
+		{Name: "table-option", Desc: "single JSON object for table_* commands", Input: []string{common.File, common.Stdin}},
 	},
 	Validate: validateLocalUpdate,
 	DryRun:   dryRunLocalUpdate,
@@ -145,7 +144,7 @@ func localDocumentID(runtime *common.RuntimeContext) (string, error) {
 }
 
 func localDocumentAPIPath(documentID, suffix string) string {
-	return fmt.Sprintf("/open-apis/docs_ai/v1/documents/%s%s", documentID, suffix)
+	return fmt.Sprintf("/open-apis/docs_ai/v1/local_documents/%s%s", documentID, suffix)
 }
 
 func validateLocalFetch(_ context.Context, runtime *common.RuntimeContext) error {
@@ -272,6 +271,7 @@ func buildLocalFetchBody(runtime *common.RuntimeContext) map[string]interface{} 
 
 	body := map[string]interface{}{
 		"format":        localDocFormat,
+		"edit_mode":     localEditModeDocxXML,
 		"export_option": exportOption,
 	}
 	if readOption := buildLocalReadOption(runtime); readOption != nil {
@@ -294,11 +294,11 @@ func buildLocalReadOption(runtime *common.RuntimeContext) map[string]interface{}
 		readOption["end_block_id"] = value
 	}
 	if depth := runtime.Int("max-depth"); depth >= 0 {
-		readOption["max_depth"] = strconv.Itoa(depth)
+		readOption["max_depth"] = depth
 	}
 	if scope == "page" {
-		readOption["start_page_index"] = strconv.Itoa(runtime.Int("start-page-index"))
-		readOption["end_page_index"] = strconv.Itoa(runtime.Int("end-page-index"))
+		readOption["start_page_index"] = runtime.Int("start-page-index")
+		readOption["end_page_index"] = runtime.Int("end-page-index")
 	}
 	return readOption
 }
@@ -443,8 +443,9 @@ func parseLocalTableOption(command, raw string) (map[string]interface{}, error) 
 
 func buildLocalUpdateBody(runtime *common.RuntimeContext) (map[string]interface{}, error) {
 	body := map[string]interface{}{
-		"format":  localDocFormat,
-		"command": runtime.Str("command"),
+		"format":    localDocFormat,
+		"edit_mode": localEditModeDocxXML,
+		"command":   runtime.Str("command"),
 	}
 	if runtime.Changed("content") {
 		body["content"] = runtime.Str("content")
@@ -460,11 +461,7 @@ func buildLocalUpdateBody(runtime *common.RuntimeContext) (map[string]interface{
 		if err != nil {
 			return nil, err
 		}
-		extraParam, err := json.Marshal(map[string]interface{}{"table_option": option})
-		if err != nil {
-			return nil, errs.NewInternalError(errs.SubtypeUnknown, "failed to serialize --table-option: %v", err).WithCause(err)
-		}
-		body["extra_param"] = string(extraParam)
+		body["table_option"] = option
 	}
 	injectDocsScene(runtime, body)
 	return body, nil
@@ -512,38 +509,33 @@ func validateOOXMLUpdate(_ context.Context, runtime *common.RuntimeContext) erro
 	return nil
 }
 
-func buildOOXMLBody(toolName string, fields map[string]interface{}) (map[string]interface{}, error) {
-	extra := map[string]interface{}{"ToolName": toolName}
-	for key, value := range fields {
-		extra[key] = value
+func buildOOXMLFetchBody() map[string]interface{} {
+	return map[string]interface{}{
+		"format":    localDocFormat,
+		"edit_mode": localEditModeOOXML,
 	}
-	raw, err := json.Marshal(extra)
-	if err != nil {
-		return nil, errs.NewInternalError(errs.SubtypeUnknown, "failed to serialize OOXML request: %v", err).WithCause(err)
+}
+
+func buildOOXMLUpdateBody(filePath string) map[string]interface{} {
+	return map[string]interface{}{
+		"format":    localDocFormat,
+		"edit_mode": localEditModeOOXML,
+		"file_path": filePath,
 	}
-	return map[string]interface{}{"extra_param": string(raw)}, nil
 }
 
 func dryRunOOXMLFetch(_ context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
 	documentID, _ := localDocumentID(runtime)
-	body, err := buildOOXMLBody(localOOXMLFetchToolName, nil)
-	if err != nil {
-		return common.NewDryRunAPI().Set("error", err.Error())
-	}
 	return common.NewDryRunAPI().
 		POST(localDocumentAPIPath(documentID, "/fetch")).
 		Desc("docs_ai: fetch local Word OOXML path").
-		Body(body).
+		Body(buildOOXMLFetchBody()).
 		Set("document_id", documentID)
 }
 
 func executeOOXMLFetch(_ context.Context, runtime *common.RuntimeContext) error {
 	documentID, _ := localDocumentID(runtime)
-	body, err := buildOOXMLBody(localOOXMLFetchToolName, nil)
-	if err != nil {
-		return err
-	}
-	data, err := doDocAPI(runtime, "POST", localDocumentAPIPath(documentID, "/fetch"), body)
+	data, err := doDocAPI(runtime, "POST", localDocumentAPIPath(documentID, "/fetch"), buildOOXMLFetchBody())
 	if err != nil {
 		return err
 	}
@@ -553,28 +545,16 @@ func executeOOXMLFetch(_ context.Context, runtime *common.RuntimeContext) error 
 
 func dryRunOOXMLUpdate(_ context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
 	documentID, _ := localDocumentID(runtime)
-	body, err := buildOOXMLBody(localOOXMLUpdateToolName, map[string]interface{}{
-		"file_path": runtime.Str("file-path"),
-	})
-	if err != nil {
-		return common.NewDryRunAPI().Set("error", err.Error())
-	}
 	return common.NewDryRunAPI().
 		PUT(localDocumentAPIPath(documentID, "")).
 		Desc("docs_ai: refresh local Word from OOXML path").
-		Body(body).
+		Body(buildOOXMLUpdateBody(runtime.Str("file-path"))).
 		Set("document_id", documentID)
 }
 
 func executeOOXMLUpdate(_ context.Context, runtime *common.RuntimeContext) error {
 	documentID, _ := localDocumentID(runtime)
-	body, err := buildOOXMLBody(localOOXMLUpdateToolName, map[string]interface{}{
-		"file_path": runtime.Str("file-path"),
-	})
-	if err != nil {
-		return err
-	}
-	data, err := doDocAPI(runtime, "PUT", localDocumentAPIPath(documentID, ""), body)
+	data, err := doDocAPI(runtime, "PUT", localDocumentAPIPath(documentID, ""), buildOOXMLUpdateBody(runtime.Str("file-path")))
 	if err != nil {
 		return err
 	}

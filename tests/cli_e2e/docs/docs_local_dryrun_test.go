@@ -41,15 +41,16 @@ func TestDocsLocalShortcutsDryRun(t *testing.T) {
 				"--dry-run",
 			},
 			wantMethod: "POST",
-			wantURL:    "/open-apis/docs_ai/v1/documents/doccnLocalDryRun/fetch",
+			wantURL:    "/open-apis/docs_ai/v1/local_documents/doccnLocalDryRun/fetch",
 			assertBody: func(t *testing.T, body map[string]interface{}) {
 				t.Helper()
 				require.Equal(t, "xml", body["format"])
+				require.Equal(t, "docx_xml", body["edit_mode"])
 				require.NotContains(t, body, "extra_param")
 				readOption := body["read_option"].(map[string]interface{})
 				require.Equal(t, "page", readOption["read_mode"])
-				require.Equal(t, "1", readOption["start_page_index"])
-				require.Equal(t, "2", readOption["end_page_index"])
+				require.EqualValues(t, 1, readOption["start_page_index"])
+				require.EqualValues(t, 2, readOption["end_page_index"])
 			},
 		},
 		{
@@ -63,26 +64,26 @@ func TestDocsLocalShortcutsDryRun(t *testing.T) {
 				"--dry-run",
 			},
 			wantMethod: "PUT",
-			wantURL:    "/open-apis/docs_ai/v1/documents/doccnLocalDryRun",
+			wantURL:    "/open-apis/docs_ai/v1/local_documents/doccnLocalDryRun",
 			assertBody: func(t *testing.T, body map[string]interface{}) {
 				t.Helper()
 				require.Equal(t, "xml", body["format"])
+				require.Equal(t, "docx_xml", body["edit_mode"])
 				require.Equal(t, "table_merge_cells", body["command"])
-				var extra map[string]interface{}
-				require.NoError(t, json.Unmarshal([]byte(body["extra_param"].(string)), &extra))
-				require.Equal(t, map[string]interface{}{"range": "A1:C3"}, extra["table_option"])
+				require.Equal(t, map[string]interface{}{"range": "A1:C3"}, body["table_option"])
+				require.NotContains(t, body, "extra_param")
 			},
 		},
 		{
 			name:       "ooxml fetch",
 			args:       []string{"docs", "+ooxml_fetch", "--doc", "doccnLocalDryRun", "--dry-run"},
 			wantMethod: "POST",
-			wantURL:    "/open-apis/docs_ai/v1/documents/doccnLocalDryRun/fetch",
+			wantURL:    "/open-apis/docs_ai/v1/local_documents/doccnLocalDryRun/fetch",
 			assertBody: func(t *testing.T, body map[string]interface{}) {
 				t.Helper()
-				var extra map[string]interface{}
-				require.NoError(t, json.Unmarshal([]byte(body["extra_param"].(string)), &extra))
-				require.Equal(t, "LocalOOXMLFetch", extra["ToolName"])
+				require.Equal(t, "xml", body["format"])
+				require.Equal(t, "ooxml", body["edit_mode"])
+				require.NotContains(t, body, "extra_param")
 			},
 		},
 		{
@@ -94,13 +95,13 @@ func TestDocsLocalShortcutsDryRun(t *testing.T) {
 				"--dry-run",
 			},
 			wantMethod: "PUT",
-			wantURL:    "/open-apis/docs_ai/v1/documents/doccnLocalDryRun",
+			wantURL:    "/open-apis/docs_ai/v1/local_documents/doccnLocalDryRun",
 			assertBody: func(t *testing.T, body map[string]interface{}) {
 				t.Helper()
-				var extra map[string]interface{}
-				require.NoError(t, json.Unmarshal([]byte(body["extra_param"].(string)), &extra))
-				require.Equal(t, "LocalOOXMLUpdate", extra["ToolName"])
-				require.Equal(t, "/tmp/edited.docx", extra["file_path"])
+				require.Equal(t, "xml", body["format"])
+				require.Equal(t, "ooxml", body["edit_mode"])
+				require.Equal(t, "/tmp/edited.docx", body["file_path"])
+				require.NotContains(t, body, "extra_param")
 			},
 		},
 	}

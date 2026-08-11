@@ -5,7 +5,6 @@ package doc
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 
@@ -60,6 +59,9 @@ func TestBuildLocalFetchBodyKeepsOnlineFieldsOut(t *testing.T) {
 		t.Fatalf("validateLocalFetch() error = %v", err)
 	}
 	body := buildLocalFetchBody(runtime)
+	if got := body["edit_mode"]; got != localEditModeDocxXML {
+		t.Fatalf("edit_mode = %#v, want %q", got, localEditModeDocxXML)
+	}
 	if _, ok := body["extra_param"]; ok {
 		t.Fatalf("local fetch must not include online extra_param: %#v", body)
 	}
@@ -85,15 +87,15 @@ func TestBuildLocalFetchBodyPageRange(t *testing.T) {
 		t.Fatalf("validateLocalFetch() error = %v", err)
 	}
 	readOption := buildLocalFetchBody(runtime)["read_option"].(map[string]interface{})
-	if got := readOption["start_page_index"]; got != "1" {
+	if got := readOption["start_page_index"]; got != 1 {
 		t.Fatalf("start_page_index = %#v, want 1", got)
 	}
-	if got := readOption["end_page_index"]; got != "2" {
+	if got := readOption["end_page_index"]; got != 2 {
 		t.Fatalf("end_page_index = %#v, want 2", got)
 	}
 }
 
-func TestBuildLocalUpdateBodySerializesTableOptionOnce(t *testing.T) {
+func TestBuildLocalUpdateBodyUsesTopLevelTableOption(t *testing.T) {
 	t.Parallel()
 	runtime := newLocalUpdateTestRuntime(t, map[string]string{
 		"command":      "table_delete_cols",
@@ -107,13 +109,12 @@ func TestBuildLocalUpdateBodySerializesTableOptionOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildLocalUpdateBody() error = %v", err)
 	}
-	var extra map[string]map[string]interface{}
-	if err := json.Unmarshal([]byte(body["extra_param"].(string)), &extra); err != nil {
-		t.Fatalf("decode extra_param: %v", err)
-	}
-	tableOption := extra["table_option"]
+	tableOption := body["table_option"].(map[string]interface{})
 	if tableOption["column_start_index"] != "B" || tableOption["column_end_index"] != "D" {
 		t.Fatalf("table_option = %#v", tableOption)
+	}
+	if _, ok := body["extra_param"]; ok {
+		t.Fatalf("table_option must not be packed into extra_param: %#v", body)
 	}
 }
 
@@ -132,6 +133,9 @@ func TestBuildLocalUpdateBodyPreservesAppendCommand(t *testing.T) {
 	}
 	if got := body["command"]; got != "append" {
 		t.Fatalf("command = %#v, want append", got)
+	}
+	if got := body["edit_mode"]; got != localEditModeDocxXML {
+		t.Fatalf("edit_mode = %#v, want %q", got, localEditModeDocxXML)
 	}
 	if _, ok := body["revision_id"]; ok {
 		t.Fatalf("local update must not include online revision_id: %#v", body)
@@ -157,28 +161,21 @@ func TestBuildLocalUpdateBodyPreservesPatternWhitespace(t *testing.T) {
 	}
 }
 
-func TestBuildOOXMLBodiesSelectExplicitTools(t *testing.T) {
+func TestBuildOOXMLBodiesUseModeAndTopLevelFilePath(t *testing.T) {
 	t.Parallel()
-	fetchBody, err := buildOOXMLBody(localOOXMLFetchToolName, nil)
-	if err != nil {
-		t.Fatalf("buildOOXMLBody(fetch) error = %v", err)
+	fetchBody := buildOOXMLFetchBody()
+	updateBody := buildOOXMLUpdateBody("/tmp/edited.docx")
+	if fetchBody["edit_mode"] != localEditModeOOXML || fetchBody["format"] != localDocFormat {
+		t.Fatalf("fetch body = %#v", fetchBody)
 	}
-	updateBody, err := buildOOXMLBody(localOOXMLUpdateToolName, map[string]interface{}{"file_path": "/tmp/edited.docx"})
-	if err != nil {
-		t.Fatalf("buildOOXMLBody(update) error = %v", err)
+	if updateBody["edit_mode"] != localEditModeOOXML || updateBody["file_path"] != "/tmp/edited.docx" {
+		t.Fatalf("update body = %#v", updateBody)
 	}
-	var fetchExtra, updateExtra map[string]interface{}
-	if err := json.Unmarshal([]byte(fetchBody["extra_param"].(string)), &fetchExtra); err != nil {
-		t.Fatalf("decode fetch extra_param: %v", err)
+	if _, ok := fetchBody["extra_param"]; ok {
+		t.Fatalf("fetch body must not include extra_param: %#v", fetchBody)
 	}
-	if err := json.Unmarshal([]byte(updateBody["extra_param"].(string)), &updateExtra); err != nil {
-		t.Fatalf("decode update extra_param: %v", err)
-	}
-	if fetchExtra["ToolName"] != localOOXMLFetchToolName {
-		t.Fatalf("fetch ToolName = %#v", fetchExtra["ToolName"])
-	}
-	if updateExtra["ToolName"] != localOOXMLUpdateToolName || updateExtra["file_path"] != "/tmp/edited.docx" {
-		t.Fatalf("update extra_param = %#v", updateExtra)
+	if _, ok := updateBody["extra_param"]; ok {
+		t.Fatalf("update body must not include extra_param: %#v", updateBody)
 	}
 }
 
