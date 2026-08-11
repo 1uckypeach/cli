@@ -582,7 +582,8 @@ for build_contract in \
   scripts/build-pkg-pr-new.sh \
   .goreleaser.yml \
   .github/workflows/ci.yml \
-  .github/workflows/arch-audit.yml; do
+  .github/workflows/arch-audit.yml \
+  .github/workflows/release.yml; do
   if grep -Fq "scripts/fetch_meta.py" "$build_contract"; then
     echo "$build_contract must build and test from the committed API catalog without fetch_meta.py"
     exit 1
