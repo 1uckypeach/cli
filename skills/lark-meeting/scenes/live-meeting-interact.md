@@ -1,6 +1,6 @@
 # 读取会中事件与会中互动
 
-围绕一场正在进行的会议执行只读查询或用户明确授权的发送操作。真实入会/离会使用应用机器人入会场景；已结束会议和会后产物使用会议查询场景。
+围绕一场正在进行的会议执行只读查询或用户明确授权的会中写操作。真实入会/离会使用应用机器人入会场景；已结束会议和会后产物使用会议查询场景。
 
 如果任务包含“应用机器人入会后继续拉取事件或互动”，只读取并执行 [应用机器人参会与会中互动](live-meeting-attend.md) 的完整流程，不要在两个场景之间来回切换。
 
@@ -20,7 +20,7 @@ lark-cli vc +meeting-list-active --as bot --user-id <open_id> --format json
 - 应用身份返回空不代表目标用户没有在开会，只代表没有找到目标用户与应用机器人同时在会中的会议。
 - 返回多个会议时，展示标题、会议号和 `meeting_id` 让用户选择，不按“最近”擅选。
 - 用户只给 9 位会议号时，在活跃会议结果中按 `meeting_no` 匹配；匹配失败时不要自动入会。
-- `meeting_id` 从哪种身份取得，后续读取事件和发送消息就沿用哪种身份。
+- `meeting_id` 从哪种身份取得，后续读取事件、发送消息和操作倒计时就沿用哪种身份。
 
 身份可见范围和会议号匹配见 [`lark-vc-meeting-list-active`](../references/lark-vc-meeting-list-active.md)。
 
@@ -62,6 +62,21 @@ lark-cli vc +meeting-message-send --as <same_identity> --meeting-id <meeting_id>
 - 用户要发送绑定群或 IM 消息时改用 `lark-im`，不要把会中消息命令当作群消息能力。
 
 文本、reaction 和权限规则见 [`lark-vc-meeting-message-send`](../references/lark-vc-meeting-message-send.md)。
+
+## 操作会中倒计时
+
+只有用户明确要求设置、延长、提前结束或关闭倒计时时执行：
+
+```bash
+lark-cli vc +meeting-countdown --as <same_identity> --meeting-id <meeting_id> --action set --duration <minutes>
+```
+
+- 这是会中可见的写操作；执行前确认目标会议和动作。
+- 操作沿用 `meeting_id` 的来源身份；不要为了倒计时自动入会或切换身份。
+- 用户只给 9 位会议号时，先用当前身份执行 `+meeting-list-active` 并按 `meeting_no` 匹配。
+- `set` 和 `prolong` 需要 `--duration`；提前结束或关闭时不要携带时长、提醒点或结束音频参数。
+
+动作、提醒点和权限规则见 [`lark-vc-meeting-countdown`](../references/lark-vc-meeting-countdown.md)。
 
 ## 处理未发现会议或权限错误
 
