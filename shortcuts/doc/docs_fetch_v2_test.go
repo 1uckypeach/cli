@@ -682,7 +682,7 @@ func TestDocsFetchHelpMetadataExplainsCommentSidecar(t *testing.T) {
 		t.Fatalf("find %s: %v", DocsFetch.Command, err)
 	}
 	help := strings.Join(cmdutil.GetTips(cmd), "\n")
-	for _, want := range []string{"document.reference_map.comments", "comment-refs", "Markdown"} {
+	for _, want := range []string{"document.reference_map.comments", "comment-refs", "Markdown", "comment-id", "block-id", "start-block-id", "end-block-id"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("fetch help tips = %q, want mention of %q", help, want)
 		}
@@ -818,7 +818,7 @@ func TestDocsFetchIMMarkdownIgnoresHTML5BlockInsideCodeFence(t *testing.T) {
 func TestDocsFetchXMLOutputContract(t *testing.T) {
 	const (
 		content     = `<p comment-refs="c1">body</p>`
-		commentData = `<comment id="1"><msg user="Reviewer">looks good</msg></comment>`
+		commentData = `<comment comment-id="1" block-id="b1"><msg user="Reviewer">looks good</msg></comment>`
 	)
 
 	for _, outputFormat := range []string{"json", "pretty"} {

@@ -95,7 +95,7 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
         },
         "comments": {
           "c1": {
-            "data": "<comment id=\"739284756192837\">...</comment>"
+            "data": "<comment comment-id=\"739284756192837\" block-id=\"doxcnBlockID\">...</comment>"
           },
           "tips": {
             "data": "Comments are truncated. Use the comment API to fetch complete content."
@@ -114,8 +114,9 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 评论采用紧凑、只读的 AI 上下文，不代替 `drive +list-comments` 等完整评论 API：
 
 - XML 正文中的局部评论落点使用 `comment-refs="c1 c2"`；同一条评论跨多个 block 时会在这些 block 上重复同一个 ref。
-- 局部评论和全文评论统一放在 `reference_map.comments.<ref>.data`；全文评论使用 `<comment id="..." is_whole="true">`，没有正文落点，也不输出 `<quote>`。
-- `<comment>` 只表达引用文本、`<msg>` 消息以及有效的图片、文档引用和 reaction。根 `id` 是评论 API 可继续使用的正整数评论 ID；状态和完整格式仍应通过 `lark-drive` 评论命令获取。
+- 局部评论和全文评论统一放在 `reference_map.comments.<ref>.data`；全文评论使用 `<comment comment-id="..." is_whole="true">`，没有正文落点，也不输出 `<quote>`。
+- `<comment>` 根节点的 `comment-id` 是评论 API 可继续使用的正整数评论 ID。单 block 评论仅输出 `block-id`；跨 block 评论输出 `start-block-id` 与 `end-block-id`，二者均为文档原始 block ID。局部读取仍保留该评论在完整文档中的真实起止范围；无法可靠恢复 block ID 时宁可省略范围属性，也不会输出错误映射。
+- `<comment>` 只表达引用文本、`<msg>` 消息以及有效的图片、文档引用和 reaction；状态和完整格式仍应通过 `lark-drive` 评论命令获取。
 - 评论消息里的 Docx、Wiki、Sheet、Base、Slides 等云文档引用尽可能规范为 `[标题](url)`；取不到标题时降级为 `[url](url)`，不再输出 `<cite type="doc">`。
 - 全文读取最多返回 1000 条局部评论和 200 条全文评论；`keyword` / `range` / `section` 只返回与片段相交的局部评论，不返回全文评论；`outline` 不查询评论。发生截断时只增加 `reference_map.comments.tips`。
 - reaction 属于 best-effort 展示信息；省略 reaction 不影响评论正文和引用关系。
@@ -133,7 +134,7 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 对应的 `reference_map.comments.c1.data`：
 
 ```xml
-<comment id="739284756192837">
+<comment comment-id="739284756192837" block-id="doxcnBlockID">
 <quote>评论引用的正文</quote>
 <msg user="曹杰">
 问题一：在职转移会删除协作者权限
