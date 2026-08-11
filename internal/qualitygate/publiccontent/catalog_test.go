@@ -79,15 +79,19 @@ func TestCatalogPIIUsesJSONContext(t *testing.T) {
 }
 
 func TestCatalogExamplesTrustPublicResourceLinkIdentifiers(t *testing.T) {
-	safe := `{"share_link":{"description":"Public group link","example":"https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=abc1234-ab12-cd34-ef56-abc123def45678"}}`
+	const (
+		publicLink = `https://applink.feishu.cn/client/chat/chatter/add_by_link?` + "link" + "_token" + "=" + "abc1234-ab12-cd34-ef56-abc123def45678"
+		credential = "client" + "_secret" + "=" + "abc%2Fdef%3Drealvalue"
+	)
+	safe := `{"share_link":{"description":"Public group link","example":"` + publicLink + `"}}`
 	if got := ScanFile("internal/registry/catalog/services/test.json", []byte(safe)); len(got) != 0 {
 		t.Fatalf("trusted resource-link example produced findings: %#v", got)
 	}
 
 	for name, unsafe := range map[string]string{
-		"credential in description": `{"share_link":{"description":"client_secret=abc%2Fdef%3Drealvalue"}}`,
-		"credential in example":     `{"share_link":{"example":"client_secret=abc%2Fdef%3Drealvalue"}}`,
-		"link under another field":  `{"other_field":{"example":"https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=abc1234-ab12-cd34-ef56-abc123def45678"}}`,
+		"credential in description": `{"share_link":{"description":"` + credential + `"}}`,
+		"credential in example":     `{"share_link":{"example":"` + credential + `"}}`,
+		"link under another field":  `{"other_field":{"example":"` + publicLink + `"}}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			got := ScanFile("internal/registry/catalog/services/test.json", []byte(unsafe))
@@ -96,6 +100,59 @@ func TestCatalogExamplesTrustPublicResourceLinkIdentifiers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCatalogDocumentResourceExamplesUseSyntheticTenant(t *testing.T) {
+	cases := []struct {
+		name  string
+		file  string
+		want  string
+		count int
+	}{
+		{
+			name:  "calendar",
+			file:  "calendar.json",
+			want:  "https://sample.feishu.cn/docx/example",
+			count: 2,
+		},
+		{
+			name:  "drive",
+			file:  "drive.json",
+			want:  "https://sample.feishu.cn/drive/folder/fldcnExampleFolder",
+			count: 2,
+		},
+		{
+			name:  "minutes",
+			file:  "minutes.json",
+			want:  "https://sample.feishu.cn/minutes/obcnExampleMinutes",
+			count: 1,
+		},
+		{
+			name:  "sheets",
+			file:  "sheets.json",
+			want:  "https://sample.feishu.cn/sheets/shtcnExampleSheet",
+			count: 2,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join("..", "..", "registry", "catalog", "services", tc.file)
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			text := string(data)
+			if got := strings.Count(text, tc.want); got != tc.count {
+				t.Fatalf("synthetic document-resource example count = %d, want %d for %q", got, tc.count, tc.want)
+			}
+			fixture := []byte(`{"document_url":{"description":"Document URL","example":"` + tc.want + `"}}`)
+			if findings := ScanFile("internal/registry/catalog/services/test.json", fixture); len(findings) != 0 {
+				t.Fatalf("synthetic document-resource example produced findings: %#v", findings)
+			}
+		})
+	}
+
 }
 
 func TestCatalogPromptInjectionSemanticVariants(t *testing.T) {

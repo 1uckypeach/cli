@@ -162,7 +162,7 @@
                   "type": "string",
                   "description": "在浏览器中查看的链接",
                   "required": false,
-                  "example": "https://open.feishu.cn/drive/folder/fldcnP8B5Fpr3UwVi24JykpuOic"
+                  "example": "https://sample.feishu.cn/drive/folder/fldcnExampleFolder"
                 },
                 "shortcut_info": {
                   "type": "object",
@@ -404,7 +404,7 @@
                   "type": "string",
                   "description": "在浏览器中查看的链接",
                   "required": false,
-                  "example": "https://open.feishu.cn/drive/folder/fldcnP8B5Fpr3UwVi24JykpuOic"
+                  "example": "https://sample.feishu.cn/drive/folder/fldcnExampleFolder"
                 },
                 "shortcut_info": {
                   "type": "object",

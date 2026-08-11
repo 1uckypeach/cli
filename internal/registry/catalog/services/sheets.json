@@ -58,7 +58,7 @@
                   "type": "string",
                   "description": "Document URL",
                   "required": false,
-                  "example": "https://example.feishu.cn/sheets/Iow7sNNEphp3WbtnbCscPqabcef",
+                  "example": "https://sample.feishu.cn/sheets/shtcnExampleSheet",
                   "annotations": [
                     "readOnly"
                   ]
@@ -176,7 +176,7 @@
                   "type": "string",
                   "description": "Spreadsheet url",
                   "required": false,
-                  "example": "https://example.feishu.cn/sheets/Iow7sNNEphp3WbtnbCscPqabcef",
+                  "example": "https://sample.feishu.cn/sheets/shtcnExampleSheet",
                   "annotations": [
                     "readOnly"
                   ]

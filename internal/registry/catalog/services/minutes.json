@@ -105,7 +105,7 @@
                   "type": "string",
                   "description": "Minute link",
                   "required": false,
-                  "example": "https://open.feishu.cn/minutes/obcnq3b9jl72l83w4f14xxxx",
+                  "example": "https://sample.feishu.cn/minutes/obcnExampleMinutes",
                   "annotations": [
                     "readOnly"
                   ]

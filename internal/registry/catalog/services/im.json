@@ -1186,7 +1186,7 @@
               "type": "string",
               "description": "Group share link",
               "required": false,
-              "example": "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=3nf8789-4rfx-427d-a6bf-ed1d2df348aabd"
+              "example": "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=example"
             },
             "expire_time": {
               "type": "string",

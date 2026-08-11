@@ -3061,7 +3061,7 @@
               "type": "string",
               "description": "日程描述，Markdown 富文本（推荐创建/更新日程统一使用本字段）。与纯文本 description 互斥，二者至多传其一，切勿同时传。支持加粗、斜体、下划线（<u>...</u>）、删除线、链接 [文本](url)、标题（# 到 ###，最多三级）、引用（> ）、有序/无序列表、GFM 表格、图片 ![alt](url)。飞书文档 URL 会自动解析为内联文档。注意：图片仅支持传入已上传的图片 URL，本地图片不会自动上传；需要本地图片自动上传请改用 lark-cli calendar +create 快捷命令",
               "required": false,
-              "example": "**重点**：见 [设计文档](https://open.feishu.cn/docx/xxx)"
+              "example": "**重点**：见 [设计文档](https://sample.feishu.cn/docx/example)"
             }
           },
           "responseBody": {
@@ -5892,7 +5892,7 @@
               "type": "string",
               "description": "日程描述，Markdown 富文本（推荐创建/更新日程统一使用本字段）。与纯文本 description 互斥，二者至多传其一，切勿同时传。支持加粗、斜体、下划线（<u>...</u>）、删除线、链接 [文本](url)、标题（# 到 ###，最多三级）、引用（> ）、有序/无序列表、GFM 表格、图片 ![alt](url)。飞书文档 URL 会自动解析为内联文档。注意：图片仅支持传入已上传的图片 URL，本地图片不会自动上传；需要本地图片自动上传请改用 lark-cli calendar +update 快捷命令。默认值：空，表示不更新该字段",
               "required": false,
-              "example": "**重点**：见 [设计文档](https://open.feishu.cn/docx/xxx)"
+              "example": "**重点**：见 [设计文档](https://sample.feishu.cn/docx/example)"
             }
           },
           "responseBody": {
