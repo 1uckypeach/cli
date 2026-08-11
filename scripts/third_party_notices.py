@@ -69,6 +69,11 @@ RELEASE_TARGETS = (
     ("windows", "amd64"),
     ("windows", "arm64"),
 )
+NODE_OS_ALIASES = {"windows": "win32"}
+NODE_CPU_ALIASES = {"amd64": "x64"}
+NODE_RELEASE_TARGETS = tuple(
+    (NODE_OS_ALIASES.get(goos, goos), NODE_CPU_ALIASES.get(goarch, goarch)) for goos, goarch in RELEASE_TARGETS
+)
 
 
 class NoticeError(RuntimeError):
@@ -445,15 +450,39 @@ def _node_package_directories(node_modules: Path) -> Iterable[Path]:
 def collect_node_components(repo_root: Path, budget: ReadBudget) -> list[Component]:
     with tempfile.TemporaryDirectory(prefix="third-party-notices-") as temporary:
         temp_root = Path(temporary)
-        _copy_input_file(repo_root, temp_root, "package.json")
-        _copy_input_file(repo_root, temp_root, "package-lock.json")
-        try:
-            subprocess.run(
-                ["npm", "ci", "--ignore-scripts", "--omit=dev"], cwd=temp_root, capture_output=True, text=True, check=True
-            )
-        except (OSError, subprocess.CalledProcessError) as error:
-            raise NoticeError("npm ci --ignore-scripts --omit=dev failed") from error
-        return [component_from_node_package(directory, budget) for directory in _node_package_directories(temp_root / "node_modules")]
+        components: dict[tuple[str, str, str], Component] = {}
+        for node_os, node_cpu in NODE_RELEASE_TARGETS:
+            target_root = temp_root / f"{node_os}-{node_cpu}"
+            target_root.mkdir()
+            _copy_input_file(repo_root, target_root, "package.json")
+            _copy_input_file(repo_root, target_root, "package-lock.json")
+            try:
+                subprocess.run(
+                    [
+                        "npm",
+                        "ci",
+                        "--ignore-scripts",
+                        "--omit=dev",
+                        f"--os={node_os}",
+                        f"--cpu={node_cpu}",
+                    ],
+                    cwd=target_root,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+            except (OSError, subprocess.CalledProcessError) as error:
+                raise NoticeError(f"npm ci failed for {node_os}/{node_cpu}") from error
+            for directory in _node_package_directories(target_root / "node_modules"):
+                component = component_from_node_package(directory, budget)
+                key = (component.name, component.version, component.source)
+                existing = components.get(key)
+                if existing and existing != component:
+                    raise NoticeError(
+                        f"npm dependency metadata differs across release targets: {component.name}@{component.version}"
+                    )
+                components[key] = component
+        return [components[key] for key in sorted(components)]
 
 
 def render_notices(components: Iterable[Component]) -> str:

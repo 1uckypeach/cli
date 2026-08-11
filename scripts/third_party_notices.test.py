@@ -201,6 +201,37 @@ class ThirdPartyNoticesTests(TestCase):
         self.assertEqual(run.call_count, len(notices.RELEASE_TARGETS))
         self.assertEqual(run.call_args.kwargs["env"]["CGO_ENABLED"], "0")
 
+    def test_node_component_collection_scans_and_deduplicates_release_targets(self):
+        common = notices.Component("common", "1.0.0", "https://common.example", "MIT", "Copyright", "text")
+        darwin_only = notices.Component("darwin-only", "1.0.0", "https://darwin.example", "MIT", "Copyright", "text")
+
+        def package_directories(node_modules: Path):
+            target = node_modules.parent.name
+            yield node_modules / "common"
+            if target == "darwin-arm64":
+                yield node_modules / "darwin-only"
+
+        def component_from_package(directory: Path, budget: notices.ReadBudget):
+            if directory.name == "darwin-only":
+                return darwin_only
+            return common
+
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            (repo / "package.json").write_text('{"name":"example"}', encoding="utf-8")
+            (repo / "package-lock.json").write_text('{"lockfileVersion":3}', encoding="utf-8")
+            with mock.patch.object(notices.subprocess, "run", return_value=mock.Mock()) as run, \
+                    mock.patch.object(notices, "_node_package_directories", side_effect=package_directories), \
+                    mock.patch.object(notices, "component_from_node_package", side_effect=component_from_package):
+                components = notices.collect_node_components(repo, notices.ReadBudget())
+
+        self.assertEqual(components, [common, darwin_only])
+        self.assertEqual(run.call_count, len(notices.NODE_RELEASE_TARGETS))
+        self.assertEqual(
+            {tuple(call.args[0][-2:]) for call in run.call_args_list},
+            {(f"--os={node_os}", f"--cpu={node_cpu}") for node_os, node_cpu in notices.NODE_RELEASE_TARGETS},
+        )
+
     def test_missing_module_directory_fails_closed(self):
         module = {"Path": "example.com/runtime", "Version": "v1.2.3"}
         with tempfile.TemporaryDirectory() as directory:
