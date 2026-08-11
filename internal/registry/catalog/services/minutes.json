@@ -23,19 +23,19 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "",
+              "description": "此次调用中使用的用户ID的类型",
               "options": [
                 {
                   "value": "user_id",
-                  "description": ""
+                  "description": "以user_id来识别用户"
                 },
                 {
                   "value": "union_id",
-                  "description": ""
+                  "description": "以union_id来识别用户"
                 },
                 {
                   "value": "open_id",
-                  "description": ""
+                  "description": "以open_id来识别用户"
                 }
               ],
               "enum": [
@@ -75,6 +75,7 @@
                   "type": "string",
                   "description": "Minute creation timestamp (ms level)",
                   "required": false,
+                  "example": "1669098360477",
                   "annotations": [
                     "readOnly"
                   ]
@@ -82,7 +83,8 @@
                 "title": {
                   "type": "string",
                   "description": "Minute title",
-                  "required": false
+                  "required": false,
+                  "example": "产品周会的视频会议"
                 },
                 "cover": {
                   "type": "string",
@@ -92,7 +94,8 @@
                 "duration": {
                   "type": "string",
                   "description": "Minute video duration (ms level)",
-                  "required": false
+                  "required": false,
+                  "example": "314000"
                 },
                 "url": {
                   "type": "string",
@@ -104,8 +107,9 @@
                 },
                 "note_id": {
                   "type": "string",
-                  "description": "",
-                  "required": false
+                  "description": "纪要ID",
+                  "required": false,
+                  "example": "7616590025794260496"
                 }
               }
             }

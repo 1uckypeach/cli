@@ -28,7 +28,7 @@
                   "type": "integer",
                   "description": "演示文稿的版本号",
                   "required": false,
-                  "example": "1",
+                  "example": 1,
                   "max": "9223372036854775807",
                   "min": "-1"
                 },
@@ -57,7 +57,7 @@
               "type": "integer",
               "description": "版本号id",
               "required": false,
-              "example": "1"
+              "example": 1
             },
             "url": {
               "type": "string",
@@ -100,8 +100,8 @@
               "location": "query",
               "required": false,
               "description": "演示文稿的版本号，-1 表示最新版本",
-              "default": "-1",
-              "example": "-1",
+              "default": -1,
+              "example": -1,
               "max": "2147483647",
               "min": "-1"
             },
@@ -131,7 +131,7 @@
                   "type": "integer",
                   "description": "演示文稿的版本号",
                   "required": false,
-                  "example": "1",
+                  "example": 1,
                   "max": "9223372036854775807",
                   "min": "-1"
                 },
@@ -181,8 +181,8 @@
               "location": "query",
               "required": false,
               "description": "分页数量",
-              "default": "20",
-              "example": "20",
+              "default": 20,
+              "example": 20,
               "max": "20",
               "min": "1"
             }
@@ -200,7 +200,7 @@
                   "type": "integer",
                   "description": "revision_id",
                   "required": false,
-                  "example": "11",
+                  "example": 11,
                   "max": "2147483647",
                   "min": "0"
                 },
@@ -214,7 +214,7 @@
                   "type": "integer",
                   "description": "历史版本类型",
                   "required": false,
-                  "example": "1",
+                  "example": 1,
                   "max": "2147483647",
                   "min": "0"
                 },
@@ -248,7 +248,7 @@
               "type": "boolean",
               "description": "是否还有更多数据",
               "required": false,
-              "example": "true"
+              "example": true
             },
             "page_token": {
               "type": "string",
@@ -331,7 +331,7 @@
               "type": "integer",
               "description": "建议下次轮询间隔，单位毫秒",
               "required": false,
-              "example": "10000",
+              "example": 10000,
               "max": "2147483647",
               "min": "0"
             },
@@ -451,8 +451,8 @@
               "location": "query",
               "required": false,
               "description": "演示文稿的版本号，-1 表示最新版本",
-              "default": "-1",
-              "example": "-1",
+              "default": -1,
+              "example": -1,
               "max": "2147483647",
               "min": "-1"
             },
@@ -504,7 +504,7 @@
               "type": "integer",
               "description": "演示文稿的最新版本号",
               "required": false,
-              "example": "100"
+              "example": 100
             },
             "issues": {
               "type": "string",
@@ -548,8 +548,8 @@
               "location": "query",
               "required": false,
               "description": "演示文稿的版本号，-1 表示最新版本",
-              "default": "-1",
-              "example": "-1",
+              "default": -1,
+              "example": -1,
               "max": "2147483647",
               "min": "-1"
             },
@@ -569,7 +569,7 @@
               "type": "integer",
               "description": "演示文稿的最新版本号",
               "required": false,
-              "example": "100"
+              "example": 100
             }
           },
           "scopes": [
@@ -607,8 +607,8 @@
               "location": "query",
               "required": false,
               "description": "演示文稿的版本号，-1 表示最新版本",
-              "default": "-1",
-              "example": "-1",
+              "default": -1,
+              "example": -1,
               "max": "2147483647",
               "min": "-1"
             },
@@ -617,7 +617,7 @@
               "location": "query",
               "required": false,
               "description": "幻灯片页号",
-              "example": "1",
+              "example": 1,
               "max": "2147483647",
               "min": "0"
             }
@@ -650,7 +650,7 @@
               "type": "integer",
               "description": "演示文稿的版本号",
               "required": false,
-              "example": "100"
+              "example": 100
             }
           },
           "scopes": [
@@ -686,8 +686,8 @@
               "location": "query",
               "required": false,
               "description": "演示文稿的版本号，-1 表示最新版本",
-              "default": "-1",
-              "example": "-1",
+              "default": -1,
+              "example": -1,
               "max": "2147483647",
               "min": "-1"
             },
@@ -730,7 +730,7 @@
                   "type": "boolean",
                   "description": "是否替换所有匹配项，默认只替换第一个，str_replace 时使用",
                   "required": false,
-                  "example": "true"
+                  "example": true
                 },
                 "block_id": {
                   "type": "string",
@@ -764,13 +764,13 @@
               "type": "integer",
               "description": "演示文稿的最新版本号",
               "required": false,
-              "example": "100"
+              "example": 100
             },
             "failed_part_index": {
               "type": "integer",
               "description": "失败的操作在 parts 数组中的索引，整个请求失败时返回",
               "required": false,
-              "example": "0"
+              "example": 0
             },
             "failed_reason": {
               "type": "string",
@@ -841,17 +841,17 @@
                   "required": false,
                   "options": [
                     {
-                      "value": "1",
+                      "value": 1,
                       "description": "PNG图片的Base64编码"
                     },
                     {
-                      "value": "2",
+                      "value": 2,
                       "description": "JPEG图片的Base64编码"
                     }
                   ],
                   "enum": [
-                    "1",
-                    "2"
+                    1,
+                    2
                   ],
                   "enumName": "image_format"
                 },
@@ -865,7 +865,7 @@
                   "type": "integer",
                   "description": "幻灯片页面的页号",
                   "required": false,
-                  "example": "1",
+                  "example": 1,
                   "max": "2147483647",
                   "min": "1"
                 }
@@ -914,17 +914,17 @@
                   "required": false,
                   "options": [
                     {
-                      "value": "1",
+                      "value": 1,
                       "description": "PNG图片的Base64编码"
                     },
                     {
-                      "value": "2",
+                      "value": 2,
                       "description": "JPEG图片的Base64编码"
                     }
                   ],
                   "enum": [
-                    "1",
-                    "2"
+                    1,
+                    2
                   ],
                   "enumName": "image_format"
                 },
@@ -938,7 +938,7 @@
                   "type": "integer",
                   "description": "幻灯片页面的页号",
                   "required": false,
-                  "example": "1",
+                  "example": 1,
                   "max": "2147483647",
                   "min": "1"
                 }

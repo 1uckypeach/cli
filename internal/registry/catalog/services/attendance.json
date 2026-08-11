@@ -39,13 +39,15 @@
               "type": "boolean",
               "location": "query",
               "required": false,
-              "description": "Whether to ignore invalid and no permissions users, the corresponding employee_type. If true, return the information of the valid user and inform the invalid and no permissions user; if false, and there are invalid or no permissions in the user_ids, return an error"
+              "description": "Whether to ignore invalid and no permissions users, the corresponding employee_type. If true, return the information of the valid user and inform the invalid and no permissions user; if false, and there are invalid or no permissions in the user_ids, return an error",
+              "example": true
             },
             "include_terminated_user": {
               "type": "boolean",
               "location": "query",
               "required": false,
-              "description": "Since the new employee can reuse the employee_no/employee_id of the departed employee, corresponding to employee_type. If true, return the data of all current + departing employees corresponding to employee_no/employee_id; if false, only return the data of the current or most recent employee corresponding to employee_no/employee_id"
+              "description": "Since the new employee can reuse the employee_no/employee_id of the departed employee, corresponding to employee_type. If true, return the data of all current + departing employees corresponding to employee_no/employee_id; if false, only return the data of the current or most recent employee corresponding to employee_no/employee_id",
+              "example": true
             }
           },
           "requestBody": {
@@ -58,18 +60,19 @@
               "type": "integer",
               "description": "The starting working day of the query, in the format yyyyMMdd",
               "required": true,
-              "example": "20190817"
+              "example": 20190817
             },
             "check_date_to": {
               "type": "integer",
               "description": "The closing working day of the query, in the format yyyyMMdd",
               "required": true,
-              "example": "20190820"
+              "example": 20190820
             },
             "need_overtime_result": {
               "type": "boolean",
               "description": "Whether you need the overtime shift clock in result; when need_overtime_result = true, the overtime shift will be returned. The overtime shift is marked by task_shift_type = 1, and there will be shared record_id when the overtime shift is connected to the normal shift. For example: 9-18 is the normal shift, 18-19 is the overtime shift, and the clock in result records two segments, 9-18, 18-19 and the two segments record_id the same (check_in_record_id and check_out_record_id are the same). Non-connected overtime shifts are returned in normal segments. When need_overtime_result = false, only the normal shift is returned and task_shift_type = 0",
-              "required": false
+              "required": false,
+              "example": true
             }
           },
           "responseBody": {
@@ -80,43 +83,43 @@
               "properties": {
                 "result_id": {
                   "type": "string",
-                  "description": "",
+                  "description": "打卡记录 ID",
                   "required": true,
                   "example": "6709359313699356941"
                 },
                 "user_id": {
                   "type": "string",
-                  "description": "",
+                  "description": "用户 ID，对应employee_type",
                   "required": true,
                   "example": "abd754f7"
                 },
                 "employee_name": {
                   "type": "string",
-                  "description": "",
+                  "description": "用户姓名",
                   "required": true,
                   "example": "John"
                 },
                 "day": {
                   "type": "integer",
-                  "description": "",
+                  "description": "日期，格式为yyyyMMdd",
                   "required": true,
-                  "example": "20190819"
+                  "example": 20190819
                 },
                 "group_id": {
                   "type": "string",
-                  "description": "",
+                  "description": "考勤组 ID（特别说明：1代表未加入考勤组），可用于[按 ID 查询考勤组](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/attendance-v1/group/get)",
                   "required": true,
                   "example": "6737202939523236110"
                 },
                 "shift_id": {
                   "type": "string",
-                  "description": "",
+                  "description": "班次 ID（特别说明：9代表默认班次），可用于[按 ID 查询班次](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/attendance-v1/shift/get)",
                   "required": true,
                   "example": "6753520403404030215"
                 },
                 "records": {
                   "type": "array",
-                  "description": "",
+                  "description": "用户考勤记录",
                   "required": true,
                   "properties": {
                     "check_in_record_id": {
@@ -127,7 +130,7 @@
                     },
                     "check_in_record": {
                       "type": "object",
-                      "description": "",
+                      "description": "上班打卡记录",
                       "required": false,
                       "ref": "user_flow"
                     },
@@ -139,7 +142,7 @@
                     },
                     "check_out_record": {
                       "type": "object",
-                      "description": "",
+                      "description": "下班打卡记录",
                       "required": false,
                       "ref": "user_flow"
                     },
@@ -345,18 +348,21 @@
                     },
                     "check_in_shift_time": {
                       "type": "string",
-                      "description": "",
-                      "required": false
+                      "description": "上班打卡时间",
+                      "required": false,
+                      "example": "1609722000"
                     },
                     "check_out_shift_time": {
                       "type": "string",
-                      "description": "",
-                      "required": false
+                      "description": "下班打卡时间",
+                      "required": false,
+                      "example": "1609754400"
                     },
                     "task_shift_type": {
                       "type": "integer",
-                      "description": "",
-                      "required": false
+                      "description": "班次类型，0正常，1加班班次",
+                      "required": false,
+                      "example": 0
                     }
                   }
                 }

@@ -17,20 +17,21 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "",
+              "description": "此次调用中使用的用户ID的类型",
               "default": "open_id",
+              "example": "open_id",
               "options": [
                 {
                   "value": "user_id",
-                  "description": ""
+                  "description": "以user_id来识别用户"
                 },
                 {
                   "value": "union_id",
-                  "description": ""
+                  "description": "以union_id来识别用户"
                 },
                 {
                   "value": "open_id",
-                  "description": ""
+                  "description": "以open_id来识别用户"
                 }
               ],
               "enumName": "CreateChatUserIDType",
@@ -82,17 +83,20 @@
                 "zh_cn": {
                   "type": "string",
                   "description": "Chinese name",
-                  "required": false
+                  "required": false,
+                  "example": "群聊"
                 },
                 "en_us": {
                   "type": "string",
                   "description": "English name",
-                  "required": false
+                  "required": false,
+                  "example": "group chat"
                 },
                 "ja_jp": {
                   "type": "string",
                   "description": "Japanese name",
-                  "required": false
+                  "required": false,
+                  "example": "グループチャット"
                 }
               }
             },
@@ -116,8 +120,9 @@
             },
             "group_message_type": {
               "type": "string",
-              "description": "",
+              "description": "群消息形式",
               "required": false,
+              "example": "chat",
               "options": [
                 {
                   "value": "chat",
@@ -148,8 +153,9 @@
             },
             "external": {
               "type": "boolean",
-              "description": "",
-              "required": false
+              "description": "是否是外部群",
+              "required": false,
+              "example": false
             },
             "join_message_visibility": {
               "type": "string",
@@ -170,12 +176,12 @@
             },
             "labels": {
               "type": "array",
-              "description": "",
+              "description": "群标签",
               "required": false
             },
             "toolkit_ids": {
               "type": "array",
-              "description": "",
+              "description": "群快捷组件列表",
               "required": false
             },
             "restricted_mode_setting": {
@@ -194,6 +200,7 @@
                   "type": "string",
                   "description": "Whether to allow screenshots",
                   "required": false,
+                  "example": "all_members",
                   "options": [
                     {
                       "value": "all_members",
@@ -214,6 +221,7 @@
                   "type": "string",
                   "description": "Whether to allow downloading pictures, videos and files in messages",
                   "required": false,
+                  "example": "all_members",
                   "options": [
                     {
                       "value": "all_members",
@@ -234,6 +242,7 @@
                   "type": "string",
                   "description": "Whether to allow copying and forwarding of messages",
                   "required": false,
+                  "example": "all_members",
                   "options": [
                     {
                       "value": "all_members",
@@ -256,6 +265,7 @@
               "type": "string",
               "description": "Who can buzz others; Default value: all_members",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "only_owner",
@@ -276,6 +286,7 @@
               "type": "string",
               "description": "Who can start video calls; Default value: all_members",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "only_owner",
@@ -296,6 +307,7 @@
               "type": "string",
               "description": "Who can edit group info; Default value: all_members",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "only_owner",
@@ -314,21 +326,22 @@
             },
             "chat_tags": {
               "type": "array",
-              "description": "",
+              "description": "群标签",
               "required": false
             },
             "pin_manage_setting": {
               "type": "string",
-              "description": "",
+              "description": "谁可以管理置顶",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "only_owner",
-                  "description": ""
+                  "description": "仅群主和管理员"
                 },
                 {
                   "value": "all_members",
-                  "description": ""
+                  "description": "所有成员"
                 }
               ],
               "enum": [
@@ -341,6 +354,7 @@
               "type": "string",
               "description": "Hide member count setting; Default value: all_members",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "all_members",
@@ -393,17 +407,20 @@
                 "zh_cn": {
                   "type": "string",
                   "description": "Chinese name",
-                  "required": false
+                  "required": false,
+                  "example": "群聊"
                 },
                 "en_us": {
                   "type": "string",
                   "description": "English name",
-                  "required": false
+                  "required": false,
+                  "example": "group chat"
                 },
                 "ja_jp": {
                   "type": "string",
                   "description": "Japanese name",
-                  "required": false
+                  "required": false,
+                  "example": "グループチャット"
                 }
               }
             },
@@ -420,8 +437,9 @@
             },
             "urgent_setting": {
               "type": "string",
-              "description": "",
+              "description": "谁可以加急",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "only_owner",
@@ -440,8 +458,9 @@
             },
             "video_conference_setting": {
               "type": "string",
-              "description": "",
+              "description": "谁可以发起视频会议",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "only_owner",
@@ -460,16 +479,17 @@
             },
             "pin_manage_setting": {
               "type": "string",
-              "description": "",
+              "description": "谁可以管理置顶",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "only_owner",
-                  "description": ""
+                  "description": "仅群主和管理员"
                 },
                 {
                   "value": "all_members",
-                  "description": ""
+                  "description": "所有成员"
                 }
               ],
               "enum": [
@@ -505,7 +525,8 @@
             "group_message_type": {
               "type": "string",
               "description": "Group editing permissions; Optional values are:;- `only_owner`: only group owner and administrators;- `all_members`: all members",
-              "required": false
+              "required": false,
+              "example": "chat"
             },
             "chat_mode": {
               "type": "string",
@@ -528,7 +549,8 @@
             "external": {
               "type": "boolean",
               "description": "Whether it is an external group",
-              "required": false
+              "required": false,
+              "example": false
             },
             "tenant_key": {
               "type": "string",
@@ -564,12 +586,12 @@
             },
             "labels": {
               "type": "array",
-              "description": "",
+              "description": "群标签",
               "required": false
             },
             "toolkit_ids": {
               "type": "array",
-              "description": "",
+              "description": "群快捷组件列表",
               "required": false
             },
             "restricted_mode_setting": {
@@ -588,6 +610,7 @@
                   "type": "string",
                   "description": "Whether to allow screenshots",
                   "required": false,
+                  "example": "all_members",
                   "options": [
                     {
                       "value": "all_members",
@@ -608,6 +631,7 @@
                   "type": "string",
                   "description": "Whether to allow downloading pictures, videos and files in messages",
                   "required": false,
+                  "example": "all_members",
                   "options": [
                     {
                       "value": "all_members",
@@ -628,6 +652,7 @@
                   "type": "string",
                   "description": "Whether to allow copying and forwarding of messages",
                   "required": false,
+                  "example": "all_members",
                   "options": [
                     {
                       "value": "all_members",
@@ -650,6 +675,7 @@
               "type": "string",
               "description": "Hide group member number setting",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "all_members",
@@ -696,19 +722,19 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "",
+              "description": "此次调用中使用的用户ID的类型",
               "options": [
                 {
                   "value": "user_id",
-                  "description": ""
+                  "description": "以user_id来识别用户"
                 },
                 {
                   "value": "union_id",
-                  "description": ""
+                  "description": "以union_id来识别用户"
                 },
                 {
                   "value": "open_id",
-                  "description": ""
+                  "description": "以open_id来识别用户"
                 }
               ],
               "enumName": "GetChatUserIDType",
@@ -749,17 +775,20 @@
                 "zh_cn": {
                   "type": "string",
                   "description": "Chinese name",
-                  "required": false
+                  "required": false,
+                  "example": "群聊"
                 },
                 "en_us": {
                   "type": "string",
                   "description": "English name",
-                  "required": false
+                  "required": false,
+                  "example": "group chat"
                 },
                 "ja_jp": {
                   "type": "string",
                   "description": "Japanese name",
-                  "required": false
+                  "required": false,
+                  "example": "グループチャット"
                 }
               }
             },
@@ -814,8 +843,9 @@
             },
             "group_message_type": {
               "type": "string",
-              "description": "",
-              "required": false
+              "description": "群消息模式; 可选值有：;- `chat`：会话消息;- ` thread`：话题消息; 注意：仅普通对话群组返回该字段，话题群和单聊不返回值",
+              "required": false,
+              "example": "chat"
             },
             "chat_mode": {
               "type": "string",
@@ -887,12 +917,12 @@
             },
             "labels": {
               "type": "array",
-              "description": "",
+              "description": "群标签",
               "required": false
             },
             "toolkit_ids": {
               "type": "array",
-              "description": "",
+              "description": "群快捷组件列表",
               "required": false
             },
             "restricted_mode_setting": {
@@ -911,6 +941,7 @@
                   "type": "string",
                   "description": "Whether to allow screenshots",
                   "required": false,
+                  "example": "all_members",
                   "options": [
                     {
                       "value": "all_members",
@@ -931,6 +962,7 @@
                   "type": "string",
                   "description": "Whether to allow downloading pictures, videos and files in messages",
                   "required": false,
+                  "example": "all_members",
                   "options": [
                     {
                       "value": "all_members",
@@ -951,6 +983,7 @@
                   "type": "string",
                   "description": "Whether to allow copying and forwarding of messages",
                   "required": false,
+                  "example": "all_members",
                   "options": [
                     {
                       "value": "all_members",
@@ -973,6 +1006,7 @@
               "type": "string",
               "description": "Who can buzz others",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "only_owner",
@@ -991,8 +1025,9 @@
             },
             "video_conference_setting": {
               "type": "string",
-              "description": "",
+              "description": "谁可以发起视频会议",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "only_owner",
@@ -1011,16 +1046,17 @@
             },
             "pin_manage_setting": {
               "type": "string",
-              "description": "",
+              "description": "谁可以管理置顶",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "only_owner",
-                  "description": ""
+                  "description": "仅群主和管理员"
                 },
                 {
                   "value": "all_members",
-                  "description": ""
+                  "description": "所有成员"
                 }
               ],
               "enum": [
@@ -1033,6 +1069,7 @@
               "type": "string",
               "description": "Hide group member number setting",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "all_members",
@@ -1053,6 +1090,7 @@
               "type": "string",
               "description": "Chat status",
               "required": false,
+              "example": "normal",
               "options": [
                 {
                   "value": "normal",
@@ -1140,12 +1178,14 @@
             "expire_time": {
               "type": "string",
               "description": "Share link expiration timestamp (second level timestamp)",
-              "required": false
+              "required": false,
+              "example": "1609296809"
             },
             "is_permanent": {
               "type": "boolean",
               "description": "Is the share link permanently valid",
-              "required": false
+              "required": false,
+              "example": false
             }
           },
           "scopes": [
@@ -1177,19 +1217,19 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "",
+              "description": "此次调用中使用的用户ID的类型",
               "options": [
                 {
                   "value": "user_id",
-                  "description": ""
+                  "description": "以user_id来识别用户"
                 },
                 {
                   "value": "union_id",
-                  "description": ""
+                  "description": "以union_id来识别用户"
                 },
                 {
                   "value": "open_id",
-                  "description": ""
+                  "description": "以open_id来识别用户"
                 }
               ],
               "enumName": "UpdateChatUserIDType",
@@ -1230,17 +1270,20 @@
                 "zh_cn": {
                   "type": "string",
                   "description": "Chinese name",
-                  "required": false
+                  "required": false,
+                  "example": "群聊"
                 },
                 "en_us": {
                   "type": "string",
                   "description": "English name",
-                  "required": false
+                  "required": false,
+                  "example": "group chat"
                 },
                 "ja_jp": {
                   "type": "string",
                   "description": "Japanese name",
-                  "required": false
+                  "required": false,
+                  "example": "グループチャット"
                 }
               }
             },
@@ -1293,12 +1336,12 @@
             },
             "labels": {
               "type": "array",
-              "description": "",
+              "description": "群标签",
               "required": false
             },
             "toolkit_ids": {
               "type": "array",
-              "description": "",
+              "description": "群快捷组件列表",
               "required": false
             },
             "restricted_mode_setting": {
@@ -1317,6 +1360,7 @@
                   "type": "string",
                   "description": "Whether to allow screenshots",
                   "required": false,
+                  "example": "all_members",
                   "options": [
                     {
                       "value": "all_members",
@@ -1337,6 +1381,7 @@
                   "type": "string",
                   "description": "Whether to allow downloading pictures, videos and files in messages",
                   "required": false,
+                  "example": "all_members",
                   "options": [
                     {
                       "value": "all_members",
@@ -1357,6 +1402,7 @@
                   "type": "string",
                   "description": "Whether to allow copying and forwarding of messages",
                   "required": false,
+                  "example": "all_members",
                   "options": [
                     {
                       "value": "all_members",
@@ -1378,12 +1424,14 @@
             "chat_type": {
               "type": "string",
               "description": "Group type; Optional values are:;- `private`: A private group;- `public`: A public group",
-              "required": false
+              "required": false,
+              "example": "private"
             },
             "group_message_type": {
               "type": "string",
               "description": "Group message type",
               "required": false,
+              "example": "chat",
               "options": [
                 {
                   "value": "chat",
@@ -1404,6 +1452,7 @@
               "type": "string",
               "description": "Who can buzz others",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "only_owner",
@@ -1422,8 +1471,9 @@
             },
             "video_conference_setting": {
               "type": "string",
-              "description": "",
+              "description": "谁可以发起视频会议",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "only_owner",
@@ -1442,16 +1492,17 @@
             },
             "pin_manage_setting": {
               "type": "string",
-              "description": "",
+              "description": "谁可以管理置顶",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "only_owner",
-                  "description": ""
+                  "description": "仅群主和管理员"
                 },
                 {
                   "value": "all_members",
-                  "description": ""
+                  "description": "所有成员"
                 }
               ],
               "enum": [
@@ -1464,6 +1515,7 @@
               "type": "string",
               "description": "Hide member count setting",
               "required": false,
+              "example": "all_members",
               "options": [
                 {
                   "value": "all_members",
@@ -1789,19 +1841,19 @@
               "type": "integer",
               "location": "query",
               "required": false,
-              "description": ""
+              "description": "分页大小，用来限制一次请求所返回的数据条目数。; - 由于返回的群成员列表会过滤掉机器人成员，因此返回的群成员个数可能会小于指定的 page_size。; - 如果有同一时间加入群的群成员，会一次性返回，这会导致返回的群成员个数可能会大于指定的 page_size"
             },
             "page_token": {
               "type": "string",
               "location": "query",
               "required": false,
-              "description": ""
+              "description": "分页标记，第一次请求不填，表示从头开始遍历；分页查询结果还有更多项时会同时返回新的 page_token，下次遍历可采用该 page_token 获取查询结果"
             },
             "check_security_conf": {
               "type": "boolean",
               "location": "query",
               "required": false,
-              "description": ""
+              "description": "是否检查安全配置"
             }
           },
           "parameterOrder": [
@@ -1816,12 +1868,14 @@
                 "member_id_type": {
                   "type": "string",
                   "description": "User ID type of a member, which is consistent with member_id_type in the query parameter. The value can only be `open_id`, `user_id`, or `union_id`",
-                  "required": false
+                  "required": false,
+                  "example": "user_id"
                 },
                 "member_id": {
                   "type": "string",
                   "description": "User ID of a member. The ID value corresponds to member_id_type in the query parameter.; For information about different IDs, see [User-related IDs](https://open.feishu.cn/document/home/user-identity-introduction/introduction)",
                   "required": false,
+                  "example": "4d7a3c6g",
                   "annotations": [
                     "open:x_user_id"
                   ]
@@ -1829,7 +1883,8 @@
                 "name": {
                   "type": "string",
                   "description": "Name",
-                  "required": false
+                  "required": false,
+                  "example": "张三"
                 },
                 "tenant_key": {
                   "type": "string",
@@ -1844,12 +1899,13 @@
             },
             "page_token": {
               "type": "string",
-              "description": "",
-              "required": false
+              "description": "分页标记，当 has_more 为 true 时，会同时返回新的 page_token，否则不返回 page_token",
+              "required": false,
+              "example": "0"
             },
             "has_more": {
               "type": "boolean",
-              "description": "",
+              "description": "是否还有更多项",
               "required": false,
               "example": true
             },
@@ -1861,13 +1917,14 @@
             },
             "trigger_security_conf_limit": {
               "type": "boolean",
-              "description": "",
+              "description": "是否触发了安全配置",
               "required": false
             },
             "security_conf_limit": {
               "type": "integer",
-              "description": "",
-              "required": false
+              "description": "安全配置支持的最大查询群成员数量",
+              "required": false,
+              "example": 100
             }
           },
           "scopes": [
@@ -2224,19 +2281,19 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "",
+              "description": "此次调用中使用的用户ID的类型",
               "options": [
                 {
                   "value": "user_id",
-                  "description": ""
+                  "description": "以user_id来识别用户"
                 },
                 {
                   "value": "union_id",
-                  "description": ""
+                  "description": "以union_id来识别用户"
                 },
                 {
                   "value": "open_id",
-                  "description": ""
+                  "description": "以open_id来识别用户"
                 }
               ],
               "enumName": "GetModerationUserIDType",
@@ -2250,13 +2307,13 @@
               "type": "integer",
               "location": "query",
               "required": false,
-              "description": ""
+              "description": "分页大小，用来限制一次请求返回的数据条目数"
             },
             "page_token": {
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "",
+              "description": "分页标记，第一次请求不填，表示从头开始遍历；分页查询结果还有更多项时会同时返回新的 page_token，下次遍历可采用该 page_token 获取查询结果",
               "example": "10",
               "max": "100"
             }
@@ -2268,17 +2325,20 @@
             "moderation_setting": {
               "type": "string",
               "description": "Group speech mode, possible values ​​are:; - all_members: all group members can speak;- only_owner: only group owner or administrator can speak;- moderator_list: specified group members can speak",
-              "required": false
+              "required": false,
+              "example": "moderator_list"
             },
             "page_token": {
               "type": "string",
-              "description": "",
-              "required": false
+              "description": "分页标记，当 has_more 为 true 时，会同时返回新的 page_token，否则不返回 page_token",
+              "required": false,
+              "example": "0"
             },
             "has_more": {
               "type": "boolean",
-              "description": "",
-              "required": false
+              "description": "是否还有更多项",
+              "required": false,
+              "example": false
             },
             "items": {
               "type": "array",
@@ -2287,13 +2347,15 @@
               "properties": {
                 "user_id_type": {
                   "type": "string",
-                  "description": "",
-                  "required": false
+                  "description": "可发言用户 ID 类型",
+                  "required": false,
+                  "example": "user_id"
                 },
                 "user_id": {
                   "type": "string",
                   "description": "The ID of the user who can speak. The ID type is consistent with the value of the query parameter user_id_type",
                   "required": false,
+                  "example": "4d7a3c6g",
                   "annotations": [
                     "open:x_user_id"
                   ]
@@ -2338,19 +2400,19 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "",
+              "description": "此次调用中使用的用户ID的类型",
               "options": [
                 {
                   "value": "user_id",
-                  "description": ""
+                  "description": "以user_id来识别用户"
                 },
                 {
                   "value": "union_id",
-                  "description": ""
+                  "description": "以union_id来识别用户"
                 },
                 {
                   "value": "open_id",
-                  "description": ""
+                  "description": "以open_id来识别用户"
                 }
               ],
               "enumName": "UpdateModerationUserIDType",
@@ -2408,7 +2470,7 @@
           "id": "chat.nickname.delete",
           "path": "chats/{chat_id}/nickname",
           "httpMethod": "DELETE",
-          "description": "Clear the calling user's own nickname in the chat. Identity: `user` only (`user_access_token`)",
+          "description": "清空调用 user 自己在群里的群昵称（self-only）；后端会同时清掉群昵称-用户反查索引。Clear your own nickname in the chat (self-only). Identity: `user` only (`user_access_token`)",
           "parameters": {
             "chat_id": {
               "type": "string",
@@ -2612,7 +2674,7 @@
           "responseBody": {
             "message_id": {
               "type": "string",
-              "description": "",
+              "description": "消息id open_message_id",
               "required": false,
               "annotations": [
                 "readOnly",
@@ -2621,7 +2683,7 @@
             },
             "root_id": {
               "type": "string",
-              "description": "",
+              "description": "根消息id open_message_id",
               "required": false,
               "annotations": [
                 "readOnly",
@@ -2630,7 +2692,7 @@
             },
             "parent_id": {
               "type": "string",
-              "description": "",
+              "description": "父消息的id open_message_id",
               "required": false,
               "annotations": [
                 "readOnly",
@@ -2639,49 +2701,55 @@
             },
             "thread_id": {
               "type": "string",
-              "description": "",
-              "required": false
+              "description": "消息所属的话题 ID",
+              "required": false,
+              "example": "omt_d4be107c616a"
             },
             "msg_type": {
               "type": "string",
-              "description": "",
-              "required": false
+              "description": "消息类型 text post card image等等",
+              "required": false,
+              "example": "card"
             },
             "create_time": {
               "type": "string",
-              "description": "",
+              "description": "消息生成的时间戳(毫秒)",
               "required": false,
+              "example": "1609296809",
               "annotations": [
                 "readOnly"
               ]
             },
             "update_time": {
               "type": "string",
-              "description": "",
+              "description": "消息更新的时间戳",
               "required": false,
+              "example": "1609336806",
               "annotations": [
                 "readOnly"
               ]
             },
             "deleted": {
               "type": "boolean",
-              "description": "",
+              "description": "消息是否被撤回",
               "required": false,
+              "example": false,
               "annotations": [
                 "readOnly"
               ]
             },
             "updated": {
               "type": "boolean",
-              "description": "",
+              "description": "消息是否被更新",
               "required": false,
+              "example": false,
               "annotations": [
                 "readOnly"
               ]
             },
             "chat_id": {
               "type": "string",
-              "description": "",
+              "description": "所属的群",
               "required": false,
               "annotations": [
                 "open:open_x_id",
@@ -2690,44 +2758,46 @@
             },
             "sender": {
               "type": "object",
-              "description": "",
+              "description": "发送者，可以是用户或应用",
               "required": false,
               "ref": "sender",
+              "example": "object",
               "annotations": [
                 "readOnly"
               ],
               "properties": {
                 "id": {
                   "type": "string",
-                  "description": "",
+                  "description": "该字段标识发送者的id",
                   "required": true
                 },
                 "id_type": {
                   "type": "string",
-                  "description": "",
+                  "description": "该字段标识发送者的id类型",
                   "required": true
                 },
                 "sender_type": {
                   "type": "string",
-                  "description": "",
+                  "description": "该字段标识发送者的类型",
                   "required": true
                 },
                 "tenant_key": {
                   "type": "string",
-                  "description": "",
+                  "description": "tenant key",
                   "required": false,
+                  "example": "736588c9260f175e",
                   "annotations": [
                     "open:tenant_id"
                   ]
                 },
                 "sender_name": {
                   "type": "string",
-                  "description": "",
+                  "description": "该字段标识发送者的名称",
                   "required": false
                 },
                 "open_bot_id": {
                   "type": "string",
-                  "description": "",
+                  "description": "该字段表示bot发送者的openid",
                   "required": false
                 },
                 "sender_i18n_names": {
@@ -2739,17 +2809,20 @@
                     "zh_cn": {
                       "type": "string",
                       "description": "Chinese name",
-                      "required": false
+                      "required": false,
+                      "example": "群聊"
                     },
                     "en_us": {
                       "type": "string",
                       "description": "English name",
-                      "required": false
+                      "required": false,
+                      "example": "group chat"
                     },
                     "ja_jp": {
                       "type": "string",
                       "description": "Japanese name",
-                      "required": false
+                      "required": false,
+                      "example": "グループチャット"
                     }
                   }
                 }
@@ -2757,17 +2830,19 @@
             },
             "body": {
               "type": "object",
-              "description": "",
+              "description": "消息内容,json结构",
               "required": false,
               "ref": "message_body",
+              "example": "json结构",
               "annotations": [
                 "readOnly"
               ],
               "properties": {
                 "content": {
                   "type": "string",
-                  "description": "",
-                  "required": true
+                  "description": "消息jsonContent",
+                  "required": true,
+                  "example": "text:测试消息"
                 }
               }
             },
@@ -2781,7 +2856,7 @@
               "properties": {
                 "key": {
                   "type": "string",
-                  "description": "",
+                  "description": "被 @ 的用户或机器人序号。例如，第 3 个被 @ 到的成员，取值为 `@_user_3`",
                   "required": true,
                   "example": "@_user_1"
                 },
@@ -2792,19 +2867,19 @@
                 },
                 "id_type": {
                   "type": "string",
-                  "description": "",
+                  "description": "被 @ 的用户或机器人 ID 类型",
                   "required": true,
                   "example": "open_id"
                 },
                 "name": {
                   "type": "string",
-                  "description": "",
+                  "description": "被 @ 的用户或机器人的姓名",
                   "required": true,
                   "example": "Tom"
                 },
                 "tenant_key": {
                   "type": "string",
-                  "description": "",
+                  "description": "租户唯一标识。该标识用来识别被 @ 用户或机器人的租户，也可以用来获取租户访问凭证（tenant_access_token）",
                   "required": false,
                   "example": "736588c9260f175e",
                   "annotations": [
@@ -2815,7 +2890,7 @@
             },
             "upper_message_id": {
               "type": "string",
-              "description": "",
+              "description": "合并消息的上一层级消息id open_message_id",
               "required": false,
               "annotations": [
                 "readOnly",
@@ -2824,18 +2899,21 @@
             },
             "message_app_link": {
               "type": "string",
-              "description": "",
-              "required": false
+              "description": "消息跳转链接",
+              "required": false,
+              "example": "https://xxxx/client/thread/open?chatid=xxx&threadid=xxx&thread_position=xxx"
             },
             "message_position": {
               "type": "string",
-              "description": "",
-              "required": false
+              "description": "消息在普通群里面的位置信息，仅普通群可用",
+              "required": false,
+              "example": "1"
             },
             "thread_message_position": {
               "type": "string",
-              "description": "",
-              "required": false
+              "description": "话题回复消息在话题回复里面的位置信息，仅话题回复生效",
+              "required": false,
+              "example": "1"
             }
           },
           "scopes": [
@@ -2929,10 +3007,11 @@
               "description": "Merge the new messages generated by forwarding",
               "required": false,
               "ref": "message",
+              "example": "--",
               "properties": {
                 "message_id": {
                   "type": "string",
-                  "description": "",
+                  "description": "消息id open_message_id",
                   "required": false,
                   "annotations": [
                     "readOnly",
@@ -2941,7 +3020,7 @@
                 },
                 "root_id": {
                   "type": "string",
-                  "description": "",
+                  "description": "根消息id open_message_id",
                   "required": false,
                   "annotations": [
                     "readOnly",
@@ -2950,7 +3029,7 @@
                 },
                 "parent_id": {
                   "type": "string",
-                  "description": "",
+                  "description": "父消息的id open_message_id",
                   "required": false,
                   "annotations": [
                     "readOnly",
@@ -2959,49 +3038,55 @@
                 },
                 "thread_id": {
                   "type": "string",
-                  "description": "",
-                  "required": false
+                  "description": "消息所属的话题 ID",
+                  "required": false,
+                  "example": "omt_d4be107c616a"
                 },
                 "msg_type": {
                   "type": "string",
-                  "description": "",
-                  "required": false
+                  "description": "消息类型 text post card image等等",
+                  "required": false,
+                  "example": "card"
                 },
                 "create_time": {
                   "type": "string",
-                  "description": "",
+                  "description": "消息生成的时间戳(毫秒)",
                   "required": false,
+                  "example": "1609296809",
                   "annotations": [
                     "readOnly"
                   ]
                 },
                 "update_time": {
                   "type": "string",
-                  "description": "",
+                  "description": "消息更新的时间戳",
                   "required": false,
+                  "example": "1609336806",
                   "annotations": [
                     "readOnly"
                   ]
                 },
                 "deleted": {
                   "type": "boolean",
-                  "description": "",
+                  "description": "消息是否被撤回",
                   "required": false,
+                  "example": false,
                   "annotations": [
                     "readOnly"
                   ]
                 },
                 "updated": {
                   "type": "boolean",
-                  "description": "",
+                  "description": "消息是否被更新",
                   "required": false,
+                  "example": false,
                   "annotations": [
                     "readOnly"
                   ]
                 },
                 "chat_id": {
                   "type": "string",
-                  "description": "",
+                  "description": "所属的群",
                   "required": false,
                   "annotations": [
                     "open:open_x_id",
@@ -3010,44 +3095,46 @@
                 },
                 "sender": {
                   "type": "object",
-                  "description": "",
+                  "description": "发送者，可以是用户或应用",
                   "required": false,
                   "ref": "sender",
+                  "example": "object",
                   "annotations": [
                     "readOnly"
                   ],
                   "properties": {
                     "id": {
                       "type": "string",
-                      "description": "",
+                      "description": "该字段标识发送者的id",
                       "required": true
                     },
                     "id_type": {
                       "type": "string",
-                      "description": "",
+                      "description": "该字段标识发送者的id类型",
                       "required": true
                     },
                     "sender_type": {
                       "type": "string",
-                      "description": "",
+                      "description": "该字段标识发送者的类型",
                       "required": true
                     },
                     "tenant_key": {
                       "type": "string",
-                      "description": "",
+                      "description": "tenant key",
                       "required": false,
+                      "example": "736588c9260f175e",
                       "annotations": [
                         "open:tenant_id"
                       ]
                     },
                     "sender_name": {
                       "type": "string",
-                      "description": "",
+                      "description": "该字段标识发送者的名称",
                       "required": false
                     },
                     "open_bot_id": {
                       "type": "string",
-                      "description": "",
+                      "description": "该字段表示bot发送者的openid",
                       "required": false
                     },
                     "sender_i18n_names": {
@@ -3060,17 +3147,19 @@
                 },
                 "body": {
                   "type": "object",
-                  "description": "",
+                  "description": "消息内容,json结构",
                   "required": false,
                   "ref": "message_body",
+                  "example": "json结构",
                   "annotations": [
                     "readOnly"
                   ],
                   "properties": {
                     "content": {
                       "type": "string",
-                      "description": "",
-                      "required": true
+                      "description": "消息jsonContent",
+                      "required": true,
+                      "example": "text:测试消息"
                     }
                   }
                 },
@@ -3084,7 +3173,7 @@
                   "properties": {
                     "key": {
                       "type": "string",
-                      "description": "",
+                      "description": "被 @ 的用户或机器人序号。例如，第 3 个被 @ 到的成员，取值为 `@_user_3`",
                       "required": true,
                       "example": "@_user_1"
                     },
@@ -3095,19 +3184,19 @@
                     },
                     "id_type": {
                       "type": "string",
-                      "description": "",
+                      "description": "被 @ 的用户或机器人 ID 类型",
                       "required": true,
                       "example": "open_id"
                     },
                     "name": {
                       "type": "string",
-                      "description": "",
+                      "description": "被 @ 的用户或机器人的姓名",
                       "required": true,
                       "example": "Tom"
                     },
                     "tenant_key": {
                       "type": "string",
-                      "description": "",
+                      "description": "租户唯一标识。该标识用来识别被 @ 用户或机器人的租户，也可以用来获取租户访问凭证（tenant_access_token）",
                       "required": false,
                       "example": "736588c9260f175e",
                       "annotations": [
@@ -3118,7 +3207,7 @@
                 },
                 "upper_message_id": {
                   "type": "string",
-                  "description": "",
+                  "description": "合并消息的上一层级消息id open_message_id",
                   "required": false,
                   "annotations": [
                     "readOnly",
@@ -3127,18 +3216,21 @@
                 },
                 "message_app_link": {
                   "type": "string",
-                  "description": "",
-                  "required": false
+                  "description": "消息跳转链接",
+                  "required": false,
+                  "example": "https://xxxx/client/thread/open?chatid=xxx&threadid=xxx&thread_position=xxx"
                 },
                 "message_position": {
                   "type": "string",
-                  "description": "",
-                  "required": false
+                  "description": "消息在普通群里面的位置信息，仅普通群可用",
+                  "required": false,
+                  "example": "1"
                 },
                 "thread_message_position": {
                   "type": "string",
-                  "description": "",
-                  "required": false
+                  "description": "话题回复消息在话题回复里面的位置信息，仅话题回复生效",
+                  "required": false,
+                  "example": "1"
                 }
               }
             },
@@ -3179,19 +3271,19 @@
               "type": "string",
               "location": "query",
               "required": true,
-              "description": "",
+              "description": "此次调用中使用的用户ID的类型",
               "options": [
                 {
                   "value": "user_id",
-                  "description": ""
+                  "description": "以user_id来识别用户"
                 },
                 {
                   "value": "union_id",
-                  "description": ""
+                  "description": "以union_id来识别用户"
                 },
                 {
                   "value": "open_id",
-                  "description": ""
+                  "description": "以open_id来识别用户"
                 }
               ],
               "enumName": "ReadUsersV1UserIDType",
@@ -3228,7 +3320,7 @@
               "properties": {
                 "user_id_type": {
                   "type": "string",
-                  "description": "",
+                  "description": "用户id类型",
                   "required": true
                 },
                 "user_id": {
@@ -3246,6 +3338,7 @@
                   "type": "string",
                   "description": "The unique ID of the tenant. This ID is used to identify the tenant and can also be used to obtain the tenant access credential (tenant_access_token)",
                   "required": false,
+                  "example": "736588c9260f175e",
                   "annotations": [
                     "open:tenant_id"
                   ]
@@ -3267,9 +3360,11 @@
           "scopes": [
             "im:message:basic",
             "im:message:readonly",
-            "im:message"
+            "im:message",
+            "im:message:get_as_user"
           ],
           "accessTokens": [
+            "user",
             "tenant"
           ],
           "risk": "read",
@@ -3291,19 +3386,19 @@
               "type": "string",
               "location": "query",
               "required": true,
-              "description": "",
+              "description": "此次调用中使用的用户ID的类型",
               "options": [
                 {
                   "value": "user_id",
-                  "description": ""
+                  "description": "以user_id来识别用户"
                 },
                 {
                   "value": "union_id",
-                  "description": ""
+                  "description": "以union_id来识别用户"
                 },
                 {
                   "value": "open_id",
-                  "description": ""
+                  "description": "以open_id来识别用户"
                 }
               ],
               "enumName": "UrgentAppV1UserIDType",
@@ -3358,19 +3453,20 @@
               "type": "string",
               "location": "query",
               "required": true,
-              "description": "",
+              "description": "此次调用中使用的用户ID的类型",
+              "example": "open_id",
               "options": [
                 {
                   "value": "user_id",
-                  "description": ""
+                  "description": "以user_id来识别用户"
                 },
                 {
                   "value": "union_id",
-                  "description": ""
+                  "description": "以union_id来识别用户"
                 },
                 {
                   "value": "open_id",
-                  "description": ""
+                  "description": "以open_id来识别用户"
                 }
               ],
               "enumName": "UrgentPhoneV1UserIDType",
@@ -3425,19 +3521,19 @@
               "type": "string",
               "location": "query",
               "required": true,
-              "description": "",
+              "description": "此次调用中使用的用户ID的类型",
               "options": [
                 {
                   "value": "user_id",
-                  "description": ""
+                  "description": "以user_id来识别用户"
                 },
                 {
                   "value": "union_id",
-                  "description": ""
+                  "description": "以union_id来识别用户"
                 },
                 {
                   "value": "open_id",
-                  "description": ""
+                  "description": "以open_id来识别用户"
                 }
               ],
               "enumName": "UrgentSmsV1UserIDType",
@@ -3490,20 +3586,20 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "",
+              "description": "用户 ID 类型，控制接口返回值中表情添加者的ID",
               "default": "open_id",
               "options": [
                 {
                   "value": "user_id",
-                  "description": ""
+                  "description": "以user_id来识别用户"
                 },
                 {
                   "value": "union_id",
-                  "description": ""
+                  "description": "以union_id来识别用户"
                 },
                 {
                   "value": "open_id",
-                  "description": ""
+                  "description": "以open_id来识别用户"
                 }
               ],
               "enum": [
@@ -3522,11 +3618,12 @@
                 "message_id": {
                   "type": "string",
                   "description": "Message ID",
-                  "required": false
+                  "required": false,
+                  "example": "om_8964d1b4*********2b31383276113"
                 },
                 "page_token": {
                   "type": "string",
-                  "description": "",
+                  "description": "分页标记，第一次请求不填，表示从头开始遍历；分页查询结果还有更多项时会同时返回新的 page_token，下次遍历可采用该 page_token 获取查询结果",
                   "required": false
                 }
               }
@@ -3535,13 +3632,15 @@
               "type": "integer",
               "description": "The maximum number of emojis that can be returned per message;Default value: 10",
               "required": false,
+              "example": 10,
               "max": "10",
               "min": "1"
             },
             "reaction_type": {
               "type": "string",
               "description": "The type of emoji to be queried. For supported enumeration values, refer to the emoji_type value in [Emoji Text Description](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message-reaction/emojis-introduce).; Notice: This parameter is optional. If it is not passed, all reactions in the message will be queried",
-              "required": false
+              "required": false,
+              "example": "LAUGH"
             }
           },
           "responseBody": {
@@ -3553,16 +3652,17 @@
                 "message_id": {
                   "type": "string",
                   "description": "Message ID",
-                  "required": false
+                  "required": false,
+                  "example": "om_a8f2294b************a1a38afaac9d"
                 },
                 "has_more": {
                   "type": "boolean",
-                  "description": "",
+                  "description": "是否还有更多项",
                   "required": false
                 },
                 "page_token": {
                   "type": "string",
-                  "description": "",
+                  "description": "分页标记，当 has_more 为 true 时，会同时返回新的 page_token，否则不返回 page_token",
                   "required": false
                 },
                 "message_reaction_items": {
@@ -3572,7 +3672,7 @@
                   "properties": {
                     "reaction_id": {
                       "type": "string",
-                      "description": "",
+                      "description": "表情ID",
                       "required": false
                     },
                     "operator": {
@@ -3583,13 +3683,15 @@
                     },
                     "action_time": {
                       "type": "string",
-                      "description": "",
-                      "required": false
+                      "description": "表情添加时间",
+                      "required": false,
+                      "example": "1626086391570"
                     },
                     "emoji_type": {
                       "type": "string",
-                      "description": "",
-                      "required": false
+                      "description": "表情类型",
+                      "required": false,
+                      "example": "SMILE"
                     }
                   }
                 }
@@ -3603,22 +3705,25 @@
                 "message_id": {
                   "type": "string",
                   "description": "Message ID",
-                  "required": false
+                  "required": false,
+                  "example": "om_8964d1b4*********2b31383276113"
                 },
                 "reaction_count": {
                   "type": "array",
-                  "description": "",
+                  "description": "消息上不同表情的数量",
                   "required": false,
                   "properties": {
                     "reaction_type": {
                       "type": "string",
-                      "description": "",
-                      "required": false
+                      "description": "表情类型",
+                      "required": false,
+                      "example": "LAUGH"
                     },
                     "count": {
                       "type": "string",
-                      "description": "",
-                      "required": false
+                      "description": "表情数量",
+                      "required": false,
+                      "example": "20"
                     }
                   }
                 }
@@ -3632,24 +3737,25 @@
                 "message_id": {
                   "type": "string",
                   "description": "Message ID",
-                  "required": false
+                  "required": false,
+                  "example": "om_8964d1b4*********2b31383276113"
                 },
                 "fail_reason": {
                   "type": "string",
-                  "description": "",
+                  "description": "获取表情失败的原因",
                   "required": false,
                   "options": [
                     {
                       "value": "invalid",
-                      "description": ""
+                      "description": "无效的消息ID"
                     },
                     {
                       "value": "invalid_page_token",
-                      "description": ""
+                      "description": "该消息对应的page_token无效"
                     },
                     {
                       "value": "no_permission",
-                      "description": ""
+                      "description": "操作者对该消息无权限"
                     }
                   ],
                   "enum": [
@@ -3709,7 +3815,7 @@
           "responseBody": {
             "reaction_id": {
               "type": "string",
-              "description": "",
+              "description": "reaction资源ID",
               "required": false,
               "annotations": [
                 "readOnly"
@@ -3811,7 +3917,7 @@
           "responseBody": {
             "reaction_id": {
               "type": "string",
-              "description": "",
+              "description": "reaction资源ID",
               "required": false,
               "annotations": [
                 "readOnly"
@@ -3910,13 +4016,13 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": ""
+              "description": "分页标记，第一次请求不填，表示从头开始遍历；分页查询结果还有更多项时，会同时返回新的 page_token，下次遍历可采用该 page_token 获取查询结果"
             },
             "page_size": {
               "type": "integer",
               "location": "query",
               "required": false,
-              "description": "",
+              "description": "分页大小，用于限制一次请求返回的数据条目数。; 默认值：20",
               "example": 10,
               "max": "50"
             },
@@ -3924,19 +4030,19 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "",
+              "description": "当操作人为用户时返回用户ID的类型",
               "options": [
                 {
                   "value": "open_id",
-                  "description": ""
+                  "description": "标识一个用户在某个应用中的身份。同一个用户在不同应用中的 Open ID 不同。"
                 },
                 {
                   "value": "union_id",
-                  "description": ""
+                  "description": "标识一个用户在某个应用开发商下的身份。同一用户在同一开发商下的应用中的 Union ID 是相同的，在不同开发商下的应用中的 Union ID 是不同的。通过 Union ID，应用开发商可以把同个用户在多个应用中的身份关联起来。"
                 },
                 {
                   "value": "user_id",
-                  "description": ""
+                  "description": "标识一个用户在某个租户内的身份。同一个用户在租户 A 和租户 B 内的 User ID 是不同的。在同一个租户内，一个用户的 User ID 在所有应用（包括商店应用）中都保持一致。User ID 主要用于在不同的应用间打通用户数据。"
                 }
               ],
               "enumName": "ListMessageReactionUserIDType",
@@ -3958,7 +4064,7 @@
               "properties": {
                 "reaction_id": {
                   "type": "string",
-                  "description": "",
+                  "description": "reaction资源ID",
                   "required": false,
                   "annotations": [
                     "readOnly"
@@ -4024,13 +4130,13 @@
             },
             "has_more": {
               "type": "boolean",
-              "description": "",
+              "description": "是否还有更多项",
               "required": false,
               "example": true
             },
             "page_token": {
               "type": "string",
-              "description": "",
+              "description": "分页标记，当 has_more 为 true 时，会同时返回新的 page_token，否则不返回 page_token",
               "required": false
             }
           },
@@ -4126,7 +4232,7 @@
           "responseBody": {
             "message_id": {
               "type": "string",
-              "description": "",
+              "description": "消息id open_message_id",
               "required": false,
               "annotations": [
                 "readOnly",
@@ -4135,7 +4241,7 @@
             },
             "root_id": {
               "type": "string",
-              "description": "",
+              "description": "根消息id open_message_id",
               "required": false,
               "annotations": [
                 "readOnly",
@@ -4144,7 +4250,7 @@
             },
             "parent_id": {
               "type": "string",
-              "description": "",
+              "description": "父消息的id open_message_id",
               "required": false,
               "annotations": [
                 "readOnly",
@@ -4153,49 +4259,55 @@
             },
             "thread_id": {
               "type": "string",
-              "description": "",
-              "required": false
+              "description": "消息所属的话题 ID",
+              "required": false,
+              "example": "omt_d4be107c616a"
             },
             "msg_type": {
               "type": "string",
-              "description": "",
-              "required": false
+              "description": "消息类型 text post card image等等",
+              "required": false,
+              "example": "card"
             },
             "create_time": {
               "type": "string",
-              "description": "",
+              "description": "消息生成的时间戳(毫秒)",
               "required": false,
+              "example": "1609296809",
               "annotations": [
                 "readOnly"
               ]
             },
             "update_time": {
               "type": "string",
-              "description": "",
+              "description": "消息更新的时间戳",
               "required": false,
+              "example": "1609336806",
               "annotations": [
                 "readOnly"
               ]
             },
             "deleted": {
               "type": "boolean",
-              "description": "",
+              "description": "消息是否被撤回",
               "required": false,
+              "example": false,
               "annotations": [
                 "readOnly"
               ]
             },
             "updated": {
               "type": "boolean",
-              "description": "",
+              "description": "消息是否被更新",
               "required": false,
+              "example": false,
               "annotations": [
                 "readOnly"
               ]
             },
             "chat_id": {
               "type": "string",
-              "description": "",
+              "description": "所属的群",
               "required": false,
               "annotations": [
                 "open:open_x_id",
@@ -4204,44 +4316,46 @@
             },
             "sender": {
               "type": "object",
-              "description": "",
+              "description": "发送者，可以是用户或应用",
               "required": false,
               "ref": "sender",
+              "example": "object",
               "annotations": [
                 "readOnly"
               ],
               "properties": {
                 "id": {
                   "type": "string",
-                  "description": "",
+                  "description": "该字段标识发送者的id",
                   "required": true
                 },
                 "id_type": {
                   "type": "string",
-                  "description": "",
+                  "description": "该字段标识发送者的id类型",
                   "required": true
                 },
                 "sender_type": {
                   "type": "string",
-                  "description": "",
+                  "description": "该字段标识发送者的类型",
                   "required": true
                 },
                 "tenant_key": {
                   "type": "string",
-                  "description": "",
+                  "description": "tenant key",
                   "required": false,
+                  "example": "736588c9260f175e",
                   "annotations": [
                     "open:tenant_id"
                   ]
                 },
                 "sender_name": {
                   "type": "string",
-                  "description": "",
+                  "description": "该字段标识发送者的名称",
                   "required": false
                 },
                 "open_bot_id": {
                   "type": "string",
-                  "description": "",
+                  "description": "该字段表示bot发送者的openid",
                   "required": false
                 },
                 "sender_i18n_names": {
@@ -4253,17 +4367,20 @@
                     "zh_cn": {
                       "type": "string",
                       "description": "Chinese name",
-                      "required": false
+                      "required": false,
+                      "example": "群聊"
                     },
                     "en_us": {
                       "type": "string",
                       "description": "English name",
-                      "required": false
+                      "required": false,
+                      "example": "group chat"
                     },
                     "ja_jp": {
                       "type": "string",
                       "description": "Japanese name",
-                      "required": false
+                      "required": false,
+                      "example": "グループチャット"
                     }
                   }
                 }
@@ -4271,17 +4388,19 @@
             },
             "body": {
               "type": "object",
-              "description": "",
+              "description": "消息内容,json结构",
               "required": false,
               "ref": "message_body",
+              "example": "json结构",
               "annotations": [
                 "readOnly"
               ],
               "properties": {
                 "content": {
                   "type": "string",
-                  "description": "",
-                  "required": true
+                  "description": "消息jsonContent",
+                  "required": true,
+                  "example": "text:测试消息"
                 }
               }
             },
@@ -4295,7 +4414,7 @@
               "properties": {
                 "key": {
                   "type": "string",
-                  "description": "",
+                  "description": "被 @ 的用户或机器人序号。例如，第 3 个被 @ 到的成员，取值为 `@_user_3`",
                   "required": true,
                   "example": "@_user_1"
                 },
@@ -4306,19 +4425,19 @@
                 },
                 "id_type": {
                   "type": "string",
-                  "description": "",
+                  "description": "被 @ 的用户或机器人 ID 类型",
                   "required": true,
                   "example": "open_id"
                 },
                 "name": {
                   "type": "string",
-                  "description": "",
+                  "description": "被 @ 的用户或机器人的姓名",
                   "required": true,
                   "example": "Tom"
                 },
                 "tenant_key": {
                   "type": "string",
-                  "description": "",
+                  "description": "租户唯一标识。该标识用来识别被 @ 用户或机器人的租户，也可以用来获取租户访问凭证（tenant_access_token）",
                   "required": false,
                   "example": "736588c9260f175e",
                   "annotations": [
@@ -4329,7 +4448,7 @@
             },
             "upper_message_id": {
               "type": "string",
-              "description": "",
+              "description": "合并消息的上一层级消息id open_message_id",
               "required": false,
               "annotations": [
                 "readOnly",
@@ -4338,18 +4457,21 @@
             },
             "message_app_link": {
               "type": "string",
-              "description": "",
-              "required": false
+              "description": "消息跳转链接",
+              "required": false,
+              "example": "https://xxxx/client/thread/open?chatid=xxx&threadid=xxx&thread_position=xxx"
             },
             "message_position": {
               "type": "string",
-              "description": "",
-              "required": false
+              "description": "消息在普通群里面的位置信息，仅普通群可用",
+              "required": false,
+              "example": "1"
             },
             "thread_message_position": {
               "type": "string",
-              "description": "",
-              "required": false
+              "description": "话题回复消息在话题回复里面的位置信息，仅话题回复生效",
+              "required": false,
+              "example": "1"
             }
           },
           "scopes": [
@@ -4465,12 +4587,14 @@
                 "operator_id_type": {
                   "type": "string",
                   "description": "Operator ID type of pin. Possible values ​​are:; - open_id: indicates that the operator is a user, in which case `operator_id` returns the user's open_id.;- app_id: indicates that the operator is an application, in which case `operator_id` returns the application's app_id",
-                  "required": false
+                  "required": false,
+                  "example": "open_id"
                 },
                 "create_time": {
                   "type": "string",
                   "description": "Creation time of pin (millisecond timestamp)",
-                  "required": false
+                  "required": false,
+                  "example": "1615380573211"
                 }
               }
             }
@@ -4547,7 +4671,7 @@
               "type": "integer",
               "location": "query",
               "required": false,
-              "description": "",
+              "description": "分页大小，用于限制一次请求返回的数据条目数",
               "default": 20,
               "example": 20,
               "max": "50",
@@ -4557,7 +4681,7 @@
               "type": "string",
               "location": "query",
               "required": false,
-              "description": ""
+              "description": "下一页分页的token"
             }
           },
           "responseBody": {
@@ -4587,23 +4711,26 @@
                 "operator_id_type": {
                   "type": "string",
                   "description": "Operator ID type of pin. Possible values ​​are:; - open_id: indicates that the operator is a user, in which case `operator_id` returns the user's open_id.;- app_id: indicates that the operator is an application, in which case `operator_id` returns the application's app_id",
-                  "required": false
+                  "required": false,
+                  "example": "open_id"
                 },
                 "create_time": {
                   "type": "string",
                   "description": "Creation time of pin (millisecond timestamp)",
-                  "required": false
+                  "required": false,
+                  "example": "1615380573211"
                 }
               }
             },
             "has_more": {
               "type": "boolean",
-              "description": "",
-              "required": false
+              "description": "是否还有更多项",
+              "required": false,
+              "example": false
             },
             "page_token": {
               "type": "string",
-              "description": "",
+              "description": "分页标记，当 has_more 为 true 时，会同时返回新的 page_token，否则不返回 page_token",
               "required": false
             }
           },

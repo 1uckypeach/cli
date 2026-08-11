@@ -52,13 +52,13 @@
                   "type": "boolean",
                   "description": "是否返回 personal_status",
                   "required": false,
-                  "example": "false"
+                  "example": false
                 },
                 "include_description": {
                   "type": "boolean",
                   "description": "是否返回 description",
                   "required": false,
-                  "example": "false"
+                  "example": false
                 }
               }
             },

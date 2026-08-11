@@ -575,7 +575,8 @@
             "mindnote:node:read"
           ],
           "accessTokens": [
-            "user"
+            "user",
+            "tenant"
           ],
           "risk": "read",
           "docUrl": "https://open.feishu.cn/api-explorer?from=op_doc_tab&apiName=list&project=mindnote&resource=mindnote.node&version=v1"
