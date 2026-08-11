@@ -475,6 +475,7 @@ jobs:
   # ── Layer 4: Security & Compliance (parallel with L2-L3) ──────────
   security:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
