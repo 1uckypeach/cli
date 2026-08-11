@@ -22,7 +22,7 @@ metadata:
 
 身份是跨命令工作流的状态，不是单条命令的局部参数：一旦某个 ID（如 `note_id`、`minute_token`）由某个身份取得，后续消费它的命令（包括跨到 lark-minutes / lark-note / lark-doc）必须显式沿用相同 `--as`；不要依赖 profile 默认身份，也不要为绕过权限错误切换身份。完整规则见 [`../lark-shared/SKILL.md`](../lark-shared/SKILL.md) 的「身份延续」。
 
-本 skill 默认使用 `--as user`。`+detail`、`+recording`、`meeting get`、`+meeting-list-active`、`+meeting-events` 和 `+meeting-message-send` 也支持 `--as bot`；`+meeting-events` 和 `+meeting-message-send` 必须沿用 `meeting_id` 的来源身份。`+search` 仅支持 `--as user`。
+本 skill 默认使用 `--as user`。`+detail`、`+recording`、`meeting get`、`+meeting-list-active`、`+meeting-events`、`+meeting-message-send` 和 `+meeting-countdown` 也支持 `--as bot`；`+meeting-events`、`+meeting-message-send` 和 `+meeting-countdown` 必须沿用 `meeting_id` 的来源身份。`+search` 仅支持 `--as user`。
 
 ```bash
 # BAD — 查昨天的会议用 calendar，会漏掉即时会议
@@ -42,6 +42,7 @@ lark-cli vc +search --query "站会" --start <start_time> --end <end_time>
 | [`+meeting-list-active`](references/lark-vc-meeting-list-active.md) | 查询当前身份可见的进行中会议并获取 `meeting_id` |
 | [`+meeting-events`](references/lark-vc-meeting-events.md) | 读取当前身份可见的会中事件 |
 | [`+meeting-message-send`](references/lark-vc-meeting-message-send.md) | 发送会中文本或 reaction |
+| [`+meeting-countdown`](references/lark-vc-meeting-countdown.md) | 设置、延长、提前结束或关闭会中倒计时 |
 
 - 使用任何 Shortcut 前，必须先读其对应 reference 文档。
 
@@ -52,7 +53,7 @@ lark-cli vc +search --query "站会" --start <start_time> --end <end_time>
 | 查"昨天的会议""上周的会""已结束的会议" | 本 skill（`+search`，含即时会议） |
 | 查日历/日程或未来时间的会议 | [lark-calendar](../lark-calendar/SKILL.md) |
 | 查"今天有哪些会议" | `vc +search`（已结束）+ lark-calendar（未开始），合并展示 |
-| 查询进行中的会议、会中事件或发送会中消息 | 本 skill 的 `+meeting-list-active` / `+meeting-events` / `+meeting-message-send`，也可由 [lark-vc-agent](../lark-vc-agent/SKILL.md) 编排 |
+| 查询进行中的会议、会中事件、发送会中消息或操作会中倒计时 | 本 skill 的 `+meeting-list-active` / `+meeting-events` / `+meeting-message-send` / `+meeting-countdown`，也可由 [lark-vc-agent](../lark-vc-agent/SKILL.md) 编排 |
 | 用户询问会议内容，但未提供 `meeting_id`，也未明确指向已结束会议 | 先用 `+meeting-list-active` 查询进行中的会议；无结果时，再用 `+search` 查询当天最近结束的会议；仍无结果时询问会议时间、主题或会议号，不自行扩大时间范围 |
 | 只按自然语言标题查"xx 纪要的逐字稿 / 原始记录 / 谁说了什么" | 先到 [lark-drive](../lark-drive/SKILL.md) / [lark-doc](../lark-doc/SKILL.md)；仅在已拿到 `note_id` / `vc-node-id` 后再到 [lark-note](../lark-note/SKILL.md) |
 | Agent 真实入会/离会 | [lark-vc-agent](../lark-vc-agent/SKILL.md) |
@@ -150,6 +151,7 @@ lark-cli vc meeting get --params '{"meeting_id":"<meeting_id>","with_participant
 | 参会人快照（谁参加过、何时入/离会，任意时点）| `vc meeting get --with-participants` | 本 skill |
 | 已结束会议的发言内容 | 优先：`vc +detail` 取 `note_id` 再 `note +detail` 取 `verbatim_doc_token` 后 `docs +fetch`；备选：`vc +detail` 取 `minute_token` 再 `minutes +detail --transcript` | [lark-note](../lark-note/SKILL.md) / [lark-minutes](../lark-minutes/SKILL.md) |
 | **进行中会议**的实时事件流（转写、聊天、共享、会中加入/离开）| `vc +meeting-events` | 本 skill / [`lark-vc-agent`](../lark-vc-agent/SKILL.md) |
+| **进行中会议**的倒计时设置、延长、提前结束或关闭 | `vc +meeting-countdown` | 本 skill / [`lark-vc-agent`](../lark-vc-agent/SKILL.md) |
 | **Agent 真实入会 / 离会** | `vc +meeting-join` / `vc +meeting-leave` | [`lark-vc-agent`](../lark-vc-agent/SKILL.md) |
 
 ## 资源关系

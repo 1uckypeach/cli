@@ -19,7 +19,7 @@ func TestVCMeetingReferencesAreSharedByBothSkills(t *testing.T) {
 	vcSkill := readVCContractFile(t, "skills", "lark-vc", "SKILL.md")
 	agentSkill := readVCContractFile(t, "skills", "lark-vc-agent", "SKILL.md")
 
-	require.Contains(t, vcSkill, "查询进行中的会议、会中事件或发送会中消息")
+	require.Contains(t, vcSkill, "查询进行中的会议、会中事件、发送会中消息或操作会中倒计时")
 	require.Contains(t, agentSkill, `"会议现在还开着，谁刚加入了"`)
 	require.Contains(t, agentSkill, `"会议里谁在发言"`)
 	require.Contains(t, agentSkill, `"我/某个用户现在在哪个会里"`)
@@ -43,6 +43,11 @@ func TestVCMeetingReferencesAreSharedByBothSkills(t *testing.T) {
 			sharedName: "lark-vc-meeting-message-send.md",
 			oldName:    "lark-vc-agent-meeting-message-send.md",
 			command:    "lark-cli vc +meeting-message-send",
+		},
+		{
+			sharedName: "lark-vc-meeting-countdown.md",
+			oldName:    "lark-vc-agent-meeting-countdown.md",
+			command:    "lark-cli vc +meeting-countdown",
 		},
 	}
 
@@ -69,6 +74,7 @@ func TestVCSharedMeetingReferencesHaveValidMarkdownLinks(t *testing.T) {
 		"lark-vc-meeting-list-active.md",
 		"lark-vc-meeting-events.md",
 		"lark-vc-meeting-message-send.md",
+		"lark-vc-meeting-countdown.md",
 	}
 
 	for _, reference := range references {

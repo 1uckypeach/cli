@@ -1,7 +1,7 @@
 ---
 name: lark-vc-agent
 version: 1.0.0
-description: "飞书视频会议会中能力：用于让应用机器人真实加入或离开正在进行的会议，并读取当前身份可见的会中事件、发送会中文本消息或会中表情。适用于用户询问正在开的会议发生了什么、谁在发言、是否共享内容，或需要发现当前可读的进行中会议 ID。不负责已结束会议搜索、参会人快照、纪要、逐字稿或录制查询，这些使用 lark-vc 技能。"
+description: "飞书视频会议会中能力：用于让应用机器人真实加入或离开正在进行的会议，并读取当前身份可见的会中事件、发送会中文本消息或会中表情、操作会中倒计时。适用于用户询问正在开的会议发生了什么、谁在发言、是否共享内容，或需要发现当前可读的进行中会议 ID。不负责已结束会议搜索、参会人快照、纪要、逐字稿或录制查询，这些使用 lark-vc 技能。"
 metadata:
   requires:
     bins: ["lark-cli"]
@@ -32,8 +32,8 @@ metadata:
 
 本 skill 与 [`lark-vc`](../lark-vc/SKILL.md) 并列：
 
-- **`lark-vc`** **负责会议查询和共享会中能力**：发现进行中会议、读取事件、发送消息，以及搜索历史会议、查询参会人快照和会议产物
-- **`lark-vc-agent`** **负责应用机器人会中编排**：真实入会 / 离会，并复用上述共享能力读取事件或发送消息
+- **`lark-vc`** **负责会议查询和共享会中能力**：发现进行中会议、读取事件、发送消息、操作倒计时，以及搜索历史会议、查询参会人快照和会议产物
+- **`lark-vc-agent`** **负责应用机器人会中编排**：真实入会 / 离会，并复用上述共享能力读取事件、发送消息或操作倒计时
 
 按此分工路由，避免两个 skill 语义混淆。
 
@@ -43,6 +43,7 @@ metadata:
 | "会议现在还开着，谁刚加入了"、"会议里谁在发言"、"有人共享屏幕吗"（**进行中会议**）             | **本 skill** `+meeting-events`                                                                                                                         |
 | "我/某个用户现在在哪个会里"、"给我找当前可拉事件的 meeting_id"                         | **本 skill** `+meeting-list-active`                                                                                                                     |
 | "在会里发一句 xx"、"提示大家 xx"、"反馈听不到/看不到/声音清楚/效果不错"（**进行中会议**） | **本 skill** `+meeting-message-send`                                                                                                                     |
+| "设置 5 分钟倒计时"、"延长倒计时 2 分钟"、"提前结束/关闭倒计时"（**进行中会议**）          | **本 skill** `+meeting-countdown`                                                                                                                        |
 | "退出会议"、"让机器人离开"                                            | **本 skill** `+meeting-leave`                                                                                                                          |
 | "昨天那场会有谁参加过"、"搜昨天的会"、"查纪要/逐字稿/录制"                          | [`lark-vc`](../lark-vc/SKILL.md)                                                                                                                      |
 | "帮我参会，结束后把纪要发到群" 等跨阶段场景                                    | 按序编排：本 skill（入会 → 读事件）→ 会议结束后用 [`lark-vc`](../lark-vc/SKILL.md) / [`lark-minutes`](../lark-minutes/SKILL.md) 拉纪要 → [`lark-im`](../lark-im/SKILL.md) 发群 |
@@ -57,7 +58,7 @@ metadata:
 | 查询目标用户且应用机器人也在会中的会议 | `--as bot --user-id <user_open_id>` | `--user-id` 必须是 `ou_...`；拿到的 `meeting_id` 后续继续用 `--as bot` 读事件 |
 | 用户明确要求应用机器人入会/旁听/代参会 | `--as bot` | 这是写操作，会真实产生入会记录；返回的 `meeting.id` 后续继续用 `--as bot` |
 
-硬规则：`meeting_id` 从哪种身份路径拿到，后续 `+meeting-events` / `+meeting-message-send` 就沿用哪种身份，除非用户明确要求切换场景（例如从“仅查询我当前会”改成“让应用机器人入会旁听”）。
+硬规则：`meeting_id` 从哪种身份路径拿到，后续 `+meeting-events` / `+meeting-message-send` / `+meeting-countdown` 就沿用哪种身份，除非用户明确要求切换场景（例如从“仅查询我当前会”改成“让应用机器人入会旁听”）。
 
 ## 核心场景
 
@@ -130,7 +131,25 @@ lark-cli vc +meeting-message-send --as bot --meeting-id <meeting_id> --msg-type 
 3. 离会**立即生效**，机器人从会议的参会人列表中消失，对其他参会人可见；若需要重新入会，再跑一次 `+meeting-join` 即可（非真正"不可逆"）。
 4. 使用与入会或 active meeting 发现相同的应用身份离会。
 
-### 5. 获取当前可用的进行中会议 ID（读操作）
+### 5. 操作会中倒计时（写操作）
+
+1. 用户明确要求设置、延长、提前结束或关闭正在进行中的会议倒计时时，用 `+meeting-countdown`。
+2. 输入是长数字 `meeting_id`，不是 9 位会议号。若用户只给 9 位会议号，先按当前身份执行 `+meeting-list-active` 并按 `meeting_no` 匹配，匹配到唯一会议后再操作；不要为了倒计时自动入会。
+3. 身份必须延续：`meeting_id` 来自用户身份发现，就继续 `--as user`；来自应用身份发现或应用机器人入会，就继续 `--as bot`。
+4. `--duration` 单位是分钟，只在 `set` 和 `prolong` 时传；`--reminders-before-end-in-second` 单位是秒，只在 `set` 时传，且每个提醒点必须小于 `duration * 60`。
+5. `--need-play-audio-at-end` 只在 `set` 时传。提前结束或关闭倒计时时不要携带 duration、提醒点或结束音频参数。
+6. 若使用应用身份操作，应用机器人必须在会中；若使用用户身份操作，当前用户必须正在该会议中。权限错误时按“应用身份权限配置检查”或“用户身份被拒绝时”处理。
+
+示例：
+
+```bash
+lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action set --duration 5 --reminders-before-end-in-second 60,30
+lark-cli vc +meeting-countdown --as bot --meeting-id <meeting_id> --action prolong --duration 2
+lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action end_in_advance
+lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action close
+```
+
+### 6. 获取当前可用的进行中会议 ID（读操作）
 
 1. `+meeting-list-active` 用来发现当前进行中的会议，并拿到后续 `+meeting-events` 需要的长数字 `meeting_id`。
 2. 用户身份：`lark-cli vc +meeting-list-active --as user --format json`，用于发现当前登录用户正在参加的会议；后续 `+meeting-events` 继续 `--as user`。
@@ -139,7 +158,7 @@ lark-cli vc +meeting-message-send --as bot --meeting-id <meeting_id> --msg-type 
 5. 如果返回多个会议，不要自动任选一个；按 `meeting_title` / `meeting_no` / `meeting_id` 展示候选，等待用户明确选择后再调用 `+meeting-events`。
 6. 如果用户给了 9 位会议号，先在 active meeting 结果中按 `meeting_no` 匹配。匹配失败时，不要自动入会；只有用户明确要求应用机器人真实入会时，才询问或执行 `+meeting-join`。
 
-### 6. Agent 参会示范
+### 7. Agent 参会示范
 
 ```bash
 # 1. 入会，捕获 meeting.id
@@ -182,12 +201,14 @@ Shortcut 是对常用操作的高级封装（`lark-cli vc +<verb> [flags]`）。
 | [`+meeting-list-active`](../lark-vc/references/lark-vc-meeting-list-active.md) | 读  | List active meetings and discover meeting_id for event reads               |
 | [`+meeting-events`](../lark-vc/references/lark-vc-meeting-events.md) | 读  | List meeting events visible to the current identity (participant, transcript, chat, share, document context) |
 | [`+meeting-message-send`](../lark-vc/references/lark-vc-meeting-message-send.md) | 写  | Send an in-meeting text message or reaction emoji                          |
+| [`+meeting-countdown`](../lark-vc/references/lark-vc-meeting-countdown.md) | 写  | Set, prolong, end in advance, or close an in-meeting countdown             |
 | [`+meeting-leave`](references/lark-vc-agent-meeting-leave.md)   | 写  | Leave a meeting by meeting\_id                                             |
 
 - [`+meeting-join`](references/lark-vc-agent-meeting-join.md)：入参格式、写操作可见性风险、入会失败排查。
 - [`+meeting-list-active`](../lark-vc/references/lark-vc-meeting-list-active.md)：用户身份和应用身份的不同返回范围。
 - [`+meeting-events`](../lark-vc/references/lark-vc-meeting-events.md)：`meeting_id` 来源、身份延续、分页和错误码（10005 / 20001 / 20002）。
 - [`+meeting-message-send`](../lark-vc/references/lark-vc-meeting-message-send.md)：会中文本、完整 `emoji_type` 列表、身份延续和写操作风险。
+- [`+meeting-countdown`](../lark-vc/references/lark-vc-meeting-countdown.md)：倒计时动作、duration 分钟单位、提醒点秒单位、身份延续和写操作风险。
 - [`+meeting-leave`](references/lark-vc-agent-meeting-leave.md)：`meeting_id` 的来源与写操作可见性。
 
 ## 应用身份权限配置检查
