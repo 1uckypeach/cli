@@ -360,8 +360,9 @@ func TestBaseRecordReadHelpGuidesAgents(t *testing.T) {
 				"view ID or name; omit for reading all table records, or set to read a user-specified or temporary filtered/sorted view",
 				`filter JSON object or @file`,
 				`sort JSON array or @file`,
-				"pagination size, range 1-200",
-				"output format: markdown (default) | json",
+				"maximum records to return; range 1-200, or 1-2000 for ndjson",
+				"ndjson typed artifact (preferred for analysis)",
+				"preferred analysis output: relative .ndjson output path",
 			},
 			wantTips: []string{
 				"lark-cli base +record-list --base-token <base_token> --table-id <table_id> --limit 50",
@@ -369,7 +370,8 @@ func TestBaseRecordReadHelpGuidesAgents(t *testing.T) {
 				"Text equality filter",
 				"Option intersection filter",
 				"Query priority",
-				"Default output is markdown",
+				"Example for analysis",
+				"prefer --output ./records.ndjson --minimal-stdout",
 				"Use --field-id repeatedly to keep output small",
 			},
 		},
@@ -382,7 +384,8 @@ func TestBaseRecordReadHelpGuidesAgents(t *testing.T) {
 				"field ID or name to search",
 				`filter JSON object or @file`,
 				`sort JSON array or @file`,
-				"output format: markdown (default) | json",
+				"ndjson typed artifact (preferred for analysis)",
+				"preferred analysis output: relative .ndjson output path",
 			},
 			wantTips: []string{
 				"Example: lark-cli base +record-search",
@@ -390,7 +393,8 @@ func TestBaseRecordReadHelpGuidesAgents(t *testing.T) {
 				"Text equality filter",
 				"Query priority",
 				"Use --json only when you need to pass the full search body directly",
-				"Default output is markdown",
+				"Example for analysis",
+				"prefer --output ./records.ndjson --minimal-stdout",
 			},
 		},
 		{
@@ -399,15 +403,16 @@ func TestBaseRecordReadHelpGuidesAgents(t *testing.T) {
 			wantHelp: []string{
 				"record ID (repeatable)",
 				"field ID or name to project; repeat to keep only needed columns",
-				"output format: markdown (default) | json",
+				"ndjson typed artifact (preferred for analysis)",
+				"preferred analysis output: relative .ndjson output path",
 			},
 			wantTips: []string{
 				"lark-cli base +record-get --base-token <base_token> --table-id <table_id> --record-id <record_id>",
 				"lark-cli base +record-get --base-token <base_token> --table-id <table_id> --record-id rec_001 --record-id rec_002 --field-id Name --field-id Status",
-				"Default output is markdown",
+				"Example for analysis input",
+				"prefer --output ./records.ndjson --minimal-stdout",
 				"projection boundary",
 				"record_id is already known",
-				"lark-base record read SOP",
 			},
 		},
 	}
@@ -448,8 +453,7 @@ func TestBasePaginationHelpShowsDefaults(t *testing.T) {
 		{name: "table list", shortcut: BaseTableList, flag: "limit", defaultVal: "50", help: "pagination size, range 1-100"},
 		{name: "field list", shortcut: BaseFieldList, flag: "limit", defaultVal: "100", help: "pagination size, range 1-200"},
 		{name: "field search options", shortcut: BaseFieldSearchOptions, flag: "limit", defaultVal: "30", help: "pagination size, range 1-200"},
-		{name: "record list", shortcut: BaseRecordList, flag: "limit", defaultVal: "100", help: "pagination size, range 1-200"},
-		{name: "record search", shortcut: BaseRecordSearch, flag: "limit", defaultVal: "10", help: "pagination size, range 1-200"},
+		{name: "record list", shortcut: BaseRecordList, flag: "limit", defaultVal: "100", help: "maximum records to return; range 1-200, or 1-2000 for ndjson"},
 		{name: "view list", shortcut: BaseViewList, flag: "limit", defaultVal: "100", help: "pagination size, range 1-200"},
 		{name: "form list", shortcut: BaseFormsList, flag: "page-size", defaultVal: "100", help: "page size per request, range 1-100"},
 		{name: "workflow list", shortcut: BaseWorkflowList, flag: "page-size", defaultVal: "100", help: "page size per request, range 1-100"},
@@ -481,6 +485,22 @@ func TestBasePaginationHelpShowsDefaults(t *testing.T) {
 				t.Fatalf("flag help default %s count=%d, want 1:\n%s", tt.defaultVal, got, help)
 			}
 		})
+	}
+}
+
+func TestBaseRecordSearchLimitHasNoStaticDefault(t *testing.T) {
+	parent := &cobra.Command{Use: "base"}
+	BaseRecordSearch.Mount(parent, &cmdutil.Factory{})
+	cmd := parent.Commands()[0]
+	flag := cmd.Flags().Lookup("limit")
+	if flag == nil {
+		t.Fatal("flag --limit missing")
+	}
+	if flag.DefValue != "0" {
+		t.Fatalf("--limit default=%q, want zero-value registration", flag.DefValue)
+	}
+	if help := cmd.Flags().FlagUsages(); strings.Contains(help, "(default 10)") {
+		t.Fatalf("--limit help exposes a static default:\n%s", help)
 	}
 }
 
@@ -932,11 +952,13 @@ func TestBaseRecordWriteHelpGuidesAgents(t *testing.T) {
 				`{"Parent Link":[{"id":"rec_xxx"}]}`,
 				"do not look for parent_record_id or a separate child-record API",
 				"CellValue happy path: text/phone/url",
-				"select (multiple=false) -> \"Todo\"",
-				"select (multiple=true) -> [\"Tag A\",\"Tag B\"]",
-				"datetime -> \"2026-03-24 10:00:00\"",
+				"select -> [\"Todo\"] or [\"Tag A\",\"Tag B\"]",
+				"when multiple=false, the array can contain only one option",
+				"datetime -> \"2026-03-24 10:00\"",
 				"checkbox -> true/false",
 				`ID-based CellValue: user/group/link fields use arrays like [{"id":"ou_xxx"}]`,
+				"User and group fields always use arrays",
+				"when multiple=false, the array can contain only one item",
 				`location uses {"lng":116.397428,"lat":39.90923}`,
 				"Do not guess user/chat/linked-record IDs or location coordinates",
 				"lark-base-cell-value.md",
