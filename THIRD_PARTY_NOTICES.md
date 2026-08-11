@@ -144,6 +144,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+<!-- Temporary CI verification marker; remove after confirming the expected failure. -->
+
 ## github.com/atotto/clipboard v0.1.4
 
 - Component: github.com/atotto/clipboard
