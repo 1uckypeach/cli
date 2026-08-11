@@ -19,23 +19,14 @@ assert SPEC.loader is not None
 sys.modules[SPEC.name] = notices
 SPEC.loader.exec_module(notices)
 
-MIT_TEXT = """Permission is hereby granted, free of charge.
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-THE SOFTWARE IS PROVIDED AS IS.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM.
-"""
-APACHE_TEXT = """Apache License Version 2.0
-Terms and Conditions for Use, Reproduction, and Distribution
-Grant of Copyright License; Grant of Patent License; Redistribution; Submission of Contributions; Trademarks; Disclaimer of Warranty; Limitation of Liability; Accepting Warranty or Additional Liability.
-"""
-BSD_TEXT = """Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met.
-Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer.
-This software is provided by the copyright holders and contributors as is.
-In no event shall the copyright holder or contributors be liable for any direct, indirect, incidental, special, exemplary, or consequential damages.
-"""
-BSD_2_TEXT = BSD_TEXT
-BSD_3_TEXT = BSD_TEXT + "Neither the name of Example Authors nor its contributors may be used to endorse products.\n"
+MIT_TEXT = notices.LICENSE_TEMPLATES["MIT"][0]
+APACHE_TEXT = notices.LICENSE_TEMPLATES["Apache-2.0"][0]
+BSD_2_TEXT = notices.LICENSE_TEMPLATES["BSD-2-Clause"][0].replace("<<role>>", "HOLDER")
+BSD_3_TEXT = (
+    notices.LICENSE_TEMPLATES["BSD-3-Clause"][0]
+    .replace("<<holder>>", "Example Authors")
+    .replace("<<role>>", "HOLDER")
+)
 
 
 def make_package(root: Path, name: str, license_name: str, license_text: str) -> Path:
@@ -99,6 +90,23 @@ class ThirdPartyNoticesTests(TestCase):
             with self.subTest(declared=declared):
                 with self.assertRaises(notices.NoticeError):
                     notices.normalize_license_id(declared, text)
+
+    def test_apache_headings_without_standard_terms_fail_closed(self):
+        headings_only = """Apache License Version 2.0
+Terms and Conditions for Use, Reproduction, and Distribution
+1. Definitions.
+2. Grant of Copyright License.
+3. Grant of Patent License.
+4. Redistribution.
+5. Submission of Contributions.
+6. Trademarks.
+7. Disclaimer of Warranty.
+8. Limitation of Liability.
+9. Accepting Warranty or Additional Liability.
+END OF TERMS AND CONDITIONS"""
+
+        with self.assertRaises(notices.NoticeError):
+            notices.normalize_license_id("Apache-2.0", headings_only)
 
     def test_copyright_clauses_are_not_rendered_as_attribution(self):
         self.assertEqual(
