@@ -72,7 +72,7 @@ class ThirdPartyNoticesTests(TestCase):
         self.assertEqual(component.license_id, "Apache-2.0")
         self.assertEqual(component.notice_text, "Example Apache NOTICE\n")
 
-    def test_unknown_license_fails_closed(self):
+    def test_license_outside_automated_set_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             package = make_package(Path(directory), "unknown-package", "Proprietary", MIT_TEXT)
 

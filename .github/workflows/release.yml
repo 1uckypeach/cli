@@ -604,7 +604,7 @@ jobs:
               'Select the recovery action from the failed-step diagnosis. If a Draft or public Release already exists, use **Re-run failed jobs**, not **Re-run all jobs**:' \
               '' \
               '- **preflight:** network or fetch failure → retry preflight. Version/tag validation failure → correct it, then create a new tag.' \
-              '- **license-compliance:** dependency registry failure → retry this job. Missing, unknown, or disallowed license → update the dependency or notices, then create a new tag.' \
+              '- **license-compliance:** dependency registry failure → retry this job. Missing, unidentifiable, or currently unsupported license → update the dependency/notices or complete manual review, then create a new tag.' \
               '- **build-sign-notarize:** transient build/service failure → retry build. Code or release configuration issue → correct it, then create a new tag.' \
               '- **create-draft-release:** GitHub Draft Release API/upload failure → retry draft; a partial Draft is verified and only missing assets are uploaded. Release-candidate inconsistency → delete the Draft, then retry build.' \
               '- **verify-macos:** runner or network failure → retry only the failed matrix child. Checksum, signing, notarization, or runtime failure → delete the Draft, then retry build.' \

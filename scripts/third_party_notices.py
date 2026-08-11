@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Lark Technologies Pte. Ltd.
 # SPDX-License-Identifier: MIT
 
-"""Generate a deterministic, fail-closed third-party notices document."""
+"""Generate notices and verify the licenses covered by current automation."""
 
 from __future__ import annotations
 
@@ -256,7 +256,7 @@ def _detect_license_ids(license_text: str) -> set[str]:
 
 
 def normalize_license_id(value: object, license_text: str) -> str:
-    """Return an allowed SPDX-like identifier, or fail closed."""
+    """Return a currently auto-verified SPDX-like identifier, or fail closed."""
     declared = ""
     if isinstance(value, str):
         declared = value.strip()
@@ -279,12 +279,18 @@ def normalize_license_id(value: object, license_text: str) -> str:
         elif normalized in {"BSD", "BSDLICENSE"}:
             return _detect_bsd_license(license_text)
         else:
-            raise NoticeError(f"unknown or unsupported license: {declared}")
+            raise NoticeError(
+                f"license requires manual review; "
+                f"it is outside the current automated verification set: {declared}"
+            )
         if expected not in detected:
             raise NoticeError(f"license text does not match declared license: {declared}")
         return expected
     if not detected:
-        raise NoticeError("license cannot be identified from dependency metadata or text")
+        raise NoticeError(
+            "license requires manual review; "
+            "it cannot be identified from dependency metadata or text"
+        )
     return " OR ".join(sorted(detected))
 
 
