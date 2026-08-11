@@ -55,6 +55,7 @@ type RuntimeContext struct {
 	larkSDK        *lark.Client                      // eagerly initialized in mountDeclarative
 	stdinConsumed  bool                              // set when an Input flag has consumed stdin (`-`); guards against a second flag also using `-` within the same call
 	inputResolved  map[string]bool                   // flags whose value was replaced by @file / stdin content in resolveInputFlags; see InputResolvedFromSource
+	offline        bool                              // dry-run context: API and credential-backed scope checks are disabled
 }
 
 // ── Identity ──
@@ -195,6 +196,9 @@ func (ctx *RuntimeContext) Ctx() context.Context { return ctx.ctx }
 // Thread-safe via sync.OnceValues (initialized in newRuntimeContext).
 // Falls back to direct construction for test contexts that bypass newRuntimeContext.
 func (ctx *RuntimeContext) getAPIClient() (*client.APIClient, error) {
+	if ctx.offline {
+		return nil, errs.NewValidationError(errs.SubtypeFailedPrecondition, "OpenAPI requests are unavailable during dry-run")
+	}
 	if ctx.apiClientFunc != nil {
 		return ctx.apiClientFunc()
 	}
@@ -235,6 +239,9 @@ func (ctx *RuntimeContext) LarkSDK() *lark.Client {
 // resolver doesn't expose scope metadata, this is a silent no-op — the
 // downstream API call still surfaces missing_scope at runtime.
 func (ctx *RuntimeContext) EnsureScopes(scopes []string) error {
+	if ctx.offline {
+		return nil
+	}
 	return checkShortcutScopes(ctx.Factory, ctx.ctx, ctx.As(), ctx.Config, scopes)
 }
 
@@ -984,6 +991,22 @@ func (s Shortcut) mountDeclarative(ctx context.Context, parent *cobra.Command, f
 }
 
 func runTypedMountedShortcut(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, botOnly bool) error {
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	if dryRun {
+		config, err := f.Config()
+		if err != nil {
+			return err
+		}
+		as, err := resolveDryRunIdentity(cmd, f, s, config)
+		if err != nil {
+			return err
+		}
+		rctx := newDryRunRuntimeContext(cmd, f, s, config, as, botOnly)
+		if err := output.ValidateJqFlags(rctx.JqExpr, "", rctx.Format); err != nil {
+			return err
+		}
+		return runTypedShortcut(f, rctx, s)
+	}
 	as, err := resolveShortcutIdentity(cmd, f, s)
 	if err != nil {
 		return err
@@ -1003,6 +1026,26 @@ func runTypedMountedShortcut(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut
 		return err
 	}
 	return runTypedShortcut(f, rctx, s)
+}
+
+func resolveDryRunIdentity(cmd *cobra.Command, f *cmdutil.Factory, shortcut *Shortcut, config *core.CliConfig) (core.Identity, error) {
+	requested, _ := cmd.Flags().GetString("as")
+	identity := core.Identity(requested)
+	if !cmd.Flags().Changed("as") || identity == "" || identity == core.AsAuto {
+		identity = config.DefaultAs
+		if identity == "" || identity == core.AsAuto {
+			if len(shortcut.AuthTypes) == 1 {
+				identity = core.Identity(shortcut.AuthTypes[0])
+			} else {
+				identity = core.AsBot
+			}
+		}
+	}
+	f.IdentityAutoDetected = false
+	if err := f.CheckIdentity(identity, shortcut.AuthTypes); err != nil {
+		return "", err
+	}
+	return identity, nil
 }
 
 func installTypedAnnotations(cmd *cobra.Command, command *compiledCommand) {
@@ -1166,6 +1209,27 @@ func checkShortcutScopes(f *cmdutil.Factory, ctx context.Context, as core.Identi
 
 // newRuntimeContext assembles the dependencies and resolved identity for one shortcut execution.
 func newRuntimeContext(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, config *core.CliConfig, as core.Identity, botOnly bool) (*RuntimeContext, error) {
+	rctx := newRuntimeContextBase(cmd, f, s, config, as, botOnly)
+	rctx.apiClientFunc = sync.OnceValues(func() (*client.APIClient, error) {
+		return f.NewAPIClientWithConfig(config)
+	})
+	rctx.botInfoFunc = sync.OnceValues(rctx.fetchBotInfo)
+
+	sdk, err := f.LarkClient()
+	if err != nil {
+		return nil, err
+	}
+	rctx.larkSDK = sdk
+	return rctx, nil
+}
+
+func newDryRunRuntimeContext(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, config *core.CliConfig, as core.Identity, botOnly bool) *RuntimeContext {
+	rctx := newRuntimeContextBase(cmd, f, s, config, as, botOnly)
+	rctx.offline = true
+	return rctx
+}
+
+func newRuntimeContextBase(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, config *core.CliConfig, as core.Identity, botOnly bool) *RuntimeContext {
 	ctx := cmd.Context()
 	ctx = cmdutil.ContextWithShortcut(ctx, s.Service+":"+s.Command, uuid.New().String())
 	rctx := &RuntimeContext{
@@ -1177,21 +1241,10 @@ func newRuntimeContext(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, conf
 		Factory:    f,
 	}
 	rctx.declaredScopes = s.DeclaredScopesForIdentity(string(rctx.As()))
-	rctx.apiClientFunc = sync.OnceValues(func() (*client.APIClient, error) {
-		return f.NewAPIClientWithConfig(config)
-	})
-	rctx.botInfoFunc = sync.OnceValues(rctx.fetchBotInfo)
-
-	sdk, err := f.LarkClient()
-	if err != nil {
-		return nil, err
-	}
-	rctx.larkSDK = sdk
-
 	applyJSONShorthand(cmd, s)
 	rctx.Format = rctx.Str("format")
 	rctx.JqExpr, _ = cmd.Flags().GetString("jq")
-	return rctx, nil
+	return rctx
 }
 
 // StripUTF8BOM removes a leading UTF-8 byte-order mark from content read from a
