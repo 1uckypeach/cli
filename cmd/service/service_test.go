@@ -230,6 +230,84 @@ func TestMailSenderListDeleteAddressesFlagBuildsSendersBody(t *testing.T) {
 	}
 }
 
+func TestMailSenderListAddressesFlagValidationFailures(t *testing.T) {
+	tests := []struct {
+		name    string
+		method  meta.Method
+		cmdName string
+		resName string
+		args    []string
+		want    string
+	}{
+		{
+			name:    "sender type without addresses",
+			method:  mailSenderListMethod("allow_senders", "create"),
+			cmdName: "create",
+			resName: "user_mailbox.allow_senders",
+			args: []string{
+				"--user-mailbox-id", "me",
+				"--sender-type", "3",
+				"--dry-run",
+			},
+			want: "--sender-type requires --addresses",
+		},
+		{
+			name:    "invalid sender type with addresses",
+			method:  mailSenderListMethod("allow_senders", "create"),
+			cmdName: "create",
+			resName: "user_mailbox.allow_senders",
+			args: []string{
+				"--user-mailbox-id", "me",
+				"--addresses", "alice@example.com",
+				"--sender-type", "3",
+				"--dry-run",
+			},
+			want: "--sender-type must be 1 (email address) or 2 (domain)",
+		},
+		{
+			name:    "empty address",
+			method:  mailSenderListMethod("allow_senders", "create"),
+			cmdName: "create",
+			resName: "user_mailbox.allow_senders",
+			args: []string{
+				"--user-mailbox-id", "me",
+				"--addresses", "",
+				"--dry-run",
+			},
+			want: "--addresses must not contain empty sender values",
+		},
+		{
+			name:    "addresses with non object data",
+			method:  mailSenderListMethod("blocked_senders", "delete"),
+			cmdName: "delete",
+			resName: "user_mailbox.blocked_senders",
+			args: []string{
+				"--user-mailbox-id", "me",
+				"--addresses", "spam@example.com",
+				"--data", `["not-object"]`,
+				"--dry-run",
+			},
+			want: "--addresses requires --data to be a JSON object when both are set",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, _, _, _ := cmdutil.TestFactory(t, testConfig)
+			cmd := NewCmdServiceMethod(f, mailSpec(), tt.method, tt.cmdName, tt.resName, nil)
+			cmd.SetArgs(tt.args)
+
+			err := cmd.Execute()
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error = %q, want substring %q", err.Error(), tt.want)
+			}
+		})
+	}
+}
+
 func TestNewCmdServiceMethod_RunFCallback(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, testConfig)
 

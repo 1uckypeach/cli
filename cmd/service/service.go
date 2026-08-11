@@ -699,11 +699,25 @@ func isMailSenderListWrite(schemaPath string) bool {
 }
 
 func overlaySenderListBodyFlags(opts *ServiceMethodOptions, data any) (any, error) {
-	if opts.Cmd == nil || !opts.Cmd.Flags().Changed("addresses") {
+	if opts.Cmd == nil {
+		return data, nil
+	}
+	flags := opts.Cmd.Flags()
+	addressesChanged := flags.Changed("addresses")
+	senderTypeChanged := flags.Lookup("sender-type") != nil && flags.Changed("sender-type")
+	if !addressesChanged {
+		if senderTypeChanged {
+			return data, errs.NewValidationError(errs.SubtypeInvalidArgument, "--sender-type requires --addresses").WithParam("--sender-type")
+		}
 		return data, nil
 	}
 	if len(opts.Addresses) == 0 {
 		return data, errs.NewValidationError(errs.SubtypeInvalidArgument, "--addresses must include at least one sender").WithParam("--addresses")
+	}
+	for _, address := range opts.Addresses {
+		if strings.TrimSpace(address) == "" {
+			return data, errs.NewValidationError(errs.SubtypeInvalidArgument, "--addresses must not contain empty sender values").WithParam("--addresses")
+		}
 	}
 	body, ok := data.(map[string]any)
 	if data == nil {
