@@ -33,6 +33,14 @@ func withDocMediaDownloadRecoveryHint(err error, mediaType string) error {
 		return err
 	}
 
+	if mediaType != "whiteboard" && problem.Code == 1063001 {
+		problem.Retryable = false
+		if !strings.Contains(problem.Hint, "stop retrying") {
+			const hint = "Document media export-permission preflight rejected the token; stop retrying the same input. Fetch the document again and pass the exact current <img token> or <source token>; do not pass a document token, block ID, whiteboard token, or stale media token."
+			appendDocRecoveryHint(problem, hint)
+		}
+	}
+
 	if mediaType != "whiteboard" &&
 		problem.Category == errs.CategoryNetwork &&
 		problem.Code == http.StatusForbidden &&
@@ -61,6 +69,17 @@ func appendDocRecoveryHint(problem *errs.Problem, hint string) {
 		return
 	}
 	problem.Hint = strings.TrimSpace(problem.Hint) + "\n" + hint
+}
+
+func docMediaDownloadPermissionDeniedError() error {
+	const tokenArg = "<MEDIA_TOKEN>"
+	return errs.NewPermissionError(
+		errs.SubtypePermissionDenied,
+		"current identity does not have export permission for this document media",
+	).WithHint(
+		"Direct document media download is unavailable. To preview the image or file content, try `lark-cli docs +media-preview --token %s --output <path>`.",
+		tokenArg,
+	)
 }
 
 // wrapDocInputFileErr wraps a --file Stat/read failure via the shared typed
