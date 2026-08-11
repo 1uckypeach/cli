@@ -95,7 +95,9 @@ func ResolveEndpoints(brand LarkBrand) Endpoints {
 		}
 	default:
 		return Endpoints{
-			Open:     "https://open.feishu.cn",
+			// TEMP(BOE): OpenAPI base URL pointed at BOE for whiteboard +reset-version
+			// live testing. Revert before opening a production PR.
+			Open:     "https://open.feishu-boe.cn",
 			Accounts: "https://accounts.feishu.cn",
 			MCP:      "https://mcp.feishu.cn",
 			AppLink:  "https://applink.feishu.cn",
