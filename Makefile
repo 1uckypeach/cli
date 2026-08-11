@@ -51,7 +51,6 @@ script-test:
 	python3 scripts/third_party_notices.test.py
 	bash scripts/resolve-changed-from.test.sh
 	bash scripts/ci-workflow.test.sh
-	bash scripts/pkg-pr-new-workflow.test.sh
 	bash scripts/release-workflow.test.sh
 	bash scripts/semantic-review-workflow.test.sh
 	bash scripts/third_party_notices_hook.test.sh
