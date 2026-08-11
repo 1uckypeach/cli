@@ -315,22 +315,34 @@ def _repository_source(metadata: dict, fallback: str) -> str:
     return source
 
 
+def _component_from_package(
+    package_dir: Path, budget: ReadBudget, *, name: str, version: str, source: str, declared_license: object
+) -> Component:
+    license_text = _document_text(package_dir, LICENSE_BASENAMES, budget, required=True)
+    notice_text = _document_text(package_dir, NOTICE_BASENAMES, budget, required=False)
+    return Component(
+        name=name,
+        version=version,
+        source=source,
+        license_id=normalize_license_id(declared_license, license_text),
+        copyright=_copyright_lines(license_text, notice_text),
+        license_text=license_text,
+        notice_text=notice_text,
+    )
+
+
 def component_from_node_package(package_dir: Path, budget: ReadBudget) -> Component:
     metadata = _read_json(package_dir, package_dir / "package.json", budget)
     name, version = metadata.get("name"), metadata.get("version")
     if not isinstance(name, str) or not name or not isinstance(version, str) or not version:
         raise NoticeError(f"missing name or version in dependency metadata: {package_dir}")
-    license_text = _document_text(package_dir, LICENSE_BASENAMES, budget, required=True)
-    notice_text = _document_text(package_dir, NOTICE_BASENAMES, budget, required=False)
-    license_id = normalize_license_id(metadata.get("license"), license_text)
-    return Component(
+    return _component_from_package(
+        package_dir,
+        budget,
         name=name,
         version=version,
         source=_repository_source(metadata, f"https://www.npmjs.com/package/{name}/v/{version}"),
-        license_id=license_id,
-        copyright=_copyright_lines(license_text, notice_text),
-        license_text=license_text,
-        notice_text=notice_text,
+        declared_license=metadata.get("license"),
     )
 
 
@@ -338,18 +350,8 @@ def component_from_go_module(module: dict, budget: ReadBudget) -> Component:
     name, version, directory = module.get("Path"), module.get("Version"), module.get("Dir")
     if not isinstance(name, str) or not isinstance(version, str) or not isinstance(directory, str):
         raise NoticeError("go list returned a module with missing path, version, or directory")
-    module_dir = Path(directory)
-    license_text = _document_text(module_dir, LICENSE_BASENAMES, budget, required=True)
-    notice_text = _document_text(module_dir, NOTICE_BASENAMES, budget, required=False)
-    license_id = normalize_license_id(None, license_text)
-    return Component(
-        name=name,
-        version=version,
-        source=f"https://pkg.go.dev/{name}@{version}",
-        license_id=license_id,
-        copyright=_copyright_lines(license_text, notice_text),
-        license_text=license_text,
-        notice_text=notice_text,
+    return _component_from_package(
+        Path(directory), budget, name=name, version=version, source=f"https://pkg.go.dev/{name}@{version}", declared_license=None
     )
 
 

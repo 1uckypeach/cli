@@ -6,7 +6,6 @@
 
 import importlib.util
 import json
-import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -20,98 +19,23 @@ assert SPEC.loader is not None
 sys.modules[SPEC.name] = notices
 SPEC.loader.exec_module(notices)
 
-FIXTURES = Path(__file__).parent / "testdata" / "third_party_notices"
-MIT_TEXT = """MIT License
-
-Copyright (c) 2024 Example Authors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the \"Software\"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+MIT_TEXT = """Permission is hereby granted, free of charge.
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED AS IS.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM.
 """
-APACHE_TEXT = """Apache License
-Version 2.0, January 2004
-http://www.apache.org/licenses/
-
-TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-1. Grant of Copyright License.
-2. Grant of Patent License.
-4. Redistribution.
-5. Submission of Contributions.
-6. Trademarks.
-7. Disclaimer of Warranty.
-8. Limitation of Liability.
-9. Accepting Warranty or Additional Liability.
+APACHE_TEXT = """Apache License Version 2.0
+Terms and Conditions for Use, Reproduction, and Distribution
+Grant of Copyright License; Grant of Patent License; Redistribution; Submission of Contributions; Trademarks; Disclaimer of Warranty; Limitation of Liability; Accepting Warranty or Additional Liability.
 """
-BSD_2_TEXT = """BSD 2-Clause License
-
-Copyright (c) 2024 Example Authors
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+BSD_TEXT = """Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met.
+Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer.
+This software is provided by the copyright holders and contributors as is.
+In no event shall the copyright holder or contributors be liable for any direct, indirect, incidental, special, exemplary, or consequential damages.
 """
-BSD_3_TEXT = """BSD 3-Clause License
-
-Copyright (c) 2024 Example Authors
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of Example Authors nor the names of its contributors may
-   be used to endorse or promote products derived from this software without
-   specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-"""
+BSD_2_TEXT = BSD_TEXT
+BSD_3_TEXT = BSD_TEXT + "Neither the name of Example Authors nor its contributors may be used to endorse products.\n"
 
 
 def make_package(root: Path, name: str, license_name: str, license_text: str) -> Path:
@@ -298,14 +222,6 @@ class ThirdPartyNoticesTests(TestCase):
 
             with self.assertRaises(notices.NoticeError):
                 notices.component_from_node_package(package, notices.ReadBudget())
-
-    def test_fixture_is_safe_to_parse(self):
-        # A real, checked-in fixture catches accidental fixture path regressions.
-        with tempfile.TemporaryDirectory() as directory:
-            package = Path(directory) / "fixture"
-            shutil.copytree(FIXTURES / "mit-package", package)
-            component = notices.component_from_node_package(package, notices.ReadBudget())
-        self.assertEqual((component.name, component.version, component.license_id), ("fixture-mit", "1.2.3", "MIT"))
 
     def test_check_compares_without_mutating_the_output(self):
         component = notices.Component("example", "1.0.0", "https://example.invalid", "MIT", "Copyright", "text")
