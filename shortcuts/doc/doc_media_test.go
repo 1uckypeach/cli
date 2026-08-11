@@ -39,19 +39,6 @@ func (r *docMediaScopedTokenResolver) ResolveToken(context.Context, credential.T
 	return &credential.TokenResult{Token: "test-token", Scopes: r.scopes}, nil
 }
 
-func registerDocMediaExportAuth(reg *httpmock.Registry, token string, allowed bool) *httpmock.Stub {
-	stub := &httpmock.Stub{
-		Method: http.MethodGet,
-		URL:    "/open-apis/drive/v1/permissions/" + token + "/members/auth",
-		Body: map[string]interface{}{
-			"code": 0,
-			"data": map[string]interface{}{"auth_result": allowed},
-		},
-	}
-	reg.Register(stub)
-	return stub
-}
-
 func mountAndRunDocs(t *testing.T, s common.Shortcut, args []string, f *cmdutil.Factory, stdout *bytes.Buffer) error {
 	t.Helper()
 	parent := &cobra.Command{Use: "docs"}
@@ -516,7 +503,6 @@ func TestDocMediaInsertExecuteResolvesWikiBeforeFileCheck(t *testing.T) {
 
 func TestDocMediaDownloadRejectsOverwriteWithoutFlag(t *testing.T) {
 	f, _, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-download-overwrite-app"))
-	registerDocMediaExportAuth(reg, "tok_123", true)
 	reg.Register(&httpmock.Stub{
 		Method:  "GET",
 		URL:     "/open-apis/drive/v1/medias/tok_123/download",
@@ -547,7 +533,6 @@ func TestDocMediaDownloadRejectsOverwriteWithoutFlag(t *testing.T) {
 
 func TestDocMediaDownloadRejectsHTTPErrorBeforeWrite(t *testing.T) {
 	f, _, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-download-app"))
-	registerDocMediaExportAuth(reg, "tok_123", true)
 	reg.Register(&httpmock.Stub{
 		Method:  "GET",
 		URL:     "/open-apis/drive/v1/medias/tok_123/download",
@@ -583,50 +568,8 @@ func TestDocMediaDownloadRejectsHTTPErrorBeforeWrite(t *testing.T) {
 	}
 }
 
-func TestDocMediaDownloadExportDeniedFailsBeforeDownload(t *testing.T) {
-	f, _, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-download-export-denied-app"))
-	registerDocMediaExportAuth(reg, "media_export_denied", false)
-	downloadCalls := 0
-	reg.Register(&httpmock.Stub{
-		Method:   http.MethodGet,
-		URL:      "/open-apis/drive/v1/medias/media_export_denied/download",
-		Optional: true,
-		OnMatch: func(*http.Request) {
-			downloadCalls++
-		},
-	})
-
-	tmpDir := t.TempDir()
-	withDocsWorkingDir(t, tmpDir)
-	err := mountAndRunDocs(t, DocMediaDownload, []string{
-		"+media-download",
-		"--token", "media_export_denied",
-		"--output", "blocked.bin",
-		"--as", "bot",
-	}, f, nil)
-	problem, ok := errs.ProblemOf(err)
-	if !ok {
-		t.Fatalf("expected typed error, got %T: %v", err, err)
-	}
-	if problem.Category != errs.CategoryAuthorization || problem.Subtype != errs.SubtypePermissionDenied {
-		t.Fatalf("problem = category %q subtype %q, want authorization/permission_denied", problem.Category, problem.Subtype)
-	}
-	for _, want := range []string{"docs +media-preview", "--token <MEDIA_TOKEN>", "--output <path>"} {
-		if !strings.Contains(problem.Hint, want) {
-			t.Fatalf("hint=%q, want %q", problem.Hint, want)
-		}
-	}
-	if strings.Contains(problem.Hint, "media_export_denied") {
-		t.Fatalf("hint=%q, want placeholder media token", problem.Hint)
-	}
-	if downloadCalls != 0 {
-		t.Fatalf("download calls = %d, want 0", downloadCalls)
-	}
-}
-
 func TestDocMediaDownloadHTTP403SuggestsPreview(t *testing.T) {
 	f, _, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-download-403-app"))
-	registerDocMediaExportAuth(reg, "media_403", true)
 	reg.Register(&httpmock.Stub{
 		Method:  http.MethodGet,
 		URL:     "/open-apis/drive/v1/medias/media_403/download",
@@ -682,9 +625,12 @@ func TestDocWhiteboardDownloadSkipsExportAuth(t *testing.T) {
 	}
 }
 
-func TestDocMediaDownloadDeclaresConditionalPermissionMemberAuthScope(t *testing.T) {
-	if len(DocMediaDownload.ConditionalScopes) != 1 || DocMediaDownload.ConditionalScopes[0] != common.DrivePermissionMemberAuthScope {
-		t.Fatalf("ConditionalScopes = %v, want [%q]", DocMediaDownload.ConditionalScopes, common.DrivePermissionMemberAuthScope)
+func TestDocMediaDownloadDoesNotDeclareFilePermissionAuthScope(t *testing.T) {
+	allScopes := append(append([]string{}, DocMediaDownload.Scopes...), DocMediaDownload.ConditionalScopes...)
+	for _, scope := range allScopes {
+		if scope == common.DrivePermissionMemberAuthScope {
+			t.Fatalf("media tokens have no compatible permission auth resource type; scopes=%v conditional_scopes=%v", DocMediaDownload.Scopes, DocMediaDownload.ConditionalScopes)
+		}
 	}
 }
 
@@ -717,7 +663,6 @@ func TestDocWhiteboardDownloadHTTP403DoesNotSuggestMediaPreview(t *testing.T) {
 
 func TestDocMediaDownloadHTTP429SuggestsBackoff(t *testing.T) {
 	f, _, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-download-429-app"))
-	registerDocMediaExportAuth(reg, "media_rate_limited", true)
 	reg.Register(&httpmock.Stub{
 		Method:  http.MethodGet,
 		URL:     "/open-apis/drive/v1/medias/media_rate_limited/download",
@@ -736,43 +681,6 @@ func TestDocMediaDownloadHTTP429SuggestsBackoff(t *testing.T) {
 	problem, ok := errs.ProblemOf(err)
 	if !ok || problem.Category != errs.CategoryNetwork || problem.Code != http.StatusTooManyRequests {
 		t.Fatalf("problem=%+v ok=%v, want network HTTP 429", problem, ok)
-	}
-	for _, want := range []string{"stop immediate retries", "retry later with exponential backoff"} {
-		if !strings.Contains(problem.Hint, want) {
-			t.Fatalf("hint=%q, want %q", problem.Hint, want)
-		}
-	}
-	if strings.Contains(problem.Hint, "1 minute") {
-		t.Fatalf("hint=%q, want no fixed retry duration", problem.Hint)
-	}
-}
-
-func TestDocMediaDownloadExportAuthRateLimitPreservesAPIErrorAndSuggestsBackoff(t *testing.T) {
-	f, _, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-auth-429-app"))
-	reg.Register(&httpmock.Stub{
-		Method: http.MethodGet,
-		URL:    "/open-apis/drive/v1/permissions/media_auth_limited/members/auth",
-		Body: map[string]interface{}{
-			"code":   99991400,
-			"msg":    "rate limited",
-			"log_id": "log-doc-auth-limited",
-		},
-	})
-
-	tmpDir := t.TempDir()
-	withDocsWorkingDir(t, tmpDir)
-	err := mountAndRunDocs(t, DocMediaDownload, []string{
-		"+media-download",
-		"--token", "media_auth_limited",
-		"--output", "blocked.bin",
-		"--as", "bot",
-	}, f, nil)
-	problem, ok := errs.ProblemOf(err)
-	if !ok || problem.Category != errs.CategoryAPI || problem.Subtype != errs.SubtypeRateLimit || problem.Code != 99991400 {
-		t.Fatalf("problem=%+v ok=%v, want api/rate_limit/99991400", problem, ok)
-	}
-	if problem.LogID != "log-doc-auth-limited" || !problem.Retryable {
-		t.Fatalf("problem=%+v, want preserved log_id and retryable", problem)
 	}
 	for _, want := range []string{"stop immediate retries", "retry later with exponential backoff"} {
 		if !strings.Contains(problem.Hint, want) {
@@ -810,7 +718,6 @@ func TestDocMediaDownloadTypedRateLimitSuggestsBackoff(t *testing.T) {
 
 func TestDocMediaDownloadAppendsExtensionFromContentDispositionFilename(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-download-disposition-app"))
-	registerDocMediaExportAuth(reg, "tok_123", true)
 	reg.Register(&httpmock.Stub{
 		Method: "GET",
 		URL:    "/open-apis/drive/v1/medias/tok_123/download",
@@ -847,7 +754,6 @@ func TestDocMediaDownloadAppendsExtensionFromContentDispositionFilename(t *testi
 
 func TestDocMediaDownloadAppendsExtensionForTrailingDotOutput(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-download-trailing-dot-app"))
-	registerDocMediaExportAuth(reg, "tok_123", true)
 	reg.Register(&httpmock.Stub{
 		Method: "GET",
 		URL:    "/open-apis/drive/v1/medias/tok_123/download",
@@ -881,7 +787,7 @@ func TestDocMediaDownloadAppendsExtensionForTrailingDotOutput(t *testing.T) {
 	}
 }
 
-func TestDocMediaDownloadDryRunIncludesExportAuthBeforeDownload(t *testing.T) {
+func TestDocMediaDownloadDryRunUsesMediaDownloadAsAuthoritativePermissionCheck(t *testing.T) {
 	cmd := &cobra.Command{Use: "docs +media-download"}
 	cmd.Flags().String("token", "", "")
 	cmd.Flags().String("output", "", "")
@@ -894,17 +800,11 @@ func TestDocMediaDownloadDryRunIncludesExportAuthBeforeDownload(t *testing.T) {
 	}
 
 	dry := decodeDocDryRun(t, DocMediaDownload.DryRun(context.Background(), common.TestNewRuntimeContext(cmd, nil)))
-	if len(dry.API) != 2 {
-		t.Fatalf("expected 2 API calls, got %d", len(dry.API))
+	if len(dry.API) != 1 {
+		t.Fatalf("expected 1 API call, got %d", len(dry.API))
 	}
-	if dry.API[0].Method != http.MethodGet || dry.API[0].URL != "/open-apis/drive/v1/permissions/media_dryrun/members/auth" {
-		t.Fatalf("first API = %+v, want export permission auth", dry.API[0])
-	}
-	if dry.API[0].Params["type"] != "file" || dry.API[0].Params["action"] != "export" {
-		t.Fatalf("first params = %#v, want type=file action=export", dry.API[0].Params)
-	}
-	if dry.API[1].Method != http.MethodGet || dry.API[1].URL != "/open-apis/drive/v1/medias/media_dryrun/download" {
-		t.Fatalf("second API = %+v, want media download", dry.API[1])
+	if dry.API[0].Method != http.MethodGet || dry.API[0].URL != "/open-apis/drive/v1/medias/media_dryrun/download" {
+		t.Fatalf("API = %+v, want media download", dry.API[0])
 	}
 }
 
@@ -1092,7 +992,6 @@ func TestDocMediaPreviewAppendsExtensionForTrailingDotOutput(t *testing.T) {
 
 func TestDocMediaDownloadAppendsExtensionFromContentTypeMapping(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, docsTestConfigWithAppID("docs-download-content-type-app"))
-	registerDocMediaExportAuth(reg, "tok_123", true)
 	reg.Register(&httpmock.Stub{
 		Method: "GET",
 		URL:    "/open-apis/drive/v1/medias/tok_123/download",

@@ -63,17 +63,6 @@ func appendDocRecoveryHint(problem *errs.Problem, hint string) {
 	problem.Hint = strings.TrimSpace(problem.Hint) + "\n" + hint
 }
 
-func docMediaDownloadPermissionDeniedError() error {
-	const tokenArg = "<MEDIA_TOKEN>"
-	return errs.NewPermissionError(
-		errs.SubtypePermissionDenied,
-		"current identity does not have export permission for this document media",
-	).WithHint(
-		"Direct document media download is unavailable. To preview the image or file content, try `lark-cli docs +media-preview --token %s --output <path>`.",
-		tokenArg,
-	)
-}
-
 // wrapDocInputFileErr wraps a --file Stat/read failure via the shared typed
 // helper (which sets the cause) and tags it with the --file param so agents
 // learn which flag to fix. The common helper is flag-agnostic, so the param is

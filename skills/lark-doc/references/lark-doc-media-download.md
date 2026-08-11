@@ -41,7 +41,8 @@ lark-cli docs +media-download --type whiteboard --token "wbcnxxxxxxxx" --output 
 
 ## 排障
 
-- 如果返回 `permission_denied`，或最终下载返回 `HTTP 403`，按错误 `hint` 改用 [`docs +media-preview`](lark-doc-media-preview.md) 预览内容。
+- 素材 token 不是 Drive 文件 token，权限接口没有对应的 `media` 资源类型；CLI 直接通过素材下载接口校验权限，不会把素材 token 伪装成 `type=file` 做前置检查。
+- 如果下载返回 `permission_denied` 或 `HTTP 403`，按错误 `hint` 改用 [`docs +media-preview`](lark-doc-media-preview.md) 预览内容。
 - 如果返回限流错误，停止立即重试，稍后按指数退避重试。
 
 ## 参考
