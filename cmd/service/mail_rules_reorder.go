@@ -5,7 +5,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
@@ -29,7 +28,7 @@ func serviceDryRunMailRulesReorder(f *cmdutil.Factory, request client.RawApiRequ
 	body := map[string]interface{}{"rule_ids": []string{"<user_rule_id_1>", "<user_rule_id_2>", "<remaining_rule_ids_in_current_order>"}}
 	if bodyMap, ok := request.Data.(map[string]interface{}); ok {
 		body = cloneMap(bodyMap)
-		body["rule_ids"] = []string{"<user_rule_id_1>", "<user_rule_id_2>", "<remaining_rule_ids_in_current_order>"}
+		body["rule_ids"] = dryRunCompleteRuleIDs(bodyMap["rule_ids"])
 	}
 	dr := cmdutil.NewDryRunAPI().
 		GET(listRequest.URL).
@@ -79,8 +78,7 @@ func userRuleIDsFromReorderBody(data interface{}) ([]string, map[string]interfac
 	}
 	ruleIDs, err := stringList(raw)
 	if err != nil {
-		return nil, nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
-			"--data.rule_ids must be an array of strings").WithParam("rule_ids").WithCause(err)
+		return nil, nil, err
 	}
 	if len(ruleIDs) == 0 {
 		return nil, nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
@@ -98,21 +96,33 @@ func stringList(raw interface{}) ([]string, error) {
 				items[i] = v
 			}
 		} else {
-			return nil, fmt.Errorf("got %T", raw)
+			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
+				"--data.rule_ids must be an array of strings; got %T", raw).WithParam("rule_ids")
 		}
 	}
 	out := make([]string, 0, len(items))
-	for _, item := range items {
+	for i, item := range items {
 		s, ok := item.(string)
 		if !ok {
-			return nil, fmt.Errorf("got item %T", item)
+			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
+				"--data.rule_ids[%d] must be a string; got %T", i, item).WithParam("rule_ids")
 		}
-		s = strings.TrimSpace(s)
-		if s != "" {
-			out = append(out, s)
+		trimmed := strings.TrimSpace(s)
+		if trimmed == "" {
+			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
+				"--data.rule_ids[%d] must not be blank", i).WithParam("rule_ids")
 		}
+		out = append(out, trimmed)
 	}
 	return out, nil
+}
+
+func dryRunCompleteRuleIDs(raw interface{}) []string {
+	ruleIDs, err := stringList(raw)
+	if err != nil || len(ruleIDs) == 0 {
+		return []string{"<user_rule_id_1>", "<user_rule_id_2>", "<remaining_rule_ids_in_current_order>"}
+	}
+	return append(ruleIDs, "<remaining_rule_ids_in_current_order>")
 }
 
 func completeRuleIDs(userRuleIDs, currentRuleIDs []string) ([]string, error) {
@@ -155,6 +165,7 @@ func completeRuleIDs(userRuleIDs, currentRuleIDs []string) ([]string, error) {
 func fetchAllMailRuleIDs(ctx context.Context, ac *client.APIClient, reorderRequest client.RawApiRequest, checkErr func(interface{}, core.Identity) error) ([]string, error) {
 	var all []string
 	var pageToken string
+	seenPageTokens := map[string]bool{}
 	for {
 		result, err := ac.CallAPI(ctx, mailRulesListRequest(reorderRequest, pageToken))
 		if err != nil {
@@ -188,6 +199,11 @@ func fetchAllMailRuleIDs(ctx context.Context, ac *client.APIClient, reorderReque
 			return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
 				"mail rules list response has_more=true but no page token")
 		}
+		if seenPageTokens[pageToken] {
+			return nil, errs.NewInternalError(errs.SubtypeInvalidResponse,
+				"mail rules list response repeated page token %q", pageToken)
+		}
+		seenPageTokens[pageToken] = true
 	}
 	return all, nil
 }

@@ -118,14 +118,16 @@ func TestCompleteRuleIDs(t *testing.T) {
 
 func TestUserRuleIDsFromReorderBodyValidation(t *testing.T) {
 	tests := []struct {
-		name    string
-		body    interface{}
-		wantErr string
+		name      string
+		body      interface{}
+		wantErr   string
+		wantParam string
 	}{
-		{name: "missing body", body: nil, wantErr: "--data must be a JSON object"},
-		{name: "missing rule ids", body: map[string]interface{}{}, wantErr: "--data.rule_ids is required"},
-		{name: "empty rule ids", body: map[string]interface{}{"rule_ids": []interface{}{}}, wantErr: "must not be empty"},
-		{name: "non string rule id", body: map[string]interface{}{"rule_ids": []interface{}{1}}, wantErr: "array of strings"},
+		{name: "missing body", body: nil, wantErr: "--data must be a JSON object", wantParam: "--data"},
+		{name: "missing rule ids", body: map[string]interface{}{}, wantErr: "--data.rule_ids is required", wantParam: "rule_ids"},
+		{name: "empty rule ids", body: map[string]interface{}{"rule_ids": []interface{}{}}, wantErr: "must not be empty", wantParam: "rule_ids"},
+		{name: "non string rule id", body: map[string]interface{}{"rule_ids": []interface{}{1}}, wantErr: "must be a string", wantParam: "rule_ids"},
+		{name: "blank rule id", body: map[string]interface{}{"rule_ids": []interface{}{"rule_a", " "}}, wantErr: "must not be blank", wantParam: "rule_ids"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -133,6 +135,7 @@ func TestUserRuleIDsFromReorderBodyValidation(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("error = %v, want contains %q", err, tt.wantErr)
 			}
+			assertValidationProblem(t, err, tt.wantParam)
 		})
 	}
 }
@@ -172,8 +175,14 @@ func TestServiceMethod_MailRulesReorderDryRunShowsListThenReorder(t *testing.T) 
 	}
 	body := second["body"].(map[string]interface{})
 	ruleIDs := body["rule_ids"].([]interface{})
-	if len(ruleIDs) != 3 || ruleIDs[2] != "<remaining_rule_ids_in_current_order>" {
-		t.Fatalf("dry-run rule_ids = %#v", ruleIDs)
+	want := []string{"rule_c", "rule_a", "<remaining_rule_ids_in_current_order>"}
+	if len(ruleIDs) != len(want) {
+		t.Fatalf("dry-run rule_ids len = %d, want %d: %#v", len(ruleIDs), len(want), ruleIDs)
+	}
+	for i, wantID := range want {
+		if ruleIDs[i] != wantID {
+			t.Fatalf("dry-run rule_ids[%d] = %v, want %s; all=%#v", i, ruleIDs[i], wantID, ruleIDs)
+		}
 	}
 }
 
@@ -381,6 +390,11 @@ func TestServiceMethod_MailRulesReorderValidationFailuresDoNotPost(t *testing.T)
 			if !errors.As(err, &validationErr) {
 				t.Fatalf("error = %T, want *errs.ValidationError", err)
 			}
+			if validationErr.Category != errs.CategoryValidation || validationErr.Subtype != errs.SubtypeInvalidArgument || validationErr.Param != "rule_ids" {
+				t.Fatalf("validation metadata = (%s, %s, %q), want (%s, %s, %q)",
+					validationErr.Category, validationErr.Subtype, validationErr.Param,
+					errs.CategoryValidation, errs.SubtypeInvalidArgument, "rule_ids")
+			}
 		})
 	}
 }
@@ -472,5 +486,58 @@ func TestFetchAllMailRuleIDsRejectsMalformedPagination(t *testing.T) {
 	}, ac.CheckResponse)
 	if err == nil || !strings.Contains(err.Error(), "has_more=true") {
 		t.Fatalf("error = %v, want malformed pagination error", err)
+	}
+	requireProblem(t, err, errs.CategoryInternal, errs.SubtypeInvalidResponse, 0)
+}
+
+func TestFetchAllMailRuleIDsRejectsRepeatedPageToken(t *testing.T) {
+	ac, _, _, reg := newServicePaginateTestHarness(t)
+	ac.ErrOut = io.Discard
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/mail/v1/user_mailboxes/me/rules",
+		Body: map[string]interface{}{
+			"code": 0, "msg": "ok",
+			"data": map[string]interface{}{
+				"items":      []interface{}{map[string]interface{}{"rule_id": "rule_a"}},
+				"has_more":   true,
+				"page_token": "next",
+			},
+		},
+	})
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "page_token=next",
+		Body: map[string]interface{}{
+			"code": 0, "msg": "ok",
+			"data": map[string]interface{}{
+				"items":      []interface{}{map[string]interface{}{"rule_id": "rule_b"}},
+				"has_more":   true,
+				"page_token": "next",
+			},
+		},
+	})
+
+	_, err := fetchAllMailRuleIDs(context.Background(), ac, client.RawApiRequest{
+		Method: "POST",
+		URL:    "/open-apis/mail/v1/user_mailboxes/me/rules/reorder",
+		As:     core.AsBot,
+	}, ac.CheckResponse)
+	if err == nil || !strings.Contains(err.Error(), "repeated page token") {
+		t.Fatalf("error = %v, want repeated page token error", err)
+	}
+	requireProblem(t, err, errs.CategoryInternal, errs.SubtypeInvalidResponse, 0)
+}
+
+func assertValidationProblem(t *testing.T, err error, wantParam string) {
+	t.Helper()
+	var validationErr *errs.ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("error = %T, want *errs.ValidationError", err)
+	}
+	if validationErr.Category != errs.CategoryValidation || validationErr.Subtype != errs.SubtypeInvalidArgument || validationErr.Param != wantParam {
+		t.Fatalf("validation metadata = (%s, %s, %q), want (%s, %s, %q)",
+			validationErr.Category, validationErr.Subtype, validationErr.Param,
+			errs.CategoryValidation, errs.SubtypeInvalidArgument, wantParam)
 	}
 }
