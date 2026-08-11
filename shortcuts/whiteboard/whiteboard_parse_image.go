@@ -135,7 +135,7 @@ func wbParseImageExecute(_ context.Context, runtime *common.RuntimeContext) erro
 }
 
 func parseImageResultCommand(whiteboardToken, taskID string, identity core.Identity) string {
-	return fmt.Sprintf("lark-cli whiteboard +parse-image-result --whiteboard-token %s --task-id %s --as %s", whiteboardToken, taskID, string(identity))
+	return fmt.Sprintf("lark-cli whiteboard +parse-image-result --whiteboard-token %s --task-id %s --wait --as %s", whiteboardToken, taskID, string(identity))
 }
 
 func installParseImageShorthand(cmd *cobra.Command) {

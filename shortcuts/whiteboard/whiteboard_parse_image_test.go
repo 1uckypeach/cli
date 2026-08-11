@@ -155,7 +155,8 @@ func TestWhiteboardParseImageExecute_PostsMultipartAndOutputsNextCommand(t *test
 	next, _ := data["next_command"].(string)
 	if !strings.Contains(next, "whiteboard +parse-image-result") ||
 		!strings.Contains(next, "--whiteboard-token test-board") ||
-		!strings.Contains(next, "--task-id 7670001") {
+		!strings.Contains(next, "--task-id 7670001") ||
+		!strings.Contains(next, "--wait") {
 		t.Fatalf("next_command = %q, want parse-image-result resume command", next)
 	}
 }
@@ -233,7 +234,7 @@ func TestWhiteboardParseImageExecute_PreservesBotIdentityInNextCommand(t *testin
 	}
 	data := decodeParseImageEnvelope(t, stdout)
 	next, _ := data["next_command"].(string)
-	if !strings.Contains(next, "--as bot") {
+	if !strings.Contains(next, "--as bot") || !strings.Contains(next, "--wait") {
 		t.Fatalf("next_command = %q, want bot identity", next)
 	}
 }
