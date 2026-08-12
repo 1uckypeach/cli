@@ -302,17 +302,17 @@ minutes.json|$.resources.minutes.methods.get.responseBody.minute.properties.cove
 minutes.json|$.resources.minutes.methods.get.responseBody.minute.properties.url.example|https://sample.feishu.cn/minutes/obcnExampleMinutes
 sheets.json|$.resources.spreadsheets.methods.create.responseBody.spreadsheet.properties.url.example|https://sample.feishu.cn/sheets/shtcnExampleSheet
 sheets.json|$.resources.spreadsheets.methods.get.responseBody.spreadsheet.properties.url.example|https://sample.feishu.cn/sheets/shtcnExampleSheet
-task.json|$.resources.members.methods.add.responseBody.task.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.members.methods.add.responseBody.task.properties.attachment_deliveries.properties.url.example|https://sample.feishu.cn/task/attachment/example
 task.json|$.resources.members.methods.add.responseBody.task.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
-task.json|$.resources.members.methods.remove.responseBody.task.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.members.methods.remove.responseBody.task.properties.attachment_deliveries.properties.url.example|https://sample.feishu.cn/task/attachment/example
 task.json|$.resources.members.methods.remove.responseBody.task.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
 task.json|$.resources.subtasks.methods.create.requestBody.custom_complete.properties.android.properties.href.example|https://www.example.com
 task.json|$.resources.subtasks.methods.create.requestBody.custom_complete.properties.ios.properties.href.example|https://www.example.com
 task.json|$.resources.subtasks.methods.create.requestBody.custom_complete.properties.pc.properties.href.example|https://www.example.com
 task.json|$.resources.subtasks.methods.create.requestBody.origin.properties.href.properties.url.example|https://www.example.com
-task.json|$.resources.subtasks.methods.create.responseBody.subtask.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.subtasks.methods.create.responseBody.subtask.properties.attachment_deliveries.properties.url.example|https://sample.feishu.cn/task/attachment/example
 task.json|$.resources.subtasks.methods.create.responseBody.subtask.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
-task.json|$.resources.subtasks.methods.list.responseBody.items.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.subtasks.methods.list.responseBody.items.properties.attachment_deliveries.properties.url.example|https://sample.feishu.cn/task/attachment/example
 task.json|$.resources.subtasks.methods.list.responseBody.items.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
 task.json|$.resources.tasklists.methods.add_members.responseBody.tasklist.properties.url.example|https://sample.feishu.cn/task/list/example?guid=example_task_list
 task.json|$.resources.tasklists.methods.create.responseBody.tasklist.properties.url.example|https://sample.feishu.cn/task/list/example?guid=example_task_list
@@ -324,13 +324,13 @@ task.json|$.resources.tasks.methods.create.requestBody.custom_complete.propertie
 task.json|$.resources.tasks.methods.create.requestBody.custom_complete.properties.ios.properties.href.example|https://www.example.com
 task.json|$.resources.tasks.methods.create.requestBody.custom_complete.properties.pc.properties.href.example|https://www.example.com
 task.json|$.resources.tasks.methods.create.requestBody.origin.properties.href.properties.url.example|https://www.example.com
-task.json|$.resources.tasks.methods.create.responseBody.task.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.tasks.methods.create.responseBody.task.properties.attachment_deliveries.properties.url.example|https://sample.feishu.cn/task/attachment/example
 task.json|$.resources.tasks.methods.create.responseBody.task.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
-task.json|$.resources.tasks.methods.get.responseBody.task.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.tasks.methods.get.responseBody.task.properties.attachment_deliveries.properties.url.example|https://sample.feishu.cn/task/attachment/example
 task.json|$.resources.tasks.methods.get.responseBody.task.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
-task.json|$.resources.tasks.methods.list.responseBody.items.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.tasks.methods.list.responseBody.items.properties.attachment_deliveries.properties.url.example|https://sample.feishu.cn/task/attachment/example
 task.json|$.resources.tasks.methods.list.responseBody.items.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
-task.json|$.resources.tasks.methods.patch.responseBody.task.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.tasks.methods.patch.responseBody.task.properties.attachment_deliveries.properties.url.example|https://sample.feishu.cn/task/attachment/example
 task.json|$.resources.tasks.methods.patch.responseBody.task.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
 vc.json|$.resources.meeting.methods.get.responseBody.meeting.properties.url.example|https://sample.feishu.cn/vc/j/example
 wiki.json|$.resources.nodes.methods.copy.responseBody.node.properties.url.example|https://xxx/wiki/wikcnKQ1k3p******8Vabcef
@@ -375,6 +375,7 @@ wiki.json|$.resources.spaces.methods.get_node.responseBody.node.properties.url.e
 
 func TestCatalogExampleURLRejectsProductionResourceFamilies(t *testing.T) {
 	for _, url := range []string{
+		"https://example.com/download/authcode/?code=opaque",
 		"https://api-drive-stream.blmpb.com/space/api/box/stream/download/authcode/?code=opaque",
 		"https://api-drive-stream.blmpb.com/another/resource",
 		"http://api-drive-stream.blmpb.com/another/resource",
@@ -549,6 +550,13 @@ func catalogExampleURLIsForbidden(rawURL string) bool {
 		if strings.HasPrefix(parsed.Path, driveFolderPrefix) {
 			folderToken := strings.TrimPrefix(parsed.Path, driveFolderPrefix)
 			return !strings.Contains(folderToken, "/") && strings.HasPrefix(folderToken, "fld")
+		}
+	}
+	if strings.HasPrefix(parsed.Path, "/download/authcode/") {
+		for _, code := range parsed.Query()["code"] {
+			if code != "" {
+				return true
+			}
 		}
 	}
 	return false

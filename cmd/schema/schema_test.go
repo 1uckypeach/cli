@@ -179,6 +179,23 @@ func TestSchemaCmd_LargeIntegerBoundStaysExact(t *testing.T) {
 	}
 }
 
+func TestSchemaCmd_LargeIntegerExampleStaysExact(t *testing.T) {
+	f, stdout, _, _ := schemaTestFactory(t, nil)
+
+	cmd := NewCmdSchema(f, nil)
+	cmd.SetArgs([]string{"okr.cycle.objectives.list", "--format", "json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, `"example": 7342342398472398471`) {
+		t.Fatalf("schema output does not preserve exact OKR example:\n%s", out)
+	}
+	if strings.Contains(out, "7342342398472398848") {
+		t.Fatalf("schema output contains float64-rounded OKR example:\n%s", out)
+	}
+}
+
 func TestSchemaCmd_SpaceSeparatedPath_EqualsDotted(t *testing.T) {
 	f1, out1, _, _ := schemaTestFactory(t, nil)
 	cmd1 := NewCmdSchema(f1, nil)

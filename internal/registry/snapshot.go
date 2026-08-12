@@ -33,6 +33,7 @@ var embeddedCatalogFS embed.FS
 // Manifest describes the immutable service shards in a catalog snapshot.
 type Manifest struct {
 	SchemaVersion int                    `json:"schema_version"`
+	SourceSHA256  string                 `json:"source_sha256"`
 	Services      []ManifestServiceEntry `json:"services"`
 }
 
@@ -122,7 +123,7 @@ func (s *Snapshot) Catalog(names ...string) (apicatalog.Catalog, error) {
 		}
 
 		var service meta.Service
-		if err := json.Unmarshal(data, &service); err != nil {
+		if err := decodeOne(data, &service, false); err != nil {
 			return apicatalog.Catalog{}, serviceIntegrityError(name, "invalid JSON", err)
 		}
 		if service.Name != name {
@@ -149,7 +150,7 @@ func parseManifest(data []byte) (Manifest, error) {
 	var manifest Manifest
 	if raw, ok := fields["schema_version"]; ok {
 		if err := decodeOne(raw, &manifest.SchemaVersion, false); err != nil {
-			return Manifest{}, manifestIntegrityError("schema_version must be an integer", err)
+			return Manifest{}, manifestIntegrityError("invalid JSON", err)
 		}
 	}
 	if manifest.SchemaVersion != catalogSchemaVersion {
@@ -158,6 +159,18 @@ func parseManifest(data []byte) (Manifest, error) {
 			fmt.Sprintf("unsupported schema_version %d", manifest.SchemaVersion),
 			cause,
 		)
+	}
+	rawSourceSHA256, ok := fields["source_sha256"]
+	if !ok {
+		cause := catalogIntegrityCause("source_sha256 is missing or invalid")
+		return Manifest{}, manifestIntegrityError("invalid source_sha256", cause)
+	}
+	if err := decodeOne(rawSourceSHA256, &manifest.SourceSHA256, false); err != nil {
+		return Manifest{}, manifestIntegrityError("invalid source_sha256", err)
+	}
+	if !sha256Pattern.MatchString(manifest.SourceSHA256) {
+		cause := catalogIntegrityCause("source_sha256 is missing or invalid")
+		return Manifest{}, manifestIntegrityError("invalid source_sha256", cause)
 	}
 
 	rawServices, ok := fields["services"]
@@ -196,8 +209,38 @@ func parseManifest(data []byte) (Manifest, error) {
 		}
 		manifest.Services = append(manifest.Services, entry)
 	}
+	if manifest.SourceSHA256 != manifestSourceSHA256(manifest.Services) {
+		cause := catalogIntegrityCause("source_sha256 does not match services")
+		return Manifest{}, manifestIntegrityError("invalid source_sha256", cause)
+	}
 
 	return manifest, nil
+}
+
+func manifestSourceSHA256(entries []ManifestServiceEntry) string {
+	type canonicalEntry struct {
+		File     string `json:"file"`
+		Name     string `json:"name"`
+		Revision int    `json:"revision"`
+		SHA256   string `json:"sha256"`
+		Size     int64  `json:"size"`
+	}
+	canonicalEntries := make([]canonicalEntry, len(entries))
+	for i, entry := range entries {
+		canonicalEntries[i] = canonicalEntry{
+			File:     entry.File,
+			Name:     entry.Name,
+			Revision: entry.Revision,
+			SHA256:   entry.SHA256,
+			Size:     entry.Size,
+		}
+	}
+	data, err := json.Marshal(canonicalEntries)
+	if err != nil {
+		panic("canonical manifest service entries cannot be marshaled")
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 func validManifestEntry(entry ManifestServiceEntry) bool {
@@ -237,6 +280,7 @@ func validateServiceFileSet(fsys fs.FS, entries []ManifestServiceEntry) error {
 
 func decodeOne(data []byte, target any, disallowUnknown bool) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
 	if disallowUnknown {
 		decoder.DisallowUnknownFields()
 	}

@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "source_sha256": "6e6a9af940aceb9dc7425cf91d7b98d3279dcff0f2c9e209c2d37a6bc1620d90",
   "services": [
     {
       "name": "approval",
@@ -89,8 +90,8 @@
       "name": "task",
       "file": "services/task.json",
       "revision": 6,
-      "size": 457852,
-      "sha256": "6d9875d811a6a74e4fff757431048971d8f1d5e81b876ca3ecab96e29f038c7f"
+      "size": 457436,
+      "sha256": "970fba29f3187a19ca8ae241ece128fdbebc207dd800c162875758a814721c07"
     },
     {
       "name": "vc",

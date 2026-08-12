@@ -4,6 +4,7 @@
 package meta
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 )
@@ -170,6 +171,9 @@ func TestField_CoercedDefaultAndExample(t *testing.T) {
 	}
 	if got := (Field{Type: "boolean", Example: "true"}).CoercedExample(); got != true {
 		t.Errorf("CoercedExample boolean = %v, want true", got)
+	}
+	if got := (Field{Type: "integer", Example: json.Number("7342342398472398471")}).CoercedExample(); got != int64(7342342398472398471) {
+		t.Errorf("CoercedExample json.Number = %v (%T), want exact int64", got, got)
 	}
 }
 

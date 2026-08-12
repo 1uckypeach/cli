@@ -49,6 +49,10 @@ func coerceLiteral(canonicalType string, raw any) (any, bool) {
 			return v, true
 		case int:
 			return int64(v), true
+		case json.Number:
+			if n, err := v.Int64(); err == nil {
+				return n, true
+			}
 		}
 		return nil, false
 	case "number":
@@ -63,6 +67,10 @@ func coerceLiteral(canonicalType string, raw any) (any, bool) {
 			return float64(v), true
 		case int:
 			return float64(v), true
+		case json.Number:
+			if n, err := v.Float64(); err == nil {
+				return n, true
+			}
 		}
 		return nil, false
 	case "boolean":

@@ -1104,7 +1104,7 @@
                       "type": "string",
                       "description": "附件的临时下载url，有效时间3分钟，且只允许调用3次进行附件下载",
                       "required": false,
-                      "example": "https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj"
+                      "example": "https://sample.feishu.cn/task/attachment/example"
                     }
                   }
                 },
@@ -1783,7 +1783,7 @@
                       "type": "string",
                       "description": "附件的临时下载url，有效时间3分钟，且只允许调用3次进行附件下载",
                       "required": false,
-                      "example": "https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj"
+                      "example": "https://sample.feishu.cn/task/attachment/example"
                     }
                   }
                 },
@@ -2462,7 +2462,7 @@
                       "type": "string",
                       "description": "附件的临时下载url，有效时间3分钟，且只允许调用3次进行附件下载",
                       "required": false,
-                      "example": "https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj"
+                      "example": "https://sample.feishu.cn/task/attachment/example"
                     }
                   }
                 },
@@ -3328,7 +3328,7 @@
                       "type": "string",
                       "description": "附件的临时下载url，有效时间3分钟，且只允许调用3次进行附件下载",
                       "required": false,
-                      "example": "https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj"
+                      "example": "https://sample.feishu.cn/task/attachment/example"
                     }
                   }
                 },
@@ -5947,7 +5947,7 @@
                       "type": "string",
                       "description": "附件的临时下载url，有效时间3分钟，且只允许调用3次进行附件下载",
                       "required": false,
-                      "example": "https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj"
+                      "example": "https://sample.feishu.cn/task/attachment/example"
                     }
                   }
                 },
@@ -6613,7 +6613,7 @@
                       "type": "string",
                       "description": "附件的临时下载url，有效时间3分钟，且只允许调用3次进行附件下载",
                       "required": false,
-                      "example": "https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj"
+                      "example": "https://sample.feishu.cn/task/attachment/example"
                     }
                   }
                 },
@@ -10154,7 +10154,7 @@
                       "type": "string",
                       "description": "附件的临时下载url，有效时间3分钟，且只允许调用3次进行附件下载",
                       "required": false,
-                      "example": "https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj"
+                      "example": "https://sample.feishu.cn/task/attachment/example"
                     }
                   }
                 },
@@ -10837,7 +10837,7 @@
                       "type": "string",
                       "description": "附件的临时下载url，有效时间3分钟，且只允许调用3次进行附件下载",
                       "required": false,
-                      "example": "https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj"
+                      "example": "https://sample.feishu.cn/task/attachment/example"
                     }
                   }
                 },
