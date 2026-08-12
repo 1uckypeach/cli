@@ -109,6 +109,31 @@ func parseDomainMD(src []byte, resolve func(string) string) parsedDomain {
 	if resolve == nil {
 		resolve = headingToKey
 	}
+	return resolveParsedDomain(parseRawDomainMD(src), resolve)
+}
+
+// resolveParsedDomain applies a Catalog-specific command-form mapping to raw
+// markdown headings. It returns a new method map and never mutates the cached
+// raw source, allowing each Catalog to resolve independently.
+func resolveParsedDomain(raw parsedDomain, resolve func(string) string) parsedDomain {
+	if resolve == nil {
+		resolve = headingToKey
+	}
+	methods := make(map[string]meta.Affordance, len(raw.methods))
+	for heading, affordance := range raw.methods {
+		methods[resolve(heading)] = affordance
+	}
+	return parsedDomain{
+		skill:        raw.skill,
+		domainSkills: raw.domainSkills,
+		methods:      methods,
+	}
+}
+
+// parseRawDomainMD parses one service's markdown into stable source data. Its
+// method keys are command-form headings; Catalog-dependent resource-to-method
+// mappings are applied by resolveParsedDomain at lookup time.
+func parseRawDomainMD(src []byte) parsedDomain {
 	out := map[string]meta.Affordance{}
 
 	var skill, curKey string
@@ -182,7 +207,7 @@ func parseDomainMD(src []byte, resolve func(string) string) parsedDomain {
 		case strings.HasPrefix(line, "## "):
 			flushPending()
 			assemble()
-			curKey = resolve(line[3:])
+			curKey = strings.TrimSpace(line[3:])
 			reset()
 			inDomainSkills = false
 			continue

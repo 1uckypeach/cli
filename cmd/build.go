@@ -55,6 +55,7 @@ type buildConfig struct {
 	deferStartup      bool
 	apiCatalog        *apicatalog.Catalog
 	snapshotOpener    func() (catalogSnapshot, error)
+	pluginProvider    func() []platform.Plugin
 	afterSnapshotOpen func()
 	hideProfileSet    bool
 }
@@ -283,10 +284,13 @@ func buildForArgsWithConfig(
 		cfg.afterSnapshotOpen()
 	}
 
-	// Plugins can observe, wrap, restrict, and handle lifecycle events, but
-	// cannot add commands. Their frozen snapshot therefore does not broaden
-	// the built-in Catalog or Shortcut domains needed for this invocation.
+	// Plugins are frozen before planning. Any registered plugin receives the
+	// complete service tree so its policy and hook expectations cannot be
+	// bypassed by a target-only assembly.
 	plan := PlanAssembly(args, names, shortcuts.ShortcutServiceNames())
+	if len(plugins) > 0 {
+		plan = fullAssemblyPlan()
+	}
 	catalog, err := catalogForPlan(cfg, snapshot, plan)
 	if err != nil {
 		return nil, err
@@ -330,6 +334,9 @@ func buildInternal(ctx context.Context, inv cmdutil.InvocationContext, opts ...B
 func frozenPlugins(cfg *buildConfig) []platform.Plugin {
 	if cfg.skipPlugins {
 		return nil
+	}
+	if cfg.pluginProvider != nil {
+		return cfg.pluginProvider()
 	}
 	return platform.RegisteredPlugins()
 }

@@ -141,6 +141,41 @@ func TestFor_CacheIsolatedByAPICatalogMapping(t *testing.T) {
 	}
 }
 
+// Fresh Catalog values must not cause an unbounded retained cache, but their
+// resource-to-method mappings must still be applied independently.
+func TestFor_CacheRetainsOnlyServiceSourceAcrossFreshCatalogs(t *testing.T) {
+	prev := mdSource
+	t.Cleanup(func() { SetSource(prev) })
+	SetSource(fstest.MapFS{"drive.md": &fstest.MapFile{Data: []byte(
+		"# drive\n\n## files list\nList files.\n",
+	)}})
+	catalog := func(methodID string) apicatalog.Catalog {
+		service := meta.ServiceFromMap(map[string]interface{}{
+			"name": "drive",
+			"resources": map[string]interface{}{
+				"files": map[string]interface{}{"methods": map[string]interface{}{
+					"list": map[string]interface{}{"id": methodID, "httpMethod": "GET"},
+				}},
+			},
+		})
+		return apicatalog.New(apicatalog.SourceEmbedded, []meta.Service{service})
+	}
+
+	for i := range 100 {
+		methodID := "file.list"
+		if i%2 == 1 {
+			methodID = "file.list.v2"
+		}
+		if _, ok := For(catalog(methodID), "drive", methodID); !ok {
+			t.Fatalf("catalog %d did not resolve its own method mapping", i)
+		}
+	}
+
+	if got := len(byService); got != 1 {
+		t.Fatalf("retained affordance cache entries = %d, want one service source", got)
+	}
+}
+
 // Non-bullet paragraph lines under any section are preserved as items, not
 // dropped (regression: they previously only updated pending, lost without a fence).
 func TestParseDomainMD_ParagraphNotDropped(t *testing.T) {

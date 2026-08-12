@@ -20,21 +20,9 @@ import (
 
 var (
 	mu        sync.Mutex
-	byCatalog = map[catalogCacheKey]serviceAffordance{}
-	tried     = map[catalogCacheKey]bool{}
+	byService = map[string]parsedDomain{}
 	mdSource  fs.FS // top-level affordance/*.md tree; nil in the minimal preview build
 )
-
-type catalogCacheKey struct {
-	catalog apicatalog.Identity
-	service string
-}
-
-type serviceAffordance struct {
-	skill        string
-	domainSkills []string
-	methods      map[string]json.RawMessage
-}
 
 // SetSource installs the markdown guidance tree (the top-level affordance/
 // directory) as the source. Called once at startup before any lookup; clears
@@ -43,8 +31,7 @@ func SetSource(fsys fs.FS) {
 	mu.Lock()
 	defer mu.Unlock()
 	mdSource = fsys
-	byCatalog = map[catalogCacheKey]serviceAffordance{}
-	tried = map[catalogCacheKey]bool{}
+	byService = map[string]parsedDomain{}
 }
 
 // For returns the raw affordance overlay for one method, loading the owning
@@ -53,13 +40,16 @@ func SetSource(fsys fs.FS) {
 func For(catalog apicatalog.Catalog, service, methodID string) (json.RawMessage, bool) {
 	mu.Lock()
 	defer mu.Unlock()
-	key := cacheKey(catalog, service)
-	if !tried[key] {
-		tried[key] = true
-		byCatalog[key] = loadService(catalog, service)
+	parsed, ok := sourceForService(service)
+	if !ok {
+		return nil, false
 	}
-	raw, ok := byCatalog[key].methods[methodID]
-	return raw, ok && len(raw) > 0
+	a, ok := resolveParsedDomain(parsed, commandFormResolver(catalog, service)).methods[methodID]
+	if !ok {
+		return nil, false
+	}
+	raw, err := json.Marshal(a)
+	return raw, err == nil && len(raw) > 0
 }
 
 // DomainSkill returns the service-level canonical skill declared by
@@ -67,12 +57,11 @@ func For(catalog apicatalog.Catalog, service, methodID string) (json.RawMessage,
 func DomainSkill(service string) (string, bool) {
 	mu.Lock()
 	defer mu.Unlock()
-	key := cacheKey(apicatalog.Catalog{}, service)
-	if !tried[key] {
-		tried[key] = true
-		byCatalog[key] = loadService(apicatalog.Catalog{}, service)
+	parsed, ok := sourceForService(service)
+	if !ok {
+		return "", false
 	}
-	skill := byCatalog[key].skill
+	skill := parsed.skill
 	return skill, skill != ""
 }
 
@@ -83,48 +72,34 @@ func DomainSkill(service string) (string, bool) {
 func DomainSkills(service string) ([]string, bool) {
 	mu.Lock()
 	defer mu.Unlock()
-	key := cacheKey(apicatalog.Catalog{}, service)
-	if !tried[key] {
-		tried[key] = true
-		byCatalog[key] = loadService(apicatalog.Catalog{}, service)
+	parsed, ok := sourceForService(service)
+	if !ok {
+		return nil, false
 	}
-	skills := byCatalog[key].domainSkills
+	skills := parsed.domainSkills
 	if len(skills) == 0 {
 		return nil, false
 	}
 	return append([]string(nil), skills...), true
 }
 
-// cacheKey identifies the immutable Catalog instance that owns command-form
-// mapping. Catalog.Identity is fixed-size and O(1), so schema assembly does not
-// rebuild and hash the service's complete method mapping for every lookup.
-func cacheKey(catalog apicatalog.Catalog, service string) catalogCacheKey {
-	return catalogCacheKey{catalog: catalog.Identity(), service: service}
-}
-
-// loadService parses a service's markdown guidance into its domain metadata
-// and per-method overlays, marshalling each method to JSON so downstream
-// callers keep the same wire shape.
-func loadService(catalog apicatalog.Catalog, service string) serviceAffordance {
+// sourceForService caches only stable markdown-derived source keyed by service.
+// Catalog-specific command-form mappings are resolved at lookup time, so short-
+// lived Catalog instances cannot become process-global cache keys.
+func sourceForService(service string) (parsedDomain, bool) {
+	if parsed, ok := byService[service]; ok {
+		return parsed, true
+	}
 	if mdSource == nil {
-		return serviceAffordance{}
+		return parsedDomain{}, false
 	}
 	src, err := fs.ReadFile(mdSource, service+".md")
 	if err != nil {
-		return serviceAffordance{}
+		return parsedDomain{}, false
 	}
-	parsed := parseDomainMD(src, commandFormResolver(catalog, service))
-	methods := map[string]json.RawMessage{}
-	for id, a := range parsed.methods {
-		if b, err := json.Marshal(a); err == nil {
-			methods[id] = b
-		}
-	}
-	return serviceAffordance{
-		skill:        parsed.skill,
-		domainSkills: parsed.domainSkills,
-		methods:      methods,
-	}
+	parsed := parseRawDomainMD(src)
+	byService[service] = parsed
+	return parsed, true
 }
 
 // commandFormResolver maps a method's command-form heading ("user_mailbox.messages

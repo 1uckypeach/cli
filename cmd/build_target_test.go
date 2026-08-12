@@ -316,7 +316,7 @@ func TestBuildForArgsFullAssemblyStillMountsAllShortcuts(t *testing.T) {
 	}
 }
 
-func TestBuildForArgsPluginUsesTargetAndFrozenSnapshot(t *testing.T) {
+func TestBuildForArgsPluginForcesFullAssemblyFromFrozenSnapshot(t *testing.T) {
 	tmpHome(t)
 	platform.ResetForTesting()
 	t.Cleanup(platform.ResetForTesting)
@@ -325,6 +325,7 @@ func TestBuildForArgsPluginUsesTargetAndFrozenSnapshot(t *testing.T) {
 
 	snapshot := newRecordingSnapshot(t)
 	opens := 0
+	pluginProviderCalls := 0
 	root, err := BuildForArgs(
 		context.Background(),
 		buildInvocationForTest(t),
@@ -332,22 +333,31 @@ func TestBuildForArgsPluginUsesTargetAndFrozenSnapshot(t *testing.T) {
 		WithIO(strings.NewReader(""), io.Discard, io.Discard),
 		WithoutStrictMode(),
 		withRecordingSnapshot(snapshot, &opens),
+		func(cfg *buildConfig) {
+			cfg.pluginProvider = func() []platform.Plugin {
+				pluginProviderCalls++
+				return platform.RegisteredPlugins()
+			}
+		},
 	)
 	if err != nil {
 		t.Fatalf("BuildForArgs: %v", err)
 	}
-	if snapshot.fullCalls != 0 || !reflect.DeepEqual(snapshot.catalogNames, [][]string{{"drive"}}) {
-		t.Fatalf("Catalog selection = full:%d target:%#v, want drive only", snapshot.fullCalls, snapshot.catalogNames)
+	if snapshot.fullCalls != 1 || snapshot.catalogCalls != 0 {
+		t.Fatalf("Catalog selection = full:%d target:%#v, want one full catalog", snapshot.fullCalls, snapshot.catalogNames)
 	}
 	if plugin.installs != 1 {
 		t.Fatalf("plugin installs = %d, want 1", plugin.installs)
 	}
-	if findCommand(root, "calendar") != nil {
-		t.Fatal("plugin target build unexpectedly contains calendar")
+	if pluginProviderCalls != 1 {
+		t.Fatalf("plugin provider calls = %d, want exactly one frozen enumeration", pluginProviderCalls)
+	}
+	if findCommand(root, "calendar") == nil {
+		t.Fatal("plugin full build is missing calendar")
 	}
 }
 
-func TestBuildForArgsPluginSelectorsAndRestrictUseTargetCatalog(t *testing.T) {
+func TestBuildForArgsPluginSelectorsAndRestrictUseFullCatalog(t *testing.T) {
 	tests := []struct {
 		name    string
 		install func(platform.Registrar)
@@ -424,8 +434,8 @@ func TestBuildForArgsPluginSelectorsAndRestrictUseTargetCatalog(t *testing.T) {
 			if err != nil {
 				t.Fatalf("BuildForArgs: %v", err)
 			}
-			if snapshot.fullCalls != 0 || !reflect.DeepEqual(snapshot.catalogNames, [][]string{{"drive"}}) {
-				t.Fatalf("Catalog selection = full:%d target:%#v, want drive only", snapshot.fullCalls, snapshot.catalogNames)
+			if snapshot.fullCalls != 1 || snapshot.catalogCalls != 0 {
+				t.Fatalf("Catalog selection = full:%d target:%#v, want one full catalog", snapshot.fullCalls, snapshot.catalogNames)
 			}
 			if plugin.installs != 1 {
 				t.Fatalf("plugin installs = %d, want 1", plugin.installs)
@@ -433,8 +443,8 @@ func TestBuildForArgsPluginSelectorsAndRestrictUseTargetCatalog(t *testing.T) {
 			if findCommand(root, "drive") == nil {
 				t.Fatal("target tree is missing drive")
 			}
-			if findCommand(root, "calendar") != nil {
-				t.Fatal("target tree unexpectedly contains calendar")
+			if findCommand(root, "calendar") == nil {
+				t.Fatal("full plugin tree is missing calendar")
 			}
 			tt.assert(t, root)
 		})
