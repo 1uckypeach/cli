@@ -14,6 +14,7 @@ import (
 	"github.com/larksuite/cli/internal/cmdmeta"
 	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/internal/meta"
+	"github.com/larksuite/cli/internal/registry"
 	"github.com/larksuite/cli/internal/skillref"
 	"github.com/spf13/cobra"
 )
@@ -144,13 +145,26 @@ func setMethodHelpData(cmd *cobra.Command, service, methodID, schemaPath, params
 // pointers: each is emitted only when it resolves in the skill tree (see
 // affordance.SkillStatPath), so a typo or a build without embedded skills never
 // prints a `skills read` that cannot be opened.
-func PrepareMethodHelp(catalog apicatalog.Catalog, cmd *cobra.Command, skillFS fs.FS) bool {
-	return PrepareMethodHelpWithReferences(catalog, cmd, skillFS, nil)
+func PrepareMethodHelp(cmd *cobra.Command, skillFS fs.FS) bool {
+	return PrepareMethodHelpCatalog(defaultAPICatalog(), cmd, skillFS)
 }
 
 // PrepareMethodHelpWithReferences is PrepareMethodHelp with a build-local
 // canonical-to-runtime skill projection.
-func PrepareMethodHelpWithReferences(catalog apicatalog.Catalog, cmd *cobra.Command, skillFS fs.FS, references *skillref.Resolver) bool {
+func PrepareMethodHelpWithReferences(cmd *cobra.Command, skillFS fs.FS, references *skillref.Resolver) bool {
+	return PrepareMethodHelpWithReferencesCatalog(defaultAPICatalog(), cmd, skillFS, references)
+}
+
+// PrepareMethodHelpCatalog is PrepareMethodHelp using the catalog that built
+// cmd. Catalog-aware callers should use this form so irregular command-form
+// mappings remain authoritative.
+func PrepareMethodHelpCatalog(catalog apicatalog.Catalog, cmd *cobra.Command, skillFS fs.FS) bool {
+	return PrepareMethodHelpWithReferencesCatalog(catalog, cmd, skillFS, nil)
+}
+
+// PrepareMethodHelpWithReferencesCatalog is PrepareMethodHelpWithReferences
+// using the catalog that built cmd.
+func PrepareMethodHelpWithReferencesCatalog(catalog apicatalog.Catalog, cmd *cobra.Command, skillFS fs.FS, references *skillref.Resolver) bool {
 	return prepareMethodHelp(catalog, cmd, skillFS, references, nil)
 }
 
@@ -159,6 +173,17 @@ func PrepareMethodHelpWithReferences(catalog apicatalog.Catalog, cmd *cobra.Comm
 // helpers remain fully-visible by default; cmd.Build uses this form so the
 // framework-owned schema pointer follows the same surface as execution.
 func PrepareMethodHelpWithProjection(
+	cmd *cobra.Command,
+	skillFS fs.FS,
+	references *skillref.Resolver,
+	canReferenceSchema func() bool,
+) bool {
+	return PrepareMethodHelpWithProjectionCatalog(defaultAPICatalog(), cmd, skillFS, references, canReferenceSchema)
+}
+
+// PrepareMethodHelpWithProjectionCatalog is PrepareMethodHelpWithProjection
+// using the catalog that built cmd.
+func PrepareMethodHelpWithProjectionCatalog(
 	catalog apicatalog.Catalog,
 	cmd *cobra.Command,
 	skillFS fs.FS,
@@ -226,13 +251,26 @@ func prepareMethodHelp(
 // the overlay declares none; when the overlay has tips, the Go tips are dropped
 // (replaced, not merged) so tips never render twice. Authoring a ### Tips block
 // therefore silently retires that shortcut's Go Tips — consolidate into one.
-func PrepareShortcutHelp(catalog apicatalog.Catalog, cmd *cobra.Command, skillFS fs.FS) bool {
-	return PrepareShortcutHelpWithReferences(catalog, cmd, skillFS, nil)
+func PrepareShortcutHelp(cmd *cobra.Command, skillFS fs.FS) bool {
+	return PrepareShortcutHelpCatalog(defaultAPICatalog(), cmd, skillFS)
 }
 
 // PrepareShortcutHelpWithReferences is PrepareShortcutHelp with a build-local
 // canonical-to-runtime skill projection.
-func PrepareShortcutHelpWithReferences(catalog apicatalog.Catalog, cmd *cobra.Command, skillFS fs.FS, references *skillref.Resolver) bool {
+func PrepareShortcutHelpWithReferences(cmd *cobra.Command, skillFS fs.FS, references *skillref.Resolver) bool {
+	return PrepareShortcutHelpWithReferencesCatalog(defaultAPICatalog(), cmd, skillFS, references)
+}
+
+// PrepareShortcutHelpCatalog is PrepareShortcutHelp using the catalog that
+// built cmd. Catalog-aware callers should use this form so irregular
+// command-form mappings remain authoritative.
+func PrepareShortcutHelpCatalog(catalog apicatalog.Catalog, cmd *cobra.Command, skillFS fs.FS) bool {
+	return PrepareShortcutHelpWithReferencesCatalog(catalog, cmd, skillFS, nil)
+}
+
+// PrepareShortcutHelpWithReferencesCatalog is
+// PrepareShortcutHelpWithReferences using the catalog that built cmd.
+func PrepareShortcutHelpWithReferencesCatalog(catalog apicatalog.Catalog, cmd *cobra.Command, skillFS fs.FS, references *skillref.Resolver) bool {
 	if src, _ := cmdmeta.SourceOf(cmd); src != cmdmeta.SourceShortcut {
 		return false
 	}
@@ -345,7 +383,7 @@ var affordanceLookup = affordance.For
 // RenderAffordanceForCmd renders a method command's affordance block, or "" when
 // it carries none.
 func RenderAffordanceForCmd(cmd *cobra.Command) string {
-	return RenderAffordanceForCmdCatalog(apicatalog.Catalog{}, cmd)
+	return RenderAffordanceForCmdCatalog(defaultAPICatalog(), cmd)
 }
 
 // RenderAffordanceForCmdCatalog renders a method command using command-form
@@ -356,6 +394,21 @@ func RenderAffordanceForCmdCatalog(catalog apicatalog.Catalog, cmd *cobra.Comman
 		return ""
 	}
 	return renderAffordance(meta.Method{Affordance: raw})
+}
+
+// defaultAPICatalog resolves the immutable catalog committed with this binary.
+// Compatibility wrappers intentionally collapse snapshot failures to an empty
+// catalog: help remains available, but emits no mapping-dependent guidance.
+func defaultAPICatalog() apicatalog.Catalog {
+	snapshot, err := registry.OpenSnapshot()
+	if err != nil {
+		return apicatalog.Catalog{}
+	}
+	catalog, err := snapshot.FullCatalog()
+	if err != nil {
+		return apicatalog.Catalog{}
+	}
+	return catalog
 }
 
 func affordanceRaw(catalog apicatalog.Catalog, cmd *cobra.Command) (json.RawMessage, bool) {

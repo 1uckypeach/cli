@@ -125,7 +125,7 @@ func TestPrepareMethodHelp(t *testing.T) {
 	m := map[string]interface{}{"id": "messages.create", "path": "messages", "httpMethod": "POST", "description": "发送消息"}
 	cmd := NewCmdServiceMethod(f, imSpec(), meta.FromMap(m), "create", "messages", nil)
 
-	if !PrepareMethodHelp(apicatalog.Catalog{}, cmd, nil) {
+	if !PrepareMethodHelpCatalog(apicatalog.Catalog{}, cmd, nil) {
 		t.Fatal("PrepareMethodHelp returned false for a service-method command")
 	}
 	long := cmd.Long
@@ -142,7 +142,7 @@ func TestPrepareMethodHelp(t *testing.T) {
 	}
 
 	// A non-service command (no schema-path annotation) is left untouched.
-	if PrepareMethodHelp(apicatalog.Catalog{}, &cobra.Command{Use: "plain"}, nil) {
+	if PrepareMethodHelpCatalog(apicatalog.Catalog{}, &cobra.Command{Use: "plain"}, nil) {
 		t.Error("PrepareMethodHelp should return false for a non-service command")
 	}
 }
@@ -165,7 +165,7 @@ func TestPrepareMethodHelpProjectsConcealedSchemaPointer(t *testing.T) {
 	})
 	projector := recovery.NewProjector(func() *surface.Plan { return plan })
 
-	if !PrepareMethodHelpWithProjection(apicatalog.Catalog{}, cmd, nil, nil, func() bool {
+	if !PrepareMethodHelpWithProjectionCatalog(apicatalog.Catalog{}, cmd, nil, nil, func() bool {
 		return projector.CanReference(recovery.TargetSchema)
 	}) {
 		t.Fatal("PrepareMethodHelpWithProjection returned false for a service-method command")
@@ -201,7 +201,7 @@ func TestPrepareShortcutHelp(t *testing.T) {
 	cmdutil.SetRisk(sc, "write")
 	cmdutil.SetTips(sc, []string{"start/end 收 ISO 8601"})
 
-	if !PrepareShortcutHelp(apicatalog.Catalog{}, sc, nil) {
+	if !PrepareShortcutHelpCatalog(apicatalog.Catalog{}, sc, nil) {
 		t.Fatal("PrepareShortcutHelp returned false for a shortcut with an overlay")
 	}
 	for _, want := range []string{"Create an event", "Risk: write", "When to use:", "高层创建日程", "Tips:", "start/end 收 ISO 8601"} {
@@ -217,14 +217,14 @@ func TestPrepareShortcutHelp(t *testing.T) {
 	bare := &cobra.Command{Use: "+bare", Short: "x"}
 	cmdmeta.SetSource(bare, cmdmeta.SourceShortcut, false)
 	cmdmeta.SetAffordanceRef(bare, "calendar", "+bare")
-	if PrepareShortcutHelp(apicatalog.Catalog{}, bare, nil) {
+	if PrepareShortcutHelpCatalog(apicatalog.Catalog{}, bare, nil) {
 		t.Error("PrepareShortcutHelp should return false when the shortcut has no overlay")
 	}
 
 	// Non-shortcut source is ignored even with a ref.
 	notSc := &cobra.Command{Use: "create", Short: "x"}
 	cmdmeta.SetAffordanceRef(notSc, "calendar", "+create")
-	if PrepareShortcutHelp(apicatalog.Catalog{}, notSc, nil) {
+	if PrepareShortcutHelpCatalog(apicatalog.Catalog{}, notSc, nil) {
 		t.Error("PrepareShortcutHelp should return false for a non-shortcut command")
 	}
 }
@@ -247,7 +247,7 @@ func TestRelatedSkillsStatGating(t *testing.T) {
 	m := map[string]interface{}{"id": "messages.create", "path": "messages", "httpMethod": "POST", "description": "d"}
 
 	cmd := NewCmdServiceMethod(f, imSpec(), meta.FromMap(m), "create", "messages", nil)
-	if !PrepareMethodHelp(apicatalog.Catalog{}, cmd, skillFS) {
+	if !PrepareMethodHelpCatalog(apicatalog.Catalog{}, cmd, skillFS) {
 		t.Fatal("PrepareMethodHelp returned false")
 	}
 	if !strings.Contains(cmd.Long, "skills read lark-real\n") {
@@ -266,7 +266,7 @@ func TestRelatedSkillsStatGating(t *testing.T) {
 
 	// nil skill FS: the whole Related-skills block is suppressed.
 	bare := NewCmdServiceMethod(f, imSpec(), meta.FromMap(m), "create", "messages", nil)
-	PrepareMethodHelp(apicatalog.Catalog{}, bare, nil)
+	PrepareMethodHelpCatalog(apicatalog.Catalog{}, bare, nil)
 	if strings.Contains(bare.Long, "Related skills") {
 		t.Errorf("nil skillFS should suppress the skills block; got:\n%s", bare.Long)
 	}
@@ -404,7 +404,7 @@ func TestPrepareShortcutHelp_PreservesPostMountLong(t *testing.T) {
 	cmdmeta.SetSource(sc, cmdmeta.SourceShortcut, false)
 	cmdmeta.SetAffordanceRef(sc, "calendar", "+create")
 
-	if !PrepareShortcutHelp(apicatalog.Catalog{}, sc, nil) {
+	if !PrepareShortcutHelpCatalog(apicatalog.Catalog{}, sc, nil) {
 		t.Fatal("PrepareShortcutHelp returned false for a shortcut with an overlay")
 	}
 	if !strings.HasPrefix(sc.Long, authored) {
@@ -414,7 +414,7 @@ func TestPrepareShortcutHelp_PreservesPostMountLong(t *testing.T) {
 		t.Errorf("affordance block should be appended below the base; got:\n%s", sc.Long)
 	}
 	// Re-render must reuse the captured base, not append the block twice.
-	PrepareShortcutHelp(apicatalog.Catalog{}, sc, nil)
+	PrepareShortcutHelpCatalog(apicatalog.Catalog{}, sc, nil)
 	if n := strings.Count(sc.Long, "When to use:"); n != 1 {
 		t.Errorf("affordance appended %d times across re-renders, want 1:\n%s", n, sc.Long)
 	}

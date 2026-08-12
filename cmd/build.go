@@ -27,6 +27,7 @@ import (
 	"github.com/larksuite/cli/internal/build"
 	"github.com/larksuite/cli/internal/cmdpolicy"
 	"github.com/larksuite/cli/internal/cmdutil"
+	"github.com/larksuite/cli/internal/core"
 	"github.com/larksuite/cli/internal/hook"
 	"github.com/larksuite/cli/internal/keychain"
 	internalplatform "github.com/larksuite/cli/internal/platform"
@@ -73,6 +74,13 @@ type buildRuntime struct {
 	surface         *surface.Plan
 	recovery        *recovery.Projector
 	skillReferences *skillref.Resolver
+}
+
+// WithStartupBrand is retained for source compatibility with wrapper mains.
+// Deprecated: the committed API catalog is brand-independent, so this option
+// no longer changes command construction.
+func WithStartupBrand(_ core.LarkBrand) BuildOption {
+	return func(*buildConfig) {}
 }
 
 // WithIO sets the IO streams for the CLI by wrapping raw reader/writers.

@@ -843,13 +843,13 @@ func installTipsHelpFunc(
 			defaultHelp(cmd, args)
 			return
 		}
-		if service.PrepareMethodHelpWithProjection(catalog, cmd, content, refs, func() bool {
+		if service.PrepareMethodHelpWithProjectionCatalog(catalog, cmd, content, refs, func() bool {
 			return projector == nil || projector.CanReference(recovery.TargetSchema)
 		}) {
 			defaultHelp(cmd, args)
 			return
 		}
-		if service.PrepareShortcutHelpWithReferences(catalog, cmd, content, refs) {
+		if service.PrepareShortcutHelpWithReferencesCatalog(catalog, cmd, content, refs) {
 			defaultHelp(cmd, args)
 			return
 		}
