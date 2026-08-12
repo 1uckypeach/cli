@@ -2819,7 +2819,7 @@
                   "type": "string",
                   "description": "Download link",
                   "required": false,
-                  "example": "https://api-drive-stream.blmpb.com/space/api/box/stream/download/authcode/?code=YTZiZGViMDg3NzRjMzEwOWRkMGI1MTJlYmQxYTFmYTBfZTA5ZjZiOWU4NDYzMzkxMDUyOTIxMzBmNTVjMjAyZTFfSUQ6NzI4MTE4Nzg1OTE5NTc3Mjk0N18xNjk1ODg4NjQyOjE2OTU4ODg3MDJfVjM"
+                  "example": "https://sample.feishu.cn/mail/attachment/example"
                 }
               }
             },
@@ -5683,7 +5683,7 @@
                   "type": "string",
                   "description": "Download link",
                   "required": false,
-                  "example": "https://api-drive-stream.blmpb.com/space/api/box/stream/download/authcode/?code=YTZiZGViMDg3NzRjMzEwOWRkMGI1MTJlYmQxYTFmYTBfZTA5ZjZiOWU4NDYzMzkxMDUyOTIxMzBmNTVjMjAyZTFfSUQ6NzI4MTE4Nzg1OTE5NTc3Mjk0N18xNjk1ODg4NjQyOjE2OTU4ODg3MDJfVjM"
+                  "example": "https://sample.feishu.cn/mail/attachment/example"
                 }
               }
             },

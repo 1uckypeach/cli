@@ -2625,7 +2625,7 @@
                   "type": "string",
                   "description": "VC视频会议转直播URL，当vc_type=vc时有值",
                   "required": false,
-                  "example": "https://meetings.feishu.cn/s/1iof4hpw6i51w"
+                  "example": "https://sample.feishu.cn/meeting/s/example"
                 },
                 "vc_info": {
                   "type": "object",
@@ -3242,7 +3242,7 @@
                       "type": "string",
                       "description": "VC视频会议转直播URL，当vc_type=vc时有值",
                       "required": false,
-                      "example": "https://meetings.feishu.cn/s/1iof4hpw6i51w"
+                      "example": "https://sample.feishu.cn/meeting/s/example"
                     },
                     "vc_info": {
                       "type": "object",
@@ -3532,7 +3532,7 @@
                   "type": "string",
                   "description": "日程的app_link,跳转到具体的某个日程",
                   "required": false,
-                  "example": "https://applink.larkoffice.com/client/calendar/event/detail?calendarId=7039673579105026066&key=aeac9c56-aeb1-4179-a21b-02f278f59048&originalTime=0&startTime=1700496000",
+                  "example": "https://sample.feishu.cn/calendar/event/example?calendarId=example_calendar&key=example_event",
                   "annotations": [
                     "readOnly"
                   ]
@@ -3989,7 +3989,7 @@
                       "type": "string",
                       "description": "VC视频会议转直播URL，当vc_type=vc时有值",
                       "required": false,
-                      "example": "https://meetings.feishu.cn/s/1iof4hpw6i51w"
+                      "example": "https://sample.feishu.cn/meeting/s/example"
                     },
                     "vc_info": {
                       "type": "object",
@@ -4279,7 +4279,7 @@
                   "type": "string",
                   "description": "日程的app_link,跳转到具体的某个日程",
                   "required": false,
-                  "example": "https://applink.larkoffice.com/client/calendar/event/detail?calendarId=7039673579105026066&key=aeac9c56-aeb1-4179-a21b-02f278f59048&originalTime=0&startTime=1700496000",
+                  "example": "https://sample.feishu.cn/calendar/event/example?calendarId=example_calendar&key=example_event",
                   "annotations": [
                     "readOnly"
                   ]
@@ -4751,7 +4751,7 @@
                   "type": "string",
                   "description": "日程的app_link,跳转到具体的某个日程",
                   "required": false,
-                  "example": "https://applink.larkoffice.com/client/calendar/event/detail?calendarId=7039673579105026066&key=aeac9c56-aeb1-4179-a21b-02f278f59048&originalTime=0&startTime=1700496000"
+                  "example": "https://sample.feishu.cn/calendar/event/example?calendarId=example_calendar&key=example_event"
                 },
                 "organizer_calendar_id": {
                   "type": "string",
@@ -4848,7 +4848,7 @@
                       "type": "string",
                       "description": "VC视频会议转直播URL，当vc_type=vc时有值",
                       "required": false,
-                      "example": "https://meetings.feishu.cn/s/1iof4hpw6i51w"
+                      "example": "https://sample.feishu.cn/meeting/s/example"
                     },
                     "vc_info": {
                       "type": "object",
@@ -5447,7 +5447,7 @@
                   "type": "string",
                   "description": "VC视频会议转直播URL，当vc_type=vc时有值",
                   "required": false,
-                  "example": "https://meetings.feishu.cn/s/1iof4hpw6i51w"
+                  "example": "https://sample.feishu.cn/meeting/s/example"
                 },
                 "vc_info": {
                   "type": "object",
@@ -6073,7 +6073,7 @@
                       "type": "string",
                       "description": "VC视频会议转直播URL，当vc_type=vc时有值",
                       "required": false,
-                      "example": "https://meetings.feishu.cn/s/1iof4hpw6i51w"
+                      "example": "https://sample.feishu.cn/meeting/s/example"
                     },
                     "vc_info": {
                       "type": "object",
@@ -6363,7 +6363,7 @@
                   "type": "string",
                   "description": "日程的app_link,跳转到具体的某个日程",
                   "required": false,
-                  "example": "https://applink.larkoffice.com/client/calendar/event/detail?calendarId=7039673579105026066&key=aeac9c56-aeb1-4179-a21b-02f278f59048&originalTime=0&startTime=1700496000",
+                  "example": "https://sample.feishu.cn/calendar/event/example?calendarId=example_calendar&key=example_event",
                   "annotations": [
                     "readOnly"
                   ]

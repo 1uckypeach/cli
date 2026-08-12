@@ -717,7 +717,7 @@
                       "type": "string",
                       "description": "Resource path",
                       "required": false,
-                      "example": "https://p3-approval-sign.byteimg.com/lark-approval-attachment/image/20220714/1/332f3596-0845-4746-a4bc-818d54ad435b.png~tplv-ottatrvjsm-image.image?x-expires=1659033558&x-signature=6edF3k%2BaHeAuvfcBRGOkbckoUl4%3D#.png"
+                      "example": "https://sample.feishu.cn/approval/attachment/example.png"
                     },
                     "file_size": {
                       "type": "integer",
@@ -884,7 +884,7 @@
                       "type": "string",
                       "description": "Resource path",
                       "required": false,
-                      "example": "https://p3-approval-sign.byteimg.com/lark-approval-attachment/image/20220714/1/332f3596-0845-4746-a4bc-818d54ad435b.png~tplv-ottatrvjsm-image.image?x-expires=1659033558&x-signature=6edF3k%2BaHeAuvfcBRGOkbckoUl4%3D#.png"
+                      "example": "https://sample.feishu.cn/approval/attachment/example.png"
                     },
                     "file_size": {
                       "type": "integer",
@@ -1087,7 +1087,7 @@
               "type": "string",
               "description": "审批实例链接",
               "required": false,
-              "example": "https://go.feishu.cn/approval/s/iu848mdm/"
+              "example": "https://sample.feishu.cn/approval/s/example"
             }
           },
           "scopes": [

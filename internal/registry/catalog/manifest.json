@@ -5,8 +5,8 @@
       "name": "approval",
       "file": "services/approval.json",
       "revision": 6,
-      "size": 79267,
-      "sha256": "c961f8af7b0a29c7954c88c8f43e89312cf4d7a1c89fbc1eec8a67bf67b0a423"
+      "size": 78945,
+      "sha256": "07f878c3fd9c2ee0bad62f05a3808359593bde0fc00054fb387cb60162bd9330"
     },
     {
       "name": "attendance",
@@ -19,8 +19,8 @@
       "name": "calendar",
       "file": "services/calendar.json",
       "revision": 7,
-      "size": 297878,
-      "sha256": "bb89a703916b9934fd6e08ab4d84e86ab16b7281285045dc368e5aa455170027"
+      "size": 297582,
+      "sha256": "b04db2e0114e96b206d44659792ad56b3f70bfa8c5957b4e2cd00a3bd2b03318"
     },
     {
       "name": "contact",
@@ -47,8 +47,8 @@
       "name": "mail",
       "file": "services/mail.json",
       "revision": 6,
-      "size": 283146,
-      "sha256": "6a85a8d9338ffb26e003b4938485c75498b24e429d81ed03d8ba225be95b4ec7"
+      "size": 282780,
+      "sha256": "b6f647ad7a8ed48effc081f0b97160eab72013c2b185f1007f74c1965db49c52"
     },
     {
       "name": "mindnotes",
@@ -96,8 +96,8 @@
       "name": "vc",
       "file": "services/vc.json",
       "revision": 6,
-      "size": 17189,
-      "sha256": "66deb3072d89c6b89e888db6723c5ecbcd0048b387aca09a7b63d08525c53407"
+      "size": 17194,
+      "sha256": "5a9ed469b50ab7ec64f018d64edf94e3cef5cd1b1a2ca04df3a2be8664278edb"
     },
     {
       "name": "wiki",

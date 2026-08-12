@@ -108,7 +108,7 @@
                   "type": "string",
                   "description": "会议链接",
                   "required": false,
-                  "example": "https://vc.feishu.cn/j/337736498"
+                  "example": "https://sample.feishu.cn/vc/j/example"
                 },
                 "meeting_no": {
                   "type": "string",
