@@ -21,6 +21,7 @@ lark-cli docs +update --doc "xx" --command block_insert_after --block-id blkAnch
 
 # 删除多个 block
 lark-cli docs +update --doc "xx" --command block_delete --block-id "blkA,blkB"
+lark-cli docs +update --doc "xx" --command block_delete --start-block-id blkFirst --end-block-id blkLast
 ```
 
 ## 推荐流程
@@ -32,7 +33,7 @@ lark-cli docs +update --doc "xx" --command block_delete --block-id "blkA,blkB"
    - 明确整篇重构才读 `--detail with-ids` 全文；只读摘要或确认事实时用更轻的 fetch
    - `<ul>`、`<ol>` 等容器可能没有 ID；以 `with-ids` 的实际返回为准，精确编辑列表时使用其 `<li id="...">`，任何无 ID 标签都不得猜测 ID
 2. **Diagnose（诊断问题）**：判断用户目标、当前结构、语气、重复、断流、事实口径和需要保留的资源；识别哪些 block 必须原样保留。
-3. **Patch Plan（制定局部计划）**：把修改拆成最小安全操作：简单行内文本替换用 `str_replace`，但它不支持资源替换；单个 block 用一个 `--block-id`，已经明确多个目标 ID 时用逗号分隔的 `--block-id`，同一直接父节点下的连续 block 用 `--start-block-id`/`--end-block-id`。整段/整块重写用 `block_replace`；增补章节用 `block_insert_after`；删冗余用 `block_delete`；调整顺序用 `block_move_after`。
+3. **Patch Plan（制定局部计划）**：把修改拆成最小安全操作：简单行内文本替换用 `str_replace`，但它不支持资源替换；单个 block 用一个 `--block-id`，已经明确多个目标 ID 时用逗号分隔的 `--block-id`，同一直接父节点下的连续 block 用 `--start-block-id`/`--end-block-id`。连续范围适用于 `block_replace` 和 `block_delete`。整段/整块重写用 `block_replace`；增补章节用 `block_insert_after`；删冗余用 `block_delete`；调整顺序用 `block_move_after`。
 4. **Patch（精确修改）**：按 block / section 执行局部命令。替换内容必须符合目标父容器的结构；例如替换列表项范围时使用 `<li>...</li>`。保护 `<cite>`、`<img>`、`<source>`、`<whiteboard>`、`<sheet>`、`<bitable>`、`<synced_reference>` 等 token 化内容，不要改成纯文本或占位符。同一 block 的多处修改合并成一次 `block_replace`。
 5. **Verify（fetch 验证）**：每轮写操作后按影响范围重新 fetch，检查用户要求、结构、语气、事实、资源块和 block ID 是否符合预期；不满足就基于最新 fetch 结果继续 Diagnose / Patch，不要沿用上一轮 block ID。
 
@@ -55,8 +56,8 @@ lark-cli docs +update --doc "xx" --command block_delete --block-id "blkA,blkB"
 |`--content`|视指令|写入内容；`str_replace` 传空字符串可删除文本|
 |`--pattern`|视指令|`str_replace` 的简单行内匹配文本；不要用于多行、整段或多个 block|
 |`--block-id`|视指令|目标 block ID；多 block 替换或批量删除时用逗号分隔；`-1` 表示文档末尾，`0` 表示文档开头（仅适用于支持这些锚点的指令）|
-|`--start-block-id`|视指令|`block_replace` 连续范围的起点（闭区间）；必须与 `--end-block-id` 同时使用，且不能与 `--block-id` 混用|
-|`--end-block-id`|视指令|`block_replace` 连续范围的终点（闭区间）；必须与 `--start-block-id` 同时使用，且不能与 `--block-id` 混用|
+|`--start-block-id`|视指令|`block_replace` / `block_delete` 连续范围的起点（闭区间）；必须与 `--end-block-id` 同时使用，且不能与 `--block-id` 混用；`0` 表示从文档开头开始|
+|`--end-block-id`|视指令|`block_replace` / `block_delete` 连续范围的终点（闭区间）；必须与 `--start-block-id` 同时使用，且不能与 `--block-id` 混用；`-1` 表示到文档末尾结束|
 |`--src-block-ids`|视指令|要复制或移动的源 block ID，多个 ID 用逗号分隔|
 |`--reference-map`|否|保留或回放既有 `reference_map`，需与 `--content` 配合；支持 JSON、任务目录内的相对 `@file` 或 stdin `-`|
 |`--revision-id`|否|基准版本号，默认 `-1`（最新版本）|
@@ -69,7 +70,7 @@ lark-cli docs +update --doc "xx" --command block_delete --block-id "blkA,blkB"
 |`block_insert_after`|在指定 block 后插入内容；逐章填充时指定对应标题的 block ID|`--block-id`、`--content`|
 |`block_copy_insert_after`|按 ID 顺序复制源 block，源 block 不变；基础标签均支持，资源块仅支持 `img`、`source`、`whiteboard`、`sheet`、`chat_card`、`sub-page-list`，不支持 `task`、`bitable`、`base_ref`、`synced_reference`、`synced_source`、`okr`|`--block-id`、`--src-block-ids`|
 |`block_replace`|替换一个或多个 block。可用逗号分隔的 `--block-id` 显式指定多个 block；也可用同一父节点下、文档顺序正向的 `--start-block-id`/`--end-block-id` 指定闭区间。区间端点和中间 block 都必须有 ID；不支持跨容器、反向或祖先/后代区间|`--content`，以及 `--block-id` 或 `--start-block-id`+`--end-block-id`|
-|`block_delete`|删除一个或多个 block|`--block-id`|
+|`block_delete`|删除一个或多个 block。可用逗号分隔的 `--block-id` 显式指定多个 block；也可用同一父节点下、文档顺序正向的 `--start-block-id`/`--end-block-id` 删除闭区间|`--block-id` 或 `--start-block-id`+`--end-block-id`|
 |`block_move_after`|移动已有 block，支持所有块类型；|`--block-id`、`--src-block-ids`|
 |`append`|仅在文末追加，等价于 `block_insert_after --block-id -1`|`--content`|
 |`overwrite`|清空后重写全文，丢失图片、评论等内容，非必要不使用|`--content`|

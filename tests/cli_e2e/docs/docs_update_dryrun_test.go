@@ -118,6 +118,23 @@ func TestDocs_DryRunDefaultsToV2OpenAPI(t *testing.T) {
 			},
 		},
 		{
+			name: "block_delete inclusive range",
+			args: []string{
+				"docs", "+update",
+				"--doc", "doxcnDryRunE2E",
+				"--command", "block_delete",
+				"--start-block-id", "p1",
+				"--end-block-id", "p3",
+				"--dry-run",
+			},
+			wantContains: []string{"/open-apis/docs_ai/v1/documents/doxcnDryRunE2E"},
+			wantBody: map[string]any{
+				"command":        "block_delete",
+				"start_block_id": "p1",
+				"end_block_id":   "p3",
+			},
+		},
+		{
 			name: "history list",
 			args: []string{
 				"docs", "+history-list",
