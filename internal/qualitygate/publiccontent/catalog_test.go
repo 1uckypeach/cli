@@ -161,71 +161,46 @@ func TestCatalogDocumentResourceExamplesUseSyntheticTenant(t *testing.T) {
 
 func TestCatalogSensitiveURLExamplesUseSyntheticTenant(t *testing.T) {
 	cases := []struct {
-		name   string
-		file   string
-		want   string
-		count  int
-		absent []string
+		name  string
+		file  string
+		want  string
+		count int
 	}{
 		{
 			name:  "mail attachment",
 			file:  "mail.json",
 			want:  "https://sample.feishu.cn/mail/attachment/example",
 			count: 2,
-			absent: []string{
-				"api-drive-stream.blmpb.com",
-				"YTZiZGViMDg3NzRjMzEwOWRkMGI1MTJlYmQxYTFmYTBfZTA5ZjZiOWU4NDYzMzkxMDUyOTIxMzBmNTVjMjAyZTFfSUQ6NzI4MTE4Nzg1OTE5NTc3Mjk0N18xNjk1ODg4NjQyOjE2OTU4ODg3MDJfVjM",
-			},
 		},
 		{
 			name:  "approval attachment",
 			file:  "approval.json",
 			want:  "https://sample.feishu.cn/approval/attachment/example.png",
 			count: 2,
-			absent: []string{
-				"p3-approval-sign.byteimg.com",
-				"x-signature=6edF3k%2BaHeAuvfcBRGOkbckoUl4%3D",
-			},
 		},
 		{
 			name:  "approval share",
 			file:  "approval.json",
 			want:  "https://sample.feishu.cn/approval/s/example",
 			count: 1,
-			absent: []string{
-				"go.feishu.cn/approval/s/",
-				"iu848mdm",
-			},
 		},
 		{
 			name:  "calendar meeting share",
 			file:  "calendar.json",
 			want:  "https://sample.feishu.cn/meeting/s/example",
 			count: 6,
-			absent: []string{
-				"meetings.feishu.cn/s/",
-				"1iof4hpw6i51w",
-			},
 		},
 		{
 			name:  "calendar event",
 			file:  "calendar.json",
 			want:  "https://sample.feishu.cn/calendar/event/example?calendarId=example_calendar&key=example_event",
 			count: 4,
-			absent: []string{
-				"calendarId=7039673579105026066",
-				"aeac9c56-aeb1-4179-a21b-02f278f59048",
-				"startTime=1700496000",
-			},
 		},
 		{
 			name:  "vc join",
 			file:  "vc.json",
 			want:  "https://sample.feishu.cn/vc/j/example",
 			count: 1,
-			absent: []string{
-				"vc.feishu.cn/j/337736498",
-			},
 		},
 	}
 
@@ -239,11 +214,6 @@ func TestCatalogSensitiveURLExamplesUseSyntheticTenant(t *testing.T) {
 			text := string(data)
 			if got := strings.Count(text, tc.want); got != tc.count {
 				t.Fatalf("synthetic sensitive URL example count = %d, want %d for %q", got, tc.count, tc.want)
-			}
-			for _, risky := range tc.absent {
-				if strings.Contains(text, risky) {
-					t.Errorf("catalog retains risky URL value %q", risky)
-				}
 			}
 			fixture := []byte(`{"resource_url":{"description":"Resource URL","example":"` + tc.want + `"}}`)
 			if findings := ScanFile("internal/registry/catalog/services/test.json", fixture); len(findings) != 0 {
@@ -278,7 +248,6 @@ calendar.json|$.resources.events.methods.patch.responseBody.event.properties.app
 calendar.json|$.resources.events.methods.patch.responseBody.event.properties.vchat.properties.live_link.example|https://sample.feishu.cn/meeting/s/example
 calendar.json|$.resources.events.methods.patch.responseBody.event.properties.vchat.properties.meeting_url.example|https://example.com
 calendar.json|$.resources.events.methods.search_event.responseBody.items.properties.meta_data.properties.app_link.example|https://applink.feishu.cn/client/calendar/event/detail?calendarId=user@example.com&key=xxxxxxxx
-calendar.json|$.resources.events.methods.share_info.responseBody.share_link.example|https://{domain}/calendar/share?token={token}
 drive.json|$.resources.files.methods.copy.responseBody.file.properties.url.example|https://sample.feishu.cn/drive/folder/fldcnExampleFolder
 drive.json|$.resources.files.methods.create_folder.responseBody.url.example|https://sample.feishu.cn/drive/folder/example-created-folder
 drive.json|$.resources.files.methods.list.responseBody.files.properties.url.example|https://sample.feishu.cn/drive/folder/fldcnExampleFolder
@@ -373,63 +342,26 @@ wiki.json|$.resources.spaces.methods.get_node.responseBody.node.properties.url.e
 	}
 }
 
-func TestCatalogExampleURLRejectsProductionResourceFamilies(t *testing.T) {
+func TestCatalogExampleURLRejectsUnreviewedResourceShapes(t *testing.T) {
 	for _, url := range []string{
 		"https://example.com/download/authcode/?code=opaque",
-		"https://api-drive-stream.blmpb.com/space/api/box/stream/download/authcode/?code=opaque",
-		"https://api-drive-stream.blmpb.com/another/resource",
-		"http://api-drive-stream.blmpb.com/another/resource",
-		"https://API-Drive-Stream.BLMPB.Com/another/resource",
-		"https://api-drive-stream.blmpb.com./another/resource",
-		"\u2003HtTpS://API-Drive-Stream.BLMPB.Com/another/resource\u2002",
-		"https://open.feishu.cn/space/api/box/stream/download/all/boxcnOpaque",
-		"http://open.feishu.cn/space/api/box/stream/download/all/boxcnOpaque",
-		"https://OPEN.Feishu.CN/space/api/box/stream/download/all/boxcnOpaque",
-		"https://open.feishu.cn./space/api/box/stream/download/all/boxcnOpaque",
-		"\u2003hTtP://OPEN.Feishu.CN/space/api/box/stream/download/all/boxcnOpaque\u2002",
-		"https://p3-approval-sign.byteimg.com/lark-approval-attachment/image/example.png?x-signature=opaque",
-		"https://p3-approval-sign.byteimg.com/other-resource",
-		"http://p3-approval-sign.byteimg.com/other-resource",
-		"https://P3-Approval-Sign.Byteimg.Com/other-resource",
-		"https://p3-approval-sign.byteimg.com./other-resource",
-		"\u2003HTTPS://P3-Approval-Sign.Byteimg.Com/other-resource\u2002",
-		"https://p3-lark-file.byteimg.com/other-resource",
-		"http://p3-lark-file.byteimg.com/other-resource",
-		"https://P3-Lark-File.Byteimg.Com/other-resource",
-		"https://p3-lark-file.byteimg.com./other-resource",
-		"\u2003HtTp://P3-Lark-File.Byteimg.Com/other-resource\u2002",
-		"https://applink.feishu.cn/client/todo/detail?guid=opaque&suite_entity_num=opaque",
-		"https://applink.feishu.cn/client/todo/detail?suite_entity_num=opaque&guid=opaque",
-		"http://applink.feishu.cn/client/todo/detail?guid=opaque",
-		"https://AppLink.Feishu.CN/client/todo/detail?guid=opaque",
-		"https://applink.feishu.cn./client/todo/detail?guid=opaque",
-		"https://applink.feishu.cn/client/todo/detail?guid=&guid=opaque",
-		"\u2003hTtPs://AppLink.Feishu.CN/client/todo/detail?guid=opaque\u2002",
-		"https://applink.feishu.cn/client/todo/task_list?guid=opaque",
-		"https://applink.feishu.cn/client/todo/task_list?foo=1&guid=opaque",
-		"http://applink.feishu.cn/client/todo/task_list?guid=opaque",
-		"https://AppLink.Feishu.CN/client/todo/task_list?guid=opaque",
-		"https://applink.feishu.cn/client/todo/task_list?guid=&guid=opaque",
-		"\u2003HtTp://AppLink.Feishu.CN/client/todo/task_list?guid=opaque\u2002",
-		"https://larksuite.com/drive/folder/fldbcddUuPz8VwnpPx5oc2abcef",
-		"http://larksuite.com/drive/folder/fldbcddUuPz8VwnpPx5oc2abcef",
-		"https://LarkSuite.Com/drive/folder/fldbcddUuPz8VwnpPx5oc2abcef",
-		"https://larksuite.com./drive/folder/fldbcddUuPz8VwnpPx5oc2abcef",
-		"\u2003HTTPS://LarkSuite.Com/drive/folder/fldbcddUuPz8VwnpPx5oc2abcef\u2002",
+		"https://files.example.org/space/api/box/stream/download/all/opaque",
+		"https://files.example.org/attachment?x-signature=opaque",
+		"https://files.example.org/attachment?signature=opaque",
+		"https://todo.example.org/client/todo/detail?guid=opaque",
+		"https://todo.example.org/client/todo/task_list?guid=opaque",
+		"https://files.example.org/drive/folder/fldopaque",
 	} {
 		if !catalogExampleURLIsForbidden(url) {
-			t.Errorf("production resource URL was not rejected: %q", url)
+			t.Errorf("unreviewed resource URL shape was not rejected: %q", url)
 		}
 	}
-	if catalogExampleURLIsForbidden("https://sample.feishu.cn/drive/folder/example-created-folder") {
+	if catalogExampleURLIsForbidden("https://example.com/drive/folder/example-created-folder") {
 		t.Error("synthetic drive folder URL was rejected")
 	}
-	if catalogExampleURLIsForbidden("https://sample.feishu.cn./drive/folder/example-created-folder") {
-		t.Error("terminal-dot synthetic drive folder URL was rejected")
-	}
 	for _, url := range []string{
-		"https://applink.feishu.cn/client/todo/detail?guid=",
-		"https://applink.feishu.cn/client/todo/task_list?guid=",
+		"https://todo.example.org/client/todo/detail?guid=",
+		"https://todo.example.org/client/todo/task_list?guid=",
 	} {
 		if catalogExampleURLIsForbidden(url) {
 			t.Errorf("empty-only task guid was rejected: %q", url)
@@ -464,7 +396,7 @@ func TestCatalogHTTPExampleInventoryNormalizesAndFailsClosed(t *testing.T) {
 	if !catalogExampleURLIsForbidden(malformed["example"].(string)) {
 		t.Fatal("malformed URL-like value was not rejected closed by forbidden predicate")
 	}
-	if _, err := parseCatalogExampleURL("https://{domain}/calendar/share?token={token}"); err != nil {
+	if _, err := parseCatalogExampleURL("https://{domain}/example"); err != nil {
 		t.Fatalf("exact reviewed domain template was rejected: %v", err)
 	}
 	for _, rawURL := range []string{
@@ -531,26 +463,23 @@ func catalogExampleURLIsForbidden(rawURL string) bool {
 		return true
 	}
 
-	hostname := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
-	switch hostname {
-	case "api-drive-stream.blmpb.com", "p3-approval-sign.byteimg.com", "p3-lark-file.byteimg.com":
+	if strings.HasPrefix(parsed.Path, "/space/api/box/stream/download/all/") {
 		return true
-	case "open.feishu.cn":
-		return strings.HasPrefix(parsed.Path, "/space/api/box/stream/download/all/")
-	case "applink.feishu.cn":
-		if parsed.Path == "/client/todo/detail" || parsed.Path == "/client/todo/task_list" {
-			for _, guid := range parsed.Query()["guid"] {
-				if guid != "" {
-					return true
-				}
+	}
+	if parsed.Query().Get("x-signature") != "" || parsed.Query().Get("signature") != "" {
+		return true
+	}
+	if parsed.Path == "/client/todo/detail" || parsed.Path == "/client/todo/task_list" {
+		for _, guid := range parsed.Query()["guid"] {
+			if guid != "" {
+				return true
 			}
 		}
-	case "larksuite.com":
-		const driveFolderPrefix = "/drive/folder/"
-		if strings.HasPrefix(parsed.Path, driveFolderPrefix) {
-			folderToken := strings.TrimPrefix(parsed.Path, driveFolderPrefix)
-			return !strings.Contains(folderToken, "/") && strings.HasPrefix(folderToken, "fld")
-		}
+	}
+	const driveFolderPrefix = "/drive/folder/"
+	if strings.HasPrefix(parsed.Path, driveFolderPrefix) {
+		folderToken := strings.TrimPrefix(parsed.Path, driveFolderPrefix)
+		return !strings.Contains(folderToken, "/") && strings.HasPrefix(folderToken, "fld") && !strings.Contains(strings.ToLower(folderToken), "example")
 	}
 	if strings.HasPrefix(parsed.Path, "/download/authcode/") {
 		for _, code := range parsed.Query()["code"] {

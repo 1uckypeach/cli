@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_sha256": "6e6a9af940aceb9dc7425cf91d7b98d3279dcff0f2c9e209c2d37a6bc1620d90",
+  "source_sha256": "612ad62234e50f2aa4e8362af7d23a18571ed03027a808c02c8d54e27cd21b57",
   "services": [
     {
       "name": "approval",
@@ -20,8 +20,8 @@
       "name": "calendar",
       "file": "services/calendar.json",
       "revision": 7,
-      "size": 297582,
-      "sha256": "b04db2e0114e96b206d44659792ad56b3f70bfa8c5957b4e2cd00a3bd2b03318"
+      "size": 297508,
+      "sha256": "eb5b6492ba7115790b485f9cf834689d37aa0891b4f8c43f46575e0678ee5132"
     },
     {
       "name": "contact",
@@ -41,8 +41,8 @@
       "name": "im",
       "file": "services/im.json",
       "revision": 7,
-      "size": 243551,
-      "sha256": "ced6c28785f50f32ec2d31d3d0bce5336f54b55912b35e68fbdbe78d197a9596"
+      "size": 243478,
+      "sha256": "b4fdf8d70c03f21f42d9cc2636d582d3e19c1096a75701f393b2bace130039c5"
     },
     {
       "name": "mail",
