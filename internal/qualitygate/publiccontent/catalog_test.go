@@ -248,6 +248,7 @@ calendar.json|$.resources.events.methods.patch.responseBody.event.properties.app
 calendar.json|$.resources.events.methods.patch.responseBody.event.properties.vchat.properties.live_link.example|https://sample.feishu.cn/meeting/s/example
 calendar.json|$.resources.events.methods.patch.responseBody.event.properties.vchat.properties.meeting_url.example|https://example.com
 calendar.json|$.resources.events.methods.search_event.responseBody.items.properties.meta_data.properties.app_link.example|https://applink.feishu.cn/client/calendar/event/detail?calendarId=user@example.com&key=xxxxxxxx
+calendar.json|$.resources.events.methods.share_info.responseBody.share_link.example|https://{domain}/calendar/share?token={token}
 drive.json|$.resources.files.methods.copy.responseBody.file.properties.url.example|https://sample.feishu.cn/drive/folder/fldcnExampleFolder
 drive.json|$.resources.files.methods.create_folder.responseBody.url.example|https://sample.feishu.cn/drive/folder/example-created-folder
 drive.json|$.resources.files.methods.list.responseBody.files.properties.url.example|https://sample.feishu.cn/drive/folder/fldcnExampleFolder
