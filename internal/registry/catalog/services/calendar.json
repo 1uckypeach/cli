@@ -2895,7 +2895,7 @@
               "properties": {
                 "ui_name": {
                   "type": "string",
-                  "description": "UI项名称 TODO文档",
+                  "description": "UI 项名称",
                   "required": false,
                   "example": "xxx"
                 },
@@ -3460,7 +3460,7 @@
                   "properties": {
                     "ui_name": {
                       "type": "string",
-                      "description": "UI项名称 TODO文档",
+                      "description": "UI 项名称",
                       "required": false,
                       "example": "xxx"
                     },
@@ -4207,7 +4207,7 @@
                   "properties": {
                     "ui_name": {
                       "type": "string",
-                      "description": "UI项名称 TODO文档",
+                      "description": "UI 项名称",
                       "required": false,
                       "example": "xxx"
                     },
@@ -5717,7 +5717,7 @@
               "properties": {
                 "ui_name": {
                   "type": "string",
-                  "description": "UI项名称 TODO文档",
+                  "description": "UI 项名称",
                   "required": false,
                   "example": "xxx"
                 },
@@ -6291,7 +6291,7 @@
                   "properties": {
                     "ui_name": {
                       "type": "string",
-                      "description": "UI项名称 TODO文档",
+                      "description": "UI 项名称",
                       "required": false,
                       "example": "xxx"
                     },

@@ -175,13 +175,13 @@
                     },
                     "type": {
                       "type": "string",
-                      "description": "资源类型。当前群聊消息资源为 message，若底层仍是枚举值，也可以先透出 string(enum_value)",
+                      "description": "资源类型。当前群聊消息资源为 message",
                       "required": false,
                       "example": "1"
                     },
                     "source_message": {
                       "type": "object",
-                      "description": "底层字段名虽然叫 msg_payload_bytes，但对 OAPI 返回的是已解码后的消息 payload。\\ncontent 和 decoded_messages 都需要透出",
+                      "description": "OAPI 返回已解码后的消息 payload，包含 content 和 decoded_messages",
                       "required": false,
                       "ref": "origin_source_message"
                     },
@@ -5025,13 +5025,13 @@
                     },
                     "type": {
                       "type": "string",
-                      "description": "资源类型。当前群聊消息资源为 message，若底层仍是枚举值，也可以先透出 string(enum_value)",
+                      "description": "资源类型。当前群聊消息资源为 message",
                       "required": false,
                       "example": "1"
                     },
                     "source_message": {
                       "type": "object",
-                      "description": "底层字段名虽然叫 msg_payload_bytes，但对 OAPI 返回的是已解码后的消息 payload。\\ncontent 和 decoded_messages 都需要透出",
+                      "description": "OAPI 返回已解码后的消息 payload，包含 content 和 decoded_messages",
                       "required": false,
                       "ref": "origin_source_message"
                     },
