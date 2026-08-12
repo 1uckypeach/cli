@@ -4,7 +4,7 @@
     {
       "name": "approval",
       "file": "services/approval.json",
-      "revision": 6,
+      "revision": 7,
       "size": 78945,
       "sha256": "07f878c3fd9c2ee0bad62f05a3808359593bde0fc00054fb387cb60162bd9330"
     },
@@ -18,9 +18,9 @@
     {
       "name": "calendar",
       "file": "services/calendar.json",
-      "revision": 7,
-      "size": 297508,
-      "sha256": "eb5b6492ba7115790b485f9cf834689d37aa0891b4f8c43f46575e0678ee5132"
+      "revision": 9,
+      "size": 297582,
+      "sha256": "b04db2e0114e96b206d44659792ad56b3f70bfa8c5957b4e2cd00a3bd2b03318"
     },
     {
       "name": "contact",
@@ -32,21 +32,21 @@
     {
       "name": "drive",
       "file": "services/drive.json",
-      "revision": 7,
+      "revision": 9,
       "size": 160935,
       "sha256": "1ce295bd374c9a62674b22ede5ff4169ecdb0f4444ebd3d03608354803473558"
     },
     {
       "name": "im",
       "file": "services/im.json",
-      "revision": 7,
-      "size": 243478,
-      "sha256": "b4fdf8d70c03f21f42d9cc2636d582d3e19c1096a75701f393b2bace130039c5"
+      "revision": 8,
+      "size": 243551,
+      "sha256": "ced6c28785f50f32ec2d31d3d0bce5336f54b55912b35e68fbdbe78d197a9596"
     },
     {
       "name": "mail",
       "file": "services/mail.json",
-      "revision": 6,
+      "revision": 7,
       "size": 282780,
       "sha256": "b6f647ad7a8ed48effc081f0b97160eab72013c2b185f1007f74c1965db49c52"
     },
@@ -60,7 +60,7 @@
     {
       "name": "minutes",
       "file": "services/minutes.json",
-      "revision": 6,
+      "revision": 8,
       "size": 4618,
       "sha256": "77651aaedda35a4ee3cb85cdf0f55b3a414f7e7f8b7d01f39bd6f64d6515650d"
     },
@@ -74,7 +74,7 @@
     {
       "name": "sheets",
       "file": "services/sheets.json",
-      "revision": 6,
+      "revision": 7,
       "size": 23264,
       "sha256": "cdad3656400c3c89977e3efdbea957edec5bb72d04668c4e2ea162e2f866a4b2"
     },
@@ -88,14 +88,14 @@
     {
       "name": "task",
       "file": "services/task.json",
-      "revision": 6,
+      "revision": 7,
       "size": 457436,
       "sha256": "970fba29f3187a19ca8ae241ece128fdbebc207dd800c162875758a814721c07"
     },
     {
       "name": "vc",
       "file": "services/vc.json",
-      "revision": 6,
+      "revision": 7,
       "size": 17194,
       "sha256": "5a9ed469b50ab7ec64f018d64edf94e3cef5cd1b1a2ca04df3a2be8664278edb"
     },

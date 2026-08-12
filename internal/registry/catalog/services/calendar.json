@@ -6736,7 +6736,8 @@
             "share_link": {
               "type": "string",
               "description": "日程分享链接",
-              "required": false
+              "required": false,
+              "example": "https://{domain}/calendar/share?token={token}"
             }
           },
           "scopes": [

@@ -2500,7 +2500,7 @@
           "id": "chat.nickname.delete",
           "path": "chats/{chat_id}/nickname",
           "httpMethod": "DELETE",
-          "description": "清空调用 user 自己在群里的群昵称（self-only）。Clear your own nickname in the chat (self-only). Identity: `user` only (`user_access_token`)",
+          "description": "清空调用 user 自己在群里的群昵称（self-only）；后端会同时清掉群昵称-用户反查索引。Clear your own nickname in the chat (self-only). Identity: `user` only (`user_access_token`)",
           "parameters": {
             "chat_id": {
               "type": "string",
@@ -2581,7 +2581,7 @@
           "requestBody": {
             "nickname": {
               "type": "string",
-              "description": "待设置的群昵称，非空字符串，最大 300 字节",
+              "description": "待设置的群昵称，非空字符串；后端按字节长度上限 300 校验",
               "required": true,
               "example": "小明"
             }
