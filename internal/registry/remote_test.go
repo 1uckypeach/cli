@@ -331,6 +331,53 @@ func TestOverlayMergedServices(t *testing.T) {
 	}
 }
 
+func TestOverlayMergedServicesPreservesEmbeddedResources(t *testing.T) {
+	resetInit()
+	mergedServices = map[string]meta.Service{
+		"mail": {
+			Name:    "mail",
+			Version: "v1",
+			Resources: map[string]meta.Resource{
+				"user_mailbox.allow_senders": {
+					Methods: map[string]meta.Method{
+						"list": {ID: "user_mailbox.allow_senders.list"},
+					},
+				},
+				"user_mailbox": {
+					Methods: map[string]meta.Method{
+						"search": {ID: "embedded.search"},
+					},
+				},
+			},
+		},
+	}
+
+	overlayMergedServices(&MergedRegistry{Services: []meta.Service{{
+		Name:        "mail",
+		Version:     "v2",
+		Title:       "Mail API",
+		ServicePath: "/open-apis/mail/v1",
+		Resources: map[string]meta.Resource{
+			"user_mailbox": {
+				Methods: map[string]meta.Method{
+					"search": {ID: "remote.search"},
+				},
+			},
+		},
+	}}})
+
+	mail := mergedServices["mail"]
+	if mail.Version != "v2" {
+		t.Fatalf("mail version = %q, want v2", mail.Version)
+	}
+	if _, ok := mail.Resources["user_mailbox.allow_senders"]; !ok {
+		t.Fatal("expected embedded user_mailbox.allow_senders resource to survive stale remote overlay")
+	}
+	if got := mail.Resources["user_mailbox"].Methods["search"].ID; got != "remote.search" {
+		t.Fatalf("user_mailbox.search ID = %q, want remote.search", got)
+	}
+}
+
 func TestOverlayMergedServicesDoesNotPolluteFollowingInit(t *testing.T) {
 	resetInit()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
