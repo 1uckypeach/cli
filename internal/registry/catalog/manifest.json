@@ -33,15 +33,15 @@
       "name": "drive",
       "file": "services/drive.json",
       "revision": 7,
-      "size": 160937,
-      "sha256": "d2ade43b4f7db1195370831fa80e2b9e4fdb563408940da053fde8e2aa3abe37"
+      "size": 160935,
+      "sha256": "1ce295bd374c9a62674b22ede5ff4169ecdb0f4444ebd3d03608354803473558"
     },
     {
       "name": "im",
       "file": "services/im.json",
       "revision": 7,
-      "size": 243699,
-      "sha256": "dff13c0903d7d6cffb44a3c28815b616003db18f66d532cc75f065d54a0287a3"
+      "size": 243551,
+      "sha256": "ced6c28785f50f32ec2d31d3d0bce5336f54b55912b35e68fbdbe78d197a9596"
     },
     {
       "name": "mail",
@@ -61,8 +61,8 @@
       "name": "minutes",
       "file": "services/minutes.json",
       "revision": 6,
-      "size": 4653,
-      "sha256": "1c136dfbe6280d547964faf868e5e7daf96fb2c9c063b61b0fc03cc0c93ee61e"
+      "size": 4618,
+      "sha256": "77651aaedda35a4ee3cb85cdf0f55b3a414f7e7f8b7d01f39bd6f64d6515650d"
     },
     {
       "name": "okr",
@@ -89,8 +89,8 @@
       "name": "task",
       "file": "services/task.json",
       "revision": 6,
-      "size": 458388,
-      "sha256": "1c94e5bb7f0048b2851280df7bc4a3d94613858044d22654969c5a00ada621a8"
+      "size": 457852,
+      "sha256": "6d9875d811a6a74e4fff757431048971d8f1d5e81b876ca3ecab96e29f038c7f"
     },
     {
       "name": "vc",

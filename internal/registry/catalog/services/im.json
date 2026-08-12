@@ -390,7 +390,7 @@
               "type": "string",
               "description": "URL of group profile photo",
               "required": false,
-              "example": "https://p3-lark-file.byteimg.com/img/lark-avatar-staging/default-avatar_44ae0ca3-e140-494b-956f-78091e348435~100x100.jpg"
+              "example": "https://sample.feishu.cn/im/avatar/example.jpg"
             },
             "name": {
               "type": "string",
@@ -762,7 +762,7 @@
               "type": "string",
               "description": "URL of group profile photo",
               "required": false,
-              "example": "https://p3-lark-file.byteimg.com/img/lark-avatar-staging/default-avatar_44ae0ca3-e140-494b-956f-78091e348435~100x100.jpg"
+              "example": "https://sample.feishu.cn/im/avatar/example.jpg"
             },
             "name": {
               "type": "string",

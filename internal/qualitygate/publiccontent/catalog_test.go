@@ -4,8 +4,12 @@
 package publiccontent
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -247,6 +251,366 @@ func TestCatalogSensitiveURLExamplesUseSyntheticTenant(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCatalogHTTPExampleURLInventoryIsReviewed(t *testing.T) {
+	want := strings.Split(strings.TrimSpace(`
+approval.json|$.resources.approvals.methods.search.responseBody.approvals.properties.create_link.example|https://www.example.com
+approval.json|$.resources.instances.methods.create.responseBody.instance_link.example|https://sample.feishu.cn/approval/s/example
+approval.json|$.resources.instances.methods.get.responseBody.comments.properties.files.properties.url.example|https://sample.feishu.cn/approval/attachment/example.png
+approval.json|$.resources.instances.methods.get.responseBody.operation_records.properties.files.properties.url.example|https://sample.feishu.cn/approval/attachment/example.png
+approval.json|$.resources.instances.methods.initiated.responseBody.instances.properties.link.example|https://www.xxxx.com
+approval.json|$.resources.tasks.methods.query.responseBody.tasks.properties.link.example|https://www.xxxx.com
+calendar.json|$.resources.events.methods.create.requestBody.vchat.properties.live_link.example|https://sample.feishu.cn/meeting/s/example
+calendar.json|$.resources.events.methods.create.requestBody.vchat.properties.meeting_url.example|https://example.com
+calendar.json|$.resources.events.methods.create.responseBody.event.properties.app_link.example|https://sample.feishu.cn/calendar/event/example?calendarId=example_calendar&key=example_event
+calendar.json|$.resources.events.methods.create.responseBody.event.properties.vchat.properties.live_link.example|https://sample.feishu.cn/meeting/s/example
+calendar.json|$.resources.events.methods.create.responseBody.event.properties.vchat.properties.meeting_url.example|https://example.com
+calendar.json|$.resources.events.methods.get.responseBody.event.properties.app_link.example|https://sample.feishu.cn/calendar/event/example?calendarId=example_calendar&key=example_event
+calendar.json|$.resources.events.methods.get.responseBody.event.properties.vchat.properties.live_link.example|https://sample.feishu.cn/meeting/s/example
+calendar.json|$.resources.events.methods.get.responseBody.event.properties.vchat.properties.meeting_url.example|https://example.com
+calendar.json|$.resources.events.methods.instance_view.responseBody.items.properties.app_link.example|https://sample.feishu.cn/calendar/event/example?calendarId=example_calendar&key=example_event
+calendar.json|$.resources.events.methods.instance_view.responseBody.items.properties.vchat.properties.live_link.example|https://sample.feishu.cn/meeting/s/example
+calendar.json|$.resources.events.methods.instance_view.responseBody.items.properties.vchat.properties.meeting_url.example|https://example.com
+calendar.json|$.resources.events.methods.patch.requestBody.vchat.properties.live_link.example|https://sample.feishu.cn/meeting/s/example
+calendar.json|$.resources.events.methods.patch.requestBody.vchat.properties.meeting_url.example|https://example.com
+calendar.json|$.resources.events.methods.patch.responseBody.event.properties.app_link.example|https://sample.feishu.cn/calendar/event/example?calendarId=example_calendar&key=example_event
+calendar.json|$.resources.events.methods.patch.responseBody.event.properties.vchat.properties.live_link.example|https://sample.feishu.cn/meeting/s/example
+calendar.json|$.resources.events.methods.patch.responseBody.event.properties.vchat.properties.meeting_url.example|https://example.com
+calendar.json|$.resources.events.methods.search_event.responseBody.items.properties.meta_data.properties.app_link.example|https://applink.feishu.cn/client/calendar/event/detail?calendarId=user@example.com&key=xxxxxxxx
+calendar.json|$.resources.events.methods.share_info.responseBody.share_link.example|https://{domain}/calendar/share?token={token}
+drive.json|$.resources.files.methods.copy.responseBody.file.properties.url.example|https://sample.feishu.cn/drive/folder/fldcnExampleFolder
+drive.json|$.resources.files.methods.create_folder.responseBody.url.example|https://sample.feishu.cn/drive/folder/example-created-folder
+drive.json|$.resources.files.methods.list.responseBody.files.properties.url.example|https://sample.feishu.cn/drive/folder/fldcnExampleFolder
+drive.json|$.resources.metas.methods.batch_query.responseBody.metas.properties.url.example|https://sample.feishu.cn/docs/doccnfYZzTlvXqZIGTdAHKabcef
+drive.json|$.resources["file.comments"].methods.create_v2.requestBody.reply_elements.properties.link.example|https://example.com/docs/approval-guide
+drive.json|$.resources["file.view_records"].methods.list.responseBody.items.properties.avatar_url.example|https://foo.icon.com/xxxx
+im.json|$.resources.chats.methods.create.responseBody.avatar.example|https://sample.feishu.cn/im/avatar/example.jpg
+im.json|$.resources.chats.methods.get.responseBody.avatar.example|https://sample.feishu.cn/im/avatar/example.jpg
+im.json|$.resources.chats.methods.link.responseBody.share_link.example|https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=example
+im.json|$.resources.messages.methods.forward.responseBody.message_app_link.example|https://xxxx/client/thread/open?chatid=xxx&threadid=xxx&thread_position=xxx
+im.json|$.resources.messages.methods.merge_forward.responseBody.message.properties.message_app_link.example|https://xxxx/client/thread/open?chatid=xxx&threadid=xxx&thread_position=xxx
+im.json|$.resources.threads.methods.forward.responseBody.message_app_link.example|https://xxxx/client/thread/open?chatid=xxx&threadid=xxx&thread_position=xxx
+mail.json|$.resources["user_mailbox.drafts"].methods.create.responseBody.reference.example|https://{domain}/mail?draftId=MWFhMjA5NzctYTE5OC00ZDcxLTkxYTctNjY1MDVjNDc4MmJm&scene=send-preview&mailbox=user%40company.com
+mail.json|$.resources["user_mailbox.drafts"].methods.send.responseBody.automation_send_disable.properties.reference.example|https://open.larksuite.com/mail/settings/automation
+mail.json|$.resources["user_mailbox.drafts"].methods.update.responseBody.reference.example|https://{domain}/mail?draftId=MWFhMjA5NzctYTE5OC00ZDcxLTkxYTctNjY1MDVjNDc4MmJm&scene=send-preview&mailbox=user%40company.com
+mail.json|$.resources["user_mailbox.mail_contacts"].methods.create.responseBody.mail_contact.properties.avatar.example|https://exampleimg.com/xxxx.jpg
+mail.json|$.resources["user_mailbox.mail_contacts"].methods.list.responseBody.items.properties.avatar.example|https://exampleimg.com/xxxx.jpg
+mail.json|$.resources["user_mailbox.message.attachments"].methods.download_url.responseBody.download_urls.properties.download_url.example|https://sample.feishu.cn/mail/attachment/example
+mail.json|$.resources["user_mailbox.template.attachments"].methods.download_url.responseBody.download_urls.properties.download_url.example|https://sample.feishu.cn/mail/attachment/example
+minutes.json|$.resources.minutes.methods.get.responseBody.minute.properties.cover.example|https://sample.feishu.cn/minutes/download/example
+minutes.json|$.resources.minutes.methods.get.responseBody.minute.properties.url.example|https://sample.feishu.cn/minutes/obcnExampleMinutes
+sheets.json|$.resources.spreadsheets.methods.create.responseBody.spreadsheet.properties.url.example|https://sample.feishu.cn/sheets/shtcnExampleSheet
+sheets.json|$.resources.spreadsheets.methods.get.responseBody.spreadsheet.properties.url.example|https://sample.feishu.cn/sheets/shtcnExampleSheet
+task.json|$.resources.members.methods.add.responseBody.task.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.members.methods.add.responseBody.task.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
+task.json|$.resources.members.methods.remove.responseBody.task.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.members.methods.remove.responseBody.task.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
+task.json|$.resources.subtasks.methods.create.requestBody.custom_complete.properties.android.properties.href.example|https://www.example.com
+task.json|$.resources.subtasks.methods.create.requestBody.custom_complete.properties.ios.properties.href.example|https://www.example.com
+task.json|$.resources.subtasks.methods.create.requestBody.custom_complete.properties.pc.properties.href.example|https://www.example.com
+task.json|$.resources.subtasks.methods.create.requestBody.origin.properties.href.properties.url.example|https://www.example.com
+task.json|$.resources.subtasks.methods.create.responseBody.subtask.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.subtasks.methods.create.responseBody.subtask.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
+task.json|$.resources.subtasks.methods.list.responseBody.items.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.subtasks.methods.list.responseBody.items.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
+task.json|$.resources.tasklists.methods.add_members.responseBody.tasklist.properties.url.example|https://sample.feishu.cn/task/list/example?guid=example_task_list
+task.json|$.resources.tasklists.methods.create.responseBody.tasklist.properties.url.example|https://sample.feishu.cn/task/list/example?guid=example_task_list
+task.json|$.resources.tasklists.methods.get.responseBody.tasklist.properties.url.example|https://sample.feishu.cn/task/list/example?guid=example_task_list
+task.json|$.resources.tasklists.methods.list.responseBody.items.properties.url.example|https://sample.feishu.cn/task/list/example?guid=example_task_list
+task.json|$.resources.tasklists.methods.patch.responseBody.tasklist.properties.url.example|https://sample.feishu.cn/task/list/example?guid=example_task_list
+task.json|$.resources.tasklists.methods.remove_members.responseBody.tasklist.properties.url.example|https://sample.feishu.cn/task/list/example?guid=example_task_list
+task.json|$.resources.tasks.methods.create.requestBody.custom_complete.properties.android.properties.href.example|https://www.example.com
+task.json|$.resources.tasks.methods.create.requestBody.custom_complete.properties.ios.properties.href.example|https://www.example.com
+task.json|$.resources.tasks.methods.create.requestBody.custom_complete.properties.pc.properties.href.example|https://www.example.com
+task.json|$.resources.tasks.methods.create.requestBody.origin.properties.href.properties.url.example|https://www.example.com
+task.json|$.resources.tasks.methods.create.responseBody.task.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.tasks.methods.create.responseBody.task.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
+task.json|$.resources.tasks.methods.get.responseBody.task.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.tasks.methods.get.responseBody.task.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
+task.json|$.resources.tasks.methods.list.responseBody.items.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.tasks.methods.list.responseBody.items.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
+task.json|$.resources.tasks.methods.patch.responseBody.task.properties.attachment_deliveries.properties.url.example|https://example.com/download/authcode/?code=OWMzNDlmMjJmZThkYzZkZGJlMjYwZTI0OTUxZTE2MDJfMDZmZmMwOWVj
+task.json|$.resources.tasks.methods.patch.responseBody.task.properties.url.example|https://sample.feishu.cn/task/detail/example?guid=example_task
+vc.json|$.resources.meeting.methods.get.responseBody.meeting.properties.url.example|https://sample.feishu.cn/vc/j/example
+wiki.json|$.resources.nodes.methods.copy.responseBody.node.properties.url.example|https://xxx/wiki/wikcnKQ1k3p******8Vabcef
+wiki.json|$.resources.nodes.methods.create.responseBody.node.properties.url.example|https://xxx/wiki/wikcnKQ1k3p******8Vabcef
+wiki.json|$.resources.nodes.methods.list.responseBody.items.properties.url.example|https://xxx/wiki/wikcnKQ1k3p******8Vabcef
+wiki.json|$.resources.spaces.methods.get_node.responseBody.node.properties.url.example|https://xxx/wiki/wikcnKQ1k3p******8Vabcef`), "\n")
+
+	paths, err := filepath.Glob(filepath.Join("..", "..", "registry", "catalog", "services", "*.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 15 {
+		t.Fatalf("catalog service shard count = %d, want 15", len(paths))
+	}
+
+	var got []string
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var document any
+		if err := json.Unmarshal(data, &document); err != nil {
+			t.Fatalf("unmarshal %s: %v", path, err)
+		}
+		occurrences, err := collectHTTPExampleURLs(document, filepath.Base(path), "$")
+		if err != nil {
+			t.Fatalf("collect HTTP(S) examples from %s: %v", path, err)
+		}
+		got = append(got, occurrences...)
+	}
+	sort.Strings(got)
+	for _, occurrence := range got {
+		if catalogExampleURLIsForbidden(catalogOccurrenceURL(occurrence)) {
+			t.Errorf("catalog HTTP(S) example URL uses a forbidden production resource family: %q", occurrence)
+		}
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("catalog HTTP(S) example URL inventory changed without review\n got: %s\nwant: %s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestCatalogExampleURLRejectsProductionResourceFamilies(t *testing.T) {
+	for _, url := range []string{
+		"https://api-drive-stream.blmpb.com/space/api/box/stream/download/authcode/?code=opaque",
+		"https://api-drive-stream.blmpb.com/another/resource",
+		"http://api-drive-stream.blmpb.com/another/resource",
+		"https://API-Drive-Stream.BLMPB.Com/another/resource",
+		"https://api-drive-stream.blmpb.com./another/resource",
+		"\u2003HtTpS://API-Drive-Stream.BLMPB.Com/another/resource\u2002",
+		"https://open.feishu.cn/space/api/box/stream/download/all/boxcnOpaque",
+		"http://open.feishu.cn/space/api/box/stream/download/all/boxcnOpaque",
+		"https://OPEN.Feishu.CN/space/api/box/stream/download/all/boxcnOpaque",
+		"https://open.feishu.cn./space/api/box/stream/download/all/boxcnOpaque",
+		"\u2003hTtP://OPEN.Feishu.CN/space/api/box/stream/download/all/boxcnOpaque\u2002",
+		"https://p3-approval-sign.byteimg.com/lark-approval-attachment/image/example.png?x-signature=opaque",
+		"https://p3-approval-sign.byteimg.com/other-resource",
+		"http://p3-approval-sign.byteimg.com/other-resource",
+		"https://P3-Approval-Sign.Byteimg.Com/other-resource",
+		"https://p3-approval-sign.byteimg.com./other-resource",
+		"\u2003HTTPS://P3-Approval-Sign.Byteimg.Com/other-resource\u2002",
+		"https://p3-lark-file.byteimg.com/other-resource",
+		"http://p3-lark-file.byteimg.com/other-resource",
+		"https://P3-Lark-File.Byteimg.Com/other-resource",
+		"https://p3-lark-file.byteimg.com./other-resource",
+		"\u2003HtTp://P3-Lark-File.Byteimg.Com/other-resource\u2002",
+		"https://applink.feishu.cn/client/todo/detail?guid=opaque&suite_entity_num=opaque",
+		"https://applink.feishu.cn/client/todo/detail?suite_entity_num=opaque&guid=opaque",
+		"http://applink.feishu.cn/client/todo/detail?guid=opaque",
+		"https://AppLink.Feishu.CN/client/todo/detail?guid=opaque",
+		"https://applink.feishu.cn./client/todo/detail?guid=opaque",
+		"https://applink.feishu.cn/client/todo/detail?guid=&guid=opaque",
+		"\u2003hTtPs://AppLink.Feishu.CN/client/todo/detail?guid=opaque\u2002",
+		"https://applink.feishu.cn/client/todo/task_list?guid=opaque",
+		"https://applink.feishu.cn/client/todo/task_list?foo=1&guid=opaque",
+		"http://applink.feishu.cn/client/todo/task_list?guid=opaque",
+		"https://AppLink.Feishu.CN/client/todo/task_list?guid=opaque",
+		"https://applink.feishu.cn/client/todo/task_list?guid=&guid=opaque",
+		"\u2003HtTp://AppLink.Feishu.CN/client/todo/task_list?guid=opaque\u2002",
+		"https://larksuite.com/drive/folder/fldbcddUuPz8VwnpPx5oc2abcef",
+		"http://larksuite.com/drive/folder/fldbcddUuPz8VwnpPx5oc2abcef",
+		"https://LarkSuite.Com/drive/folder/fldbcddUuPz8VwnpPx5oc2abcef",
+		"https://larksuite.com./drive/folder/fldbcddUuPz8VwnpPx5oc2abcef",
+		"\u2003HTTPS://LarkSuite.Com/drive/folder/fldbcddUuPz8VwnpPx5oc2abcef\u2002",
+	} {
+		if !catalogExampleURLIsForbidden(url) {
+			t.Errorf("production resource URL was not rejected: %q", url)
+		}
+	}
+	if catalogExampleURLIsForbidden("https://sample.feishu.cn/drive/folder/example-created-folder") {
+		t.Error("synthetic drive folder URL was rejected")
+	}
+	if catalogExampleURLIsForbidden("https://sample.feishu.cn./drive/folder/example-created-folder") {
+		t.Error("terminal-dot synthetic drive folder URL was rejected")
+	}
+	for _, url := range []string{
+		"https://applink.feishu.cn/client/todo/detail?guid=",
+		"https://applink.feishu.cn/client/todo/task_list?guid=",
+	} {
+		if catalogExampleURLIsForbidden(url) {
+			t.Errorf("empty-only task guid was rejected: %q", url)
+		}
+	}
+}
+
+func TestCatalogHTTPExampleInventoryNormalizesAndFailsClosed(t *testing.T) {
+	document := map[string]any{
+		"z": map[string]any{"example": "  HtTpS://example.com  "},
+		"a": []any{
+			map[string]any{"example": "https://example.com"},
+		},
+	}
+	got, err := collectHTTPExampleURLs(document, "fixture.json", "$")
+	if err != nil {
+		t.Fatalf("collect normalized fixture: %v", err)
+	}
+	sort.Strings(got)
+	want := []string{
+		"fixture.json|$.a[0].example|https://example.com",
+		"fixture.json|$.z.example|https://example.com",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("normalized occurrence inventory = %v, want %v", got, want)
+	}
+
+	malformed := map[string]any{"example": " \u2003HTTPS://%zz\u2002"}
+	if _, err := collectHTTPExampleURLs(malformed, "fixture.json", "$"); err == nil {
+		t.Fatal("malformed URL-like value was silently ignored")
+	}
+	if !catalogExampleURLIsForbidden(malformed["example"].(string)) {
+		t.Fatal("malformed URL-like value was not rejected closed by forbidden predicate")
+	}
+	if _, err := parseCatalogExampleURL("https://{domain}/calendar/share?token={token}"); err != nil {
+		t.Fatalf("exact reviewed domain template was rejected: %v", err)
+	}
+	for _, rawURL := range []string{
+		"https://{unreviewed}/path",
+		"https://{domain}suffix/path",
+	} {
+		if _, err := parseCatalogExampleURL(rawURL); err == nil {
+			t.Fatalf("unreviewed URL template was accepted: %q", rawURL)
+		}
+		if !catalogExampleURLIsForbidden(rawURL) {
+			t.Fatalf("unreviewed URL template was not rejected closed: %q", rawURL)
+		}
+	}
+}
+
+func collectHTTPExampleURLs(value any, service, path string) ([]string, error) {
+	var occurrences []string
+	switch value := value.(type) {
+	case map[string]any:
+		keys := make([]string, 0, len(value))
+		for key := range value {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			child := value[key]
+			childPath := catalogJSONPropertyPath(path, key)
+			if key == "example" {
+				if text, ok := child.(string); ok {
+					normalized, isHTTP := normalizeCatalogExampleURL(text)
+					if isHTTP {
+						if _, err := parseCatalogExampleURL(normalized); err != nil {
+							return nil, fmt.Errorf("%s at %s: %w", service, childPath, err)
+						}
+						occurrences = append(occurrences, formatCatalogOccurrence(service, childPath, normalized))
+					}
+				}
+			}
+			children, err := collectHTTPExampleURLs(child, service, childPath)
+			if err != nil {
+				return nil, err
+			}
+			occurrences = append(occurrences, children...)
+		}
+	case []any:
+		for index, child := range value {
+			children, err := collectHTTPExampleURLs(child, service, fmt.Sprintf("%s[%d]", path, index))
+			if err != nil {
+				return nil, err
+			}
+			occurrences = append(occurrences, children...)
+		}
+	}
+	return occurrences, nil
+}
+
+func catalogExampleURLIsForbidden(rawURL string) bool {
+	normalized, isHTTP := normalizeCatalogExampleURL(rawURL)
+	if !isHTTP {
+		return false
+	}
+	parsed, err := parseCatalogExampleURL(normalized)
+	if err != nil {
+		return true
+	}
+
+	hostname := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
+	switch hostname {
+	case "api-drive-stream.blmpb.com", "p3-approval-sign.byteimg.com", "p3-lark-file.byteimg.com":
+		return true
+	case "open.feishu.cn":
+		return strings.HasPrefix(parsed.Path, "/space/api/box/stream/download/all/")
+	case "applink.feishu.cn":
+		if parsed.Path == "/client/todo/detail" || parsed.Path == "/client/todo/task_list" {
+			for _, guid := range parsed.Query()["guid"] {
+				if guid != "" {
+					return true
+				}
+			}
+		}
+	case "larksuite.com":
+		const driveFolderPrefix = "/drive/folder/"
+		if strings.HasPrefix(parsed.Path, driveFolderPrefix) {
+			folderToken := strings.TrimPrefix(parsed.Path, driveFolderPrefix)
+			return !strings.Contains(folderToken, "/") && strings.HasPrefix(folderToken, "fld")
+		}
+	}
+	return false
+}
+
+func normalizeCatalogExampleURL(rawURL string) (string, bool) {
+	normalized := strings.TrimSpace(rawURL)
+	schemeEnd := strings.IndexByte(normalized, ':')
+	if schemeEnd <= 0 {
+		return normalized, false
+	}
+	scheme := strings.ToLower(normalized[:schemeEnd])
+	if scheme != "http" && scheme != "https" {
+		return normalized, false
+	}
+	return scheme + normalized[schemeEnd:], true
+}
+
+func parseCatalogExampleURL(rawURL string) (*url.URL, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil && catalogURLHasTemplateHost(rawURL) {
+		parsed, err = url.Parse(catalogURLReplaceTemplateHost(rawURL))
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !parsed.IsAbs() || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return nil, fmt.Errorf("not a valid absolute HTTP(S) URL")
+	}
+	return parsed, nil
+}
+
+func catalogURLHasTemplateHost(rawURL string) bool {
+	return strings.HasPrefix(rawURL, "http://{domain}/") || strings.HasPrefix(rawURL, "https://{domain}/")
+}
+
+func catalogURLReplaceTemplateHost(rawURL string) string {
+	for _, scheme := range []string{"http://", "https://"} {
+		prefix := scheme + "{domain}/"
+		if !strings.HasPrefix(rawURL, prefix) {
+			continue
+		}
+		start := len(scheme)
+		return rawURL[:start] + "example.com" + rawURL[start+len("{domain}"):]
+	}
+	return rawURL
+}
+
+func formatCatalogOccurrence(service, path, normalizedURL string) string {
+	return service + "|" + path + "|" + normalizedURL
+}
+
+func catalogOccurrenceURL(occurrence string) string {
+	_, normalizedURL, ok := strings.Cut(occurrence, "|")
+	if !ok {
+		return occurrence
+	}
+	_, normalizedURL, ok = strings.Cut(normalizedURL, "|")
+	if !ok {
+		return occurrence
+	}
+	return normalizedURL
 }
 
 func TestCatalogPromptInjectionSemanticVariants(t *testing.T) {

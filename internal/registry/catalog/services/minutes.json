@@ -93,7 +93,7 @@
                   "type": "string",
                   "description": "Minute cover Link",
                   "required": false,
-                  "example": "https://open.feishu.cn/space/api/box/stream/download/all/boxcncsI4EIhCSA1RLDsXDpxxxx"
+                  "example": "https://sample.feishu.cn/minutes/download/example"
                 },
                 "duration": {
                   "type": "string",

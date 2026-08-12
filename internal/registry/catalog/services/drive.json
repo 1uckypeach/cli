@@ -250,7 +250,7 @@
               "type": "string",
               "description": "The url of the created folder",
               "required": false,
-              "example": "https://larksuite.com/drive/folder/fldbcddUuPz8VwnpPx5oc2abcef"
+              "example": "https://sample.feishu.cn/drive/folder/example-created-folder"
             }
           },
           "scopes": [

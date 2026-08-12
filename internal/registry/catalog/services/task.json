@@ -860,7 +860,7 @@
                   "type": "string",
                   "description": "任务的分享链接",
                   "required": false,
-                  "example": "https://applink.feishu.cn/client/todo/detail?guid=70577c8f-91ab-4c91-b359-a21a751054e8&suite_entity_num=t192012"
+                  "example": "https://sample.feishu.cn/task/detail/example?guid=example_task"
                 },
                 "start": {
                   "type": "object",
@@ -1539,7 +1539,7 @@
                   "type": "string",
                   "description": "任务的分享链接",
                   "required": false,
-                  "example": "https://applink.feishu.cn/client/todo/detail?guid=70577c8f-91ab-4c91-b359-a21a751054e8&suite_entity_num=t192012"
+                  "example": "https://sample.feishu.cn/task/detail/example?guid=example_task"
                 },
                 "start": {
                   "type": "object",
@@ -2218,7 +2218,7 @@
                   "type": "string",
                   "description": "任务的分享链接",
                   "required": false,
-                  "example": "https://applink.feishu.cn/client/todo/detail?guid=70577c8f-91ab-4c91-b359-a21a751054e8&suite_entity_num=t192012"
+                  "example": "https://sample.feishu.cn/task/detail/example?guid=example_task"
                 },
                 "start": {
                   "type": "object",
@@ -3084,7 +3084,7 @@
                   "type": "string",
                   "description": "任务的分享链接",
                   "required": false,
-                  "example": "https://applink.feishu.cn/client/todo/detail?guid=70577c8f-91ab-4c91-b359-a21a751054e8&suite_entity_num=t192012"
+                  "example": "https://sample.feishu.cn/task/detail/example?guid=example_task"
                 },
                 "start": {
                   "type": "object",
@@ -3533,7 +3533,7 @@
                   "type": "string",
                   "description": "该清单分享的applink",
                   "required": false,
-                  "example": "https://applink.feishu.cn/client/todo/task_list?guid=b45b360f-1961-4058-b338-7f50c96e1b52"
+                  "example": "https://sample.feishu.cn/task/list/example?guid=example_task_list"
                 },
                 "created_at": {
                   "type": "string",
@@ -3745,7 +3745,7 @@
                   "type": "string",
                   "description": "该清单分享的applink",
                   "required": false,
-                  "example": "https://applink.feishu.cn/client/todo/task_list?guid=b45b360f-1961-4058-b338-7f50c96e1b52"
+                  "example": "https://sample.feishu.cn/task/list/example?guid=example_task_list"
                 },
                 "created_at": {
                   "type": "string",
@@ -3952,7 +3952,7 @@
                   "type": "string",
                   "description": "该清单分享的applink",
                   "required": false,
-                  "example": "https://applink.feishu.cn/client/todo/task_list?guid=b45b360f-1961-4058-b338-7f50c96e1b52"
+                  "example": "https://sample.feishu.cn/task/list/example?guid=example_task_list"
                 },
                 "created_at": {
                   "type": "string",
@@ -4135,7 +4135,7 @@
                   "type": "string",
                   "description": "该清单分享的applink",
                   "required": false,
-                  "example": "https://applink.feishu.cn/client/todo/task_list?guid=b45b360f-1961-4058-b338-7f50c96e1b52"
+                  "example": "https://sample.feishu.cn/task/list/example?guid=example_task_list"
                 },
                 "created_at": {
                   "type": "string",
@@ -4407,7 +4407,7 @@
                   "type": "string",
                   "description": "该清单分享的applink",
                   "required": false,
-                  "example": "https://applink.feishu.cn/client/todo/task_list?guid=b45b360f-1961-4058-b338-7f50c96e1b52"
+                  "example": "https://sample.feishu.cn/task/list/example?guid=example_task_list"
                 },
                 "created_at": {
                   "type": "string",
@@ -4618,7 +4618,7 @@
                   "type": "string",
                   "description": "该清单分享的applink",
                   "required": false,
-                  "example": "https://applink.feishu.cn/client/todo/task_list?guid=b45b360f-1961-4058-b338-7f50c96e1b52"
+                  "example": "https://sample.feishu.cn/task/list/example?guid=example_task_list"
                 },
                 "created_at": {
                   "type": "string",
@@ -5703,7 +5703,7 @@
                   "type": "string",
                   "description": "任务的分享链接",
                   "required": false,
-                  "example": "https://applink.feishu.cn/client/todo/detail?guid=70577c8f-91ab-4c91-b359-a21a751054e8&suite_entity_num=t192012"
+                  "example": "https://sample.feishu.cn/task/detail/example?guid=example_task"
                 },
                 "start": {
                   "type": "object",
@@ -6369,7 +6369,7 @@
                   "type": "string",
                   "description": "任务的分享链接",
                   "required": false,
-                  "example": "https://applink.feishu.cn/client/todo/detail?guid=70577c8f-91ab-4c91-b359-a21a751054e8&suite_entity_num=t192012"
+                  "example": "https://sample.feishu.cn/task/detail/example?guid=example_task"
                 },
                 "start": {
                   "type": "object",
@@ -9910,7 +9910,7 @@
                   "type": "string",
                   "description": "任务的分享链接",
                   "required": false,
-                  "example": "https://applink.feishu.cn/client/todo/detail?guid=70577c8f-91ab-4c91-b359-a21a751054e8&suite_entity_num=t192012"
+                  "example": "https://sample.feishu.cn/task/detail/example?guid=example_task"
                 },
                 "start": {
                   "type": "object",
@@ -10593,7 +10593,7 @@
                   "type": "string",
                   "description": "任务的分享链接",
                   "required": false,
-                  "example": "https://applink.feishu.cn/client/todo/detail?guid=70577c8f-91ab-4c91-b359-a21a751054e8&suite_entity_num=t192012"
+                  "example": "https://sample.feishu.cn/task/detail/example?guid=example_task"
                 },
                 "start": {
                   "type": "object",
