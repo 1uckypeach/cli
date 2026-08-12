@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	minutesWordReplaceNoEditPermission = 40005
-	minutesWordReplaceOthersEditing    = 40110
-	minutesWordReplaceInvalidParams    = 40001
+	minutesWordReplaceNoEditPermission  = 2091005
+	minutesWordReplaceOthersEditing     = 2091110
+	minutesWordReplaceInvalidParams     = 2091001
+	minutesWordReplaceASRQuotaNotEnough = 2091008
 )
 
 type transcriptWordReplace struct {
@@ -150,6 +151,10 @@ func minutesWordReplaceError(err error, minuteToken string) error {
 			p.Message = fmt.Sprintf("None of the source words were found in minute %q transcript; nothing was replaced.", minuteToken)
 			p.Hint = "Verify each source_word's exact spelling and case against the current transcript (use `minutes +detail --minute-tokens <token> --transcript` to read it), then retry"
 		}
+	case minutesWordReplaceASRQuotaNotEnough:
+		p.Subtype = errs.SubtypeQuotaExceeded
+		p.Message = fmt.Sprintf("ASR/AI quota not enough: cannot replace transcript words on minute %q.", minuteToken)
+		p.Hint = minutesASRQuotaNotEnoughHint
 	}
 
 	return err

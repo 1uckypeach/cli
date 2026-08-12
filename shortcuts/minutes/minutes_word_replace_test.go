@@ -151,7 +151,11 @@ func TestMinutesWordReplace_NoEditPermission(t *testing.T) {
 		Method: http.MethodPut,
 		URL:    "/open-apis/minutes/v1/minutes/" + minutesWordReplaceTestToken + "/transcript/word",
 		Body: map[string]interface{}{
-			"code": minutesWordReplaceNoEditPermission,
+			// Literal wire codes throughout this file, never the constants:
+			// feeding a constant back into the stub would pass no matter which
+			// value it holds, which is how the internal 4xxxx codes went
+			// unnoticed.
+			"code": 2091005,
 			"msg":  "permission deny",
 		},
 	})
@@ -173,6 +177,15 @@ func TestMinutesWordReplace_NoEditPermission(t *testing.T) {
 	if p.Subtype != errs.SubtypePermissionDenied {
 		t.Errorf("subtype = %q, want %q", p.Subtype, errs.SubtypePermissionDenied)
 	}
+	// Subtype alone does not prove the rewrite ran: errclass already classifies
+	// 2091005 as permission_denied. Only the message and hint are this
+	// command's own.
+	if !strings.Contains(p.Message, "No edit permission") || !strings.Contains(p.Message, minutesWordReplaceTestToken) {
+		t.Errorf("message should name the minute and the missing permission, got: %s", p.Message)
+	}
+	if !strings.Contains(p.Hint, "+apply-permission") {
+		t.Errorf("hint should mention apply-permission, got: %s", p.Hint)
+	}
 }
 
 func TestMinutesWordReplace_OthersAreEditing(t *testing.T) {
@@ -184,7 +197,7 @@ func TestMinutesWordReplace_OthersAreEditing(t *testing.T) {
 		Method: http.MethodPut,
 		URL:    "/open-apis/minutes/v1/minutes/" + minutesWordReplaceTestToken + "/transcript/word",
 		Body: map[string]interface{}{
-			"code": minutesWordReplaceOthersEditing,
+			"code": 2091110,
 			"msg":  "others are editing",
 		},
 	})
@@ -206,6 +219,9 @@ func TestMinutesWordReplace_OthersAreEditing(t *testing.T) {
 	if p.Subtype != errs.SubtypeConflict {
 		t.Errorf("subtype = %q, want %q", p.Subtype, errs.SubtypeConflict)
 	}
+	if !strings.Contains(p.Message, minutesWordReplaceTestToken) {
+		t.Errorf("message should name the minute being edited, got: %s", p.Message)
+	}
 }
 
 func TestMinutesWordReplace_WordsNotFound(t *testing.T) {
@@ -217,7 +233,7 @@ func TestMinutesWordReplace_WordsNotFound(t *testing.T) {
 		Method: http.MethodPut,
 		URL:    "/open-apis/minutes/v1/minutes/" + minutesWordReplaceTestToken + "/transcript/word",
 		Body: map[string]interface{}{
-			"code": minutesWordReplaceInvalidParams,
+			"code": 2091001,
 			"msg":  "replace words not found in transcript",
 		},
 	})
@@ -247,8 +263,47 @@ func TestMinutesWordReplace_WordsNotFound(t *testing.T) {
 	}
 }
 
-// A generic 40001 without the transcript marker must NOT be rewritten as
-// words_not_found; it should surface as the original invalid-params error.
+func TestMinutesWordReplace_ASRQuotaNotEnough(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
+	warmTokenCache(t)
+
+	reg.Register(&httpmock.Stub{
+		Method: http.MethodPut,
+		URL:    "/open-apis/minutes/v1/minutes/" + minutesWordReplaceTestToken + "/transcript/word",
+		Body: map[string]interface{}{
+			"code": 2091008,
+			"msg":  "asr/ai quota not enough",
+		},
+	})
+
+	err := mountAndRun(t, MinutesWordReplace, []string{
+		"+word-replace",
+		"--minute-token", minutesWordReplaceTestToken,
+		"--replace-words", `[{"source_word":"foo","target_word":"bar"}]`,
+		"--format", "json", "--as", "user",
+	}, f, stdout)
+	if err == nil {
+		t.Fatal("expected ASR/AI quota error, got nil")
+	}
+
+	p, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("want typed errs.*, got %T: %v", err, err)
+	}
+	if p.Subtype != errs.SubtypeQuotaExceeded {
+		t.Errorf("subtype = %q, want %q", p.Subtype, errs.SubtypeQuotaExceeded)
+	}
+	if !strings.Contains(p.Message, minutesWordReplaceTestToken) {
+		t.Errorf("message should name the minute, got: %s", p.Message)
+	}
+	if !strings.Contains(p.Hint, "detail page") {
+		t.Errorf("hint should point to the minute detail page, got: %s", p.Hint)
+	}
+}
+
+// A generic invalid-params response without the transcript marker must NOT be
+// rewritten as words_not_found; it should surface as the original error.
 func TestMinutesWordReplace_GenericInvalidParamsNotRewritten(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
 	f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
@@ -258,7 +313,7 @@ func TestMinutesWordReplace_GenericInvalidParamsNotRewritten(t *testing.T) {
 		Method: http.MethodPut,
 		URL:    "/open-apis/minutes/v1/minutes/" + minutesWordReplaceTestToken + "/transcript/word",
 		Body: map[string]interface{}{
-			"code": minutesWordReplaceInvalidParams,
+			"code": 2091001,
 			"msg":  "Invalid Params",
 		},
 	})
@@ -278,6 +333,6 @@ func TestMinutesWordReplace_GenericInvalidParamsNotRewritten(t *testing.T) {
 		t.Fatalf("want typed errs.*, got %T: %v", err, err)
 	}
 	if p.Subtype == errs.SubtypeNotFound && strings.Contains(p.Message, "None of the source words were found") {
-		t.Fatalf("generic 40001 must not be rewritten as not_found, got subtype=%q message=%q", p.Subtype, p.Message)
+		t.Fatalf("generic 2091001 must not be rewritten as not_found, got subtype=%q message=%q", p.Subtype, p.Message)
 	}
 }
