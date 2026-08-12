@@ -294,8 +294,14 @@ func TestIntegration_StrictModeBot_DomainHelpListingMatchesSchema(t *testing.T) 
 	}
 }
 
-// listedAPIMethodPaths returns the dotted paths of the "API methods (…):" block
-// of a rendered domain Long. The block runs to the end of Long.
+// listedAPIMethodPaths returns the method paths of the "API methods (…):" block
+// of a rendered domain Long, in the listing's own executable form (path segments
+// separated by single spaces). The block runs to the end of Long.
+//
+// A row is "  <path><padding>  <description>", and a path segment may itself
+// contain a dot ("chat.members") but never two consecutive spaces, so the first
+// double-space is the field separator. Splitting on single whitespace would
+// silently truncate every path to its resource segment.
 func listedAPIMethodPaths(t *testing.T, long string) []string {
 	t.Helper()
 	lines := strings.Split(long, "\n")
@@ -311,39 +317,39 @@ func listedAPIMethodPaths(t *testing.T, long string) []string {
 	}
 	var paths []string
 	for _, line := range lines[start:] {
-		if fields := strings.Fields(line); len(fields) > 0 {
-			paths = append(paths, fields[0])
+		row := strings.TrimSpace(line)
+		if row == "" {
+			continue
 		}
+		paths = append(paths, strings.TrimSpace(strings.SplitN(row, "  ", 2)[0]))
 	}
 	return paths
 }
 
-// hiddenMethodPaths collects the dotted paths of the method leaves a policy layer
-// hid, walking the tree the way the listing does. The annotation key is
-// service.schemaPathAnnotation, unexported there.
+// hiddenMethodPaths collects the method leaves a policy layer hid, keyed the same
+// way listedAPIMethodPaths reports them (path segments joined by spaces) so the
+// two are directly comparable. It walks the tree the way the listing does. The
+// annotation key is service.schemaPathAnnotation, unexported there.
 func hiddenMethodPaths(domain *cobra.Command) map[string]bool {
 	hidden := map[string]bool{}
-	var walk func(c *cobra.Command, prefix string)
-	walk = func(c *cobra.Command, prefix string) {
+	var walk func(c *cobra.Command, path []string)
+	walk = func(c *cobra.Command, path []string) {
 		for _, ch := range c.Commands() {
 			name := ch.Name()
 			if strings.HasPrefix(name, "+") || name == "help" || name == "completion" {
 				continue
 			}
-			dotted := name
-			if prefix != "" {
-				dotted = prefix + "." + name
-			}
+			segs := append(append([]string{}, path...), name)
 			if ch.Annotations["method-schema-path"] != "" {
 				if ch.Hidden {
-					hidden[dotted] = true
+					hidden[strings.Join(segs, " ")] = true
 				}
 				continue
 			}
-			walk(ch, dotted)
+			walk(ch, segs)
 		}
 	}
-	walk(domain, "")
+	walk(domain, nil)
 	return hidden
 }
 

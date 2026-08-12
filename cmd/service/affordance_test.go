@@ -464,9 +464,14 @@ func TestPrepareDomainHelp_FlattensAPIMethods(t *testing.T) {
 		t.Fatal("PrepareDomainHelp must apply to a domain command")
 	}
 	long := imCmd.Long
-	// Flattened line: full dotted path + first-sentence description.
-	if !strings.Contains(long, "chat.members.delete") {
+	// Flattened line: the path exactly as it runs + first-sentence description.
+	if !strings.Contains(long, "chat.members delete") {
 		t.Errorf("domain help must list flattened method paths, got:\n%s", long)
+	}
+	// The dotted join is what a reader would copy and fail with, so it must not
+	// appear anywhere in the listing.
+	if strings.Contains(long, "chat.members.delete") {
+		t.Errorf("a listed method must not be rendered in its non-executable dotted form, got:\n%s", long)
 	}
 	if !strings.Contains(long, "将用户或机器人移出群聊") {
 		t.Errorf("flattened row must carry the method description, got:\n%s", long)
@@ -531,7 +536,7 @@ func TestPrepareDomainHelp_NoPointerWhenDomainHasNoShortcuts(t *testing.T) {
 	if strings.Contains(apiOnly.Long, shortcutPointer) {
 		t.Errorf("API-only domain must not carry the shortcut pointer, got:\n%s", apiOnly.Long)
 	}
-	if !strings.Contains(apiOnly.Long, "chat.members.delete") {
+	if !strings.Contains(apiOnly.Long, "chat.members delete") {
 		t.Error("removing shortcuts must not remove the flattened API listing")
 	}
 }
@@ -554,12 +559,12 @@ func TestPrepareDomainHelp_OmitsHiddenMethodLeaves(t *testing.T) {
 	if !PrepareDomainHelp(imCmd, nil) {
 		t.Fatal("PrepareDomainHelp must apply to a domain command")
 	}
-	if strings.Contains(imCmd.Long, "chat.members.delete") {
+	if strings.Contains(imCmd.Long, "chat.members delete") {
 		t.Errorf("a hidden method leaf must not be listed, got:\n%s", imCmd.Long)
 	}
 	// The hidden sibling must not take the whole resource down with it — the
 	// listing is per method, not per resource.
-	if !strings.Contains(imCmd.Long, "chat.members.get") {
+	if !strings.Contains(imCmd.Long, "chat.members get") {
 		t.Errorf("a visible sibling must stay listed, got:\n%s", imCmd.Long)
 	}
 }

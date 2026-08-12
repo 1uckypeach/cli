@@ -42,6 +42,13 @@ import (
 // explicit args — correct, since those don't exercise the whitelist path.
 var rawInvocationArgs []string
 
+// pendingHelpRejection carries a help-path rejection back to executeWithOptions.
+// cobra's HelpFunc has no error return, so a `--help` that named an unknown
+// subcommand records its typed error here instead of rendering help; Execute
+// then fails structured on it exactly as the non---help path does. Reset at
+// Execute() entry alongside rawInvocationArgs.
+var pendingHelpRejection error
+
 func Execute() int {
 	return executeWithOptions(nil)
 }
@@ -56,6 +63,7 @@ func ExecuteWithOptions(opts ...BuildOption) int {
 
 func executeWithOptions(opts []BuildOption) int {
 	rawInvocationArgs = os.Args[1:]
+	pendingHelpRejection = nil
 	inv, bootstrapErr := BootstrapInvocationContext(os.Args[1:])
 	cfg := &buildConfig{}
 	for _, opt := range opts {
@@ -120,6 +128,12 @@ func executeWithOptions(opts []BuildOption) int {
 	}
 
 	runErr := rootCmd.Execute()
+	if runErr == nil && pendingHelpRejection != nil {
+		// cobra's ErrHelp path returns nil from Execute, so a `--help` that named
+		// an unknown subcommand would otherwise exit 0 having printed the parent's
+		// help. Surface the rejection the help func recorded.
+		runErr = pendingHelpRejection
+	}
 
 	// Fire Shutdown lifecycle hooks regardless of run outcome.
 	// emitShutdown imposes a 2s total deadline and never propagates handler
@@ -447,17 +461,43 @@ func unknownSubcommandRunE(cmd *cobra.Command, args []string) error {
 		}
 		return verr
 	}
-	unknown := args[0]
-	available, deprecated := availableSubcommandNames(cmd)
-	// Rank suggestions across both current and deprecated names so a mistyped
-	// legacy command (e.g. +raed → +read) still resolves; the alias stays
-	// runnable and self-flags via the _notice on execution.
-	suggestions := suggest.Closest(unknown, append(append([]string{}, available...), deprecated...), 6)
+	return unknownSubcommandError(cmd, args[0])
+}
+
+// unknownSubcommandError builds the typed rejection for a subcommand name cmd
+// cannot resolve. Shared by the RunE path and the --help path
+// (unknownSubcommandInHelp) so one bad name yields the same message, hint, and
+// params however it was typed.
+func unknownSubcommandError(cmd *cobra.Command, unknown string) error {
 	msg := fmt.Sprintf("unknown subcommand %q for %q", unknown, cmd.CommandPath())
 	hint := fmt.Sprintf("run `%s --help` to see available subcommands", cmd.CommandPath())
-	if len(suggestions) > 0 {
-		hint = fmt.Sprintf("did you mean one of: %s? (run `%s --help` for the full list)",
-			strings.Join(suggestions, ", "), cmd.CommandPath())
+	var suggestions []string
+
+	paths := methodPathsUnder(cmd)
+	if spaced, ok := dottedPathRewrite(paths, unknown); ok {
+		// The tree really holds this method — the caller only joined its path
+		// segments with dots. That makes the correction certain, so name it
+		// outright instead of ranking guesses around it.
+		hint = fmt.Sprintf("run `%s %s`; a method's path segments are separated by spaces, not dots",
+			cmd.CommandPath(), spaced)
+		suggestions = []string{spaced}
+	} else {
+		available, deprecated := availableSubcommandNames(cmd)
+		// Rank suggestions across both current and deprecated names so a mistyped
+		// legacy command (e.g. +raed → +read) still resolves; the alias stays
+		// runnable and self-flags via the _notice on execution. Methods living
+		// under a hidden resource group are ranked too — availableSubcommandNames
+		// cannot see them, which is why a merely-misspelt method name
+		// (nodes.craete) used to come back with no suggestion at all.
+		candidates := append(append([]string{}, available...), deprecated...)
+		for _, p := range paths {
+			candidates = append(candidates, p.spaced)
+		}
+		suggestions = suggest.Closest(unknown, candidates, 6)
+		if len(suggestions) > 0 {
+			hint = fmt.Sprintf("did you mean one of: %s? (run `%s --help` for the full list)",
+				strings.Join(suggestions, ", "), cmd.CommandPath())
+		}
 	}
 	// Record the offending subcommand and its ranked candidates as a param with
 	// machine-readable Suggestions so an agent can retry without parsing the
@@ -465,6 +505,87 @@ func unknownSubcommandRunE(cmd *cobra.Command, args []string) error {
 	return errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", msg).
 		WithParams(errs.InvalidParam{Name: unknown, Reason: "unknown subcommand", Suggestions: suggestions}).
 		WithHint("%s", hint)
+}
+
+// unknownSubcommandInHelp returns the rejection a `--help` invocation earned by
+// naming a subcommand the tree does not have, or nil when help should render.
+//
+// cobra routes --help through flag.ErrHelp, which never reaches RunE and so
+// never reaches unknownSubcommandRunE: without this check `lark-cli drive
+// file.comment.replys.create --help` degrades to drive's own help at exit 0,
+// telling the caller nothing about the name it got wrong. That silence is worse
+// than a plain error, because the unknown_subcommand hint sends callers to
+// --help precisely to learn the right name.
+//
+// Only a pure group is considered. Such a group consumes no positional argument
+// of its own, so anything cobra left unconsumed is a subcommand name it could
+// not resolve; a bare group leaves nothing, and a real method command is not a
+// pure group. cmd.Flags() has already been parsed on this path (cobra checks
+// --help only after ParseFlags), so Args() holds the leftovers — the HelpFunc
+// args parameter is not used, being cobra's post-Find flag slice rather than the
+// positional remainder.
+func unknownSubcommandInHelp(cmd *cobra.Command) error {
+	if cmd.Annotations[cmdpolicy.AnnotationPureGroup] != "true" {
+		return nil
+	}
+	rest := cmd.Flags().Args()
+	if len(rest) == 0 {
+		return nil
+	}
+	return unknownSubcommandError(cmd, rest[0])
+}
+
+// methodPath is one leaf command's path below a group, in both the form a
+// caller may have typed (dotted) and the form that runs (spaced).
+type methodPath struct{ dotted, spaced string }
+
+// methodPathsUnder returns every leaf command reachable below cmd, descending
+// through hidden resource groups. Resource groups are hidden from domain help by
+// design (cmd/service/service.go) yet stay invocable, so a suggestion has to be
+// able to name a method that lives under one — availableSubcommandNames, which
+// skips hidden children, structurally cannot. A hidden leaf is skipped: a policy
+// layer took it away, and suggesting it would point at a path that rejects even
+// --help.
+func methodPathsUnder(cmd *cobra.Command) []methodPath {
+	var out []methodPath
+	var walk func(c *cobra.Command, path []string)
+	walk = func(c *cobra.Command, path []string) {
+		for _, ch := range c.Commands() {
+			name := ch.Name()
+			if name == "help" || name == "completion" {
+				continue
+			}
+			segs := append(append([]string{}, path...), name)
+			if ch.HasSubCommands() {
+				walk(ch, segs)
+				continue
+			}
+			// A direct child needs no path form; availableSubcommandNames covers it.
+			if ch.Hidden || len(segs) < 2 {
+				continue
+			}
+			out = append(out, methodPath{strings.Join(segs, "."), strings.Join(segs, " ")})
+		}
+	}
+	walk(cmd, nil)
+	return out
+}
+
+// dottedPathRewrite returns the executable, space-separated form of a fully
+// dotted command path, when one of paths matches it exactly. Matching on the
+// whole joined path rather than substituting the last dot is what makes this
+// correct for a resource whose own name contains dots ("chat.members") as well
+// as for a genuinely nested one.
+func dottedPathRewrite(paths []methodPath, unknown string) (string, bool) {
+	if !strings.Contains(unknown, ".") {
+		return "", false
+	}
+	for _, p := range paths {
+		if p.dotted == unknown {
+			return p.spaced, true
+		}
+	}
+	return "", false
 }
 
 // flagTokensInArgs returns the flag-like tokens (-x, --foo, --foo=bar) in
@@ -820,6 +941,12 @@ func installTipsHelpFunc(
 ) {
 	defaultHelp := root.HelpFunc()
 	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		if err := unknownSubcommandInHelp(cmd); err != nil {
+			// Deliberately no help output: rendering this group's help is the
+			// silent fallback that leaves the caller with nothing to correct.
+			pendingHelpRejection = err
+			return
+		}
 		if cmd == root {
 			// Force-show flags hidden by single-app mode; never a
 			// policy-retired one.

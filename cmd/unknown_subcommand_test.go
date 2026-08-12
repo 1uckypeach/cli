@@ -302,6 +302,58 @@ func TestAvailableSubcommandNames_SplitsDeprecatedGroup(t *testing.T) {
 	}
 }
 
+// A resource group is hidden so domain help can name its methods directly
+// (cmd/service/service.go) while staying invocable. Ranking only the visible
+// children therefore leaves the most likely mistake — a method under one of those
+// hidden groups — with no candidate at all, which is what the dotted names in
+// domain help used to run into.
+func TestUnknownSubcommandRunE_SuggestsMethodUnderHiddenResource(t *testing.T) {
+	_, drive, files := newGroupTree()
+	files.Hidden = true
+
+	err := unknownSubcommandRunE(drive, []string{"files.lst"})
+	var verr *errs.ValidationError
+	if !errors.As(err, &verr) {
+		t.Fatalf("expected *errs.ValidationError, got %T", err)
+	}
+	if len(verr.Params) != 1 {
+		t.Fatalf("params = %v, want one entry", verr.Params)
+	}
+	found := false
+	for _, s := range verr.Params[0].Suggestions {
+		if s == "files list" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("suggestions = %v, want them to include the runnable %q", verr.Params[0].Suggestions, "files list")
+	}
+}
+
+// A name that is exactly a method's path with dots for separators is not a typo
+// to rank against neighbours — the tree holds that method, so the correction is
+// certain and must be stated as the one thing to run.
+func TestUnknownSubcommandRunE_RewritesDottedMethodPath(t *testing.T) {
+	_, drive, files := newGroupTree()
+	files.Hidden = true
+
+	err := unknownSubcommandRunE(drive, []string{"files.list"})
+	var verr *errs.ValidationError
+	if !errors.As(err, &verr) {
+		t.Fatalf("expected *errs.ValidationError, got %T", err)
+	}
+	if len(verr.Params) != 1 || verr.Params[0].Name != "files.list" {
+		t.Fatalf("params = %v, want one entry named files.list", verr.Params)
+	}
+	got := verr.Params[0].Suggestions
+	if len(got) != 1 || got[0] != "files list" {
+		t.Errorf("suggestions = %v, want exactly [%q]", got, "files list")
+	}
+	if !strings.Contains(verr.Hint, "lark-cli drive files list") {
+		t.Errorf("hint = %q, want it to name the runnable command", verr.Hint)
+	}
+}
+
 // unknownSubcommandRunE ranks suggestions across both current and deprecated
 // subcommands so a mistyped legacy alias resolves; the closest match is folded
 // into the hint.

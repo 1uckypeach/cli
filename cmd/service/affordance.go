@@ -84,7 +84,7 @@ func PrepareDomainHelpWithReferences(cmd *cobra.Command, skillFS fs.FS, referenc
 		fmt.Fprintf(&b, "\n\nDomain guide (concepts, command choice, conventions): lark-cli skills read %s", skill)
 	}
 	if len(flat) > 0 {
-		b.WriteString("\n\nAPI methods (replace the last dot with a space to run; append --help for params")
+		b.WriteString("\n\nAPI methods (append --help for params")
 		if hasShortcuts {
 			// cobra's help template renders Long before UsageString, so this
 			// listing physically precedes the +shortcut rows in Available
@@ -102,27 +102,34 @@ func PrepareDomainHelpWithReferences(cmd *cobra.Command, skillFS fs.FS, referenc
 }
 
 // flattenedAPIMethods renders one line per visible Meta API method under the
-// domain: "  <resource>.<method>  <first-sentence description>". The resource
+// domain: "  <resource> <method>  <first-sentence description>". The resource
 // intermediate commands are hidden from the listing (they stay invocable), so
 // this flattened block is the domain help's whole Meta API surface — a reader
 // picks a full command path in one hop instead of stopping at a resource row
 // that names no methods. Descriptions run through the same first-sentence and
 // sanitize pipeline as the schema method index, so both surfaces render one
 // method identically.
+//
+// Each row is the command's own path segments joined by spaces — the exact form
+// that runs. An earlier revision listed the dotted form and asked the reader to
+// convert it, which readers (agents especially) do not do: they copy the row
+// verbatim and get unknown_subcommand. Note that a segment may itself contain
+// dots (a flat resource like "chat.members" is one command), so the executable
+// form is not derivable from the dotted string by any single substitution —
+// which is exactly why it is rendered here rather than explained.
 func flattenedAPIMethods(domainCmd *cobra.Command) []string {
-	type row struct{ path, desc string }
+	// sortKey is the dotted path, so a resource's methods stay grouped together
+	// regardless of how the executable form spaces them.
+	type row struct{ sortKey, exec, desc string }
 	var rows []row
-	var walk func(c *cobra.Command, prefix string)
-	walk = func(c *cobra.Command, prefix string) {
+	var walk func(c *cobra.Command, path []string)
+	walk = func(c *cobra.Command, path []string) {
 		for _, ch := range c.Commands() {
 			name := ch.Name()
 			if strings.HasPrefix(name, "+") || name == "help" || name == "completion" {
 				continue
 			}
-			dotted := name
-			if prefix != "" {
-				dotted = prefix + "." + name
-			}
+			segs := append(append([]string{}, path...), name)
 			if ch.Annotations[schemaPathAnnotation] != "" { // a method leaf
 				// A hidden method leaf is one a policy layer took away, and it
 				// still carries method-schema-path: strict mode swaps in a stub
@@ -135,25 +142,29 @@ func flattenedAPIMethods(domainCmd *cobra.Command) []string {
 				// design (service.go) — skipping every hidden child would drop
 				// the whole API surface.
 				if !ch.Hidden {
-					rows = append(rows, row{dotted, schema.SanitizeIndexDesc(schema.FirstSentence(ch.Short))})
+					rows = append(rows, row{
+						sortKey: strings.Join(segs, "."),
+						exec:    strings.Join(segs, " "),
+						desc:    schema.SanitizeIndexDesc(schema.FirstSentence(ch.Short)),
+					})
 				}
 				continue
 			}
-			walk(ch, dotted) // a (hidden) resource group
+			walk(ch, segs) // a (hidden) resource group
 		}
 	}
-	walk(domainCmd, "")
-	sort.Slice(rows, func(i, j int) bool { return rows[i].path < rows[j].path })
+	walk(domainCmd, nil)
+	sort.Slice(rows, func(i, j int) bool { return rows[i].sortKey < rows[j].sortKey })
 
 	width := 0
 	for _, r := range rows {
-		if len(r.path) > width { // paths are ASCII; byte length == display width
-			width = len(r.path)
+		if len(r.exec) > width { // paths are ASCII; byte length == display width
+			width = len(r.exec)
 		}
 	}
 	out := make([]string, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, fmt.Sprintf("  %-*s  %s", width, r.path, r.desc))
+		out = append(out, fmt.Sprintf("  %-*s  %s", width, r.exec, r.desc))
 	}
 	return out
 }
