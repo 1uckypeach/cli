@@ -345,12 +345,12 @@ wiki.json|$.resources.spaces.methods.get_node.responseBody.node.properties.url.e
 func TestCatalogExampleURLRejectsUnreviewedResourceShapes(t *testing.T) {
 	for _, url := range []string{
 		"https://example.com/download/authcode/?code=opaque",
-		"https://files.example.org/space/api/box/stream/download/all/opaque",
-		"https://files.example.org/attachment?x-signature=opaque",
-		"https://files.example.org/attachment?signature=opaque",
-		"https://todo.example.org/client/todo/detail?guid=opaque",
-		"https://todo.example.org/client/todo/task_list?guid=opaque",
-		"https://files.example.org/drive/folder/fldopaque",
+		"https://example.org/space/api/box/stream/download/all/opaque",
+		"https://example.org/attachment?x-signature=opaque",
+		"https://example.org/attachment?signature=opaque",
+		"https://example.org/client/todo/detail?guid=opaque",
+		"https://example.org/client/todo/task_list?guid=opaque",
+		"https://example.org/drive/folder/fldopaque",
 	} {
 		if !catalogExampleURLIsForbidden(url) {
 			t.Errorf("unreviewed resource URL shape was not rejected: %q", url)
@@ -360,8 +360,8 @@ func TestCatalogExampleURLRejectsUnreviewedResourceShapes(t *testing.T) {
 		t.Error("synthetic drive folder URL was rejected")
 	}
 	for _, url := range []string{
-		"https://todo.example.org/client/todo/detail?guid=",
-		"https://todo.example.org/client/todo/task_list?guid=",
+		"https://example.org/client/todo/detail?guid=",
+		"https://example.org/client/todo/task_list?guid=",
 	} {
 		if catalogExampleURLIsForbidden(url) {
 			t.Errorf("empty-only task guid was rejected: %q", url)

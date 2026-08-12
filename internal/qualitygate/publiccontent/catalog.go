@@ -407,7 +407,8 @@ func safeCatalogResourceLink(field, value string) bool {
 		return false
 	}
 	parsed, err := url.Parse(value)
-	if err != nil || parsed.Scheme != "https" || parsed.Host != "applink.feishu.cn" ||
+	expectedAppLink, expectedErr := url.Parse(core.ResolveEndpoints(core.BrandFeishu).AppLink)
+	if err != nil || expectedErr != nil || parsed.Scheme != expectedAppLink.Scheme || parsed.Host != expectedAppLink.Host ||
 		parsed.Path != "/client/chat/chatter/add_by_link" || parsed.User != nil || parsed.Fragment != "" {
 		return false
 	}

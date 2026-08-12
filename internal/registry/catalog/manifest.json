@@ -1,6 +1,5 @@
 {
   "schema_version": 1,
-  "source_sha256": "612ad62234e50f2aa4e8362af7d23a18571ed03027a808c02c8d54e27cd21b57",
   "services": [
     {
       "name": "approval",

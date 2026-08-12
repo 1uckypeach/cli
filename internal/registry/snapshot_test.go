@@ -48,27 +48,6 @@ func TestOpenSnapshotFSRejectsInvalidManifest(t *testing.T) {
 		reason string
 	}{
 		{
-			name: "missing aggregate digest",
-			mutate: func(fsys fstest.MapFS) {
-				rewriteManifest(t, fsys, func(m map[string]any) { delete(m, "source_sha256") })
-			},
-			reason: "invalid source_sha256",
-		},
-		{
-			name: "malformed aggregate digest",
-			mutate: func(fsys fstest.MapFS) {
-				rewriteManifest(t, fsys, func(m map[string]any) { m["source_sha256"] = strings.Repeat("A", 64) })
-			},
-			reason: "invalid source_sha256",
-		},
-		{
-			name: "mismatched aggregate digest",
-			mutate: func(fsys fstest.MapFS) {
-				rewriteManifest(t, fsys, func(m map[string]any) { m["source_sha256"] = strings.Repeat("0", 64) })
-			},
-			reason: "invalid source_sha256",
-		},
-		{
 			name: "unknown schema version",
 			mutate: func(fsys fstest.MapFS) {
 				rewriteManifest(t, fsys, func(m map[string]any) { m["schema_version"] = 2 })
@@ -181,15 +160,12 @@ func TestOpenSnapshotFSRejectsInvalidManifest(t *testing.T) {
 	}
 }
 
-func TestManifestSourceSHA256UsesCanonicalServiceEntryJSON(t *testing.T) {
-	entries := []ManifestServiceEntry{{
-		Name:     "drive",
-		File:     "services/drive.json",
-		Revision: 1,
-		Size:     42,
-		SHA256:   strings.Repeat("a", 64),
-	}}
-	assert.Equal(t, "9337679ab3bd94ad61057fca8d9ffeaacdb48fb8c2b2bd539074603b8f4f0147", manifestSourceSHA256(entries))
+func TestOpenSnapshotFSAcceptsSchemaV1ManifestWithoutSourceSHA256(t *testing.T) {
+	fsys := validSnapshotMapFS(t, "drive")
+
+	snapshot, err := OpenSnapshotFS(fsys)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"drive"}, snapshot.ServiceNames())
 }
 
 func TestOpenSnapshotFSAcceptsServiceNamePrefixWithHyphen(t *testing.T) {
@@ -382,11 +358,7 @@ func validSnapshotMapFS(t *testing.T, name string) fstest.MapFS {
 	services := []any{entry}
 	manifest := map[string]any{
 		"schema_version": 1,
-		"source_sha256": manifestSourceSHA256([]ManifestServiceEntry{{
-			Name: name, File: "services/" + name + ".json", Revision: 1,
-			Size: int64(len(body)), SHA256: entry["sha256"].(string),
-		}}),
-		"services": services,
+		"services":       services,
 	}
 	manifestBytes, err := json.Marshal(manifest)
 	require.NoError(t, err)
@@ -429,16 +401,7 @@ func rewriteManifest(t *testing.T, fsys fstest.MapFS, mutate func(map[string]any
 	t.Helper()
 	var manifest map[string]any
 	require.NoError(t, json.Unmarshal(fsys["manifest.json"].Data, &manifest))
-	previousSourceSHA256, _ := manifest["source_sha256"].(string)
 	mutate(manifest)
-	if sourceSHA256, ok := manifest["source_sha256"].(string); ok && sourceSHA256 == previousSourceSHA256 {
-		entries := manifest["services"].([]any)
-		data, err := json.Marshal(entries)
-		require.NoError(t, err)
-		var typedEntries []ManifestServiceEntry
-		require.NoError(t, json.Unmarshal(data, &typedEntries))
-		manifest["source_sha256"] = manifestSourceSHA256(typedEntries)
-	}
 	data, err := json.Marshal(manifest)
 	require.NoError(t, err)
 	fsys["manifest.json"] = &fstest.MapFile{Data: data}
