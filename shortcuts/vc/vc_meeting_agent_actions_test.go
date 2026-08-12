@@ -48,7 +48,7 @@ func TestBuildMeetingStartBodyUsesTypedAction(t *testing.T) {
 	}
 }
 
-func TestBuildMeetingInviteBodySelectedUsesOpenIDs(t *testing.T) {
+func TestBuildMeetingInviteBodySelectedUsesInvitees(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("meeting-id", "", "")
 	cmd.Flags().String("type", "", "")
@@ -62,11 +62,18 @@ func TestBuildMeetingInviteBodySelectedUsesOpenIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildMeetingInviteBody() error = %v", err)
 	}
-	if body["meeting_id"] != "69999999" || body["type"] != meetingInviteTypeSelectedValue {
+	if body["meeting_id"] != "69999999" || body["invite_type"] != meetingInviteTypeSelectedValue {
 		t.Fatalf("body = %#v", body)
 	}
-	if !reflect.DeepEqual(body["open_ids"], []string{"ou_a", "ou_b"}) {
-		t.Fatalf("open_ids = %#v", body["open_ids"])
+	wantInvitees := []map[string]interface{}{
+		{"id": "ou_a", "user_type": 1},
+		{"id": "ou_b", "user_type": 1},
+	}
+	if !reflect.DeepEqual(body["invitees"], wantInvitees) {
+		t.Fatalf("invitees = %#v", body["invitees"])
+	}
+	if !reflect.DeepEqual(buildMeetingInviteParams(), map[string]interface{}{"user_id_type": "open_id"}) {
+		t.Fatalf("invite params = %#v", buildMeetingInviteParams())
 	}
 }
 
@@ -83,11 +90,11 @@ func TestBuildMeetingInviteBodyAllSuggestedOmitsOpenIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildMeetingInviteBody() error = %v", err)
 	}
-	if body["type"] != meetingInviteTypeAllValue {
-		t.Fatalf("type = %#v", body["type"])
+	if body["invite_type"] != meetingInviteTypeAllValue {
+		t.Fatalf("invite_type = %#v", body["invite_type"])
 	}
-	if _, ok := body["open_ids"]; ok {
-		t.Fatalf("ALL_SUGGESTED body must omit open_ids: %#v", body)
+	if _, ok := body["invitees"]; ok {
+		t.Fatalf("ALL_SUGGESTED body must omit invitees: %#v", body)
 	}
 }
 

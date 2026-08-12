@@ -19,8 +19,11 @@ const (
 	// Content safety scanning mode
 	CliContentSafetyMode = "LARKSUITE_CLI_CONTENT_SAFETY_MODE"
 
-	CliAgentName  = "LARKSUITE_CLI_AGENT_NAME"
-	CliAgentTrace = "LARKSUITE_CLI_AGENT_TRACE"
+	CliAgentName       = "LARKSUITE_CLI_AGENT_NAME"
+	CliAgentTrace      = "LARKSUITE_CLI_AGENT_TRACE"
+	CliTTEnv           = "LARKSUITE_CLI_TT_ENV"
+	CliOpenBaseURL     = "LARKSUITE_CLI_OPEN_BASE_URL"
+	CliAccountsBaseURL = "LARKSUITE_CLI_ACCOUNTS_BASE_URL"
 
 	CliProxyEnable  = "LARKSUITE_CLI_PROXY_ENABLE"
 	CliProxyAddress = "LARKSUITE_CLI_PROXY_ADDRESS"
