@@ -96,14 +96,16 @@ var VCMeetingInvite = common.Shortcut{
 		if err != nil {
 			return common.NewDryRunAPI().Set("error", err.Error())
 		}
-		return common.NewDryRunAPI().POST(meetingBotInvitePath).Body(body)
+		return common.NewDryRunAPI().POST(meetingBotInvitePath).
+			Params(buildMeetingInviteParams()).
+			Body(body)
 	},
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		body, err := buildMeetingInviteBody(runtime)
 		if err != nil {
 			return err
 		}
-		data, err := runtime.CallAPITyped(http.MethodPost, meetingBotInvitePath, nil, body)
+		data, err := runtime.CallAPITyped(http.MethodPost, meetingBotInvitePath, buildMeetingInviteParams(), body)
 		if err != nil {
 			return err
 		}
@@ -207,13 +209,28 @@ func buildMeetingInviteBody(runtime *common.RuntimeContext) (map[string]interfac
 	}
 
 	body := map[string]interface{}{
-		"meeting_id": strings.TrimSpace(runtime.Str("meeting-id")),
-		"type":       inviteTypeValue,
+		"meeting_id":  strings.TrimSpace(runtime.Str("meeting-id")),
+		"invite_type": inviteTypeValue,
 	}
 	if inviteType == meetingInviteTypeSelected {
-		body["open_ids"] = openIDs
+		body["invitees"] = buildMeetingInviteUsers(openIDs)
 	}
 	return body, nil
+}
+
+func buildMeetingInviteParams() map[string]interface{} {
+	return map[string]interface{}{"user_id_type": "open_id"}
+}
+
+func buildMeetingInviteUsers(openIDs []string) []map[string]interface{} {
+	invitees := make([]map[string]interface{}, 0, len(openIDs))
+	for _, openID := range openIDs {
+		invitees = append(invitees, map[string]interface{}{
+			"id":        openID,
+			"user_type": 1,
+		})
+	}
+	return invitees
 }
 
 func normalizeMeetingInviteOpenIDs(values []string) []string {

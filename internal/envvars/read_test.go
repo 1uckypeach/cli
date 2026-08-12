@@ -131,3 +131,77 @@ func TestAgentTrace_AcceptsMaxLengthValue(t *testing.T) {
 		t.Fatalf("AgentTrace() = %q, want %d-byte value accepted", got, agentTraceMaxLen)
 	}
 }
+
+func TestTTEnv_EmptyWhenEnvUnset(t *testing.T) {
+	t.Setenv(CliTTEnv, "")
+	if got := TTEnv(); got != "" {
+		t.Fatalf("TTEnv() = %q, want empty when env unset", got)
+	}
+}
+
+func TestTTEnv_ReturnsCleanValue(t *testing.T) {
+	t.Setenv(CliTTEnv, "boe_f_agent_calendar_meeti")
+	if got := TTEnv(); got != "boe_f_agent_calendar_meeti" {
+		t.Fatalf("TTEnv() = %q, want %q", got, "boe_f_agent_calendar_meeti")
+	}
+}
+
+func TestTTEnv_TrimsWhitespace(t *testing.T) {
+	t.Setenv(CliTTEnv, "  boe_f_agent_calendar_meeti  ")
+	if got := TTEnv(); got != "boe_f_agent_calendar_meeti" {
+		t.Fatalf("TTEnv() = %q, want trimmed value", got)
+	}
+}
+
+func TestTTEnv_RejectsCRLF(t *testing.T) {
+	t.Setenv(CliTTEnv, "boe\r\nX-Evil: attack")
+	if got := TTEnv(); got != "" {
+		t.Fatalf("TTEnv() = %q, want empty for CR/LF value", got)
+	}
+}
+
+func TestTTEnv_RejectsControlChar(t *testing.T) {
+	t.Setenv(CliTTEnv, "boe\x01env")
+	if got := TTEnv(); got != "" {
+		t.Fatalf("TTEnv() = %q, want empty for control char value", got)
+	}
+}
+
+func TestTTEnv_RejectsOverlongValue(t *testing.T) {
+	longVal := strings.Repeat("a", ttEnvMaxLen+1)
+	t.Setenv(CliTTEnv, longVal)
+	if got := TTEnv(); got != "" {
+		t.Fatalf("TTEnv() returned non-empty for %d-byte value (max %d)", len(longVal), ttEnvMaxLen)
+	}
+}
+
+func TestOpenBaseURL_ReturnsHTTPSHostBase(t *testing.T) {
+	t.Setenv(CliOpenBaseURL, "https://open.feishu-boe.cn/")
+	if got := OpenBaseURL(); got != "https://open.feishu-boe.cn" {
+		t.Fatalf("OpenBaseURL() = %q, want host base", got)
+	}
+}
+
+func TestAccountsBaseURL_ReturnsHTTPSHostBase(t *testing.T) {
+	t.Setenv(CliAccountsBaseURL, " https://accounts.feishu-boe.cn ")
+	if got := AccountsBaseURL(); got != "https://accounts.feishu-boe.cn" {
+		t.Fatalf("AccountsBaseURL() = %q, want host base", got)
+	}
+}
+
+func TestOpenBaseURL_RejectsPathQueryAndNonHTTPS(t *testing.T) {
+	for _, value := range []string{
+		"http://open.feishu-boe.cn",
+		"https://open.feishu-boe.cn/open-apis",
+		"https://open.feishu-boe.cn?x=1",
+		"https://user@open.feishu-boe.cn",
+		"https://open.feishu-boe.cn\r\nX-Evil: attack",
+	} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv(CliOpenBaseURL, value)
+			if got := OpenBaseURL(); got != "" {
+				t.Fatalf("OpenBaseURL() = %q, want empty for invalid base %q", got, value)
+			}
+		})
+	}
+}
