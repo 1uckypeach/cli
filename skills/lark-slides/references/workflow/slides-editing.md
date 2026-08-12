@@ -1,6 +1,6 @@
 # 编辑已有 PPT：读-改-写闭环
 
-局部编辑走 **shortcut [`+replace-slide`](../cli/lark-slides-replace-slide.md)**（块级替换 / 插入），配合 `xml_presentation.slide.get` 读原页拿 `block_id`。整页重建走 **[`+update-slide`](../lark-slides-update-slide.md)**，多页就每页各跑一次 —— 它原地覆盖并保留 `slide_id` 和页序；只有写进 `--content` 且带原 id 的元素才会保留元素 id，遗漏的元素会被删除。
+局部编辑走 **shortcut [`+replace-slide`](../cli/lark-slides-replace-slide.md)**（块级替换 / 插入），配合 `xml_presentation.slide.get` 读原页拿 `block_id`。整页重建走 **[`+update-slide`](../cli/lark-slides-update-slide.md)**，多页就每页各跑一次 —— 它原地覆盖并保留 `slide_id` 和页序；只有写进 `--content` 且带原 id 的元素才会保留元素 id，遗漏的元素会被删除。
 
 > 生成 XML 前**必读** [xml-schema-quick-ref.md](../xml/xml-schema-quick-ref.md)。
 
@@ -33,7 +33,7 @@ lark-cli slides +replace-slide --as user \
 
 `slide_id` / 页序不会变。`block_replace` 的 `replacement` 根元素 `id` 会自动注入为 `block_id`，用户手写 XML 时不需要自己加。
 
-> **part 的字段名是 `block_id` + `replacement`（XML 字符串）**：写成 `content` / `xml` / `block` 会被 CLI 拒绝（报 `unknown field "content"; did you mean "replacement"?`）。收到这个报错时改字段名，不要改字段值。
+> **编写 `--parts` 时只使用标准字段**：`block_replace` 使用 `action` + `block_id` + `replacement`（XML 字符串），`block_insert` 使用 `action` + `insertion`（可选 `insert_before_block_id`）。收到 unknown field 报错时应按上述结构修改字段名，而不是修改字段值。
 
 ## `revision_id` 参数
 
@@ -43,7 +43,7 @@ lark-cli slides +replace-slide --as user \
 # 读时拿当前 revision_id
 REV=$(lark-cli slides xml_presentation.slide get --as user \
   --params "{\"xml_presentation_id\":\"$PID\",\"slide_id\":\"$SID\"}" \
-  | jq '.data.revision_id')
+  --jq '.data.revision_id')
 
 # 写时传该版本号，服务端以此为 base
 lark-cli slides +replace-slide --as user \
@@ -136,7 +136,7 @@ cat parts.json | lark-cli slides +replace-slide --as user --presentation "$PID" 
 ## 相关文档
 
 - [lark-slides-replace-slide.md](../cli/lark-slides-replace-slide.md) — +replace-slide shortcut 参数详情
-- [lark-slides-update-slide.md](../lark-slides-update-slide.md) — +update-slide shortcut 参数详情（整页覆盖）
+- [lark-slides-update-slide.md](../cli/lark-slides-update-slide.md) — +update-slide shortcut 参数详情（整页覆盖）
 - [lark-slides-xml-presentation-slide-get.md](../cli/lark-slides-xml-presentation-slide-get.md) — slide.get 参考（拿 `block_id` / `revision_id`）
 - [lark-slides-xml-presentation-slide-replace.md](../cli/lark-slides-xml-presentation-slide-replace.md) — 底层 replace API 参考（一般直接用 shortcut 即可）
 - [lark-slides-media-upload.md](../cli/lark-slides-media-upload.md) — 上传图片拿 file_token

@@ -15,11 +15,22 @@ type Envelope struct {
 }
 
 // Meta carries optional metadata in envelope responses.
+//
+// Total/HitCount/MissedCount are batch-lookup counters used by commands that
+// resolve a list of inputs and report per-input hit/miss (e.g.
+// apps +user-id-convert). They are pointers so an unset counter is dropped by
+// omitempty while an explicit zero (e.g. "missed_count": 0 on a full hit) is
+// still emitted — a plain int with omitempty would silently drop the required
+// zero, and without omitempty it would pollute every other domain's meta. Every
+// non-batch command leaves them nil, so this stays invisible outside batch use.
 type Meta struct {
-	Count      int             `json:"count,omitempty"`
-	Rollback   string          `json:"rollback,omitempty"`
-	Pagination *PaginationMeta `json:"pagination,omitempty"`
-	Next       []NextAction    `json:"next,omitempty"`
+	Count       int             `json:"count,omitempty"`
+	Rollback    string          `json:"rollback,omitempty"`
+	Pagination  *PaginationMeta `json:"pagination,omitempty"`
+	Next        []NextAction    `json:"next,omitempty"`
+	Total       *int            `json:"total,omitempty"`
+	HitCount    *int            `json:"hit_count,omitempty"`
+	MissedCount *int            `json:"missed_count,omitempty"`
 }
 
 // NextAction is a typed "suggested next command" that an AI caller can execute
