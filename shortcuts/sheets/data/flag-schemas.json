@@ -1,119 +1,6 @@
 {
   "schema_version": "3",
   "flags": {
-    "+batch-chart-create": {
-      "operations": {
-        "type": "array",
-        "minItems": 1,
-        "items": {
-          "type": "object",
-          "required": [
-            "chart_type",
-            "data_range"
-          ],
-          "anyOf": [
-            {
-              "required": [
-                "sheet_id"
-              ]
-            },
-            {
-              "required": [
-                "sheet_name"
-              ]
-            }
-          ],
-          "properties": {
-            "sheet_id": {
-              "type": "string",
-              "description": "目标子表 ID；与 sheet_name 二选一"
-            },
-            "sheet_name": {
-              "type": "string",
-              "description": "目标子表名；与 sheet_id 二选一"
-            },
-            "chart_type": {
-              "type": "string",
-              "enum": [
-                "column",
-                "bar",
-                "line",
-                "area",
-                "pie",
-                "scatter",
-                "combo",
-                "radar"
-              ]
-            },
-            "data_range": {
-              "type": "string"
-            },
-            "header_range": {
-              "type": "string"
-            },
-            "data_direction": {
-              "type": "string",
-              "enum": [
-                "row",
-                "column"
-              ]
-            },
-            "dim1_index": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "dim2_indexes": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "array",
-                  "items": {
-                    "type": "integer",
-                    "minimum": 1
-                  }
-                }
-              ]
-            },
-            "title": {
-              "type": "string"
-            },
-            "anchor_cell": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": true,
-          "description": "每项直接填写 +chart-create-basic 的 flag；CLI 内部固定按 +chart-create-basic 创建，无需也不应再写 shortcut / input。"
-        }
-      }
-    },
-    "+batch-chart-update": {
-      "operations": {
-        "type": "array",
-        "minItems": 1,
-        "items": {
-          "type": "object",
-          "required": [
-            "shortcut",
-            "input"
-          ],
-          "properties": {
-            "shortcut": {
-              "type": "string",
-              "enum": [
-                "+chart-config-update",
-                "+chart-data-update"
-              ]
-            },
-            "input": {
-              "type": "object",
-              "description": "对应图表更新 shortcut 的 flag 集合；包含 sheet_id 或 sheet_name，不包含 spreadsheet token/url"
-            }
-          }
-        }
-      }
-    },
     "+batch-update": {
       "operations": {
         "type": "array",
@@ -979,6 +866,2119 @@
           },
           "snapshot": {
             "description": "图表快照配置。create 需要完整配置；update 可只提供需要变更的字段，对象字段递归合并，数组整段替换，未提供的字段保持现状。",
+            "properties": {
+              "title": {
+                "type": "object",
+                "description": "图表标题配置",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "description": "标题文本"
+                  },
+                  "textAlign": {
+                    "type": "string",
+                    "description": "标题对齐方式",
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ]
+                  },
+                  "fontSize": {
+                    "type": "number",
+                    "description": "字体大小"
+                  },
+                  "bold": {
+                    "type": "boolean",
+                    "description": "是否加粗"
+                  },
+                  "italic": {
+                    "type": "boolean",
+                    "description": "是否斜体"
+                  },
+                  "underline": {
+                    "type": "boolean",
+                    "description": "是否下划线"
+                  },
+                  "strikethrough": {
+                    "type": "boolean",
+                    "description": "是否删除线"
+                  },
+                  "color": {
+                    "type": "string",
+                    "description": "字体颜色，格式为 #RRGGBB"
+                  }
+                },
+                "required": [
+                  "text"
+                ]
+              },
+              "subTitle": {
+                "type": "object",
+                "description": "图表副标题配置",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "description": "副标题文本"
+                  },
+                  "textAlign": {
+                    "type": "string",
+                    "description": "副标题对齐方式",
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ]
+                  },
+                  "fontSize": {
+                    "type": "number",
+                    "description": "字体大小"
+                  },
+                  "bold": {
+                    "type": "boolean",
+                    "description": "是否加粗"
+                  },
+                  "italic": {
+                    "type": "boolean",
+                    "description": "是否斜体"
+                  },
+                  "underline": {
+                    "type": "boolean",
+                    "description": "是否下划线"
+                  },
+                  "strikethrough": {
+                    "type": "boolean",
+                    "description": "是否删除线"
+                  },
+                  "color": {
+                    "type": "string",
+                    "description": "字体颜色，格式为 #RRGGBB"
+                  }
+                },
+                "required": [
+                  "text"
+                ]
+              },
+              "style": {
+                "type": "object",
+                "description": "图表样式配置",
+                "properties": {
+                  "background": {
+                    "type": "object",
+                    "description": "背景配置",
+                    "properties": {
+                      "color": {
+                        "type": "string",
+                        "description": "背景颜色，格式为 #RRGGBB"
+                      }
+                    }
+                  },
+                  "font": {
+                    "type": "object",
+                    "description": "字体配置",
+                    "properties": {
+                      "size": {
+                        "type": "number",
+                        "description": "字体大小"
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "字体颜色，格式为 #RRGGBB"
+                      }
+                    }
+                  },
+                  "border": {
+                    "type": "object",
+                    "description": "边框配置",
+                    "properties": {
+                      "color": {
+                        "type": "string",
+                        "description": "边框颜色，格式为 #RRGGBB"
+                      },
+                      "width": {
+                        "type": "number",
+                        "description": "边框宽度"
+                      },
+                      "style": {
+                        "type": "string",
+                        "description": "边框样式",
+                        "enum": [
+                          "solid",
+                          "dashed",
+                          "dotted"
+                        ]
+                      },
+                      "radius": {
+                        "type": "number",
+                        "description": "边框圆角"
+                      }
+                    }
+                  },
+                  "colorTheme": {
+                    "type": "array",
+                    "description": "颜色主题配置。支持两种模式：1. 仅传一个预设主题名称（字符串数组，长度为1）；2. 传多个自定义十六进制颜色字符串。预设主题：brandColorSeries@v2、rainbowColorSeries@v2、complementaryColorSeries@v2、converseColorSeries@v2、primaryColorSeries@v2、singleColorSeries-B-@v2、singleColorSeries-W-@v2、singleColorSeries-G-@v2、singleColorSeries-Y-@v2、singleColorSeries-O-@v2、singleColorSeries-R-@v2、singleColorSeries-D-@v2。十六进制格式：#RRGGBB",
+                    "oneOf": [
+                      {
+                        "minItems": 1,
+                        "maxItems": 1,
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "brandColorSeries@v2",
+                            "rainbowColorSeries@v2",
+                            "complementaryColorSeries@v2",
+                            "converseColorSeries@v2",
+                            "primaryColorSeries@v2",
+                            "singleColorSeries-B-@v2",
+                            "singleColorSeries-W-@v2",
+                            "singleColorSeries-G-@v2",
+                            "singleColorSeries-Y-@v2",
+                            "singleColorSeries-O-@v2",
+                            "singleColorSeries-R-@v2",
+                            "singleColorSeries-D-@v2"
+                          ]
+                        }
+                      },
+                      {
+                        "minItems": 2,
+                        "items": {
+                          "type": "string",
+                          "description": "颜色字符串，十六进制格式：#RRGGBB"
+                        }
+                      }
+                    ]
+                  },
+                  "colorGradient": {
+                    "type": "boolean",
+                    "description": "是否启用颜色渐变"
+                  }
+                }
+              },
+              "legend": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "description": "图例配置",
+                    "properties": {
+                      "position": {
+                        "type": "string",
+                        "description": "图例位置",
+                        "enum": [
+                          "top",
+                          "bottom",
+                          "left",
+                          "right"
+                        ]
+                      },
+                      "fontSize": {
+                        "type": "number",
+                        "description": "字体大小"
+                      },
+                      "bold": {
+                        "type": "boolean",
+                        "description": "是否加粗"
+                      },
+                      "italic": {
+                        "type": "boolean",
+                        "description": "是否斜体"
+                      },
+                      "underline": {
+                        "type": "boolean",
+                        "description": "是否下划线"
+                      },
+                      "strikethrough": {
+                        "type": "boolean",
+                        "description": "是否删除线"
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "字体颜色，格式为 #RRGGBB"
+                      }
+                    }
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "false 表示隐藏图例"
+                  }
+                ]
+              },
+              "plotArea": {
+                "type": "object",
+                "description": "绘图区域配置",
+                "properties": {
+                  "plot": {
+                    "type": "object",
+                    "description": "绘图配置",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "图表类型",
+                        "enum": [
+                          "bar",
+                          "column",
+                          "line",
+                          "area",
+                          "combo",
+                          "pie",
+                          "radar",
+                          "scatter",
+                          "bubble",
+                          "waterfall",
+                          "pareto"
+                        ]
+                      },
+                      "comboType": {
+                        "type": "string",
+                        "description": "组合图表默认类型",
+                        "enum": [
+                          "column",
+                          "line",
+                          "area"
+                        ]
+                      },
+                      "yAxisPosition": {
+                        "type": "string",
+                        "description": "Y轴位置",
+                        "enum": [
+                          "left",
+                          "right"
+                        ]
+                      },
+                      "extra": {
+                        "type": "object",
+                        "description": "额外配置",
+                        "properties": {
+                          "smooth": {
+                            "type": "boolean",
+                            "description": "是否平滑曲线"
+                          },
+                          "step": {
+                            "type": "boolean",
+                            "description": "是否阶梯图"
+                          },
+                          "stack": {
+                            "type": "object",
+                            "description": "堆叠配置",
+                            "properties": {
+                              "percentage": {
+                                "type": "boolean",
+                                "description": "是否百分比堆叠"
+                              }
+                            }
+                          },
+                          "radar": {
+                            "type": "object",
+                            "description": "雷达图配置",
+                            "properties": {
+                              "shape": {
+                                "type": "string",
+                                "description": "雷达图形状",
+                                "enum": [
+                                  "polygon",
+                                  "circle"
+                                ]
+                              },
+                              "area": {
+                                "type": "boolean",
+                                "description": "是否填充区域"
+                              }
+                            }
+                          },
+                          "bubble": {
+                            "type": "object",
+                            "description": "气泡图配置。气泡图的 x、y、group、size 数据角色在 data.dim2 中指定。",
+                            "properties": {
+                              "aggregate": {
+                                "type": "boolean",
+                                "description": "是否对相同分组与坐标的数据进行汇总"
+                              },
+                              "showNegativeSize": {
+                                "type": "boolean",
+                                "description": "是否显示气泡大小为负值的数据点"
+                              },
+                              "opacityGradientStyle": {
+                                "type": "string",
+                                "description": "气泡透明度渐变样式",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ]
+                              },
+                              "idLabel": {
+                                "description": "气泡标识标签配置；false 表示隐藏标识标签",
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "visible": {
+                                        "type": "boolean",
+                                        "description": "是否显示标识标签"
+                                      },
+                                      "fontSize": {
+                                        "type": "number",
+                                        "description": "标签字号"
+                                      },
+                                      "bold": {
+                                        "type": "boolean",
+                                        "description": "是否加粗"
+                                      },
+                                      "italic": {
+                                        "type": "boolean",
+                                        "description": "是否斜体"
+                                      },
+                                      "underline": {
+                                        "type": "boolean",
+                                        "description": "是否下划线"
+                                      },
+                                      "strikethrough": {
+                                        "type": "boolean",
+                                        "description": "是否删除线"
+                                      },
+                                      "color": {
+                                        "type": "string",
+                                        "description": "标签字体颜色"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          "waterfall": {
+                            "type": "object",
+                            "description": "瀑布图全局配置。单个系列可通过 plot.series[].waterfall 覆盖数值解释和正负值样式。",
+                            "properties": {
+                              "firstValueAsTotal": {
+                                "type": "boolean",
+                                "description": "是否将第一个值视为总计"
+                              },
+                              "lastValueAsSubtotal": {
+                                "type": "boolean",
+                                "description": "是否将最后一个值视为小计"
+                              },
+                              "positiveStyle": {
+                                "type": "object",
+                                "description": "正值柱样式",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "description": "填充颜色"
+                                  },
+                                  "opacity": {
+                                    "type": "number",
+                                    "description": "透明度，取值 0-1"
+                                  },
+                                  "borderColor": {
+                                    "type": "string",
+                                    "description": "边框颜色"
+                                  },
+                                  "borderWidth": {
+                                    "type": "number",
+                                    "description": "边框宽度"
+                                  },
+                                  "borderStyle": {
+                                    "type": "string",
+                                    "description": "边框样式",
+                                    "enum": [
+                                      "solid",
+                                      "dashed",
+                                      "dotted"
+                                    ]
+                                  }
+                                }
+                              },
+                              "negativeStyle": {
+                                "type": "object",
+                                "description": "负值柱样式",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "description": "填充颜色"
+                                  },
+                                  "opacity": {
+                                    "type": "number",
+                                    "description": "透明度，取值 0-1"
+                                  },
+                                  "borderColor": {
+                                    "type": "string",
+                                    "description": "边框颜色"
+                                  },
+                                  "borderWidth": {
+                                    "type": "number",
+                                    "description": "边框宽度"
+                                  },
+                                  "borderStyle": {
+                                    "type": "string",
+                                    "description": "边框样式",
+                                    "enum": [
+                                      "solid",
+                                      "dashed",
+                                      "dotted"
+                                    ]
+                                  }
+                                }
+                              },
+                              "totalStyle": {
+                                "type": "object",
+                                "description": "总计与小计柱样式",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "description": "填充颜色"
+                                  },
+                                  "opacity": {
+                                    "type": "number",
+                                    "description": "透明度，取值 0-1"
+                                  },
+                                  "borderColor": {
+                                    "type": "string",
+                                    "description": "边框颜色"
+                                  },
+                                  "borderWidth": {
+                                    "type": "number",
+                                    "description": "边框宽度"
+                                  },
+                                  "borderStyle": {
+                                    "type": "string",
+                                    "description": "边框样式",
+                                    "enum": [
+                                      "solid",
+                                      "dashed",
+                                      "dotted"
+                                    ]
+                                  }
+                                }
+                              },
+                              "cornerRadius": {
+                                "type": "string",
+                                "description": "柱子圆角大小",
+                                "enum": [
+                                  "default",
+                                  "small",
+                                  "large"
+                                ]
+                              },
+                              "gradient": {
+                                "type": "boolean",
+                                "description": "是否使用渐变填充"
+                              },
+                              "connectorLine": {
+                                "description": "瀑布柱之间的连接线配置；false 表示隐藏连接线",
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "color": {
+                                        "type": "string",
+                                        "description": "连接线颜色"
+                                      },
+                                      "width": {
+                                        "type": "number",
+                                        "description": "连接线宽度"
+                                      },
+                                      "style": {
+                                        "type": "string",
+                                        "description": "连接线样式",
+                                        "enum": [
+                                          "solid",
+                                          "dashed",
+                                          "dotted"
+                                        ]
+                                      },
+                                      "opacity": {
+                                        "type": "number",
+                                        "description": "连接线透明度，取值 0-1"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ]
+                                  }
+                                ]
+                              },
+                              "totalLabels": {
+                                "description": "总计与小计标签配置；false 表示隐藏该类标签",
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "template": {
+                                        "type": "string",
+                                        "description": "标签文本模板"
+                                      },
+                                      "fontSize": {
+                                        "type": "number",
+                                        "description": "标签字号"
+                                      },
+                                      "bold": {
+                                        "type": "boolean",
+                                        "description": "是否加粗"
+                                      },
+                                      "italic": {
+                                        "type": "boolean",
+                                        "description": "是否斜体"
+                                      },
+                                      "underline": {
+                                        "type": "boolean",
+                                        "description": "是否下划线"
+                                      },
+                                      "strikethrough": {
+                                        "type": "boolean",
+                                        "description": "是否删除线"
+                                      },
+                                      "color": {
+                                        "type": "string",
+                                        "description": "标签字体颜色"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          "pareto": {
+                            "type": "object",
+                            "description": "排列图配置。柱子、累计曲线、数据点和标签复用现有 bars、line、points、labels 配置。",
+                            "properties": {
+                              "aggregateType": {
+                                "type": "string",
+                                "description": "排列图的数据汇总方式",
+                                "enum": [
+                                  "sum",
+                                  "average",
+                                  "count",
+                                  "counta",
+                                  "min",
+                                  "max",
+                                  "median"
+                                ]
+                              },
+                              "categoryNumber": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "description": "参与排列的类别数量，必须为正整数"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "points": {
+                        "type": "object",
+                        "description": "全系列数据点配置，折线图、面积图、雷达图、散点图、组合图生效。",
+                        "properties": {
+                          "color": {
+                            "type": "string",
+                            "description": "数据点颜色"
+                          },
+                          "shape": {
+                            "type": "string",
+                            "description": "数据点形状",
+                            "enum": [
+                              "circle",
+                              "triangle",
+                              "rect",
+                              "diamond",
+                              "square"
+                            ]
+                          },
+                          "size": {
+                            "type": "number",
+                            "description": "数据点大小"
+                          },
+                          "fillGradient": {
+                            "type": "object",
+                            "description": "数据点填充渐变配置",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ],
+                                "description": "渐变类型"
+                              },
+                              "x0": {
+                                "type": "number",
+                                "description": "起点 x，0-1 归一化坐标"
+                              },
+                              "y0": {
+                                "type": "number",
+                                "description": "起点 y，0-1 归一化坐标"
+                              },
+                              "x1": {
+                                "type": "number",
+                                "description": "终点 x，0-1 归一化坐标"
+                              },
+                              "y1": {
+                                "type": "number",
+                                "description": "终点 y，0-1 归一化坐标"
+                              },
+                              "r0": {
+                                "type": "number",
+                                "description": "径向渐变起点半径"
+                              },
+                              "r1": {
+                                "type": "number",
+                                "description": "径向渐变终点半径"
+                              },
+                              "gradientMethod": {
+                                "type": "string",
+                                "description": "渐变插值方法"
+                              },
+                              "stops": {
+                                "type": "array",
+                                "description": "渐变色标数组，至少 2 个",
+                                "minItems": 2,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "offset": {
+                                      "type": "number",
+                                      "description": "色标位置 0-1"
+                                    },
+                                    "color": {
+                                      "type": "string",
+                                      "description": "色标颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "色标透明度 0-1"
+                                    }
+                                  },
+                                  "required": [
+                                    "offset",
+                                    "color"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "stops"
+                            ]
+                          },
+                          "strokeGradient": {
+                            "type": "object",
+                            "description": "数据点描边渐变配置",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ],
+                                "description": "渐变类型"
+                              },
+                              "x0": {
+                                "type": "number",
+                                "description": "起点 x，0-1 归一化坐标"
+                              },
+                              "y0": {
+                                "type": "number",
+                                "description": "起点 y，0-1 归一化坐标"
+                              },
+                              "x1": {
+                                "type": "number",
+                                "description": "终点 x，0-1 归一化坐标"
+                              },
+                              "y1": {
+                                "type": "number",
+                                "description": "终点 y，0-1 归一化坐标"
+                              },
+                              "r0": {
+                                "type": "number",
+                                "description": "径向渐变起点半径"
+                              },
+                              "r1": {
+                                "type": "number",
+                                "description": "径向渐变终点半径"
+                              },
+                              "gradientMethod": {
+                                "type": "string",
+                                "description": "渐变插值方法"
+                              },
+                              "stops": {
+                                "type": "array",
+                                "description": "渐变色标数组，至少 2 个",
+                                "minItems": 2,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "offset": {
+                                      "type": "number",
+                                      "description": "色标位置 0-1"
+                                    },
+                                    "color": {
+                                      "type": "string",
+                                      "description": "色标颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "色标透明度 0-1"
+                                    }
+                                  },
+                                  "required": [
+                                    "offset",
+                                    "color"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "stops"
+                            ]
+                          },
+                          "point": {
+                            "type": "array",
+                            "description": "单个数据点配置数组",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "index": {
+                                  "type": "number",
+                                  "description": "数据点索引"
+                                },
+                                "color": {
+                                  "type": "string",
+                                  "description": "颜色"
+                                },
+                                "shape": {
+                                  "type": "string",
+                                  "description": "形状"
+                                },
+                                "size": {
+                                  "type": "number",
+                                  "description": "大小"
+                                },
+                                "fillGradient": {
+                                  "type": "object",
+                                  "description": "单个数据点填充渐变配置",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "linear",
+                                        "radial"
+                                      ],
+                                      "description": "渐变类型"
+                                    },
+                                    "x0": {
+                                      "type": "number",
+                                      "description": "起点 x，0-1 归一化坐标"
+                                    },
+                                    "y0": {
+                                      "type": "number",
+                                      "description": "起点 y，0-1 归一化坐标"
+                                    },
+                                    "x1": {
+                                      "type": "number",
+                                      "description": "终点 x，0-1 归一化坐标"
+                                    },
+                                    "y1": {
+                                      "type": "number",
+                                      "description": "终点 y，0-1 归一化坐标"
+                                    },
+                                    "r0": {
+                                      "type": "number",
+                                      "description": "径向渐变起点半径"
+                                    },
+                                    "r1": {
+                                      "type": "number",
+                                      "description": "径向渐变终点半径"
+                                    },
+                                    "gradientMethod": {
+                                      "type": "string",
+                                      "description": "渐变插值方法"
+                                    },
+                                    "stops": {
+                                      "type": "array",
+                                      "description": "渐变色标数组，至少 2 个",
+                                      "minItems": 2,
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "offset": {
+                                            "type": "number",
+                                            "description": "色标位置 0-1"
+                                          },
+                                          "color": {
+                                            "type": "string",
+                                            "description": "色标颜色"
+                                          },
+                                          "opacity": {
+                                            "type": "number",
+                                            "description": "色标透明度 0-1"
+                                          }
+                                        },
+                                        "required": [
+                                          "offset",
+                                          "color"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "stops"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "index"
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      "lines": {
+                        "type": "object",
+                        "description": "全系列线条配置，折线图、面积图、雷达图、组合图生效。",
+                        "properties": {
+                          "color": {
+                            "type": "string",
+                            "description": "线条颜色"
+                          },
+                          "width": {
+                            "type": "number",
+                            "description": "线条宽度"
+                          },
+                          "style": {
+                            "type": "string",
+                            "description": "线条样式",
+                            "enum": [
+                              "solid",
+                              "dashed",
+                              "dotted"
+                            ]
+                          },
+                          "invalidType": {
+                            "type": "string",
+                            "description": "无效值处理方式",
+                            "enum": [
+                              "break",
+                              "zero",
+                              "link"
+                            ]
+                          },
+                          "strokeGradient": {
+                            "type": "object",
+                            "description": "线条描边渐变配置",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ],
+                                "description": "渐变类型"
+                              },
+                              "x0": {
+                                "type": "number",
+                                "description": "起点 x，0-1 归一化坐标"
+                              },
+                              "y0": {
+                                "type": "number",
+                                "description": "起点 y，0-1 归一化坐标"
+                              },
+                              "x1": {
+                                "type": "number",
+                                "description": "终点 x，0-1 归一化坐标"
+                              },
+                              "y1": {
+                                "type": "number",
+                                "description": "终点 y，0-1 归一化坐标"
+                              },
+                              "r0": {
+                                "type": "number",
+                                "description": "径向渐变起点半径"
+                              },
+                              "r1": {
+                                "type": "number",
+                                "description": "径向渐变终点半径"
+                              },
+                              "gradientMethod": {
+                                "type": "string",
+                                "description": "渐变插值方法"
+                              },
+                              "stops": {
+                                "type": "array",
+                                "description": "渐变色标数组，至少 2 个",
+                                "minItems": 2,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "offset": {
+                                      "type": "number",
+                                      "description": "色标位置 0-1"
+                                    },
+                                    "color": {
+                                      "type": "string",
+                                      "description": "色标颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "色标透明度 0-1"
+                                    }
+                                  },
+                                  "required": [
+                                    "offset",
+                                    "color"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "stops"
+                            ]
+                          }
+                        }
+                      },
+                      "areas": {
+                        "type": "object",
+                        "description": "全系列面积填充配置，面积图、雷达图、组合图生效。",
+                        "properties": {
+                          "color": {
+                            "type": "string",
+                            "description": "区域填充颜色"
+                          },
+                          "fillGradient": {
+                            "type": "object",
+                            "description": "区域填充渐变",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ],
+                                "description": "渐变类型"
+                              },
+                              "x0": {
+                                "type": "number",
+                                "description": "起点 x，0-1 归一化坐标"
+                              },
+                              "y0": {
+                                "type": "number",
+                                "description": "起点 y，0-1 归一化坐标"
+                              },
+                              "x1": {
+                                "type": "number",
+                                "description": "终点 x，0-1 归一化坐标"
+                              },
+                              "y1": {
+                                "type": "number",
+                                "description": "终点 y，0-1 归一化坐标"
+                              },
+                              "r0": {
+                                "type": "number",
+                                "description": "径向渐变起点半径"
+                              },
+                              "r1": {
+                                "type": "number",
+                                "description": "径向渐变终点半径"
+                              },
+                              "gradientMethod": {
+                                "type": "string",
+                                "description": "渐变插值方法"
+                              },
+                              "stops": {
+                                "type": "array",
+                                "description": "渐变色标数组，至少 2 个",
+                                "minItems": 2,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "offset": {
+                                      "type": "number",
+                                      "description": "色标位置 0-1"
+                                    },
+                                    "color": {
+                                      "type": "string",
+                                      "description": "色标颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "色标透明度 0-1"
+                                    }
+                                  },
+                                  "required": [
+                                    "offset",
+                                    "color"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "stops"
+                            ]
+                          }
+                        }
+                      },
+                      "bars": {
+                        "type": "object",
+                        "description": "全系列柱状图、条形图、组合图生效。",
+                        "properties": {
+                          "color": {
+                            "type": "string",
+                            "description": "柱子颜色"
+                          },
+                          "borderColor": {
+                            "type": "string",
+                            "description": "边框颜色"
+                          },
+                          "borderWidth": {
+                            "type": "number",
+                            "description": "边框宽度"
+                          },
+                          "borderStyle": {
+                            "type": "string",
+                            "description": "边框样式",
+                            "enum": [
+                              "solid",
+                              "dashed",
+                              "dotted"
+                            ]
+                          },
+                          "width": {
+                            "type": "number",
+                            "description": "柱子宽度"
+                          },
+                          "gap": {
+                            "type": "number",
+                            "description": "柱子间距比例，0-1之间"
+                          },
+                          "backgroundColor": {
+                            "type": "string",
+                            "description": "背景颜色"
+                          },
+                          "fillGradient": {
+                            "type": "object",
+                            "description": "柱子填充渐变",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ],
+                                "description": "渐变类型"
+                              },
+                              "x0": {
+                                "type": "number",
+                                "description": "起点 x，0-1 归一化坐标"
+                              },
+                              "y0": {
+                                "type": "number",
+                                "description": "起点 y，0-1 归一化坐标"
+                              },
+                              "x1": {
+                                "type": "number",
+                                "description": "终点 x，0-1 归一化坐标"
+                              },
+                              "y1": {
+                                "type": "number",
+                                "description": "终点 y，0-1 归一化坐标"
+                              },
+                              "r0": {
+                                "type": "number",
+                                "description": "径向渐变起点半径"
+                              },
+                              "r1": {
+                                "type": "number",
+                                "description": "径向渐变终点半径"
+                              },
+                              "gradientMethod": {
+                                "type": "string",
+                                "description": "渐变插值方法"
+                              },
+                              "stops": {
+                                "type": "array",
+                                "description": "渐变色标数组，至少 2 个",
+                                "minItems": 2,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "offset": {
+                                      "type": "number",
+                                      "description": "色标位置 0-1"
+                                    },
+                                    "color": {
+                                      "type": "string",
+                                      "description": "色标颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "色标透明度 0-1"
+                                    }
+                                  },
+                                  "required": [
+                                    "offset",
+                                    "color"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "stops"
+                            ]
+                          },
+                          "strokeGradient": {
+                            "type": "object",
+                            "description": "柱子描边渐变",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ],
+                                "description": "渐变类型"
+                              },
+                              "x0": {
+                                "type": "number",
+                                "description": "起点 x，0-1 归一化坐标"
+                              },
+                              "y0": {
+                                "type": "number",
+                                "description": "起点 y，0-1 归一化坐标"
+                              },
+                              "x1": {
+                                "type": "number",
+                                "description": "终点 x，0-1 归一化坐标"
+                              },
+                              "y1": {
+                                "type": "number",
+                                "description": "终点 y，0-1 归一化坐标"
+                              },
+                              "r0": {
+                                "type": "number",
+                                "description": "径向渐变起点半径"
+                              },
+                              "r1": {
+                                "type": "number",
+                                "description": "径向渐变终点半径"
+                              },
+                              "gradientMethod": {
+                                "type": "string",
+                                "description": "渐变插值方法"
+                              },
+                              "stops": {
+                                "type": "array",
+                                "description": "渐变色标数组，至少 2 个",
+                                "minItems": 2,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "offset": {
+                                      "type": "number",
+                                      "description": "色标位置 0-1"
+                                    },
+                                    "color": {
+                                      "type": "string",
+                                      "description": "色标颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "色标透明度 0-1"
+                                    }
+                                  },
+                                  "required": [
+                                    "offset",
+                                    "color"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "stops"
+                            ]
+                          },
+                          "bar": {
+                            "type": "array",
+                            "description": "单个柱子配置数组",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "index": {
+                                  "type": "number",
+                                  "description": "柱子索引"
+                                },
+                                "color": {
+                                  "type": "string",
+                                  "description": "颜色"
+                                },
+                                "borderColor": {
+                                  "type": "string",
+                                  "description": "边框颜色"
+                                },
+                                "borderWidth": {
+                                  "type": "number",
+                                  "description": "边框宽度"
+                                },
+                                "borderStyle": {
+                                  "type": "string",
+                                  "description": "边框样式"
+                                },
+                                "fillGradient": {
+                                  "type": "object",
+                                  "description": "单个柱子填充渐变",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "linear",
+                                        "radial"
+                                      ],
+                                      "description": "渐变类型"
+                                    },
+                                    "x0": {
+                                      "type": "number",
+                                      "description": "起点 x，0-1 归一化坐标"
+                                    },
+                                    "y0": {
+                                      "type": "number",
+                                      "description": "起点 y，0-1 归一化坐标"
+                                    },
+                                    "x1": {
+                                      "type": "number",
+                                      "description": "终点 x，0-1 归一化坐标"
+                                    },
+                                    "y1": {
+                                      "type": "number",
+                                      "description": "终点 y，0-1 归一化坐标"
+                                    },
+                                    "r0": {
+                                      "type": "number",
+                                      "description": "径向渐变起点半径"
+                                    },
+                                    "r1": {
+                                      "type": "number",
+                                      "description": "径向渐变终点半径"
+                                    },
+                                    "gradientMethod": {
+                                      "type": "string",
+                                      "description": "渐变插值方法"
+                                    },
+                                    "stops": {
+                                      "type": "array",
+                                      "description": "渐变色标数组，至少 2 个",
+                                      "minItems": 2,
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "offset": {
+                                            "type": "number",
+                                            "description": "色标位置 0-1"
+                                          },
+                                          "color": {
+                                            "type": "string",
+                                            "description": "色标颜色"
+                                          },
+                                          "opacity": {
+                                            "type": "number",
+                                            "description": "色标透明度 0-1"
+                                          }
+                                        },
+                                        "required": [
+                                          "offset",
+                                          "color"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "stops"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "index"
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      "labels": {
+                        "type": "object",
+                        "description": "数据标签配置。labels 对象的存在性即开关：不显示数据标签时省略整个 labels 字段；一旦传入 labels（即便 value/category/series/percentage 全部置为 false），数据标签仍会显示，且默认兜底显示 value。",
+                        "properties": {
+                          "position": {
+                            "type": "string",
+                            "description": "标签位置",
+                            "enum": [
+                              "auto",
+                              "top",
+                              "bottom",
+                              "left",
+                              "right",
+                              "center",
+                              "inside",
+                              "outside"
+                            ]
+                          },
+                          "series": {
+                            "type": "boolean",
+                            "description": "是否显示系列名"
+                          },
+                          "category": {
+                            "type": "boolean",
+                            "description": "是否显示类别名"
+                          },
+                          "value": {
+                            "type": "boolean",
+                            "description": "是否显示值"
+                          },
+                          "percentage": {
+                            "type": "boolean",
+                            "description": "是否显示百分比"
+                          },
+                          "fontSize": {
+                            "type": "number",
+                            "description": "字体大小"
+                          },
+                          "bold": {
+                            "type": "boolean",
+                            "description": "是否加粗"
+                          },
+                          "italic": {
+                            "type": "boolean",
+                            "description": "是否斜体"
+                          },
+                          "underline": {
+                            "type": "boolean",
+                            "description": "是否下划线"
+                          },
+                          "strikethrough": {
+                            "type": "boolean",
+                            "description": "是否删除线"
+                          },
+                          "color": {
+                            "type": "string",
+                            "description": "字体颜色"
+                          }
+                        }
+                      },
+                      "series": {
+                        "type": "array",
+                        "description": "单个系列配置数组",
+                        "items": {
+                          "type": "object",
+                          "description": "系列配置",
+                          "properties": {
+                            "index": {
+                              "type": "number",
+                              "description": "数据列索引，与 dim2.series[].index 值一致，从 1 开始（1 通常对应首列标签维度，2+ 对应后续数据维度列）"
+                            },
+                            "comboType": {
+                              "type": "string",
+                              "description": "组合图下该系列的图表类型，仅在 type 为 combo 时生效",
+                              "enum": [
+                                "column",
+                                "line",
+                                "area"
+                              ]
+                            },
+                            "yAxisPosition": {
+                              "type": "string",
+                              "description": "Y轴位置",
+                              "enum": [
+                                "left",
+                                "right"
+                              ]
+                            },
+                            "points": {
+                              "type": "object",
+                              "description": "数据点配置，配置项同 plotArea.points"
+                            },
+                            "line": {
+                              "type": "object",
+                              "description": "线条配置，配置项同 plotArea.lines"
+                            },
+                            "area": {
+                              "type": "object",
+                              "description": "区域填充配置，配置项同 plotArea.areas"
+                            },
+                            "bars": {
+                              "type": "object",
+                              "description": "柱状图配置，配置项同 plotArea.bars"
+                            },
+                            "labels": {
+                              "type": "object",
+                              "description": "数据标签配置（覆盖单系列，配置项同 plotArea.plot.labels）。不覆盖该系列数据标签时省略整个 labels 字段；一旦传入 labels（即便显示开关全部置为 false），该系列仍会显示数据标签。"
+                            },
+                            "waterfall": {
+                              "type": "object",
+                              "description": "瀑布图的单系列配置，覆盖 plot.extra.waterfall 中对应的数值解释和样式。",
+                              "properties": {
+                                "firstValueAsTotal": {
+                                  "type": "boolean",
+                                  "description": "是否将该系列第一个值视为总计"
+                                },
+                                "lastValueAsSubtotal": {
+                                  "type": "boolean",
+                                  "description": "是否将该系列最后一个值视为小计"
+                                },
+                                "positiveStyle": {
+                                  "type": "object",
+                                  "description": "该系列的正值柱样式",
+                                  "properties": {
+                                    "color": {
+                                      "type": "string",
+                                      "description": "填充颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "透明度，取值 0-1"
+                                    },
+                                    "borderColor": {
+                                      "type": "string",
+                                      "description": "边框颜色"
+                                    },
+                                    "borderWidth": {
+                                      "type": "number",
+                                      "description": "边框宽度"
+                                    },
+                                    "borderStyle": {
+                                      "type": "string",
+                                      "description": "边框样式",
+                                      "enum": [
+                                        "solid",
+                                        "dashed",
+                                        "dotted"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "negativeStyle": {
+                                  "type": "object",
+                                  "description": "该系列的负值柱样式",
+                                  "properties": {
+                                    "color": {
+                                      "type": "string",
+                                      "description": "填充颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "透明度，取值 0-1"
+                                    },
+                                    "borderColor": {
+                                      "type": "string",
+                                      "description": "边框颜色"
+                                    },
+                                    "borderWidth": {
+                                      "type": "number",
+                                      "description": "边框宽度"
+                                    },
+                                    "borderStyle": {
+                                      "type": "string",
+                                      "description": "边框样式",
+                                      "enum": [
+                                        "solid",
+                                        "dashed",
+                                        "dotted"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "totalStyle": {
+                                  "type": "object",
+                                  "description": "该系列的总计与小计柱样式",
+                                  "properties": {
+                                    "color": {
+                                      "type": "string",
+                                      "description": "填充颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "透明度，取值 0-1"
+                                    },
+                                    "borderColor": {
+                                      "type": "string",
+                                      "description": "边框颜色"
+                                    },
+                                    "borderWidth": {
+                                      "type": "number",
+                                      "description": "边框宽度"
+                                    },
+                                    "borderStyle": {
+                                      "type": "string",
+                                      "description": "边框样式",
+                                      "enum": [
+                                        "solid",
+                                        "dashed",
+                                        "dotted"
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "sectors": {
+                              "type": "object",
+                              "description": "扇区配置（饼图）",
+                              "properties": {
+                                "borderColor": {
+                                  "type": "string",
+                                  "description": "边框颜色"
+                                },
+                                "innerRadius": {
+                                  "type": "number",
+                                  "description": "内半径比例，0-1之间"
+                                },
+                                "offsetRadius": {
+                                  "type": "number",
+                                  "description": "偏移半径比例"
+                                },
+                                "startAngle": {
+                                  "type": "number",
+                                  "description": "起始角度，0-359"
+                                },
+                                "fillGradient": {
+                                  "type": "object",
+                                  "description": "扇区填充渐变",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "linear",
+                                        "radial"
+                                      ],
+                                      "description": "渐变类型"
+                                    },
+                                    "x0": {
+                                      "type": "number",
+                                      "description": "起点 x，0-1 归一化坐标"
+                                    },
+                                    "y0": {
+                                      "type": "number",
+                                      "description": "起点 y，0-1 归一化坐标"
+                                    },
+                                    "x1": {
+                                      "type": "number",
+                                      "description": "终点 x，0-1 归一化坐标"
+                                    },
+                                    "y1": {
+                                      "type": "number",
+                                      "description": "终点 y，0-1 归一化坐标"
+                                    },
+                                    "r0": {
+                                      "type": "number",
+                                      "description": "径向渐变起点半径"
+                                    },
+                                    "r1": {
+                                      "type": "number",
+                                      "description": "径向渐变终点半径"
+                                    },
+                                    "gradientMethod": {
+                                      "type": "string",
+                                      "description": "渐变插值方法"
+                                    },
+                                    "stops": {
+                                      "type": "array",
+                                      "description": "渐变色标数组，至少 2 个",
+                                      "minItems": 2,
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "offset": {
+                                            "type": "number",
+                                            "description": "色标位置 0-1"
+                                          },
+                                          "color": {
+                                            "type": "string",
+                                            "description": "色标颜色"
+                                          },
+                                          "opacity": {
+                                            "type": "number",
+                                            "description": "色标透明度 0-1"
+                                          }
+                                        },
+                                        "required": [
+                                          "offset",
+                                          "color"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "stops"
+                                  ]
+                                },
+                                "sector": {
+                                  "type": "array",
+                                  "description": "单个扇区配置数组",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "index": {
+                                        "type": "number",
+                                        "description": "扇区索引"
+                                      },
+                                      "borderColor": {
+                                        "type": "string",
+                                        "description": "边框颜色"
+                                      },
+                                      "offsetRadius": {
+                                        "type": "number",
+                                        "description": "偏移半径"
+                                      },
+                                      "color": {
+                                        "type": "string",
+                                        "description": "颜色"
+                                      },
+                                      "fillGradient": {
+                                        "type": "object",
+                                        "description": "单个扇区填充渐变",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "linear",
+                                              "radial"
+                                            ],
+                                            "description": "渐变类型"
+                                          },
+                                          "x0": {
+                                            "type": "number",
+                                            "description": "起点 x，0-1 归一化坐标"
+                                          },
+                                          "y0": {
+                                            "type": "number",
+                                            "description": "起点 y，0-1 归一化坐标"
+                                          },
+                                          "x1": {
+                                            "type": "number",
+                                            "description": "终点 x，0-1 归一化坐标"
+                                          },
+                                          "y1": {
+                                            "type": "number",
+                                            "description": "终点 y，0-1 归一化坐标"
+                                          },
+                                          "r0": {
+                                            "type": "number",
+                                            "description": "径向渐变起点半径"
+                                          },
+                                          "r1": {
+                                            "type": "number",
+                                            "description": "径向渐变终点半径"
+                                          },
+                                          "gradientMethod": {
+                                            "type": "string",
+                                            "description": "渐变插值方法"
+                                          },
+                                          "stops": {
+                                            "type": "array",
+                                            "description": "渐变色标数组，至少 2 个",
+                                            "minItems": 2,
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "offset": {
+                                                  "type": "number",
+                                                  "description": "色标位置 0-1"
+                                                },
+                                                "color": {
+                                                  "type": "string",
+                                                  "description": "色标颜色"
+                                                },
+                                                "opacity": {
+                                                  "type": "number",
+                                                  "description": "色标透明度 0-1"
+                                                }
+                                              },
+                                              "required": [
+                                                "offset",
+                                                "color"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "required": [
+                                          "type",
+                                          "stops"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "index"
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "index"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ]
+                  },
+                  "axes": {
+                    "type": "array",
+                    "description": "坐标轴配置数组",
+                    "items": {
+                      "type": "object",
+                      "description": "坐标轴配置",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "description": "坐标轴类型",
+                          "enum": [
+                            "x",
+                            "y",
+                            "angle",
+                            "radius"
+                          ]
+                        },
+                        "position": {
+                          "type": "string",
+                          "description": "坐标轴位置",
+                          "enum": [
+                            "left",
+                            "right",
+                            "bottom"
+                          ]
+                        },
+                        "max": {
+                          "type": "number",
+                          "description": "最大值"
+                        },
+                        "min": {
+                          "type": "number",
+                          "description": "最小值"
+                        },
+                        "valueType": {
+                          "type": "string",
+                          "description": "是否将横轴数字视为文本，linear 表示将数字视为数值, ordinal 表示将数字视为文本",
+                          "enum": [
+                            "ordinal",
+                            "linear"
+                          ]
+                        },
+                        "title": {
+                          "type": "object",
+                          "description": "坐标轴标题配置",
+                          "properties": {
+                            "text": {
+                              "type": "string",
+                              "description": "标题文本"
+                            },
+                            "fontSize": {
+                              "type": "number",
+                              "description": "字体大小"
+                            },
+                            "bold": {
+                              "type": "boolean",
+                              "description": "是否加粗"
+                            },
+                            "italic": {
+                              "type": "boolean",
+                              "description": "是否斜体"
+                            },
+                            "underline": {
+                              "type": "boolean",
+                              "description": "是否下划线"
+                            },
+                            "strikethrough": {
+                              "type": "boolean",
+                              "description": "是否删除线"
+                            },
+                            "color": {
+                              "type": "string",
+                              "description": "字体颜色"
+                            }
+                          },
+                          "required": [
+                            "text"
+                          ]
+                        },
+                        "label": {
+                          "type": "object",
+                          "description": "坐标轴标签配置",
+                          "properties": {
+                            "angle": {
+                              "type": "number",
+                              "description": "旋转角度，可选值：-90, -45, 0, 45, 90"
+                            },
+                            "fontSize": {
+                              "type": "number",
+                              "description": "字体大小"
+                            },
+                            "bold": {
+                              "type": "boolean",
+                              "description": "是否加粗"
+                            },
+                            "italic": {
+                              "type": "boolean",
+                              "description": "是否斜体"
+                            },
+                            "underline": {
+                              "type": "boolean",
+                              "description": "是否下划线"
+                            },
+                            "strikethrough": {
+                              "type": "boolean",
+                              "description": "是否删除线"
+                            },
+                            "color": {
+                              "type": "string",
+                              "description": "字体颜色"
+                            }
+                          }
+                        },
+                        "axisLine": {
+                          "type": "boolean",
+                          "description": "是否显示轴线"
+                        },
+                        "gridLine": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "description": "网格线配置",
+                              "properties": {
+                                "width": {
+                                  "type": "number",
+                                  "description": "网格线宽度"
+                                },
+                                "color": {
+                                  "type": "string",
+                                  "description": "网格线颜色"
+                                }
+                              }
+                            },
+                            {
+                              "type": "boolean",
+                              "description": "false 表示隐藏网格线"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "plot"
+                ]
+              },
+              "data": {
+                "type": "object",
+                "description": "图表数据配置",
+                "properties": {
+                  "isStaticData": {
+                    "type": "boolean",
+                    "description": "是否为静态数据"
+                  },
+                  "includeHiddenOrFilter": {
+                    "type": "boolean",
+                    "description": "是否包含隐藏或过滤的数据"
+                  },
+                  "direction": {
+                    "type": "string",
+                    "description": "数据方向，可选值：row（行方向）或column（列方向），常用值为column",
+                    "enum": [
+                      "row",
+                      "column"
+                    ]
+                  },
+                  "headerMode": {
+                    "type": "string",
+                    "description": "表头模式。inline 表示 refs 首行/首列就是表头；detached 表示 refs 仅覆盖实际数据范围，维度名和系列名需通过 nameRef 显式指定。",
+                    "enum": [
+                      "inline",
+                      "detached"
+                    ]
+                  },
+                  "refs": {
+                    "type": "array",
+                    "description": "数据源引用范围数组",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "string",
+                          "description": "图表数据源范围，格式为 'SheetName!A1:D100' 的连续区域"
+                        }
+                      },
+                      "required": [
+                        "value"
+                      ]
+                    }
+                  },
+                  "dim1": {
+                    "type": "object",
+                    "description": "维度1配置（类别维度）",
+                    "properties": {
+                      "serie": {
+                        "type": "object",
+                        "description": "系列配置（非静态数据时传此参数）",
+                        "properties": {
+                          "index": {
+                            "type": "number",
+                            "description": "系列索引，数据源从左往右，从 1 开始计数对应数据源的列索引；如果数据方向direction为 'row'，则为从上往下，从 1 开始计数对应数据源的行索引"
+                          },
+                          "aggregate": {
+                            "type": "boolean",
+                            "description": "是否汇总相同的类别，默认为true，true 情况下 aggregateType 才生效"
+                          },
+                          "nameRef": {
+                            "type": "string",
+                            "description": "可选。维度名称的单元格引用（A1 表示法，如 'Sheet1!A1'）。当维度名称不直接来自 refs 首行/首列时，可通过此字段把维度名显式指向目标表头单元格，图表会以该单元格当前值作为类别维度名展示。"
+                          }
+                        },
+                        "required": [
+                          "index"
+                        ]
+                      },
+                      "field": {
+                        "type": "object",
+                        "description": "字段配置（静态数据时传此参数）",
+                        "properties": {
+                          "valueType": {
+                            "type": "string",
+                            "description": "值类型",
+                            "enum": [
+                              "number",
+                              "string"
+                            ]
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "字段名称"
+                          },
+                          "text": {
+                            "type": "string",
+                            "description": "字段文本数据"
+                          }
+                        },
+                        "required": [
+                          "text"
+                        ]
+                      }
+                    }
+                  },
+                  "dim2": {
+                    "type": "object",
+                    "description": "维度2配置（值维度）",
+                    "properties": {
+                      "series": {
+                        "type": "array",
+                        "description": "系列配置数组（非静态数据时传此参数）",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "index": {
+                              "type": "number",
+                              "description": "系列索引，数据源从左往右，从 1 开始计数对应数据源的列索引；如果数据方向direction为 'row'，则为从上往下，从 1 开始计数对应数据源的行索引"
+                            },
+                            "aggregateType": {
+                              "type": "string",
+                              "description": "汇总方式，默认为'sum'，仅在 aggregate 为 true 时生效。count 只统计数值单元格；counta 统计所有非空单元格（含文本），按文本/分类列统计出现次数（如各类别的数量、频次分布）时用 counta。",
+                              "enum": [
+                                "sum",
+                                "average",
+                                "count",
+                                "counta",
+                                "min",
+                                "max",
+                                "median"
+                              ]
+                            },
+                            "nameRef": {
+                              "type": "string",
+                              "description": "可选。系列名称的单元格引用（A1 表示法，如 'Sheet1!C1'）。当系列名称不直接来自 refs 首行/首列时，可通过此字段把系列名显式指向目标表头单元格，图表会以该单元格当前值作为系列名（图例/tooltip）展示。"
+                            },
+                            "role": {
+                              "type": "string",
+                              "description": "气泡图中该数据系列的角色：x 为横轴、y 为纵轴、group 为分组、size 为气泡大小。气泡图必须各有一个 x 和 y，group 和 size 可选。",
+                              "enum": [
+                                "x",
+                                "y",
+                                "group",
+                                "size"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "index"
+                          ]
+                        }
+                      },
+                      "fields": {
+                        "type": "array",
+                        "description": "字段配置数组（静态数据时传此参数）",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "valueType": {
+                              "type": "string",
+                              "description": "值类型。x、y、size 角色使用 number；group 角色可使用 string 或 number。",
+                              "enum": [
+                                "number",
+                                "string"
+                              ]
+                            },
+                            "role": {
+                              "type": "string",
+                              "description": "气泡图中该静态字段的角色：x 为横轴、y 为纵轴、group 为分组、size 为气泡大小。气泡图必须各有一个 x 和 y，group 和 size 可选。",
+                              "enum": [
+                                "x",
+                                "y",
+                                "group",
+                                "size"
+                              ]
+                            },
+                            "format": {
+                              "type": "string",
+                              "description": "字段数值格式"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "字段名称"
+                            },
+                            "text": {
+                              "type": "string",
+                              "description": "字段文本数据"
+                            }
+                          },
+                          "required": [
+                            "text"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
             "anyOf": [
               {
                 "type": "object",
@@ -2743,6 +4743,2119 @@
           },
           "snapshot": {
             "description": "图表快照配置。create 需要完整配置；update 可只提供需要变更的字段，对象字段递归合并，数组整段替换，未提供的字段保持现状。",
+            "properties": {
+              "title": {
+                "type": "object",
+                "description": "图表标题配置",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "description": "标题文本"
+                  },
+                  "textAlign": {
+                    "type": "string",
+                    "description": "标题对齐方式",
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ]
+                  },
+                  "fontSize": {
+                    "type": "number",
+                    "description": "字体大小"
+                  },
+                  "bold": {
+                    "type": "boolean",
+                    "description": "是否加粗"
+                  },
+                  "italic": {
+                    "type": "boolean",
+                    "description": "是否斜体"
+                  },
+                  "underline": {
+                    "type": "boolean",
+                    "description": "是否下划线"
+                  },
+                  "strikethrough": {
+                    "type": "boolean",
+                    "description": "是否删除线"
+                  },
+                  "color": {
+                    "type": "string",
+                    "description": "字体颜色，格式为 #RRGGBB"
+                  }
+                },
+                "required": [
+                  "text"
+                ]
+              },
+              "subTitle": {
+                "type": "object",
+                "description": "图表副标题配置",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "description": "副标题文本"
+                  },
+                  "textAlign": {
+                    "type": "string",
+                    "description": "副标题对齐方式",
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ]
+                  },
+                  "fontSize": {
+                    "type": "number",
+                    "description": "字体大小"
+                  },
+                  "bold": {
+                    "type": "boolean",
+                    "description": "是否加粗"
+                  },
+                  "italic": {
+                    "type": "boolean",
+                    "description": "是否斜体"
+                  },
+                  "underline": {
+                    "type": "boolean",
+                    "description": "是否下划线"
+                  },
+                  "strikethrough": {
+                    "type": "boolean",
+                    "description": "是否删除线"
+                  },
+                  "color": {
+                    "type": "string",
+                    "description": "字体颜色，格式为 #RRGGBB"
+                  }
+                },
+                "required": [
+                  "text"
+                ]
+              },
+              "style": {
+                "type": "object",
+                "description": "图表样式配置",
+                "properties": {
+                  "background": {
+                    "type": "object",
+                    "description": "背景配置",
+                    "properties": {
+                      "color": {
+                        "type": "string",
+                        "description": "背景颜色，格式为 #RRGGBB"
+                      }
+                    }
+                  },
+                  "font": {
+                    "type": "object",
+                    "description": "字体配置",
+                    "properties": {
+                      "size": {
+                        "type": "number",
+                        "description": "字体大小"
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "字体颜色，格式为 #RRGGBB"
+                      }
+                    }
+                  },
+                  "border": {
+                    "type": "object",
+                    "description": "边框配置",
+                    "properties": {
+                      "color": {
+                        "type": "string",
+                        "description": "边框颜色，格式为 #RRGGBB"
+                      },
+                      "width": {
+                        "type": "number",
+                        "description": "边框宽度"
+                      },
+                      "style": {
+                        "type": "string",
+                        "description": "边框样式",
+                        "enum": [
+                          "solid",
+                          "dashed",
+                          "dotted"
+                        ]
+                      },
+                      "radius": {
+                        "type": "number",
+                        "description": "边框圆角"
+                      }
+                    }
+                  },
+                  "colorTheme": {
+                    "type": "array",
+                    "description": "颜色主题配置。支持两种模式：1. 仅传一个预设主题名称（字符串数组，长度为1）；2. 传多个自定义十六进制颜色字符串。预设主题：brandColorSeries@v2、rainbowColorSeries@v2、complementaryColorSeries@v2、converseColorSeries@v2、primaryColorSeries@v2、singleColorSeries-B-@v2、singleColorSeries-W-@v2、singleColorSeries-G-@v2、singleColorSeries-Y-@v2、singleColorSeries-O-@v2、singleColorSeries-R-@v2、singleColorSeries-D-@v2。十六进制格式：#RRGGBB",
+                    "oneOf": [
+                      {
+                        "minItems": 1,
+                        "maxItems": 1,
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "brandColorSeries@v2",
+                            "rainbowColorSeries@v2",
+                            "complementaryColorSeries@v2",
+                            "converseColorSeries@v2",
+                            "primaryColorSeries@v2",
+                            "singleColorSeries-B-@v2",
+                            "singleColorSeries-W-@v2",
+                            "singleColorSeries-G-@v2",
+                            "singleColorSeries-Y-@v2",
+                            "singleColorSeries-O-@v2",
+                            "singleColorSeries-R-@v2",
+                            "singleColorSeries-D-@v2"
+                          ]
+                        }
+                      },
+                      {
+                        "minItems": 2,
+                        "items": {
+                          "type": "string",
+                          "description": "颜色字符串，十六进制格式：#RRGGBB"
+                        }
+                      }
+                    ]
+                  },
+                  "colorGradient": {
+                    "type": "boolean",
+                    "description": "是否启用颜色渐变"
+                  }
+                }
+              },
+              "legend": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "description": "图例配置",
+                    "properties": {
+                      "position": {
+                        "type": "string",
+                        "description": "图例位置",
+                        "enum": [
+                          "top",
+                          "bottom",
+                          "left",
+                          "right"
+                        ]
+                      },
+                      "fontSize": {
+                        "type": "number",
+                        "description": "字体大小"
+                      },
+                      "bold": {
+                        "type": "boolean",
+                        "description": "是否加粗"
+                      },
+                      "italic": {
+                        "type": "boolean",
+                        "description": "是否斜体"
+                      },
+                      "underline": {
+                        "type": "boolean",
+                        "description": "是否下划线"
+                      },
+                      "strikethrough": {
+                        "type": "boolean",
+                        "description": "是否删除线"
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "字体颜色，格式为 #RRGGBB"
+                      }
+                    }
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "false 表示隐藏图例"
+                  }
+                ]
+              },
+              "plotArea": {
+                "type": "object",
+                "description": "绘图区域配置",
+                "properties": {
+                  "plot": {
+                    "type": "object",
+                    "description": "绘图配置",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "图表类型",
+                        "enum": [
+                          "bar",
+                          "column",
+                          "line",
+                          "area",
+                          "combo",
+                          "pie",
+                          "radar",
+                          "scatter",
+                          "bubble",
+                          "waterfall",
+                          "pareto"
+                        ]
+                      },
+                      "comboType": {
+                        "type": "string",
+                        "description": "组合图表默认类型",
+                        "enum": [
+                          "column",
+                          "line",
+                          "area"
+                        ]
+                      },
+                      "yAxisPosition": {
+                        "type": "string",
+                        "description": "Y轴位置",
+                        "enum": [
+                          "left",
+                          "right"
+                        ]
+                      },
+                      "extra": {
+                        "type": "object",
+                        "description": "额外配置",
+                        "properties": {
+                          "smooth": {
+                            "type": "boolean",
+                            "description": "是否平滑曲线"
+                          },
+                          "step": {
+                            "type": "boolean",
+                            "description": "是否阶梯图"
+                          },
+                          "stack": {
+                            "type": "object",
+                            "description": "堆叠配置",
+                            "properties": {
+                              "percentage": {
+                                "type": "boolean",
+                                "description": "是否百分比堆叠"
+                              }
+                            }
+                          },
+                          "radar": {
+                            "type": "object",
+                            "description": "雷达图配置",
+                            "properties": {
+                              "shape": {
+                                "type": "string",
+                                "description": "雷达图形状",
+                                "enum": [
+                                  "polygon",
+                                  "circle"
+                                ]
+                              },
+                              "area": {
+                                "type": "boolean",
+                                "description": "是否填充区域"
+                              }
+                            }
+                          },
+                          "bubble": {
+                            "type": "object",
+                            "description": "气泡图配置。气泡图的 x、y、group、size 数据角色在 data.dim2 中指定。",
+                            "properties": {
+                              "aggregate": {
+                                "type": "boolean",
+                                "description": "是否对相同分组与坐标的数据进行汇总"
+                              },
+                              "showNegativeSize": {
+                                "type": "boolean",
+                                "description": "是否显示气泡大小为负值的数据点"
+                              },
+                              "opacityGradientStyle": {
+                                "type": "string",
+                                "description": "气泡透明度渐变样式",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ]
+                              },
+                              "idLabel": {
+                                "description": "气泡标识标签配置；false 表示隐藏标识标签",
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "visible": {
+                                        "type": "boolean",
+                                        "description": "是否显示标识标签"
+                                      },
+                                      "fontSize": {
+                                        "type": "number",
+                                        "description": "标签字号"
+                                      },
+                                      "bold": {
+                                        "type": "boolean",
+                                        "description": "是否加粗"
+                                      },
+                                      "italic": {
+                                        "type": "boolean",
+                                        "description": "是否斜体"
+                                      },
+                                      "underline": {
+                                        "type": "boolean",
+                                        "description": "是否下划线"
+                                      },
+                                      "strikethrough": {
+                                        "type": "boolean",
+                                        "description": "是否删除线"
+                                      },
+                                      "color": {
+                                        "type": "string",
+                                        "description": "标签字体颜色"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          "waterfall": {
+                            "type": "object",
+                            "description": "瀑布图全局配置。单个系列可通过 plot.series[].waterfall 覆盖数值解释和正负值样式。",
+                            "properties": {
+                              "firstValueAsTotal": {
+                                "type": "boolean",
+                                "description": "是否将第一个值视为总计"
+                              },
+                              "lastValueAsSubtotal": {
+                                "type": "boolean",
+                                "description": "是否将最后一个值视为小计"
+                              },
+                              "positiveStyle": {
+                                "type": "object",
+                                "description": "正值柱样式",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "description": "填充颜色"
+                                  },
+                                  "opacity": {
+                                    "type": "number",
+                                    "description": "透明度，取值 0-1"
+                                  },
+                                  "borderColor": {
+                                    "type": "string",
+                                    "description": "边框颜色"
+                                  },
+                                  "borderWidth": {
+                                    "type": "number",
+                                    "description": "边框宽度"
+                                  },
+                                  "borderStyle": {
+                                    "type": "string",
+                                    "description": "边框样式",
+                                    "enum": [
+                                      "solid",
+                                      "dashed",
+                                      "dotted"
+                                    ]
+                                  }
+                                }
+                              },
+                              "negativeStyle": {
+                                "type": "object",
+                                "description": "负值柱样式",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "description": "填充颜色"
+                                  },
+                                  "opacity": {
+                                    "type": "number",
+                                    "description": "透明度，取值 0-1"
+                                  },
+                                  "borderColor": {
+                                    "type": "string",
+                                    "description": "边框颜色"
+                                  },
+                                  "borderWidth": {
+                                    "type": "number",
+                                    "description": "边框宽度"
+                                  },
+                                  "borderStyle": {
+                                    "type": "string",
+                                    "description": "边框样式",
+                                    "enum": [
+                                      "solid",
+                                      "dashed",
+                                      "dotted"
+                                    ]
+                                  }
+                                }
+                              },
+                              "totalStyle": {
+                                "type": "object",
+                                "description": "总计与小计柱样式",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "description": "填充颜色"
+                                  },
+                                  "opacity": {
+                                    "type": "number",
+                                    "description": "透明度，取值 0-1"
+                                  },
+                                  "borderColor": {
+                                    "type": "string",
+                                    "description": "边框颜色"
+                                  },
+                                  "borderWidth": {
+                                    "type": "number",
+                                    "description": "边框宽度"
+                                  },
+                                  "borderStyle": {
+                                    "type": "string",
+                                    "description": "边框样式",
+                                    "enum": [
+                                      "solid",
+                                      "dashed",
+                                      "dotted"
+                                    ]
+                                  }
+                                }
+                              },
+                              "cornerRadius": {
+                                "type": "string",
+                                "description": "柱子圆角大小",
+                                "enum": [
+                                  "default",
+                                  "small",
+                                  "large"
+                                ]
+                              },
+                              "gradient": {
+                                "type": "boolean",
+                                "description": "是否使用渐变填充"
+                              },
+                              "connectorLine": {
+                                "description": "瀑布柱之间的连接线配置；false 表示隐藏连接线",
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "color": {
+                                        "type": "string",
+                                        "description": "连接线颜色"
+                                      },
+                                      "width": {
+                                        "type": "number",
+                                        "description": "连接线宽度"
+                                      },
+                                      "style": {
+                                        "type": "string",
+                                        "description": "连接线样式",
+                                        "enum": [
+                                          "solid",
+                                          "dashed",
+                                          "dotted"
+                                        ]
+                                      },
+                                      "opacity": {
+                                        "type": "number",
+                                        "description": "连接线透明度，取值 0-1"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ]
+                                  }
+                                ]
+                              },
+                              "totalLabels": {
+                                "description": "总计与小计标签配置；false 表示隐藏该类标签",
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "template": {
+                                        "type": "string",
+                                        "description": "标签文本模板"
+                                      },
+                                      "fontSize": {
+                                        "type": "number",
+                                        "description": "标签字号"
+                                      },
+                                      "bold": {
+                                        "type": "boolean",
+                                        "description": "是否加粗"
+                                      },
+                                      "italic": {
+                                        "type": "boolean",
+                                        "description": "是否斜体"
+                                      },
+                                      "underline": {
+                                        "type": "boolean",
+                                        "description": "是否下划线"
+                                      },
+                                      "strikethrough": {
+                                        "type": "boolean",
+                                        "description": "是否删除线"
+                                      },
+                                      "color": {
+                                        "type": "string",
+                                        "description": "标签字体颜色"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          "pareto": {
+                            "type": "object",
+                            "description": "排列图配置。柱子、累计曲线、数据点和标签复用现有 bars、line、points、labels 配置。",
+                            "properties": {
+                              "aggregateType": {
+                                "type": "string",
+                                "description": "排列图的数据汇总方式",
+                                "enum": [
+                                  "sum",
+                                  "average",
+                                  "count",
+                                  "counta",
+                                  "min",
+                                  "max",
+                                  "median"
+                                ]
+                              },
+                              "categoryNumber": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "description": "参与排列的类别数量，必须为正整数"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "points": {
+                        "type": "object",
+                        "description": "全系列数据点配置，折线图、面积图、雷达图、散点图、组合图生效。",
+                        "properties": {
+                          "color": {
+                            "type": "string",
+                            "description": "数据点颜色"
+                          },
+                          "shape": {
+                            "type": "string",
+                            "description": "数据点形状",
+                            "enum": [
+                              "circle",
+                              "triangle",
+                              "rect",
+                              "diamond",
+                              "square"
+                            ]
+                          },
+                          "size": {
+                            "type": "number",
+                            "description": "数据点大小"
+                          },
+                          "fillGradient": {
+                            "type": "object",
+                            "description": "数据点填充渐变配置",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ],
+                                "description": "渐变类型"
+                              },
+                              "x0": {
+                                "type": "number",
+                                "description": "起点 x，0-1 归一化坐标"
+                              },
+                              "y0": {
+                                "type": "number",
+                                "description": "起点 y，0-1 归一化坐标"
+                              },
+                              "x1": {
+                                "type": "number",
+                                "description": "终点 x，0-1 归一化坐标"
+                              },
+                              "y1": {
+                                "type": "number",
+                                "description": "终点 y，0-1 归一化坐标"
+                              },
+                              "r0": {
+                                "type": "number",
+                                "description": "径向渐变起点半径"
+                              },
+                              "r1": {
+                                "type": "number",
+                                "description": "径向渐变终点半径"
+                              },
+                              "gradientMethod": {
+                                "type": "string",
+                                "description": "渐变插值方法"
+                              },
+                              "stops": {
+                                "type": "array",
+                                "description": "渐变色标数组，至少 2 个",
+                                "minItems": 2,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "offset": {
+                                      "type": "number",
+                                      "description": "色标位置 0-1"
+                                    },
+                                    "color": {
+                                      "type": "string",
+                                      "description": "色标颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "色标透明度 0-1"
+                                    }
+                                  },
+                                  "required": [
+                                    "offset",
+                                    "color"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "stops"
+                            ]
+                          },
+                          "strokeGradient": {
+                            "type": "object",
+                            "description": "数据点描边渐变配置",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ],
+                                "description": "渐变类型"
+                              },
+                              "x0": {
+                                "type": "number",
+                                "description": "起点 x，0-1 归一化坐标"
+                              },
+                              "y0": {
+                                "type": "number",
+                                "description": "起点 y，0-1 归一化坐标"
+                              },
+                              "x1": {
+                                "type": "number",
+                                "description": "终点 x，0-1 归一化坐标"
+                              },
+                              "y1": {
+                                "type": "number",
+                                "description": "终点 y，0-1 归一化坐标"
+                              },
+                              "r0": {
+                                "type": "number",
+                                "description": "径向渐变起点半径"
+                              },
+                              "r1": {
+                                "type": "number",
+                                "description": "径向渐变终点半径"
+                              },
+                              "gradientMethod": {
+                                "type": "string",
+                                "description": "渐变插值方法"
+                              },
+                              "stops": {
+                                "type": "array",
+                                "description": "渐变色标数组，至少 2 个",
+                                "minItems": 2,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "offset": {
+                                      "type": "number",
+                                      "description": "色标位置 0-1"
+                                    },
+                                    "color": {
+                                      "type": "string",
+                                      "description": "色标颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "色标透明度 0-1"
+                                    }
+                                  },
+                                  "required": [
+                                    "offset",
+                                    "color"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "stops"
+                            ]
+                          },
+                          "point": {
+                            "type": "array",
+                            "description": "单个数据点配置数组",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "index": {
+                                  "type": "number",
+                                  "description": "数据点索引"
+                                },
+                                "color": {
+                                  "type": "string",
+                                  "description": "颜色"
+                                },
+                                "shape": {
+                                  "type": "string",
+                                  "description": "形状"
+                                },
+                                "size": {
+                                  "type": "number",
+                                  "description": "大小"
+                                },
+                                "fillGradient": {
+                                  "type": "object",
+                                  "description": "单个数据点填充渐变配置",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "linear",
+                                        "radial"
+                                      ],
+                                      "description": "渐变类型"
+                                    },
+                                    "x0": {
+                                      "type": "number",
+                                      "description": "起点 x，0-1 归一化坐标"
+                                    },
+                                    "y0": {
+                                      "type": "number",
+                                      "description": "起点 y，0-1 归一化坐标"
+                                    },
+                                    "x1": {
+                                      "type": "number",
+                                      "description": "终点 x，0-1 归一化坐标"
+                                    },
+                                    "y1": {
+                                      "type": "number",
+                                      "description": "终点 y，0-1 归一化坐标"
+                                    },
+                                    "r0": {
+                                      "type": "number",
+                                      "description": "径向渐变起点半径"
+                                    },
+                                    "r1": {
+                                      "type": "number",
+                                      "description": "径向渐变终点半径"
+                                    },
+                                    "gradientMethod": {
+                                      "type": "string",
+                                      "description": "渐变插值方法"
+                                    },
+                                    "stops": {
+                                      "type": "array",
+                                      "description": "渐变色标数组，至少 2 个",
+                                      "minItems": 2,
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "offset": {
+                                            "type": "number",
+                                            "description": "色标位置 0-1"
+                                          },
+                                          "color": {
+                                            "type": "string",
+                                            "description": "色标颜色"
+                                          },
+                                          "opacity": {
+                                            "type": "number",
+                                            "description": "色标透明度 0-1"
+                                          }
+                                        },
+                                        "required": [
+                                          "offset",
+                                          "color"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "stops"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "index"
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      "lines": {
+                        "type": "object",
+                        "description": "全系列线条配置，折线图、面积图、雷达图、组合图生效。",
+                        "properties": {
+                          "color": {
+                            "type": "string",
+                            "description": "线条颜色"
+                          },
+                          "width": {
+                            "type": "number",
+                            "description": "线条宽度"
+                          },
+                          "style": {
+                            "type": "string",
+                            "description": "线条样式",
+                            "enum": [
+                              "solid",
+                              "dashed",
+                              "dotted"
+                            ]
+                          },
+                          "invalidType": {
+                            "type": "string",
+                            "description": "无效值处理方式",
+                            "enum": [
+                              "break",
+                              "zero",
+                              "link"
+                            ]
+                          },
+                          "strokeGradient": {
+                            "type": "object",
+                            "description": "线条描边渐变配置",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ],
+                                "description": "渐变类型"
+                              },
+                              "x0": {
+                                "type": "number",
+                                "description": "起点 x，0-1 归一化坐标"
+                              },
+                              "y0": {
+                                "type": "number",
+                                "description": "起点 y，0-1 归一化坐标"
+                              },
+                              "x1": {
+                                "type": "number",
+                                "description": "终点 x，0-1 归一化坐标"
+                              },
+                              "y1": {
+                                "type": "number",
+                                "description": "终点 y，0-1 归一化坐标"
+                              },
+                              "r0": {
+                                "type": "number",
+                                "description": "径向渐变起点半径"
+                              },
+                              "r1": {
+                                "type": "number",
+                                "description": "径向渐变终点半径"
+                              },
+                              "gradientMethod": {
+                                "type": "string",
+                                "description": "渐变插值方法"
+                              },
+                              "stops": {
+                                "type": "array",
+                                "description": "渐变色标数组，至少 2 个",
+                                "minItems": 2,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "offset": {
+                                      "type": "number",
+                                      "description": "色标位置 0-1"
+                                    },
+                                    "color": {
+                                      "type": "string",
+                                      "description": "色标颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "色标透明度 0-1"
+                                    }
+                                  },
+                                  "required": [
+                                    "offset",
+                                    "color"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "stops"
+                            ]
+                          }
+                        }
+                      },
+                      "areas": {
+                        "type": "object",
+                        "description": "全系列面积填充配置，面积图、雷达图、组合图生效。",
+                        "properties": {
+                          "color": {
+                            "type": "string",
+                            "description": "区域填充颜色"
+                          },
+                          "fillGradient": {
+                            "type": "object",
+                            "description": "区域填充渐变",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ],
+                                "description": "渐变类型"
+                              },
+                              "x0": {
+                                "type": "number",
+                                "description": "起点 x，0-1 归一化坐标"
+                              },
+                              "y0": {
+                                "type": "number",
+                                "description": "起点 y，0-1 归一化坐标"
+                              },
+                              "x1": {
+                                "type": "number",
+                                "description": "终点 x，0-1 归一化坐标"
+                              },
+                              "y1": {
+                                "type": "number",
+                                "description": "终点 y，0-1 归一化坐标"
+                              },
+                              "r0": {
+                                "type": "number",
+                                "description": "径向渐变起点半径"
+                              },
+                              "r1": {
+                                "type": "number",
+                                "description": "径向渐变终点半径"
+                              },
+                              "gradientMethod": {
+                                "type": "string",
+                                "description": "渐变插值方法"
+                              },
+                              "stops": {
+                                "type": "array",
+                                "description": "渐变色标数组，至少 2 个",
+                                "minItems": 2,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "offset": {
+                                      "type": "number",
+                                      "description": "色标位置 0-1"
+                                    },
+                                    "color": {
+                                      "type": "string",
+                                      "description": "色标颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "色标透明度 0-1"
+                                    }
+                                  },
+                                  "required": [
+                                    "offset",
+                                    "color"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "stops"
+                            ]
+                          }
+                        }
+                      },
+                      "bars": {
+                        "type": "object",
+                        "description": "全系列柱状图、条形图、组合图生效。",
+                        "properties": {
+                          "color": {
+                            "type": "string",
+                            "description": "柱子颜色"
+                          },
+                          "borderColor": {
+                            "type": "string",
+                            "description": "边框颜色"
+                          },
+                          "borderWidth": {
+                            "type": "number",
+                            "description": "边框宽度"
+                          },
+                          "borderStyle": {
+                            "type": "string",
+                            "description": "边框样式",
+                            "enum": [
+                              "solid",
+                              "dashed",
+                              "dotted"
+                            ]
+                          },
+                          "width": {
+                            "type": "number",
+                            "description": "柱子宽度"
+                          },
+                          "gap": {
+                            "type": "number",
+                            "description": "柱子间距比例，0-1之间"
+                          },
+                          "backgroundColor": {
+                            "type": "string",
+                            "description": "背景颜色"
+                          },
+                          "fillGradient": {
+                            "type": "object",
+                            "description": "柱子填充渐变",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ],
+                                "description": "渐变类型"
+                              },
+                              "x0": {
+                                "type": "number",
+                                "description": "起点 x，0-1 归一化坐标"
+                              },
+                              "y0": {
+                                "type": "number",
+                                "description": "起点 y，0-1 归一化坐标"
+                              },
+                              "x1": {
+                                "type": "number",
+                                "description": "终点 x，0-1 归一化坐标"
+                              },
+                              "y1": {
+                                "type": "number",
+                                "description": "终点 y，0-1 归一化坐标"
+                              },
+                              "r0": {
+                                "type": "number",
+                                "description": "径向渐变起点半径"
+                              },
+                              "r1": {
+                                "type": "number",
+                                "description": "径向渐变终点半径"
+                              },
+                              "gradientMethod": {
+                                "type": "string",
+                                "description": "渐变插值方法"
+                              },
+                              "stops": {
+                                "type": "array",
+                                "description": "渐变色标数组，至少 2 个",
+                                "minItems": 2,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "offset": {
+                                      "type": "number",
+                                      "description": "色标位置 0-1"
+                                    },
+                                    "color": {
+                                      "type": "string",
+                                      "description": "色标颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "色标透明度 0-1"
+                                    }
+                                  },
+                                  "required": [
+                                    "offset",
+                                    "color"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "stops"
+                            ]
+                          },
+                          "strokeGradient": {
+                            "type": "object",
+                            "description": "柱子描边渐变",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ],
+                                "description": "渐变类型"
+                              },
+                              "x0": {
+                                "type": "number",
+                                "description": "起点 x，0-1 归一化坐标"
+                              },
+                              "y0": {
+                                "type": "number",
+                                "description": "起点 y，0-1 归一化坐标"
+                              },
+                              "x1": {
+                                "type": "number",
+                                "description": "终点 x，0-1 归一化坐标"
+                              },
+                              "y1": {
+                                "type": "number",
+                                "description": "终点 y，0-1 归一化坐标"
+                              },
+                              "r0": {
+                                "type": "number",
+                                "description": "径向渐变起点半径"
+                              },
+                              "r1": {
+                                "type": "number",
+                                "description": "径向渐变终点半径"
+                              },
+                              "gradientMethod": {
+                                "type": "string",
+                                "description": "渐变插值方法"
+                              },
+                              "stops": {
+                                "type": "array",
+                                "description": "渐变色标数组，至少 2 个",
+                                "minItems": 2,
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "offset": {
+                                      "type": "number",
+                                      "description": "色标位置 0-1"
+                                    },
+                                    "color": {
+                                      "type": "string",
+                                      "description": "色标颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "色标透明度 0-1"
+                                    }
+                                  },
+                                  "required": [
+                                    "offset",
+                                    "color"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "stops"
+                            ]
+                          },
+                          "bar": {
+                            "type": "array",
+                            "description": "单个柱子配置数组",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "index": {
+                                  "type": "number",
+                                  "description": "柱子索引"
+                                },
+                                "color": {
+                                  "type": "string",
+                                  "description": "颜色"
+                                },
+                                "borderColor": {
+                                  "type": "string",
+                                  "description": "边框颜色"
+                                },
+                                "borderWidth": {
+                                  "type": "number",
+                                  "description": "边框宽度"
+                                },
+                                "borderStyle": {
+                                  "type": "string",
+                                  "description": "边框样式"
+                                },
+                                "fillGradient": {
+                                  "type": "object",
+                                  "description": "单个柱子填充渐变",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "linear",
+                                        "radial"
+                                      ],
+                                      "description": "渐变类型"
+                                    },
+                                    "x0": {
+                                      "type": "number",
+                                      "description": "起点 x，0-1 归一化坐标"
+                                    },
+                                    "y0": {
+                                      "type": "number",
+                                      "description": "起点 y，0-1 归一化坐标"
+                                    },
+                                    "x1": {
+                                      "type": "number",
+                                      "description": "终点 x，0-1 归一化坐标"
+                                    },
+                                    "y1": {
+                                      "type": "number",
+                                      "description": "终点 y，0-1 归一化坐标"
+                                    },
+                                    "r0": {
+                                      "type": "number",
+                                      "description": "径向渐变起点半径"
+                                    },
+                                    "r1": {
+                                      "type": "number",
+                                      "description": "径向渐变终点半径"
+                                    },
+                                    "gradientMethod": {
+                                      "type": "string",
+                                      "description": "渐变插值方法"
+                                    },
+                                    "stops": {
+                                      "type": "array",
+                                      "description": "渐变色标数组，至少 2 个",
+                                      "minItems": 2,
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "offset": {
+                                            "type": "number",
+                                            "description": "色标位置 0-1"
+                                          },
+                                          "color": {
+                                            "type": "string",
+                                            "description": "色标颜色"
+                                          },
+                                          "opacity": {
+                                            "type": "number",
+                                            "description": "色标透明度 0-1"
+                                          }
+                                        },
+                                        "required": [
+                                          "offset",
+                                          "color"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "stops"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "index"
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      "labels": {
+                        "type": "object",
+                        "description": "数据标签配置。labels 对象的存在性即开关：不显示数据标签时省略整个 labels 字段；一旦传入 labels（即便 value/category/series/percentage 全部置为 false），数据标签仍会显示，且默认兜底显示 value。",
+                        "properties": {
+                          "position": {
+                            "type": "string",
+                            "description": "标签位置",
+                            "enum": [
+                              "auto",
+                              "top",
+                              "bottom",
+                              "left",
+                              "right",
+                              "center",
+                              "inside",
+                              "outside"
+                            ]
+                          },
+                          "series": {
+                            "type": "boolean",
+                            "description": "是否显示系列名"
+                          },
+                          "category": {
+                            "type": "boolean",
+                            "description": "是否显示类别名"
+                          },
+                          "value": {
+                            "type": "boolean",
+                            "description": "是否显示值"
+                          },
+                          "percentage": {
+                            "type": "boolean",
+                            "description": "是否显示百分比"
+                          },
+                          "fontSize": {
+                            "type": "number",
+                            "description": "字体大小"
+                          },
+                          "bold": {
+                            "type": "boolean",
+                            "description": "是否加粗"
+                          },
+                          "italic": {
+                            "type": "boolean",
+                            "description": "是否斜体"
+                          },
+                          "underline": {
+                            "type": "boolean",
+                            "description": "是否下划线"
+                          },
+                          "strikethrough": {
+                            "type": "boolean",
+                            "description": "是否删除线"
+                          },
+                          "color": {
+                            "type": "string",
+                            "description": "字体颜色"
+                          }
+                        }
+                      },
+                      "series": {
+                        "type": "array",
+                        "description": "单个系列配置数组",
+                        "items": {
+                          "type": "object",
+                          "description": "系列配置",
+                          "properties": {
+                            "index": {
+                              "type": "number",
+                              "description": "数据列索引，与 dim2.series[].index 值一致，从 1 开始（1 通常对应首列标签维度，2+ 对应后续数据维度列）"
+                            },
+                            "comboType": {
+                              "type": "string",
+                              "description": "组合图下该系列的图表类型，仅在 type 为 combo 时生效",
+                              "enum": [
+                                "column",
+                                "line",
+                                "area"
+                              ]
+                            },
+                            "yAxisPosition": {
+                              "type": "string",
+                              "description": "Y轴位置",
+                              "enum": [
+                                "left",
+                                "right"
+                              ]
+                            },
+                            "points": {
+                              "type": "object",
+                              "description": "数据点配置，配置项同 plotArea.points"
+                            },
+                            "line": {
+                              "type": "object",
+                              "description": "线条配置，配置项同 plotArea.lines"
+                            },
+                            "area": {
+                              "type": "object",
+                              "description": "区域填充配置，配置项同 plotArea.areas"
+                            },
+                            "bars": {
+                              "type": "object",
+                              "description": "柱状图配置，配置项同 plotArea.bars"
+                            },
+                            "labels": {
+                              "type": "object",
+                              "description": "数据标签配置（覆盖单系列，配置项同 plotArea.plot.labels）。不覆盖该系列数据标签时省略整个 labels 字段；一旦传入 labels（即便显示开关全部置为 false），该系列仍会显示数据标签。"
+                            },
+                            "waterfall": {
+                              "type": "object",
+                              "description": "瀑布图的单系列配置，覆盖 plot.extra.waterfall 中对应的数值解释和样式。",
+                              "properties": {
+                                "firstValueAsTotal": {
+                                  "type": "boolean",
+                                  "description": "是否将该系列第一个值视为总计"
+                                },
+                                "lastValueAsSubtotal": {
+                                  "type": "boolean",
+                                  "description": "是否将该系列最后一个值视为小计"
+                                },
+                                "positiveStyle": {
+                                  "type": "object",
+                                  "description": "该系列的正值柱样式",
+                                  "properties": {
+                                    "color": {
+                                      "type": "string",
+                                      "description": "填充颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "透明度，取值 0-1"
+                                    },
+                                    "borderColor": {
+                                      "type": "string",
+                                      "description": "边框颜色"
+                                    },
+                                    "borderWidth": {
+                                      "type": "number",
+                                      "description": "边框宽度"
+                                    },
+                                    "borderStyle": {
+                                      "type": "string",
+                                      "description": "边框样式",
+                                      "enum": [
+                                        "solid",
+                                        "dashed",
+                                        "dotted"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "negativeStyle": {
+                                  "type": "object",
+                                  "description": "该系列的负值柱样式",
+                                  "properties": {
+                                    "color": {
+                                      "type": "string",
+                                      "description": "填充颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "透明度，取值 0-1"
+                                    },
+                                    "borderColor": {
+                                      "type": "string",
+                                      "description": "边框颜色"
+                                    },
+                                    "borderWidth": {
+                                      "type": "number",
+                                      "description": "边框宽度"
+                                    },
+                                    "borderStyle": {
+                                      "type": "string",
+                                      "description": "边框样式",
+                                      "enum": [
+                                        "solid",
+                                        "dashed",
+                                        "dotted"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "totalStyle": {
+                                  "type": "object",
+                                  "description": "该系列的总计与小计柱样式",
+                                  "properties": {
+                                    "color": {
+                                      "type": "string",
+                                      "description": "填充颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "透明度，取值 0-1"
+                                    },
+                                    "borderColor": {
+                                      "type": "string",
+                                      "description": "边框颜色"
+                                    },
+                                    "borderWidth": {
+                                      "type": "number",
+                                      "description": "边框宽度"
+                                    },
+                                    "borderStyle": {
+                                      "type": "string",
+                                      "description": "边框样式",
+                                      "enum": [
+                                        "solid",
+                                        "dashed",
+                                        "dotted"
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "sectors": {
+                              "type": "object",
+                              "description": "扇区配置（饼图）",
+                              "properties": {
+                                "borderColor": {
+                                  "type": "string",
+                                  "description": "边框颜色"
+                                },
+                                "innerRadius": {
+                                  "type": "number",
+                                  "description": "内半径比例，0-1之间"
+                                },
+                                "offsetRadius": {
+                                  "type": "number",
+                                  "description": "偏移半径比例"
+                                },
+                                "startAngle": {
+                                  "type": "number",
+                                  "description": "起始角度，0-359"
+                                },
+                                "fillGradient": {
+                                  "type": "object",
+                                  "description": "扇区填充渐变",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "linear",
+                                        "radial"
+                                      ],
+                                      "description": "渐变类型"
+                                    },
+                                    "x0": {
+                                      "type": "number",
+                                      "description": "起点 x，0-1 归一化坐标"
+                                    },
+                                    "y0": {
+                                      "type": "number",
+                                      "description": "起点 y，0-1 归一化坐标"
+                                    },
+                                    "x1": {
+                                      "type": "number",
+                                      "description": "终点 x，0-1 归一化坐标"
+                                    },
+                                    "y1": {
+                                      "type": "number",
+                                      "description": "终点 y，0-1 归一化坐标"
+                                    },
+                                    "r0": {
+                                      "type": "number",
+                                      "description": "径向渐变起点半径"
+                                    },
+                                    "r1": {
+                                      "type": "number",
+                                      "description": "径向渐变终点半径"
+                                    },
+                                    "gradientMethod": {
+                                      "type": "string",
+                                      "description": "渐变插值方法"
+                                    },
+                                    "stops": {
+                                      "type": "array",
+                                      "description": "渐变色标数组，至少 2 个",
+                                      "minItems": 2,
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "offset": {
+                                            "type": "number",
+                                            "description": "色标位置 0-1"
+                                          },
+                                          "color": {
+                                            "type": "string",
+                                            "description": "色标颜色"
+                                          },
+                                          "opacity": {
+                                            "type": "number",
+                                            "description": "色标透明度 0-1"
+                                          }
+                                        },
+                                        "required": [
+                                          "offset",
+                                          "color"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "stops"
+                                  ]
+                                },
+                                "sector": {
+                                  "type": "array",
+                                  "description": "单个扇区配置数组",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "index": {
+                                        "type": "number",
+                                        "description": "扇区索引"
+                                      },
+                                      "borderColor": {
+                                        "type": "string",
+                                        "description": "边框颜色"
+                                      },
+                                      "offsetRadius": {
+                                        "type": "number",
+                                        "description": "偏移半径"
+                                      },
+                                      "color": {
+                                        "type": "string",
+                                        "description": "颜色"
+                                      },
+                                      "fillGradient": {
+                                        "type": "object",
+                                        "description": "单个扇区填充渐变",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "linear",
+                                              "radial"
+                                            ],
+                                            "description": "渐变类型"
+                                          },
+                                          "x0": {
+                                            "type": "number",
+                                            "description": "起点 x，0-1 归一化坐标"
+                                          },
+                                          "y0": {
+                                            "type": "number",
+                                            "description": "起点 y，0-1 归一化坐标"
+                                          },
+                                          "x1": {
+                                            "type": "number",
+                                            "description": "终点 x，0-1 归一化坐标"
+                                          },
+                                          "y1": {
+                                            "type": "number",
+                                            "description": "终点 y，0-1 归一化坐标"
+                                          },
+                                          "r0": {
+                                            "type": "number",
+                                            "description": "径向渐变起点半径"
+                                          },
+                                          "r1": {
+                                            "type": "number",
+                                            "description": "径向渐变终点半径"
+                                          },
+                                          "gradientMethod": {
+                                            "type": "string",
+                                            "description": "渐变插值方法"
+                                          },
+                                          "stops": {
+                                            "type": "array",
+                                            "description": "渐变色标数组，至少 2 个",
+                                            "minItems": 2,
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "offset": {
+                                                  "type": "number",
+                                                  "description": "色标位置 0-1"
+                                                },
+                                                "color": {
+                                                  "type": "string",
+                                                  "description": "色标颜色"
+                                                },
+                                                "opacity": {
+                                                  "type": "number",
+                                                  "description": "色标透明度 0-1"
+                                                }
+                                              },
+                                              "required": [
+                                                "offset",
+                                                "color"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "required": [
+                                          "type",
+                                          "stops"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "index"
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "index"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ]
+                  },
+                  "axes": {
+                    "type": "array",
+                    "description": "坐标轴配置数组",
+                    "items": {
+                      "type": "object",
+                      "description": "坐标轴配置",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "description": "坐标轴类型",
+                          "enum": [
+                            "x",
+                            "y",
+                            "angle",
+                            "radius"
+                          ]
+                        },
+                        "position": {
+                          "type": "string",
+                          "description": "坐标轴位置",
+                          "enum": [
+                            "left",
+                            "right",
+                            "bottom"
+                          ]
+                        },
+                        "max": {
+                          "type": "number",
+                          "description": "最大值"
+                        },
+                        "min": {
+                          "type": "number",
+                          "description": "最小值"
+                        },
+                        "valueType": {
+                          "type": "string",
+                          "description": "是否将横轴数字视为文本，linear 表示将数字视为数值, ordinal 表示将数字视为文本",
+                          "enum": [
+                            "ordinal",
+                            "linear"
+                          ]
+                        },
+                        "title": {
+                          "type": "object",
+                          "description": "坐标轴标题配置",
+                          "properties": {
+                            "text": {
+                              "type": "string",
+                              "description": "标题文本"
+                            },
+                            "fontSize": {
+                              "type": "number",
+                              "description": "字体大小"
+                            },
+                            "bold": {
+                              "type": "boolean",
+                              "description": "是否加粗"
+                            },
+                            "italic": {
+                              "type": "boolean",
+                              "description": "是否斜体"
+                            },
+                            "underline": {
+                              "type": "boolean",
+                              "description": "是否下划线"
+                            },
+                            "strikethrough": {
+                              "type": "boolean",
+                              "description": "是否删除线"
+                            },
+                            "color": {
+                              "type": "string",
+                              "description": "字体颜色"
+                            }
+                          },
+                          "required": [
+                            "text"
+                          ]
+                        },
+                        "label": {
+                          "type": "object",
+                          "description": "坐标轴标签配置",
+                          "properties": {
+                            "angle": {
+                              "type": "number",
+                              "description": "旋转角度，可选值：-90, -45, 0, 45, 90"
+                            },
+                            "fontSize": {
+                              "type": "number",
+                              "description": "字体大小"
+                            },
+                            "bold": {
+                              "type": "boolean",
+                              "description": "是否加粗"
+                            },
+                            "italic": {
+                              "type": "boolean",
+                              "description": "是否斜体"
+                            },
+                            "underline": {
+                              "type": "boolean",
+                              "description": "是否下划线"
+                            },
+                            "strikethrough": {
+                              "type": "boolean",
+                              "description": "是否删除线"
+                            },
+                            "color": {
+                              "type": "string",
+                              "description": "字体颜色"
+                            }
+                          }
+                        },
+                        "axisLine": {
+                          "type": "boolean",
+                          "description": "是否显示轴线"
+                        },
+                        "gridLine": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "description": "网格线配置",
+                              "properties": {
+                                "width": {
+                                  "type": "number",
+                                  "description": "网格线宽度"
+                                },
+                                "color": {
+                                  "type": "string",
+                                  "description": "网格线颜色"
+                                }
+                              }
+                            },
+                            {
+                              "type": "boolean",
+                              "description": "false 表示隐藏网格线"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "plot"
+                ]
+              },
+              "data": {
+                "type": "object",
+                "description": "图表数据配置",
+                "properties": {
+                  "isStaticData": {
+                    "type": "boolean",
+                    "description": "是否为静态数据"
+                  },
+                  "includeHiddenOrFilter": {
+                    "type": "boolean",
+                    "description": "是否包含隐藏或过滤的数据"
+                  },
+                  "direction": {
+                    "type": "string",
+                    "description": "数据方向，可选值：row（行方向）或column（列方向），常用值为column",
+                    "enum": [
+                      "row",
+                      "column"
+                    ]
+                  },
+                  "headerMode": {
+                    "type": "string",
+                    "description": "表头模式。inline 表示 refs 首行/首列就是表头；detached 表示 refs 仅覆盖实际数据范围，维度名和系列名需通过 nameRef 显式指定。",
+                    "enum": [
+                      "inline",
+                      "detached"
+                    ]
+                  },
+                  "refs": {
+                    "type": "array",
+                    "description": "数据源引用范围数组",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "string",
+                          "description": "图表数据源范围，格式为 'SheetName!A1:D100' 的连续区域"
+                        }
+                      },
+                      "required": [
+                        "value"
+                      ]
+                    }
+                  },
+                  "dim1": {
+                    "type": "object",
+                    "description": "维度1配置（类别维度）",
+                    "properties": {
+                      "serie": {
+                        "type": "object",
+                        "description": "系列配置（非静态数据时传此参数）",
+                        "properties": {
+                          "index": {
+                            "type": "number",
+                            "description": "系列索引，数据源从左往右，从 1 开始计数对应数据源的列索引；如果数据方向direction为 'row'，则为从上往下，从 1 开始计数对应数据源的行索引"
+                          },
+                          "aggregate": {
+                            "type": "boolean",
+                            "description": "是否汇总相同的类别，默认为true，true 情况下 aggregateType 才生效"
+                          },
+                          "nameRef": {
+                            "type": "string",
+                            "description": "可选。维度名称的单元格引用（A1 表示法，如 'Sheet1!A1'）。当维度名称不直接来自 refs 首行/首列时，可通过此字段把维度名显式指向目标表头单元格，图表会以该单元格当前值作为类别维度名展示。"
+                          }
+                        },
+                        "required": [
+                          "index"
+                        ]
+                      },
+                      "field": {
+                        "type": "object",
+                        "description": "字段配置（静态数据时传此参数）",
+                        "properties": {
+                          "valueType": {
+                            "type": "string",
+                            "description": "值类型",
+                            "enum": [
+                              "number",
+                              "string"
+                            ]
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "字段名称"
+                          },
+                          "text": {
+                            "type": "string",
+                            "description": "字段文本数据"
+                          }
+                        },
+                        "required": [
+                          "text"
+                        ]
+                      }
+                    }
+                  },
+                  "dim2": {
+                    "type": "object",
+                    "description": "维度2配置（值维度）",
+                    "properties": {
+                      "series": {
+                        "type": "array",
+                        "description": "系列配置数组（非静态数据时传此参数）",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "index": {
+                              "type": "number",
+                              "description": "系列索引，数据源从左往右，从 1 开始计数对应数据源的列索引；如果数据方向direction为 'row'，则为从上往下，从 1 开始计数对应数据源的行索引"
+                            },
+                            "aggregateType": {
+                              "type": "string",
+                              "description": "汇总方式，默认为'sum'，仅在 aggregate 为 true 时生效。count 只统计数值单元格；counta 统计所有非空单元格（含文本），按文本/分类列统计出现次数（如各类别的数量、频次分布）时用 counta。",
+                              "enum": [
+                                "sum",
+                                "average",
+                                "count",
+                                "counta",
+                                "min",
+                                "max",
+                                "median"
+                              ]
+                            },
+                            "nameRef": {
+                              "type": "string",
+                              "description": "可选。系列名称的单元格引用（A1 表示法，如 'Sheet1!C1'）。当系列名称不直接来自 refs 首行/首列时，可通过此字段把系列名显式指向目标表头单元格，图表会以该单元格当前值作为系列名（图例/tooltip）展示。"
+                            },
+                            "role": {
+                              "type": "string",
+                              "description": "气泡图中该数据系列的角色：x 为横轴、y 为纵轴、group 为分组、size 为气泡大小。气泡图必须各有一个 x 和 y，group 和 size 可选。",
+                              "enum": [
+                                "x",
+                                "y",
+                                "group",
+                                "size"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "index"
+                          ]
+                        }
+                      },
+                      "fields": {
+                        "type": "array",
+                        "description": "字段配置数组（静态数据时传此参数）",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "valueType": {
+                              "type": "string",
+                              "description": "值类型。x、y、size 角色使用 number；group 角色可使用 string 或 number。",
+                              "enum": [
+                                "number",
+                                "string"
+                              ]
+                            },
+                            "role": {
+                              "type": "string",
+                              "description": "气泡图中该静态字段的角色：x 为横轴、y 为纵轴、group 为分组、size 为气泡大小。气泡图必须各有一个 x 和 y，group 和 size 可选。",
+                              "enum": [
+                                "x",
+                                "y",
+                                "group",
+                                "size"
+                              ]
+                            },
+                            "format": {
+                              "type": "string",
+                              "description": "字段数值格式"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "字段名称"
+                            },
+                            "text": {
+                              "type": "string",
+                              "description": "字段文本数据"
+                            }
+                          },
+                          "required": [
+                            "text"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
             "anyOf": [
               {
                 "type": "object",
@@ -8991,6 +13104,119 @@
           "type": "object"
         },
         "type": "array"
+      }
+    },
+    "+batch-chart-create": {
+      "operations": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": [
+            "chart_type",
+            "data_range"
+          ],
+          "anyOf": [
+            {
+              "required": [
+                "sheet_id"
+              ]
+            },
+            {
+              "required": [
+                "sheet_name"
+              ]
+            }
+          ],
+          "properties": {
+            "sheet_id": {
+              "type": "string",
+              "description": "目标子表 ID；与 sheet_name 二选一"
+            },
+            "sheet_name": {
+              "type": "string",
+              "description": "目标子表名；与 sheet_id 二选一"
+            },
+            "chart_type": {
+              "type": "string",
+              "enum": [
+                "column",
+                "bar",
+                "line",
+                "area",
+                "pie",
+                "scatter",
+                "combo",
+                "radar"
+              ]
+            },
+            "data_range": {
+              "type": "string"
+            },
+            "header_range": {
+              "type": "string"
+            },
+            "data_direction": {
+              "type": "string",
+              "enum": [
+                "row",
+                "column"
+              ]
+            },
+            "dim1_index": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "dim2_indexes": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "anchor_cell": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true,
+          "description": "每项直接填写 +chart-create-basic 的 flag；CLI 内部固定按 +chart-create-basic 创建，无需也不应再写 shortcut / input。"
+        }
+      }
+    },
+    "+batch-chart-update": {
+      "operations": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": [
+            "shortcut",
+            "input"
+          ],
+          "properties": {
+            "shortcut": {
+              "type": "string",
+              "enum": [
+                "+chart-config-update",
+                "+chart-data-update"
+              ]
+            },
+            "input": {
+              "type": "object",
+              "description": "对应图表更新 shortcut 的 flag 集合；包含 sheet_id 或 sheet_name，不包含 spreadsheet token/url"
+            }
+          }
+        }
       }
     }
   }
