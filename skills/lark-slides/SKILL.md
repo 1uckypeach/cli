@@ -1,6 +1,6 @@
 ---
 name: lark-slides
-version: 1.0.0
+version: 1.0.1
 description: "飞书幻灯片：创建和编辑幻灯片。创建演示文稿、读取幻灯片内容、管理幻灯片页面（创建、删除、读取、局部替换）。当用户需要创建或编辑幻灯片、读取或修改单个页面时使用。当用户给出 doubao.com 的 /slides/ URL/token 时，也应直接使用本 skill，不要因为域名不是飞书而回退到 WebFetch；路由依据是 URL 路径模式和 token，而不是域名。不负责：云文档内容编辑（走 lark-doc）、云文档里的独立画板对象（走 lark-whiteboard）、上传或下载普通文件（走 lark-drive）。"
 metadata:
   requires:
@@ -93,6 +93,7 @@ metadata:
 | 绘制表格 | 优先用 `rect` 和 `text` 模拟，其他用 `<table>` | `xml/xml-schema-quick-ref.md` |
 | 使用图标 | 禁止盲猜 iconType，必须先检索 IconPark，再写 `<icon iconType="...">`，图标必须填充颜色并和背景有足够对比，禁止使用 emoji 图标 | `iconpark_tool.py search → resolve`、`xml/iconpark.md` |
 | 创建失败、空白页、3350001、布局异常 | 先回读状态，再按排障清单修复，不假设原操作原子成功 | `workflow/error-handling.md`、`workflow/validation-xml.md` |
+| `missing_scope` / 99991679 | 停止本轮后续 slides 调用，按错误里的最小 scope 授权；不要降级 xml-get 或继续截图/加页 | `workflow/error-handling.md`、[`../lark-shared/SKILL.md`](../lark-shared/SKILL.md) |
 
 **CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../lark-shared/SKILL.md`](../lark-shared/SKILL.md)，认证、权限和全局参数均以 lark-shared 为准。**
 
@@ -110,7 +111,7 @@ metadata:
 
 **CRITICAL — 创建、大幅改写或整页写回后，MUST 按 [workflow/validation-xml.md](references/workflow/validation-xml.md) 做显式验证：回读全文 XML、核对页数和关键元素，并使用 [`scripts/xml_lint.py`](scripts/xml_lint.py) 统一检查 XML、越界、重叠、空白页和内容稀疏风险。**
 
-**CRITICAL — 创建前自检或失败排障时，MUST 按 [workflow/error-handling.md](references/workflow/error-handling.md) 检查 XML 转义、结构、shell 截断、图片 token、3350001 和布局风险。**
+**CRITICAL — 创建前自检或失败排障时，MUST 按 [workflow/error-handling.md](references/workflow/error-handling.md) 检查 XML 转义、结构、shell 截断、图片 token、3350001、99991679 和布局风险。**
 
 **编辑已有幻灯片页面**：单个标题、文本块、图片或局部元素优先用 [`+replace-slide`](references/cli/lark-slides-replace-slide.md)（块级替换/插入，不动页序）；一页里改动很多（例如批量换字体）、要改背景、或要删掉若干元素时用 [`+update-slide`](references/cli/lark-slides-update-slide.md) 整页覆盖（`slide_id` 和页序不变，但没写进 `--content` 的元素会被删除）；**多页大改就对每一页各跑一次 `+update-slide`**。选择 action 和完整读-改-写流程见 [`workflow/slides-editing.md`](references/workflow/slides-editing.md)。
 
@@ -133,6 +134,7 @@ lark-cli auth login --domain slides
 1. 创建、读取、增删 slide、按用户给出的链接继续编辑已有 PPT，默认都先用 `--as user`。
 2. 如果出现权限不足，先检查当前是否误用了 bot 身份；不要默认回退到 bot。
 3. 只有在用户明确要求"用应用身份 / bot 身份操作"，或当前工作流就是 bot 创建资源后再做协作授权时，才切换到 `--as bot`。
+4. `error.subtype == missing_scope` 或 `code == 99991679` 是当前身份未授予 API scope，不是这篇 PPT 的资源 ACL。立刻停止本轮所有后续 slides shortcut 和直接 OpenAPI，包括截图失败后的 `+xml-get` / GET 演示对象、下一批 `+screenshot`、以及 `+create` 之后的加页。user 只按错误里的 `missing_scopes` 和 `hint` 做最小 scope 授权；bot 只用 `console_url`，禁止 `auth login`。授权完成前不要重放原命令。通用授权步骤见 [`../lark-shared/SKILL.md`](../lark-shared/SKILL.md)；命令级最小 scope 见 [`workflow/error-handling.md`](references/workflow/error-handling.md)。
 
 ## 执行前必做
 

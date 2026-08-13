@@ -89,7 +89,7 @@ func resolvePresentationID(runtime *common.RuntimeContext, ref presentationRef) 
 			nil,
 		)
 		if err != nil {
-			return "", err
+			return "", annotateSlidesMissingScope(err)
 		}
 		node := common.GetMap(data, "node")
 		objType := common.GetString(node, "obj_type")

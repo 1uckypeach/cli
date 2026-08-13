@@ -138,7 +138,7 @@ lark-cli slides xml_presentations get --as user --params '<json_params>'
 | 错误码 | 含义 | 解决方案 |
 |--------|------|----------|
 | 404 | 演示文稿不存在 | 检查 `xml_presentation_id` 是否正确 |
-| 403 | 权限不足 | 检查是否拥有 `slides:presentation:read` scope，或是否有访问权限 |
+| `99991679` / 403 | 缺 scope 或资源无权 | 按 [error-handling.md](../workflow/error-handling.md) 处理；缺权后不要重试或改打其他 slides 读接口 |
 | 400 | 参数格式错误 | 确保 `--params` 是合法的 JSON 字符串 |
 
 

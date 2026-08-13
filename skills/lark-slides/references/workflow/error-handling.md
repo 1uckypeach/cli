@@ -46,14 +46,24 @@
 | 400 XML 格式错误 | XML 语法错误 | 检查标签闭合、属性引号、特殊字符转义 |
 | 400 请求包装错误 | `--data` 未按 schema 包装 | 检查是否传入 `xml_presentation.content` 或 `slide.content` |
 | 创建成功但页面空白 / 内容缺失 / 布局错乱 | 常见于 `--slides '[...]'` 字面量的 shell 转义或长参数传递问题 | 改用 `--slide @file`（每页一个文件）或 `--slides @deck.json`，并在创建后立即读取 XML 验证 |
-| 403 权限不足 | scope 或文档权限不匹配 | 确认 scope 和文档权限；无权限时根据错误响应引导用户解决 |
+| `99991679` / `missing_scope` | 当前身份未授予所需 API scope | **终止**本轮后续 slides 调用，不要重试、不要降级 `+xml-get` / GET、不要继续下一批截图或加页。user：按 `error.missing_scopes` 和 `hint` 执行 `auth login --scope`；bot：只走 `console_url`，禁止 `auth login`。授权步骤见 [`lark-shared`](../../../lark-shared/SKILL.md) |
+| 403 / `1061004` 资源无权 | 对这篇 PPT 没有访问或编辑权 | **终止**；请资源所有者授权。这不是缺 OAuth scope，不要用 `auth login --scope` 试错 |
 | 404 演示文稿不存在 | `xml_presentation_id` 不正确或无权限 | 检查 token；wiki URL 需先解析真实 `obj_token` |
 | 404 幻灯片不存在 | `slide_id` 不正确 | 重新读取 presentation 或 slide，确认最新 ID |
 | 1061002 媒体上传 params error | slides 媒体上传参数不符合约定 | 用 `slides +media-upload`，不要手拼原生 `medias/upload_all`；slides 唯一可用 `parent_type` 是 `slide_file` |
-| 1061004 forbidden | 当前用户对演示文稿无编辑权限 | 确认当前用户对目标 PPT 有编辑权限 |
 | 3350001 | XML 非 well-formed、XML 结构不符合服务端要求，或 replace 片段问题 | 优先检查未转义字符；replace 场景再看 `block_id` 和 `<content/>` |
 | 3350002 | `revision_id` 大于当前版本 | 用 `-1` 取当前版本，或重新用 `slides +xml-get` 取最新 `revision_id` |
 | validation: unsafe file path | `--file` 给了绝对路径或上层路径 | `--file` 必须是 CWD 内相对路径；先 `cd` 到素材目录再执行 |
+
+## Minimum scopes
+
+首次授权可用 `lark-cli auth login --domain slides`。缺权后只补错误里列出的最小 scope，不要再整域重授。
+
+| 命令 | 最小 user scope |
+|------|-----------------|
+| `slides +screenshot` | `slides:presentation:screenshot`；`--presentation` 是 wiki URL 时再加 `wiki:node:read` |
+| `slides +xml-get` / 直接 GET 演示对象 | `slides:presentation:read`；wiki URL 再加 `wiki:node:read` |
+| `slides +create` | `slides:presentation:create` + `slides:presentation:write_only`；XML 含本地图再加 `docs:document.media:upload` |
 
 ## Command-Specific References
 

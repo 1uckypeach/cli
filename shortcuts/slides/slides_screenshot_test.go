@@ -1612,3 +1612,24 @@ func TestSlidesScreenshotSlideNumberAPIErrorAddsHint(t *testing.T) {
 		t.Fatalf("hint = %q, want --slide-id guidance", p.Hint)
 	}
 }
+
+func TestSlidesScreenshotMissingScopeIsTerminal(t *testing.T) {
+	dir := t.TempDir()
+	withSlidesTestWorkingDir(t, dir)
+
+	const scope = "slides:presentation:screenshot"
+	f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/slides_ai/v1/xml_presentations/pres_abc/slide_images",
+		Body:   slidesMissingScopeAPIBody(scope),
+	})
+
+	err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{
+		"+screenshot",
+		"--presentation", "pres_abc",
+		"--slide-number", "1",
+		"--as", "user",
+	})
+	assertSlidesMissingScopeTerminal(t, err, scope)
+}

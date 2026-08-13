@@ -515,3 +515,20 @@ func TestSlidesXMLGetRejectsRemoveAttrIDForSingleSlide(t *testing.T) {
 		t.Fatalf("param = %q, want --remove-attr-id", validationErr.Param)
 	}
 }
+
+func TestSlidesXMLGetMissingScopeIsTerminal(t *testing.T) {
+	const scope = "slides:presentation:read"
+	f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	reg.Register(&httpmock.Stub{
+		Method: http.MethodGet,
+		URL:    "/open-apis/slides_ai/v1/xml_presentations/pres_abc",
+		Body:   slidesMissingScopeAPIBody(scope),
+	})
+
+	err := runSlidesShortcut(t, f, stdout, SlidesXMLGet, []string{
+		"+xml-get",
+		"--presentation", "pres_abc",
+		"--as", "user",
+	})
+	assertSlidesMissingScopeTerminal(t, err, scope)
+}
