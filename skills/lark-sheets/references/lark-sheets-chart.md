@@ -46,10 +46,13 @@
 | "趋势"、"变化"、"走势" | 折线图（line） | 时间序列首选 |
 | "堆积"、"组成构成" | 堆积柱形图（column + stack） | 多系列累加 |
 | "分布"、"相关性" | 散点图（scatter） | 两变量关系 |
+| "气泡大小"、"三变量关系"、"分组散点" | 气泡图（bubble） | x/y 决定位置，size 决定气泡大小，group 决定分组 |
+| "逐项增减"、"变动贡献"、"从期初到期末" | 瀑布图（waterfall） | 展示正负变化及总计/小计 |
+| "主要原因"、"累计占比"、"80/20" | 排列图（pareto） | 降序柱形 + 累计百分比曲线 |
 
 **多图表需求**：当用户同时提到多种分析（如"统计占比 + 对比数量"），必须创建多个图表，每个对应一种类型，不要只做一个。
 
-**`--properties` 结构锚点（构造前必读）**：`--properties` 顶层只有 `position` / `offset` / `size` / `snapshot` 四个字段，**没有**顶层 `data`，也没有再嵌一层 `properties`。图表数据配置全部挂在 `snapshot.data` 下——下文及示例里出现的 `refs` / `headerMode` / `dim1` / `dim2` / `nameRef` 一律指 `snapshot.data.refs` / `snapshot.data.headerMode` / `snapshot.data.dim1` / `snapshot.data.dim2`（及其下的 `serie.nameRef` / `series[].nameRef`）；样式 / 堆叠 / 数据标签等在 `snapshot.plotArea` 下。**构造起点优先用 `lark-cli sheets +chart-create --print-example <column|bar|line|area|pie|scatter|radar|combo>` 拿最小可用模板改参**（本地即时返回）；查深层字段用点分路径切片 `--print-schema --flag-name properties.snapshot.plotArea.axes`，别整篇 dump 翻页。完整结构以 `--print-schema --flag-name properties` 为准。
+**`--properties` 结构锚点（构造前必读）**：`--properties` 顶层只有 `position` / `offset` / `size` / `snapshot` 四个字段，**没有**顶层 `data`，也没有再嵌一层 `properties`。图表数据配置全部挂在 `snapshot.data` 下——下文及示例里出现的 `refs` / `headerMode` / `dim1` / `dim2` / `nameRef` 一律指 `snapshot.data.refs` / `snapshot.data.headerMode` / `snapshot.data.dim1` / `snapshot.data.dim2`（及其下的 `serie.nameRef` / `series[].nameRef`）；样式 / 堆叠 / 数据标签等在 `snapshot.plotArea` 下。**构造起点优先用 `lark-cli sheets +chart-create --print-example <area|bar|bubble|column|combo|line|pareto|pie|radar|scatter|waterfall>` 拿最小可用模板改参**（本地即时返回）；查深层字段用点分路径切片 `--print-schema --flag-name properties.snapshot.plotArea.axes`，别整篇 dump 翻页。完整结构以 `--print-schema --flag-name properties` 为准。
 
 **`+chart-update` 局部更新硬规则（更新前必读）**：默认只在 `--properties` 中传实际变化的字段，未传字段保持不变；不要复制并回写完整 snapshot。`snapshot` 内普通对象递归合并，`refs` / `axes` / `series` 等数组整体替换——修改数组中的一项时，应先读取当前数组、改好后只回写该完整数组，不需要携带 snapshot 的其它字段。`snapshot.data.isStaticData` 不能通过 update 改变；需要切换静态/非静态数据时删除后重建。
 
@@ -65,6 +68,30 @@
 - **axes[].label 不接受 `format` / `number_format` 字段**：想给坐标轴数值加千分位、百分号等格式化时，不要在 `axes[i].label` 里传 `format` 或 `number_format`（schema 未定义，会报 `unexpected property "format" is not defined in schema`）。数值格式化统一在源数据单元格的 `cell_styles.number_format` 里设置（写 `+cells-set` 时），图表会沿用单元格格式。**日期轴同理**：横轴显示成 `45297` 这类 Excel 序列号，是因为源日期列没设日期格式——给源列设 `number_format="yyyy-mm-dd"` 后横轴才会显示成日期（反例：折线图横轴日期显示为序列号）。大数值轴显示科学计数法同理，给源列设整数 / 千分位格式（反例：透视表数值轴显示科学计数法）。
 - **轴口径要对齐用户要的指标**：用户要"占比 / 比例"时，**纵轴应是百分比**——用饼图，或柱 / 条形图设 `stack.percentage: true` 让纵轴变 %，并把数据源指向占比列 / 让数据标签显示百分比；不要交付纵轴仍是原始计数的图（反例：要求看各类占比，却用普通堆积柱、纵轴是 0–350 的人数而非百分比）。
 - **创建后必须验证**：图表创建后必须调用 `+chart-list` 验证配置是否正确
+
+## 气泡图、瀑布图、排列图专属结构
+
+先打印可运行模板，再替换数据范围、索引、标题和样式：
+
+```bash
+lark-cli sheets +chart-create --print-example bubble
+lark-cli sheets +chart-create --print-example waterfall
+lark-cli sheets +chart-create --print-example pareto
+```
+
+| 图表 | 配置路径 | 含义与约束 |
+|---|---|---|
+| 气泡图 | `snapshot.data.dim1.serie` | `Primary` 维度：标识每个气泡，通常也是 `idLabel` 的文字来源；它不替代 x/y/group/size 角色。 |
+| 气泡图 | `snapshot.data.dim2.series[].role` | `x`、`y`、`group`、`size` 四种角色；`x` 和 `y` 各一个且必需，`group`、`size` 可选。x/y/size 对应数值列，group 可对应文本或数值列。 |
+| 气泡图 | `snapshot.plotArea.plot.extra.bubble` | `aggregate` 控制同组同坐标汇总；`showNegativeSize` 控制是否显示负 size；`opacityGradientStyle` 为 `linear` / `radial`；`idLabel` 配置标识标签，传 `false` 隐藏。 |
+| 气泡图 | `snapshot.plotArea.plot.points` | 复用现有点样式，可配置 `shape` / `size` / `color` 等。 |
+| 瀑布图 | `snapshot.plotArea.plot.extra.waterfall` | 全局配置：`firstValueAsTotal`、`lastValueAsSubtotal`、正/负/总计柱样式、圆角、渐变、连接线及总计标签。 |
+| 瀑布图 | `snapshot.plotArea.plot.series[].waterfall` | 单系列覆盖项，可覆盖首值/末值解释和 `positiveStyle` / `negativeStyle` / `totalStyle`；未传字段继续使用全局配置。 |
+| 排列图 | `snapshot.plotArea.plot.extra.pareto` | `aggregateType` 为 `sum` / `average` / `count` / `counta` / `min` / `max` / `median`；`categoryNumber` 是参与排列的正整数类别数。 |
+| 排列图 | `snapshot.plotArea.plot.series[index=1]` | 排列柱系列，样式复用现有 `bars` 和 `labels`。这里的 `index=1` 表示排列图输出的柱系列角色，不是源数据列号。 |
+| 排列图 | `snapshot.plotArea.plot.series[index=2]` | 累计百分比曲线系列，样式复用现有 `line`、`points` 和 `labels`。这里的 `index=2` 表示累计线角色，不是源数据列号。 |
+
+排列图的源数据列仍由 `snapshot.data.dim1.serie.index`（类别列）和 `snapshot.data.dim2.series[].index`（数值列）指定。不要把 `plot.series[].index` 与源数据列索引混为一谈。
 
 > **⚠️ 硬性规则：当用户通过列标题名称（而非列索引）指定横轴/纵轴系列时，必须先读取表格首行（表头）来确定列名与列索引的对应关系，再设置 `dim1`/`dim2` 的 `index`。**
 > 例如用户说"横轴为车型系列，纵轴为Q1-Q4的销量"，你不能猜测列索引，必须先通过读取表格数据源范围的首行内容（使用 `lark-sheets-read-data` 的 `+cells-get` 或其他读取单元格的工具），确认"车型系列"是第几列、"Q1"~"Q4"分别是第几列，然后再将正确的列索引填入 `dim1.serie.index` 和 `dim2.series[].index`。
@@ -219,7 +246,7 @@ _公共四件套 · 系统：`--dry-run`_
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `--properties` | string + File + Stdin（复合 JSON） | required | 图表完整配置 JSON。顶层字段为 `position` / `offset` / `size` / `snapshot`（无顶层 `data`，也无再嵌一层 `properties`）；图表数据配置在 `snapshot.data` 下（含 `refs` / `headerMode` / `dim1` / `dim2`）；必须至少含 `snapshot.data.dim1.serie.index` 或 `dim2.series[].index` 之一，否则 server 拒。结构嵌套深，完整结构跑 `--print-schema --flag-name properties` |
-| `--print-example` | string | optional | 打印指定图表类型的最小可用 `--properties` 模板后直接退出（`area` / `bar` / `column` / `combo` / `line` / `pie` / `radar` / `scatter`）。纯本地执行，不需要 locator flag、不发网络请求；传入未知类型时列出全部可用类型 |
+| `--print-example` | string | optional | 打印指定图表类型的最小可用 `--properties` 模板后直接退出（`area` / `bar` / `bubble` / `column` / `combo` / `line` / `pareto` / `pie` / `radar` / `scatter` / `waterfall`）。纯本地执行，不需要 locator flag、不发网络请求；传入未知类型时列出全部可用类型 |
 
 ### `+chart-update`
 

@@ -4073,7 +4073,7 @@
         "kind": "own",
         "type": "string",
         "required": "optional",
-        "desc": "Print a minimal ready-to-edit --properties template for a chart type (area|bar|column|combo|line|pie|radar|scatter) and exit. Purely local: no locator flags, no network; an unknown type lists the available ones"
+        "desc": "Print a minimal ready-to-edit --properties template for a chart type (area|bar|bubble|column|combo|line|pareto|pie|radar|scatter|waterfall) and exit. Purely local: no locator flags, no network; an unknown type lists the available ones"
       },
       {
         "name": "dry-run",
