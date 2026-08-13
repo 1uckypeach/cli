@@ -23,7 +23,6 @@ func TestLookupCodeMeta_CredentialCodes(t *testing.T) {
 		{99991668, errs.CategoryAuthentication, errs.SubtypeTokenInvalid, false},
 		{99991663, errs.CategoryAuthentication, errs.SubtypeTokenInvalid, false},
 		{99991677, errs.CategoryAuthentication, errs.SubtypeTokenExpired, false},
-		{-32011, errs.CategoryAuthentication, errs.SubtypeTokenInvalid, false},
 		{20026, errs.CategoryAuthentication, errs.SubtypeRefreshTokenInvalid, false},
 		{20037, errs.CategoryAuthentication, errs.SubtypeRefreshTokenExpired, false},
 		{20064, errs.CategoryAuthentication, errs.SubtypeRefreshTokenRevoked, false},

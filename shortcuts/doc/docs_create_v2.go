@@ -101,7 +101,7 @@ func executeCreateV2(_ context.Context, runtime *common.RuntimeContext) error {
 
 	data, err := doDocAPI(runtime, "POST", "/open-apis/docs_ai/v1/documents", body)
 	if err != nil {
-		return withDocWriteRecovery(err, docWriteCreate)
+		return err
 	}
 	if docsAPIOperationFailed(data) {
 		return runtime.OutPartialFailure(data, nil)

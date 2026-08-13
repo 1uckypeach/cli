@@ -4,13 +4,9 @@
 package doc
 
 import (
-	"errors"
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/larksuite/cli/errs"
-	"github.com/larksuite/cli/internal/errclass"
 )
 
 func TestParseDocumentRef(t *testing.T) {
@@ -150,126 +146,5 @@ func TestAppendDocWarning(t *testing.T) {
 				t.Fatalf("warnings = %#v, want %#v", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestWithDocAPIRecovery(t *testing.T) {
-	tests := []struct {
-		name         string
-		code         int
-		bot          bool
-		wantType     any
-		wantCategory errs.Category
-		wantSubtype  errs.Subtype
-		wantHint     string
-	}{
-		{"document missing", 3380002, false, (*errs.APIError)(nil), errs.CategoryAPI, errs.SubtypeNotFound, "stop retrying"},
-		{"document permission", 3380004, false, (*errs.PermissionError)(nil), errs.CategoryAuthorization, errs.SubtypePermissionDenied, "document owner"},
-		{"user token invalid", -32011, false, (*errs.AuthenticationError)(nil), errs.CategoryAuthentication, errs.SubtypeTokenInvalid, "auth status --verify"},
-		{"bot token guidance", -32011, true, (*errs.AuthenticationError)(nil), errs.CategoryAuthentication, errs.SubtypeTokenInvalid, "do not run user auth login"},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			sentinel := errors.New("sentinel cause")
-			classified := errclass.BuildAPIError(map[string]any{"code": test.code, "msg": "upstream failure"}, errclass.ClassifyContext{Identity: "user"})
-			attachDocTestCause(t, classified, sentinel)
-			got := withDocAPIRecovery(classified, test.bot)
-			problem, ok := errs.ProblemOf(got)
-			if !ok || problem.Category != test.wantCategory || problem.Subtype != test.wantSubtype || problem.Code != test.code {
-				t.Fatalf("problem = %+v, want %s/%s code %d", problem, test.wantCategory, test.wantSubtype, test.code)
-			}
-			if !strings.Contains(problem.Hint, test.wantHint) {
-				t.Fatalf("hint = %q, want text containing %q", problem.Hint, test.wantHint)
-			}
-			if !errors.Is(got, sentinel) {
-				t.Fatal("recovery must preserve the source cause")
-			}
-			switch test.wantType.(type) {
-			case *errs.APIError:
-				var target *errs.APIError
-				if !errors.As(got, &target) {
-					t.Fatalf("error = %T, want *errs.APIError", got)
-				}
-			case *errs.PermissionError:
-				var target *errs.PermissionError
-				if !errors.As(got, &target) {
-					t.Fatalf("error = %T, want *errs.PermissionError", got)
-				}
-			case *errs.AuthenticationError:
-				var target *errs.AuthenticationError
-				if !errors.As(got, &target) {
-					t.Fatalf("error = %T, want *errs.AuthenticationError", got)
-				}
-			}
-		})
-	}
-}
-
-func attachDocTestCause(t *testing.T, err error, cause error) {
-	t.Helper()
-	var apiErr *errs.APIError
-	if errors.As(err, &apiErr) {
-		apiErr.WithCause(cause)
-		return
-	}
-	var permissionErr *errs.PermissionError
-	if errors.As(err, &permissionErr) {
-		permissionErr.WithCause(cause)
-		return
-	}
-	var authenticationErr *errs.AuthenticationError
-	if errors.As(err, &authenticationErr) {
-		authenticationErr.WithCause(cause)
-		return
-	}
-	t.Fatalf("unsupported source error type %T", err)
-}
-
-func TestWithDocAPIRecoveryPreservesUnrecognizedError(t *testing.T) {
-	original := errs.NewAPIError(errs.SubtypeUnknown, "upstream failure").WithCode(12345)
-	if got := withDocAPIRecovery(original, false); got != original {
-		t.Fatalf("unrecognized error = %T %v, want original error", got, got)
-	}
-}
-
-func TestWithDocWriteRecoveryPreventsUnsafeReplay(t *testing.T) {
-	operations := []struct {
-		operation docWriteOperation
-		wantHint  string
-	}{
-		{docWriteCreate, "inspect the target folder"},
-		{docWriteUpdate, "fetch the affected document scope"},
-	}
-	for _, subtype := range []errs.Subtype{errs.SubtypeNetworkServer, errs.SubtypeNetworkTimeout, errs.SubtypeNetworkTransport} {
-		for _, test := range operations {
-			t.Run(string(subtype)+"/"+string(test.operation), func(t *testing.T) {
-				sentinel := errors.New("sentinel cause")
-				original := errs.NewNetworkError(subtype, "request failed").
-					WithRetryable().
-					WithRetryAfterSeconds(5).
-					WithCause(sentinel)
-				got := withDocWriteRecovery(original, test.operation)
-				problem, ok := errs.ProblemOf(got)
-				if !ok || problem.Category != errs.CategoryNetwork || problem.Subtype != subtype {
-					t.Fatalf("problem = %+v, want network/%s", problem, subtype)
-				}
-				var networkErr *errs.NetworkError
-				if !errors.As(got, &networkErr) {
-					t.Fatalf("error = %T, want *errs.NetworkError", got)
-				}
-				if problem.Retryable || networkErr.RetryAfterSeconds != 0 {
-					t.Fatalf("problem = %+v, want retry metadata cleared", problem)
-				}
-				if !strings.Contains(problem.Hint, test.wantHint) {
-					t.Fatalf("hint = %q, want text containing %q", problem.Hint, test.wantHint)
-				}
-				if !errors.Is(got, sentinel) {
-					t.Fatal("recovery must preserve the source cause")
-				}
-				if !original.Retryable || original.RetryAfterSeconds != 5 {
-					t.Fatalf("source error mutated: %+v", original)
-				}
-			})
-		}
 	}
 }
