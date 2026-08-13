@@ -1119,7 +1119,10 @@
                           "combo",
                           "pie",
                           "radar",
-                          "scatter"
+                          "scatter",
+                          "bubble",
+                          "waterfall",
+                          "pareto"
                         ]
                       },
                       "comboType": {
@@ -1176,6 +1179,297 @@
                               "area": {
                                 "type": "boolean",
                                 "description": "是否填充区域"
+                              }
+                            }
+                          },
+                          "bubble": {
+                            "type": "object",
+                            "description": "气泡图配置。气泡图的 x、y、group、size 数据角色在 data.dim2 中指定。",
+                            "properties": {
+                              "aggregate": {
+                                "type": "boolean",
+                                "description": "是否对相同分组与坐标的数据进行汇总"
+                              },
+                              "showNegativeSize": {
+                                "type": "boolean",
+                                "description": "是否显示气泡大小为负值的数据点"
+                              },
+                              "opacityGradientStyle": {
+                                "type": "string",
+                                "description": "气泡透明度渐变样式",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ]
+                              },
+                              "idLabel": {
+                                "description": "气泡标识标签配置；false 表示隐藏标识标签",
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "visible": {
+                                        "type": "boolean",
+                                        "description": "是否显示标识标签"
+                                      },
+                                      "fontSize": {
+                                        "type": "number",
+                                        "description": "标签字号"
+                                      },
+                                      "bold": {
+                                        "type": "boolean",
+                                        "description": "是否加粗"
+                                      },
+                                      "italic": {
+                                        "type": "boolean",
+                                        "description": "是否斜体"
+                                      },
+                                      "underline": {
+                                        "type": "boolean",
+                                        "description": "是否下划线"
+                                      },
+                                      "strikethrough": {
+                                        "type": "boolean",
+                                        "description": "是否删除线"
+                                      },
+                                      "color": {
+                                        "type": "string",
+                                        "description": "标签字体颜色"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          "waterfall": {
+                            "type": "object",
+                            "description": "瀑布图全局配置。单个系列可通过 plot.series[].waterfall 覆盖数值解释和正负值样式。",
+                            "properties": {
+                              "firstValueAsTotal": {
+                                "type": "boolean",
+                                "description": "是否将第一个值视为总计"
+                              },
+                              "lastValueAsSubtotal": {
+                                "type": "boolean",
+                                "description": "是否将最后一个值视为小计"
+                              },
+                              "positiveStyle": {
+                                "type": "object",
+                                "description": "正值柱样式",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "description": "填充颜色"
+                                  },
+                                  "opacity": {
+                                    "type": "number",
+                                    "description": "透明度，取值 0-1"
+                                  },
+                                  "borderColor": {
+                                    "type": "string",
+                                    "description": "边框颜色"
+                                  },
+                                  "borderWidth": {
+                                    "type": "number",
+                                    "description": "边框宽度"
+                                  },
+                                  "borderStyle": {
+                                    "type": "string",
+                                    "description": "边框样式",
+                                    "enum": [
+                                      "solid",
+                                      "dashed",
+                                      "dotted"
+                                    ]
+                                  }
+                                }
+                              },
+                              "negativeStyle": {
+                                "type": "object",
+                                "description": "负值柱样式",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "description": "填充颜色"
+                                  },
+                                  "opacity": {
+                                    "type": "number",
+                                    "description": "透明度，取值 0-1"
+                                  },
+                                  "borderColor": {
+                                    "type": "string",
+                                    "description": "边框颜色"
+                                  },
+                                  "borderWidth": {
+                                    "type": "number",
+                                    "description": "边框宽度"
+                                  },
+                                  "borderStyle": {
+                                    "type": "string",
+                                    "description": "边框样式",
+                                    "enum": [
+                                      "solid",
+                                      "dashed",
+                                      "dotted"
+                                    ]
+                                  }
+                                }
+                              },
+                              "totalStyle": {
+                                "type": "object",
+                                "description": "总计与小计柱样式",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "description": "填充颜色"
+                                  },
+                                  "opacity": {
+                                    "type": "number",
+                                    "description": "透明度，取值 0-1"
+                                  },
+                                  "borderColor": {
+                                    "type": "string",
+                                    "description": "边框颜色"
+                                  },
+                                  "borderWidth": {
+                                    "type": "number",
+                                    "description": "边框宽度"
+                                  },
+                                  "borderStyle": {
+                                    "type": "string",
+                                    "description": "边框样式",
+                                    "enum": [
+                                      "solid",
+                                      "dashed",
+                                      "dotted"
+                                    ]
+                                  }
+                                }
+                              },
+                              "cornerRadius": {
+                                "type": "string",
+                                "description": "柱子圆角大小",
+                                "enum": [
+                                  "default",
+                                  "small",
+                                  "large"
+                                ]
+                              },
+                              "gradient": {
+                                "type": "boolean",
+                                "description": "是否使用渐变填充"
+                              },
+                              "connectorLine": {
+                                "description": "瀑布柱之间的连接线配置；false 表示隐藏连接线",
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "color": {
+                                        "type": "string",
+                                        "description": "连接线颜色"
+                                      },
+                                      "width": {
+                                        "type": "number",
+                                        "description": "连接线宽度"
+                                      },
+                                      "style": {
+                                        "type": "string",
+                                        "description": "连接线样式",
+                                        "enum": [
+                                          "solid",
+                                          "dashed",
+                                          "dotted"
+                                        ]
+                                      },
+                                      "opacity": {
+                                        "type": "number",
+                                        "description": "连接线透明度，取值 0-1"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ]
+                                  }
+                                ]
+                              },
+                              "totalLabels": {
+                                "description": "总计与小计标签配置；false 表示隐藏该类标签",
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "template": {
+                                        "type": "string",
+                                        "description": "标签文本模板"
+                                      },
+                                      "fontSize": {
+                                        "type": "number",
+                                        "description": "标签字号"
+                                      },
+                                      "bold": {
+                                        "type": "boolean",
+                                        "description": "是否加粗"
+                                      },
+                                      "italic": {
+                                        "type": "boolean",
+                                        "description": "是否斜体"
+                                      },
+                                      "underline": {
+                                        "type": "boolean",
+                                        "description": "是否下划线"
+                                      },
+                                      "strikethrough": {
+                                        "type": "boolean",
+                                        "description": "是否删除线"
+                                      },
+                                      "color": {
+                                        "type": "string",
+                                        "description": "标签字体颜色"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          "pareto": {
+                            "type": "object",
+                            "description": "排列图配置。柱子、累计曲线、数据点和标签复用现有 bars、line、points、labels 配置。",
+                            "properties": {
+                              "aggregateType": {
+                                "type": "string",
+                                "description": "排列图的数据汇总方式",
+                                "enum": [
+                                  "sum",
+                                  "average",
+                                  "count",
+                                  "counta",
+                                  "min",
+                                  "max",
+                                  "median"
+                                ]
+                              },
+                              "categoryNumber": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "description": "参与排列的类别数量，必须为正整数"
                               }
                             }
                           }
@@ -2031,6 +2325,113 @@
                               "type": "object",
                               "description": "数据标签配置（覆盖单系列，配置项同 plotArea.plot.labels）。不覆盖该系列数据标签时省略整个 labels 字段；一旦传入 labels（即便显示开关全部置为 false），该系列仍会显示数据标签。"
                             },
+                            "waterfall": {
+                              "type": "object",
+                              "description": "瀑布图的单系列配置，覆盖 plot.extra.waterfall 中对应的数值解释和样式。",
+                              "properties": {
+                                "firstValueAsTotal": {
+                                  "type": "boolean",
+                                  "description": "是否将该系列第一个值视为总计"
+                                },
+                                "lastValueAsSubtotal": {
+                                  "type": "boolean",
+                                  "description": "是否将该系列最后一个值视为小计"
+                                },
+                                "positiveStyle": {
+                                  "type": "object",
+                                  "description": "该系列的正值柱样式",
+                                  "properties": {
+                                    "color": {
+                                      "type": "string",
+                                      "description": "填充颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "透明度，取值 0-1"
+                                    },
+                                    "borderColor": {
+                                      "type": "string",
+                                      "description": "边框颜色"
+                                    },
+                                    "borderWidth": {
+                                      "type": "number",
+                                      "description": "边框宽度"
+                                    },
+                                    "borderStyle": {
+                                      "type": "string",
+                                      "description": "边框样式",
+                                      "enum": [
+                                        "solid",
+                                        "dashed",
+                                        "dotted"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "negativeStyle": {
+                                  "type": "object",
+                                  "description": "该系列的负值柱样式",
+                                  "properties": {
+                                    "color": {
+                                      "type": "string",
+                                      "description": "填充颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "透明度，取值 0-1"
+                                    },
+                                    "borderColor": {
+                                      "type": "string",
+                                      "description": "边框颜色"
+                                    },
+                                    "borderWidth": {
+                                      "type": "number",
+                                      "description": "边框宽度"
+                                    },
+                                    "borderStyle": {
+                                      "type": "string",
+                                      "description": "边框样式",
+                                      "enum": [
+                                        "solid",
+                                        "dashed",
+                                        "dotted"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "totalStyle": {
+                                  "type": "object",
+                                  "description": "该系列的总计与小计柱样式",
+                                  "properties": {
+                                    "color": {
+                                      "type": "string",
+                                      "description": "填充颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "透明度，取值 0-1"
+                                    },
+                                    "borderColor": {
+                                      "type": "string",
+                                      "description": "边框颜色"
+                                    },
+                                    "borderWidth": {
+                                      "type": "number",
+                                      "description": "边框宽度"
+                                    },
+                                    "borderStyle": {
+                                      "type": "string",
+                                      "description": "边框样式",
+                                      "enum": [
+                                        "solid",
+                                        "dashed",
+                                        "dotted"
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            },
                             "sectors": {
                               "type": "object",
                               "description": "扇区配置（饼图）",
@@ -2512,6 +2913,16 @@
                             "nameRef": {
                               "type": "string",
                               "description": "可选。系列名称的单元格引用（A1 表示法，如 'Sheet1!C1'）。当系列名称不直接来自 refs 首行/首列时，可通过此字段把系列名显式指向目标表头单元格，图表会以该单元格当前值作为系列名（图例/tooltip）展示。"
+                            },
+                            "role": {
+                              "type": "string",
+                              "description": "气泡图中该数据系列的角色：x 为横轴、y 为纵轴、group 为分组、size 为气泡大小。气泡图必须各有一个 x 和 y，group 和 size 可选。",
+                              "enum": [
+                                "x",
+                                "y",
+                                "group",
+                                "size"
+                              ]
                             }
                           },
                           "required": [
@@ -2527,10 +2938,25 @@
                           "properties": {
                             "valueType": {
                               "type": "string",
-                              "description": "值类型",
+                              "description": "值类型。x、y、size 角色使用 number；group 角色可使用 string 或 number。",
                               "enum": [
-                                "number"
+                                "number",
+                                "string"
                               ]
+                            },
+                            "role": {
+                              "type": "string",
+                              "description": "气泡图中该静态字段的角色：x 为横轴、y 为纵轴、group 为分组、size 为气泡大小。气泡图必须各有一个 x 和 y，group 和 size 可选。",
+                              "enum": [
+                                "x",
+                                "y",
+                                "group",
+                                "size"
+                              ]
+                            },
+                            "format": {
+                              "type": "string",
+                              "description": "字段数值格式"
                             },
                             "name": {
                               "type": "string",
@@ -2875,7 +3301,10 @@
                           "combo",
                           "pie",
                           "radar",
-                          "scatter"
+                          "scatter",
+                          "bubble",
+                          "waterfall",
+                          "pareto"
                         ]
                       },
                       "comboType": {
@@ -2932,6 +3361,297 @@
                               "area": {
                                 "type": "boolean",
                                 "description": "是否填充区域"
+                              }
+                            }
+                          },
+                          "bubble": {
+                            "type": "object",
+                            "description": "气泡图配置。气泡图的 x、y、group、size 数据角色在 data.dim2 中指定。",
+                            "properties": {
+                              "aggregate": {
+                                "type": "boolean",
+                                "description": "是否对相同分组与坐标的数据进行汇总"
+                              },
+                              "showNegativeSize": {
+                                "type": "boolean",
+                                "description": "是否显示气泡大小为负值的数据点"
+                              },
+                              "opacityGradientStyle": {
+                                "type": "string",
+                                "description": "气泡透明度渐变样式",
+                                "enum": [
+                                  "linear",
+                                  "radial"
+                                ]
+                              },
+                              "idLabel": {
+                                "description": "气泡标识标签配置；false 表示隐藏标识标签",
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "visible": {
+                                        "type": "boolean",
+                                        "description": "是否显示标识标签"
+                                      },
+                                      "fontSize": {
+                                        "type": "number",
+                                        "description": "标签字号"
+                                      },
+                                      "bold": {
+                                        "type": "boolean",
+                                        "description": "是否加粗"
+                                      },
+                                      "italic": {
+                                        "type": "boolean",
+                                        "description": "是否斜体"
+                                      },
+                                      "underline": {
+                                        "type": "boolean",
+                                        "description": "是否下划线"
+                                      },
+                                      "strikethrough": {
+                                        "type": "boolean",
+                                        "description": "是否删除线"
+                                      },
+                                      "color": {
+                                        "type": "string",
+                                        "description": "标签字体颜色"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          "waterfall": {
+                            "type": "object",
+                            "description": "瀑布图全局配置。单个系列可通过 plot.series[].waterfall 覆盖数值解释和正负值样式。",
+                            "properties": {
+                              "firstValueAsTotal": {
+                                "type": "boolean",
+                                "description": "是否将第一个值视为总计"
+                              },
+                              "lastValueAsSubtotal": {
+                                "type": "boolean",
+                                "description": "是否将最后一个值视为小计"
+                              },
+                              "positiveStyle": {
+                                "type": "object",
+                                "description": "正值柱样式",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "description": "填充颜色"
+                                  },
+                                  "opacity": {
+                                    "type": "number",
+                                    "description": "透明度，取值 0-1"
+                                  },
+                                  "borderColor": {
+                                    "type": "string",
+                                    "description": "边框颜色"
+                                  },
+                                  "borderWidth": {
+                                    "type": "number",
+                                    "description": "边框宽度"
+                                  },
+                                  "borderStyle": {
+                                    "type": "string",
+                                    "description": "边框样式",
+                                    "enum": [
+                                      "solid",
+                                      "dashed",
+                                      "dotted"
+                                    ]
+                                  }
+                                }
+                              },
+                              "negativeStyle": {
+                                "type": "object",
+                                "description": "负值柱样式",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "description": "填充颜色"
+                                  },
+                                  "opacity": {
+                                    "type": "number",
+                                    "description": "透明度，取值 0-1"
+                                  },
+                                  "borderColor": {
+                                    "type": "string",
+                                    "description": "边框颜色"
+                                  },
+                                  "borderWidth": {
+                                    "type": "number",
+                                    "description": "边框宽度"
+                                  },
+                                  "borderStyle": {
+                                    "type": "string",
+                                    "description": "边框样式",
+                                    "enum": [
+                                      "solid",
+                                      "dashed",
+                                      "dotted"
+                                    ]
+                                  }
+                                }
+                              },
+                              "totalStyle": {
+                                "type": "object",
+                                "description": "总计与小计柱样式",
+                                "properties": {
+                                  "color": {
+                                    "type": "string",
+                                    "description": "填充颜色"
+                                  },
+                                  "opacity": {
+                                    "type": "number",
+                                    "description": "透明度，取值 0-1"
+                                  },
+                                  "borderColor": {
+                                    "type": "string",
+                                    "description": "边框颜色"
+                                  },
+                                  "borderWidth": {
+                                    "type": "number",
+                                    "description": "边框宽度"
+                                  },
+                                  "borderStyle": {
+                                    "type": "string",
+                                    "description": "边框样式",
+                                    "enum": [
+                                      "solid",
+                                      "dashed",
+                                      "dotted"
+                                    ]
+                                  }
+                                }
+                              },
+                              "cornerRadius": {
+                                "type": "string",
+                                "description": "柱子圆角大小",
+                                "enum": [
+                                  "default",
+                                  "small",
+                                  "large"
+                                ]
+                              },
+                              "gradient": {
+                                "type": "boolean",
+                                "description": "是否使用渐变填充"
+                              },
+                              "connectorLine": {
+                                "description": "瀑布柱之间的连接线配置；false 表示隐藏连接线",
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "color": {
+                                        "type": "string",
+                                        "description": "连接线颜色"
+                                      },
+                                      "width": {
+                                        "type": "number",
+                                        "description": "连接线宽度"
+                                      },
+                                      "style": {
+                                        "type": "string",
+                                        "description": "连接线样式",
+                                        "enum": [
+                                          "solid",
+                                          "dashed",
+                                          "dotted"
+                                        ]
+                                      },
+                                      "opacity": {
+                                        "type": "number",
+                                        "description": "连接线透明度，取值 0-1"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ]
+                                  }
+                                ]
+                              },
+                              "totalLabels": {
+                                "description": "总计与小计标签配置；false 表示隐藏该类标签",
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "template": {
+                                        "type": "string",
+                                        "description": "标签文本模板"
+                                      },
+                                      "fontSize": {
+                                        "type": "number",
+                                        "description": "标签字号"
+                                      },
+                                      "bold": {
+                                        "type": "boolean",
+                                        "description": "是否加粗"
+                                      },
+                                      "italic": {
+                                        "type": "boolean",
+                                        "description": "是否斜体"
+                                      },
+                                      "underline": {
+                                        "type": "boolean",
+                                        "description": "是否下划线"
+                                      },
+                                      "strikethrough": {
+                                        "type": "boolean",
+                                        "description": "是否删除线"
+                                      },
+                                      "color": {
+                                        "type": "string",
+                                        "description": "标签字体颜色"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          "pareto": {
+                            "type": "object",
+                            "description": "排列图配置。柱子、累计曲线、数据点和标签复用现有 bars、line、points、labels 配置。",
+                            "properties": {
+                              "aggregateType": {
+                                "type": "string",
+                                "description": "排列图的数据汇总方式",
+                                "enum": [
+                                  "sum",
+                                  "average",
+                                  "count",
+                                  "counta",
+                                  "min",
+                                  "max",
+                                  "median"
+                                ]
+                              },
+                              "categoryNumber": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "description": "参与排列的类别数量，必须为正整数"
                               }
                             }
                           }
@@ -3787,6 +4507,113 @@
                               "type": "object",
                               "description": "数据标签配置（覆盖单系列，配置项同 plotArea.plot.labels）。不覆盖该系列数据标签时省略整个 labels 字段；一旦传入 labels（即便显示开关全部置为 false），该系列仍会显示数据标签。"
                             },
+                            "waterfall": {
+                              "type": "object",
+                              "description": "瀑布图的单系列配置，覆盖 plot.extra.waterfall 中对应的数值解释和样式。",
+                              "properties": {
+                                "firstValueAsTotal": {
+                                  "type": "boolean",
+                                  "description": "是否将该系列第一个值视为总计"
+                                },
+                                "lastValueAsSubtotal": {
+                                  "type": "boolean",
+                                  "description": "是否将该系列最后一个值视为小计"
+                                },
+                                "positiveStyle": {
+                                  "type": "object",
+                                  "description": "该系列的正值柱样式",
+                                  "properties": {
+                                    "color": {
+                                      "type": "string",
+                                      "description": "填充颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "透明度，取值 0-1"
+                                    },
+                                    "borderColor": {
+                                      "type": "string",
+                                      "description": "边框颜色"
+                                    },
+                                    "borderWidth": {
+                                      "type": "number",
+                                      "description": "边框宽度"
+                                    },
+                                    "borderStyle": {
+                                      "type": "string",
+                                      "description": "边框样式",
+                                      "enum": [
+                                        "solid",
+                                        "dashed",
+                                        "dotted"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "negativeStyle": {
+                                  "type": "object",
+                                  "description": "该系列的负值柱样式",
+                                  "properties": {
+                                    "color": {
+                                      "type": "string",
+                                      "description": "填充颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "透明度，取值 0-1"
+                                    },
+                                    "borderColor": {
+                                      "type": "string",
+                                      "description": "边框颜色"
+                                    },
+                                    "borderWidth": {
+                                      "type": "number",
+                                      "description": "边框宽度"
+                                    },
+                                    "borderStyle": {
+                                      "type": "string",
+                                      "description": "边框样式",
+                                      "enum": [
+                                        "solid",
+                                        "dashed",
+                                        "dotted"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "totalStyle": {
+                                  "type": "object",
+                                  "description": "该系列的总计与小计柱样式",
+                                  "properties": {
+                                    "color": {
+                                      "type": "string",
+                                      "description": "填充颜色"
+                                    },
+                                    "opacity": {
+                                      "type": "number",
+                                      "description": "透明度，取值 0-1"
+                                    },
+                                    "borderColor": {
+                                      "type": "string",
+                                      "description": "边框颜色"
+                                    },
+                                    "borderWidth": {
+                                      "type": "number",
+                                      "description": "边框宽度"
+                                    },
+                                    "borderStyle": {
+                                      "type": "string",
+                                      "description": "边框样式",
+                                      "enum": [
+                                        "solid",
+                                        "dashed",
+                                        "dotted"
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            },
                             "sectors": {
                               "type": "object",
                               "description": "扇区配置（饼图）",
@@ -4268,6 +5095,16 @@
                             "nameRef": {
                               "type": "string",
                               "description": "可选。系列名称的单元格引用（A1 表示法，如 'Sheet1!C1'）。当系列名称不直接来自 refs 首行/首列时，可通过此字段把系列名显式指向目标表头单元格，图表会以该单元格当前值作为系列名（图例/tooltip）展示。"
+                            },
+                            "role": {
+                              "type": "string",
+                              "description": "气泡图中该数据系列的角色：x 为横轴、y 为纵轴、group 为分组、size 为气泡大小。气泡图必须各有一个 x 和 y，group 和 size 可选。",
+                              "enum": [
+                                "x",
+                                "y",
+                                "group",
+                                "size"
+                              ]
                             }
                           },
                           "required": [
@@ -4283,10 +5120,25 @@
                           "properties": {
                             "valueType": {
                               "type": "string",
-                              "description": "值类型",
+                              "description": "值类型。x、y、size 角色使用 number；group 角色可使用 string 或 number。",
                               "enum": [
-                                "number"
+                                "number",
+                                "string"
                               ]
+                            },
+                            "role": {
+                              "type": "string",
+                              "description": "气泡图中该静态字段的角色：x 为横轴、y 为纵轴、group 为分组、size 为气泡大小。气泡图必须各有一个 x 和 y，group 和 size 可选。",
+                              "enum": [
+                                "x",
+                                "y",
+                                "group",
+                                "size"
+                              ]
+                            },
+                            "format": {
+                              "type": "string",
+                              "description": "字段数值格式"
                             },
                             "name": {
                               "type": "string",
