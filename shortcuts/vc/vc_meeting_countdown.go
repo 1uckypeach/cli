@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
-	"github.com/larksuite/cli/internal/validate"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -41,9 +41,9 @@ var VCMeetingCountdown = common.Shortcut{
 	Flags: []common.Flag{
 		{Name: "meeting-id", Required: true, Desc: "meeting ID to operate"},
 		{Name: "action", Required: true, Desc: "countdown action: set, prolong, end_in_advance, or close", Enum: meetingCountdownActions},
-		{Name: "duration", Type: "int", Desc: "countdown duration in minutes; required for set and prolong"},
+		{Name: "duration", Type: "string", Desc: "countdown duration in minutes; required for set and prolong"},
 		{Name: "need-play-audio-at-end", Type: "bool", Desc: "play audio when a set countdown ends"},
-		{Name: "reminders-before-end-in-second", Type: "int_array", Desc: "reminder offsets in seconds before countdown end; repeat or use CSV"},
+		{Name: "reminders-before-end-in-second", Type: "string", Desc: "single reminder offset in minutes before countdown end"},
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		if err := validateMeetingEventsMeetingID(runtime.Str("meeting-id")); err != nil {
@@ -58,7 +58,7 @@ var VCMeetingCountdown = common.Shortcut{
 			return common.NewDryRunAPI().Set("error", err.Error())
 		}
 		return common.NewDryRunAPI().
-			POST(buildMeetingCountdownPath(runtime.Str("meeting-id"))).
+			POST(buildMeetingCountdownPath()).
 			Body(body)
 	},
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
@@ -67,7 +67,7 @@ var VCMeetingCountdown = common.Shortcut{
 			return err
 		}
 		action, _ := body["action"].(string)
-		data, err := runtime.CallAPITyped(http.MethodPost, buildMeetingCountdownPath(runtime.Str("meeting-id")), nil, body)
+		data, err := runtime.CallAPITyped(http.MethodPost, buildMeetingCountdownPath(), nil, body)
 		if err != nil {
 			return err
 		}
@@ -82,22 +82,23 @@ var VCMeetingCountdown = common.Shortcut{
 	},
 }
 
-func buildMeetingCountdownPath(meetingID string) string {
-	return fmt.Sprintf("/open-apis/vc/v1/meetings/%s/countdown", validate.EncodePathSegment(strings.TrimSpace(meetingID)))
+func buildMeetingCountdownPath() string {
+	return "/open-apis/vc/v1/bots/countdown"
 }
 
 func buildMeetingCountdownBody(runtime *common.RuntimeContext) (map[string]interface{}, error) {
+	meetingID := strings.TrimSpace(runtime.Str("meeting-id"))
 	action := strings.ToLower(strings.TrimSpace(runtime.Str("action")))
 	if err := validateMeetingCountdownAction(action); err != nil {
 		return nil, err
 	}
 
-	duration := runtime.Int("duration")
-	reminders := runtime.IntArray("reminders-before-end-in-second")
+	duration := strings.TrimSpace(runtime.Str("duration"))
+	reminder := strings.TrimSpace(runtime.Str("reminders-before-end-in-second"))
 	if err := validateMeetingCountdownDuration(action, duration); err != nil {
 		return nil, err
 	}
-	if err := validateMeetingCountdownReminders(action, duration, reminders); err != nil {
+	if err := validateMeetingCountdownReminder(action, duration, reminder); err != nil {
 		return nil, err
 	}
 	if action != meetingCountdownActionSet && runtime.Bool("need-play-audio-at-end") {
@@ -105,7 +106,8 @@ func buildMeetingCountdownBody(runtime *common.RuntimeContext) (map[string]inter
 	}
 
 	body := map[string]interface{}{
-		"action": action,
+		"meeting_id": meetingID,
+		"action":     action,
 	}
 	if action == meetingCountdownActionSet || action == meetingCountdownActionProlong {
 		body["duration"] = duration
@@ -114,10 +116,8 @@ func buildMeetingCountdownBody(runtime *common.RuntimeContext) (map[string]inter
 		if runtime.Bool("need-play-audio-at-end") {
 			body["need_play_audio_at_end"] = true
 		}
-		if len(reminders) > 0 {
-			values := make([]int, 0, len(reminders))
-			values = append(values, reminders...)
-			body["reminders_before_end_in_second"] = values
+		if reminder != "" {
+			body["reminders_before_end_in_second"] = reminder
 		}
 	}
 	return body, nil
@@ -134,35 +134,39 @@ func validateMeetingCountdownAction(action string) error {
 	}
 }
 
-func validateMeetingCountdownDuration(action string, duration int) error {
+func validateMeetingCountdownDuration(action string, duration string) error {
 	switch action {
 	case meetingCountdownActionSet, meetingCountdownActionProlong:
-		if duration <= 0 {
+		if _, ok := parsePositiveMeetingCountdownInt(duration); !ok {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--duration must be a positive number of minutes when --action is set or prolong").WithParam("--duration")
 		}
 	default:
-		if duration != 0 {
+		if duration != "" {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--duration is only supported when --action is set or prolong").WithParam("--duration")
 		}
 	}
 	return nil
 }
 
-func validateMeetingCountdownReminders(action string, duration int, reminders []int) error {
-	if len(reminders) == 0 {
+func validateMeetingCountdownReminder(action string, duration string, reminder string) error {
+	if reminder == "" {
 		return nil
 	}
 	if action != meetingCountdownActionSet {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--reminders-before-end-in-second is only supported when --action set").WithParam("--reminders-before-end-in-second")
 	}
-	durationSeconds := duration * 60
-	for _, reminder := range reminders {
-		if reminder <= 0 {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--reminders-before-end-in-second values must be positive seconds").WithParam("--reminders-before-end-in-second")
-		}
-		if reminder >= durationSeconds {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--reminders-before-end-in-second values must be less than --duration converted to seconds").WithParam("--reminders-before-end-in-second")
-		}
+	reminderMinute, ok := parsePositiveMeetingCountdownInt(reminder)
+	if !ok {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--reminders-before-end-in-second must be one positive number of minutes").WithParam("--reminders-before-end-in-second")
+	}
+	durationMinute, _ := parsePositiveMeetingCountdownInt(duration)
+	if reminderMinute >= durationMinute {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--reminders-before-end-in-second must be less than --duration in minutes").WithParam("--reminders-before-end-in-second")
 	}
 	return nil
+}
+
+func parsePositiveMeetingCountdownInt(value string) (int64, bool) {
+	result, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+	return result, err == nil && result > 0
 }
