@@ -28,5 +28,4 @@ const (
 	CliCAPath       = "LARKSUITE_CLI_CA_PATH"
 
 	// External keyless signer helper for private_key_jwt flows.
-	CliKeylessSignerCmd = "LARKSUITE_CLI_KEYLESS_SIGNER_CMD"
 )
