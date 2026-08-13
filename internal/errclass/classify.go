@@ -439,13 +439,12 @@ func PermissionRecovery(missing []string, identity string, subtype errs.Subtype,
 }
 
 func botScopeRecoveryHint(consoleURL string) recovery.Hint {
-	const stop = "do not retry the failed command or issue follow-up API calls until those scopes are granted"
 	if consoleURL != "" {
 		return recovery.Join("", recovery.Text(fmt.Sprintf(
-			"the app developer must verify and grant the required scope(s) for the bot identity at the developer console: %s; %s", consoleURL, stop)))
+			"the app developer must verify and grant the required scope(s) for the bot identity at the developer console: %s", consoleURL)))
 	}
 	return recovery.Join("", recovery.Text(
-		"the app developer must verify and grant the required scope(s) to the bot identity; "+stop))
+		"the app developer must verify and grant the required scope(s) to the bot identity"))
 }
 
 func permissionRecoveryHint(missing []string, identity string, subtype errs.Subtype, consoleURL string) recovery.Hint {

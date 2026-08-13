@@ -203,7 +203,7 @@ func TestAuthCheckRun_ConcealedLoginOmitsSuggestion(t *testing.T) {
 	if err := json.Unmarshal(visibleStdout.Bytes(), &visiblePayload); err != nil {
 		t.Fatalf("default stdout must be valid JSON: %v", err)
 	}
-	const wantSuggestion = "run `lark-cli auth login --scope \"calendar:calendar:read\" --no-wait --json` to get device_code and verification_url; present verification_url to the user exactly and end this turn; after the user confirms authorization, run `lark-cli auth login --device-code <device_code>` in a later turn to finish login; do not retry the failed command or issue follow-up API calls until authorization completes"
+	const wantSuggestion = "run `lark-cli auth login --scope \"calendar:calendar:read\" --no-wait --json` to get device_code and verification_url; present verification_url to the user exactly and end this turn; after the user confirms authorization, run `lark-cli auth login --device-code <device_code>` in a later turn to finish login"
 	if suggestion, _ := visiblePayload["suggestion"].(string); suggestion != wantSuggestion {
 		t.Fatalf("default suggestion = %q, want executable split-flow recovery %q", suggestion, wantSuggestion)
 	}

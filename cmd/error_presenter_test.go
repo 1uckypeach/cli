@@ -44,7 +44,7 @@ func TestRootErrorPresenterCompletesDirectPermissionRecoveryWithoutMutatingProdu
 	if !errors.Is(visible, cause) {
 		t.Errorf("visible error lost cause %v: %v", cause, visible)
 	}
-	const wantVisible = "run `lark-cli auth login --scope \"docx:document\" --no-wait --json` to get device_code and verification_url; present verification_url to the user exactly and end this turn; after the user confirms authorization, run `lark-cli auth login --device-code <device_code>` in a later turn to finish login; do not retry the failed command or issue follow-up API calls until authorization completes"
+	const wantVisible = "run `lark-cli auth login --scope \"docx:document\" --no-wait --json` to get device_code and verification_url; present verification_url to the user exactly and end this turn; after the user confirms authorization, run `lark-cli auth login --device-code <device_code>` in a later turn to finish login"
 	if got, want := visibleProblem.Hint, wantVisible; got != want {
 		t.Fatalf("visible recovery = %q, want exact split-flow recovery %q", got, want)
 	}
@@ -190,7 +190,7 @@ func TestRootErrorPresenterUsesDeclaredScopesForCanonicalPermissionRecovery(t *t
 }
 
 func TestRootErrorPresenterPreservesPermissionGuidanceWhenAuthLoginIsConcealed(t *testing.T) {
-	const authorizationFallback = "obtain or refresh a user credential through this distribution's supported authorization flow, have the user complete authorization, then retry. Do not retry the failed command or issue follow-up API calls until authorization completes\ncurrent command requires scope(s): im:message"
+	const authorizationFallback = "obtain or refresh a user credential through this distribution's supported authorization flow, have the user complete authorization, then retry\ncurrent command requires scope(s): im:message"
 	tests := []struct {
 		name     string
 		subtype  errs.Subtype

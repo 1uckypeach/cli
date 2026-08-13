@@ -44,7 +44,7 @@ Typed errors render to **stderr** as one JSON object per process exit:
     "subtype": "missing_scope",
     "code": 99991679,
     "message": "missing scope `calendar:event:create` for app cli_xxx",
-    "hint": "run `lark-cli auth login --scope \"calendar:event:create\" --no-wait --json` to get device_code and verification_url; present verification_url to the user exactly and end this turn; after the user confirms authorization, run `lark-cli auth login --device-code <device_code>` in a later turn to finish login; do not retry the failed command or issue follow-up API calls until authorization completes",
+    "hint": "run `lark-cli auth login --scope \"calendar:event:create\" --no-wait --json` to get device_code and verification_url; present verification_url to the user exactly and end this turn; after the user confirms authorization, run `lark-cli auth login --device-code <device_code>` in a later turn to finish login",
     "log_id": "20260520-0a1b2c3d",
     "missing_scopes": ["calendar:event:create"]
   }

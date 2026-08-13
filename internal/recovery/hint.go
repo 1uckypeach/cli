@@ -103,7 +103,7 @@ func (h Hint) WithFallback(text string) Hint {
 // fallback stay centralized.
 func UserAuthorization(scopes ...string) Hint {
 	scopes = append([]string(nil), scopes...)
-	fallback := "obtain or refresh a user credential through this distribution's supported authorization flow, have the user complete authorization, then retry. Do not retry the failed command or issue follow-up API calls until authorization completes"
+	fallback := "obtain or refresh a user credential through this distribution's supported authorization flow, have the user complete authorization, then retry"
 	if len(scopes) > 0 {
 		fallback += "\ncurrent command requires scope(s): " + strings.Join(scopes, ", ")
 	}
@@ -113,7 +113,7 @@ func UserAuthorization(scopes ...string) Hint {
 			startArgs = fmt.Sprintf("--scope \"%s\" --no-wait --json", strings.Join(scopes, " "))
 		}
 		return fmt.Sprintf(
-			"run %s to get device_code and verification_url; present verification_url to the user exactly and end this turn; after the user confirms authorization, run %s in a later turn to finish login; do not retry the failed command or issue follow-up API calls until authorization completes",
+			"run %s to get device_code and verification_url; present verification_url to the user exactly and end this turn; after the user confirms authorization, run %s in a later turn to finish login",
 			context.InlineAuthLoginCommand(startArgs),
 			context.InlineAuthLoginCommand("--device-code <device_code>"),
 		)

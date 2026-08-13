@@ -24,18 +24,16 @@ func TestUserAuthorizationGolden(t *testing.T) {
 			hint: UserAuthorization(),
 			visible: "run `lark-cli auth login --recommend --no-wait --json` to get device_code and verification_url; " +
 				"present verification_url to the user exactly and end this turn; after the user confirms authorization, " +
-				"run `lark-cli auth login --device-code <device_code>` in a later turn to finish login; " +
-				"do not retry the failed command or issue follow-up API calls until authorization completes",
-			concealed: "obtain or refresh a user credential through this distribution's supported authorization flow, have the user complete authorization, then retry. Do not retry the failed command or issue follow-up API calls until authorization completes",
+				"run `lark-cli auth login --device-code <device_code>` in a later turn to finish login",
+			concealed: "obtain or refresh a user credential through this distribution's supported authorization flow, have the user complete authorization, then retry",
 		},
 		{
 			name: "multiple scopes",
 			hint: UserAuthorization("docx:document", "drive:drive"),
 			visible: "run `lark-cli auth login --scope \"docx:document drive:drive\" --no-wait --json` to get device_code and verification_url; " +
 				"present verification_url to the user exactly and end this turn; after the user confirms authorization, " +
-				"run `lark-cli auth login --device-code <device_code>` in a later turn to finish login; " +
-				"do not retry the failed command or issue follow-up API calls until authorization completes",
-			concealed: "obtain or refresh a user credential through this distribution's supported authorization flow, have the user complete authorization, then retry. Do not retry the failed command or issue follow-up API calls until authorization completes\n" +
+				"run `lark-cli auth login --device-code <device_code>` in a later turn to finish login",
+			concealed: "obtain or refresh a user credential through this distribution's supported authorization flow, have the user complete authorization, then retry\n" +
 				"current command requires scope(s): docx:document, drive:drive",
 		},
 	}
@@ -72,8 +70,7 @@ func TestUserAuthorizationUsesBuildLocalProfileForBothCommands(t *testing.T) {
 
 	want := "run `lark-cli auth login --profile='team-beta' --scope \"docx:document drive:drive\" --no-wait --json` to get device_code and verification_url; " +
 		"present verification_url to the user exactly and end this turn; after the user confirms authorization, " +
-		"run `lark-cli auth login --profile='team-beta' --device-code <device_code>` in a later turn to finish login; " +
-		"do not retry the failed command or issue follow-up API calls until authorization completes"
+		"run `lark-cli auth login --profile='team-beta' --device-code <device_code>` in a later turn to finish login"
 	if got := projector.RenderHint(hint); got != want {
 		t.Fatalf("profile-aware hint = %q, want %q", got, want)
 	}
