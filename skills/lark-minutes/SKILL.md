@@ -115,10 +115,12 @@ lark-cli minutes +apply-permission --minute-token <token> --perm view|edit --as 
 
 **触发信号（任一命中即走本 skill，禁止走 lark-task）**：
 
-- "在（某条）妙记里新建 / 添加 / 修改 / 删除待办"
+- "在（某条）妙记里新建 / 添加 / 修改 / 删除待办"（即使同时提到了负责人，例如"负责人是我"，也不改变归属）
 - "把妙记 A 的待办改成已完成 / 未完成"
 - "妙记里的任务1 / 任务2"（上下文已明确是妙记）
 - 已给出 `minute_token` 或妙记 URL，且要改待办 / 总结
+
+**负责人 / `@` 提及处理（必读）**：用户说"负责人是某某"时，妙记待办的既定写法就是把负责人以内联 `@某某` 写进 `content`。用户给了姓名就原文拼成 `@姓名`，不做查找；说"我"则必须先取真实姓名（用 `lark-cli contact +get-user --as user`，或上下文已知的真实姓名）再拼成 `@<真实姓名>`并真正写进 `content`，取不到就不写任何 `@` 提及（不要留字面的 `@我`）。**禁止**用"以某身份创建即归属于你"代替真正的 `@` 文本拼接，**禁止**因为要处理负责人而改路由到 [lark-task](../lark-task/SKILL.md)，**禁止**在回复里主动建议改用 lark-task 来实现"明确负责人"——这与妙记待办完全无关。回复只陈述结果（待办内容、负责人、完成状态），**禁止**解释"接口只支持 content / is_done""没有独立的负责人字段"这类实现限制。无论姓名能否解析，都必须照常执行 `+todo --operation add` 落地这条待办。详见 [`+todo` reference 第 3 节](references/lark-minutes-todo.md#3-负责人--提及既定写法必读)。
 
 **妙记 AI 待办 vs 飞书任务 Task**：
 
@@ -143,7 +145,9 @@ lark-cli minutes +todo --minute-token <token> --as user --todos '[
 
 **无编辑权限**：若 CLI 返回 `error.subtype=permission_denied`，表示对**这条妙记**没有编辑权，应请所有者授权；**不要**误走 `auth login --scope`。
 
-**逐字稿关键词替换无命中**：`minutes +word-replace` 时，若 CLI 返回 `error.subtype=not_found`，表示传入的 `source_word` 在该妙记逐字稿中**一个都没匹配到**，未做任何替换。这是**参数问题不是权限问题**：先用 `minutes +detail --minute-tokens <token> --transcript` 读取当前逐字稿，核对 `source_word` 的精确写法与大小写后重试。
+**逐字稿关键词替换**：`minutes +word-replace` **至少一个关键词命中即为成功**（`ok:true`），`data.message` 会列出 Succeeded/Failed 关键词，并提示 `Do not reprocess words that already succeeded.`（勿再提交已成功的词）；**全部未命中**为失败（`error.subtype=not_found`）。这是**参数问题不是权限问题**：失败时先核对 `source_word` 后再只重试失败词。
+
+**ASR/AI 额度已用尽**：`+summary` / `+todo` / `+word-replace` / `+upload` 若返回 `error.subtype=quota_exceeded`（原始响应 `asr/ai quota not enough`），说明 ASR/AI 额度已耗尽：前三个命令表示该妙记生成时额度就已用尽、AI 产物未完整生成，写操作无法落库；`+upload` 表示额度不足以转写这个音视频，妙记根本没有创建。应提示用户去妙记详情页查看额度详细信息；**不要重试**，CLI 无法补充或提升额度。
 
 **替换 AI 总结全文**：见 [minutes +summary](references/lark-minutes-summary.md)。
 
