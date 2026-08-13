@@ -16,6 +16,9 @@ import (
 
 const dbTableListHint = "verify --app-id is correct; if targeting --environment dev, create it first with `lark-cli apps +db-env-create --app-id <app_id> --environment dev`"
 
+// 独立 DB 没有 app、没有环境，也就没有 +db-env-create 这一步，hint 必须另写一份。
+const dbTableListDatabaseHint = "verify --database-id is correct; run `lark-cli apps +db-list` to see the databases you can access"
+
 // AppsDBTableList lists tables in an app's database.
 //
 // GET /apps/{app_id}/tables（cursor 分页），response items[] 含 estimated_row_count /
@@ -39,32 +42,33 @@ var AppsDBTableList = common.Shortcut{
 	Scopes:    []string{"spark:app:read"},
 	AuthTypes: []string{"user"},
 	HasFormat: true,
-	Flags: append([]common.Flag{
-		{Name: "app-id", Desc: "app id", Required: true},
-		{Name: "page-size", Type: "int", Default: "20", Desc: "page size"},
-		{Name: "page-token", Desc: "pagination cursor from previous response"},
-	}, dbEnvFlags("", []string{"dev", "online"}, "target db environment; leave unset to auto-select (multi-env app uses dev, single-env uses online), or pass dev/online")...),
+	Flags: append(append(
+		dbResourceFlags("app id (mutually exclusive with --database-id)", "standalone database id (mutually exclusive with --app-id)"),
+		[]common.Flag{
+			{Name: "page-size", Type: "int", Default: "20", Desc: "page size"},
+			{Name: "page-token", Desc: "pagination cursor from previous response"},
+		}...), dbEnvFlags("", []string{"dev", "online"}, "target db environment (Miaoda app only; a standalone database has none); leave unset to auto-select (multi-env app uses dev, single-env uses online), or pass dev/online")...),
 	Validate: func(ctx context.Context, rctx *common.RuntimeContext) error {
-		if _, err := requireAppID(rctx.Str("app-id")); err != nil {
+		if _, _, err := requireDBResource(rctx); err != nil {
 			return err
 		}
 		return rejectLegacyEnvFlag(rctx)
 	},
 	DryRun: func(ctx context.Context, rctx *common.RuntimeContext) *common.DryRunAPI {
-		appID, _ := requireAppID(rctx.Str("app-id"))
+		kind, url, params := dbTableListTarget(rctx)
 		return common.NewDryRunAPI().
-			GET(appTablesPath(appID)).
-			Desc("List app db tables").
-			Params(buildDBTableListParams(rctx))
+			GET(url).
+			Desc(dbHintFor(kind, "List app db tables", "List standalone database tables")).
+			Params(params)
 	},
 	Execute: func(ctx context.Context, rctx *common.RuntimeContext) error {
-		appID, err := requireAppID(rctx.Str("app-id"))
-		if err != nil {
+		if _, _, err := requireDBResource(rctx); err != nil {
 			return err
 		}
-		data, err := rctx.CallAPITyped("GET", appTablesPath(appID), buildDBTableListParams(rctx), nil)
+		kind, url, params := dbTableListTarget(rctx)
+		data, err := rctx.CallAPITyped("GET", url, params, nil)
 		if err != nil {
-			return withAppsHint(err, dbTableListHint)
+			return withAppsHint(err, dbHintFor(kind, dbTableListHint, dbTableListDatabaseHint))
 		}
 		// 白名单投影：只把产品要求的字段组装进 dbTableListItem，替换 server 原始 items[]。
 		// server 给每张表回完整 columns[]（与 +db-table-get 同源、逐字节一致），在 list 里逐表
@@ -110,14 +114,19 @@ func projectTableListItems(raw interface{}) []dbTableListItem {
 	return out
 }
 
-func buildDBTableListParams(rctx *common.RuntimeContext) map[string]interface{} {
-	params := dbEnvParams(rctx, map[string]interface{}{
-		"page_size": rctx.Int("page-size"),
-	})
+// dbTableListTarget 按标识分派到两支路径，DryRun 与 Execute 共用 —— 不一致会让 --dry-run
+// 预览与实际请求不符，而那正是 agent 的自检手段。
+func dbTableListTarget(rctx *common.RuntimeContext) (dbResourceKind, string, map[string]interface{}) {
+	kind, id, _ := requireDBResource(rctx)
+	params := map[string]interface{}{"page_size": rctx.Int("page-size")}
 	if token := strings.TrimSpace(rctx.Str("page-token")); token != "" {
 		params["page_token"] = token
 	}
-	return params
+	url := appTablesPath(id)
+	if kind == dbResourceDatabase {
+		url = databaseTablesPath(id)
+	}
+	return kind, url, dbEnvParamsFor(kind, rctx, params)
 }
 
 // renderTableListPretty 5 列输出，列间两空格、列对齐填充。

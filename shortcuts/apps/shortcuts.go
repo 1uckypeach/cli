@@ -47,6 +47,18 @@ func Shortcuts() []common.Shortcut {
 		AppsEnvVarList,
 		envSet,
 		envDelete,
+		// standalone database lifecycle（独立 DB，不挂在任何妙搭 App 下）
+		AppsDBCreate,
+		AppsDBList,
+		AppsDBDelete,
+		// standalone database permissions（只认 --database-id；App 成员权限归 +role-*）
+		AppsDBPermissionList,
+		AppsDBPermissionSet,
+		AppsDBPermissionRevoke,
+		// DB MCP（--app-id 与 --database-id 二选一）
+		AppsDBMcpEnable,
+		AppsDBMcpDisable,
+		AppsDBMcpGet,
 		AppsDBTableList,
 		AppsDBTableGet,
 		AppsDBExecute,

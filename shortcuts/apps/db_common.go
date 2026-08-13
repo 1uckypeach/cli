@@ -101,6 +101,77 @@ func pollUntil(ctx context.Context, interval, maxWait time.Duration,
 
 // URL helpers for the db CLI commands.
 
+// ── 独立数据库（standalone DB）的 URL —— 与 app 维度的 /apps/{app_id}/... 两套并列 ──
+//
+// 两套路由对应两套 OpenAPI 契约（独立 DB 全程飞书身份、无环境概念），所以路径函数分开写、
+// 不在存量 app* 函数里加 if：分开更易 review 与灰度，也避免某一支的改动波及另一支。
+//
+// 路径段里只有平台发号的 database_id。用户自定义的值（表名等）一律走 query —— EncodePathSegment
+// （即 url.PathEscape）挡不住 ".."，让它进路径段会被规范化到上一级、打到别的接口上。
+
+// databasesPath 返回独立数据库集合 URL（POST 建库 / GET 列表）。
+func databasesPath() string {
+	return apiBasePath + "/databases"
+}
+
+// databasePath 返回单个独立数据库 URL（DELETE 删库）。
+func databasePath(databaseID string) string {
+	return fmt.Sprintf("%s/databases/%s", apiBasePath, validate.EncodePathSegment(databaseID))
+}
+
+// databaseTablesPath / databaseTablePath 返回独立数据库的表 URL。
+//
+// 【表列表是复数 tables，单表详情是单数 table + query】—— 不对称是有意的：单表详情的表名
+// 是用户自定义值，不能进路径段（见文件上方说明），所以走 GET /table?table=xxx。
+func databaseTablesPath(databaseID string) string {
+	return databasePath(databaseID) + "/tables"
+}
+
+func databaseTablePath(databaseID string) string {
+	return databasePath(databaseID) + "/table"
+}
+
+// databaseSQLPath 返回独立数据库 SQL 执行 URL。
+func databaseSQLPath(databaseID string) string {
+	return databasePath(databaseID) + "/sql_commands"
+}
+
+// databaseDataImportPath / databaseDataExportPath 返回独立数据库的数据导入导出 URL。
+// 注意与 App 支路的域段差异：App 是 /apps/{id}/db/data_import，独立 DB 没有 db/ 这一段。
+func databaseDataImportPath(databaseID string) string {
+	return databasePath(databaseID) + "/data_import"
+}
+
+func databaseDataExportPath(databaseID string) string {
+	return databasePath(databaseID) + "/data_export"
+}
+
+// databasePermissionsPath 返回独立数据库权限 URL（GET 列表 / POST 授权 / DELETE 撤销，同路径三方法）。
+func databasePermissionsPath(databaseID string) string {
+	return databasePath(databaseID) + "/permissions"
+}
+
+// databaseMcpPath / appDbMcpPath 返回 DB MCP 的两支路径。
+//
+// 【域段不对称，故意分成两个函数】：独立 DB 是 /databases/{id}/mcp[/action]，
+// 妙搭 App 是 /apps/{id}/db/mcp[/action] —— 多一段 db/。用一个通用 suffix 拼接会拼错 App 支路，
+// 这是设计文档专门标出来的坑。
+func databaseMcpPath(databaseID, action string) string {
+	return databasePath(databaseID) + mcpSuffix(action)
+}
+
+func appDbMcpPath(appID, action string) string {
+	return fmt.Sprintf("%s/apps/%s/db%s", apiBasePath, validate.EncodePathSegment(appID), mcpSuffix(action))
+}
+
+// mcpSuffix 把动作拼成 /mcp 或 /mcp/<action>；action 为空即「取状态」。
+func mcpSuffix(action string) string {
+	if action == "" {
+		return "/mcp"
+	}
+	return "/mcp/" + action
+}
+
 // appTablesPath 返回 app db 表列表 URL（复用存量「获取数据表列表」接口）。
 func appTablesPath(appID string) string {
 	return fmt.Sprintf("%s/apps/%s/tables", apiBasePath, validate.EncodePathSegment(appID))
@@ -312,6 +383,100 @@ func requireAppID(raw string) (string, error) {
 	id := strings.TrimSpace(raw)
 	if id == "" {
 		return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "--app-id is required").WithParam("--app-id")
+	}
+	return id, nil
+}
+
+// dbResourceKind 标识一条 db 命令这次作用在哪种资源上。
+type dbResourceKind string
+
+const (
+	dbResourceApp      dbResourceKind = "app"
+	dbResourceDatabase dbResourceKind = "database"
+)
+
+// dbResourceFlags 返回「二选一」的标识 flag 对，供支持两种资源的 db 命令 append 进 Flags。
+//
+// 两个都不带 Required：谁都不是必填，但必须【恰好一个】——这条由 requireDBResource 在
+// Validate 阶段用 common.ExactlyOneTyped 保证，报错文案与 params 由框架统一产出。
+// 若给 --app-id 挂 Required，cobra 会在二选一判定之前就把只传 --database-id 的调用拒掉。
+func dbResourceFlags(appIDDesc, databaseIDDesc string) []common.Flag {
+	return []common.Flag{
+		{Name: "app-id", Desc: appIDDesc},
+		{Name: "database-id", Desc: databaseIDDesc},
+	}
+}
+
+// requireDBResource 解析「这次作用在 app 还是独立 DB 上」，是存量 db 命令支持独立 DB 的统一入口。
+//
+// 不改造 requireAppID：它被 30+ 个 app 维度命令引用，只有本次涉及的命令换用本函数，
+// 其余命令行为逐字不变。
+// 文案与 params 一律由 common.ExactlyOneTyped 产出，不自造 —— 二选一的两种失败
+// （都不传 / 都传）在整个 CLI 里必须是同一套信封。
+func requireDBResource(rctx *common.RuntimeContext) (dbResourceKind, string, error) {
+	if err := common.ExactlyOneTyped(rctx, "app-id", "database-id"); err != nil {
+		return "", "", err
+	}
+	if id := strings.TrimSpace(rctx.Str("database-id")); id != "" {
+		// 独立 DB 没有环境概念，显式传 --environment 属于用错了心智模型，早失败好过静默忽略。
+		if err := rejectEnvironmentForDatabase(rctx); err != nil {
+			return "", "", err
+		}
+		return dbResourceDatabase, id, nil
+	}
+	id, err := requireAppID(rctx.Str("app-id"))
+	if err != nil {
+		return "", "", err
+	}
+	return dbResourceApp, id, nil
+}
+
+// rejectEnvironmentForDatabase 在 --database-id 与 --environment 同时出现时报错。
+//
+// 判据是 Changed() 而不是 Str() != ""：--environment 在部分命令上带默认值，用取值判断会把
+// 「没传、吃到默认值」误判成「显式传了」，于是所有独立 DB 调用都会被拒。
+func rejectEnvironmentForDatabase(rctx *common.RuntimeContext) error {
+	for _, name := range []string{"environment", "env"} {
+		if rctx.Changed(name) {
+			return errs.NewValidationError(errs.SubtypeInvalidArgument,
+				"--%s is not supported with --database-id: a standalone database has no environments", name).
+				WithParam("--" + name)
+		}
+	}
+	return nil
+}
+
+// dbEnvParamsFor 按资源类型决定要不要带 env 键。
+//
+// App 支路行为逐字不变（沿用 dbEnvParams：显式指定才带 env，未指定由服务端自动选分支）；
+// 独立 DB 支路【一律不带 env 键】—— 它只有一个库，没有环境维度。
+// 显式传 --environment 已在 requireDBResource 里拒掉，这里只负责不把默认值漏出去。
+func dbEnvParamsFor(kind dbResourceKind, rctx *common.RuntimeContext, params map[string]interface{}) map[string]interface{} {
+	if kind == dbResourceDatabase {
+		return params
+	}
+	return dbEnvParams(rctx, params)
+}
+
+// dbHintFor 按资源类型选 hint。现有 hint 文案全是 app 口径（提 --app-id、--environment dev、
+// +db-env-create），对独立 DB 逐字都是错的，照抄会把人指向不存在的命令。
+func dbHintFor(kind dbResourceKind, appHint, databaseHint string) string {
+	if kind == dbResourceDatabase {
+		return databaseHint
+	}
+	return appHint
+}
+
+// requireDatabaseID trims --database-id and rejects blank, mirroring requireAppID.
+//
+// 与 requireAppID 并列而非改造它：requireAppID 被 30+ 个 app 维度命令引用，独立 DB 的命令
+// 只认 database_id，两者不共用一个校验器，改错一处会波及整个 apps 域。
+// 完全没传该 flag 时由 cobra 的 Required 拦在更前面（信封里没有 identity），这里兜的是
+// 显式传了空串 / 纯空格的情况。
+func requireDatabaseID(raw string) (string, error) {
+	id := strings.TrimSpace(raw)
+	if id == "" {
+		return "", errs.NewValidationError(errs.SubtypeInvalidArgument, "--database-id is required").WithParam("--database-id")
 	}
 	return id, nil
 }

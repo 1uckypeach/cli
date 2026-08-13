@@ -6,6 +6,7 @@ package apps
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,6 +26,13 @@ const dbDataExportMaxBytes = 1 * 1024 * 1024 // 1 MB
 
 const dbDataExportHint = "verify --app-id and --table; if too large, filter rows with +db-execute (WHERE/LIMIT) and export smaller subsets"
 
+const dbDataExportDatabaseHint = "verify --database-id and --table; if too large, filter rows with +db-execute (WHERE/LIMIT) and export smaller subsets"
+
+// dbExportRecordCountHeader 是独立 DB 支路的行数来源。
+// App 支路要先打一次 records 接口取 total（两次请求）；独立 DB 的导出接口把行数放在这个
+// response header 里，一次请求同时拿到数据与行数。
+const dbExportRecordCountHeader = "x-apaas-record-count"
+
 // AppsDBDataExport 把应用数据表导出到本地文件（csv/json/sql）。
 //
 // GET /apps/{app_id}/db/data_export，返回原始字节（非 JSON 信封）。
@@ -42,14 +50,14 @@ var AppsDBDataExport = common.Shortcut{
 	Scopes:    []string{"spark:app:read"},
 	AuthTypes: []string{"user"},
 	HasFormat: true,
-	Flags: append([]common.Flag{
-		{Name: "app-id", Desc: "Miaoda app id", Required: true},
-		{Name: "table", Desc: "source table", Required: true},
-		{Name: "output", Desc: "local output path; extension picks format .csv/.json/.sql (default: <table>.csv)"},
-		{Name: "limit", Type: "int", Default: "5000", Desc: "max rows to export (1..5000)"},
-	}, dbEnvFlags("", []string{"dev", "online"}, "source db environment; leave unset to auto-select (multi-env app uses dev, single-env uses online), or pass dev/online")...),
+	Flags: append(append(
+		dbResourceFlags("Miaoda app id (mutually exclusive with --database-id)", "standalone database id (mutually exclusive with --app-id)"),
+		common.Flag{Name: "table", Desc: "source table", Required: true},
+		common.Flag{Name: "output", Desc: "local output path; extension picks format .csv/.json/.sql (default: <table>.csv)"},
+		common.Flag{Name: "limit", Type: "int", Default: "5000", Desc: "max rows to export (1..5000)"},
+	), dbEnvFlags("", []string{"dev", "online"}, "source db environment (Miaoda app only; a standalone database has none); leave unset to auto-select (multi-env app uses dev, single-env uses online), or pass dev/online")...),
 	Validate: func(ctx context.Context, rctx *common.RuntimeContext) error {
-		if _, err := requireAppID(rctx.Str("app-id")); err != nil {
+		if _, _, err := requireDBResource(rctx); err != nil {
 			return err
 		}
 		if err := rejectLegacyEnvFlag(rctx); err != nil {
@@ -70,18 +78,14 @@ var AppsDBDataExport = common.Shortcut{
 		return nil
 	},
 	DryRun: func(ctx context.Context, rctx *common.RuntimeContext) *common.DryRunAPI {
-		appID, _ := requireAppID(rctx.Str("app-id"))
-		format, _, _ := exportFormatAndOutput(rctx)
+		kind, url, params := dbDataExportTarget(rctx)
 		return common.NewDryRunAPI().
-			GET(appDataExportPath(appID)).
-			Desc("Export Miaoda app table data (raw bytes)").
-			Params(dbEnvParams(rctx, map[string]interface{}{
-				"table":  strings.TrimSpace(rctx.Str("table")),
-				"format": format, "limit": rctx.Int("limit"),
-			}))
+			GET(url).
+			Desc(dbHintFor(kind, "Export Miaoda app table data (raw bytes)", "Export standalone database table data (raw bytes)")).
+			Params(params)
 	},
 	Execute: func(ctx context.Context, rctx *common.RuntimeContext) error {
-		appID, err := requireAppID(rctx.Str("app-id"))
+		kind, id, err := requireDBResource(rctx)
 		if err != nil {
 			return err
 		}
@@ -91,34 +95,38 @@ var AppsDBDataExport = common.Shortcut{
 			return err
 		}
 
-		// 原子编排第 1 步：先查总行数（records 列表的 total），再导出文件。
-		// total 查询失败不阻断导出——回退到按导出文件内容数行。
-		total, totalErr := queryExportTotal(rctx, appID, dbEnv(rctx), table)
-
-		exportQuery := larkcore.QueryParams{
-			"table":  []string{table},
-			"format": []string{format},
-			"limit":  []string{strconv.Itoa(rctx.Int("limit"))},
+		// 行数来源两支不同：
+		//   App 支路   —— 先打一次 records 接口取 total（存量行为，两次请求）；
+		//   独立 DB 支路 —— 导出响应的 x-apaas-record-count header 带行数，不再多打一次。
+		// 两支都保留「取不到就按导出内容数行」的兜底：行数是附带信息，不该让导出本身失败。
+		total, totalErr := 0, error(nil)
+		if kind == dbResourceApp {
+			total, totalErr = queryExportTotal(rctx, id, dbEnv(rctx), table)
+		} else {
+			totalErr = errExportTotalFromHeader
 		}
-		if env := dbEnv(rctx); env != "" {
-			exportQuery["env"] = []string{env}
+
+		_, exportURL, exportParams := dbDataExportTarget(rctx)
+		exportQuery := larkcore.QueryParams{}
+		for k, v := range exportParams {
+			exportQuery[k] = []string{fmt.Sprintf("%v", v)}
 		}
 		resp, err := rctx.DoAPI(&larkcore.ApiReq{
 			HttpMethod:  http.MethodGet,
-			ApiPath:     appDataExportPath(appID),
+			ApiPath:     exportURL,
 			QueryParams: exportQuery,
 		})
 		if err != nil {
-			return withAppsHint(errs.NewNetworkError(errs.SubtypeNetworkTransport, "export request failed").WithCause(err).WithRetryable(), dbDataExportHint)
+			return withAppsHint(errs.NewNetworkError(errs.SubtypeNetworkTransport, "export request failed").WithCause(err).WithRetryable(), dbHintFor(kind, dbDataExportHint, dbDataExportDatabaseHint))
 		}
 		// 成功是原始字节；业务错误网关以 JSON 信封 {code,msg} 返回（以 '{' 开头）。
 		if b := bytes.TrimSpace(resp.RawBody); len(b) > 0 && b[0] == '{' {
 			if _, cerr := rctx.ClassifyAPIResponse(resp); cerr != nil {
-				return withAppsHint(cerr, dbDataExportHint)
+				return withAppsHint(cerr, dbHintFor(kind, dbDataExportHint, dbDataExportDatabaseHint))
 			}
 		}
 		if resp.StatusCode >= 400 {
-			return withAppsHint(errs.NewNetworkError(errs.SubtypeNetworkServer, "export failed: HTTP %d", resp.StatusCode).WithRetryable(), dbDataExportHint)
+			return withAppsHint(errs.NewNetworkError(errs.SubtypeNetworkServer, "export failed: HTTP %d", resp.StatusCode).WithRetryable(), dbHintFor(kind, dbDataExportHint, dbDataExportDatabaseHint))
 		}
 		body := resp.RawBody
 		if len(body) > dbDataExportMaxBytes {
@@ -132,7 +140,13 @@ var AppsDBDataExport = common.Shortcut{
 		if err != nil {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--output: %v", err).WithParam("--output")
 		}
-		// 行数取自预查的 total（导出最多 limit 行，故取 min）；total 查询失败时按导出内容数行兜底。
+		// 独立 DB 支路优先读 header 里的行数；读不到再落到「数导出内容」的兜底。
+		if kind == dbResourceDatabase {
+			if n, ok := parseExportRecordCount(resp.Header.Get(dbExportRecordCountHeader)); ok {
+				total, totalErr = n, nil
+			}
+		}
+		// 行数取自 total（导出最多 limit 行，故取 min）；取不到时按导出内容数行兜底。
 		rows := 0
 		if totalErr == nil {
 			rows = total
@@ -197,4 +211,37 @@ func exportFormatAndOutput(rctx *common.RuntimeContext) (format, outPath string,
 		return "", "", ferr
 	}
 	return f, out, nil
+}
+
+// errExportTotalFromHeader 标记「行数还没拿到，等响应 header」——不是错误，只是让下面的
+// 兜底分支在 header 也读不到时接管。用哨兵而不是 bool，是为了和 App 支路的 totalErr 同型。
+var errExportTotalFromHeader = errors.New("record count pending response header")
+
+// dbDataExportTarget 按标识分派，DryRun 与 Execute 共用。表名两支都走 query。
+func dbDataExportTarget(rctx *common.RuntimeContext) (dbResourceKind, string, map[string]interface{}) {
+	kind, id, _ := requireDBResource(rctx)
+	format, _, _ := exportFormatAndOutput(rctx)
+	params := map[string]interface{}{
+		"table":  strings.TrimSpace(rctx.Str("table")),
+		"format": format,
+		"limit":  rctx.Int("limit"),
+	}
+	if kind == dbResourceDatabase {
+		return kind, databaseDataExportPath(id), params
+	}
+	return kind, appDataExportPath(id), dbEnvParams(rctx, params)
+}
+
+// parseExportRecordCount 解析行数 header；缺席或不是非负整数都返回 false 走兜底，
+// 不把脏值当行数报出去。
+func parseExportRecordCount(raw string) (int, bool) {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return 0, false
+	}
+	return n, true
 }

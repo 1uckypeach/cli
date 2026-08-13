@@ -61,14 +61,15 @@ var AppsDBExecute = common.Shortcut{
 	Scopes:    []string{"spark:app:write"},
 	AuthTypes: []string{"user"},
 	HasFormat: true,
-	Flags: append([]common.Flag{
-		{Name: "app-id", Desc: "Miaoda app id", Required: true},
-		{Name: "sql", Desc: "SQL text; use - to read stdin. Mutually exclusive with --file",
-			Input: []string{common.Stdin}},
-		{Name: "file", Desc: "path to a .sql file (relative to cwd). Mutually exclusive with --sql"},
-	}, dbEnvFlags("", []string{"dev", "online"}, "target db environment; leave unset to auto-select (multi-env app uses dev, single-env uses online), or pass dev/online")...),
+	Flags: append(append(
+		dbResourceFlags("Miaoda app id (mutually exclusive with --database-id)", "standalone database id (mutually exclusive with --app-id)"),
+		[]common.Flag{
+			{Name: "sql", Desc: "SQL text; use - to read stdin. Mutually exclusive with --file",
+				Input: []string{common.Stdin}},
+			{Name: "file", Desc: "path to a .sql file (relative to cwd). Mutually exclusive with --sql"},
+		}...), dbEnvFlags("", []string{"dev", "online"}, "target db environment (Miaoda app only; a standalone database has none); leave unset to auto-select (multi-env app uses dev, single-env uses online), or pass dev/online")...),
 	Validate: func(ctx context.Context, rctx *common.RuntimeContext) error {
-		if _, err := requireAppID(rctx.Str("app-id")); err != nil {
+		if _, _, err := requireDBResource(rctx); err != nil {
 			return err
 		}
 		if err := rejectLegacyEnvFlag(rctx); err != nil {
@@ -94,23 +95,22 @@ var AppsDBExecute = common.Shortcut{
 		return nil
 	},
 	DryRun: func(ctx context.Context, rctx *common.RuntimeContext) *common.DryRunAPI {
-		appID, _ := requireAppID(rctx.Str("app-id"))
+		kind, url, params := dbExecuteTarget(rctx)
 		return common.NewDryRunAPI().
-			POST(appSQLPath(appID)).
-			Desc("Execute SQL on Miaoda app database").
-			Params(buildDBSQLParams(rctx)).
+			POST(url).
+			Desc(dbHintFor(kind, "Execute SQL on Miaoda app database", "Execute SQL on a standalone database")).
+			Params(params).
 			Body(buildDBSQLBody(rctx))
 	},
 	Execute: func(ctx context.Context, rctx *common.RuntimeContext) error {
-		appID, err := requireAppID(rctx.Str("app-id"))
+		kind, id, err := requireDBResource(rctx)
 		if err != nil {
 			return err
 		}
-		raw, err := rctx.CallAPITyped("POST", appSQLPath(appID),
-			buildDBSQLParams(rctx),
-			buildDBSQLBody(rctx))
+		_, url, params := dbExecuteTarget(rctx)
+		raw, err := rctx.CallAPITyped("POST", url, params, buildDBSQLBody(rctx))
 		if err != nil {
-			return withAppsHint(err, "verify table/column names with `lark-cli apps +db-table-get --app-id "+appID+" --table <table>`; for day-to-day debugging target the dev database with `--environment dev`")
+			return withAppsHint(err, dbExecuteHint(kind, id))
 		}
 
 		// server `result: string` 内嵌结构化数组 —— CLI 解出来后按 SQL 类型归一化成 PRD 形态，
@@ -290,10 +290,26 @@ func parseErrorSentinel(data string) (int, string) {
 // buildDBSQLParams 构造 sql 接口的 query：env + 强制 transactional=false（DBA 模式）。
 //
 // CLI 永远走 DBA 模式，原子性由用户在 SQL 内显式 BEGIN/COMMIT 控制；不暴露 transactional flag 给用户。
-func buildDBSQLParams(rctx *common.RuntimeContext) map[string]interface{} {
-	return dbEnvParams(rctx, map[string]interface{}{
-		"transactional": false,
-	})
+// dbExecuteTarget 按标识分派到两支路径，DryRun 与 Execute 共用。
+//
+// 【独立 DB 支路不发 transactional】—— 该接口固定走 DBA 模式、不包事务，服务端不收这个参数；
+// 「可选事务」在独立库上没有产品语义，发一个恒为 false 的参数只会让人以为传 true 能拿到事务。
+// App 支路沿用存量的 transactional=false，行为逐字不变。
+func dbExecuteTarget(rctx *common.RuntimeContext) (dbResourceKind, string, map[string]interface{}) {
+	kind, id, _ := requireDBResource(rctx)
+	if kind == dbResourceDatabase {
+		return kind, databaseSQLPath(id), nil
+	}
+	return kind, appSQLPath(id), dbEnvParams(rctx, map[string]interface{}{"transactional": false})
+}
+
+// dbExecuteHint 的两支文案差异不只是标识名：独立 DB 没有 --environment dev 这一步。
+func dbExecuteHint(kind dbResourceKind, id string) string {
+	if kind == dbResourceDatabase {
+		return "verify table/column names with `lark-cli apps +db-table-get --database-id " + id + " --table <table>`"
+	}
+	return "verify table/column names with `lark-cli apps +db-table-get --app-id " + id +
+		" --table <table>`; for day-to-day debugging target the dev database with `--environment dev`"
 }
 
 // resolveExecuteSQL 返回要执行的 SQL，在用时（DryRun/Execute）现读，使 --file 的内容

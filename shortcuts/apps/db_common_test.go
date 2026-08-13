@@ -320,3 +320,77 @@ func assertDBSyncConfigValidation(t *testing.T, raw string, requireFieldMaps, al
 		t.Fatalf("error message echoes config: %q", validationErr.Message)
 	}
 }
+
+// ── 独立数据库（standalone DB）──
+
+func TestDatabasesPath_CollectionURL(t *testing.T) {
+	if got := databasesPath(); got != "/open-apis/spark/v1/databases" {
+		t.Fatalf("databasesPath = %q", got)
+	}
+}
+
+// TestDatabasePath_EncodesSegment：database_id 由平台发号，但仍过 EncodePathSegment ——
+// 路径段只放平台发号的值是本域的硬约束，编码是兜底而非可选。
+func TestDatabasePath_EncodesSegment(t *testing.T) {
+	if got := databasePath("db_7f3a9c21e0b84d55"); got != "/open-apis/spark/v1/databases/db_7f3a9c21e0b84d55" {
+		t.Fatalf("databasePath = %q", got)
+	}
+	if got := databasePath("a/b"); strings.Contains(got, "a/b") {
+		t.Fatalf("databasePath must encode the segment, got %q", got)
+	}
+}
+
+func TestRequireDatabaseID_BlankRejected(t *testing.T) {
+	err := func() error { _, e := requireDatabaseID("  "); return e }()
+	if err == nil {
+		t.Fatal("blank --database-id must be rejected")
+	}
+	// 错误信息要指向 flag 名，否则 agent 不知道该改哪个参数。
+	if !strings.Contains(err.Error(), "--database-id") {
+		t.Fatalf("error must name --database-id, got %v", err)
+	}
+	if got, e := requireDatabaseID("  db_1 "); e != nil || got != "db_1" {
+		t.Fatalf("requireDatabaseID(\"  db_1 \") = %q err=%v; want trimmed db_1", got, e)
+	}
+}
+
+// assertStandaloneDBContract 是三条独立 DB 生命周期命令共用的命令面断言。
+//
+// 重点是两个【不该出现的 flag】：
+//
+//	--app-id      独立 DB 不挂在任何妙搭 App 下，收了就是语义错误（误传应由 cobra 拒为 unknown flag）
+//	--environment 独立 DB 没有多环境概念
+//
+// 这两条靠命令面缺省来保证，很容易在后续重构里被"顺手补齐"，故在此固化。
+func assertStandaloneDBContract(t *testing.T, sc common.Shortcut, risk, scope string, wantFlags []string) {
+	t.Helper()
+	cmd := sc.Command
+	if sc.Service != appsService {
+		t.Errorf("%s Service=%q want %q", cmd, sc.Service, appsService)
+	}
+	if sc.Risk != risk {
+		t.Errorf("%s Risk=%q want %q", cmd, sc.Risk, risk)
+	}
+	if len(sc.Scopes) != 1 || sc.Scopes[0] != scope {
+		t.Errorf("%s Scopes=%v want [%s]", cmd, sc.Scopes, scope)
+	}
+	if len(sc.AuthTypes) != 1 || sc.AuthTypes[0] != "user" {
+		t.Errorf("%s AuthTypes=%v want [user]", cmd, sc.AuthTypes)
+	}
+	if !sc.HasFormat {
+		t.Errorf("%s must support --format", cmd)
+	}
+	var names []string
+	for _, f := range sc.Flags {
+		names = append(names, f.Name)
+		switch f.Name {
+		case "app-id":
+			t.Errorf("%s must not accept --app-id: standalone databases are not app-scoped", cmd)
+		case "environment", "env":
+			t.Errorf("%s must not accept --%s: standalone databases have no environments", cmd, f.Name)
+		}
+	}
+	if strings.Join(names, ",") != strings.Join(wantFlags, ",") {
+		t.Errorf("%s flags=%v want %v", cmd, names, wantFlags)
+	}
+}

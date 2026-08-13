@@ -28,6 +28,13 @@ var sparkCodeMeta = map[int]CodeMeta{
 	500002759: {Category: errs.CategoryValidation, Subtype: errs.SubtypeFailedPrecondition}, // app has no database yet, pre-4xx renumber
 	400002469: {Category: errs.CategoryAPI, Subtype: errs.SubtypeNotFound},                  // table does not exist
 
+	// standalone database（独立 DB）业务码。
+	// 这批目前是设计文档里的【占位码】，服务端按发号规则分配后需回来对齐真实数值；
+	// 未命中时框架兜底成 api/unknown，不会误分类，但 exit code 与 hint 会退化。
+	400002900: {Category: errs.CategoryAPI, Subtype: errs.SubtypeNotFound},                     // database not found (wrong --database-id)
+	400002901: {Category: errs.CategoryAuthorization, Subtype: errs.SubtypePermissionDenied},   // lacks `manage` on the database (no access at all, or runtime-only)
+	500002901: {Category: errs.CategoryAPI, Subtype: errs.SubtypeServerError, Retryable: true}, // database create/init failed; retry is safe (no partial database kept)
+
 	400002477: {Category: errs.CategoryAPI, Subtype: errs.SubtypeInvalidParameters},         // db sync mapping is invalid
 	400002478: {Category: errs.CategoryAPI, Subtype: errs.SubtypeInvalidParameters},         // db sync target schema mismatch
 	400002479: {Category: errs.CategoryValidation, Subtype: errs.SubtypeFailedPrecondition}, // db sync operation is not allowed in the current task state
