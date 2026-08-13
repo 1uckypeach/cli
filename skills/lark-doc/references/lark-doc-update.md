@@ -73,7 +73,7 @@ lark-cli docs +update --doc "xx" --command block_delete --block-id "blkA,blkB"
 
 - 每次写操作后都按 block ID 已变化处理。新插入或复制的内容一定使用新 ID；替换、删除和覆盖会使旧 ID 失效；移动会改变章节与 range 语义。
 - 同一 block 有多处修改时，应合并为一次 `block_replace`，避免连续使用旧 ID。
-- 更新失败且错误含 `outcome_unknown:true` 时，不得直接重放原命令；先重新 fetch 受影响范围并取得最新 revision / block ID，确认未生效后再规划 patch。
+- 更新请求遇到 `network/timeout`、`network/server_error` 或 `network/transport` 时，不得直接重放原命令；先重新 fetch 受影响范围并取得最新 revision / block ID，确认未生效后再规划 patch。
 
 ## 返回值
 

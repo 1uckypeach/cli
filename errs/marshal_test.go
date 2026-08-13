@@ -139,7 +139,6 @@ func TestConfigError_MarshalJSON(t *testing.T) {
 func TestNetworkError_MarshalJSON(t *testing.T) {
 	ne := &NetworkError{
 		Problem:           Problem{Category: CategoryNetwork, Subtype: SubtypeNetworkTimeout, Message: "dial timeout"},
-		OutcomeUnknown:    true,
 		RetryAfterSeconds: 4,
 	}
 	b, _ := json.Marshal(ne)
@@ -147,7 +146,6 @@ func TestNetworkError_MarshalJSON(t *testing.T) {
 	for _, want := range []string{
 		`"type":"network"`,
 		`"subtype":"timeout"`,
-		`"outcome_unknown":true`,
 		`"retry_after_seconds":4`,
 	} {
 		if !strings.Contains(s, want) {

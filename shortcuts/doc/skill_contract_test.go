@@ -24,11 +24,11 @@ func TestLarkDocSkillRecoveryContracts(t *testing.T) {
 		},
 		{
 			path:  "../../skills/lark-doc/references/lark-doc-create-workflow.md",
-			wants: []string{"`outcome_unknown:true`", "不得直接重跑 `+create`"},
+			wants: []string{"`network/timeout`", "不得直接重跑 `+create`"},
 		},
 		{
 			path:  "../../skills/lark-doc/references/lark-doc-update.md",
-			wants: []string{"`outcome_unknown:true`", "不得直接重放原命令"},
+			wants: []string{"`network/timeout`", "不得直接重放原命令"},
 		},
 		{
 			path:  "../../skills/lark-doc/SKILL.md",

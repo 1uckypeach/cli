@@ -6,6 +6,7 @@ package doc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
@@ -138,8 +139,12 @@ func withDocWriteRecovery(err error, operation docWriteOperation) error {
 	if !ok {
 		return err
 	}
-	networkErr, ok := clone.(*errs.NetworkError)
-	if !ok {
+	problem, ok := errs.ProblemOf(clone)
+	if !ok || problem.Category != errs.CategoryNetwork {
+		return err
+	}
+	var networkErr *errs.NetworkError
+	if !errors.As(clone, &networkErr) {
 		return err
 	}
 	switch networkErr.Subtype {
@@ -150,7 +155,6 @@ func withDocWriteRecovery(err error, operation docWriteOperation) error {
 
 	networkErr.Retryable = false
 	networkErr.RetryAfterSeconds = 0
-	networkErr.OutcomeUnknown = true
 	if operation == docWriteCreate {
 		networkErr.Hint = "the create request may already have succeeded; inspect the target folder for the document before creating another one"
 	} else {
