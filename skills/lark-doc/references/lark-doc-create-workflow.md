@@ -115,7 +115,7 @@ lark-cli docs +script --command init-draft --presentation-decision '<上方完�
 
 1. 只有最新 release candidate 完成 Draft Profile Check 和 XML 规则复查后，才读取 [`lark-doc-create.md`](lark-doc-create.md)，使用同一个 `draft_path` 创建文档。
 2. 创建结果存在 warning、局部资源失败或回查发现局部问题时，不得再次新建文档；读取 [`lark-doc-update.md`](lark-doc-update.md)，对已创建文档做最小范围修复，并按 update 流程 fetch 验证。
-3. 创建请求遇到 `network/timeout`、`network/server_error` 或 `network/transport` 时，不得直接重跑 `+create`；先检查目标目录中是否已出现同标题、同时间的文档。无法确认是否创建成功时停止并报告，避免重复文档。
+3. 创建请求结果不确定时，不要直接重试；先检查目标目录确认文档是否已生成，避免重复创建。
 
 ### Step 8：清理并交付。
 
