@@ -22,9 +22,9 @@ func newMeetingCountdownRuntime() *common.RuntimeContext {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("meeting-id", "", "")
 	cmd.Flags().String("action", "", "")
-	cmd.Flags().Int("duration", 0, "")
+	cmd.Flags().String("duration", "", "")
 	cmd.Flags().Bool("need-play-audio-at-end", false, "")
-	cmd.Flags().IntSlice("reminders-before-end-in-second", nil, "")
+	cmd.Flags().String("reminders-before-end-in-second", "", "")
 	return common.TestNewRuntimeContext(cmd, defaultConfig())
 }
 
@@ -64,7 +64,7 @@ func TestMeetingCountdownBuildBody_Set(t *testing.T) {
 	mustSetMeetingCountdownFlag(t, runtime, "action", "set")
 	mustSetMeetingCountdownFlag(t, runtime, "duration", "5")
 	mustSetMeetingCountdownFlag(t, runtime, "need-play-audio-at-end", "true")
-	mustSetMeetingCountdownFlag(t, runtime, "reminders-before-end-in-second", "60,30")
+	mustSetMeetingCountdownFlag(t, runtime, "reminders-before-end-in-second", "1")
 
 	body, err := buildMeetingCountdownBody(runtime)
 	if err != nil {
@@ -73,18 +73,17 @@ func TestMeetingCountdownBuildBody_Set(t *testing.T) {
 	if body["action"] != meetingCountdownActionSet {
 		t.Fatalf("action = %v, want set", body["action"])
 	}
-	if body["duration"] != 5 {
+	if body["meeting_id"] != "" {
+		t.Fatalf("meeting_id = %v, want empty default", body["meeting_id"])
+	}
+	if body["duration"] != "5" {
 		t.Fatalf("duration = %v, want 5", body["duration"])
 	}
 	if body["need_play_audio_at_end"] != true {
 		t.Fatalf("need_play_audio_at_end = %v, want true", body["need_play_audio_at_end"])
 	}
-	reminders, ok := body["reminders_before_end_in_second"].([]int)
-	if !ok {
-		t.Fatalf("reminders_before_end_in_second type = %T, want []int", body["reminders_before_end_in_second"])
-	}
-	if len(reminders) != 2 || reminders[0] != 60 || reminders[1] != 30 {
-		t.Fatalf("reminders_before_end_in_second = %#v, want [60 30]", reminders)
+	if body["reminders_before_end_in_second"] != "1" {
+		t.Fatalf("reminders_before_end_in_second = %#v, want 1", body["reminders_before_end_in_second"])
 	}
 }
 
@@ -100,7 +99,7 @@ func TestMeetingCountdownBuildBody_Prolong(t *testing.T) {
 	if body["action"] != meetingCountdownActionProlong {
 		t.Fatalf("action = %v, want prolong", body["action"])
 	}
-	if body["duration"] != 3 {
+	if body["duration"] != "3" {
 		t.Fatalf("duration = %v, want 3", body["duration"])
 	}
 	if _, ok := body["reminders_before_end_in_second"]; ok {
@@ -148,17 +147,17 @@ func TestMeetingCountdownValidateRejectsMissingDurationForSet(t *testing.T) {
 	}
 }
 
-func TestMeetingCountdownValidateRejectsReminderNotLessThanDurationSeconds(t *testing.T) {
+func TestMeetingCountdownValidateRejectsReminderNotLessThanDurationMinutes(t *testing.T) {
 	runtime := newMeetingCountdownRuntime()
 	mustSetMeetingCountdownFlag(t, runtime, "meeting-id", "7651377260537433044")
 	mustSetMeetingCountdownFlag(t, runtime, "action", "set")
 	mustSetMeetingCountdownFlag(t, runtime, "duration", "1")
-	mustSetMeetingCountdownFlag(t, runtime, "reminders-before-end-in-second", "60")
+	mustSetMeetingCountdownFlag(t, runtime, "reminders-before-end-in-second", "1")
 
 	err := VCMeetingCountdown.Validate(context.Background(), runtime)
 	assertMeetingCountdownValidationError(t, err, "--reminders-before-end-in-second")
-	if !strings.Contains(err.Error(), "converted to seconds") {
-		t.Fatalf("error = %v, want duration seconds hint", err)
+	if !strings.Contains(err.Error(), "in minutes") {
+		t.Fatalf("error = %v, want duration minutes hint", err)
 	}
 }
 
@@ -180,20 +179,19 @@ func TestMeetingCountdownDryRun_Set(t *testing.T) {
 		"--action", "set",
 		"--duration", "5",
 		"--need-play-audio-at-end",
-		"--reminders-before-end-in-second", "60,30",
+		"--reminders-before-end-in-second", "1",
 	}, f, stdout)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	out := stdout.String()
 	for _, want := range []string{
-		"/open-apis/vc/v1/meetings/7651377260537433044/countdown",
+		"/open-apis/vc/v1/bots/countdown",
+		"\"meeting_id\": \"7651377260537433044\"",
 		"\"action\": \"set\"",
-		"\"duration\": 5",
+		"\"duration\": \"5\"",
 		"\"need_play_audio_at_end\": true",
-		"\"reminders_before_end_in_second\": [",
-		"60",
-		"30",
+		"\"reminders_before_end_in_second\": \"1\"",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("dry-run output missing %q: %s", want, out)
@@ -215,7 +213,7 @@ func TestMeetingCountdownExecute_Set(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
 	stub := &httpmock.Stub{
 		Method: "POST",
-		URL:    buildMeetingCountdownPath("7651377260537433044"),
+		URL:    buildMeetingCountdownPath(),
 		Body: map[string]interface{}{
 			"code": 0,
 			"msg":  "ok",
@@ -230,7 +228,7 @@ func TestMeetingCountdownExecute_Set(t *testing.T) {
 		"--meeting-id", "7651377260537433044",
 		"--action", "set",
 		"--duration", "5",
-		"--reminders-before-end-in-second", "60,30",
+		"--reminders-before-end-in-second", "1",
 	}, f, stdout)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -244,12 +242,14 @@ func TestMeetingCountdownExecute_Set(t *testing.T) {
 	if req["action"] != "set" {
 		t.Errorf("action = %v, want set", req["action"])
 	}
-	if req["duration"] != float64(5) {
+	if req["meeting_id"] != "7651377260537433044" {
+		t.Errorf("meeting_id = %v, want 7651377260537433044", req["meeting_id"])
+	}
+	if req["duration"] != "5" {
 		t.Errorf("duration = %v, want 5", req["duration"])
 	}
-	reminders, _ := req["reminders_before_end_in_second"].([]interface{})
-	if len(reminders) != 2 || reminders[0] != float64(60) || reminders[1] != float64(30) {
-		t.Errorf("reminders_before_end_in_second = %#v, want [60 30]", reminders)
+	if req["reminders_before_end_in_second"] != "1" {
+		t.Errorf("reminders_before_end_in_second = %#v, want 1", req["reminders_before_end_in_second"])
 	}
 	out := stdout.String()
 	for _, want := range []string{
