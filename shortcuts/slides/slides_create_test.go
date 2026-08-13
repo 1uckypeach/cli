@@ -22,25 +22,6 @@ import (
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
-func TestSlidesCreateMissingScopeIsTerminal(t *testing.T) {
-	t.Parallel()
-
-	const scope = "slides:presentation:create"
-	f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
-	reg.Register(&httpmock.Stub{
-		Method: "POST",
-		URL:    "/open-apis/slides_ai/v1/xml_presentations",
-		Body:   slidesMissingScopeAPIBody(scope),
-	})
-
-	err := runSlidesCreateShortcut(t, f, stdout, []string{
-		"+create",
-		"--title", "Need Scope",
-		"--as", "user",
-	})
-	assertSlidesMissingScopeTerminal(t, err, scope)
-}
-
 // TestSlidesCreateBasic verifies that slides +create returns the presentation ID, title, and URL in user mode.
 func TestSlidesCreateBasic(t *testing.T) {
 	t.Parallel()

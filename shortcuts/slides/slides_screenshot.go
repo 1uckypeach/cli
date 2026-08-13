@@ -686,7 +686,7 @@ func doSlidesScreenshotAPIJSONWithLogID(runtime *common.RuntimeContext, method s
 	}
 	data, err := runtime.ClassifyAPIResponse(resp)
 	if err != nil {
-		return data, annotateSlidesMissingScope(err)
+		return data, err
 	}
 	if data == nil {
 		data = map[string]interface{}{}

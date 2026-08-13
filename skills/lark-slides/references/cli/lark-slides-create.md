@@ -168,7 +168,7 @@ lark-cli slides +add-slide --as user \
 | 错误码 | 含义 | 解决方案 |
 |--------|------|----------|
 | 400 | 参数错误 | 检查参数格式是否正确 |
-| `99991679` / 403 | 缺 scope 或资源无权 | 按 [error-handling.md](../workflow/error-handling.md) 处理；缺权后不要重试或继续加页 |
+| 403 | 权限不足 | 检查是否拥有 `slides:presentation:create` 和 `slides:presentation:write_only` scope |
 
 ## 相关命令
 
