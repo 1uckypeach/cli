@@ -64,6 +64,7 @@ func TestPermissionHint_usesBuildLocalSurface(t *testing.T) {
 				"verification_url",
 				"auth login --device-code <device_code>",
 				"in a later turn",
+				"do not retry the failed command or issue follow-up API calls",
 			} {
 				if !strings.Contains(visible.Hint, want) {
 					t.Errorf("%s: OAuth recovery missing %q: %q", st, want, visible.Hint)

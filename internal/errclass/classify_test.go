@@ -730,9 +730,15 @@ func TestBuildPermissionHint_MissingScopeRoutesToAuthLogin(t *testing.T) {
 		if !strings.Contains(got, "docx:document") || !strings.Contains(got, "im:message") {
 			t.Errorf("identity=%q: hint should include missing scopes; got %q", identity, got)
 		}
+		if !strings.Contains(got, "do not retry the failed command or issue follow-up API calls") {
+			t.Errorf("identity=%q: hint should stop follow-up calls; got %q", identity, got)
+		}
 	}
 	if got := errclass.PermissionHint([]string{"docx:document"}, "bot", errs.SubtypeMissingScope, ""); strings.Contains(got, "auth login") || !strings.Contains(got, "app developer") {
 		t.Errorf("bot missing-scope recovery must not recommend user login; got %q", got)
+	}
+	if got := errclass.PermissionHint([]string{"docx:document"}, "bot", errs.SubtypeMissingScope, ""); !strings.Contains(got, "do not retry the failed command or issue follow-up API calls") {
+		t.Errorf("bot missing-scope hint should stop follow-up calls; got %q", got)
 	}
 }
 
