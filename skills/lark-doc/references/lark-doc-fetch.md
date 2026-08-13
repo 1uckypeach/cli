@@ -75,6 +75,8 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 |没有关键词，也不了解结构|`outline`|根据目录转入 `section` 或 `range`|
 |确实需要整篇|`full` 或省略 `--scope`|—|
 
+返回 `3380002` 时不要原样重试。该错误无法区分文档引用无效、文档不存在或当前身份不可见；先核对原始 URL / token、资源类型和访问身份。
+
 ## 返回值
 
 ```json

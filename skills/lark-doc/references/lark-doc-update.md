@@ -73,6 +73,7 @@ lark-cli docs +update --doc "xx" --command block_delete --block-id "blkA,blkB"
 
 - 每次写操作后都按 block ID 已变化处理。新插入或复制的内容一定使用新 ID；替换、删除和覆盖会使旧 ID 失效；移动会改变章节与 range 语义。
 - 同一 block 有多处修改时，应合并为一次 `block_replace`，避免连续使用旧 ID。
+- 返回 `3380002` 时不要原样重试；先核对原始 URL / token、资源类型和访问身份。
 - 更新请求结果不确定时，先重新读取受影响范围确认是否已生效，再决定是否重试，避免重复写入或覆盖新版本。
 
 ## 返回值

@@ -41,12 +41,7 @@ metadata:
 
 ### 认证与 Scope
 
-执行 Shortcut 时，不预读 [`lark-shared`](../lark-shared/SKILL.md) 或预跑 `auth status --verify`；仅遇到未认证、token / 身份或 scope 错误时读取该 Skill，修复后重试。认证、身份或 scope 管理请求则直接使用该 Skill。
-
-### 文档访问错误
-
-- `3380002`：停止原样重试；核对原始 docx / wiki URL、资源类型、删除状态，以及当前身份是否可见。不要根据域名或 token 是否为纯数字判断资源有效性。
-- `3380004`：按文档 ACL、分享范围或租户策略处理，优先请 owner 授权；不要默认通过重新登录解决资源权限。
+执行 Shortcut 时，不预读 [`lark-shared`](../lark-shared/SKILL.md) 或预跑 `auth status --verify`；仅遇到未认证、token / 身份、scope 或资源权限错误时读取该 Skill，修复后重试。认证、身份、scope 或资源权限管理请求则直接使用该 Skill。
 
 ## 不在本 Skill 范围
 
