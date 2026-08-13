@@ -93,7 +93,7 @@ metadata:
 | 绘制表格 | 优先用 `rect` 和 `text` 模拟，其他用 `<table>` | `xml/xml-schema-quick-ref.md` |
 | 使用图标 | 禁止盲猜 iconType，必须先检索 IconPark，再写 `<icon iconType="...">`，图标必须填充颜色并和背景有足够对比，禁止使用 emoji 图标 | `iconpark_tool.py search → resolve`、`xml/iconpark.md` |
 | 创建失败、空白页、3350001、布局异常 | 先回读状态，再按排障清单修复，不假设原操作原子成功 | `workflow/error-handling.md`、`workflow/validation-xml.md` |
-| `missing_scope` / 99991679 | 停止本轮后续 slides 调用，按错误里的最小 scope 授权；不要降级 xml-get 或继续截图/加页 | `workflow/error-handling.md`、[`../lark-shared/SKILL.md`](../lark-shared/SKILL.md) |
+| `missing_scope` / 99991679 | 停止后续 slides 调用，不要降级 xml-get | `workflow/error-handling.md` |
 
 **CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../lark-shared/SKILL.md`](../lark-shared/SKILL.md)，认证、权限和全局参数均以 lark-shared 为准。**
 
@@ -134,7 +134,6 @@ lark-cli auth login --domain slides
 1. 创建、读取、增删 slide、按用户给出的链接继续编辑已有 PPT，默认都先用 `--as user`。
 2. 如果出现权限不足，先检查当前是否误用了 bot 身份；不要默认回退到 bot。
 3. 只有在用户明确要求"用应用身份 / bot 身份操作"，或当前工作流就是 bot 创建资源后再做协作授权时，才切换到 `--as bot`。
-4. `error.subtype == missing_scope` 或 `code == 99991679` 是当前身份未授予 API scope，不是这篇 PPT 的资源 ACL。立刻停止本轮所有后续 slides shortcut 和直接 OpenAPI，包括截图失败后的 `+xml-get` / GET 演示对象、下一批 `+screenshot`、以及 `+create` 之后的加页。user 只按错误里的 `missing_scopes` 和 `hint` 做最小 scope 授权；bot 只用 `console_url`，禁止 `auth login`。授权完成前不要重放原命令。通用授权步骤见 [`../lark-shared/SKILL.md`](../lark-shared/SKILL.md)；命令级最小 scope 见 [`workflow/error-handling.md`](references/workflow/error-handling.md)。
 
 ## 执行前必做
 

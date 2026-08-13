@@ -4,7 +4,7 @@
 
 获取幻灯片页面截图并保存为本地图片文件。默认用于已存在 PPT 页面截图；传入 `--content` 时用于直接渲染单个 `<slide>` XML 片段预览。本 shortcut 会在 CLI 进程内解码并写入文件，stdout 只返回文件路径、大小、页面 ID 等元信息，避免把图片 Base64 输出给模型。
 
-截图失败时，只有非授权类错误才降级到 XML 读回和结构 lint。若错误是 `missing_scope` / `99991679`，立即停止，不要改打 `+xml-get` 或直接 GET 演示对象，也不要继续下一批截图。最小 scope 与恢复步骤见 [error-handling.md](../workflow/error-handling.md)。
+截图失败时，只有非授权类错误才降级到 XML 读回和结构 lint。`missing_scope` / `99991679` 不要降级到 `+xml-get` 或直接 GET。
 
 ## 命令
 
@@ -23,7 +23,7 @@ lark-cli slides +screenshot --as user \
 
 ## 截图全部页面
 
-枚举全部页面的 `slide_id` 或页码，按每批最多 10 页分组并串行调用 `slides +screenshot`，复用同一个 `--output-dir`；记录失败批次，已完成批次不重复执行。若某一批返回 `missing_scope` / `99991679`，停止全部剩余批次。
+枚举全部页面的 `slide_id` 或页码，按每批最多 10 页分组并串行调用 `slides +screenshot`，复用同一个 `--output-dir`；记录失败批次，已完成批次不重复执行。
 
 ## 参数
 
