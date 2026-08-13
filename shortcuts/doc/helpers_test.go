@@ -4,9 +4,13 @@
 package doc
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/errclass"
 )
 
 func TestParseDocumentRef(t *testing.T) {
@@ -144,6 +148,76 @@ func TestAppendDocWarning(t *testing.T) {
 			appendDocWarning(tt.data, "new warning")
 			if got := tt.data["warnings"]; !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("warnings = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWithDocAPIRecovery(t *testing.T) {
+	tests := []struct {
+		name     string
+		code     int
+		bot      bool
+		wantType any
+		wantHint string
+	}{
+		{"document missing", 3380002, false, (*errs.APIError)(nil), "stop retrying"},
+		{"document permission", 3380004, false, (*errs.PermissionError)(nil), "document owner"},
+		{"user token invalid", -32011, false, (*errs.AuthenticationError)(nil), "auth status --verify"},
+		{"bot token guidance", -32011, true, (*errs.AuthenticationError)(nil), "do not run user auth login"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			classified := errclass.BuildAPIError(map[string]any{"code": test.code, "msg": "upstream failure"}, errclass.ClassifyContext{Identity: "user"})
+			got := withDocAPIRecovery(classified, test.bot)
+			problem, ok := errs.ProblemOf(got)
+			if !ok || !strings.Contains(problem.Hint, test.wantHint) {
+				t.Fatalf("problem = %+v, want hint containing %q", problem, test.wantHint)
+			}
+			switch test.wantType.(type) {
+			case *errs.APIError:
+				var target *errs.APIError
+				if !errors.As(got, &target) {
+					t.Fatalf("error = %T, want *errs.APIError", got)
+				}
+			case *errs.PermissionError:
+				var target *errs.PermissionError
+				if !errors.As(got, &target) {
+					t.Fatalf("error = %T, want *errs.PermissionError", got)
+				}
+			case *errs.AuthenticationError:
+				var target *errs.AuthenticationError
+				if !errors.As(got, &target) {
+					t.Fatalf("error = %T, want *errs.AuthenticationError", got)
+				}
+			}
+		})
+	}
+}
+
+func TestWithDocAPIRecoveryPreservesUnrecognizedError(t *testing.T) {
+	original := errs.NewAPIError(errs.SubtypeUnknown, "upstream failure").WithCode(12345)
+	if got := withDocAPIRecovery(original, false); got != original {
+		t.Fatalf("unrecognized error = %T %v, want original error", got, got)
+	}
+}
+
+func TestWithDocWriteRecoveryMarksAmbiguousOutcome(t *testing.T) {
+	for _, operation := range []docWriteOperation{docWriteCreate, docWriteUpdate} {
+		t.Run(string(operation), func(t *testing.T) {
+			original := errs.NewNetworkError(errs.SubtypeNetworkTimeout, "timed out").
+				WithRetryable().
+				WithRetryAfterSeconds(5)
+			got := withDocWriteRecovery(original, operation)
+			var networkErr *errs.NetworkError
+			if !errors.As(got, &networkErr) {
+				t.Fatalf("error = %T, want *errs.NetworkError", got)
+			}
+			if !networkErr.OutcomeUnknown || networkErr.Retryable || networkErr.RetryAfterSeconds != 0 {
+				t.Fatalf("network error = %+v, want outcome_unknown without retry fields", networkErr)
+			}
+			if original.OutcomeUnknown || !original.Retryable {
+				t.Fatalf("source error mutated: %+v", original)
 			}
 		})
 	}

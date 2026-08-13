@@ -94,6 +94,7 @@ func TestRenderClonesEveryConcreteTypedErrorAndPreservesWireExtensions(t *testin
 			name: "network",
 			original: &errs.NetworkError{
 				Problem:           problem(errs.CategoryNetwork, errs.SubtypeNetworkTimeout),
+				OutcomeUnknown:    true,
 				RetryAfterSeconds: 4,
 				Cause:             sentinel,
 			},

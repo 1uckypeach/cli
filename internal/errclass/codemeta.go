@@ -38,6 +38,7 @@ var codeMeta = map[int]CodeMeta{
 	99991668: {Category: errs.CategoryAuthentication, Subtype: errs.SubtypeTokenInvalid},                        // UAT invalid/expired (server does not distinguish)
 	99991663: {Category: errs.CategoryAuthentication, Subtype: errs.SubtypeTokenInvalid},                        // access_token invalid
 	99991677: {Category: errs.CategoryAuthentication, Subtype: errs.SubtypeTokenExpired},                        // UAT expired
+	-32011:   {Category: errs.CategoryAuthentication, Subtype: errs.SubtypeTokenInvalid},                        // docs_ai UAT invalid/expired
 	20026:    {Category: errs.CategoryAuthentication, Subtype: errs.SubtypeRefreshTokenInvalid},                 // refresh_token v1 legacy format
 	20037:    {Category: errs.CategoryAuthentication, Subtype: errs.SubtypeRefreshTokenExpired},                 // refresh_token expired
 	20064:    {Category: errs.CategoryAuthentication, Subtype: errs.SubtypeRefreshTokenRevoked},                 // refresh_token revoked

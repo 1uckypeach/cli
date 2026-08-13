@@ -383,6 +383,9 @@ func (e *ConfigError) WithCause(cause error) *ConfigError {
 // errors.Is / errors.Unwrap; it is intentionally not serialized.
 type NetworkError struct {
 	Problem
+	// OutcomeUnknown means the request may have reached the upstream service,
+	// so replaying a non-idempotent operation can duplicate or overwrite data.
+	OutcomeUnknown bool `json:"outcome_unknown,omitempty"`
 	// RetryAfterSeconds is an upstream-provided minimum delay before another
 	// attempt. Zero means no precise delay was provided and omits the field.
 	RetryAfterSeconds int   `json:"retry_after_seconds,omitempty"`
@@ -432,6 +435,11 @@ func (e *NetworkError) WithCode(code int) *NetworkError {
 
 func (e *NetworkError) WithRetryable() *NetworkError {
 	e.Retryable = true
+	return e
+}
+
+func (e *NetworkError) WithOutcomeUnknown() *NetworkError {
+	e.OutcomeUnknown = true
 	return e
 }
 

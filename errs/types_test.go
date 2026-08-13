@@ -497,6 +497,16 @@ func TestBuilder_WithRetryable_OmittedWhenFalse(t *testing.T) {
 	})
 }
 
+func TestNetworkError_WithOutcomeUnknown(t *testing.T) {
+	e := errs.NewNetworkError(errs.SubtypeNetworkTimeout, "timed out").WithOutcomeUnknown()
+	buf, _ := json.Marshal(e)
+	var got map[string]any
+	_ = json.Unmarshal(buf, &got)
+	if got["outcome_unknown"] != true {
+		t.Fatalf("outcome_unknown = %v, want true", got["outcome_unknown"])
+	}
+}
+
 // TestNewSecurityPolicyError_ChallengeURL covers the Policy-specific field.
 func TestNewSecurityPolicyError_ChallengeURL(t *testing.T) {
 	got := errs.NewSecurityPolicyError(errs.SubtypeChallengeRequired, "verify your device").

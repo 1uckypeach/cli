@@ -55,7 +55,7 @@ var DocMediaInsert = common.Shortcut{
 	Scopes:      []string{"docs:document.media:upload", "docx:document:write_only", "docx:document:readonly"},
 	AuthTypes:   []string{"user", "bot"},
 	Flags: []common.Flag{
-		{Name: "file", Desc: "local file path (files > 20MB use multipart upload automatically)"},
+		{Name: "file", Desc: "local file path relative to the current working directory; absolute and out-of-tree paths are rejected (files > 20MB use multipart upload automatically)"},
 		{Name: "from-clipboard", Type: "bool", Desc: "read image from system clipboard instead of a local file (macOS/Windows built-in; Linux requires xclip, xsel or wl-paste)"},
 		{Name: "doc", Desc: "document URL or document_id", Required: true},
 		{Name: "type", Default: "image", Desc: "type: image | file"},

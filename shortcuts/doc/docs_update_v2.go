@@ -188,7 +188,7 @@ func executeUpdateV2(_ context.Context, runtime *common.RuntimeContext) error {
 
 	data, err := doDocAPI(runtime, "PUT", apiPath, body)
 	if err != nil {
-		return err
+		return withDocWriteRecovery(err, docWriteUpdate)
 	}
 	if docsAPIOperationFailed(data) {
 		return runtime.OutPartialFailure(data, nil)

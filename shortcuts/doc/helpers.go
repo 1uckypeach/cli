@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/recovery"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -78,12 +79,84 @@ func extractDocumentFragment(raw string) string {
 func doDocAPI(runtime *common.RuntimeContext, method, apiPath string, body interface{}) (map[string]interface{}, error) {
 	data, err := runtime.CallAPITyped(method, apiPath, nil, body)
 	if err != nil {
-		return data, err
+		return data, withDocAPIRecovery(err, runtime.IsBot())
 	}
 	if data == nil {
 		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "document API returned an empty data object")
 	}
 	return data, nil
+}
+
+type docWriteOperation string
+
+const (
+	docWriteCreate docWriteOperation = "create"
+	docWriteUpdate docWriteOperation = "update"
+)
+
+func withDocAPIRecovery(err error, bot bool) error {
+	if err == nil {
+		return nil
+	}
+	problem, ok := errs.ProblemOf(err)
+	if !ok {
+		return err
+	}
+	switch problem.Code {
+	case 3380002, 3380004, -32011, 99991668:
+	default:
+		return err
+	}
+	clone, ok := recovery.CloneTyped(err)
+	if !ok {
+		return err
+	}
+	problem, ok = errs.ProblemOf(clone)
+	if !ok {
+		return err
+	}
+	switch problem.Code {
+	case 3380002:
+		problem.Hint = "stop retrying the same document reference; verify the original docx/wiki URL, resource type, deletion state, and access for the selected identity"
+	case 3380004:
+		problem.Hint = "ask the document owner to grant the selected identity access and check sharing or tenant policy; re-authentication alone does not fix document ACLs"
+	case -32011, 99991668:
+		if bot {
+			problem.Hint = "verify the selected identity and bot app credentials; do not run user auth login for a bot credential"
+		} else {
+			problem.Hint = "run `lark-cli auth status --verify`; if the user credential is invalid, refresh user login and retry with `--as user`"
+		}
+	}
+	return clone
+}
+
+func withDocWriteRecovery(err error, operation docWriteOperation) error {
+	if err == nil {
+		return nil
+	}
+	clone, ok := recovery.CloneTyped(err)
+	if !ok {
+		return err
+	}
+	networkErr, ok := clone.(*errs.NetworkError)
+	if !ok {
+		return err
+	}
+	switch networkErr.Subtype {
+	case errs.SubtypeNetworkServer, errs.SubtypeNetworkTimeout, errs.SubtypeNetworkTransport:
+	default:
+		return err
+	}
+
+	networkErr.Retryable = false
+	networkErr.RetryAfterSeconds = 0
+	networkErr.OutcomeUnknown = true
+	if operation == docWriteCreate {
+		networkErr.Hint = "the create request may already have succeeded; inspect the target folder for the document before creating another one"
+	} else {
+		networkErr.Hint = "the update request may already have succeeded; fetch the affected document scope before applying another update"
+	}
+	return networkErr
 }
 
 func docsAPIOperationFailed(data map[string]interface{}) bool {

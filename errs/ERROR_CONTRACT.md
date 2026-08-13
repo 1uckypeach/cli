@@ -62,6 +62,7 @@ Typed errors render to **stderr** as one JSON object per process exit:
 | `error.hint` | informational | actionable recovery guidance |
 | `error.log_id` | informational | upstream request id (server-side trace) |
 | `error.retryable` | wire-stable | `true` when present; omitted when `false` |
+| `error.outcome_unknown` | per-Subtype-stable | `true` on a network failure when a non-idempotent request may already have taken effect; inspect remote state before replaying |
 | `error.retry_after_seconds` | per-Subtype-stable | upstream-provided minimum delay before retry; emitted when available for retryable `api/rate_limit` and HTTP-backed `network` errors |
 | `error.param` | per-Subtype-stable | single offending parameter (`ValidationError`); see **Validation parameters** |
 | `error.params` | per-Subtype-stable | per-parameter validation detail array (`ValidationError`); see **Validation parameters** |
@@ -78,6 +79,11 @@ envelope intentionally does not expose an implementation detail such as
 `retry_after_source`. Generic command dispatch does not replay a request
 automatically; a bounded operation such as multipart download may consume this
 field under its own idempotency and retry budget.
+
+`outcome_unknown:true` is intentionally distinct from `retryable:true`. The
+former means replay may be unsafe until the caller inspects remote state; the
+latter means the same request can be attempted again. Producers must not emit
+both fields for the same failure.
 
 `SecurityPolicyError` renders through the same typed envelope as every
 other category. `error.type` is `"policy"`, `error.subtype` is one of
@@ -297,7 +303,7 @@ esac
 ```
 
 Unknown fields are forward-compatible additions: ignore, don't fail.
-Branch only on `type`, `subtype`, `code`, `retryable`, `retry_after_seconds`, and declared
+Branch only on `type`, `subtype`, `code`, `retryable`, `outcome_unknown`, `retry_after_seconds`, and declared
 extension fields — `message` is human-readable prose that may be
 reworded without notice.
 

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -171,6 +172,24 @@ func TestDocMediaInsertValidateContract(t *testing.T) {
 			rt := docValidateRuntime(t, tc.str, tc.bools, tc.ints)
 			err := DocMediaInsert.Validate(context.Background(), rt)
 			assertValidationContract(t, err, errs.SubtypeInvalidArgument, tc.wantParam, tc.wantParams...)
+		})
+	}
+}
+
+func TestDocMediaFileFlagsExplainRelativePathContract(t *testing.T) {
+	for _, shortcut := range []common.Shortcut{DocMediaInsert, DocMediaUpload} {
+		t.Run(shortcut.Command, func(t *testing.T) {
+			for _, flag := range shortcut.Flags {
+				if flag.Name != "file" {
+					continue
+				}
+				if !strings.Contains(flag.Desc, "relative to the current working directory") ||
+					!strings.Contains(flag.Desc, "absolute and out-of-tree paths are rejected") {
+					t.Fatalf("--file description = %q, want cwd-relative security contract", flag.Desc)
+				}
+				return
+			}
+			t.Fatal("--file flag not found")
 		})
 	}
 }

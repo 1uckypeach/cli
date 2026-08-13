@@ -27,7 +27,7 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 |`--doc-format`|否|`xml`（默认）\| `markdown` \| `im-markdown`（供后续 `lark-im` 场景使用）|
 |`--detail`|否|`simple`（默认）\| `with-ids` \| `full`|
 |`--revision-id`|否|文档版本号；`-1` 表示最新版本（默认）|
-|`--scope`|否|`outline` \| `range` \| `keyword` \| `section`；省略则读取整篇|
+|`--scope`|否|`full`（默认）\| `outline` \| `range` \| `keyword` \| `section`；省略等价于 `--scope full`|
 |`--start-block-id`|否|`range` 的起点，或 `section` 的锚点（`section` 必填）|
 |`--end-block-id`|否|`range` 的终点；`-1` 表示读到末尾|
 |`--keyword`|否|`keyword` 模式的关键词；支持多级自动匹配和多分支 OR|
@@ -48,10 +48,11 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 
 ## 选择读取范围：`--scope`
 
-`--scope` 与 `--detail` 可以组合。优先读取满足任务所需的最小范围；只有确需全文时才省略 `--scope`。
+`--scope` 决定读取范围，`--detail` 决定返回详细度，两者相互独立且可以组合。优先读取满足任务所需的最小范围；只有确需全文时才使用 `full` 或省略 `--scope`。
 
 |模式|适用场景|关键参数|返回行为|
 |-|-|-|-|
+|`full`（默认）|读取整篇文档|—|返回完整文档；省略 `--scope` 时行为相同|
 |`outline`|结构未知，先查看目录|`--max-depth`|扁平列出标题；返回的标题 ID 可作为 `section` 或 `range` 的端点|
 |`section`|读取某个标题对应的整节|`--start-block-id`（必填）|顶层标题展开到下一个同级或更高级标题之前；容器内节点（含内嵌标题）按最小包容单元返回容器或表格切片|
 |`range`|已知精确起止位置|`--start-block-id`、`--end-block-id` 至少一个|同一顶层序列按区间切片；同一容器返回整个容器；同一表格返回瘦身切片；跨顶层时完整返回端点所在的顶层块|
@@ -72,7 +73,7 @@ lark-cli docs +fetch --doc Z1Fj...tnAc --scope section --start-block-id blkTitle
 |章节或标题|`outline --max-depth 3`|获取标题 ID 后执行 `section`|
 |精确起止位置|`range`|按需调整端点或深度|
 |没有关键词，也不了解结构|`outline`|根据目录转入 `section` 或 `range`|
-|确实需要整篇|省略 `--scope`|—|
+|确实需要整篇|`full` 或省略 `--scope`|—|
 
 ## 返回值
 
