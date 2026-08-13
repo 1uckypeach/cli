@@ -320,62 +320,12 @@ func shouldRefresh(cm CacheMeta) bool {
 }
 
 // overlayMergedServices merges remote services into the in-memory map.
-// Remote entries override embedded entries with the same name, but resource
-// trees are merged so a stale remote service cannot delete newer embedded
-// methods before the remote api_definition publisher catches up.
+// Remote entries override embedded entries with the same name.
 func overlayMergedServices(reg *MergedRegistry) {
 	for _, svc := range reg.Services {
 		if svc.Name == "" {
 			continue
 		}
-		if existing, ok := mergedServices[svc.Name]; ok {
-			mergedServices[svc.Name] = mergeService(existing, svc)
-			continue
-		}
 		mergedServices[svc.Name] = svc
 	}
-}
-
-func mergeService(base, overlay meta.Service) meta.Service {
-	merged := overlay
-	merged.Resources = mergeResources(base.Resources, overlay.Resources)
-	return merged
-}
-
-func mergeResources(base, overlay map[string]meta.Resource) map[string]meta.Resource {
-	if len(base) == 0 {
-		return overlay
-	}
-	if len(overlay) == 0 {
-		return base
-	}
-	merged := make(map[string]meta.Resource, len(base)+len(overlay))
-	for name, res := range base {
-		merged[name] = res
-	}
-	for name, res := range overlay {
-		if existing, ok := merged[name]; ok {
-			res.Methods = mergeMethods(existing.Methods, res.Methods)
-			res.Resources = mergeResources(existing.Resources, res.Resources)
-		}
-		merged[name] = res
-	}
-	return merged
-}
-
-func mergeMethods(base, overlay map[string]meta.Method) map[string]meta.Method {
-	if len(base) == 0 {
-		return overlay
-	}
-	if len(overlay) == 0 {
-		return base
-	}
-	merged := make(map[string]meta.Method, len(base)+len(overlay))
-	for name, method := range base {
-		merged[name] = method
-	}
-	for name, method := range overlay {
-		merged[name] = method
-	}
-	return merged
 }

@@ -288,7 +288,7 @@ lark-cli mail user_mailbox.blocked_senders delete --as user \
   --addresses bad.example
 ```
 
-`list` 支持 `keyword`、`page_size`、`page_token`，返回 `items`、`page_token` / `next_page_token`、`has_more` 等分页信息。`create` / `delete` 使用 `--addresses` 传一个或多个邮箱地址/域名；`create` 默认按邮箱地址写入，域名写入需传 `--sender-type 2`。这些都是批量写操作，执行前必须向用户展示目标名单、地址或域名数量并取得确认；响应可能包含 `failed_items`、`submitted_count` 或删除数量，必须原样反馈失败项。
+`list` 支持 `keyword`、`page_size`、`page_token`，返回 `items`、`page_token`、`has_more` 等分页信息。`create` / `delete` 使用 `--addresses` 传一个或多个邮箱地址/域名；`create` 默认按邮箱地址写入，域名写入需传 `--sender-type 2`。这些都是批量写操作，执行前必须向用户展示目标名单、地址或域名数量并取得确认；`create` 返回 `failed_items`，`delete` 返回 `deleted_count`，必须原样反馈失败项和删除结果。
 
 ### 常用约定
 

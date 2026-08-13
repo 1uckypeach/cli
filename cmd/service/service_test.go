@@ -238,6 +238,7 @@ func TestMailSenderListAddressesFlagValidationFailures(t *testing.T) {
 		resName string
 		args    []string
 		want    string
+		param   string
 	}{
 		{
 			name:    "sender type without addresses",
@@ -249,7 +250,8 @@ func TestMailSenderListAddressesFlagValidationFailures(t *testing.T) {
 				"--sender-type", "3",
 				"--dry-run",
 			},
-			want: "--sender-type requires --addresses",
+			want:  "--sender-type requires --addresses",
+			param: "--sender-type",
 		},
 		{
 			name:    "invalid sender type with addresses",
@@ -262,7 +264,8 @@ func TestMailSenderListAddressesFlagValidationFailures(t *testing.T) {
 				"--sender-type", "3",
 				"--dry-run",
 			},
-			want: "--sender-type must be 1 (email address) or 2 (domain)",
+			want:  "--sender-type must be 1 (email address) or 2 (domain)",
+			param: "--sender-type",
 		},
 		{
 			name:    "empty address",
@@ -274,7 +277,8 @@ func TestMailSenderListAddressesFlagValidationFailures(t *testing.T) {
 				"--addresses", "",
 				"--dry-run",
 			},
-			want: "--addresses must not contain empty sender values",
+			want:  "--addresses must not contain empty sender values",
+			param: "--addresses",
 		},
 		{
 			name:    "addresses with non object data",
@@ -287,7 +291,8 @@ func TestMailSenderListAddressesFlagValidationFailures(t *testing.T) {
 				"--data", `["not-object"]`,
 				"--dry-run",
 			},
-			want: "--addresses requires --data to be a JSON object when both are set",
+			want:  "--addresses requires --data to be a JSON object when both are set",
+			param: "--data",
 		},
 	}
 
@@ -303,6 +308,20 @@ func TestMailSenderListAddressesFlagValidationFailures(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("error = %q, want substring %q", err.Error(), tt.want)
+			}
+			problem, ok := errs.ProblemOf(err)
+			if !ok {
+				t.Fatalf("ProblemOf(error) ok = false, want true")
+			}
+			if problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeInvalidArgument {
+				t.Fatalf("problem = %s/%s, want %s/%s", problem.Category, problem.Subtype, errs.CategoryValidation, errs.SubtypeInvalidArgument)
+			}
+			var validationErr *errs.ValidationError
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("errors.As(*ValidationError) = false, error = %T", err)
+			}
+			if validationErr.Param != tt.param {
+				t.Fatalf("Param = %q, want %q", validationErr.Param, tt.param)
 			}
 		})
 	}
