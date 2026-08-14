@@ -236,7 +236,7 @@ func (api wikiMoveAPI) GetNode(ctx context.Context, token string) (*wikiNodeReco
 		nil,
 	)
 	if err != nil {
-		return nil, err
+		return nil, annotateWikiPermissionDenied(err)
 	}
 	return parseWikiNodeRecord(common.GetMap(data, "node"))
 }
@@ -253,7 +253,7 @@ func (api wikiMoveAPI) MoveNode(ctx context.Context, sourceSpaceID string, spec 
 		spec.NodeMoveBody(),
 	)
 	if err != nil {
-		return nil, err
+		return nil, annotateWikiWritePermissionDenied(err)
 	}
 	return parseWikiNodeRecord(common.GetMap(data, "node"))
 }
@@ -269,7 +269,7 @@ func (api wikiMoveAPI) MoveDocsToWiki(ctx context.Context, targetSpaceID string,
 		spec.DocsToWikiBody(),
 	)
 	if err != nil {
-		return nil, err
+		return nil, annotateWikiWritePermissionDenied(err)
 	}
 
 	return &wikiMoveDocsResponse{

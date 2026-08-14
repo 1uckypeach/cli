@@ -281,8 +281,7 @@ func wikiNodeListProblem(err error) error {
 	case 131005:
 		appendWikiProblemHint(err, "The target wiki space or parent node was not found. Re-discover the space with `wiki +space-list` and the parent with `wiki +node-list`/`wiki +node-get`; do not retry the same stale token.")
 	case 131006:
-		p.Retryable = false
-		appendWikiProblemHint(err, wikiPermissionDeniedHint())
+		annotateWikiPermissionDenied(err)
 	case 99991400:
 		appendWikiProblemHint(err, "Rate limited by the wiki API. Stop immediate retries and retry later with exponential backoff or a smaller --page-limit.")
 	}

@@ -147,8 +147,7 @@ func wikiNodeGetProblem(err error) error {
 	case 99991400:
 		appendWikiProblemHint(err, wikiNodeGetRateLimitHint)
 	case 131006:
-		p.Retryable = false
-		appendWikiProblemHint(err, wikiPermissionDeniedHint())
+		annotateWikiPermissionDenied(err)
 	case 131012:
 		p.Subtype = errs.SubtypeNotFound
 		p.Retryable = false

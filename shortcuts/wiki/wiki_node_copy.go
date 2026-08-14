@@ -96,7 +96,7 @@ var WikiNodeCopy = common.Shortcut{
 			return runtime.CallAPITyped("POST", apiPath, nil, body)
 		})
 		if err != nil {
-			return err
+			return annotateWikiWritePermissionDenied(err)
 		}
 
 		node, err := parseWikiNodeRecord(common.GetMap(data, "node"))

@@ -42,10 +42,39 @@ func appendWikiProblemHint(err error, hint string) error {
 	return err
 }
 
-// wikiPermissionDeniedHint provides stable recovery for wiki's 131006. The
-// service uses one public code for both node and space ACL failures, while the
-// upstream message is informational and normalized by the shared classifier.
-// Keep the command hint accurate without branching on that unstable text.
+// wikiPermissionDeniedHint provides stable recovery for read-path 131006
+// (node-get / node-list). The service uses one public code for both node and
+// space ACL failures, while the upstream message is informational and
+// normalized by the shared classifier. Keep the command hint accurate without
+// branching on that unstable text.
 func wikiPermissionDeniedHint() string {
 	return "The current user or app/bot identity lacks access to the target wiki space or node. This is resource access, not app scope authorization. Do not retry the same request, reauthorize, or switch identity as trial and error; ask the resource owner or wiki administrator to grant read access, or use an accessible resource."
+}
+
+// wikiWritePermissionDeniedHint provides stable recovery for write-path 131006
+// (node-copy / move). Official copy/move APIs require container edit permission
+// on the relevant parent nodes; copying or moving to a space root can also
+// require wiki space membership or administrator permission.
+func wikiWritePermissionDeniedHint() string {
+	return "The current user or app/bot identity lacks Wiki container permission for this write. This is resource access, not app scope authorization. Do not retry the same request, reauthorize, or switch identity as trial and error; ask the resource owner or wiki administrator to grant container edit permission on the relevant source or destination parent node. Copying or moving to a space root can also require wiki space membership or administrator permission. Use an accessible resource if that access cannot be granted."
+}
+
+func annotateWikiPermissionDenied(err error) error {
+	return annotateWikiPermissionDeniedWith(err, wikiPermissionDeniedHint())
+}
+
+func annotateWikiWritePermissionDenied(err error) error {
+	return annotateWikiPermissionDeniedWith(err, wikiWritePermissionDeniedHint())
+}
+
+// annotateWikiPermissionDeniedWith marks wiki 131006 as a terminal
+// resource-access failure and attaches the given recovery hint. Other errors
+// pass through.
+func annotateWikiPermissionDeniedWith(err error, hint string) error {
+	p, ok := errs.ProblemOf(err)
+	if !ok || p == nil || p.Code != 131006 {
+		return err
+	}
+	p.Retryable = false
+	return appendWikiProblemHint(err, hint)
 }

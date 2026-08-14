@@ -783,6 +783,86 @@ func TestWikiMoveExecuteNodeShortcut(t *testing.T) {
 	}
 }
 
+func TestWikiMoveMountedExplainsResourcePermissionDenied(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	factory, stdout, _, reg := cmdutil.TestFactory(t, wikiTestConfig())
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/wiki/v2/spaces/space_src/nodes/wik_node/move",
+		Body: map[string]interface{}{
+			"code":   131006,
+			"msg":    "permission denied: no destination parent node permission",
+			"log_id": "log-node-move-permission",
+		},
+	})
+
+	err := mountAndRunWiki(t, WikiMove, []string{
+		"+move",
+		"--node-token", "wik_node",
+		"--source-space-id", "space_src",
+		"--target-space-id", "space_dst",
+		"--as", "user",
+	}, factory, stdout)
+	if err == nil {
+		t.Fatal("expected permission error")
+	}
+	p, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("expected typed error, got %T: %v", err, err)
+	}
+	if p.Category != errs.CategoryAuthorization || p.Subtype != errs.SubtypePermissionDenied || p.Code != 131006 {
+		t.Fatalf("problem = %#v, want authorization/permission_denied/131006", p)
+	}
+	if p.Retryable {
+		t.Fatalf("problem retryable = true, want false: %#v", p)
+	}
+	if !strings.Contains(p.Hint, "container edit permission") || !strings.Contains(p.Hint, "wiki space membership or administrator permission") {
+		t.Fatalf("hint = %q, want non-retryable write-container guidance", p.Hint)
+	}
+	if strings.Contains(p.Hint, "grant read access") {
+		t.Fatalf("hint = %q, must not prescribe read access for move", p.Hint)
+	}
+}
+
+func TestWikiMoveResolveGetNodeUsesReadPermissionHint(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	factory, stdout, _, reg := cmdutil.TestFactory(t, wikiTestConfig())
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/wiki/v2/spaces/get_node",
+		Body: map[string]interface{}{
+			"code":   131006,
+			"msg":    "permission denied: node permission denied, user needs read permission.",
+			"log_id": "log-move-resolve-permission",
+		},
+	})
+
+	err := mountAndRunWiki(t, WikiMove, []string{
+		"+move",
+		"--node-token", "wik_node",
+		"--target-space-id", "space_dst",
+		"--as", "user",
+	}, factory, stdout)
+	if err == nil {
+		t.Fatal("expected permission error")
+	}
+	p, ok := errs.ProblemOf(err)
+	if !ok {
+		t.Fatalf("expected typed error, got %T: %v", err, err)
+	}
+	if p.Code != 131006 || p.Retryable {
+		t.Fatalf("problem = %#v, want non-retryable 131006", p)
+	}
+	if !strings.Contains(p.Hint, "grant read access") {
+		t.Fatalf("hint = %q, want read-access guidance for get_node resolve", p.Hint)
+	}
+	if strings.Contains(p.Hint, "container edit permission") {
+		t.Fatalf("hint = %q, must not use write-container guidance for get_node resolve", p.Hint)
+	}
+}
+
 func TestWikiMoveExecuteDocsToWikiShortcutAsyncSuccess(t *testing.T) {
 	withSingleWikiMovePoll(t)
 
