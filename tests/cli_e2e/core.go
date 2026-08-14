@@ -85,40 +85,8 @@ func SkipWithoutTenantAccessToken(t *testing.T) {
 	if appID == "" {
 		appID = os.Getenv("LARKSUITE_CLI_APP_ID")
 	}
-	if token != "" && appID != "" {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	result, err := RunCmd(ctx, Request{
-		Args: []string{"auth", "status", "--verify"},
-	})
-	if err != nil {
-		t.Skipf("skipped: tenant test credentials not set and failed to check local bot login via `lark-cli auth status --verify`: %v", err)
-	}
-	if result.ExitCode != 0 {
-		t.Skipf("skipped: tenant test credentials not set and local bot login check failed: exit=%d stderr=%s", result.ExitCode, strings.TrimSpace(result.Stderr))
-	}
-
-	stdout := strings.TrimSpace(result.Stdout)
-	if stdout == "" {
-		t.Skip("skipped: tenant test credentials not set and `lark-cli auth status --verify` returned empty stdout")
-	}
-	if !gjson.Valid(stdout) {
-		t.Skipf("skipped: tenant test credentials not set and `lark-cli auth status --verify` returned non-JSON stdout: %s", stdout)
-	}
-
-	if !gjson.Get(stdout, "identities.bot.available").Bool() {
-		t.Skip("skipped: tenant test credentials not set and local bot identity is unavailable")
-	}
-	if !gjson.Get(stdout, "identities.bot.verified").Bool() {
-		verifyErr := gjson.Get(stdout, "identities.bot.verifyError").String()
-		if verifyErr != "" {
-			t.Skipf("skipped: tenant test credentials not set and local bot login verification failed: %s", verifyErr)
-		}
-		t.Skip("skipped: tenant test credentials not set and local bot login verification failed")
+	if token == "" || appID == "" {
+		t.Skip("skipped: tenant test credentials not set")
 	}
 }
 
