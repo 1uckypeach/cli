@@ -73,9 +73,10 @@ var initMsgEn = &initMsg{
 	LangPreferenceSet:    "Language preference set to: %s",
 }
 
-// getInitMsg picks the zh/en TUI bundle; non-English falls back to zh.
+// getInitMsg picks the zh/en TUI bundle. zh_cn — and values expressing no
+// preference — render Chinese; every other supported locale renders English.
 func getInitMsg(lang i18n.Lang) *initMsg {
-	if lang.IsEnglish() {
+	if lang.UsesEnglishUI() {
 		return initMsgEn
 	}
 	return initMsgZh

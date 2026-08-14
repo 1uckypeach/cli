@@ -169,9 +169,10 @@ var bindMsgEn = &bindMsg{
 	LangPreferenceSet: "Language preference set to: %s",
 }
 
-// getBindMsg picks the zh/en TUI bundle; non-English falls back to zh.
+// getBindMsg picks the zh/en TUI bundle. zh_cn — and values expressing no
+// preference — render Chinese; every other supported locale renders English.
 func getBindMsg(lang i18n.Lang) *bindMsg {
-	if lang.IsEnglish() {
+	if lang.UsesEnglishUI() {
 		return bindMsgEn
 	}
 	return bindMsgZh

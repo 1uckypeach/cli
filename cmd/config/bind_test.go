@@ -1687,13 +1687,19 @@ func TestGetBindMsg_En(t *testing.T) {
 	}
 }
 
-func TestGetBindMsg_NonEnLang_FallsBackToZh(t *testing.T) {
-	// Only zh and en TUI bundles exist; any non-English language (canonical
-	// locale, short code, or unrecognized value) falls back to zh.
-	for _, lang := range []i18n.Lang{"fr_fr", "ja_jp", "ko", "unknown", ""} {
-		msg := getBindMsg(lang)
-		if want := "你想在哪个 Agent 中使用 lark-cli?"; msg.SelectSource != want {
-			t.Errorf("getBindMsg(%q) SelectSource = %q, want %q (zh fallback)", lang, msg.SelectSource, want)
+func TestGetBindMsg_BundleSelection(t *testing.T) {
+	// zh_cn and no-preference values render Chinese; every other supported
+	// locale renders English.
+	zhWant := "你想在哪个 Agent 中使用 lark-cli?"
+	for _, lang := range []i18n.Lang{i18n.LangZhCN, "zh", "unknown", ""} {
+		if msg := getBindMsg(lang); msg.SelectSource != zhWant {
+			t.Errorf("getBindMsg(%q) SelectSource = %q, want %q (zh)", lang, msg.SelectSource, zhWant)
+		}
+	}
+	enWant := getBindMsg(i18n.LangEnUS).SelectSource
+	for _, lang := range []i18n.Lang{"fr_fr", "ja_jp", "ko", "en"} {
+		if msg := getBindMsg(lang); msg.SelectSource != enWant {
+			t.Errorf("getBindMsg(%q) SelectSource = %q, want %q (en)", lang, msg.SelectSource, enWant)
 		}
 	}
 }

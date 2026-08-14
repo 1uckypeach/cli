@@ -89,20 +89,20 @@ func TestInitMsg_FormatStrings(t *testing.T) {
 }
 
 func TestGetInitMsg_BilingualCollapse(t *testing.T) {
-	// The TUI is bilingual (zh + en). Only English-bucket languages return the
-	// English struct — by canonical locale ("en_us") or legacy short ("en").
-	// Everything else (zh, the other codes, invalid, "") returns Chinese.
+	// The TUI is bilingual (zh + en). zh_cn renders Chinese; so do values that
+	// express no usable preference (unset, unrecognized). Every other supported
+	// locale renders English.
 	tests := []struct {
 		lang       i18n.Lang
 		shouldBeEn bool
 	}{
 		{i18n.LangZhCN, false},
 		{i18n.LangEnUS, true},
-		{"en", true}, // legacy short value
-		{i18n.LangJaJP, false},
-		{"fr_fr", false},
-		{"invalid", false},
-		{"", false},
+		{"en", true},          // legacy short value
+		{i18n.LangJaJP, true}, // no ja bundle → English is the closer read
+		{"fr_fr", true},       // same for every other supported locale
+		{"invalid", false},    // unrecognized → no preference expressed
+		{"", false},           // unset → no preference expressed
 	}
 
 	for _, tt := range tests {
