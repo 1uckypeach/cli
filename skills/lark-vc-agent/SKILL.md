@@ -136,17 +136,17 @@ lark-cli vc +meeting-message-send --as bot --meeting-id <meeting_id> --msg-type 
 1. 用户明确要求设置、延长、提前结束或关闭正在进行中的会议倒计时时，用 `+meeting-countdown`。
 2. 输入是长数字 `meeting_id`，不是 9 位会议号。若用户只给 9 位会议号，先按当前身份执行 `+meeting-list-active` 并按 `meeting_no` 匹配，匹配到唯一会议后再操作；不要为了倒计时自动入会。
 3. 身份必须延续：`meeting_id` 来自用户身份发现，就继续 `--as user`；来自应用身份发现或应用机器人入会，就继续 `--as bot`。
-4. `--duration` 单位是分钟，只在 `set` 和 `prolong` 时传；`--reminders-before-end-in-second` 单位是秒，只在 `set` 时传，且每个提醒点必须小于 `duration * 60`。
+4. `--duration` 单位是分钟，只在 `set` 和 `prolong` 时传；`--reminder-before-end-in-minute` 单位是分钟，只在 `set` 时传，且只能传一个大于 0 且小于 `duration` 的提醒点。
 5. `--need-play-audio-at-end` 只在 `set` 时传。提前结束或关闭倒计时时不要携带 duration、提醒点或结束音频参数。
 6. 若使用应用身份操作，应用机器人必须在会中；若使用用户身份操作，当前用户必须正在该会议中。权限错误时按“应用身份权限配置检查”或“用户身份被拒绝时”处理。
 
 示例：
 
 ```bash
-lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action set --duration 5 --reminders-before-end-in-second 60,30
+lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action set --duration 5 --reminder-before-end-in-minute 1
 lark-cli vc +meeting-countdown --as bot --meeting-id <meeting_id> --action prolong --duration 2
 lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action end_in_advance
-lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action close
+lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action close_window
 ```
 
 ### 6. 获取当前可用的进行中会议 ID（读操作）
@@ -208,7 +208,7 @@ Shortcut 是对常用操作的高级封装（`lark-cli vc +<verb> [flags]`）。
 - [`+meeting-list-active`](../lark-vc/references/lark-vc-meeting-list-active.md)：用户身份和应用身份的不同返回范围。
 - [`+meeting-events`](../lark-vc/references/lark-vc-meeting-events.md)：`meeting_id` 来源、身份延续、分页和错误码（10005 / 20001 / 20002）。
 - [`+meeting-message-send`](../lark-vc/references/lark-vc-meeting-message-send.md)：会中文本、完整 `emoji_type` 列表、身份延续和写操作风险。
-- [`+meeting-countdown`](../lark-vc/references/lark-vc-meeting-countdown.md)：倒计时动作、duration 分钟单位、提醒点秒单位、身份延续和写操作风险。
+- [`+meeting-countdown`](../lark-vc/references/lark-vc-meeting-countdown.md)：倒计时动作、duration 和提醒点分钟单位、身份延续和写操作风险。
 - [`+meeting-leave`](references/lark-vc-agent-meeting-leave.md)：`meeting_id` 的来源与写操作可见性。
 
 ## 应用身份权限配置检查
