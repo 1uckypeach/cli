@@ -1158,6 +1158,10 @@
                             "type": "object",
                             "description": "堆叠配置",
                             "properties": {
+                              "enabled": {
+                                "type": "boolean",
+                                "description": "是否启用堆叠"
+                              },
                               "percentage": {
                                 "type": "boolean",
                                 "description": "是否百分比堆叠"
@@ -1203,54 +1207,40 @@
                                 ]
                               },
                               "idLabel": {
-                                "description": "气泡标识标签配置；false 表示隐藏标识标签",
-                                "oneOf": [
-                                  {
-                                    "type": "object",
-                                    "properties": {
-                                      "visible": {
-                                        "type": "boolean",
-                                        "description": "是否显示标识标签"
-                                      },
-                                      "fontSize": {
-                                        "type": "number",
-                                        "description": "标签字号"
-                                      },
-                                      "bold": {
-                                        "type": "boolean",
-                                        "description": "是否加粗"
-                                      },
-                                      "italic": {
-                                        "type": "boolean",
-                                        "description": "是否斜体"
-                                      },
-                                      "underline": {
-                                        "type": "boolean",
-                                        "description": "是否下划线"
-                                      },
-                                      "strikethrough": {
-                                        "type": "boolean",
-                                        "description": "是否删除线"
-                                      },
-                                      "color": {
-                                        "type": "string",
-                                        "description": "标签字体颜色"
-                                      }
-                                    }
+                                "type": "object",
+                                "description": "气泡标识标签样式配置",
+                                "properties": {
+                                  "fontSize": {
+                                    "type": "number",
+                                    "description": "标签字号"
                                   },
-                                  {
+                                  "bold": {
                                     "type": "boolean",
-                                    "enum": [
-                                      false
-                                    ]
+                                    "description": "是否加粗"
+                                  },
+                                  "italic": {
+                                    "type": "boolean",
+                                    "description": "是否斜体"
+                                  },
+                                  "underline": {
+                                    "type": "boolean",
+                                    "description": "是否下划线"
+                                  },
+                                  "strikethrough": {
+                                    "type": "boolean",
+                                    "description": "是否删除线"
+                                  },
+                                  "color": {
+                                    "type": "string",
+                                    "description": "标签字体颜色"
                                   }
-                                ]
+                                }
                               }
                             }
                           },
                           "waterfall": {
                             "type": "object",
-                            "description": "瀑布图全局配置。单个系列可通过 plot.series[].waterfall 覆盖数值解释和正负值样式。",
+                            "description": "瀑布图全局配置。正值柱样式复用 plot.bars；单个系列可通过 plot.series[].bars 和 plot.series[].waterfall 覆盖样式与数值解释。",
                             "properties": {
                               "firstValueAsTotal": {
                                 "type": "boolean",
@@ -1259,37 +1249,6 @@
                               "lastValueAsSubtotal": {
                                 "type": "boolean",
                                 "description": "是否将最后一个值视为小计"
-                              },
-                              "positiveStyle": {
-                                "type": "object",
-                                "description": "正值柱样式",
-                                "properties": {
-                                  "color": {
-                                    "type": "string",
-                                    "description": "填充颜色"
-                                  },
-                                  "opacity": {
-                                    "type": "number",
-                                    "description": "透明度，取值 0-1"
-                                  },
-                                  "borderColor": {
-                                    "type": "string",
-                                    "description": "边框颜色"
-                                  },
-                                  "borderWidth": {
-                                    "type": "number",
-                                    "description": "边框宽度"
-                                  },
-                                  "borderStyle": {
-                                    "type": "string",
-                                    "description": "边框样式",
-                                    "enum": [
-                                      "solid",
-                                      "dashed",
-                                      "dotted"
-                                    ]
-                                  }
-                                }
                               },
                               "negativeStyle": {
                                 "type": "object",
@@ -1353,6 +1312,54 @@
                                   }
                                 }
                               },
+                              "titleText": {
+                                "type": "object",
+                                "description": "瀑布图正值、负值和小计的标题文本",
+                                "properties": {
+                                  "positive": {
+                                    "type": "string",
+                                    "description": "正值标题"
+                                  },
+                                  "negative": {
+                                    "type": "string",
+                                    "description": "负值标题"
+                                  },
+                                  "subtotal": {
+                                    "type": "string",
+                                    "description": "小计标题"
+                                  }
+                                }
+                              },
+                              "subtotals": {
+                                "type": "array",
+                                "description": "小计节点配置数组",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "index": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "小计节点索引，从 0 开始"
+                                    },
+                                    "mode": {
+                                      "type": "integer",
+                                      "enum": [
+                                        0,
+                                        1
+                                      ],
+                                      "description": "小计计算模式"
+                                    },
+                                    "alias": {
+                                      "type": "string",
+                                      "description": "小计别名"
+                                    }
+                                  },
+                                  "required": [
+                                    "index",
+                                    "mode"
+                                  ]
+                                }
+                              },
                               "cornerRadius": {
                                 "type": "string",
                                 "description": "柱子圆角大小",
@@ -1412,6 +1419,24 @@
                                       "template": {
                                         "type": "string",
                                         "description": "标签文本模板"
+                                      },
+                                      "position": {
+                                        "type": "string",
+                                        "description": "标签位置",
+                                        "enum": [
+                                          "default",
+                                          "top",
+                                          "middle",
+                                          "bottom"
+                                        ]
+                                      },
+                                      "category": {
+                                        "type": "boolean",
+                                        "description": "是否显示类别名"
+                                      },
+                                      "value": {
+                                        "type": "boolean",
+                                        "description": "是否显示数值"
                                       },
                                       "fontSize": {
                                         "type": "number",
@@ -2327,7 +2352,7 @@
                             },
                             "waterfall": {
                               "type": "object",
-                              "description": "瀑布图的单系列配置，覆盖 plot.extra.waterfall 中对应的数值解释和样式。",
+                              "description": "瀑布图的单系列配置，覆盖 plot.extra.waterfall 中对应的数值解释、负值和总计样式；正值柱样式复用同级 bars。",
                               "properties": {
                                 "firstValueAsTotal": {
                                   "type": "boolean",
@@ -2336,37 +2361,6 @@
                                 "lastValueAsSubtotal": {
                                   "type": "boolean",
                                   "description": "是否将该系列最后一个值视为小计"
-                                },
-                                "positiveStyle": {
-                                  "type": "object",
-                                  "description": "该系列的正值柱样式",
-                                  "properties": {
-                                    "color": {
-                                      "type": "string",
-                                      "description": "填充颜色"
-                                    },
-                                    "opacity": {
-                                      "type": "number",
-                                      "description": "透明度，取值 0-1"
-                                    },
-                                    "borderColor": {
-                                      "type": "string",
-                                      "description": "边框颜色"
-                                    },
-                                    "borderWidth": {
-                                      "type": "number",
-                                      "description": "边框宽度"
-                                    },
-                                    "borderStyle": {
-                                      "type": "string",
-                                      "description": "边框样式",
-                                      "enum": [
-                                        "solid",
-                                        "dashed",
-                                        "dotted"
-                                      ]
-                                    }
-                                  }
                                 },
                                 "negativeStyle": {
                                   "type": "object",
@@ -2428,6 +2422,54 @@
                                         "dotted"
                                       ]
                                     }
+                                  }
+                                },
+                                "titleText": {
+                                  "type": "object",
+                                  "description": "该系列正值、负值和小计的标题文本",
+                                  "properties": {
+                                    "positive": {
+                                      "type": "string",
+                                      "description": "正值标题"
+                                    },
+                                    "negative": {
+                                      "type": "string",
+                                      "description": "负值标题"
+                                    },
+                                    "subtotal": {
+                                      "type": "string",
+                                      "description": "小计标题"
+                                    }
+                                  }
+                                },
+                                "subtotals": {
+                                  "type": "array",
+                                  "description": "该系列的小计节点配置数组",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "index": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "description": "小计节点索引，从 0 开始"
+                                      },
+                                      "mode": {
+                                        "type": "integer",
+                                        "enum": [
+                                          0,
+                                          1
+                                        ],
+                                        "description": "小计计算模式"
+                                      },
+                                      "alias": {
+                                        "type": "string",
+                                        "description": "小计别名"
+                                      }
+                                    },
+                                    "required": [
+                                      "index",
+                                      "mode"
+                                    ]
                                   }
                                 }
                               }
@@ -3340,6 +3382,10 @@
                             "type": "object",
                             "description": "堆叠配置",
                             "properties": {
+                              "enabled": {
+                                "type": "boolean",
+                                "description": "是否启用堆叠"
+                              },
                               "percentage": {
                                 "type": "boolean",
                                 "description": "是否百分比堆叠"
@@ -3385,54 +3431,40 @@
                                 ]
                               },
                               "idLabel": {
-                                "description": "气泡标识标签配置；false 表示隐藏标识标签",
-                                "oneOf": [
-                                  {
-                                    "type": "object",
-                                    "properties": {
-                                      "visible": {
-                                        "type": "boolean",
-                                        "description": "是否显示标识标签"
-                                      },
-                                      "fontSize": {
-                                        "type": "number",
-                                        "description": "标签字号"
-                                      },
-                                      "bold": {
-                                        "type": "boolean",
-                                        "description": "是否加粗"
-                                      },
-                                      "italic": {
-                                        "type": "boolean",
-                                        "description": "是否斜体"
-                                      },
-                                      "underline": {
-                                        "type": "boolean",
-                                        "description": "是否下划线"
-                                      },
-                                      "strikethrough": {
-                                        "type": "boolean",
-                                        "description": "是否删除线"
-                                      },
-                                      "color": {
-                                        "type": "string",
-                                        "description": "标签字体颜色"
-                                      }
-                                    }
+                                "type": "object",
+                                "description": "气泡标识标签样式配置",
+                                "properties": {
+                                  "fontSize": {
+                                    "type": "number",
+                                    "description": "标签字号"
                                   },
-                                  {
+                                  "bold": {
                                     "type": "boolean",
-                                    "enum": [
-                                      false
-                                    ]
+                                    "description": "是否加粗"
+                                  },
+                                  "italic": {
+                                    "type": "boolean",
+                                    "description": "是否斜体"
+                                  },
+                                  "underline": {
+                                    "type": "boolean",
+                                    "description": "是否下划线"
+                                  },
+                                  "strikethrough": {
+                                    "type": "boolean",
+                                    "description": "是否删除线"
+                                  },
+                                  "color": {
+                                    "type": "string",
+                                    "description": "标签字体颜色"
                                   }
-                                ]
+                                }
                               }
                             }
                           },
                           "waterfall": {
                             "type": "object",
-                            "description": "瀑布图全局配置。单个系列可通过 plot.series[].waterfall 覆盖数值解释和正负值样式。",
+                            "description": "瀑布图全局配置。正值柱样式复用 plot.bars；单个系列可通过 plot.series[].bars 和 plot.series[].waterfall 覆盖样式与数值解释。",
                             "properties": {
                               "firstValueAsTotal": {
                                 "type": "boolean",
@@ -3441,37 +3473,6 @@
                               "lastValueAsSubtotal": {
                                 "type": "boolean",
                                 "description": "是否将最后一个值视为小计"
-                              },
-                              "positiveStyle": {
-                                "type": "object",
-                                "description": "正值柱样式",
-                                "properties": {
-                                  "color": {
-                                    "type": "string",
-                                    "description": "填充颜色"
-                                  },
-                                  "opacity": {
-                                    "type": "number",
-                                    "description": "透明度，取值 0-1"
-                                  },
-                                  "borderColor": {
-                                    "type": "string",
-                                    "description": "边框颜色"
-                                  },
-                                  "borderWidth": {
-                                    "type": "number",
-                                    "description": "边框宽度"
-                                  },
-                                  "borderStyle": {
-                                    "type": "string",
-                                    "description": "边框样式",
-                                    "enum": [
-                                      "solid",
-                                      "dashed",
-                                      "dotted"
-                                    ]
-                                  }
-                                }
                               },
                               "negativeStyle": {
                                 "type": "object",
@@ -3535,6 +3536,54 @@
                                   }
                                 }
                               },
+                              "titleText": {
+                                "type": "object",
+                                "description": "瀑布图正值、负值和小计的标题文本",
+                                "properties": {
+                                  "positive": {
+                                    "type": "string",
+                                    "description": "正值标题"
+                                  },
+                                  "negative": {
+                                    "type": "string",
+                                    "description": "负值标题"
+                                  },
+                                  "subtotal": {
+                                    "type": "string",
+                                    "description": "小计标题"
+                                  }
+                                }
+                              },
+                              "subtotals": {
+                                "type": "array",
+                                "description": "小计节点配置数组",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "index": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "小计节点索引，从 0 开始"
+                                    },
+                                    "mode": {
+                                      "type": "integer",
+                                      "enum": [
+                                        0,
+                                        1
+                                      ],
+                                      "description": "小计计算模式"
+                                    },
+                                    "alias": {
+                                      "type": "string",
+                                      "description": "小计别名"
+                                    }
+                                  },
+                                  "required": [
+                                    "index",
+                                    "mode"
+                                  ]
+                                }
+                              },
                               "cornerRadius": {
                                 "type": "string",
                                 "description": "柱子圆角大小",
@@ -3594,6 +3643,24 @@
                                       "template": {
                                         "type": "string",
                                         "description": "标签文本模板"
+                                      },
+                                      "position": {
+                                        "type": "string",
+                                        "description": "标签位置",
+                                        "enum": [
+                                          "default",
+                                          "top",
+                                          "middle",
+                                          "bottom"
+                                        ]
+                                      },
+                                      "category": {
+                                        "type": "boolean",
+                                        "description": "是否显示类别名"
+                                      },
+                                      "value": {
+                                        "type": "boolean",
+                                        "description": "是否显示数值"
                                       },
                                       "fontSize": {
                                         "type": "number",
@@ -4509,7 +4576,7 @@
                             },
                             "waterfall": {
                               "type": "object",
-                              "description": "瀑布图的单系列配置，覆盖 plot.extra.waterfall 中对应的数值解释和样式。",
+                              "description": "瀑布图的单系列配置，覆盖 plot.extra.waterfall 中对应的数值解释、负值和总计样式；正值柱样式复用同级 bars。",
                               "properties": {
                                 "firstValueAsTotal": {
                                   "type": "boolean",
@@ -4518,37 +4585,6 @@
                                 "lastValueAsSubtotal": {
                                   "type": "boolean",
                                   "description": "是否将该系列最后一个值视为小计"
-                                },
-                                "positiveStyle": {
-                                  "type": "object",
-                                  "description": "该系列的正值柱样式",
-                                  "properties": {
-                                    "color": {
-                                      "type": "string",
-                                      "description": "填充颜色"
-                                    },
-                                    "opacity": {
-                                      "type": "number",
-                                      "description": "透明度，取值 0-1"
-                                    },
-                                    "borderColor": {
-                                      "type": "string",
-                                      "description": "边框颜色"
-                                    },
-                                    "borderWidth": {
-                                      "type": "number",
-                                      "description": "边框宽度"
-                                    },
-                                    "borderStyle": {
-                                      "type": "string",
-                                      "description": "边框样式",
-                                      "enum": [
-                                        "solid",
-                                        "dashed",
-                                        "dotted"
-                                      ]
-                                    }
-                                  }
                                 },
                                 "negativeStyle": {
                                   "type": "object",
@@ -4610,6 +4646,54 @@
                                         "dotted"
                                       ]
                                     }
+                                  }
+                                },
+                                "titleText": {
+                                  "type": "object",
+                                  "description": "该系列正值、负值和小计的标题文本",
+                                  "properties": {
+                                    "positive": {
+                                      "type": "string",
+                                      "description": "正值标题"
+                                    },
+                                    "negative": {
+                                      "type": "string",
+                                      "description": "负值标题"
+                                    },
+                                    "subtotal": {
+                                      "type": "string",
+                                      "description": "小计标题"
+                                    }
+                                  }
+                                },
+                                "subtotals": {
+                                  "type": "array",
+                                  "description": "该系列的小计节点配置数组",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "index": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "description": "小计节点索引，从 0 开始"
+                                      },
+                                      "mode": {
+                                        "type": "integer",
+                                        "enum": [
+                                          0,
+                                          1
+                                        ],
+                                        "description": "小计计算模式"
+                                      },
+                                      "alias": {
+                                        "type": "string",
+                                        "description": "小计别名"
+                                      }
+                                    },
+                                    "required": [
+                                      "index",
+                                      "mode"
+                                    ]
                                   }
                                 }
                               }
