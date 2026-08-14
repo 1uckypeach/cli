@@ -118,7 +118,7 @@ Interactive terminal use: run with no flags to enter the TUI form.`,
 	cmd.Flags().StringVar(&opts.AppID, "app-id", "", "App ID to bind (required for OpenClaw multi-account)")
 	cmd.Flags().StringVar(&opts.Identity, "identity", "", "identity preset (bot-only|user-default); defaults to bot-only in flag mode (safer: no impersonation)")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "confirm a risky transition (currently: bot-only → user-default identity change in flag mode)")
-	cmd.Flags().StringVar(&opts.Lang, "lang", "", "language preference (e.g. zh or zh_cn)")
+	cmd.Flags().StringVar(&opts.Lang, "lang", "", "language preference; also selects the interactive display language (e.g. zh or zh_cn)")
 	cmdutil.SetRisk(cmd, "write")
 
 	return cmd
@@ -477,9 +477,9 @@ func commitBinding(
 	}
 
 	replaced := previousConfigBytes != nil
-	// uiMsg renders human-facing TUI text (stderr success banner). Follows
-	// opts.UILang — zh by default; picker can flip it to en. --lang does
-	// not influence the TUI language.
+	// uiMsg renders human-facing text (the stderr success banner). It follows
+	// opts.UILang, which resolves to the same preference as appConfig.Lang
+	// below — stderr and the JSON message cannot disagree on language.
 	uiMsg := getBindMsg(opts.UILang)
 	display := sourceDisplayName(source)
 
@@ -513,7 +513,8 @@ func commitBinding(
 	// JSON "message" follows the effective preference on disk (appConfig.Lang),
 	// not the raw --lang value: when --lang is omitted on re-bind, preferredLang
 	// has already inherited the prior preference into appConfig.Lang, and the
-	// message should respect that inherited choice. stderr above follows UILang.
+	// message should respect that inherited choice. opts.UILang resolves from
+	// the same two inputs, so the stderr banner above matches this language.
 	prefMsg := getBindMsg(appConfig.Lang)
 	brand := brandDisplay(string(appConfig.Brand), appConfig.Lang)
 	switch opts.Identity {
