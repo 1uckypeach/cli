@@ -46,6 +46,13 @@ import (
 // ~1 KB to 18.6 KB with nothing to catch it. Measured max is 2,994 B (mail);
 // 4 KB is that plus 15% rounded up to a whole KB, the same rule the plan set for
 // the per-domain ceiling.
+//
+// That 2,994 B is the conservative reading. An error envelope also carries the
+// conditional `identity` and `_notice` fields (internal/output/errors.go), worth
+// roughly 600 B together, and `_notice` is rate-limited — so the same command
+// measures about 2,400 B on a machine that is not currently due for one. The
+// ceiling is set against the larger reading, and the ~600 B of run-to-run
+// variation fits inside the headroom.
 const (
 	maxDomainHelpMedian  = 2560  // 2.5 KB — overall health, resistant to outliers
 	maxSingleDomainHelp  = 12288 // 12 KB — measured max 9,965 B (sheets)
@@ -96,6 +103,50 @@ func runCLIStderr(t *testing.T, cli string, args ...string) []byte {
 		t.Fatalf("%v exited 0; expected a rejection\nstdout: %s", args, out.String())
 	}
 	return errBuf.Bytes()
+}
+
+// resourceGroups returns every command path that holds methods without being one,
+// derived from the rendered `command` of each index row — the same string a
+// caller would copy — so a newly nested resource is covered without anyone
+// extending a fixture.
+func resourceGroups(t *testing.T, cli string) [][]string {
+	t.Helper()
+	var index struct {
+		Services []struct {
+			Name string `json:"name"`
+		} `json:"services"`
+	}
+	if err := json.Unmarshal(runCLI(t, cli, "schema"), &index); err != nil {
+		t.Fatalf("service_index is not valid JSON: %v", err)
+	}
+	seen := map[string]bool{}
+	var groups [][]string
+	for _, svc := range index.Services {
+		var methods struct {
+			Methods []struct {
+				Command string `json:"command"`
+			} `json:"methods"`
+		}
+		if err := json.Unmarshal(runCLI(t, cli, "schema", svc.Name), &methods); err != nil {
+			t.Errorf("method_index for %s is not valid JSON: %v", svc.Name, err)
+			continue
+		}
+		for _, m := range methods.Methods {
+			segs := strings.Fields(strings.TrimPrefix(m.Command, "lark-cli "))
+			if len(segs) < 3 {
+				continue // a method directly under its domain has no resource group
+			}
+			group := segs[:len(segs)-1]
+			if key := strings.Join(group, " "); !seen[key] {
+				seen[key] = true
+				groups = append(groups, group)
+			}
+		}
+	}
+	if len(groups) == 0 {
+		t.Fatal("no resource group found, so this probe set cannot detect a regression")
+	}
+	return groups
 }
 
 var sectionHeadRe = regexp.MustCompile(`^[A-Za-z].*:$`)
@@ -193,6 +244,12 @@ func TestOutputBudget(t *testing.T) {
 		probes := [][]string{{noSuchName}}
 		for _, d := range domains {
 			probes = append(probes, []string{d, noSuchName})
+		}
+		// Resource groups as well. Covering the root and the domains alone is the
+		// same shape as the test that let an 18 KB envelope through: named for
+		// every level, looping over one of them.
+		for _, group := range resourceGroups(t, cli) {
+			probes = append(probes, append(append([]string{}, group...), noSuchName))
 		}
 		for _, args := range probes {
 			if n := len(runCLIStderr(t, cli, args...)); n > maxRejectionEnvelope {

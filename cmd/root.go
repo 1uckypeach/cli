@@ -542,8 +542,12 @@ func unknownNameGuidance(cmd *cobra.Command, args []string) (hint string, sugges
 	// a hidden group anywhere earns its methods a place here, and a visible one
 	// anywhere does not.
 	//
-	// Deprecated aliases stay out: rankable above, not worth recommending. The
-	// --help pointer stays, since only help carries the descriptions.
+	// Deprecated aliases stay out: rankable above, not worth recommending. Note
+	// the exclusion covers the alias itself, not paths beneath one — `visible` is
+	// built from `available` alone, so a deprecated group holding nested methods
+	// would have them listed. No such group exists today.
+	//
+	// The --help pointer stays, since only help carries the descriptions.
 	visible := make(map[string]bool, len(available))
 	for _, n := range available {
 		visible[n] = true
