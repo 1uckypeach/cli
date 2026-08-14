@@ -21,14 +21,26 @@ func TestMailSenderListShortcuts_Metadata(t *testing.T) {
 	if MailSenderBlocklist.Command != "+sender-blocklist" {
 		t.Fatalf("blocklist command = %q", MailSenderBlocklist.Command)
 	}
-	if MailSenderAllowlist.Risk != "write" || MailSenderBlocklist.Risk != "write" {
-		t.Fatalf("risk = %q/%q, want write", MailSenderAllowlist.Risk, MailSenderBlocklist.Risk)
+	if MailSenderAllowlistModify.Command != "+sender-allowlist-modify" {
+		t.Fatalf("allowlist modify command = %q", MailSenderAllowlistModify.Command)
+	}
+	if MailSenderBlocklistModify.Command != "+sender-blocklist-modify" {
+		t.Fatalf("blocklist modify command = %q", MailSenderBlocklistModify.Command)
+	}
+	if MailSenderAllowlist.Risk != "read" || MailSenderBlocklist.Risk != "read" {
+		t.Fatalf("read risk = %q/%q, want read", MailSenderAllowlist.Risk, MailSenderBlocklist.Risk)
+	}
+	if MailSenderAllowlistModify.Risk != "write" || MailSenderBlocklistModify.Risk != "write" {
+		t.Fatalf("write risk = %q/%q, want write", MailSenderAllowlistModify.Risk, MailSenderBlocklistModify.Risk)
 	}
 	if MailSenderAllowlist.Scopes[0] != "mail:user_mailbox.message:readonly" {
 		t.Fatalf("read scope = %v", MailSenderAllowlist.Scopes)
 	}
-	if MailSenderAllowlist.ConditionalScopes[0] != "mail:user_mailbox.message:modify" {
-		t.Fatalf("conditional write scope = %v", MailSenderAllowlist.ConditionalScopes)
+	if MailSenderAllowlistModify.Scopes[0] != "mail:user_mailbox.message:modify" {
+		t.Fatalf("write scope = %v", MailSenderAllowlistModify.Scopes)
+	}
+	if len(MailSenderAllowlist.ConditionalScopes) != 0 || len(MailSenderAllowlistModify.ConditionalScopes) != 0 {
+		t.Fatalf("conditional scopes should be empty for split read/write shortcuts")
 	}
 	for _, shortcut := range []struct {
 		name  string
@@ -36,16 +48,18 @@ func TestMailSenderListShortcuts_Metadata(t *testing.T) {
 	}{
 		{name: MailSenderAllowlist.Command, flags: MailSenderAllowlist.Flags},
 		{name: MailSenderBlocklist.Command, flags: MailSenderBlocklist.Flags},
+		{name: MailSenderAllowlistModify.Command, flags: MailSenderAllowlistModify.Flags},
+		{name: MailSenderBlocklistModify.Command, flags: MailSenderBlocklistModify.Flags},
 	} {
 		for _, flag := range shortcut.flags {
-			if flag.Name == "yes" {
-				t.Fatalf("%s must not register shortcut-specific --yes flag", shortcut.name)
+			if flag.Name == "yes" || flag.Name == "type" {
+				t.Fatalf("%s must not register --%s", shortcut.name, flag.Name)
 			}
 		}
 	}
 }
 
-func TestMailSenderListShortcut_DefaultListsOrSearches(t *testing.T) {
+func TestMailSenderListShortcut_ListsOrSearches(t *testing.T) {
 	f, stdout, _, reg := mailShortcutTestFactory(t)
 	stub := &httpmock.Stub{
 		Method: "GET",
@@ -75,7 +89,7 @@ func TestMailSenderListShortcut_DefaultListsOrSearches(t *testing.T) {
 	reg.Verify(t)
 }
 
-func TestMailSenderListShortcut_AddBuildsItemsBody(t *testing.T) {
+func TestMailSenderListModifyShortcut_AddInfersSenderType(t *testing.T) {
 	f, stdout, _, reg := mailShortcutTestFactory(t)
 	stub := &httpmock.Stub{
 		Method: "POST",
@@ -87,10 +101,9 @@ func TestMailSenderListShortcut_AddBuildsItemsBody(t *testing.T) {
 	}
 	reg.Register(stub)
 
-	err := runMountedMailShortcut(t, MailSenderBlocklist, []string{
-		"+sender-blocklist",
-		"--add", "bad.example,spam.example",
-		"--type", "domain",
+	err := runMountedMailShortcut(t, MailSenderBlocklistModify, []string{
+		"+sender-blocklist-modify",
+		"--add", "bad.example,spam@example.com",
 	}, f, stdout)
 	if err != nil {
 		t.Fatalf("execute shortcut: %v", err)
@@ -102,52 +115,106 @@ func TestMailSenderListShortcut_AddBuildsItemsBody(t *testing.T) {
 	}
 	first := items[0].(map[string]interface{})
 	if first["sender"] != "bad.example" || first["sender_type"].(float64) != 2 {
-		t.Fatalf("first item = %#v", first)
+		t.Fatalf("first item = %#v, want inferred domain", first)
+	}
+	second := items[1].(map[string]interface{})
+	if second["sender"] != "spam@example.com" || second["sender_type"].(float64) != 1 {
+		t.Fatalf("second item = %#v, want inferred email", second)
 	}
 }
 
-func TestMailSenderListShortcut_RemoveBuildsSendersBody(t *testing.T) {
+func TestMailSenderListModifyShortcut_CreateAliasAdds(t *testing.T) {
 	f, stdout, _, reg := mailShortcutTestFactory(t)
 	stub := &httpmock.Stub{
 		Method: "POST",
-		URL:    "/user_mailboxes/me/allow_senders/batch_remove",
+		URL:    "/user_mailboxes/me/allow_senders/batch_create",
 		Body: map[string]interface{}{
 			"code": 0,
-			"data": map[string]interface{}{"deleted_count": 2},
+			"data": map[string]interface{}{"failed_items": []interface{}{}},
 		},
 	}
 	reg.Register(stub)
 
-	err := runMountedMailShortcut(t, MailSenderAllowlist, []string{
-		"+sender-allowlist",
-		"--remove", "fixture.one@sender.test",
-		"--remove", "fixture.two@sender.test",
+	err := runMountedMailShortcut(t, MailSenderAllowlistModify, []string{
+		"+sender-allowlist-modify",
+		"--create", "fixture.sender.test",
 	}, f, stdout)
 	if err != nil {
 		t.Fatalf("execute shortcut: %v", err)
 	}
 	body := decodeCapturedSenderListJSONBody(t, stub)
-	senders, ok := body["senders"].([]interface{})
-	if !ok || len(senders) != 2 {
-		t.Fatalf("senders = %#v, want two senders", body["senders"])
+	items := body["items"].([]interface{})
+	first := items[0].(map[string]interface{})
+	if first["sender"] != "fixture.sender.test" || first["sender_type"].(float64) != 2 {
+		t.Fatalf("first item = %#v", first)
 	}
 }
 
-func TestMailSenderListShortcut_ValidateAddresses(t *testing.T) {
+func TestMailSenderListModifyShortcut_RemoveAliasesBuildSendersBody(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		flag string
+	}{
+		{name: "remove", flag: "--remove"},
+		{name: "delete", flag: "--delete"},
+		{name: "trash", flag: "--trash"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f, stdout, _, reg := mailShortcutTestFactory(t)
+			stub := &httpmock.Stub{
+				Method: "POST",
+				URL:    "/user_mailboxes/me/allow_senders/batch_remove",
+				Body: map[string]interface{}{
+					"code": 0,
+					"data": map[string]interface{}{"deleted_count": 2},
+				},
+			}
+			reg.Register(stub)
+
+			err := runMountedMailShortcut(t, MailSenderAllowlistModify, []string{
+				"+sender-allowlist-modify",
+				tc.flag, "fixture.one@sender.test,fixture.two@sender.test",
+			}, f, stdout)
+			if err != nil {
+				t.Fatalf("execute shortcut: %v", err)
+			}
+			body := decodeCapturedSenderListJSONBody(t, stub)
+			senders, ok := body["senders"].([]interface{})
+			if !ok || len(senders) != 2 {
+				t.Fatalf("senders = %#v, want two senders", body["senders"])
+			}
+		})
+	}
+}
+
+func TestMailSenderListShortcut_ValidateInputs(t *testing.T) {
 	f, stdout, _, _ := mailShortcutTestFactory(t)
 	err := runMountedMailShortcut(t, MailSenderAllowlist, []string{
 		"+sender-allowlist",
+		"--page-size", "0",
+	}, f, stdout)
+	requireSenderListValidationParam(t, err, "--page-size")
+
+	err = runMountedMailShortcut(t, MailSenderAllowlistModify, []string{
+		"+sender-allowlist-modify",
 		"--add", "valid@example.com,",
 	}, f, stdout)
 	requireSenderListValidationParam(t, err, "--add")
 
-	err = runMountedMailShortcut(t, MailSenderAllowlist, []string{
-		"+sender-allowlist",
+	err = runMountedMailShortcut(t, MailSenderAllowlistModify, []string{
+		"+sender-allowlist-modify",
 		"--add", "a@example.com",
 		"--remove", "b@example.com",
 	}, f, stdout)
 	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
 		t.Fatalf("error = %v, want mutually exclusive", err)
+	}
+
+	err = runMountedMailShortcut(t, MailSenderAllowlistModify, []string{
+		"+sender-allowlist-modify",
+	}, f, stdout)
+	if err == nil || !strings.Contains(err.Error(), "one of --add") {
+		t.Fatalf("error = %v, want missing action", err)
 	}
 }
 
