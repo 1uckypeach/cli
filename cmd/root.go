@@ -517,17 +517,34 @@ func unknownNameGuidance(cmd *cobra.Command, args []string) (hint string, sugges
 		return fmt.Sprintf("did you mean one of: %s? (run `%s --help` for the full list)",
 			strings.Join(ranked, ", "), cmd.CommandPath()), ranked
 	}
-	if len(available) == 0 {
-		return fmt.Sprintf("run `%s --help` to see available subcommands", cmd.CommandPath()), nil
-	}
 	// Nothing ranked: the edit distance to every real name is too large, which is
 	// what happens when the name does not exist at all — and that is precisely
 	// when sending the caller back to `--help` answers nothing. A caller who needs
 	// a second call to learn the set concludes the method is missing and reaches
 	// for the raw `api` channel instead. Name the set here so one call closes the
-	// question. This is the set `--help` would have listed, so the two agree.
-	return fmt.Sprintf("%q has no subcommand %q; it has: %s",
-		cmd.CommandPath(), args[0], strings.Join(available, ", ")), nil
+	// question.
+	//
+	// The set is the union of both sources because neither alone is the answer at
+	// both levels, and which one is empty flips between them: under a resource
+	// group the children are the method leaves themselves, so availableSubcommandNames
+	// holds them and methodPathsUnder (which only collects nested paths) is empty;
+	// under a domain the resource groups are hidden by design, so the reverse is
+	// true and availableSubcommandNames sees only shortcuts. Listing one source
+	// would state "the set is this" while silently omitting every method of the
+	// other — the exact false conclusion this hint exists to prevent, asserted
+	// more confidently than the message it replaced. Deprecated aliases stay out:
+	// they are rankable above but not worth recommending. The pointer to --help
+	// stays too, since only help carries the descriptions.
+	names := append([]string{}, available...)
+	for _, p := range paths {
+		names = append(names, p.spaced)
+	}
+	if len(names) == 0 {
+		return fmt.Sprintf("run `%s --help` to see available subcommands", cmd.CommandPath()), nil
+	}
+	sort.Strings(names)
+	return fmt.Sprintf("%q has no subcommand %q; it has: %s (run `%s --help` for these with descriptions)",
+		cmd.CommandPath(), args[0], strings.Join(names, ", "), cmd.CommandPath()), nil
 }
 
 // rootUnknownCommandRewrite upgrades cobra's bare "unknown command" into the
@@ -698,9 +715,14 @@ func normalizeSegments(args []string) []string {
 //
 // A trailing match is accepted after a full one fails: dropping the domain
 // prefix ("chat.members.get") is the form a caller produces by copying a
-// service-relative domain-help row up to the root. Only a unique hit rewrites —
-// with more than one candidate a ranked did-you-mean is honest about the
-// uncertainty in a way a confident rewrite would not be.
+// service-relative domain-help row up to the root. It requires at least two
+// segments, because that is what makes it a copied path rather than a guess — a
+// single token like "update" would otherwise "match" whichever domain happens to
+// hold exactly one method by that name, and the rewrite would assert a path the
+// caller never typed while explaining a separator their input never contained.
+// Only a unique hit rewrites — with more than one candidate a ranked
+// did-you-mean is honest about the uncertainty in a way a confident rewrite
+// would not be.
 func normalizedPathRewrite(paths []methodPath, args []string) (string, bool) {
 	want := normalizeSegments(args)
 	if len(want) == 0 {
@@ -712,7 +734,7 @@ func normalizedPathRewrite(paths []methodPath, args []string) (string, bool) {
 		switch {
 		case slices.Equal(segs, want):
 			exact = append(exact, p.spaced)
-		case len(want) < len(segs) && slices.Equal(segs[len(segs)-len(want):], want):
+		case len(want) >= 2 && len(want) < len(segs) && slices.Equal(segs[len(segs)-len(want):], want):
 			trailing = append(trailing, p.spaced)
 		}
 	}

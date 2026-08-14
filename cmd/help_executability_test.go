@@ -465,3 +465,68 @@ func assertCommandResolvesTo(t *testing.T, root *cobra.Command, command, schemaP
 			command, target.CommandPath(), got, schemaPath)
 	}
 }
+
+// The fallback set must name what the group actually holds, at both levels. The
+// two sources are complementary and which one is empty flips between them: under
+// a resource group the children are the method leaves (availableSubcommandNames
+// has them, methodPathsUnder is empty), under a domain the resource groups are
+// hidden (the reverse). Listing one source alone produces a confident "the set is
+// this" that omits every method of the other — the exact false conclusion this
+// hint exists to prevent.
+func TestFallbackSetNamesRealMethodsAtEveryLevel(t *testing.T) {
+	root := buildExecutabilityTree(t)
+	listings := domainAPIListings(t, root)
+
+	for _, domain := range sortedDomains(listings) {
+		domainCmd, _, err := root.Find([]string{domain})
+		if err != nil {
+			t.Fatalf("domain %q does not resolve: %v", domain, err)
+		}
+		// A name no real subcommand is close to, so the ranked branch cannot fire
+		// and the fallback set is what answers.
+		hint, _ := unknownNameGuidance(domainCmd, []string{"zzzzzzzznotamethod"})
+		if strings.Contains(hint, "did you mean") {
+			t.Fatalf("%s: fixture name ranked against real names, so this case tests nothing: %q", domain, hint)
+		}
+		// Every method the domain lists in help must be named in the fallback set.
+		for _, path := range listings[domain] {
+			if !strings.Contains(hint, path) {
+				t.Errorf("%s: fallback set omits %q, which `%s --help` lists; hint = %q",
+					domain, path, domain, hint)
+				break // one report per domain is enough to identify the regression
+			}
+		}
+		// The set names what exists; --help additionally carries the descriptions,
+		// so the way out must survive.
+		if !strings.Contains(hint, "--help") {
+			t.Errorf("%s: fallback hint has no --help pointer, leaving the reader no way to see more: %q", domain, hint)
+		}
+	}
+}
+
+// A determinate rewrite claims the caller typed a real path with the wrong
+// separator. A single token contains no separator at all, so the claim — and the
+// explanation attached to it — cannot be true of that input. It matched only
+// because one method in the domain happens to end with that word.
+func TestSingleTokenDoesNotEarnADeterminateRewrite(t *testing.T) {
+	root := buildExecutabilityTree(t)
+	paths := methodPathsUnder(root)
+	listings := domainAPIListings(t, root)
+
+	for _, domain := range sortedDomains(listings) {
+		domainCmd, _, err := root.Find([]string{domain})
+		if err != nil {
+			t.Fatalf("domain %q does not resolve: %v", domain, err)
+		}
+		for _, path := range listings[domain] {
+			fields := strings.Fields(path)
+			leaf := fields[len(fields)-1] // e.g. "update" out of "spreadsheet.sheet.filters update"
+			if _, ok := normalizedPathRewrite(paths, []string{leaf}); ok {
+				t.Errorf("%s: bare token %q earned a determinate rewrite; only a multi-segment path can", domain, leaf)
+			}
+			if _, ok := normalizedPathRewrite(methodPathsUnder(domainCmd), []string{leaf}); ok {
+				t.Errorf("%s: bare token %q earned a determinate rewrite below the domain", domain, leaf)
+			}
+		}
+	}
+}
