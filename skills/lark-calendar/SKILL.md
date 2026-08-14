@@ -42,6 +42,7 @@ lark-cli calendar +agenda --as bot
 | [`+room-find`](references/lark-calendar-room-find.md) | 针对一个或多个**明确的**时间块查找可用会议室（无明确时间时禁止直接调用，需先走 +suggestion） |
 | [`+rsvp`](references/lark-calendar-rsvp.md) | 回复日程（接受/拒绝/待定） |
 | [`+suggestion`](references/lark-calendar-suggestion.md) | 根据非明确时间或一段时间范围，推荐多个可用时间块方案 |
+| [`+list-attendees`](references/lark-calendar-list-attendees.md) | 列出日程的参与人和会议室（支持按 `--type` 过滤：user / resource / chat / third_party） |
 
 ### `+get` — 单日程详情
 
@@ -53,6 +54,8 @@ lark-cli calendar +get --calendar-id <calendar_id> --event-id <event_id>
 ```
 
 日程描述统一使用 `description` 一个字段，按 **Markdown** 富文本处理。读取日程时 `description` 返回 Markdown 富文本（仅有纯文本描述时返回该纯文本）；创建/更新日程时也通过 `--description` 传入 Markdown。
+
+> `+get` 返回不含参会人和会议室。需要参与人视角（用户 / 会议室 / 群 / 三方邮箱）请调用 [`+list-attendees`](references/lark-calendar-list-attendees.md)。
 
 ### `+search-event` — 按关键词、时间范围和参会人搜索日程
 
@@ -131,6 +134,7 @@ lark-cli calendar +freebusy --start 2026-03-11 --end 2026-03-12 --user-id ou_xxx
 | 查询日历/日程或未来时间的会议 | 本 skill |
 | 按关键词搜索日程 | 本 skill（`+search-event`） |
 | 从日程获取关联的视频会议 ID 或用户绑定的会议纪要文档 | 本 skill（`+meeting`） |
+| 查看日程的参会人 / 会议室（含 `--type resource` 只看会议室） | 本 skill（[`+list-attendees`](references/lark-calendar-list-attendees.md)） |
 | 从日程进一步拿 AI 智能纪要 / 逐字稿 / 妙记产物 | 先 `+meeting` 取 `meeting_id`，再 [`vc +detail`](../lark-vc/references/lark-vc-detail.md) → [`note +detail`](../lark-note/references/lark-note-detail.md) / [`minutes +detail`](../lark-minutes/references/lark-minutes-detail.md) |
 | 预约/改约日程、调整时间、添加/更换会议室、查会议室 | 先判断新建 vs 编辑，再进入 [schedule-meeting 工作流](references/lark-calendar-schedule-meeting.md) |
 | 仅编辑日程字段（标题/描述）或增删参会人（不涉及时间和会议室） | 先定位 `event_id`，再读 [+update](references/lark-calendar-update.md) 执行变更 |
