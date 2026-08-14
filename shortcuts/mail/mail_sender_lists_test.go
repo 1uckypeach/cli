@@ -11,6 +11,7 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/httpmock"
+	"github.com/larksuite/cli/shortcuts/common"
 )
 
 func TestMailSenderListShortcuts_Metadata(t *testing.T) {
@@ -28,6 +29,19 @@ func TestMailSenderListShortcuts_Metadata(t *testing.T) {
 	}
 	if MailSenderAllowlist.ConditionalScopes[0] != "mail:user_mailbox" {
 		t.Fatalf("conditional write scope = %v", MailSenderAllowlist.ConditionalScopes)
+	}
+	for _, shortcut := range []struct {
+		name  string
+		flags []common.Flag
+	}{
+		{name: MailSenderAllowlist.Command, flags: MailSenderAllowlist.Flags},
+		{name: MailSenderBlocklist.Command, flags: MailSenderBlocklist.Flags},
+	} {
+		for _, flag := range shortcut.flags {
+			if flag.Name == "yes" {
+				t.Fatalf("%s must not register shortcut-specific --yes flag", shortcut.name)
+			}
+		}
 	}
 }
 
@@ -77,7 +91,6 @@ func TestMailSenderListShortcut_AddBuildsItemsBody(t *testing.T) {
 		"+sender-blocklist",
 		"--add", "bad.example,spam.example",
 		"--type", "domain",
-		"--yes",
 	}, f, stdout)
 	if err != nil {
 		t.Fatalf("execute shortcut: %v", err)
@@ -109,7 +122,6 @@ func TestMailSenderListShortcut_RemoveBuildsSendersBody(t *testing.T) {
 		"+sender-allowlist",
 		"--remove", "fixture.one@sender.test",
 		"--remove", "fixture.two@sender.test",
-		"--yes",
 	}, f, stdout)
 	if err != nil {
 		t.Fatalf("execute shortcut: %v", err)
@@ -121,23 +133,11 @@ func TestMailSenderListShortcut_RemoveBuildsSendersBody(t *testing.T) {
 	}
 }
 
-func TestMailSenderListShortcut_WriteRequiresYes(t *testing.T) {
-	f, stdout, _, _ := mailShortcutTestFactory(t)
-	err := runMountedMailShortcut(t, MailSenderAllowlist, []string{
-		"+sender-allowlist",
-		"--remove", "fixture.one@sender.test",
-	}, f, stdout)
-	if err == nil || !strings.Contains(err.Error(), "confirmation") {
-		t.Fatalf("error = %v, want confirmation required", err)
-	}
-}
-
 func TestMailSenderListShortcut_ValidateAddresses(t *testing.T) {
 	f, stdout, _, _ := mailShortcutTestFactory(t)
 	err := runMountedMailShortcut(t, MailSenderAllowlist, []string{
 		"+sender-allowlist",
 		"--add", "valid@example.com,",
-		"--yes",
 	}, f, stdout)
 	requireSenderListValidationParam(t, err, "--add")
 
@@ -145,7 +145,6 @@ func TestMailSenderListShortcut_ValidateAddresses(t *testing.T) {
 		"+sender-allowlist",
 		"--add", "a@example.com",
 		"--remove", "b@example.com",
-		"--yes",
 	}, f, stdout)
 	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
 		t.Fatalf("error = %v, want mutually exclusive", err)

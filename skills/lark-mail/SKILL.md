@@ -270,19 +270,18 @@ lark-cli mail user_mailbox.folders create \
 lark-cli mail +sender-allowlist --query example --page-size 20
 
 # 批量加入信任邮箱地址
-lark-cli mail +sender-allowlist --add alice@example.com --yes
+lark-cli mail +sender-allowlist --add alice@example.com
 
 # 加入域名
-lark-cli mail +sender-allowlist --add example.com --type domain --yes
+lark-cli mail +sender-allowlist --add example.com --type domain
 
 # 批量删除屏蔽发件人
 lark-cli mail +sender-blocklist \
   --remove spam@example.com \
-  --remove bad.example \
-  --yes
+  --remove bad.example
 ```
 
-默认不传 `--add` / `--remove` 时是 list/search 模式，支持 `--query`、`--page-size`、`--page-token`，返回 `items`、`page_token`、`has_more` 等分页信息。`--add` / `--remove` 可重复，也支持逗号分隔；`--add` 默认按邮箱地址写入，域名写入需传 `--type domain`。写操作执行前必须向用户展示目标名单、地址或域名数量并取得确认，然后加 `--yes`；`--add` 返回 `failed_items`，`--remove` 返回 `deleted_count`，必须原样反馈失败项和删除结果。
+默认不传 `--add` / `--remove` 时是 list/search 模式，支持 `--query`、`--page-size`、`--page-token`，返回 `items`、`page_token`、`has_more` 等分页信息。`--add` / `--remove` 可重复，也支持逗号分隔；`--add` 默认按邮箱地址写入，域名写入需传 `--type domain`。写操作执行前必须向用户展示目标名单、地址或域名数量并取得确认；`--add` 返回 `failed_items`，`--remove` 返回 `deleted_count`，必须原样反馈失败项和删除结果。
 
 ### 常用约定
 

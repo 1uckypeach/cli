@@ -7,7 +7,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/larksuite/cli/internal/cmdutil"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
@@ -55,7 +54,6 @@ func newMailSenderListShortcut(cfg senderListShortcutConfig) common.Shortcut {
 			{Name: "add", Type: "string_array", Desc: "Sender email addresses or domains to add; comma-separated or repeat the flag."},
 			{Name: "remove", Type: "string_array", Desc: "Sender email addresses or domains to remove; comma-separated or repeat the flag."},
 			{Name: "type", Default: "email", Desc: "Sender type for --add: email or domain.", Enum: []string{"email", "domain"}},
-			{Name: "yes", Type: "bool", Desc: "Confirm add/remove operation."},
 		},
 		Validate: func(ctx context.Context, rt *common.RuntimeContext) error {
 			_, err := buildSenderListInput(rt)
@@ -96,9 +94,6 @@ func newMailSenderListShortcut(cfg senderListShortcutConfig) common.Shortcut {
 				if err := rt.EnsureScopes([]string{"mail:user_mailbox"}); err != nil {
 					return err
 				}
-				if !rt.Bool("yes") {
-					return cmdutil.RequireConfirmation("mail " + cfg.command)
-				}
 				data, err := rt.CallAPITyped("POST", mailSenderListPath(mailboxID, cfg.resource, "batch_create"), nil, senderListAddBody(input.Addresses, input.SenderType))
 				if err != nil {
 					return err
@@ -107,9 +102,6 @@ func newMailSenderListShortcut(cfg senderListShortcutConfig) common.Shortcut {
 			case "remove":
 				if err := rt.EnsureScopes([]string{"mail:user_mailbox"}); err != nil {
 					return err
-				}
-				if !rt.Bool("yes") {
-					return cmdutil.RequireConfirmation("mail " + cfg.command)
 				}
 				data, err := rt.CallAPITyped("POST", mailSenderListPath(mailboxID, cfg.resource, "batch_remove"), nil, map[string]interface{}{"senders": input.Addresses})
 				if err != nil {
