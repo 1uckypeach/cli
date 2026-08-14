@@ -50,6 +50,7 @@ var SlidesReplacePages = common.Shortcut{
 		{Name: "pages", Desc: "JSON array of page replacements (each: {slide_id, content}); supports @file or -", Required: true, Input: []string{common.File, common.Stdin}},
 		{Name: "continue-on-error", Type: "bool", Desc: "continue with later pages after a create/delete failure; default false"},
 		{Name: "validate-only", Type: "bool", Desc: "validate input and build the create/delete plan without write calls"},
+		{Name: "no-lint", Type: "bool", Desc: "skip the pre-submit slide XML lint (overlap/schema/geometry checks); pages are sent unchecked"},
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		ref, err := parsePresentationRef(runtime.Str("presentation"))
@@ -96,6 +97,14 @@ var SlidesReplacePages = common.Shortcut{
 				"deprecated":          replacePagesDeprecationNote,
 			}, nil)
 			return nil
+		}
+
+		pageXMLs := make([]string, len(resolved.Plan))
+		for i, item := range resolved.Plan {
+			pageXMLs[i] = item.Content
+		}
+		if err := lintSlideGateBatch(ctx, runtime, pageXMLs); err != nil {
+			return err
 		}
 
 		revisionID := replacePagesInitialRevisionID

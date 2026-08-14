@@ -95,6 +95,7 @@ var updateSlideFlags = []common.Flag{
 	{Name: "content", Aliases: contentFlagAliases, Desc: "the page's full target XML, one <slide> root; elements omitted here are removed from the page", Required: true, Input: []string{common.File, common.Stdin}},
 	{Name: "revision-id", Type: "int", Default: "-1", Desc: "revision to apply against; -1 (default) means latest. Pinning an older revision rebuilds the page from that snapshot and discards newer edits to it"},
 	{Name: "tid", Desc: "transaction id for concurrent-edit locking (usually empty)"},
+	{Name: "no-lint", Type: "bool", Desc: "skip the pre-submit slide XML lint (overlap/schema/geometry checks); the edit is sent unchecked"},
 }
 
 func updateSlideValidate(_ context.Context, runtime *common.RuntimeContext) error {
@@ -149,7 +150,7 @@ func updateSlideDryRun(_ context.Context, runtime *common.RuntimeContext) *commo
 	return dry.Set("slide_id", slideID).Set("content_bytes", len(content))
 }
 
-func updateSlideExecute(_ context.Context, runtime *common.RuntimeContext) error {
+func updateSlideExecute(ctx context.Context, runtime *common.RuntimeContext) error {
 	ref, err := parsePresentationRef(runtime.Str("presentation"))
 	if err != nil {
 		return err
@@ -164,6 +165,10 @@ func updateSlideExecute(_ context.Context, runtime *common.RuntimeContext) error
 	}
 	content, err := updateSlideContent(runtime, slideID)
 	if err != nil {
+		return err
+	}
+
+	if err := lintSlideGate(ctx, runtime, content); err != nil {
 		return err
 	}
 

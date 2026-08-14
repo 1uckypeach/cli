@@ -53,6 +53,7 @@ var SlidesAddSlide = common.Shortcut{
 		{Name: "slide", Desc: "one complete <slide> XML document", Required: true, Input: []string{common.File, common.Stdin}},
 		{Name: "before-slide-id", Desc: "insert before this slide_id (default: append after the last page)"},
 		{Name: "revision-id", Type: "int", Default: "-1", Desc: "presentation revision (-1 = latest; pass a specific number for optimistic locking)"},
+		{Name: "no-lint", Type: "bool", Desc: "skip the pre-submit slide XML lint (overlap/schema/geometry checks); the page is sent unchecked"},
 	},
 	Tips: []string{
 		"<img src=\"@path\"> placeholders resolve against the current directory, not the directory of the --slide file, and are deduplicated per call: a page-by-page loop re-uploads a shared image once per page, so upload it once with slides +media-upload and reuse the file_token instead.",
@@ -171,6 +172,10 @@ var SlidesAddSlide = common.Shortcut{
 			}
 			slideXML = replaceImagePlaceholders(slideXML, tokens)
 			result["images_uploaded"] = uploaded
+		}
+
+		if err := lintSlideGate(ctx, runtime, slideXML); err != nil {
+			return err
 		}
 
 		beforeSlideID := strings.TrimSpace(runtime.Str("before-slide-id"))

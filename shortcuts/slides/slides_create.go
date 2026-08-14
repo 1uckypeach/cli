@@ -44,6 +44,7 @@ var SlidesCreate = common.Shortcut{
 		// by the framework, so it is not spelled out in Desc.
 		{Name: "slides", Desc: "slide content JSON array (each element is a <slide> XML string, max 10; for more pages, create first then add them one at a time with slides +add-slide). <img src=\"@./local.png\"> placeholders are auto-uploaded and replaced with file_token.", Input: []string{common.File, common.Stdin}},
 		{Name: "slide", Type: "string_array", Desc: "one complete <slide> XML document, or @path to read one from a file; repeat once per page (max 10) and the CLI assembles the array for you, so no JSON escaping is needed. <img src=\"@./local.png\"> placeholders are handled as with --slides. Mutually exclusive with --slides."},
+		{Name: "no-lint", Type: "bool", Desc: "skip the pre-submit slide XML lint (overlap/schema/geometry checks); pages are sent unchecked"},
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		slides, param, err := createSlideContents(runtime)
@@ -168,6 +169,13 @@ var SlidesCreate = common.Shortcut{
 					slides[i] = replaceImagePlaceholders(slides[i], tokens)
 				}
 				result["images_uploaded"] = uploaded
+			}
+
+			// Lint the final page XML (image placeholders now resolved to file_tokens).
+			// The presentation already exists at this point; on a block the caller
+			// re-runs with corrected XML or --no-lint, same as any mid-loop failure.
+			if err := lintSlideGateBatch(ctx, runtime, slides); err != nil {
+				return err
 			}
 
 			slideURL := fmt.Sprintf(

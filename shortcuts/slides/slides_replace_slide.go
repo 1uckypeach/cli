@@ -53,6 +53,7 @@ var SlidesReplaceSlide = common.Shortcut{
 		{Name: "parts", Desc: "JSON array of replace parts; accepts replace/insert action aliases, target_id for block_id, and block/content/shape/element for the action's XML payload; max 200", Required: true, Input: []string{common.File, common.Stdin}},
 		{Name: "revision-id", Type: "int", Default: "-1", Desc: "presentation revision (-1 = latest; pass a specific number for optimistic locking)"},
 		{Name: "tid", Desc: "transaction id for concurrent-edit locking (usually empty)"},
+		{Name: "no-lint", Type: "bool", Desc: "skip the pre-submit lint of the new/changed elements (schema/out-of-canvas checks); parts are sent unchecked"},
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		ref, err := parsePresentationRef(runtime.Str("presentation"))
@@ -145,6 +146,10 @@ var SlidesReplaceSlide = common.Shortcut{
 		}
 		injected, err := injectBlockReplaceIDs(parts)
 		if err != nil {
+			return err
+		}
+
+		if err := lintFragmentGate(ctx, runtime, parts); err != nil {
 			return err
 		}
 
