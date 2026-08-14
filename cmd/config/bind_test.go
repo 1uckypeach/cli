@@ -1890,9 +1890,97 @@ func TestConfigBindRun_LangExplicit_PrintsConfirmation(t *testing.T) {
 		t.Fatalf("expected success, got error: %v", err)
 	}
 	// The short --lang en is canonicalized to en_us before the confirmation
-	// echoes it back; the TUI language stays zh (flag mode, no picker).
-	want := fmt.Sprintf(getBindMsg(i18n.LangZhCN).LangPreferenceSet, "en_us")
+	// echoes it back, and --lang also decides the display language — so the
+	// confirmation itself is rendered in English, with no picker involved.
+	want := fmt.Sprintf(getBindMsg(i18n.LangEnUS).LangPreferenceSet, "en_us")
 	if got := stderr.String(); !strings.Contains(got, want) {
 		t.Errorf("stderr = %q, want it to contain confirmation %q", got, want)
+	}
+}
+
+func TestShouldPromptBindLang(t *testing.T) {
+	tests := []struct {
+		name string
+		opts BindOptions
+		want bool
+	}{
+		{"TUI, nothing resolved", BindOptions{IsTUI: true}, true},
+		{"flag mode", BindOptions{IsTUI: false}, false},
+		{"preference already resolved", BindOptions{IsTUI: true, UILang: i18n.LangEnUS}, false},
+		{"--lang was explicit", BindOptions{IsTUI: true, langExplicit: true}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shouldPromptBindLang(&tt.opts); got != tt.want {
+				t.Errorf("shouldPromptBindLang() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveBindUILang_FlagMode(t *testing.T) {
+	// Flag mode never prompts, so resolveBindUILang fully determines the
+	// language here: --lang wins, otherwise the workspace's stored preference.
+	baseDir := t.TempDir()
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", baseDir)
+	t.Cleanup(func() { core.SetCurrentWorkspace(core.WorkspaceLocal) })
+
+	wsDir := filepath.Join(baseDir, "openclaw")
+	if err := os.MkdirAll(wsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	stored := `{"apps":[{"appId":"cli_x","brand":"feishu","lang":"en_us","users":[]}]}`
+	if err := os.WriteFile(filepath.Join(wsDir, "config.json"), []byte(stored), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name   string
+		lang   string
+		source string
+		want   i18n.Lang
+	}{
+		{"stored preference is used", "", "openclaw", i18n.LangEnUS},
+		{"flag wins over stored", "zh_cn", "openclaw", i18n.LangZhCN},
+		{"no workspace resolved yet", "", "", ""},
+		{"workspace without config", "", "hermes", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := &BindOptions{Lang: tt.lang}
+			if err := resolveBindUILang(opts, tt.source); err != nil {
+				t.Fatalf("resolveBindUILang: %v", err)
+			}
+			if opts.UILang != tt.want {
+				t.Errorf("UILang = %q, want %q", opts.UILang, tt.want)
+			}
+		})
+	}
+}
+
+func TestDetectSource_NoPrompt(t *testing.T) {
+	f, _, _, _ := cmdutil.TestFactory(t, nil)
+	tests := []struct {
+		name    string
+		source  string
+		want    string
+		wantErr bool
+	}{
+		{"explicit openclaw", "openclaw", "openclaw", false},
+		{"explicit uppercase is normalized", "OpenClaw", "openclaw", false},
+		{"invalid source", "nope", "", true},
+		{"nothing to detect", "", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := &BindOptions{Factory: f, Source: tt.source}
+			got, err := detectSource(opts)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("detectSource() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Errorf("detectSource() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
