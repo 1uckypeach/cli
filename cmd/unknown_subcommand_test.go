@@ -6,6 +6,7 @@ package cmd
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -392,5 +393,62 @@ func TestUnknownSubcommandRunE_SuggestsAcrossDeprecatedBucket(t *testing.T) {
 	}
 	if !strings.Contains(verr.Hint, "+read") {
 		t.Errorf("hint %q should suggest +read (typo target across deprecated bucket)", verr.Hint)
+	}
+}
+
+// A flag written apart from its value puts that value ahead of the first real
+// positional in the raw invocation. The rejected name must still be the one
+// cobra named: an envelope whose message blames one token and whose params blame
+// another is worse than params that were never added, and the ranked
+// suggestions would be computed against the wrong string too.
+func TestRootUnknownCommandRewrite_AnchorsOnTheNameCobraRejected(t *testing.T) {
+	root, _, _ := newGroupTree()
+	installUnknownSubcommandGuard(root)
+
+	saved := rawInvocationArgs
+	t.Cleanup(func() { rawInvocationArgs = saved })
+
+	for _, tc := range []struct {
+		name     string
+		raw      []string
+		rejected string
+		want     string // the runnable form the suggestion must carry
+	}{
+		{"separated flag value ahead of the path", []string{"--profile", "work", "drive.files.list"}, "drive.files.list", "drive files list"},
+		{"inline flag value", []string{"--profile=work", "drive.files.list"}, "drive.files.list", "drive files list"},
+		{"no flags at all", []string{"drive.files.list"}, "drive.files.list", "drive files list"},
+		{"path split across arguments", []string{"--profile", "work", "drive.files", "list"}, "drive.files", "drive files list"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rawInvocationArgs = tc.raw
+			cobraErr := fmt.Errorf("unknown command %q for %q", tc.rejected, "lark-cli")
+
+			var verr *errs.ValidationError
+			if !errors.As(rootUnknownCommandRewrite(root, cobraErr), &verr) {
+				t.Fatalf("expected a *errs.ValidationError, got %v", rootUnknownCommandRewrite(root, cobraErr))
+			}
+			if len(verr.Params) != 1 {
+				t.Fatalf("expected exactly one param, got %+v", verr.Params)
+			}
+			if verr.Params[0].Name != tc.rejected {
+				t.Errorf("param names %q, but cobra rejected %q", verr.Params[0].Name, tc.rejected)
+			}
+			if got := verr.Params[0].Suggestions; len(got) != 1 || got[0] != tc.want {
+				t.Errorf("suggestions = %v, want exactly [%q]", got, tc.want)
+			}
+			if !strings.Contains(verr.Hint, tc.want) {
+				t.Errorf("hint must name the runnable form %q, got %q", tc.want, verr.Hint)
+			}
+		})
+	}
+}
+
+// A message that is not cobra's unknown-command rejection is passed through
+// untouched: this rewrite has no business re-typing every root-level failure.
+func TestRootUnknownCommandRewrite_LeavesOtherErrorsAlone(t *testing.T) {
+	root, _, _ := newGroupTree()
+	other := errors.New("flag needs an argument: --profile")
+	if got := rootUnknownCommandRewrite(root, other); got != other {
+		t.Errorf("expected the original error to pass through, got %v", got)
 	}
 }

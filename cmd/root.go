@@ -538,25 +538,54 @@ func unknownNameGuidance(cmd *cobra.Command, args []string) (hint string, sugges
 // inside a single quoted argument. They are one mistake, a separator the tree
 // does not use, and one normalization identifies all of them.
 //
-// The positional remainder comes from the raw invocation rather than from
-// root.Flags(): cobra rejects this case inside Find, before any command's flags
-// are parsed, so the parsed remainder is empty here. Since the rejection means
-// the first positional matched no command, cobra consumed nothing — the raw
-// invocation minus its flag tokens is exactly what it saw. The message stays
-// cobra's, being the accurate account of what failed; only the hint and the
-// machine-readable suggestion are added.
+// The remainder cannot come from root.Flags(): cobra rejects this case inside
+// Find, before any command parses flags, so the parsed remainder is empty here.
+// It is rebuilt from the raw invocation, anchored on the name cobra itself
+// rejected — recovered from its message, the same stable-text contract
+// cobraUsageErrorMarkers already relies on. The anchor matters because a flag
+// written apart from its value ("--profile work badcmd") leaves that value among
+// the raw positionals, ahead of the real one; starting at cobra's own token
+// keeps the param naming what the message names. A flag trailing the path still
+// leaves its value in the tail, where it costs only a rewrite that does not
+// happen. The message stays cobra's, being the accurate account of what failed;
+// only the hint and the machine-readable suggestion are added.
 func rootUnknownCommandRewrite(root *cobra.Command, err error) error {
-	if root == nil || !strings.Contains(err.Error(), "unknown command ") {
+	if root == nil {
 		return err
 	}
-	args := positionalArgs(rawInvocationArgs)
-	if len(args) == 0 {
+	rejected, ok := unknownCommandName(err.Error())
+	if !ok {
 		return err
 	}
+	args := positionalsFrom(positionalArgs(rawInvocationArgs), rejected)
 	hint, suggestions := unknownNameGuidance(root, args)
 	return errs.NewValidationError(errs.SubtypeInvalidArgument, "%s", err.Error()).
 		WithParams(errs.InvalidParam{Name: args[0], Reason: "unknown command", Suggestions: suggestions}).
 		WithHint("%s", hint)
+}
+
+// unknownCommandName recovers the token cobra rejected from its own message.
+// cobra renders it with %q, so it is read back with the matching verb rather
+// than by scanning for a delimiter — the name may itself contain spaces, which
+// is exactly the quoted-whole-path form this rewrite exists to catch.
+func unknownCommandName(msg string) (string, bool) {
+	var name, parent string
+	if _, err := fmt.Sscanf(msg, "unknown command %q for %q", &name, &parent); err != nil {
+		return "", false
+	}
+	return name, name != ""
+}
+
+// positionalsFrom returns the positionals starting at first, or just first when
+// it is absent — the caller needs a remainder that begins with the name cobra
+// rejected, never one that begins ahead of it.
+func positionalsFrom(all []string, first string) []string {
+	for i, a := range all {
+		if a == first {
+			return all[i:]
+		}
+	}
+	return []string{first}
 }
 
 // unknownSubcommandInHelp returns the rejection a `--help` invocation earned by
