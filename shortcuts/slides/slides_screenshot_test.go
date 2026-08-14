@@ -8,6 +8,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/color"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -32,6 +34,85 @@ func TestSlidesScreenshotDeclaredScopes(t *testing.T) {
 	want := []string{"slides:presentation:screenshot", "wiki:node:read"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("declared scopes = %#v, want %#v", got, want)
+	}
+}
+
+func TestSlidesScreenshotRegionParser(t *testing.T) {
+	got, set, err := parseSlidesScreenshotRegion("120,80,480,220")
+	if err != nil || !set || got != (slidesScreenshotRegion{X: 120, Y: 80, Width: 480, Height: 220}) {
+		t.Fatalf("parseSlidesScreenshotRegion() = %#v, %v, %v", got, set, err)
+	}
+	for _, raw := range []string{"1,2,3", "-1,0,1,1", "0,0,961,1", "0,0,0,1"} {
+		if _, _, err := parseSlidesScreenshotRegion(raw); err == nil {
+			t.Fatalf("parseSlidesScreenshotRegion(%q) succeeded", raw)
+		}
+	}
+}
+
+func TestSlidesScreenshotIDsFromXMLPreservesPageOrder(t *testing.T) {
+	ids, err := slidesScreenshotIDsFromXML(`<presentation><slide id="p1"/><slide id="p2"/><slide/></presentation>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(ids, []string{"p1", "p2"}) {
+		t.Fatalf("ids = %#v", ids)
+	}
+}
+
+func TestComposeSlidesOverviewScalesWholeSlideAndProvidesIndexGeometry(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 960, 540))
+	drawQuadrant := func(r image.Rectangle, c color.RGBA) {
+		for y := r.Min.Y; y < r.Max.Y; y++ {
+			for x := r.Min.X; x < r.Max.X; x++ {
+				src.SetRGBA(x, y, c)
+			}
+		}
+	}
+	drawQuadrant(image.Rect(0, 0, 480, 270), color.RGBA{R: 255, A: 255})
+	drawQuadrant(image.Rect(480, 0, 960, 270), color.RGBA{G: 255, A: 255})
+	drawQuadrant(image.Rect(0, 270, 480, 540), color.RGBA{B: 255, A: 255})
+	drawQuadrant(image.Rect(480, 270, 960, 540), color.RGBA{R: 255, G: 255, A: 255})
+	out, cells := composeSlidesOverview([]image.Image{src}, 1)
+	if len(cells) != 1 || cells[0].thumbnail.Dx() != 320 || cells[0].thumbnail.Dy() != 180 {
+		t.Fatalf("cells = %#v", cells)
+	}
+	thumb := cells[0].thumbnail
+	if got := color.RGBAModel.Convert(out.At(thumb.Min.X+80, thumb.Min.Y+45)).(color.RGBA); got.R < 200 || got.G > 50 {
+		t.Fatalf("top-left thumbnail = %#v, want red", got)
+	}
+	if got := color.RGBAModel.Convert(out.At(thumb.Min.X+240, thumb.Min.Y+135)).(color.RGBA); got.R < 200 || got.G < 200 {
+		t.Fatalf("bottom-right thumbnail = %#v, want yellow", got)
+	}
+	if out.Bounds().Dx() != 352 || out.Bounds().Dy() != 252 {
+		t.Fatalf("overview size = %v", out.Bounds())
+	}
+}
+
+func TestSlidesScreenshotOverviewAllowsSingleOutputDryRun(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{
+		"+screenshot", "--presentation", "pres_overview", "--overview", "--output", "shots/overview.png", "--dry-run", "--as", "user",
+	})
+	if err != nil {
+		t.Fatalf("overview --output: %v", err)
+	}
+	data := decodeShortcutData(t, stdout)
+	if data["output"] != "shots/overview.png" {
+		t.Fatalf("output = %#v", data["output"])
+	}
+}
+
+func TestSlidesScreenshotRejectsRegionWithContent(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{
+		"+screenshot", "--content", `<slide xmlns="https://www.larkoffice.com/sml/2.0"><data/></slide>`, "--region", "0,0,120,120", "--dry-run", "--as", "user",
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	p, ok := errs.ProblemOf(err)
+	if !ok || p.Category != errs.CategoryValidation || p.Subtype != errs.SubtypeInvalidArgument {
+		t.Fatalf("problem = %#v", p)
 	}
 }
 
