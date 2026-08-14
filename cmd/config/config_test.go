@@ -634,3 +634,78 @@ func TestConfigShowRun_ProfileHintUsesBuildLocalSurface(t *testing.T) {
 		t.Errorf("concealed render mutated source hint: %q", original.Hint)
 	}
 }
+
+func TestPriorInitLang(t *testing.T) {
+	multi := &core.MultiAppConfig{
+		Apps: []core.AppConfig{
+			{AppId: "cli_main", Lang: i18n.LangEnUS},
+			{Name: "work", AppId: "cli_work", Lang: i18n.LangJaJP},
+		},
+	}
+	tests := []struct {
+		name        string
+		existing    *core.MultiAppConfig
+		profileName string
+		want        i18n.Lang
+	}{
+		{"nil config", nil, "", ""},
+		{"current app", multi, "", i18n.LangEnUS},
+		{"named profile", multi, "work", i18n.LangJaJP},
+		{"named profile missing", multi, "absent", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := priorInitLang(tt.existing, tt.profileName); got != tt.want {
+				t.Errorf("priorInitLang() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveInitUILang(t *testing.T) {
+	stored := &core.MultiAppConfig{
+		Apps: []core.AppConfig{{AppId: "cli_x", Lang: i18n.LangEnUS}},
+	}
+	tests := []struct {
+		name     string
+		lang     string
+		existing *core.MultiAppConfig
+		want     i18n.Lang
+	}{
+		{"flag wins over stored", "zh_cn", stored, i18n.LangZhCN},
+		{"flag with no stored", "en_us", nil, i18n.LangEnUS},
+		{"stored used when flag absent", "", stored, i18n.LangEnUS},
+		{"nothing set", "", nil, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := &ConfigInitOptions{Lang: tt.lang}
+			resolveInitUILang(opts, tt.existing)
+			if opts.UILang != tt.want {
+				t.Errorf("UILang = %q, want %q", opts.UILang, tt.want)
+			}
+		})
+	}
+}
+
+func TestShouldPromptInitLang(t *testing.T) {
+	tests := []struct {
+		name       string
+		opts       ConfigInitOptions
+		isTerminal bool
+		want       bool
+	}{
+		{"terminal, nothing resolved", ConfigInitOptions{}, true, true},
+		{"not a terminal", ConfigInitOptions{}, false, false},
+		{"preference already resolved", ConfigInitOptions{UILang: i18n.LangEnUS}, true, false},
+		{"--lang was explicit", ConfigInitOptions{langExplicit: true}, true, false},
+		{"--new pins the flow", ConfigInitOptions{New: true}, true, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shouldPromptInitLang(&tt.opts, tt.isTerminal); got != tt.want {
+				t.Errorf("shouldPromptInitLang() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -36,7 +36,10 @@ type ConfigInitOptions struct {
 	Lang         string // raw --lang (string for cobra); normalized to canonical/"" in validateInitLang
 	langExplicit bool   // true when --lang was explicitly passed
 
-	UILang i18n.Lang // TUI display language (picker-only); intentionally separate from --lang
+	// UILang is the language everything this run renders in. It equals the
+	// preference this run persists: --lang, else the stored one, else the
+	// picker's answer. Resolved by resolveInitUILang before any output.
+	UILang i18n.Lang
 
 	ProfileName string // when set, create/update a named profile instead of replacing Apps[0]
 
@@ -81,7 +84,7 @@ separate app inside the Agent workspace.`
 
 // NewCmdConfigInit creates the config init subcommand.
 func NewCmdConfigInit(f *cmdutil.Factory, runF func(*ConfigInitOptions) error) *cobra.Command {
-	opts := &ConfigInitOptions{Factory: f, UILang: i18n.LangZhCN}
+	opts := &ConfigInitOptions{Factory: f}
 
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -179,6 +182,38 @@ func guardAgentWorkspace(opts *ConfigInitOptions) error {
 // hasAnyNonInteractiveFlag returns true if any non-interactive flag is set.
 func (o *ConfigInitOptions) hasAnyNonInteractiveFlag() bool {
 	return o.New || o.AppID != "" || o.AppSecretStdin
+}
+
+// priorInitLang returns the language preference already stored for the profile
+// this run will write to, mirroring how saveInitConfig picks the prior value.
+func priorInitLang(existing *core.MultiAppConfig, profileName string) i18n.Lang {
+	if existing == nil {
+		return ""
+	}
+	if profileName != "" {
+		if idx := findProfileIndexByName(existing, profileName); idx >= 0 {
+			return existing.Apps[idx].Lang
+		}
+		return ""
+	}
+	if app := existing.CurrentAppConfig(""); app != nil {
+		return app.Lang
+	}
+	return ""
+}
+
+// resolveInitUILang fixes the display language before anything is rendered:
+// it is the preference this run will persist — --lang when given, otherwise
+// whatever the target profile already stored.
+func resolveInitUILang(opts *ConfigInitOptions, existing *core.MultiAppConfig) {
+	opts.UILang = preferredLang(i18n.Lang(opts.Lang), priorInitLang(existing, opts.ProfileName))
+}
+
+// shouldPromptInitLang reports whether the language picker should run: only in
+// a terminal, only when no non-interactive flag pinned the flow, and only when
+// neither --lang nor a stored preference already answered the question.
+func shouldPromptInitLang(opts *ConfigInitOptions, isTerminal bool) bool {
+	return isTerminal && !opts.langExplicit && !opts.hasAnyNonInteractiveFlag() && opts.UILang == ""
 }
 
 // cleanupOldConfig clears keychain entries (AppSecret + UAT) for all apps in existing config except the app whose AppId equals skipAppID.
@@ -373,6 +408,7 @@ func configInitRun(opts *ConfigInitOptions) error {
 	if err != nil {
 		existing = nil // treat as empty
 	}
+	resolveInitUILang(opts, existing)
 
 	// Validate --profile name if set
 	if opts.ProfileName != "" {
@@ -400,10 +436,10 @@ func configInitRun(opts *ConfigInitOptions) error {
 		return nil
 	}
 
-	// For interactive modes, prompt language selection if --lang was not explicitly set.
-	// Picker offers 2 options (中文 / English) and drives BOTH opts.Lang
-	// (preference) and opts.UILang (TUI rendering).
-	if f.IOStreams.IsTerminal && !opts.langExplicit && !opts.hasAnyNonInteractiveFlag() {
+	// Last resort when nothing else expressed a language: ask. The picker
+	// offers 2 options (中文 / English) and drives BOTH opts.Lang (the
+	// preference that gets persisted) and opts.UILang (what renders now).
+	if shouldPromptInitLang(opts, f.IOStreams.IsTerminal) {
 		lang, err := promptLangSelection()
 		if err != nil {
 			return langSelectionError(err)
