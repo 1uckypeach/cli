@@ -38,12 +38,21 @@ import (
 // knowing, but a different order from what this ceiling guards: the regression
 // it exists to catch measured 383,855 B. A service approaching ~73 methods needs
 // the ceiling revisited rather than the field dropped.
+//
+// The rejection envelope is a discovery surface too: a caller reads one every
+// time a name does not resolve, and its fallback branch names a whole set of
+// subcommands. Every ceiling above watches a success surface, so when that set
+// was briefly assembled from the wrong source the root-level envelope grew from
+// ~1 KB to 18.6 KB with nothing to catch it. Measured max is 2,994 B (mail);
+// 4 KB is that plus 15% rounded up to a whole KB, the same rule the plan set for
+// the per-domain ceiling.
 const (
-	maxDomainHelpMedian = 2560  // 2.5 KB — overall health, resistant to outliers
-	maxSingleDomainHelp = 12288 // 12 KB — measured max 9,965 B (sheets)
-	maxRootHelp         = 5120  // 5 KB — measured 3,899 B; see the sizing note above
-	maxServiceIndex     = 4096  // 4 KB — measured 1,780 B
-	maxMethodIndex      = 16384 // 16 KB — measured max 15,319 B (mail, 57 methods)
+	maxDomainHelpMedian  = 2560  // 2.5 KB — overall health, resistant to outliers
+	maxSingleDomainHelp  = 12288 // 12 KB — measured max 9,965 B (sheets)
+	maxRootHelp          = 5120  // 5 KB — measured 3,899 B; see the sizing note above
+	maxServiceIndex      = 4096  // 4 KB — measured 1,780 B
+	maxMethodIndex       = 16384 // 16 KB — measured max 15,319 B (mail, 57 methods)
+	maxRejectionEnvelope = 4096  // 4 KB — measured max 2,994 B (mail); root 1,218 B
 )
 
 // buildCLI compiles the real binary once per test run. These budgets are about
@@ -72,6 +81,21 @@ func runCLI(t *testing.T, cli string, args ...string) []byte {
 		t.Fatalf("%v: %v\nstderr: %s", args, err, errBuf.String())
 	}
 	return out.Bytes()
+}
+
+// runCLIStderr returns what a caller receives when the command fails: the typed
+// envelope goes to stderr, and stdout stays empty. A zero exit means the
+// invocation was accepted, which for these probes is itself the failure.
+func runCLIStderr(t *testing.T, cli string, args ...string) []byte {
+	t.Helper()
+	cmd := exec.Command(cli, args...)
+	var out, errBuf bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &errBuf
+	if err := cmd.Run(); err == nil {
+		t.Fatalf("%v exited 0; expected a rejection\nstdout: %s", args, out.String())
+	}
+	return errBuf.Bytes()
 }
 
 var sectionHeadRe = regexp.MustCompile(`^[A-Za-z].*:$`)
@@ -157,6 +181,23 @@ func TestOutputBudget(t *testing.T) {
 			}
 			if len(out) > maxMethodIndex {
 				t.Errorf("method_index for %s is %d bytes, want <= %d", svc.Name, len(out), maxMethodIndex)
+			}
+		}
+	})
+
+	// A name that resolves to nothing is answered with the set of names that do,
+	// so this envelope grows with the tree exactly as the listings above do — and
+	// unlike them it is produced on the error path, where no other check looks.
+	t.Run("RejectionEnvelopes", func(t *testing.T) {
+		const noSuchName = "zzzzzzzznotasubcommand"
+		probes := [][]string{{noSuchName}}
+		for _, d := range domains {
+			probes = append(probes, []string{d, noSuchName})
+		}
+		for _, args := range probes {
+			if n := len(runCLIStderr(t, cli, args...)); n > maxRejectionEnvelope {
+				t.Errorf("rejection envelope for %q is %d bytes, want <= %d",
+					strings.Join(args, " "), n, maxRejectionEnvelope)
 			}
 		}
 	})

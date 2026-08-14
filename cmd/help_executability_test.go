@@ -477,30 +477,59 @@ func TestFallbackSetNamesRealMethodsAtEveryLevel(t *testing.T) {
 	root := buildExecutabilityTree(t)
 	listings := domainAPIListings(t, root)
 
-	for _, domain := range sortedDomains(listings) {
-		domainCmd, _, err := root.Find([]string{domain})
-		if err != nil {
-			t.Fatalf("domain %q does not resolve: %v", domain, err)
-		}
-		// A name no real subcommand is close to, so the ranked branch cannot fire
-		// and the fallback set is what answers.
-		hint, _ := unknownNameGuidance(domainCmd, []string{"zzzzzzzznotamethod"})
-		if strings.Contains(hint, "did you mean") {
-			t.Fatalf("%s: fixture name ranked against real names, so this case tests nothing: %q", domain, hint)
-		}
-		// Every method the domain lists in help must be named in the fallback set.
-		for _, path := range listings[domain] {
-			if !strings.Contains(hint, path) {
-				t.Errorf("%s: fallback set omits %q, which `%s --help` lists; hint = %q",
-					domain, path, domain, hint)
-				break // one report per domain is enough to identify the regression
+	// The root's own children are the domains, so the visible names are already
+	// the whole answer to "what goes here". Pulling in the nested method paths
+	// answers a question one level deeper and costs an order of magnitude — the
+	// first version of this test said "every level" but looped over domains only,
+	// which is how that regression reached acceptance review.
+	t.Run("root", func(t *testing.T) {
+		hint, _ := unknownNameGuidance(root, []string{fallbackProbeName})
+		assertFallbackShape(t, hint, "root")
+		for _, domain := range sortedDomains(listings) {
+			if !strings.Contains(hint, domain) {
+				t.Errorf("root fallback set omits the domain %q", domain)
+			}
+			if nested := domain + " " + listings[domain][0]; strings.Contains(hint, nested) {
+				t.Errorf("root fallback set names the nested path %q; naming the domain is the answer at this level", nested)
 			}
 		}
-		// The set names what exists; --help additionally carries the descriptions,
-		// so the way out must survive.
-		if !strings.Contains(hint, "--help") {
-			t.Errorf("%s: fallback hint has no --help pointer, leaving the reader no way to see more: %q", domain, hint)
+	})
+
+	// A domain's resource groups are hidden by design, so its methods are
+	// reachable by name only if this set states them.
+	t.Run("domain", func(t *testing.T) {
+		for _, domain := range sortedDomains(listings) {
+			domainCmd, _, err := root.Find([]string{domain})
+			if err != nil {
+				t.Fatalf("domain %q does not resolve: %v", domain, err)
+			}
+			hint, _ := unknownNameGuidance(domainCmd, []string{fallbackProbeName})
+			assertFallbackShape(t, hint, domain)
+			for _, path := range listings[domain] {
+				if !strings.Contains(hint, path) {
+					t.Errorf("%s: fallback set omits %q, which `%s --help` lists; hint = %q",
+						domain, path, domain, hint)
+					break // one report per domain is enough to identify the regression
+				}
+			}
 		}
+	})
+}
+
+// fallbackProbeName is close to no real subcommand, so the ranked branch cannot
+// fire and the fallback set is what answers.
+const fallbackProbeName = "zzzzzzzznotasubcommand"
+
+// assertFallbackShape holds what a fallback set owes its reader at any level: it
+// must be the fallback branch at all, and it must leave a way to see more than
+// bare names.
+func assertFallbackShape(t *testing.T, hint, level string) {
+	t.Helper()
+	if strings.Contains(hint, "did you mean") {
+		t.Fatalf("%s: the probe name ranked against real names, so this case tests nothing: %q", level, hint)
+	}
+	if !strings.Contains(hint, "--help") {
+		t.Errorf("%s: fallback hint has no --help pointer, leaving no way to reach the descriptions: %q", level, hint)
 	}
 }
 

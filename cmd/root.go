@@ -524,20 +524,35 @@ func unknownNameGuidance(cmd *cobra.Command, args []string) (hint string, sugges
 	// for the raw `api` channel instead. Name the set here so one call closes the
 	// question.
 	//
-	// The set is the union of both sources because neither alone is the answer at
-	// both levels, and which one is empty flips between them: under a resource
-	// group the children are the method leaves themselves, so availableSubcommandNames
-	// holds them and methodPathsUnder (which only collects nested paths) is empty;
-	// under a domain the resource groups are hidden by design, so the reverse is
-	// true and availableSubcommandNames sees only shortcuts. Listing one source
-	// would state "the set is this" while silently omitting every method of the
-	// other — the exact false conclusion this hint exists to prevent, asserted
-	// more confidently than the message it replaced. Deprecated aliases stay out:
-	// they are rankable above but not worth recommending. The pointer to --help
-	// stays too, since only help carries the descriptions.
+	// The set must name what a caller can actually write after cmd, and the
+	// visible children are not always that: a domain's resource groups are hidden
+	// by design, so its visible children are only the shortcuts while every API
+	// method sits one level below, unreachable by name from this listing. Stating
+	// "the set is this" there omits every method the domain has — the exact false
+	// conclusion this hint exists to prevent, asserted more confidently than the
+	// message it replaced.
+	//
+	// So a nested path is added exactly when its own first segment is not visible,
+	// which is the case where descending from a listed name cannot reach it. When
+	// that segment IS listed — the root, whose children are the domains — the
+	// nested path answers a question one level deeper than the one being asked and
+	// buys nothing: at the root it is 766 extra entries and an 18 KB envelope,
+	// past this repository's largest output budget for a listing that fits in a
+	// few hundred bytes. Note the condition is about visibility, not about depth:
+	// a hidden group anywhere earns its methods a place here, and a visible one
+	// anywhere does not.
+	//
+	// Deprecated aliases stay out: rankable above, not worth recommending. The
+	// --help pointer stays, since only help carries the descriptions.
+	visible := make(map[string]bool, len(available))
+	for _, n := range available {
+		visible[n] = true
+	}
 	names := append([]string{}, available...)
 	for _, p := range paths {
-		names = append(names, p.spaced)
+		if first, _, _ := strings.Cut(p.spaced, " "); !visible[first] {
+			names = append(names, p.spaced)
+		}
 	}
 	if len(names) == 0 {
 		return fmt.Sprintf("run `%s --help` to see available subcommands", cmd.CommandPath()), nil
