@@ -40,7 +40,7 @@ func newMailSenderListShortcut(cfg senderListShortcutConfig) common.Shortcut {
 		Command:     cfg.command,
 		Description: cfg.description,
 		Risk:        "write",
-		Scopes:      []string{"mail:user_mailbox:readonly"},
+		Scopes:      []string{"mail:user_mailbox.message:readonly"},
 		ConditionalScopes: []string{
 			"mail:user_mailbox.message:modify",
 		},

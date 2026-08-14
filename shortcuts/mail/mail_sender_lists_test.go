@@ -24,7 +24,7 @@ func TestMailSenderListShortcuts_Metadata(t *testing.T) {
 	if MailSenderAllowlist.Risk != "write" || MailSenderBlocklist.Risk != "write" {
 		t.Fatalf("risk = %q/%q, want write", MailSenderAllowlist.Risk, MailSenderBlocklist.Risk)
 	}
-	if MailSenderAllowlist.Scopes[0] != "mail:user_mailbox:readonly" {
+	if MailSenderAllowlist.Scopes[0] != "mail:user_mailbox.message:readonly" {
 		t.Fatalf("read scope = %v", MailSenderAllowlist.Scopes)
 	}
 	if MailSenderAllowlist.ConditionalScopes[0] != "mail:user_mailbox.message:modify" {
