@@ -168,10 +168,14 @@ func TestSkipWithoutUserToken(t *testing.T) {
 
 func TestSkipWithoutTenantAccessToken(t *testing.T) {
 	t.Run("skips when env tenant access token is missing", func(t *testing.T) {
+		fake := newFakeCLI(t)
 		t.Setenv("TEST_BOT1_APP_ID", "")
 		t.Setenv("TEST_TENANT_ACCESS_TOKEN", "")
 		t.Setenv("LARKSUITE_CLI_APP_ID", "")
 		t.Setenv("LARKSUITE_CLI_TENANT_ACCESS_TOKEN", "")
+		t.Setenv(EnvBinaryPath, fake.BinaryPath)
+		t.Setenv("FAKE_AUTH_STATUS_STDOUT", `{"identity":"user","verified":true,"identities":{"bot":{"available":false,"verified":false}}}`)
+		t.Setenv("FAKE_AUTH_STATUS_EXIT_CODE", "0")
 
 		ran := false
 		ok := t.Run("inner", func(t *testing.T) {
@@ -180,6 +184,25 @@ func TestSkipWithoutTenantAccessToken(t *testing.T) {
 		})
 		require.True(t, ok)
 		assert.False(t, ran)
+	})
+
+	t.Run("accepts verified local bot auth status", func(t *testing.T) {
+		fake := newFakeCLI(t)
+		t.Setenv("TEST_BOT1_APP_ID", "")
+		t.Setenv("TEST_TENANT_ACCESS_TOKEN", "")
+		t.Setenv("LARKSUITE_CLI_APP_ID", "")
+		t.Setenv("LARKSUITE_CLI_TENANT_ACCESS_TOKEN", "")
+		t.Setenv(EnvBinaryPath, fake.BinaryPath)
+		t.Setenv("FAKE_AUTH_STATUS_STDOUT", `{"identity":"user","verified":true,"identities":{"bot":{"available":true,"verified":true}}}`)
+		t.Setenv("FAKE_AUTH_STATUS_EXIT_CODE", "0")
+
+		ran := false
+		ok := t.Run("inner", func(t *testing.T) {
+			SkipWithoutTenantAccessToken(t)
+			ran = true
+		})
+		require.True(t, ok)
+		assert.True(t, ran)
 	})
 
 	t.Run("accepts standard tenant credentials", func(t *testing.T) {
