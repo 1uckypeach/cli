@@ -89,6 +89,34 @@ func TestMailSenderListShortcut_ListsOrSearches(t *testing.T) {
 	reg.Verify(t)
 }
 
+func TestMailSenderListShortcut_DryRunReadShowsPlan(t *testing.T) {
+	f, stdout, _, _ := mailShortcutTestFactory(t)
+	err := runMountedMailShortcut(t, MailSenderAllowlist, []string{
+		"+sender-allowlist",
+		"--mailbox", "me",
+		"--query", "fixture",
+		"--page-size", "20",
+		"--dry-run",
+	}, f, stdout)
+	if err != nil {
+		t.Fatalf("dry-run failed: %v", err)
+	}
+	out := stdout.String()
+	for _, want := range []string{
+		`/user_mailboxes/me/allow_senders`,
+		`"method"`,
+		`"GET"`,
+		`"keyword"`,
+		`"fixture"`,
+		`"page_size"`,
+		`20`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("dry-run output missing %q; got %s", want, out)
+		}
+	}
+}
+
 func TestMailSenderListModifyShortcut_AddInfersSenderType(t *testing.T) {
 	f, stdout, _, reg := mailShortcutTestFactory(t)
 	stub := &httpmock.Stub{
@@ -120,6 +148,34 @@ func TestMailSenderListModifyShortcut_AddInfersSenderType(t *testing.T) {
 	second := items[1].(map[string]interface{})
 	if second["sender"] != "spam@example.com" || second["sender_type"].(float64) != 1 {
 		t.Fatalf("second item = %#v, want inferred email", second)
+	}
+}
+
+func TestMailSenderListModifyShortcut_DryRunWriteShowsPlan(t *testing.T) {
+	f, stdout, _, _ := mailShortcutTestFactory(t)
+	err := runMountedMailShortcut(t, MailSenderBlocklistModify, []string{
+		"+sender-blocklist-modify",
+		"--add", "bad.example,spam@example.com",
+		"--dry-run",
+	}, f, stdout)
+	if err != nil {
+		t.Fatalf("dry-run failed: %v", err)
+	}
+	out := stdout.String()
+	for _, want := range []string{
+		`/user_mailboxes/me/blocked_senders/batch_create`,
+		`"method"`,
+		`"POST"`,
+		`"sender"`,
+		`"bad.example"`,
+		`"spam@example.com"`,
+		`"sender_type"`,
+		`2`,
+		`1`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("dry-run output missing %q; got %s", want, out)
+		}
 	}
 }
 
