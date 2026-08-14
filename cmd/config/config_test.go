@@ -555,24 +555,28 @@ func TestValidateInitLang(t *testing.T) {
 // to stderr only when --lang explicitly set a non-empty preference.
 func TestPrintLangPreferenceConfirmation(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+	// UILang matches Lang in every case below: resolveInitUILang derives the
+	// display language from the same --lang value, so a combination like
+	// Lang=en_us with a Chinese UI cannot occur in the real flow and would hide
+	// a regression in that resolution chain.
 	t.Run("explicit non-empty prints confirmation", func(t *testing.T) {
 		f, _, stderr, _ := cmdutil.TestFactory(t, nil)
-		printLangPreferenceConfirmation(&ConfigInitOptions{Factory: f, Lang: "en_us", UILang: i18n.LangZhCN, langExplicit: true})
+		printLangPreferenceConfirmation(&ConfigInitOptions{Factory: f, Lang: "en_us", UILang: i18n.LangEnUS, langExplicit: true})
 		got := stderr.String()
-		if !strings.Contains(got, "语言偏好") || !strings.Contains(got, "en_us") {
+		if !strings.Contains(got, "Language preference set to") || !strings.Contains(got, "en_us") {
 			t.Errorf("stderr = %q, want confirmation mentioning the preference and en_us", got)
 		}
 	})
 	t.Run("implicit prints nothing", func(t *testing.T) {
 		f, _, stderr, _ := cmdutil.TestFactory(t, nil)
-		printLangPreferenceConfirmation(&ConfigInitOptions{Factory: f, Lang: "en_us", UILang: i18n.LangZhCN, langExplicit: false})
+		printLangPreferenceConfirmation(&ConfigInitOptions{Factory: f, Lang: "en_us", UILang: i18n.LangEnUS, langExplicit: false})
 		if got := stderr.String(); got != "" {
 			t.Errorf("stderr = %q, want empty when --lang is implicit", got)
 		}
 	})
 	t.Run("explicit empty prints nothing", func(t *testing.T) {
 		f, _, stderr, _ := cmdutil.TestFactory(t, nil)
-		printLangPreferenceConfirmation(&ConfigInitOptions{Factory: f, Lang: "", UILang: i18n.LangZhCN, langExplicit: true})
+		printLangPreferenceConfirmation(&ConfigInitOptions{Factory: f, Lang: "", UILang: "", langExplicit: true})
 		if got := stderr.String(); got != "" {
 			t.Errorf("stderr = %q, want empty when --lang is empty", got)
 		}
@@ -683,6 +687,41 @@ func TestResolveInitUILang(t *testing.T) {
 			resolveInitUILang(opts, tt.existing)
 			if opts.UILang != tt.want {
 				t.Errorf("UILang = %q, want %q", opts.UILang, tt.want)
+			}
+		})
+	}
+}
+
+// TestInitLangChain_ResolveToBundle walks the three steps config init runs in
+// order — resolve, picker gate, bundle lookup — instead of checking each in
+// isolation. The regression this branch fixes lived in the seam: every step was
+// individually defensible while the chain still ended on the Chinese bundle.
+// isTerminal is true throughout, so a picker that should not run would show up
+// as a gate returning true.
+func TestInitLangChain_ResolveToBundle(t *testing.T) {
+	stored := &core.MultiAppConfig{
+		Apps: []core.AppConfig{{AppId: "cli_x", Lang: i18n.LangEnUS}},
+	}
+	tests := []struct {
+		name     string
+		opts     ConfigInitOptions
+		existing *core.MultiAppConfig
+	}{
+		{"--lang en_us, nothing stored", ConfigInitOptions{Lang: "en_us", langExplicit: true}, nil},
+		{"no --lang, en_us already stored", ConfigInitOptions{}, stored},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := tt.opts
+			resolveInitUILang(&opts, tt.existing)
+			if opts.UILang != i18n.LangEnUS {
+				t.Fatalf("UILang = %q, want %q", opts.UILang, i18n.LangEnUS)
+			}
+			if shouldPromptInitLang(&opts, true) {
+				t.Error("language picker ran even though the preference was already known")
+			}
+			if msg := getInitMsg(opts.UILang); msg != initMsgEn {
+				t.Errorf("getInitMsg(%q) returned the non-English bundle", opts.UILang)
 			}
 		})
 	}

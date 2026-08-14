@@ -340,7 +340,7 @@ func TestConfigBindRun_EnvelopeMessageFollowsInheritedLang(t *testing.T) {
 		t.Fatalf("first bind (--lang en): %v", err)
 	}
 
-	f2, stdout, _, _ := cmdutil.TestFactory(t, nil)
+	f2, stdout, stderr, _ := cmdutil.TestFactory(t, nil)
 	if err := configBindRun(&BindOptions{Factory: f2, Source: "hermes", Lang: "", langExplicit: false}); err != nil {
 		t.Fatalf("re-bind (no --lang): %v", err)
 	}
@@ -354,6 +354,19 @@ func TestConfigBindRun_EnvelopeMessageFollowsInheritedLang(t *testing.T) {
 	wantMsg := fmt.Sprintf(enMsg.MessageBotOnly, "cli_abc", "Hermes", brandDisplay("feishu", i18n.LangEnUS))
 	if msg != wantMsg {
 		t.Errorf("envelope.message = %q,\nwant %q (must follow inherited appConfig.Lang=en_us, not raw opts.Lang)", msg, wantMsg)
+	}
+
+	// The stderr banner (opts.UILang) and the JSON message (appConfig.Lang) now
+	// resolve from the same two inputs, so one bind can never emit an English
+	// message next to a Chinese banner.
+	banner := stderr.String()
+	wantBanner := fmt.Sprintf(enMsg.BindSuccessHeader, "Hermes")
+	if !strings.Contains(banner, wantBanner) || !strings.Contains(banner, enMsg.BindSuccessNotice) {
+		t.Errorf("stderr = %q,\nwant the English banner %q + notice (must match the envelope language)", banner, wantBanner)
+	}
+	zhMsg := getBindMsg(i18n.LangZhCN)
+	if strings.Contains(banner, fmt.Sprintf(zhMsg.BindSuccessHeader, "Hermes")) {
+		t.Errorf("stderr = %q, want no Chinese banner when the inherited preference is en_us", banner)
 	}
 }
 
@@ -1704,6 +1717,43 @@ func TestGetBindMsg_BundleSelection(t *testing.T) {
 	}
 }
 
+// TestBrandDisplay_FollowsBundleSelection locks the brand name to the same rule
+// that picks the bundle. The brand is substituted into the bundle's own
+// sentences, so a locale with no bundle of its own (ja_jp) must get the English
+// brand alongside the English sentence — otherwise the output reads
+// "Bound app cli_x to Hermes. The 飞书 app (bot) …".
+func TestBrandDisplay_FollowsBundleSelection(t *testing.T) {
+	tests := []struct {
+		lang i18n.Lang
+		want string
+	}{
+		{i18n.LangZhCN, "飞书"},
+		{"zh", "飞书"},
+		{"", "飞书"},
+		{"unknown", "飞书"},
+		{i18n.LangEnUS, "Feishu"},
+		{i18n.LangJaJP, "Feishu"},
+		{"fr_fr", "Feishu"},
+		{"ko_kr", "Feishu"},
+	}
+	for _, tt := range tests {
+		if got := brandDisplay("feishu", tt.lang); got != tt.want {
+			t.Errorf("brandDisplay(feishu, %q) = %q, want %q", tt.lang, got, tt.want)
+		}
+		// The two decisions must stay the same decision, whatever the locale.
+		wantEn := getBindMsg(tt.lang) == bindMsgEn
+		if gotEn := brandDisplay("feishu", tt.lang) == "Feishu"; gotEn != wantEn {
+			t.Errorf("brandDisplay/getBindMsg disagree for %q: brand english = %v, bundle english = %v", tt.lang, gotEn, wantEn)
+		}
+	}
+	// "lark" is language-independent.
+	for _, lang := range []i18n.Lang{i18n.LangZhCN, i18n.LangEnUS, i18n.LangJaJP, ""} {
+		if got := brandDisplay("lark", lang); got != "Lark" {
+			t.Errorf("brandDisplay(lark, %q) = %q, want Lark", lang, got)
+		}
+	}
+}
+
 // ── Resolve path edge case tests ──
 
 func TestResolveOpenClawConfigPath_LegacyFallback(t *testing.T) {
@@ -1921,9 +1971,9 @@ func TestShouldPromptBindLang(t *testing.T) {
 func TestResolveBindUILang_FlagMode(t *testing.T) {
 	// Flag mode never prompts, so resolveBindUILang fully determines the
 	// language here: --lang wins, otherwise the workspace's stored preference.
+	saveWorkspace(t)
 	baseDir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", baseDir)
-	t.Cleanup(func() { core.SetCurrentWorkspace(core.WorkspaceLocal) })
 
 	wsDir := filepath.Join(baseDir, "openclaw")
 	if err := os.MkdirAll(wsDir, 0o700); err != nil {

@@ -250,6 +250,11 @@ func shouldPromptBindLang(opts *BindOptions) bool {
 // one already stored for the workspace being bound. When the source is not yet
 // known there is no workspace config to read — and no stored preference to
 // miss, since an unbound workspace has none.
+//
+// Not a pure resolver: reading the stored preference requires the workspace to
+// be current, so a known source is applied to the process-global workspace here
+// first. configBindRunWithRecovery sets the same value again later, so the
+// early set is idempotent, not a reordering of which workspace wins.
 func resolveBindUILang(opts *BindOptions, source string) error {
 	var prior i18n.Lang
 	if source != "" {
