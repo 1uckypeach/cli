@@ -42,7 +42,7 @@ var VCMeetingCountdown = common.Shortcut{
 		{Name: "action", Required: true, Desc: "countdown action: set, prolong, end_in_advance, or close_window", Enum: meetingCountdownActions},
 		{Name: "duration", Type: "int", Desc: "countdown duration in minutes; required for set and prolong"},
 		{Name: "need-play-audio-at-end", Type: "bool", Desc: "play audio when a set countdown ends"},
-		{Name: "reminder-before-end-in-minute", Type: "int", Desc: "single reminder offset in minutes before countdown end"},
+		{Name: "reminder-before-end", Type: "int", Desc: "single reminder offset in minutes before countdown end"},
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		if err := validateMeetingEventsMeetingID(runtime.Str("meeting-id")); err != nil {
@@ -94,8 +94,8 @@ func buildMeetingCountdownBody(runtime *common.RuntimeContext) (map[string]inter
 
 	duration := runtime.Int("duration")
 	durationSet := runtime.Changed("duration")
-	reminder := runtime.Int("reminder-before-end-in-minute")
-	reminderSet := runtime.Changed("reminder-before-end-in-minute")
+	reminder := runtime.Int("reminder-before-end")
+	reminderSet := runtime.Changed("reminder-before-end")
 	if err := validateMeetingCountdownDuration(action, duration, durationSet); err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func buildMeetingCountdownBody(runtime *common.RuntimeContext) (map[string]inter
 			body["need_play_audio_at_end"] = true
 		}
 		if reminderSet {
-			body["reminder_before_end_in_minute"] = reminder
+			body["reminder_before_end"] = reminder
 		}
 	}
 	return body, nil
@@ -154,13 +154,13 @@ func validateMeetingCountdownReminder(action string, duration int, reminder int,
 		return nil
 	}
 	if action != meetingCountdownActionSet {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--reminder-before-end-in-minute is only supported when --action set").WithParam("--reminder-before-end-in-minute")
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--reminder-before-end is only supported when --action set").WithParam("--reminder-before-end")
 	}
 	if reminder <= 0 {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--reminder-before-end-in-minute must be one positive number of minutes").WithParam("--reminder-before-end-in-minute")
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--reminder-before-end must be one positive number of minutes").WithParam("--reminder-before-end")
 	}
 	if reminder >= duration {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--reminder-before-end-in-minute must be less than --duration in minutes").WithParam("--reminder-before-end-in-minute")
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--reminder-before-end must be less than --duration in minutes").WithParam("--reminder-before-end")
 	}
 	return nil
 }

@@ -31,9 +31,9 @@
 | `--action` | 必填，`set`、`prolong`、`end_in_advance` 或 `close_window` |
 | `--duration` | 倒计时时长，单位是分钟；`set` 和 `prolong` 必填 |
 | `--need-play-audio-at-end` | 仅 `set` 可用，表示倒计时结束时播放提示音 |
-| `--reminder-before-end-in-minute` | 仅 `set` 可用，提醒点单位是分钟；只支持传一个值 |
+| `--reminder-before-end` | 仅 `set` 可用，提醒点单位是分钟；只支持传一个值 |
 
-`duration` 和 `reminder_before_end_in_minute` 都是分钟；提醒时间必须大于 0 且小于 `duration`。
+`duration` 和 `reminder_before_end` 都是分钟；提醒时间必须大于 0 且小于 `duration`。
 
 ## 设置倒计时
 
@@ -43,7 +43,7 @@ lark-cli vc +meeting-countdown --as user \
   --action set \
   --duration 5 \
   --need-play-audio-at-end \
-  --reminder-before-end-in-minute 1
+  --reminder-before-end 1
 ```
 
 Dry-run 请求体示例：
@@ -53,7 +53,7 @@ Dry-run 请求体示例：
   "action": "set",
   "duration": 5,
   "need_play_audio_at_end": true,
-  "reminder_before_end_in_minute": 1
+  "reminder_before_end": 1
 }
 ```
 
@@ -73,7 +73,7 @@ lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action end_
 lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action close_window
 ```
 
-提前结束或关闭倒计时窗口时不要传 `--duration`、`--need-play-audio-at-end` 或 `--reminder-before-end-in-minute`。
+提前结束或关闭倒计时窗口时不要传 `--duration`、`--need-play-audio-at-end` 或 `--reminder-before-end`。
 
 ## 9 位会议号处理
 

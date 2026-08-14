@@ -136,14 +136,14 @@ lark-cli vc +meeting-message-send --as bot --meeting-id <meeting_id> --msg-type 
 1. 用户明确要求设置、延长、提前结束或关闭正在进行中的会议倒计时时，用 `+meeting-countdown`。
 2. 输入是长数字 `meeting_id`，不是 9 位会议号。若用户只给 9 位会议号，先按当前身份执行 `+meeting-list-active` 并按 `meeting_no` 匹配，匹配到唯一会议后再操作；不要为了倒计时自动入会。
 3. 身份必须延续：`meeting_id` 来自用户身份发现，就继续 `--as user`；来自应用身份发现或应用机器人入会，就继续 `--as bot`。
-4. `--duration` 单位是分钟，只在 `set` 和 `prolong` 时传；`--reminder-before-end-in-minute` 单位是分钟，只在 `set` 时传，且只能传一个大于 0 且小于 `duration` 的提醒点。
+4. `--duration` 单位是分钟，只在 `set` 和 `prolong` 时传；`--reminder-before-end` 单位是分钟，只在 `set` 时传，且只能传一个大于 0 且小于 `duration` 的提醒点。
 5. `--need-play-audio-at-end` 只在 `set` 时传。提前结束或关闭倒计时时不要携带 duration、提醒点或结束音频参数。
 6. 若使用应用身份操作，应用机器人必须在会中；若使用用户身份操作，当前用户必须正在该会议中。权限错误时按“应用身份权限配置检查”或“用户身份被拒绝时”处理。
 
 示例：
 
 ```bash
-lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action set --duration 5 --reminder-before-end-in-minute 1
+lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action set --duration 5 --reminder-before-end 1
 lark-cli vc +meeting-countdown --as bot --meeting-id <meeting_id> --action prolong --duration 2
 lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action end_in_advance
 lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action close_window
