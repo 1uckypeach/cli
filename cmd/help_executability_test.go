@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os/exec"
+	"sort"
 	"strings"
 	"testing"
 
@@ -268,5 +269,199 @@ func TestHelpPathRejectionExitsTwo(t *testing.T) {
 	// segment keeps its own dots — so the listing's form is the expectation.
 	if !strings.Contains(envelope.Error.Hint, runnable) {
 		t.Errorf("hint must name the runnable form %q, got %q", runnable, envelope.Error.Hint)
+	}
+}
+
+// sortedDomains fixes the order the listings map would otherwise leave to chance,
+// so which method a case picks does not vary run to run.
+func sortedDomains(listings map[string][]string) []string {
+	out := make([]string, 0, len(listings))
+	for d := range listings {
+		out = append(out, d)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// pickDeterminateMethod returns a domain and one of its method paths whose token
+// sequence identifies exactly one method in the tree — both in full and with the
+// domain prefix dropped. Only such a path can carry an assertion about a
+// determinate rewrite: where several methods match, a ranked did-you-mean is the
+// correct answer and a confident rewrite would be the defect.
+func pickDeterminateMethod(t *testing.T, root *cobra.Command) (domain, path string) {
+	t.Helper()
+	paths := methodPathsUnder(root)
+	listings := domainAPIListings(t, root)
+	for _, d := range sortedDomains(listings) {
+		for _, p := range listings[d] {
+			// A space is needed for a resource segment to exist at all, and a dot
+			// inside that segment for the forms to stay distinct: where the resource
+			// name has no dots of its own, splitting the dotted path on every dot
+			// reproduces the correct argv, and that case asserts nothing.
+			if !strings.Contains(p, " ") || !strings.Contains(p, ".") {
+				continue
+			}
+			if _, ok := normalizedPathRewrite(paths, []string{d + " " + p}); !ok {
+				continue
+			}
+			if _, ok := normalizedPathRewrite(paths, []string{p}); !ok {
+				continue
+			}
+			return d, p
+		}
+	}
+	t.Fatal("no method path is unambiguous enough to assert a determinate rewrite")
+	return "", ""
+}
+
+// One real method, separated every way the evaluation observed a caller separate
+// it — plus the two routes through the help subcommand, which used to answer both
+// at exit 0. They are one mistake, a separator the tree does not use, so each must
+// be rejected structurally and answered with the form that runs.
+func TestSeparatorFormsRejectStructurallyWithRunnableSuggestion(t *testing.T) {
+	root := buildExecutabilityTree(t)
+	cli := buildCLI(t)
+	domain, path := pickDeterminateMethod(t, root)
+	segs := append([]string{domain}, strings.Fields(path)...)
+	dotted := strings.Join(segs, ".")
+	runnable := domain + " " + path
+
+	// The suggestion is phrased relative to the command that rejected it: the
+	// root names the domain, a domain names only what lives under it.
+	cases := []struct {
+		name string
+		argv []string
+		want string
+	}{
+		{"fully dotted", []string{dotted}, runnable},
+		{"partly dotted", []string{strings.Join(segs[:len(segs)-1], "."), segs[len(segs)-1]}, runnable},
+		{"domain prefix dropped", []string{strings.Join(segs[1:], ".")}, runnable},
+		{"over-split", strings.Split(dotted, "."), path},
+		{"one quoted argument", []string{runnable}, runnable},
+		{"help, domain resolved", []string{"help", domain, strings.Join(segs[1:], ".")}, path},
+		{"help, whole path dotted", []string{"help", dotted}, runnable},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assertStructuredRejection(t, cli, tc.argv, tc.want)
+		})
+	}
+}
+
+// assertStructuredRejection runs the built binary so the whole path — rejection,
+// envelope, process exit code — is covered, and requires the runnable form to
+// arrive as a machine-readable suggestion, not only as prose in the hint.
+func assertStructuredRejection(t *testing.T, cli string, argv []string, want string) {
+	t.Helper()
+	cmd := exec.Command(cli, argv...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := cmd.Run()
+	if err == nil {
+		t.Fatalf("`lark-cli %s` exited 0; a mis-separated path must fail structured\nstdout: %s",
+			strings.Join(argv, " "), stdout.String())
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("running the CLI: %v", err)
+	}
+	if code := exitErr.ExitCode(); code != 2 {
+		t.Errorf("exit code = %d, want 2\nstderr: %s", code, stderr.String())
+	}
+	var envelope struct {
+		OK    bool `json:"ok"`
+		Error struct {
+			Subtype string `json:"subtype"`
+			Hint    string `json:"hint"`
+			Params  []struct {
+				Suggestions []string `json:"suggestions"`
+			} `json:"params"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(stderr.Bytes(), &envelope); err != nil {
+		t.Fatalf("stderr is not a typed envelope: %v\n%s", err, stderr.String())
+	}
+	if envelope.OK || envelope.Error.Subtype != string(errs.SubtypeInvalidArgument) {
+		t.Errorf("envelope = %+v, want ok=false subtype=%s", envelope, errs.SubtypeInvalidArgument)
+	}
+	found := false
+	for _, p := range envelope.Error.Params {
+		for _, s := range p.Suggestions {
+			if s == want {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Errorf("no suggestion carries the runnable form %q; hint was %q", want, envelope.Error.Hint)
+	}
+	if !strings.Contains(envelope.Error.Hint, want) {
+		t.Errorf("hint must name the runnable form %q, got %q", want, envelope.Error.Hint)
+	}
+}
+
+// TestSchemaCommandFieldResolvesToItsOwnMethod pins both schema surfaces to the
+// command tree. Each renders a `command`, and stripping the binary name from
+// either must leave argv the tree resolves to the very method that row is about —
+// not its parent group, and not a neighbour. `name` is already pinned by
+// TestSchemaMethodNameIsRunnable; the index is the higher-volume copy source,
+// since one call returns every method of a service.
+func TestSchemaCommandFieldResolvesToItsOwnMethod(t *testing.T) {
+	root := buildExecutabilityTree(t)
+	cli := buildCLI(t)
+	listings := domainAPIListings(t, root)
+	for _, domain := range sortedDomains(listings) {
+		var index struct {
+			Methods []struct {
+				Path    string `json:"path"`
+				Command string `json:"command"`
+			} `json:"methods"`
+		}
+		if err := json.Unmarshal(runCLI(t, cli, "schema", domain), &index); err != nil {
+			t.Errorf("schema %s: output is not JSON: %v", domain, err)
+			continue
+		}
+		if len(index.Methods) == 0 {
+			t.Errorf("schema %s listed no methods, so this domain cannot detect a regression", domain)
+			continue
+		}
+		for _, m := range index.Methods {
+			assertCommandResolvesTo(t, root, m.Command, m.Path)
+		}
+		// The detail view has to agree with the index row it came from, or the two
+		// surfaces have started composing the path their own way again.
+		first := index.Methods[0]
+		var detail struct {
+			Command string `json:"command"`
+		}
+		if err := json.Unmarshal(runCLI(t, cli, "schema", first.Path), &detail); err != nil {
+			t.Errorf("schema %s: output is not JSON: %v", first.Path, err)
+			continue
+		}
+		if detail.Command != first.Command {
+			t.Errorf("schema %s reports command %q, but its index row says %q", first.Path, detail.Command, first.Command)
+		}
+	}
+}
+
+func assertCommandResolvesTo(t *testing.T, root *cobra.Command, command, schemaPath string) {
+	t.Helper()
+	argv, ok := strings.CutPrefix(command, "lark-cli ")
+	if !ok {
+		t.Errorf("command %q does not begin with the binary name", command)
+		return
+	}
+	target, rest, err := root.Find(strings.Fields(argv))
+	if err != nil {
+		t.Errorf("command %q does not resolve: %v", command, err)
+		return
+	}
+	if len(rest) > 0 {
+		t.Errorf("command %q leaves %q unresolved — it is not runnable as written", command, strings.Join(rest, " "))
+		return
+	}
+	if got := target.Annotations["method-schema-path"]; got != schemaPath {
+		t.Errorf("command %q resolves to %q, whose schema path is %q, want the method at %q",
+			command, target.CommandPath(), got, schemaPath)
 	}
 }

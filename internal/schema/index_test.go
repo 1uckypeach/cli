@@ -125,48 +125,39 @@ func TestFirstSentence_DropsSkillInternalDocRefs(t *testing.T) {
 	}
 }
 
-// methodIndexHint tells a caller how to turn a methods[].path into a runnable
-// command, so the rule it states must be the argv the CLI actually resolves.
-// Replacing only the LAST dot leaves the service glued to the resource
-// (`lark-cli mail.user_mailbox.messages list`) — an unknown command cobra
-// cannot even suggest against, i.e. a dead end reached by obeying the hint.
-// This pins the prose, the worked example, and CommandPath to each other.
-func TestMethodIndexHintMatchesCommandPath(t *testing.T) {
+// The index used to state a dot-to-space rule and pin a worked example to it.
+// The rule is gone — a reader had to know which surface a string came from
+// before they could pick between two of them, and got it wrong every time — so
+// each row now carries the runnable form itself. That form is what must match
+// the argv the command tree resolves, for every resource shape.
+func TestMethodIndexCommandMatchesCommandPath(t *testing.T) {
 	// Flat, shallowest, and deepest resource shapes in the catalog.
 	refs := []apicatalog.MethodRef{
 		{Service: meta.Service{Name: "mail"}, ResourcePath: []string{"user_mailbox.messages"}, Method: meta.Method{Name: "list"}},
 		{Service: meta.Service{Name: "mail"}, ResourcePath: []string{"multi_entity"}, Method: meta.Method{Name: "search"}},
 		{Service: meta.Service{Name: "drive"}, ResourcePath: []string{"file.comment.reply.reactions"}, Method: meta.Method{Name: "update_reaction"}},
 	}
+	got := map[string]string{}
+	for _, item := range BuildMethodIndex("mail", refs).Methods {
+		got[item.Path] = item.Command
+	}
 	for _, ref := range refs {
-		got := strings.Join(hintedArgv(ref.SchemaPath()), " ")
-		if want := strings.Join(ref.CommandPath(), " "); got != want {
-			t.Errorf("hinted argv for %q = %q, want %q", ref.SchemaPath(), got, want)
+		want := commandPrefix + strings.Join(ref.CommandPath(), " ")
+		if got[ref.SchemaPath()] != want {
+			t.Errorf("command for %q = %q, want %q", ref.SchemaPath(), got[ref.SchemaPath()], want)
 		}
 	}
-	// The prose must name the rule hintedArgv implements, and the worked example
-	// must be what that rule produces — the two drifted apart once already.
-	if !strings.Contains(methodIndexHint, "first and last dots with spaces") {
-		t.Errorf("hint no longer states the first-and-last rule: %q", methodIndexHint)
+	// One method reachable through two contradictory transformation rules is the
+	// defect this removed; a hint that teaches one again reintroduces it.
+	for _, banned := range []string{"replace the first", "replace the last", "dots with spaces"} {
+		if strings.Contains(methodIndexHint, banned) {
+			t.Errorf("hint states a transformation rule again (%q): %q", banned, methodIndexHint)
+		}
 	}
-	example := "lark-cli " + strings.Join(hintedArgv("mail.user_mailbox.messages.list"), " ")
-	if !strings.Contains(methodIndexHint, example) {
-		t.Errorf("hint example is not what its rule produces (%q): %q", example, methodIndexHint)
+	// The rendered form still has to be pointed at, or the rows go unread.
+	if !strings.Contains(methodIndexHint, "`command`") {
+		t.Errorf("hint does not name the command field: %q", methodIndexHint)
 	}
-}
-
-// hintedArgv applies the transformation methodIndexHint states: the first and
-// last dots become argument boundaries, inner dots stay (a resource path is one
-// argument).
-func hintedArgv(path string) []string {
-	first, last := strings.Index(path, "."), strings.LastIndex(path, ".")
-	if first < 0 {
-		return []string{path}
-	}
-	if first == last {
-		return []string{path[:first], path[first+1:]}
-	}
-	return []string{path[:first], path[first+1 : last], path[last+1:]}
 }
 
 // The index must not carry less than the human-facing help: when there is no

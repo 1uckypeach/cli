@@ -23,15 +23,21 @@ const (
 const (
 	serviceIndexHint = "run `lark-cli schema <service>` for that service's method index, " +
 		"or `lark-cli schema <service>.<resource>.<method>` for one method's full parameter contract"
-	// "first and last", not "last": methods[].path is the FULL dotted path, so
-	// the service boundary needs a space too — replacing only the last dot
-	// yields `lark-cli mail.user_mailbox.messages list`, an unknown command
-	// that cobra cannot even suggest against. Inner dots stay: a resource path
-	// is one argument. (The domain-help listing in cmd/service says "last dot"
-	// because its rows are service-relative — that boundary is already spent.)
+	// The hint names what each field is for; it no longer teaches a dot-to-space
+	// rule. Describing the transformation is what forced a reader to first work
+	// out which surface a string came from — this index's rows are fully
+	// qualified (both the service and the method boundary need a space), while
+	// the domain-help listing's rows are service-relative (only the method
+	// boundary is left). One method reachable through two contradictory rules is
+	// the defect; rendering the runnable form on every row removes both rules.
 	methodIndexHint = "run `lark-cli schema <path>` for one method's full parameter contract; " +
-		"to execute the command, replace the first and last dots with spaces (`lark-cli mail user_mailbox.messages list`)"
+		"`command` runs the method as written, `path` is the identifier `schema` takes"
 )
+
+// commandPrefix is the argv0 a rendered command form carries so a caller can run
+// the string without composing anything around it. Shared by the index and the
+// detail view: one naming system means one prefix.
+const commandPrefix = "lark-cli "
 
 // ServiceIndex is the output of a bare `schema`: which services exist, and what
 // each one is for. It deliberately carries no method count — counting would
@@ -60,10 +66,15 @@ type MethodIndex struct {
 }
 
 // MethodIndexItem field names mirror the schema envelope's _meta (snake_case) so
-// the index and the detail view speak one naming system. Path is the dotted form
-// — it feeds straight back into `schema`.
+// the index and the detail view speak one naming system. Path and Command are
+// two renderings of the same method, not a redundancy: Path is the dotted
+// identifier that feeds straight back into `schema`, Command is the argv that
+// runs it. This index is the highest-volume copy source in the CLI — one call
+// returns every method of a service — so it is the surface where making the
+// reader derive the runnable form costs the most.
 type MethodIndexItem struct {
 	Path         string   `json:"path"`
+	Command      string   `json:"command"`
 	Description  string   `json:"description"`
 	Risk         string   `json:"risk"`
 	AccessTokens []string `json:"access_tokens"`
@@ -100,6 +111,7 @@ func BuildMethodIndex(service string, refs []apicatalog.MethodRef) MethodIndex {
 	for _, ref := range refs {
 		items = append(items, MethodIndexItem{
 			Path:         ref.SchemaPath(),
+			Command:      commandPrefix + strings.Join(ref.CommandPath(), " "),
 			Description:  SanitizeIndexDesc(FirstSentence(ref.Method.Description)),
 			Risk:         riskOf(ref.Method),
 			AccessTokens: ref.Method.Identities(),

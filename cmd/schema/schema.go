@@ -91,6 +91,9 @@ func NewCmdSchemaWithVisibility(
 		},
 	}
 	cmdutil.DisableAuthCheck(cmd)
+	// `schema <path> --help` asks what <path> takes. Without this the answer is
+	// schema's own help at exit 0, with the path dropped and nothing saying so.
+	cmdutil.MarkPositionalSubject(cmd)
 
 	// Tolerated for agent compatibility; ignored — schema only emits the JSON
 	// envelope, and its output is identity-independent (strict-mode filtering
@@ -404,6 +407,16 @@ func resolveError(err error, parts []string, commandExists func(string) bool) er
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "No API methods for: %s", safeSeg(re.Subject)).
 				WithHint("Available: %s; %s is a command with no API methods, so it is not listed here — run `lark-cli %s --help` to see what it does, or `lark-cli --help` to list every command",
 					strings.Join(re.Candidates, ", "), domainOrPlaceholder(domain), domainOrPlaceholder(domain))
+		}
+		if len(parts) > 1 {
+			// A multi-segment path whose head is not a service is, nearly always, a
+			// resource path copied without its service prefix — the shape the
+			// flattened domain-help listing renders, since its rows are already
+			// scoped to a domain. The service list alone does not say that: it reads
+			// as "your service name is wrong" when the service name is simply absent.
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown service: %s", safeSeg(re.Subject)).
+				WithHint("a method path starts with its service (`<service>.<resource>.<method>`), and %s is not one; available: %s — run `lark-cli schema <service>` for that service's method index, where each entry's `path` is exactly what this argument takes",
+					safeSeg(re.Subject), strings.Join(re.Candidates, ", "))
 		}
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "Unknown service: %s", safeSeg(re.Subject)).
 			WithHint("Available: %s; run `lark-cli --help` to list every command, including the domains that only provide +shortcuts",

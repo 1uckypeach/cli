@@ -25,17 +25,25 @@ import (
 // it carries one line per domain (~59 B measured), and onboarding a business
 // domain is ordinary work. A ceiling that ordinary work trips stops reporting
 // regressions and starts reporting the calendar. 4 KB left 323 B over the
-// measured 3,773 B — five domains — so it moves to 5 KB, which is the measured
-// max plus at least 15% rounded up to a whole KB (the rule the plan set for the
-// per-domain ceiling) and covers roughly twenty. A listing that began rendering
-// full contracts would still overshoot by an order of magnitude, so the check
-// keeps the failure it was built to catch.
+// then-measured 3,773 B — five domains — so it moved to 5 KB, that measurement
+// plus at least 15% rounded up to a whole KB (the rule the plan set for the
+// per-domain ceiling). The quickstart has since gained the line stating how a
+// method path is separated (+126 B, now 3,899 B), still leaving about twenty
+// domains. A listing that began rendering full contracts would overshoot by an
+// order of magnitude, so the check keeps the failure it was built to catch.
+//
+// The method index now renders a runnable `command` per row (~63 B measured),
+// which took the largest service from 11,736 B to 15,319 B. The 1,065 B left is
+// about sixteen more methods on that service — narrower than before, and worth
+// knowing, but a different order from what this ceiling guards: the regression
+// it exists to catch measured 383,855 B. A service approaching ~73 methods needs
+// the ceiling revisited rather than the field dropped.
 const (
 	maxDomainHelpMedian = 2560  // 2.5 KB — overall health, resistant to outliers
 	maxSingleDomainHelp = 12288 // 12 KB — measured max 9,965 B (sheets)
-	maxRootHelp         = 5120  // 5 KB — measured 3,773 B; see the sizing note above
+	maxRootHelp         = 5120  // 5 KB — measured 3,899 B; see the sizing note above
 	maxServiceIndex     = 4096  // 4 KB — measured 1,780 B
-	maxMethodIndex      = 16384 // 16 KB — measured max 11,294 B (mail)
+	maxMethodIndex      = 16384 // 16 KB — measured max 15,319 B (mail, 57 methods)
 )
 
 // buildCLI compiles the real binary once per test run. These budgets are about

@@ -242,10 +242,15 @@ func TestUnknownSubcommandRunE_UnknownReturnsStructuredError(t *testing.T) {
 	if !strings.Contains(verr.Message, "lark-cli drive") {
 		t.Errorf("message should name the group path, got %q", verr.Message)
 	}
-	// "+bogus" has no close neighbor among drive's subcommands, so the hint falls
-	// back to pointing at --help (suggestions, when present, are folded into hint).
-	if !strings.Contains(verr.Hint, "--help") {
-		t.Errorf("hint should guide to --help when there is no suggestion, got %q", verr.Hint)
+	// "+bogus" has no close neighbour among drive's subcommands, which is the
+	// case where the name most likely does not exist at all — and pointing at
+	// --help there answers nothing, leaving a caller to conclude the capability
+	// is missing and reach for the raw `api` channel. The hint must name the set,
+	// and it must be the set --help would have listed.
+	for _, name := range []string{"+search", "+upload", "files"} {
+		if !strings.Contains(verr.Hint, name) {
+			t.Errorf("hint must name %q among the group's real subcommands, got %q", name, verr.Hint)
+		}
 	}
 }
 

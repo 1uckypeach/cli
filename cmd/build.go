@@ -643,8 +643,7 @@ func assembleInternal(
 	// Presentation is an explicit host projection over the exact enforcement
 	// decisions. With no opt-in, legacy Restrict and YAML policy behavior is
 	// mechanically unchanged.
-	var hasConcealedCommands bool
-	runtime.surface, hasConcealedCommands = applyDistributionPresentation(rootCmd, cfg.presentation, denied)
+	runtime.surface, _ = applyDistributionPresentation(rootCmd, cfg.presentation, denied)
 
 	// Resolve skill assets and canonical references before installing hooks.
 	// A declared customization is a build-integrity boundary: failure must
@@ -667,15 +666,16 @@ func assembleInternal(
 		return finalizeFailedBuild(runtime, rootCmd)
 	}
 
-	// Install hooks only on business commands. The concealment-specific help
-	// command is attached afterwards, preserving Cobra's historical contract
-	// that help is not observed or wrapped by plugins.
+	// Install hooks only on business commands. The help command is attached
+	// afterwards, preserving Cobra's historical contract that help is not
+	// observed or wrapped by plugins.
 	if hookRegistry != nil {
 		installHooks(rootCmd, hookRegistry)
 	}
-	if hasConcealedCommands {
-		installHelpCommand(rootCmd)
-	}
+	// Unconditional: the concealment message is only one of the two things the
+	// stock help command cannot say. The other — that the name it was handed
+	// does not exist — applies to every build.
+	installHelpCommand(rootCmd)
 	finalizeRootCommandGroups(rootCmd, runtime.surface)
 
 	if hookRegistry != nil && !cfg.deferStartup {
