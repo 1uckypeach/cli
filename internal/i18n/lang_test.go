@@ -94,3 +94,45 @@ func TestCodes(t *testing.T) {
 		}
 	}
 }
+
+func TestUsesEnglishUI(t *testing.T) {
+	// Only two TUI bundles exist. zh_cn — and anything that expresses no
+	// usable preference — renders Chinese; every other supported locale
+	// renders English.
+	chinese := []Lang{
+		LangZhCN, "zh", // Chinese, canonical and short
+		"",        // unset
+		"unknown", // not in the catalog
+		"ZH",      // wrong case: find() is case-sensitive
+		"en_US",   // wrong case for a real locale
+	}
+	for _, l := range chinese {
+		if l.UsesEnglishUI() {
+			t.Errorf("UsesEnglishUI(%q) = true, want false", l)
+		}
+	}
+
+	english := []Lang{
+		LangEnUS, "en",
+		LangJaJP, LangKoKR, LangFrFR, LangDeDE, LangEsES, LangItIT,
+		LangRuRU, LangPtBR, LangThTH, LangViVN, LangIdID, LangMsMY,
+		"ja", // short code for a non-English locale
+	}
+	for _, l := range english {
+		if !l.UsesEnglishUI() {
+			t.Errorf("UsesEnglishUI(%q) = false, want true", l)
+		}
+	}
+}
+
+func TestUsesEnglishUI_CoversEveryCatalogEntry(t *testing.T) {
+	// Guard against a new locale being added to the catalog without deciding
+	// which bundle it renders in.
+	for _, code := range Codes() {
+		l := Lang(code)
+		want := code != string(LangZhCN)
+		if got := l.UsesEnglishUI(); got != want {
+			t.Errorf("UsesEnglishUI(%q) = %v, want %v", code, got, want)
+		}
+	}
+}

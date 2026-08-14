@@ -60,6 +60,20 @@ func (l Lang) IsEnglish() bool {
 	return e.Code == LangEnUS
 }
 
+// UsesEnglishUI reports whether l should render the English TUI bundle.
+// Only two bundles exist (zh, en): zh_cn renders Chinese, every other
+// recognized locale renders English — a user who set a preference the TUI has
+// no bundle for is more likely to read English than Chinese. Unset and
+// unrecognized values render Chinese: they mean "no preference expressed",
+// not "prefers a non-Chinese language".
+func (l Lang) UsesEnglishUI() bool {
+	e, ok := find(string(l))
+	if !ok {
+		return false
+	}
+	return e.Code != LangZhCN
+}
+
 // Base returns the ISO 639-1 short code ("en_us" → "en"), or "" if unknown.
 func (l Lang) Base() string {
 	e, _ := find(string(l))
