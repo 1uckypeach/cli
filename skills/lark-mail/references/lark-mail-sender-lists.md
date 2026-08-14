@@ -2,7 +2,7 @@
 
 > **前置条件：** 先阅读 [`../../lark-shared/SKILL.md`](../../lark-shared/SKILL.md) 了解认证、全局参数和安全规则。
 
-管理用户邮箱级信任发件人名单和屏蔽发件人名单。不要改用租户级 `allowed_senders` / `blocked_senders`。
+管理用户邮箱级信任发件人名单和屏蔽发件人名单。
 
 本 skill 对应 shortcut：
 
