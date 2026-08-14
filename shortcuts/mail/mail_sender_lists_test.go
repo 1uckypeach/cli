@@ -27,7 +27,7 @@ func TestMailSenderListShortcuts_Metadata(t *testing.T) {
 	if MailSenderAllowlist.Scopes[0] != "mail:user_mailbox:readonly" {
 		t.Fatalf("read scope = %v", MailSenderAllowlist.Scopes)
 	}
-	if MailSenderAllowlist.ConditionalScopes[0] != "mail:user_mailbox" {
+	if MailSenderAllowlist.ConditionalScopes[0] != "mail:user_mailbox.message:modify" {
 		t.Fatalf("conditional write scope = %v", MailSenderAllowlist.ConditionalScopes)
 	}
 	for _, shortcut := range []struct {

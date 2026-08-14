@@ -42,7 +42,7 @@ func newMailSenderListShortcut(cfg senderListShortcutConfig) common.Shortcut {
 		Risk:        "write",
 		Scopes:      []string{"mail:user_mailbox:readonly"},
 		ConditionalScopes: []string{
-			"mail:user_mailbox",
+			"mail:user_mailbox.message:modify",
 		},
 		AuthTypes: []string{"user"},
 		HasFormat: true,
@@ -91,7 +91,7 @@ func newMailSenderListShortcut(cfg senderListShortcutConfig) common.Shortcut {
 			mailboxID := resolveMailboxID(rt)
 			switch input.Mode {
 			case "add":
-				if err := rt.EnsureScopes([]string{"mail:user_mailbox"}); err != nil {
+				if err := rt.EnsureScopes([]string{"mail:user_mailbox.message:modify"}); err != nil {
 					return err
 				}
 				data, err := rt.CallAPITyped("POST", mailSenderListPath(mailboxID, cfg.resource, "batch_create"), nil, senderListAddBody(input.Addresses, input.SenderType))
@@ -100,7 +100,7 @@ func newMailSenderListShortcut(cfg senderListShortcutConfig) common.Shortcut {
 				}
 				rt.Out(data, nil)
 			case "remove":
-				if err := rt.EnsureScopes([]string{"mail:user_mailbox"}); err != nil {
+				if err := rt.EnsureScopes([]string{"mail:user_mailbox.message:modify"}); err != nil {
 					return err
 				}
 				data, err := rt.CallAPITyped("POST", mailSenderListPath(mailboxID, cfg.resource, "batch_remove"), nil, map[string]interface{}{"senders": input.Addresses})
