@@ -1959,6 +1959,10 @@ func TestResolveBindUILang_FlagMode(t *testing.T) {
 }
 
 func TestDetectSource_NoPrompt(t *testing.T) {
+	// Both the "nothing to detect" and the explicit-source cases assume no Agent
+	// env signal; without this the suite fails when run inside an OpenClaw or
+	// Hermes session.
+	clearAgentEnv(t)
 	f, _, _, _ := cmdutil.TestFactory(t, nil)
 	tests := []struct {
 		name    string
