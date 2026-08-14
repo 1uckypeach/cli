@@ -54,6 +54,30 @@ func driveMethod(httpMethod string, params map[string]interface{}) meta.Method {
 	return meta.FromMap(m)
 }
 
+func TestNewPreflightMissingScopeErrorUsesCanonicalFieldGate(t *testing.T) {
+	err := newPreflightMissingScopeError(
+		"feishu",
+		"cli_test",
+		"user",
+		[]string{"docx:document"},
+	)
+	var permissionErr *errs.PermissionError
+	if !errors.As(err, &permissionErr) {
+		t.Fatalf("error = %T, want *errs.PermissionError", err)
+	}
+	if permissionErr.Subtype != errs.SubtypeMissingScope {
+		t.Fatalf("subtype = %q, want %q", permissionErr.Subtype, errs.SubtypeMissingScope)
+	}
+	if permissionErr.ConsoleURL != "" {
+		t.Fatalf("missing_scope console_url = %q, want empty", permissionErr.ConsoleURL)
+	}
+	if len(permissionErr.MissingScopes) != 1 ||
+		permissionErr.MissingScopes[0] != "docx:document" ||
+		permissionErr.Identity != "user" {
+		t.Fatalf("permission facts = %+v", permissionErr)
+	}
+}
+
 // ── registerService ──
 
 func TestRegisterService(t *testing.T) {
@@ -176,157 +200,6 @@ func TestNewCmdServiceMethod_POSTHasDataFlag(t *testing.T) {
 	}
 }
 
-func TestMailSenderListCreateAddressesFlagBuildsItemsBody(t *testing.T) {
-	f, stdout, _, _ := cmdutil.TestFactory(t, testConfig)
-	cmd := NewCmdServiceMethod(f, mailSpec(), mailSenderListMethod("allow_senders", "create"), "create", "user_mailbox.allow_senders", nil)
-	cmd.SetArgs([]string{
-		"--user-mailbox-id", "me",
-		"--addresses", "alice@example.com",
-		"--addresses", "example.org",
-		"--sender-type", "2",
-		"--dry-run",
-	})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	out := stdout.String()
-	for _, want := range []string{
-		`"url": "/open-apis/mail/v1/user_mailboxes/me/allow_senders/batch_create"`,
-		`"items"`,
-		`"sender": "alice@example.com"`,
-		`"sender": "example.org"`,
-		`"sender_type": 2`,
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("dry-run output missing %q:\n%s", want, out)
-		}
-	}
-}
-
-func TestMailSenderListDeleteAddressesFlagBuildsSendersBody(t *testing.T) {
-	f, stdout, _, _ := cmdutil.TestFactory(t, testConfig)
-	cmd := NewCmdServiceMethod(f, mailSpec(), mailSenderListMethod("blocked_senders", "delete"), "delete", "user_mailbox.blocked_senders", nil)
-	cmd.SetArgs([]string{
-		"--user-mailbox-id", "me",
-		"--addresses", "spam@example.com",
-		"--addresses", "bad.example",
-		"--dry-run",
-	})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	out := stdout.String()
-	for _, want := range []string{
-		`"url": "/open-apis/mail/v1/user_mailboxes/me/blocked_senders/batch_remove"`,
-		`"senders"`,
-		`"spam@example.com"`,
-		`"bad.example"`,
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("dry-run output missing %q:\n%s", want, out)
-		}
-	}
-}
-
-func TestMailSenderListAddressesFlagValidationFailures(t *testing.T) {
-	tests := []struct {
-		name    string
-		method  meta.Method
-		cmdName string
-		resName string
-		args    []string
-		want    string
-		param   string
-	}{
-		{
-			name:    "sender type without addresses",
-			method:  mailSenderListMethod("allow_senders", "create"),
-			cmdName: "create",
-			resName: "user_mailbox.allow_senders",
-			args: []string{
-				"--user-mailbox-id", "me",
-				"--sender-type", "3",
-				"--dry-run",
-			},
-			want:  "--sender-type requires --addresses",
-			param: "--sender-type",
-		},
-		{
-			name:    "invalid sender type with addresses",
-			method:  mailSenderListMethod("allow_senders", "create"),
-			cmdName: "create",
-			resName: "user_mailbox.allow_senders",
-			args: []string{
-				"--user-mailbox-id", "me",
-				"--addresses", "alice@example.com",
-				"--sender-type", "3",
-				"--dry-run",
-			},
-			want:  "--sender-type must be 1 (email address) or 2 (domain)",
-			param: "--sender-type",
-		},
-		{
-			name:    "empty address",
-			method:  mailSenderListMethod("allow_senders", "create"),
-			cmdName: "create",
-			resName: "user_mailbox.allow_senders",
-			args: []string{
-				"--user-mailbox-id", "me",
-				"--addresses", "",
-				"--dry-run",
-			},
-			want:  "--addresses must not contain empty sender values",
-			param: "--addresses",
-		},
-		{
-			name:    "addresses with non object data",
-			method:  mailSenderListMethod("blocked_senders", "delete"),
-			cmdName: "delete",
-			resName: "user_mailbox.blocked_senders",
-			args: []string{
-				"--user-mailbox-id", "me",
-				"--addresses", "spam@example.com",
-				"--data", `["not-object"]`,
-				"--dry-run",
-			},
-			want:  "--addresses requires --data to be a JSON object when both are set",
-			param: "--data",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f, _, _, _ := cmdutil.TestFactory(t, testConfig)
-			cmd := NewCmdServiceMethod(f, mailSpec(), tt.method, tt.cmdName, tt.resName, nil)
-			cmd.SetArgs(tt.args)
-
-			err := cmd.Execute()
-			if err == nil {
-				t.Fatal("expected validation error")
-			}
-			if !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("error = %q, want substring %q", err.Error(), tt.want)
-			}
-			problem, ok := errs.ProblemOf(err)
-			if !ok {
-				t.Fatalf("ProblemOf(error) ok = false, want true")
-			}
-			if problem.Category != errs.CategoryValidation || problem.Subtype != errs.SubtypeInvalidArgument {
-				t.Fatalf("problem = %s/%s, want %s/%s", problem.Category, problem.Subtype, errs.CategoryValidation, errs.SubtypeInvalidArgument)
-			}
-			var validationErr *errs.ValidationError
-			if !errors.As(err, &validationErr) {
-				t.Fatalf("errors.As(*ValidationError) = false, error = %T", err)
-			}
-			if validationErr.Param != tt.param {
-				t.Fatalf("Param = %q, want %q", validationErr.Param, tt.param)
-			}
-		})
-	}
-}
-
 func TestNewCmdServiceMethod_RunFCallback(t *testing.T) {
 	f, _, _, _ := cmdutil.TestFactory(t, testConfig)
 
@@ -352,33 +225,6 @@ func TestNewCmdServiceMethod_RunFCallback(t *testing.T) {
 	}
 }
 
-func mailSpec() meta.Service {
-	return meta.ServiceFromMap(map[string]interface{}{
-		"name":        "mail",
-		"servicePath": "/open-apis/mail/v1",
-	})
-}
-
-func mailSenderListMethod(resource, action string) meta.Method {
-	body := map[string]interface{}{}
-	pathAction := "batch_create"
-	if action == "delete" {
-		pathAction = "batch_remove"
-		body["senders"] = map[string]interface{}{"type": "array", "required": true}
-	} else {
-		body["items"] = map[string]interface{}{"type": "array", "required": true}
-	}
-	return meta.FromMap(map[string]interface{}{
-		"id":         "user_mailbox." + resource + "." + action,
-		"path":       "user_mailboxes/{user_mailbox_id}/" + resource + "/" + pathAction,
-		"httpMethod": "POST",
-		"parameters": map[string]interface{}{
-			"user_mailbox_id": map[string]interface{}{"type": "string", "location": "path", "required": true},
-		},
-		"requestBody": body,
-	})
-}
-
 // ── dry-run / buildServiceRequest ──
 
 func TestServiceMethod_DryRun_PathParam(t *testing.T) {
@@ -402,10 +248,36 @@ func TestServiceMethod_DryRun_PathParam(t *testing.T) {
 			if err := cmd.Execute(); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if !strings.Contains(stdout.String(), tt.wantInURL) {
-				t.Errorf("expected URL containing %q, got:\n%s", tt.wantInURL, stdout.String())
+			var got map[string]interface{}
+			if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+				t.Fatalf("dry-run stdout is not JSON: %v\n%s", err, stdout.String())
+			}
+			if got["ok"] != true || got["dry_run"] != true {
+				t.Fatalf("unexpected dry-run envelope: %#v", got)
+			}
+			data := got["data"].(map[string]interface{})
+			api := data["api"].([]interface{})
+			call := api[0].(map[string]interface{})
+			if call["url"] != tt.wantInURL {
+				t.Errorf("url = %q, want %q\nstdout:\n%s", call["url"], tt.wantInURL, stdout.String())
 			}
 		})
+	}
+}
+
+func TestServiceMethod_DryRunWithJq(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, testConfig)
+	cmd := NewCmdServiceMethod(f, driveSpec(), driveMethod("GET", nil), "get", "files", nil)
+	cmd.SetArgs([]string{
+		"--params", `{"file_token":"boxcn123abc"}`,
+		"--dry-run",
+		"--jq", ".data.api[0].url",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, want := strings.TrimSpace(stdout.String()), "/open-apis/drive/v1/files/boxcn123abc/copy"; got != want {
+		t.Fatalf("jq output = %q, want %q", got, want)
 	}
 }
 
@@ -496,8 +368,12 @@ func TestServiceMethod_PaginationParamSkippedWithPageAll(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error with --page-all skipping page_size, got: %v", err)
 	}
-	if !strings.Contains(stdout.String(), "Dry Run") {
-		t.Error("expected dry-run output")
+	var got map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("dry-run stdout is not JSON: %v\n%s", err, stdout.String())
+	}
+	if got["dry_run"] != true {
+		t.Fatalf("dry_run = %#v, want true", got["dry_run"])
 	}
 }
 
@@ -1259,11 +1135,23 @@ func TestServiceMethod_FileUpload_DryRun(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	out := stdout.String()
-	if !strings.Contains(out, "image") {
-		t.Errorf("expected dry-run output to mention file field, got: %s", out)
+	var env map[string]interface{}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("dry-run stdout is not JSON: %v\n%s", err, out)
 	}
-	if !strings.Contains(out, "Dry Run") {
-		t.Errorf("expected dry-run header, got: %s", out)
+	if env["dry_run"] != true {
+		t.Fatalf("dry_run = %#v, want true", env["dry_run"])
+	}
+	data := env["data"].(map[string]interface{})
+	api := data["api"].([]interface{})
+	call := api[0].(map[string]interface{})
+	body := call["body"].(map[string]interface{})
+	file := body["file"].(map[string]interface{})
+	if file["field"] != "image" || file["path"] != tmpFile {
+		t.Fatalf("unexpected file dry-run body: %#v", body)
+	}
+	if strings.Contains(out, "=== Dry Run ===") {
+		t.Fatalf("stdout should not contain dry-run banner: %s", out)
 	}
 }
 

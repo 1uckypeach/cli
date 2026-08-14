@@ -21,6 +21,7 @@ import (
 	"github.com/larksuite/cli/internal/errclass"
 	"github.com/larksuite/cli/internal/meta"
 	"github.com/larksuite/cli/internal/output"
+	"github.com/larksuite/cli/internal/recovery"
 	"github.com/larksuite/cli/internal/registry"
 	"github.com/larksuite/cli/internal/validate"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
@@ -144,8 +145,6 @@ type ServiceMethodOptions struct {
 	DryRun     bool
 	File       string   // --file flag value
 	FileFields []string // auto-detected file field names from metadata
-	Addresses  []string // mail sender-list shorthand for request body senders/items
-	SenderType int      // mail sender-list create shorthand: 1=email address, 2=domain
 
 	// binder owns the generated typed param flags — registration and the
 	// --params overlay — replacing the raw paramFlags side-channel.
@@ -312,7 +311,6 @@ func buildMethodCommand(ctx context.Context, f *cmdutil.Factory, spec methodComm
 	if len(spec.fileFields) > 0 && spec.acceptsBody {
 		cmd.Flags().StringVar(&opts.File, "file", "", "File upload [field=]path. Supports - and stdin.")
 	}
-	registerSenderListBodyFlags(cmd, opts, spec)
 	cmdutil.RegisterFlagCompletion(cmd, "format", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return []string{"json", "ndjson", "table", "csv"}, cobra.ShellCompDirectiveNoFileComp
 	})
@@ -339,9 +337,6 @@ func buildMethodCommand(ctx context.Context, f *cmdutil.Factory, spec methodComm
 		}
 	}
 	tagFlagGroup(cmd.Flags(), "file", groupBody)
-	for _, name := range []string{"addresses", "sender-type"} {
-		tagFlagGroup(cmd.Flags(), name, groupBody)
-	}
 	if fl := cmd.Flags().Lookup("params"); fl != nil {
 		annotate(fl, flagGroupAnnotation, []string{groupRaw})
 		// Keep the precedence rule on the flag's own one line (not a multi-line
@@ -409,9 +404,9 @@ func serviceMethodRun(opts *ServiceMethodOptions) error {
 
 	if opts.DryRun {
 		if fileMeta != nil {
-			return cmdutil.PrintDryRunWithFile(f.IOStreams.Out, request, config, opts.Format, fileMeta.FieldName, fileMeta.FilePath, fileMeta.FormFields)
+			return cmdutil.PrintDryRunWithFile(request, config, serviceDryRunOutputOptions(f, opts), *fileMeta)
 		}
-		return serviceDryRun(f, request, config, opts.Format)
+		return serviceDryRun(f, request, config, opts)
 	}
 
 	if opts.Method.Risk == cmdutil.RiskHighRiskWrite {
@@ -496,19 +491,15 @@ func checkServiceScopes(ctx context.Context, cred *credential.CredentialProvider
 
 // newPreflightMissingScopeError constructs a PermissionError for the local
 // pre-flight scope check that converges byte-for-byte with the dispatcher's
-// BuildAPIError path. Uses the canonical helpers in internal/errclass so
-// Hint and Message stay in lock-step with the server-response classifier.
+// BuildAPIError path. It records the same typed facts and canonical message;
+// the root presenter supplies identity-appropriate recovery at the final
+// command boundary.
 // ConsoleURL is deliberately omitted: the dispatcher only sets it for
 // SubtypeAppScopeNotApplied (bot-perspective dev-action recovery), and this
 // pre-flight path is user-perspective SubtypeMissingScope whose recovery is
 // `lark-cli auth login --scope ...`, not a console deep-link.
-func newPreflightMissingScopeError(brand, appID, identity string, missing []string) *errs.PermissionError {
-	consoleURL := errclass.ConsoleURL(brand, appID, missing)
-	return errs.NewPermissionError(errs.SubtypeMissingScope,
-		"%s", errclass.CanonicalPermissionMessage(errs.SubtypeMissingScope, appID, missing, "")).
-		WithHint("%s", errclass.PermissionHint(missing, identity, errs.SubtypeMissingScope, consoleURL)).
-		WithMissingScopes(missing...).
-		WithIdentity(identity)
+func newPreflightMissingScopeError(brand, appID, identity string, missing []string) error {
+	return errclass.NewMissingScopeError(brand, appID, identity, missing)
 }
 
 // unusableParamValue reports whether a provided path/query parameter value
@@ -535,12 +526,28 @@ func unusableParamValue(v interface{}) bool {
 // only the --params form: a flag with its kebab name exists but belongs to
 // something else (e.g. the output --format), and the hint must not steer
 // there. Asking the binder, not cmd.Flags(), is what tells those apart.
-func missingParamHint(opts *ServiceMethodOptions, f meta.Field) string {
+func missingParamHint(opts *ServiceMethodOptions, f meta.Field) recovery.Hint {
 	paramsForm := fmt.Sprintf("--params '{%q: \"<value>\"}'", f.Name)
+	var input string
 	if opts.binder.hasTypedFlag(f.Name) {
-		return fmt.Sprintf("set --%s <value> (or %s); see: lark-cli schema %s", f.FlagName(), paramsForm, opts.SchemaPath)
+		input = fmt.Sprintf("set --%s <value> (or %s)", f.FlagName(), paramsForm)
+	} else {
+		input = fmt.Sprintf("set %s", paramsForm)
 	}
-	return fmt.Sprintf("set %s; see: lark-cli schema %s", paramsForm, opts.SchemaPath)
+	return recovery.Join("; ",
+		recovery.Text(input),
+		recovery.Command(recovery.TargetSchema, "see: lark-cli schema "+opts.SchemaPath),
+	)
+}
+
+func missingRequiredParamError(opts *ServiceMethodOptions, f meta.Field, location string) error {
+	hint := missingParamHint(opts, f)
+	return recovery.Attach(
+		errs.NewValidationError(errs.SubtypeInvalidArgument,
+			"missing required %s parameter: %s", location, f.Name).
+			WithParam(f.Name),
+		hint,
+	)
 }
 
 // buildServiceRequest parses flags, builds the URL with path/query params, and returns a RawApiRequest.
@@ -577,10 +584,7 @@ func buildServiceRequest(opts *ServiceMethodOptions) (client.RawApiRequest, *cmd
 		}
 		val, ok := params[s.Name]
 		if !ok || unusableParamValue(val) {
-			return client.RawApiRequest{}, nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
-				"missing required path parameter: %s", s.Name).
-				WithHint("%s", missingParamHint(opts, s)).
-				WithParam(s.Name)
+			return client.RawApiRequest{}, nil, missingRequiredParamError(opts, s, "path")
 		}
 		valStr := fmt.Sprintf("%v", val)
 		if err := validate.ResourceName(valStr, s.Name); err != nil {
@@ -598,10 +602,7 @@ func buildServiceRequest(opts *ServiceMethodOptions) (client.RawApiRequest, *cmd
 		value, exists := params[s.Name]
 		isPaginationParam := opts.PageAll && (s.Name == "page_token" || s.Name == "page_size")
 		if s.Required && !isPaginationParam && (!exists || unusableParamValue(value)) {
-			return client.RawApiRequest{}, nil, errs.NewValidationError(errs.SubtypeInvalidArgument,
-				"missing required query parameter: %s", s.Name).
-				WithHint("%s", missingParamHint(opts, s)).
-				WithParam(s.Name)
+			return client.RawApiRequest{}, nil, missingRequiredParamError(opts, s, "query")
 		}
 		if exists && !unusableParamValue(value) {
 			queryParams[s.Name] = value
@@ -664,9 +665,6 @@ func buildServiceRequest(opts *ServiceMethodOptions) (client.RawApiRequest, *cmd
 		if err != nil {
 			return client.RawApiRequest{}, nil, err
 		}
-		if data, err = overlaySenderListBodyFlags(opts, data); err != nil {
-			return client.RawApiRequest{}, nil, err
-		}
 		request.Data = data
 		if opts.Output != "" {
 			request.ExtraOpts = append(request.ExtraOpts, larkcore.WithFileDownload())
@@ -676,76 +674,19 @@ func buildServiceRequest(opts *ServiceMethodOptions) (client.RawApiRequest, *cmd
 	return request, nil, nil
 }
 
-func registerSenderListBodyFlags(cmd *cobra.Command, opts *ServiceMethodOptions, spec methodCommandSpec) {
-	if !spec.acceptsBody || !isMailSenderListWrite(spec.schemaPath) {
-		return
-	}
-	cmd.Flags().StringArrayVar(&opts.Addresses, "addresses", nil, "sender email addresses or domains. Repeat for multiple values.")
-	if strings.HasSuffix(spec.schemaPath, ".create") {
-		cmd.Flags().IntVar(&opts.SenderType, "sender-type", 1, "sender type for --addresses: 1=email address, 2=domain")
-	}
+func serviceDryRun(f *cmdutil.Factory, request client.RawApiRequest, config *core.CliConfig, opts *ServiceMethodOptions) error {
+	return cmdutil.PrintDryRun(request, config, serviceDryRunOutputOptions(f, opts))
 }
 
-func isMailSenderListWrite(schemaPath string) bool {
-	switch schemaPath {
-	case "mail.user_mailbox.allow_senders.create",
-		"mail.user_mailbox.allow_senders.delete",
-		"mail.user_mailbox.blocked_senders.create",
-		"mail.user_mailbox.blocked_senders.delete":
-		return true
-	default:
-		return false
+func serviceDryRunOutputOptions(f *cmdutil.Factory, opts *ServiceMethodOptions) cmdutil.DryRunOutputOptions {
+	return cmdutil.DryRunOutputOptions{
+		Format:      opts.Format,
+		JqExpr:      opts.JqExpr,
+		CommandPath: opts.Cmd.CommandPath(),
+		Identity:    opts.As,
+		Out:         f.IOStreams.Out,
+		ErrOut:      f.IOStreams.ErrOut,
 	}
-}
-
-func overlaySenderListBodyFlags(opts *ServiceMethodOptions, data any) (any, error) {
-	if opts.Cmd == nil {
-		return data, nil
-	}
-	flags := opts.Cmd.Flags()
-	addressesChanged := flags.Changed("addresses")
-	senderTypeChanged := flags.Lookup("sender-type") != nil && flags.Changed("sender-type")
-	if !addressesChanged {
-		if senderTypeChanged {
-			return data, errs.NewValidationError(errs.SubtypeInvalidArgument, "--sender-type requires --addresses").WithParam("--sender-type")
-		}
-		return data, nil
-	}
-	if len(opts.Addresses) == 0 {
-		return data, errs.NewValidationError(errs.SubtypeInvalidArgument, "--addresses must include at least one sender").WithParam("--addresses")
-	}
-	for _, address := range opts.Addresses {
-		if strings.TrimSpace(address) == "" {
-			return data, errs.NewValidationError(errs.SubtypeInvalidArgument, "--addresses must not contain empty sender values").WithParam("--addresses")
-		}
-	}
-	body, ok := data.(map[string]any)
-	if data == nil {
-		body = map[string]any{}
-	} else if !ok {
-		return data, errs.NewValidationError(errs.SubtypeInvalidArgument, "--addresses requires --data to be a JSON object when both are set").WithParam("--data")
-	}
-	if strings.HasSuffix(opts.SchemaPath, ".delete") {
-		body["senders"] = append([]string(nil), opts.Addresses...)
-		return body, nil
-	}
-	senderType := opts.SenderType
-	if senderType != 1 && senderType != 2 {
-		return data, errs.NewValidationError(errs.SubtypeInvalidArgument, "--sender-type must be 1 (email address) or 2 (domain)").WithParam("--sender-type")
-	}
-	items := make([]map[string]any, 0, len(opts.Addresses))
-	for _, address := range opts.Addresses {
-		items = append(items, map[string]any{
-			"sender":      address,
-			"sender_type": senderType,
-		})
-	}
-	body["items"] = items
-	return body, nil
-}
-
-func serviceDryRun(f *cmdutil.Factory, request client.RawApiRequest, config *core.CliConfig, format string) error {
-	return cmdutil.PrintDryRun(f.IOStreams.Out, request, config, format)
 }
 
 func servicePaginate(ctx context.Context, ac *client.APIClient, request client.RawApiRequest, format output.Format, jqExpr string, out, errOut io.Writer, commandPath string, pagOpts client.PaginationOptions, checkErr func(interface{}, core.Identity) error) error {
@@ -773,20 +714,18 @@ func servicePaginate(ctx context.Context, ac *client.APIClient, request client.R
 
 	switch format {
 	case output.FormatNDJSON, output.FormatTable, output.FormatCSV:
-		pf := output.NewPaginatedFormatter(out, format)
+		emitter := output.NewEmitter(output.EmitterConfig{
+			Out:            out,
+			ErrOut:         errOut,
+			CommandPath:    commandPath,
+			Identity:       string(pagOpts.Identity),
+			NoticeProvider: output.GetNotice,
+		})
 		result, hasItems, err := ac.StreamPages(ctx, request, func(items []interface{}) error {
 			// Streaming formats intentionally emit each page after that page has
 			// passed safety scanning. A later page may still fail, so callers
 			// must use the exit code to distinguish complete vs partial output.
-			scanResult := output.ScanForSafety(commandPath, items, errOut)
-			if scanResult.Blocked {
-				return scanResult.BlockErr
-			}
-			if scanResult.Alert != nil {
-				output.WriteAlertWarning(errOut, scanResult.Alert)
-			}
-			pf.FormatPage(items)
-			return nil
+			return emitter.StreamPage(items, output.StreamOptions{Format: format.String()})
 		}, pagOpts)
 		if err != nil {
 			return err

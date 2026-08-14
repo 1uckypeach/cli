@@ -263,32 +263,26 @@ lark-cli mail user_mailbox.folders create \
 
 ### 用户级信任/屏蔽发件人名单
 
-使用 `user_mailbox.allow_senders` 管理信任发件人白名单，使用 `user_mailbox.blocked_senders` 管理屏蔽发件人黑名单。两类资源都是用户邮箱级 API，路径参数必须带 `user_mailbox_id`，一般传 `"me"`；不要改用租户级 `allowed_senders` / `blocked_senders`。
+优先使用 `+sender-allowlist` 管理信任发件人名单，使用 `+sender-blocklist` 管理屏蔽发件人名单。两类 shortcut 都是用户邮箱级操作，默认作用于当前用户邮箱（`--mailbox me`）；不要改用租户级 `allowed_senders` / `blocked_senders`。
 
 ```bash
 # 列出或搜索信任发件人
-lark-cli mail user_mailbox.allow_senders list \
-  --params '{"user_mailbox_id":"me","keyword":"example","page_size":20}'
+lark-cli mail +sender-allowlist --query example --page-size 20
 
-# 批量加入信任发件人；sender_type=1 表示邮箱地址，sender_type=2 表示域名
-lark-cli mail user_mailbox.allow_senders create --as user \
-  --params '{"user_mailbox_id":"me"}' \
-  --addresses alice@example.com
+# 批量加入信任邮箱地址
+lark-cli mail +sender-allowlist --add alice@example.com --yes
 
-# 加入域名时显式传 sender_type=2
-lark-cli mail user_mailbox.allow_senders create --as user \
-  --params '{"user_mailbox_id":"me"}' \
-  --addresses example.com \
-  --sender-type 2
+# 加入域名
+lark-cli mail +sender-allowlist --add example.com --type domain --yes
 
 # 批量删除屏蔽发件人
-lark-cli mail user_mailbox.blocked_senders delete --as user \
-  --params '{"user_mailbox_id":"me"}' \
-  --addresses spam@example.com \
-  --addresses bad.example
+lark-cli mail +sender-blocklist \
+  --remove spam@example.com \
+  --remove bad.example \
+  --yes
 ```
 
-`list` 支持 `keyword`、`page_size`、`page_token`，返回 `items`、`page_token`、`has_more` 等分页信息。`create` / `delete` 使用 `--addresses` 传一个或多个邮箱地址/域名；`create` 默认按邮箱地址写入，域名写入需传 `--sender-type 2`。这些都是批量写操作，执行前必须向用户展示目标名单、地址或域名数量并取得确认；`create` 返回 `failed_items`，`delete` 返回 `deleted_count`，必须原样反馈失败项和删除结果。
+默认不传 `--add` / `--remove` 时是 list/search 模式，支持 `--query`、`--page-size`、`--page-token`，返回 `items`、`page_token`、`has_more` 等分页信息。`--add` / `--remove` 可重复，也支持逗号分隔；`--add` 默认按邮箱地址写入，域名写入需传 `--type domain`。写操作执行前必须向用户展示目标名单、地址或域名数量并取得确认，然后加 `--yes`；`--add` 返回 `failed_items`，`--remove` 返回 `deleted_count`，必须原样反馈失败项和删除结果。
 
 ### 常用约定
 
@@ -315,6 +309,8 @@ Shortcut 是对常用操作的高级封装（`lark-cli mail +<verb> [flags]`）�
 | [`+send-receipt`](references/lark-mail-send-receipt.md) | Send a read-receipt reply for an incoming message that requested one (i.e. carries the READ_RECEIPT_REQUEST label). Body is auto-generated (subject / recipient / send time / read time) to match the Lark client's receipt format — callers cannot customize it, matching the industry norm that read-receipt bodies are system-generated templates, not free-form replies. Intended for agent use after the user confirms. |
 | [`+decline-receipt`](references/lark-mail-decline-receipt.md) | Dismiss the read-receipt request banner on an incoming mail by clearing its READ_RECEIPT_REQUEST label, without sending a receipt. Use when the user wants to silence the prompt but refuse to confirm they have read it. Idempotent — safe to re-run. |
 | [`+signature`](references/lark-mail-signature.md) | List or view email signatures with default usage info. |
+| `+sender-allowlist` | List/search or update the user mailbox sender allowlist. Default mode lists entries; use `--add` or `--remove` to modify after confirmation. |
+| `+sender-blocklist` | List/search or update the user mailbox sender blocklist. Default mode lists entries; use `--add` or `--remove` to modify after confirmation. |
 | [`+share-to-chat`](references/lark-mail-share-to-chat.md) | Share an email or thread as a card to a Lark IM chat. |
 | [`+template-create`](references/lark-mail-template-create.md) | Create a personal mail template. Scans HTML <img src> local paths (reusing draft inline-image detection), uploads inline images and non-inline attachments to Drive, rewrites HTML to cid: references, and POSTs a Template payload to mail.user_mailbox.templates.create. |
 | [`+template-update`](references/lark-mail-template-update.md) | Update an existing mail template. Supports --inspect (read-only projection), --print-patch-template (prints a JSON skeleton for --patch-file), and flat flags (--set-subject / --set-name / etc). Internally it GETs the template, applies the patch, rewrites <img> local paths to cid: refs, and PUTs a full-replace update (no optimistic locking: last-write-wins). |
