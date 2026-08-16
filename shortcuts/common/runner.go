@@ -22,6 +22,7 @@ import (
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/extension/fileio"
 	"github.com/larksuite/cli/internal/auth"
+	"github.com/larksuite/cli/internal/citation"
 	"github.com/larksuite/cli/internal/client"
 	"github.com/larksuite/cli/internal/cmdmeta"
 	"github.com/larksuite/cli/internal/cmdutil"
@@ -55,6 +56,7 @@ type RuntimeContext struct {
 	larkSDK        *lark.Client                      // eagerly initialized in mountDeclarative
 	stdinConsumed  bool                              // set when an Input flag has consumed stdin (`-`); guards against a second flag also using `-` within the same call
 	inputResolved  map[string]bool                   // flags whose value was replaced by @file / stdin content in resolveInputFlags; see InputResolvedFromSource
+	citation       *CitationDefinition               // legacy citation declaration captured at runtime construction
 }
 
 // ── Identity ──
@@ -783,13 +785,26 @@ func wrapLegacyPrettyRenderer(prettyFn func(w io.Writer)) output.PrettyRenderer 
 	}
 }
 
+// citationProvider wraps this command's citation declaration for one output
+// payload. The emitter invokes the returned closure only when the result
+// actually goes through an envelope.
+func (ctx *RuntimeContext) citationProvider(data any) func() []citation.Citation {
+	if ctx.citation == nil {
+		return nil
+	}
+	return wrapCitationBuilder(ctx.Factory.IOStreams.ErrOut, ctx.Cmd.CommandPath(),
+		ctx.citation.SourceTypes,
+		func() []citation.Citation { return ctx.citation.Build(ctx, data) })
+}
+
 // Out prints a success JSON envelope to stdout.
 func (ctx *RuntimeContext) Out(data interface{}, meta *output.Meta) {
 	ctx.handleEmitterError(ctx.newEmitter().Success(data, output.EmitOptions{
-		Format: "",
-		Raw:    false,
-		JQ:     ctx.JqExpr,
-		Meta:   meta,
+		Format:    "",
+		Raw:       false,
+		JQ:        ctx.JqExpr,
+		Meta:      meta,
+		Citations: ctx.citationProvider(data),
 	}))
 }
 
@@ -798,10 +813,11 @@ func (ctx *RuntimeContext) Out(data interface{}, meta *output.Meta) {
 // that should be preserved as-is in JSON output.
 func (ctx *RuntimeContext) OutRaw(data interface{}, meta *output.Meta) {
 	ctx.handleEmitterError(ctx.newEmitter().Success(data, output.EmitOptions{
-		Format: "",
-		Raw:    true,
-		JQ:     ctx.JqExpr,
-		Meta:   meta,
+		Format:    "",
+		Raw:       true,
+		JQ:        ctx.JqExpr,
+		Meta:      meta,
+		Citations: ctx.citationProvider(data),
 	}))
 }
 
@@ -834,11 +850,12 @@ func (ctx *RuntimeContext) OutPartialFailure(data interface{}, meta *output.Meta
 // The Emitter handles content safety scanning for every format.
 func (ctx *RuntimeContext) OutFormat(data interface{}, meta *output.Meta, prettyFn func(w io.Writer)) {
 	ctx.handleEmitterError(ctx.newEmitter().Success(data, output.EmitOptions{
-		Format: ctx.Format,
-		Raw:    false,
-		JQ:     ctx.JqExpr,
-		Meta:   meta,
-		Pretty: wrapLegacyPrettyRenderer(prettyFn),
+		Format:    ctx.Format,
+		Raw:       false,
+		JQ:        ctx.JqExpr,
+		Meta:      meta,
+		Pretty:    wrapLegacyPrettyRenderer(prettyFn),
+		Citations: ctx.citationProvider(data),
 	}))
 }
 
@@ -846,11 +863,12 @@ func (ctx *RuntimeContext) OutFormat(data interface{}, meta *output.Meta, pretty
 // Use this when the data contains XML/HTML content that should be preserved as-is.
 func (ctx *RuntimeContext) OutFormatRaw(data interface{}, meta *output.Meta, prettyFn func(w io.Writer)) {
 	ctx.handleEmitterError(ctx.newEmitter().Success(data, output.EmitOptions{
-		Format: ctx.Format,
-		Raw:    true,
-		JQ:     ctx.JqExpr,
-		Meta:   meta,
-		Pretty: wrapLegacyPrettyRenderer(prettyFn),
+		Format:    ctx.Format,
+		Raw:       true,
+		JQ:        ctx.JqExpr,
+		Meta:      meta,
+		Pretty:    wrapLegacyPrettyRenderer(prettyFn),
+		Citations: ctx.citationProvider(data),
 	}))
 }
 
@@ -914,6 +932,14 @@ func (s Shortcut) MountWithContext(ctx context.Context, parent *cobra.Command, f
 // mountDeclarative builds and registers the Cobra command described by a Shortcut.
 func (s Shortcut) mountDeclarative(ctx context.Context, parent *cobra.Command, f *cmdutil.Factory) {
 	shortcut := s
+	if shortcut.Citation != nil {
+		if err := validateCitationDeclaration(shortcut.Citation, shortcut.Risk); err != nil {
+			panic(fmt.Sprintf("shortcut %s %s: %v", shortcut.Service, shortcut.Command, err))
+		}
+		if shortcut.Citation.Build == nil {
+			panic(fmt.Sprintf("shortcut %s %s: citation requires a Build hook", shortcut.Service, shortcut.Command))
+		}
+	}
 	if len(shortcut.AuthTypes) == 0 {
 		shortcut.AuthTypes = []string{"user"}
 	}
@@ -1100,6 +1126,7 @@ func newRuntimeContext(cmd *cobra.Command, f *cmdutil.Factory, s *Shortcut, conf
 		botOnly:    botOnly,
 		resolvedAs: as,
 		Factory:    f,
+		citation:   s.Citation,
 	}
 	rctx.declaredScopes = s.DeclaredScopesForIdentity(string(rctx.As()))
 	rctx.apiClientFunc = sync.OnceValues(func() (*client.APIClient, error) {

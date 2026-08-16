@@ -95,6 +95,11 @@ type Shortcut struct {
 	// has attached it to the parent. Use it to install custom help functions or
 	// tweak the command; cmd.Parent() is available at this point.
 	PostMount func(cmd *cobra.Command)
+
+	// Citation declares this read command's citation capability. Declaring it
+	// requires explicit Risk "read", a non-empty allocated SourceTypes set and
+	// a Build hook; violations panic at mount time. See CitationDefinition.
+	Citation *CitationDefinition
 }
 
 // ScopesForIdentity returns the scopes applicable for the given identity.
