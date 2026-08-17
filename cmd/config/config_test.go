@@ -762,6 +762,9 @@ func TestShouldPromptInitLang(t *testing.T) {
 		// The picker has no option for these, so a bare Enter would silently
 		// rewrite the preference. Skip it and keep what --lang set.
 		{"stored ja_jp skips the picker", ConfigInitOptions{UILang: i18n.LangJaJP}, true, false},
+		// An unrecognized value renders Chinese because it expresses no usable
+		// preference; the picker must stay reachable so it can be changed.
+		{"unrecognized stored value still asks", ConfigInitOptions{UILang: "klingon"}, true, true},
 		{"--lang was explicit", ConfigInitOptions{langExplicit: true}, true, false},
 		{"--new pins the flow", ConfigInitOptions{New: true}, true, false},
 	}

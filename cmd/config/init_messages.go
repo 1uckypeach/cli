@@ -83,12 +83,23 @@ func getInitMsg(lang i18n.Lang) *initMsg {
 }
 
 // pickerCanExpress reports whether the 中文/English picker can represent l
-// without losing it. Unset has nothing to lose. zh_cn and en_us are the
-// picker's own options. Any other locale would be silently rewritten to one of
-// those two by a bare Enter, so callers skip the picker and keep what the user
-// set with --lang.
+// without losing it.
+//
+// Only a recognized locale outside zh_cn/en_us cannot be: the picker has no
+// option for it, so a bare Enter would silently rewrite it. Those runs skip the
+// picker and keep what --lang set.
+//
+// Everything else can be. Unset, mis-cased and unrecognized values express no
+// usable preference — the same reading UsesEnglishUI applies to them — so there
+// is nothing to destroy, and skipping the picker would strand the user with no
+// interactive way to set one. A short code ("zh") maps onto the option that
+// writes its canonical form, so picking it loses nothing either.
 func pickerCanExpress(l i18n.Lang) bool {
-	return l == "" || l == i18n.LangZhCN || l == i18n.LangEnUS
+	canonical, ok := i18n.Parse(string(l))
+	if !ok {
+		return true
+	}
+	return canonical == i18n.LangZhCN || canonical == i18n.LangEnUS
 }
 
 // promptLangSelection shows the 中文/English picker and returns the chosen

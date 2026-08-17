@@ -1961,6 +1961,9 @@ func TestShouldPromptBindLang(t *testing.T) {
 		// The picker has no option for these, so a bare Enter would silently
 		// rewrite the preference. Skip it and keep what --lang set.
 		{"stored ja_jp skips the picker", BindOptions{IsTUI: true, UILang: i18n.LangJaJP}, false},
+		// An unrecognized value renders Chinese because it expresses no usable
+		// preference; the picker must stay reachable so it can be changed.
+		{"unrecognized stored value still asks", BindOptions{IsTUI: true, UILang: "klingon"}, true},
 		{"--lang was explicit", BindOptions{IsTUI: true, langExplicit: true}, false},
 	}
 	for _, tt := range tests {

@@ -123,30 +123,67 @@ func TestGetInitMsg_BilingualCollapse(t *testing.T) {
 }
 
 func TestPickerCanExpress(t *testing.T) {
-	// The picker only offers 中文 and English. Unset has nothing to lose, and
-	// zh_cn/en_us are its own options — those three can round-trip.
-	for _, l := range []i18n.Lang{"", i18n.LangZhCN, i18n.LangEnUS} {
+	// The picker's own two options, plus the short codes that resolve to them:
+	// picking writes the canonical form, so nothing is lost.
+	for _, l := range []i18n.Lang{i18n.LangZhCN, i18n.LangEnUS, "zh", "en"} {
 		if !pickerCanExpress(l) {
 			t.Errorf("pickerCanExpress(%q) = false, want true", l)
 		}
 	}
-	// Everything else would be silently rewritten to zh_cn or en_us by a bare
-	// Enter, so those runs must skip the picker instead of destroying it.
+	// Recognized locales the picker has no option for: a bare Enter would
+	// silently rewrite them, so those runs must skip it.
 	for _, l := range []i18n.Lang{
 		i18n.LangJaJP, i18n.LangKoKR, i18n.LangFrFR, i18n.LangDeDE, i18n.LangEsES,
 		i18n.LangItIT, i18n.LangRuRU, i18n.LangPtBR, i18n.LangThTH, i18n.LangViVN,
 		i18n.LangIdID, i18n.LangMsMY,
+		"ja", "fr", // short codes resolve to the same unrepresentable locales
 	} {
 		if pickerCanExpress(l) {
 			t.Errorf("pickerCanExpress(%q) = true, want false", l)
 		}
 	}
-	// --lang cannot produce these (ParseLangFlag canonicalizes before UILang is
-	// resolved), but a hand-edited config.json can: the load path stores Lang
-	// verbatim. The guard must reject them rather than assume canonical input.
-	for _, l := range []i18n.Lang{"zh", "en", "ZH", "en_US"} {
-		if pickerCanExpress(l) {
-			t.Errorf("pickerCanExpress(%q) = true, want false", l)
+	// Values expressing no usable preference must keep asking. --lang cannot
+	// produce them (ParseLangFlag canonicalizes first), but the config load path
+	// stores Lang verbatim, so a hand-edited file — or a downgrade after a newer
+	// CLI wrote a locale this build does not know — can. Skipping the picker
+	// here would strand the user: UsesEnglishUI reads these as "no preference"
+	// and renders Chinese, with no interactive way to change it.
+	for _, l := range []i18n.Lang{"", "ZH", "en_US", "zh-CN", "klingon"} {
+		if !pickerCanExpress(l) {
+			t.Errorf("pickerCanExpress(%q) = false, want true", l)
 		}
+	}
+}
+
+func TestPickerCanExpress_SkippingImpliesARealPreference(t *testing.T) {
+	// The picker gate and the bundle choice must read a stored value the same
+	// way. Skipping the picker says "this expresses a preference, do not
+	// disturb it"; UsesEnglishUI says the opposite about anything it cannot
+	// recognize, and renders Chinese. If both fire on the same value, the user
+	// is locked into Chinese with no interactive way out.
+	values := []i18n.Lang{
+		"", "zh", "en", "ja", "fr", "ZH", "en_US", "zh-CN", "klingon", " zh_cn", "EN",
+	}
+	for _, e := range catalogSpellings() {
+		values = append(values, e)
+	}
+	for _, l := range values {
+		if pickerCanExpress(l) {
+			continue
+		}
+		if _, ok := i18n.Parse(string(l)); !ok {
+			t.Errorf("pickerCanExpress(%q) = false, but %q is not a recognized locale: "+
+				"the picker is skipped while the UI treats it as no preference", l, l)
+		}
+	}
+}
+
+// catalogSpellings lists every canonical locale, as a caller outside the i18n
+// package sees them.
+func catalogSpellings() []i18n.Lang {
+	return []i18n.Lang{
+		i18n.LangZhCN, i18n.LangEnUS, i18n.LangJaJP, i18n.LangKoKR, i18n.LangFrFR,
+		i18n.LangDeDE, i18n.LangEsES, i18n.LangItIT, i18n.LangRuRU, i18n.LangPtBR,
+		i18n.LangThTH, i18n.LangViVN, i18n.LangIdID, i18n.LangMsMY,
 	}
 }
