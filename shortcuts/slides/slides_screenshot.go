@@ -56,8 +56,9 @@ var SlidesScreenshot = common.Shortcut{
 	Description: "Save up to 10 slide screenshots to local files without printing Base64 image data",
 	Risk:        "read",
 	Scopes:      []string{"slides:presentation:screenshot"},
-	// wiki:node:read is required only when --presentation is a wiki URL.
-	ConditionalScopes: []string{"wiki:node:read"},
+	// wiki:node:read is required only for wiki URLs; slides:presentation:read
+	// is required only by --overview to enumerate the current page order.
+	ConditionalScopes: []string{"wiki:node:read", "slides:presentation:read"},
 	AuthTypes:         []string{"user", "bot"},
 	Flags: []common.Flag{
 		listModePresentationRefFlag(),

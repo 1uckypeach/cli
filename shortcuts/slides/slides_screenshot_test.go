@@ -33,7 +33,7 @@ func TestSlidesScreenshotDeclaredScopes(t *testing.T) {
 	}
 
 	got := SlidesScreenshot.DeclaredScopesForIdentity("user")
-	want := []string{"slides:presentation:screenshot", "wiki:node:read"}
+	want := []string{"slides:presentation:screenshot", "wiki:node:read", "slides:presentation:read"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("declared scopes = %#v, want %#v", got, want)
 	}
@@ -247,7 +247,6 @@ func TestSlidesScreenshotOverviewExecutionPaginatesAtTwentySlides(t *testing.T) 
 		return map[string]interface{}{"code": 0, "data": map[string]interface{}{"slide_images": items}}
 	}
 	for _, batch := range []struct{ start, end int }{{21, 30}, {31, 40}} {
-		batch := batch
 		reg.Register(&httpmock.Stub{
 			Method: "POST", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc/slide_images",
 			Body:       responseFor(batch.start, batch.end),
