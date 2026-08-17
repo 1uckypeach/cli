@@ -97,7 +97,7 @@ func TestPreflightEventTypes_MissingBlocks(t *testing.T) {
 		t.Errorf("problem = %s/%s, want %s/%s", p.Category, p.Subtype,
 			errs.CategoryValidation, errs.SubtypeFailedPrecondition)
 	}
-	wantURL := "https://open.feishu.cn/page/launcher?clientID=cli_XXXXXXXXXXXXXXXX&addons="
+	wantURL := "https://open.feishu-pre.cn/page/launcher?clientID=cli_XXXXXXXXXXXXXXXX&addons="
 	if !strings.Contains(p.Hint, wantURL) {
 		t.Errorf("hint missing scan link %q\ngot: %s", wantURL, p.Hint)
 	}
@@ -158,7 +158,7 @@ func TestPreflightScopes_Bot_MissingBlocks(t *testing.T) {
 	hint := permErr.Hint
 	wantSubstrings := []string{
 		"grant these scopes by scanning: ",
-		"https://open.feishu.cn/page/launcher?clientID=cli_x&addons=",
+		"https://open.feishu-pre.cn/page/launcher?clientID=cli_x&addons=",
 	}
 	for _, want := range wantSubstrings {
 		if !strings.Contains(hint, want) {

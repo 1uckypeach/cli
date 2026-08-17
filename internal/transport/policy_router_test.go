@@ -66,7 +66,7 @@ func TestHTTPPolicyRouterClassifiesFromEndpointCatalog(t *testing.T) {
 	)
 
 	for _, rawURL := range []string{
-		"https://open.feishu.cn/open-apis/test",
+		"https://open.feishu-pre.cn/open-apis/test",
 		"https://example.com/file",
 	} {
 		req, err := http.NewRequest(http.MethodGet, rawURL, nil)
@@ -101,7 +101,7 @@ func TestHTTPPolicyRouterExplicitClassOverridesCatalog(t *testing.T) {
 		}),
 	)
 
-	req, err := http.NewRequest(http.MethodGet, "https://open.feishu.cn/open-apis/test", nil)
+	req, err := http.NewRequest(http.MethodGet, "https://open.feishu-pre.cn/open-apis/test", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestClientForRequestClassOutermostIntentWins(t *testing.T) {
 
 	platform := ClientForRequestClass(&http.Client{Transport: router}, exttransport.RequestClassPlatform)
 	external := ClientForRequestClass(platform, exttransport.RequestClassExternal)
-	resp, err := external.Get("https://open.feishu.cn/open-apis/test")
+	resp, err := external.Get("https://open.feishu-pre.cn/open-apis/test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestHTTPPolicyRouterReclassifiesRedirectTargets(t *testing.T) {
 		http.DefaultTransport,
 	)
 	client := &http.Client{Transport: router}
-	req, err := http.NewRequest(http.MethodGet, "https://open.feishu.cn/start", nil)
+	req, err := http.NewRequest(http.MethodGet, "https://open.feishu-pre.cn/start", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +287,7 @@ func TestCloneHTTPTransportForRequestClassKeepsOutermostIntent(t *testing.T) {
 	if !ok {
 		t.Fatal("CloneHTTPTransport() ok = false")
 	}
-	req, err := http.NewRequest(http.MethodGet, "https://open.feishu.cn/open-apis/test", nil)
+	req, err := http.NewRequest(http.MethodGet, "https://open.feishu-pre.cn/open-apis/test", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

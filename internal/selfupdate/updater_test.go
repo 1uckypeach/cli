@@ -184,9 +184,9 @@ func TestSkillsCommandsUseExpectedArgs(t *testing.T) {
 		{
 			name: "list official primary",
 			run: func(u *Updater) *NpmResult {
-				return u.runSkillsListOfficial("https://open.feishu.cn")
+				return u.runSkillsListOfficial("https://open.feishu-pre.cn")
 			},
-			want: "-y skills add https://open.feishu.cn --list",
+			want: "-y skills add https://open.feishu-pre.cn --list",
 		},
 		{
 			name: "list global",
@@ -205,9 +205,9 @@ func TestSkillsCommandsUseExpectedArgs(t *testing.T) {
 		{
 			name: "install skill primary",
 			run: func(u *Updater) *NpmResult {
-				return u.runSkillsInstall("https://open.feishu.cn", []string{"lark-mail"})
+				return u.runSkillsInstall("https://open.feishu-pre.cn", []string{"lark-mail"})
 			},
-			want: "-y skills add https://open.feishu.cn -s lark-mail -g -y",
+			want: "-y skills add https://open.feishu-pre.cn -s lark-mail -g -y",
 		},
 	}
 
@@ -352,7 +352,7 @@ func TestListOfficialSkillsFallsBack(t *testing.T) {
 		SkillsCommandOverride: func(args ...string) *NpmResult {
 			called = append(called, strings.Join(args, " "))
 			r := &NpmResult{}
-			if strings.Contains(strings.Join(args, " "), "https://open.feishu.cn") {
+			if strings.Contains(strings.Join(args, " "), "https://open.feishu-pre.cn") {
 				r.Err = fmt.Errorf("primary failed")
 				return r
 			}
@@ -470,7 +470,7 @@ func TestRunPnpmInstall_Error(t *testing.T) {
 }
 
 func TestSkillsInvocation(t *testing.T) {
-	addArgs := []string{"-y", "skills", "add", "https://open.feishu.cn", "-g", "-y"}
+	addArgs := []string{"-y", "skills", "add", "https://open.feishu-pre.cn", "-g", "-y"}
 	cases := []struct {
 		name          string
 		method        InstallMethod
@@ -480,7 +480,7 @@ func TestSkillsInvocation(t *testing.T) {
 		wantRest      []string
 	}{
 		{"pnpm install + pnpm available → pnpm dlx, drop leading -y", InstallPnpm, true, addArgs,
-			"pnpm", []string{"dlx", "skills", "add", "https://open.feishu.cn", "-g", "-y"}},
+			"pnpm", []string{"dlx", "skills", "add", "https://open.feishu-pre.cn", "-g", "-y"}},
 		{"pnpm install but pnpm unavailable → npx unchanged", InstallPnpm, false, addArgs,
 			"npx", addArgs},
 		{"npm install → npx unchanged", InstallNpm, false, addArgs,
@@ -523,7 +523,7 @@ func TestSkillsBrandHosts(t *testing.T) {
 		wantIndex  string
 		wantSource string
 	}{
-		{core.BrandFeishu, "https://open.feishu.cn/.well-known/skills/index.json", "https://open.feishu.cn"},
+		{core.BrandFeishu, "https://open.feishu-pre.cn/.well-known/skills/index.json", "https://open.feishu-pre.cn"},
 		{core.BrandLark, "https://open.larksuite.com/.well-known/skills/index.json", "https://open.larksuite.com"},
 	}
 	for _, c := range cases {

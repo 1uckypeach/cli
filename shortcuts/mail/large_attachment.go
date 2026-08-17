@@ -196,7 +196,7 @@ func uploadLargeAttachments(ctx context.Context, runtime *common.RuntimeContext,
 
 // buildLargeAttachmentPreviewURL builds the download/preview URL for a large
 // attachment token. The domain is derived from the CLI's configured endpoint
-// (e.g. open.feishu.cn → www.feishu.cn).
+// (e.g. open.feishu-pre.cn -> www.feishu-pre.cn).
 func buildLargeAttachmentPreviewURL(brand core.LarkBrand, fileToken string) string {
 	ep := core.ResolveEndpoints(brand)
 	host := strings.TrimPrefix(ep.Open, "https://")

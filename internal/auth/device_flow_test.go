@@ -34,7 +34,7 @@ func TestResolveOAuthEndpoints_Feishu(t *testing.T) {
 	if ep.Revoke != "https://accounts.feishu.cn/oauth/v1/revoke" {
 		t.Errorf("Revoke = %q", ep.Revoke)
 	}
-	if ep.Token != "https://open.feishu.cn/open-apis/authen/v2/oauth/token" {
+	if ep.Token != "https://open.feishu-pre.cn/open-apis/authen/v2/oauth/token" {
 		t.Errorf("Token = %q", ep.Token)
 	}
 }

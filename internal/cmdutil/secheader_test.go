@@ -255,10 +255,13 @@ func TestBaseSecurityHeaders_IncludesBuildHeader(t *testing.T) {
 
 func TestBaseSecurityHeaders_AllRequiredHeaders(t *testing.T) {
 	h := BaseSecurityHeaders()
-	for _, key := range []string{HeaderSource, HeaderVersion, HeaderBuild, HeaderUserAgent} {
+	for _, key := range []string{HeaderSource, HeaderVersion, HeaderBuild, HeaderUserAgent, HeaderTTEnv} {
 		if h.Get(key) == "" {
 			t.Errorf("BaseSecurityHeaders missing %s", key)
 		}
+	}
+	if got := h.Get(HeaderTTEnv); got != TTEnvValue {
+		t.Errorf("BaseSecurityHeaders()[%s] = %q, want %q", HeaderTTEnv, got, TTEnvValue)
 	}
 }
 

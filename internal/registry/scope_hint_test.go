@@ -46,8 +46,8 @@ func TestExtractRequiredScopes_NilOrMalformed(t *testing.T) {
 
 func TestBuildConsoleScopeURL_BrandSpecificHost(t *testing.T) {
 	got := BuildConsoleScopeURL(core.BrandFeishu, "cli_xxx", "docs:permission.member:create")
-	if !strings.Contains(got, "open.feishu.cn") {
-		t.Errorf("feishu brand should use open.feishu.cn host, got %s", got)
+	if !strings.Contains(got, "open.feishu-pre.cn") {
+		t.Errorf("feishu brand should use open.feishu-pre.cn host, got %s", got)
 	}
 	if !strings.Contains(got, "clientID=cli_xxx") {
 		t.Errorf("missing app id in url: %s", got)

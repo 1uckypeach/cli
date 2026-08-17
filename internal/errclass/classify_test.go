@@ -429,8 +429,8 @@ func TestConsoleURL_FeishuBrand(t *testing.T) {
 	resp := appScopeNotAppliedResp("docx:document")
 	err := errclass.BuildAPIError(resp, errclass.ClassifyContext{Brand: "feishu", AppID: "cli_a123", Identity: "bot"})
 	pe := requirePermissionError(t, err)
-	if !strings.Contains(pe.ConsoleURL, "open.feishu.cn/page/scope-apply?clientID=cli_a123") {
-		t.Fatalf("ConsoleURL = %q, want open.feishu.cn scope-apply page", pe.ConsoleURL)
+	if !strings.Contains(pe.ConsoleURL, "open.feishu-pre.cn/page/scope-apply?clientID=cli_a123") {
+		t.Fatalf("ConsoleURL = %q, want open.feishu-pre.cn scope-apply page", pe.ConsoleURL)
 	}
 }
 

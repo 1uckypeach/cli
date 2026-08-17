@@ -10,11 +10,11 @@ import (
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 )
 
-// The resolver's Open host must equal the SDK's per-brand WS base URL;
-// fails if the SDK constants ever drift from the resolver.
+// The CLI passes the resolver's Open host into the SDK explicitly. Feishu is
+// intentionally pinned to the pre OpenAPI domain for countdown PPE testing.
 func TestWSDomainMatchesResolver(t *testing.T) {
-	if got, want := core.ResolveEndpoints(core.BrandFeishu).Open, lark.FeishuBaseUrl; got != want {
-		t.Errorf("feishu WS domain = %q, want SDK %q", got, want)
+	if got, want := core.ResolveEndpoints(core.BrandFeishu).Open, "https://open.feishu-pre.cn"; got != want {
+		t.Errorf("feishu WS domain = %q, want %q", got, want)
 	}
 	if got, want := core.ResolveEndpoints(core.BrandLark).Open, lark.LarkBaseUrl; got != want {
 		t.Errorf("lark WS domain = %q, want SDK %q", got, want)

@@ -100,7 +100,7 @@ func TestApplyToTransport_SetsProxy(t *testing.T) {
 	if tr.Proxy == nil {
 		t.Fatal("Proxy func is nil, want fixed proxy")
 	}
-	u, err := tr.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu.cn"}})
+	u, err := tr.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu-pre.cn"}})
 	if err != nil {
 		t.Fatalf("Proxy() error = %v", err)
 	}
@@ -202,7 +202,7 @@ func TestLoad_EnvOnlyConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyToTransport() error = %v", err)
 	}
-	u, err := tr.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu.cn"}})
+	u, err := tr.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu-pre.cn"}})
 	if err != nil {
 		t.Fatalf("Proxy() error = %v", err)
 	}

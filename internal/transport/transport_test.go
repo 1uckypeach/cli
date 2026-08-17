@@ -54,7 +54,7 @@ func TestPluginTransport_EnabledReturnsFixedProxy(t *testing.T) {
 	if !ok {
 		t.Fatalf("pluginTransport() = %T, want *http.Transport", rt)
 	}
-	u, err := tr.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu.cn"}})
+	u, err := tr.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu-pre.cn"}})
 	if err != nil {
 		t.Fatalf("Proxy() error = %v", err)
 	}
@@ -79,7 +79,7 @@ func TestPluginTransport_InvalidConfigWithNonTransportDefaultFailsClosed(t *test
 	if rt == http.DefaultTransport {
 		t.Fatalf("pluginTransport() returned http.DefaultTransport, want fail-closed transport")
 	}
-	resp, err := rt.RoundTrip(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu.cn"}})
+	resp, err := rt.RoundTrip(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu-pre.cn"}})
 	if err == nil {
 		t.Fatalf("RoundTrip() error = nil, response = %#v; want fail-closed error", resp)
 	}
@@ -119,7 +119,7 @@ func TestBuildProxyPluginTransport_InvalidConfigFailsClosed(t *testing.T) {
 	if rt == http.DefaultTransport {
 		t.Fatalf("buildProxyPluginTransport() returned http.DefaultTransport, want fail-closed transport")
 	}
-	resp, err := rt.RoundTrip(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu.cn"}})
+	resp, err := rt.RoundTrip(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu-pre.cn"}})
 	if err == nil {
 		t.Fatalf("RoundTrip() error = nil, response = %#v; want fail-closed error", resp)
 	}
@@ -139,7 +139,7 @@ func TestBuildProxyPluginTransport_NonTransportDefaultFailsClosed(t *testing.T) 
 	if rt == http.DefaultTransport {
 		t.Fatalf("buildProxyPluginTransport() returned http.DefaultTransport, want fail-closed transport")
 	}
-	resp, err := rt.RoundTrip(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu.cn"}})
+	resp, err := rt.RoundTrip(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu-pre.cn"}})
 	if err == nil {
 		t.Fatalf("RoundTrip() error = nil, response = %#v; want fail-closed error", resp)
 	}
@@ -171,7 +171,7 @@ func TestPluginTransport_InvalidConfigBlockerIsConcreteTransport(t *testing.T) {
 		t.Fatalf("pluginTransport() blocked transport = %T, want *http.Transport so Fallback cannot degrade it to direct egress", rt)
 	}
 	// Must remain fail-closed.
-	resp, err := rt.RoundTrip(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu.cn"}})
+	resp, err := rt.RoundTrip(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu-pre.cn"}})
 	if err == nil {
 		t.Fatalf("RoundTrip() error = nil, response = %#v; want fail-closed error", resp)
 	}
