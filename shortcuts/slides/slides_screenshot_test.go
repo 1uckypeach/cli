@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/png"
 	"net/http"
 	"os"
@@ -300,6 +301,43 @@ func TestComposeSlidesOverviewScalesWholeSlideAndProvidesIndexGeometry(t *testin
 	}
 	if out.Bounds().Dx() != 352 || out.Bounds().Dy() != 252 {
 		t.Fatalf("overview size = %v", out.Bounds())
+	}
+}
+
+func TestComposeSlidesOverviewAspectFitsPageContent(t *testing.T) {
+	background := color.RGBA{R: 226, G: 232, B: 240, A: 255}
+	sourceColor := color.RGBA{R: 19, G: 42, B: 77, A: 255}
+	for _, tc := range []struct {
+		name    string
+		size    image.Point
+		content image.Rectangle
+	}{
+		{name: "widescreen fills thumbnail", size: image.Pt(960, 540), content: image.Rect(0, 0, 320, 180)},
+		{name: "four by three leaves side mattes", size: image.Pt(1024, 768), content: image.Rect(40, 0, 280, 180)},
+		{name: "square leaves side mattes", size: image.Pt(800, 800), content: image.Rect(70, 0, 250, 180)},
+		{name: "portrait leaves side mattes", size: image.Pt(540, 960), content: image.Rect(109, 0, 210, 180)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			src := image.NewRGBA(image.Rectangle{Max: tc.size})
+			draw.Draw(src, src.Bounds(), &image.Uniform{C: sourceColor}, image.Point{}, draw.Src)
+			out, cells := composeSlidesOverview([]image.Image{src}, 1)
+			thumbnail := cells[0].thumbnail
+			wantContent := tc.content.Add(thumbnail.Min)
+			if got := slidesOverviewThumbnailContentRect(thumbnail, src.Bounds()); got != wantContent {
+				t.Fatalf("content rect = %v, want %v", got, wantContent)
+			}
+			if got := color.RGBAModel.Convert(out.At(wantContent.Min.X+wantContent.Dx()/2, wantContent.Min.Y+wantContent.Dy()/2)).(color.RGBA); got != sourceColor {
+				t.Fatalf("content color = %#v, want %#v", got, sourceColor)
+			}
+			if wantContent.Min.X > thumbnail.Min.X {
+				if got := color.RGBAModel.Convert(out.At(thumbnail.Min.X, thumbnail.Min.Y+thumbnail.Dy()/2)).(color.RGBA); got != background {
+					t.Fatalf("left matte = %#v, want %#v", got, background)
+				}
+			}
+			if thumbnail.Dx() != 320 || thumbnail.Dy() != 180 || out.Bounds() != image.Rect(0, 0, 352, 252) {
+				t.Fatalf("thumbnail=%v overview=%v, want stable overview geometry", thumbnail, out.Bounds())
+			}
+		})
 	}
 }
 

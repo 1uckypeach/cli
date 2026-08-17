@@ -1175,11 +1175,26 @@ func composeSlidesOverviewFromIndex(images []image.Image, columns int, firstInde
 		tile := image.Rect(x, y, x+thumbW, y+tileH)
 		thumbnail := image.Rect(x, y+headerH, x+thumbW, y+tileH)
 		draw.Draw(out, image.Rect(x, y, x+thumbW, y+headerH), &image.Uniform{C: color.RGBA{R: 20, G: 35, B: 58, A: 255}}, image.Point{}, draw.Src)
-		xdraw.CatmullRom.Scale(out, thumbnail, src, src.Bounds(), draw.Over, nil)
+		// The tile geometry is intentionally fixed so overview indices remain easy
+		// for agents to locate. Only the page content is aspect-fitted within it.
+		draw.Draw(out, thumbnail, &image.Uniform{C: color.RGBA{R: 226, G: 232, B: 240, A: 255}}, image.Point{}, draw.Src)
+		xdraw.CatmullRom.Scale(out, slidesOverviewThumbnailContentRect(thumbnail, src.Bounds()), src, src.Bounds(), draw.Over, nil)
 		drawOverviewIndex(out, image.Pt(x+14, y+7), firstIndex+i)
 		cells[i] = overviewCell{row: r, column: c, tile: tile, thumbnail: thumbnail}
 	}
 	return out, cells
+}
+
+func slidesOverviewThumbnailContentRect(thumbnail, source image.Rectangle) image.Rectangle {
+	if source.Dx() <= 0 || source.Dy() <= 0 {
+		return thumbnail
+	}
+	scale := math.Min(float64(thumbnail.Dx())/float64(source.Dx()), float64(thumbnail.Dy())/float64(source.Dy()))
+	width := min(thumbnail.Dx(), int(math.Round(float64(source.Dx())*scale)))
+	height := min(thumbnail.Dy(), int(math.Round(float64(source.Dy())*scale)))
+	x := thumbnail.Min.X + (thumbnail.Dx()-width)/2
+	y := thumbnail.Min.Y + (thumbnail.Dy()-height)/2
+	return image.Rect(x, y, x+width, y+height)
 }
 
 var overviewDigitPixels = map[rune][]string{
