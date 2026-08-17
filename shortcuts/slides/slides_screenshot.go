@@ -38,8 +38,6 @@ const (
 	maxSlidesPerScreenshot     = 10
 	maxSlidesPerOverview       = 20
 	defaultOverviewColumns     = 4
-	slideCanvasWidth           = 960
-	slideCanvasHeight          = 540
 )
 
 var (
@@ -72,7 +70,7 @@ var SlidesScreenshot = common.Shortcut{
 		{Name: "overview", Type: "bool", Desc: "render every current slide into one local overview PNG; cannot be combined with slide selectors, --content, or --region"},
 		{Name: "overview-page", Type: "int", Default: "1", Desc: "1-based overview page; each overview contains at most 20 slides"},
 		{Name: "overview-columns", Type: "int", Default: "4", Desc: "number of columns in --overview output (1-10)"},
-		{Name: "region", Desc: "crop exactly one existing slide as x,y,width,height in the 960x540 slide canvas; cannot be combined with --overview"},
+		{Name: "region", Desc: "crop exactly one existing slide as x,y,width,height in its presentation canvas; cannot be combined with --overview"},
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		overview := runtime.Bool("overview")
@@ -208,6 +206,11 @@ var SlidesScreenshot = common.Shortcut{
 				dry.Desc(fmt.Sprintf("Fetch %d slide screenshot(s) and save files under %s", len(slideIDs)+len(slideNumbers), runtime.Str("output-dir")))
 			}
 		}
+		if _, regionSet, _ := parseSlidesScreenshotRegion(runtime.Str("region")); regionSet {
+			dry.Desc("Fetch presentation XML to resolve the region canvas before rendering the selected slide").
+				GET(fmt.Sprintf("/open-apis/slides_ai/v1/xml_presentations/%s", validate.EncodePathSegment(presentationID))).
+				Params(map[string]interface{}{"revision_id": -1})
+		}
 		body := map[string]interface{}{}
 		if len(slideIDs) > 0 {
 			body["slide_ids"] = slideIDs
@@ -252,6 +255,18 @@ var SlidesScreenshot = common.Shortcut{
 		if err != nil {
 			return err
 		}
+		var region slidesScreenshotRegion
+		var canvas slidesScreenshotCanvas
+		if parsed, set, _ := parseSlidesScreenshotRegion(runtime.Str("region")); set {
+			region = parsed
+			canvas, err = fetchSlidesScreenshotCanvas(runtime, presentationID)
+			if err != nil {
+				return err
+			}
+			if err := validateSlidesScreenshotRegionBounds(region, canvas); err != nil {
+				return err
+			}
+		}
 
 		url := fmt.Sprintf(
 			"/open-apis/slides_ai/v1/xml_presentations/%s/slide_images",
@@ -270,8 +285,10 @@ var SlidesScreenshot = common.Shortcut{
 			return enrichSlidesScreenshotSelectorError(err, slideNumbers)
 		}
 
-		if region, set, _ := parseSlidesScreenshotRegion(runtime.Str("region")); set {
-			if err := cropSlidesScreenshotResponse(data, region); err != nil {
+		var crop map[string]interface{}
+		if _, set, _ := parseSlidesScreenshotRegion(runtime.Str("region")); set {
+			crop, err = cropSlidesScreenshotResponse(data, region, canvas)
+			if err != nil {
 				return err
 			}
 		}
@@ -283,8 +300,8 @@ var SlidesScreenshot = common.Shortcut{
 			"xml_presentation_id": presentationID,
 			"screenshots":         saved,
 		}
-		if region, set, _ := parseSlidesScreenshotRegion(runtime.Str("region")); set {
-			result["region"] = map[string]interface{}{"canvas": map[string]int{"x": region.X, "y": region.Y, "width": region.Width, "height": region.Height}, "unit": "slide_canvas_960x540", "format": "png"}
+		if crop != nil {
+			result["region"] = crop
 		}
 		setSlidesScreenshotResultOutput(result, outputTarget, saved)
 		runtime.Out(result, nil)
@@ -871,13 +888,15 @@ func isScreenshotFileNotExist(err error) bool {
 
 type slidesScreenshotRegion struct{ X, Y, Width, Height int }
 
+type slidesScreenshotCanvas struct{ Width, Height int }
+
 func parseSlidesScreenshotRegion(raw string) (slidesScreenshotRegion, bool, error) {
 	if strings.TrimSpace(raw) == "" {
 		return slidesScreenshotRegion{}, false, nil
 	}
 	parts := strings.Split(raw, ",")
 	if len(parts) != 4 {
-		return slidesScreenshotRegion{}, false, errs.NewValidationError(errs.SubtypeInvalidArgument, "--region must be x,y,width,height in the 960x540 slide canvas").WithParam("--region")
+		return slidesScreenshotRegion{}, false, errs.NewValidationError(errs.SubtypeInvalidArgument, "--region must be x,y,width,height in the presentation canvas").WithParam("--region")
 	}
 	vals := [4]int{}
 	for i, part := range parts {
@@ -888,47 +907,98 @@ func parseSlidesScreenshotRegion(raw string) (slidesScreenshotRegion, bool, erro
 		vals[i] = n
 	}
 	r := slidesScreenshotRegion{vals[0], vals[1], vals[2], vals[3]}
-	// Compare the remaining canvas size instead of adding X+Width. Apart from
-	// being equivalent for valid values, this cannot wrap on a hostile integer
-	// input before the bounds check runs.
-	if r.X < 0 || r.Y < 0 || r.Width <= 0 || r.Height <= 0 || r.Width > slideCanvasWidth-r.X || r.Height > slideCanvasHeight-r.Y {
-		return slidesScreenshotRegion{}, false, errs.NewValidationError(errs.SubtypeInvalidArgument, "--region must stay within the 960x540 slide canvas").WithParam("--region").WithHint("use non-negative x,y and positive width,height with x+width<=960 and y+height<=540")
+	if r.X < 0 || r.Y < 0 || r.Width <= 0 || r.Height <= 0 {
+		return slidesScreenshotRegion{}, false, errs.NewValidationError(errs.SubtypeInvalidArgument, "--region requires non-negative x,y and positive width,height").WithParam("--region")
 	}
 	return r, true, nil
 }
 
-func cropSlidesScreenshotResponse(data map[string]interface{}, region slidesScreenshotRegion) error {
+func validateSlidesScreenshotRegionBounds(region slidesScreenshotRegion, canvas slidesScreenshotCanvas) error {
+	// Compare the remaining canvas size instead of adding X+Width so hostile
+	// integer inputs cannot wrap before the bounds check.
+	if region.X >= canvas.Width || region.Y >= canvas.Height || region.Width > canvas.Width-region.X || region.Height > canvas.Height-region.Y {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--region must stay within the %dx%d presentation canvas", canvas.Width, canvas.Height).WithParam("--region").WithHint(fmt.Sprintf("use x+width<=%d and y+height<=%d", canvas.Width, canvas.Height))
+	}
+	return nil
+}
+
+func cropSlidesScreenshotResponse(data map[string]interface{}, region slidesScreenshotRegion, canvas slidesScreenshotCanvas) (map[string]interface{}, error) {
 	items := common.GetSlice(data, "slide_images")
 	if len(items) != 1 {
-		return slidesScreenshotAPIDataError(data, "--region requires exactly one rendered slide image")
+		return nil, slidesScreenshotAPIDataError(data, "--region requires exactly one rendered slide image")
 	}
 	item, ok := items[0].(map[string]interface{})
 	if !ok {
-		return slidesScreenshotAPIDataError(data, "slides screenshot returned invalid slide_images[0]")
+		return nil, slidesScreenshotAPIDataError(data, "slides screenshot returned invalid slide_images[0]")
 	}
 	encoded := common.GetString(item, "data")
 	b, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
-		return slidesScreenshotImageDataCauseError(common.GetString(item, "slide_id"), err, "decode screenshot for --region: %s", err)
+		return nil, slidesScreenshotImageDataCauseError(common.GetString(item, "slide_id"), err, "decode screenshot for --region: %s", err)
 	}
 	src, _, err := image.Decode(bytes.NewReader(b))
 	if err != nil {
-		return slidesScreenshotImageDataCauseError(common.GetString(item, "slide_id"), err, "decode screenshot image for --region: %s", err)
+		return nil, slidesScreenshotImageDataCauseError(common.GetString(item, "slide_id"), err, "decode screenshot image for --region: %s", err)
 	}
 	bounds := src.Bounds()
-	x0 := region.X * bounds.Dx() / slideCanvasWidth
-	y0 := region.Y * bounds.Dy() / slideCanvasHeight
-	x1 := int(math.Ceil(float64((region.X+region.Width)*bounds.Dx()) / slideCanvasWidth))
-	y1 := int(math.Ceil(float64((region.Y+region.Height)*bounds.Dy()) / slideCanvasHeight))
+	x0 := region.X * bounds.Dx() / canvas.Width
+	y0 := region.Y * bounds.Dy() / canvas.Height
+	x1 := int(math.Ceil(float64((region.X+region.Width)*bounds.Dx()) / float64(canvas.Width)))
+	y1 := int(math.Ceil(float64((region.Y+region.Height)*bounds.Dy()) / float64(canvas.Height)))
 	dst := image.NewRGBA(image.Rect(0, 0, x1-x0, y1-y0))
 	draw.Draw(dst, dst.Bounds(), src, image.Point{X: x0, Y: y0}, draw.Src)
 	var out bytes.Buffer
 	if err := png.Encode(&out, dst); err != nil {
-		return errs.NewInternalError(errs.SubtypeFileIO, "encode --region screenshot: %v", err).WithCause(err)
+		return nil, errs.NewInternalError(errs.SubtypeFileIO, "encode --region screenshot: %v", err).WithCause(err)
 	}
 	item["data"] = base64.StdEncoding.EncodeToString(out.Bytes())
 	item["format"] = 1
-	return nil
+	return map[string]interface{}{
+		"canvas":            map[string]interface{}{"width": canvas.Width, "height": canvas.Height, "unit": "slide_canvas"},
+		"requested":         map[string]int{"x": region.X, "y": region.Y, "width": region.Width, "height": region.Height},
+		"source_image_size": map[string]int{"width": bounds.Dx(), "height": bounds.Dy()},
+		"pixel_rect":        map[string]int{"x": x0, "y": y0, "width": x1 - x0, "height": y1 - y0},
+		"format":            "png",
+	}, nil
+}
+
+func fetchSlidesScreenshotCanvas(runtime *common.RuntimeContext, presentationID string) (slidesScreenshotCanvas, error) {
+	if err := runtime.EnsureScopes([]string{"slides:presentation:read"}); err != nil {
+		return slidesScreenshotCanvas{}, err
+	}
+	data, err := runtime.CallAPITyped("GET", fmt.Sprintf("/open-apis/slides_ai/v1/xml_presentations/%s", validate.EncodePathSegment(presentationID)), map[string]interface{}{"revision_id": -1}, nil)
+	if err != nil {
+		return slidesScreenshotCanvas{}, err
+	}
+	return slidesScreenshotCanvasFromXML(common.GetString(common.GetMap(data, "xml_presentation"), "content"))
+}
+
+func slidesScreenshotCanvasFromXML(content string) (slidesScreenshotCanvas, error) {
+	d := xml.NewDecoder(strings.NewReader(content))
+	for {
+		tok, err := d.Token()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return slidesScreenshotCanvas{}, errs.NewAPIError(errs.SubtypeInvalidResponse, "parse presentation XML for --region: %v", err).WithCause(err)
+		}
+		start, ok := tok.(xml.StartElement)
+		if !ok || start.Name.Local != "presentation" {
+			continue
+		}
+		attrs := map[string]string{}
+		for _, attr := range start.Attr {
+			attrs[attr.Name.Local] = attr.Value
+		}
+		width, widthErr := strconv.Atoi(attrs["width"])
+		height, heightErr := strconv.Atoi(attrs["height"])
+		if widthErr != nil || heightErr != nil || width <= 0 || height <= 0 {
+			return slidesScreenshotCanvas{}, errs.NewAPIError(errs.SubtypeInvalidResponse, "presentation XML for --region must contain positive integer width and height")
+		}
+		return slidesScreenshotCanvas{Width: width, Height: height}, nil
+	}
+	return slidesScreenshotCanvas{}, errs.NewAPIError(errs.SubtypeInvalidResponse, "presentation XML for --region is missing a presentation root")
 }
 
 func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
