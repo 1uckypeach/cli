@@ -42,7 +42,10 @@
                 "pie",
                 "scatter",
                 "combo",
-                "radar"
+                "radar",
+                "bubble",
+                "waterfall",
+                "pareto"
               ]
             },
             "data_range": {
@@ -75,6 +78,31 @@
                   }
                 }
               ]
+            },
+            "key_index": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "气泡图标识/名称维度的 1-based 索引；默认 1"
+            },
+            "x_index": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "气泡图 X 值维度的 1-based 索引；与 y_index 同时提供"
+            },
+            "y_index": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "气泡图 Y 值维度的 1-based 索引；与 x_index 同时提供"
+            },
+            "group_index": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "气泡图可选分组维度的 1-based 索引"
+            },
+            "size_index": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "气泡图可选气泡大小维度的 1-based 索引"
             },
             "title": {
               "type": "string"

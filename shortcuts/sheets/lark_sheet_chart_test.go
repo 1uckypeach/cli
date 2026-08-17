@@ -417,6 +417,51 @@ func TestChartCreateBasic_SelectsDimensionsInBatch(t *testing.T) {
 	}
 }
 
+func TestChartCreateBasic_BubbleRoleIndexes(t *testing.T) {
+	t.Parallel()
+	body := parseDryRunBody(t, ChartCreateBasic, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-type", "bubble",
+		"--data-range", "A1:E10",
+		"--key-index", "2",
+		"--x-index", "1",
+		"--y-index", "3",
+		"--size-index", "5",
+	})
+	basic := decodeToolInput(t, body, "manage_chart_object")["basic_chart"].(map[string]interface{})
+	for name, want := range map[string]float64{
+		"key_index":  2,
+		"x_index":    1,
+		"y_index":    3,
+		"size_index": 5,
+	} {
+		if got := basic[name]; got != want {
+			t.Fatalf("basic_chart.%s = %#v, want %v", name, got, want)
+		}
+	}
+	if _, exists := basic["group_index"]; exists {
+		t.Fatalf("basic_chart unexpectedly contains group_index: %#v", basic)
+	}
+	if _, exists := basic["dim2_indexes"]; exists {
+		t.Fatalf("basic_chart unexpectedly contains dim2_indexes: %#v", basic)
+	}
+}
+
+func TestChartCreateBasic_BubbleRoleIndexesInBatch(t *testing.T) {
+	t.Parallel()
+	body := parseDryRunBody(t, BatchChartCreate, []string{
+		"--url", testURL,
+		"--operations", `[{"sheet_id":"sh1","chart_type":"bubble","data_range":"A1:E10","key_index":1,"x_index":2,"y_index":3,"group_index":4,"size_index":5}]`,
+	})
+	input := decodeToolInput(t, body, "batch_update")
+	ops := input["operations"].([]interface{})
+	basic := ops[0].(map[string]interface{})["input"].(map[string]interface{})["basic_chart"].(map[string]interface{})
+	if basic["x_index"] != float64(2) || basic["size_index"] != float64(5) {
+		t.Fatalf("batch bubble roles = %#v", basic)
+	}
+}
+
 func TestChartCreateBasic_RejectsHorizontalHeaderForRowDirection(t *testing.T) {
 	t.Parallel()
 	_, _, err := runShortcutCapturingErr(t, ChartCreateBasic, []string{
@@ -533,6 +578,26 @@ func TestChartDataUpdate_ExplicitSeriesIndexes(t *testing.T) {
 	}
 }
 
+func TestChartDataUpdate_BubbleRoleIndexes(t *testing.T) {
+	t.Parallel()
+	body := parseDryRunBody(t, ChartDataUpdate, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-id", "chart-1",
+		"--data-range", "A1:E10",
+		"--key-index", "1",
+		"--x-index", "2",
+		"--y-index", "3",
+		"--size-index", "5",
+	})
+	data := chartDryRunSnapshot(t, decodeToolInput(t, body, "manage_chart_object"))["data"].(map[string]interface{})
+	series := data["dim2"].(map[string]interface{})["series"].([]interface{})
+	if len(series) != 3 || series[2].(map[string]interface{})["role"] != "size" ||
+		series[2].(map[string]interface{})["index"] != float64(5) {
+		t.Fatalf("bubble data update roles = %#v", series)
+	}
+}
+
 func TestChartSemanticShortcuts_Validation(t *testing.T) {
 	t.Parallel()
 
@@ -549,6 +614,10 @@ func TestChartSemanticShortcuts_Validation(t *testing.T) {
 		{name: "palette and colors are exclusive", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--color-palette", "brandColorSeries@v2", "--colors", "#112233,#445566"}},
 		{name: "size must be paired", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--width", "640"}},
 		{name: "misaligned cross-sheet ranges", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "'A'!A1:A4,'B'!B2:C4"}},
+		{name: "bubble roles on non-bubble chart", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "line", "--data-range", "A1:C4", "--x-index", "2", "--y-index", "3"}},
+		{name: "bubble roles require x and y", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "bubble", "--data-range", "A1:C4", "--x-index", "2"}},
+		{name: "bubble roles cannot mix generic indexes", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "bubble", "--data-range", "A1:C4", "--dim1-index", "1", "--x-index", "2", "--y-index", "3"}},
+		{name: "bubble roles must be distinct", args: []string{"--url", testURL, "--sheet-id", testSheetID, "--chart-type", "bubble", "--data-range", "A1:C4", "--x-index", "2", "--y-index", "2"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
