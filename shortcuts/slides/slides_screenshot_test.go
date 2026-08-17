@@ -507,7 +507,7 @@ func TestSlidesScreenshotOverviewExecutionPaginatesAtTwentySlides(t *testing.T) 
 	if !ok {
 		t.Fatalf("overview = %#v", data["overview"])
 	}
-	if overview["total_slides"] != float64(41) || overview["overview_page"] != float64(2) || overview["page_size"] != float64(20) || overview["has_previous"] != true || overview["has_next"] != true || overview["previous_overview_page"] != float64(1) || overview["next_overview_page"] != float64(3) {
+	if overview["total_slides"] != float64(41) || overview["overview_page"] != float64(2) || overview["page_size"] != float64(20) || overview["columns"] != float64(4) || overview["has_previous"] != true || overview["has_next"] != true || overview["previous_overview_page"] != float64(1) || overview["next_overview_page"] != float64(3) {
 		t.Fatalf("overview navigation = %#v", overview)
 	}
 	rangeData, _ := overview["slide_range"].(map[string]interface{})

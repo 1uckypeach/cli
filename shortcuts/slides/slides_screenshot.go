@@ -69,7 +69,6 @@ var SlidesScreenshot = common.Shortcut{
 		{Name: "output-name", Desc: "file name stem for --content render output"},
 		{Name: "overview", Type: "bool", Desc: "render every current slide into one local overview PNG; cannot be combined with slide selectors, --content, or --region"},
 		{Name: "overview-page", Type: "int", Default: "1", Desc: "1-based overview page; each overview contains at most 20 slides"},
-		{Name: "overview-columns", Type: "int", Default: "4", Desc: "number of columns in --overview output (1-10)"},
 		{Name: "region", Desc: "crop exactly one existing slide as x,y,width,height in the rendered screenshot pixels; cannot be combined with --overview"},
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
@@ -92,9 +91,6 @@ var SlidesScreenshot = common.Shortcut{
 		}
 		if overview && (runtime.Changed("content") || slidesScreenshotHasSelectorInput(runtime)) {
 			return slidesScreenshotFlagErrorf("--overview requires --presentation without --content or slide selectors")
-		}
-		if overview && (runtime.Int("overview-columns") < 1 || runtime.Int("overview-columns") > 10) {
-			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--overview-columns must be between 1 and 10").WithParam("--overview-columns")
 		}
 		if runtime.Changed("overview-page") && !overview {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--overview-page requires --overview").WithParam("--overview-page")
@@ -1036,7 +1032,7 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 		}
 		thumbs = append(thumbs, batch...)
 	}
-	overview, cells := composeSlidesOverviewFromIndex(thumbs, runtime.Int("overview-columns"), start+1)
+	overview, cells := composeSlidesOverviewFromIndex(thumbs, defaultOverviewColumns, start+1)
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, overview); err != nil {
 		return errs.NewInternalError(errs.SubtypeFileIO, "encode overview PNG: %v", err).WithCause(err)
@@ -1062,7 +1058,7 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 		slides[i] = map[string]interface{}{"index": index, "label": fmt.Sprintf("#%02d", index), "slide_id": id, "slide_number": index, "row": cell.row, "column": cell.column, "tile": overviewRectOutput(cell.tile), "thumbnail": overviewRectOutput(cell.thumbnail)}
 	}
 	overviewImageSize := map[string]int{"width": overview.Bounds().Dx(), "height": overview.Bounds().Dy()}
-	overviewData := map[string]interface{}{"path": path, "format": "png", "size": overviewImageSize, "image_size": overviewImageSize, "columns": runtime.Int("overview-columns"), "total_slides": len(ids), "overview_page": overviewPage, "page_size": maxSlidesPerOverview, "slide_range": map[string]int{"start": start + 1, "end": end}, "has_previous": overviewPage > 1, "has_next": end < len(ids), "slides": slides}
+	overviewData := map[string]interface{}{"path": path, "format": "png", "size": overviewImageSize, "image_size": overviewImageSize, "columns": defaultOverviewColumns, "total_slides": len(ids), "overview_page": overviewPage, "page_size": maxSlidesPerOverview, "slide_range": map[string]int{"start": start + 1, "end": end}, "has_previous": overviewPage > 1, "has_next": end < len(ids), "slides": slides}
 	if overviewPage > 1 {
 		overviewData["previous_overview_page"] = overviewPage - 1
 	}
