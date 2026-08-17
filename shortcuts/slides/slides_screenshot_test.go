@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -157,6 +158,23 @@ func TestSlidesScreenshotOverviewAllowsSingleOutputDryRun(t *testing.T) {
 	}
 }
 
+func TestSlidesScreenshotOverviewPageValidation(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	for _, args := range [][]string{
+		{"+screenshot", "--presentation", "pres_abc", "--overview-page", "2", "--dry-run", "--as", "user"},
+		{"+screenshot", "--presentation", "pres_abc", "--overview", "--overview-page", "0", "--dry-run", "--as", "user"},
+	} {
+		err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, args)
+		if err == nil {
+			t.Fatalf("args %#v succeeded, want validation error", args)
+		}
+		p, ok := errs.ProblemOf(err)
+		if !ok || p.Category != errs.CategoryValidation || p.Subtype != errs.SubtypeInvalidArgument {
+			t.Fatalf("args %#v problem = %#v, want validation/invalid_argument", args, p)
+		}
+	}
+}
+
 func TestSlidesScreenshotOverviewExecutionOrdersServerResponseBySlideID(t *testing.T) {
 	dir := t.TempDir()
 	withSlidesTestWorkingDir(t, dir)
@@ -199,6 +217,69 @@ func TestSlidesScreenshotOverviewExecutionOrdersServerResponseBySlideID(t *testi
 	// The first cell is p1 according to XML, although p2 arrived first.
 	if got := color.RGBAModel.Convert(overview.At(16+160, 56+90)).(color.RGBA); got.R < 200 || got.G > 50 {
 		t.Fatalf("first overview cell = %#v, want p1/red", got)
+	}
+}
+
+func TestSlidesScreenshotOverviewExecutionPaginatesAtTwentySlides(t *testing.T) {
+	dir := t.TempDir()
+	withSlidesTestWorkingDir(t, dir)
+	var xml strings.Builder
+	xml.WriteString("<presentation>")
+	for i := 1; i <= 41; i++ {
+		fmt.Fprintf(&xml, `<slide id="p%d"/>`, i)
+	}
+	xml.WriteString("</presentation>")
+	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	img.SetRGBA(0, 0, color.RGBA{B: 255, A: 255})
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, img); err != nil {
+		t.Fatal(err)
+	}
+	f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	reg.Register(&httpmock.Stub{Method: "GET", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc", Body: map[string]interface{}{
+		"code": 0, "data": map[string]interface{}{"xml_presentation": map[string]interface{}{"content": xml.String()}},
+	}})
+	responseFor := func(start, end int) map[string]interface{} {
+		items := make([]map[string]interface{}, 0, end-start+1)
+		for i := start; i <= end; i++ {
+			items = append(items, map[string]interface{}{"slide_id": fmt.Sprintf("p%d", i), "data": base64.StdEncoding.EncodeToString(encoded.Bytes())})
+		}
+		return map[string]interface{}{"code": 0, "data": map[string]interface{}{"slide_images": items}}
+	}
+	for _, batch := range []struct{ start, end int }{{21, 30}, {31, 40}} {
+		batch := batch
+		reg.Register(&httpmock.Stub{
+			Method: "POST", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc/slide_images",
+			Body:       responseFor(batch.start, batch.end),
+			BodyFilter: func(body []byte) bool { return strings.Contains(string(body), fmt.Sprintf("p%d", batch.start)) },
+		})
+	}
+	if err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{"+screenshot", "--presentation", "pres_abc", "--overview", "--overview-page", "2", "--output", "shots/overview.png", "--as", "user"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	data := decodeShortcutData(t, stdout)
+	overview, ok := data["overview"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("overview = %#v", data["overview"])
+	}
+	if overview["total_slides"] != float64(41) || overview["overview_page"] != float64(2) || overview["page_size"] != float64(20) || overview["has_previous"] != true || overview["has_next"] != true || overview["previous_overview_page"] != float64(1) || overview["next_overview_page"] != float64(3) {
+		t.Fatalf("overview navigation = %#v", overview)
+	}
+	rangeData, _ := overview["slide_range"].(map[string]interface{})
+	if rangeData["start"] != float64(21) || rangeData["end"] != float64(40) {
+		t.Fatalf("slide_range = %#v", rangeData)
+	}
+	slides, _ := overview["slides"].([]interface{})
+	if len(slides) != 20 {
+		t.Fatalf("slides = %#v", slides)
+	}
+	slide, _ := slides[0].(map[string]interface{})
+	if slide["index"] != float64(21) || slide["label"] != "#21" || slide["slide_id"] != "p21" {
+		t.Fatalf("slide = %#v", slide)
+	}
+	last, _ := slides[19].(map[string]interface{})
+	if last["index"] != float64(40) || last["label"] != "#40" || last["slide_id"] != "p40" {
+		t.Fatalf("last slide = %#v", last)
 	}
 }
 

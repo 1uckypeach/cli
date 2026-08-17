@@ -36,6 +36,7 @@ import (
 const (
 	defaultSlidesScreenshotDir = ".lark-slides/screenshots"
 	maxSlidesPerScreenshot     = 10
+	maxSlidesPerOverview       = 20
 	defaultOverviewColumns     = 4
 	slideCanvasWidth           = 960
 	slideCanvasHeight          = 540
@@ -68,6 +69,7 @@ var SlidesScreenshot = common.Shortcut{
 		{Name: "output-dir", Default: defaultSlidesScreenshotDir, Desc: "relative directory for saved screenshots"},
 		{Name: "output-name", Desc: "file name stem for --content render output"},
 		{Name: "overview", Type: "bool", Desc: "render every current slide into one local overview PNG; cannot be combined with slide selectors, --content, or --region"},
+		{Name: "overview-page", Type: "int", Default: "1", Desc: "1-based overview page; each overview contains at most 20 slides"},
 		{Name: "overview-columns", Type: "int", Default: "4", Desc: "number of columns in --overview output (1-10)"},
 		{Name: "region", Desc: "crop exactly one existing slide as x,y,width,height in the 960x540 slide canvas; cannot be combined with --overview"},
 	},
@@ -91,6 +93,12 @@ var SlidesScreenshot = common.Shortcut{
 		}
 		if overview && (runtime.Int("overview-columns") < 1 || runtime.Int("overview-columns") > 10) {
 			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--overview-columns must be between 1 and 10").WithParam("--overview-columns")
+		}
+		if runtime.Changed("overview-page") && !overview {
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--overview-page requires --overview").WithParam("--overview-page")
+		}
+		if overview && runtime.Int("overview-page") < 1 {
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--overview-page must be at least 1").WithParam("--overview-page")
 		}
 		renderMode := runtime.Changed("content")
 		selectorCount := 1
@@ -183,7 +191,7 @@ var SlidesScreenshot = common.Shortcut{
 				presentationID = "<resolved_slides_token>"
 				dry.Desc("3-step orchestration: resolve wiki → fetch current slide IDs → render batches and compose a local overview PNG").GET("/open-apis/wiki/v2/spaces/get_node").Params(map[string]interface{}{"token": ref.Token})
 			}
-			dry.Desc("Fetch current presentation XML to enumerate stable slide IDs; then render batches of at most 10 pages and compose one local overview PNG").GET(fmt.Sprintf("/open-apis/slides_ai/v1/xml_presentations/%s", validate.EncodePathSegment(presentationID))).Params(map[string]interface{}{"revision_id": -1})
+			dry.Desc(fmt.Sprintf("Fetch current presentation XML, then render overview page %d (at most %d slides) in batches of at most 10 pages and compose one local overview PNG", runtime.Int("overview-page"), maxSlidesPerOverview)).GET(fmt.Sprintf("/open-apis/slides_ai/v1/xml_presentations/%s", validate.EncodePathSegment(presentationID))).Params(map[string]interface{}{"revision_id": -1})
 			return setSlidesScreenshotDryRunOutput(dry, runtime).Set("base64_output", "suppressed; decoded locally and composed into overview PNG during execution")
 		}
 		if ref.Kind == "wiki" {
@@ -946,24 +954,35 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 	if len(ids) == 0 {
 		return errs.NewValidationError(errs.SubtypeFailedPrecondition, "--overview found no current slide IDs").WithHint("verify the presentation contains slides, then retry")
 	}
-	thumbs := make([]image.Image, 0, len(ids))
-	for start := 0; start < len(ids); start += maxSlidesPerScreenshot {
-		end := start + maxSlidesPerScreenshot
-		if end > len(ids) {
-			end = len(ids)
+	overviewPage := runtime.Int("overview-page")
+	maxPage := (len(ids) + maxSlidesPerOverview - 1) / maxSlidesPerOverview
+	if overviewPage > maxPage {
+		return errs.NewValidationError(errs.SubtypeFailedPrecondition, "--overview-page %d is outside this %d-slide presentation", overviewPage, len(ids)).WithParam("--overview-page").WithHint(fmt.Sprintf("use a value between 1 and %d", maxPage))
+	}
+	start := (overviewPage - 1) * maxSlidesPerOverview
+	end := start + maxSlidesPerOverview
+	if end > len(ids) {
+		end = len(ids)
+	}
+	pageIDs := ids[start:end]
+	thumbs := make([]image.Image, 0, len(pageIDs))
+	for batchStart := 0; batchStart < len(pageIDs); batchStart += maxSlidesPerScreenshot {
+		batchEnd := batchStart + maxSlidesPerScreenshot
+		if batchEnd > len(pageIDs) {
+			batchEnd = len(pageIDs)
 		}
 		url := fmt.Sprintf("/open-apis/slides_ai/v1/xml_presentations/%s/slide_images", validate.EncodePathSegment(presentationID))
-		pageData, err := doSlidesScreenshotAPIJSONWithLogID(runtime, "POST", url, larkcore.QueryParams{}, map[string]interface{}{"slide_ids": ids[start:end]})
+		pageData, err := doSlidesScreenshotAPIJSONWithLogID(runtime, "POST", url, larkcore.QueryParams{}, map[string]interface{}{"slide_ids": pageIDs[batchStart:batchEnd]})
 		if err != nil {
 			return err
 		}
-		batch, err := slidesScreenshotOverviewImages(pageData, ids[start:end])
+		batch, err := slidesScreenshotOverviewImages(pageData, pageIDs[batchStart:batchEnd])
 		if err != nil {
 			return err
 		}
 		thumbs = append(thumbs, batch...)
 	}
-	overview, cells := composeSlidesOverview(thumbs, runtime.Int("overview-columns"))
+	overview, cells := composeSlidesOverviewFromIndex(thumbs, runtime.Int("overview-columns"), start+1)
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, overview); err != nil {
 		return errs.NewInternalError(errs.SubtypeFileIO, "encode overview PNG: %v", err).WithCause(err)
@@ -982,12 +1001,20 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 	if err != nil {
 		return err
 	}
-	slides := make([]map[string]interface{}, len(ids))
-	for i, id := range ids {
+	slides := make([]map[string]interface{}, len(pageIDs))
+	for i, id := range pageIDs {
 		cell := cells[i]
-		slides[i] = map[string]interface{}{"index": i + 1, "label": fmt.Sprintf("#%02d", i+1), "slide_id": id, "slide_number": i + 1, "row": cell.row, "column": cell.column, "tile": overviewRectOutput(cell.tile), "thumbnail": overviewRectOutput(cell.thumbnail)}
+		index := start + i + 1
+		slides[i] = map[string]interface{}{"index": index, "label": fmt.Sprintf("#%02d", index), "slide_id": id, "slide_number": index, "row": cell.row, "column": cell.column, "tile": overviewRectOutput(cell.tile), "thumbnail": overviewRectOutput(cell.thumbnail)}
 	}
-	runtime.Out(map[string]interface{}{"xml_presentation_id": presentationID, "overview": map[string]interface{}{"path": path, "format": "png", "size": map[string]int{"width": overview.Bounds().Dx(), "height": overview.Bounds().Dy()}, "columns": runtime.Int("overview-columns"), "slides": slides}}, nil)
+	overviewData := map[string]interface{}{"path": path, "format": "png", "size": map[string]int{"width": overview.Bounds().Dx(), "height": overview.Bounds().Dy()}, "columns": runtime.Int("overview-columns"), "total_slides": len(ids), "overview_page": overviewPage, "page_size": maxSlidesPerOverview, "slide_range": map[string]int{"start": start + 1, "end": end}, "has_previous": overviewPage > 1, "has_next": end < len(ids), "slides": slides}
+	if overviewPage > 1 {
+		overviewData["previous_overview_page"] = overviewPage - 1
+	}
+	if end < len(ids) {
+		overviewData["next_overview_page"] = overviewPage + 1
+	}
+	runtime.Out(map[string]interface{}{"xml_presentation_id": presentationID, "overview": overviewData}, nil)
 	return nil
 }
 
@@ -1073,6 +1100,10 @@ func overviewRectOutput(r image.Rectangle) map[string]int {
 }
 
 func composeSlidesOverview(images []image.Image, columns int) (*image.RGBA, []overviewCell) {
+	return composeSlidesOverviewFromIndex(images, columns, 1)
+}
+
+func composeSlidesOverviewFromIndex(images []image.Image, columns int, firstIndex int) (*image.RGBA, []overviewCell) {
 	if columns < 1 {
 		columns = defaultOverviewColumns
 	}
@@ -1089,7 +1120,7 @@ func composeSlidesOverview(images []image.Image, columns int) (*image.RGBA, []ov
 		thumbnail := image.Rect(x, y+headerH, x+thumbW, y+tileH)
 		draw.Draw(out, image.Rect(x, y, x+thumbW, y+headerH), &image.Uniform{C: color.RGBA{R: 20, G: 35, B: 58, A: 255}}, image.Point{}, draw.Src)
 		xdraw.CatmullRom.Scale(out, thumbnail, src, src.Bounds(), draw.Over, nil)
-		drawOverviewIndex(out, image.Pt(x+14, y+7), i+1)
+		drawOverviewIndex(out, image.Pt(x+14, y+7), firstIndex+i)
 		cells[i] = overviewCell{row: r, column: c, tile: tile, thumbnail: thumbnail}
 	}
 	return out, cells
