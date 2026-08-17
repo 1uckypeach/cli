@@ -141,8 +141,9 @@ func TestPickerCanExpress(t *testing.T) {
 			t.Errorf("pickerCanExpress(%q) = true, want false", l)
 		}
 	}
-	// Short and mis-cased spellings never reach the picker as UILang (it is
-	// always canonical or ""), but the guard must not treat them as expressible.
+	// --lang cannot produce these (ParseLangFlag canonicalizes before UILang is
+	// resolved), but a hand-edited config.json can: the load path stores Lang
+	// verbatim. The guard must reject them rather than assume canonical input.
 	for _, l := range []i18n.Lang{"zh", "en", "ZH", "en_US"} {
 		if pickerCanExpress(l) {
 			t.Errorf("pickerCanExpress(%q) = true, want false", l)
