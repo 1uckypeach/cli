@@ -20,3 +20,10 @@ This shortcut only accepts bot identity and calls `POST /open-apis/vc/v1/bots/in
 
 - `SELECTED` sends explicit user `open_id` values and rejects more than 200 IDs before sending.
 - `ALL_SUGGESTED` sends only the type. The server builds the Calendar one-click-invite candidate set, consumes all Calendar pages, filters resources, bots, the actor itself, declined and removed attendees, applies the 200-person cap, and then reuses the shared InviteParticipant policy chain.
+
+## Permission Notes
+
+- The meeting must be a Calendar VC meeting and the app bot must already be in the meeting.
+- Agent Invite depends on the meeting's Agent join capability. If the Calendar meeting did not enable the AI/Agent meeting setting, invite calls fail before candidates are resolved.
+- `SELECTED` with one invitee follows the normal single-invite policy, so a regular in-meeting participant may be able to invite that user.
+- `ALL_SUGGESTED` and multi-user `SELECTED` use the batch/suggested-list invite policy. In practice, the bot should be the current host or co-host before calling them; a regular participant bot can be rejected or have candidates filtered by the shared meeting permission chain.

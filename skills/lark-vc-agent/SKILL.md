@@ -174,8 +174,8 @@ Shortcut 是对常用操作的高级封装（`lark-cli vc +<verb> [flags]`）。
 
 - [`+meeting-start`](references/lark-vc-agent-meeting-start.md)：Bot 身份发起并加入 Calendar VC；CLI 不发送 Owner，服务端从认证应用和 Calendar 关系权威解析并校验 Agent Owner。
 - [`+meeting-join`](references/lark-vc-agent-meeting-join.md)：入参格式、写操作可见性风险、入会失败排查。
-- [`+meeting-invite`](references/lark-vc-agent-meeting-invite.md)：Bot 身份的 SELECTED / ALL_SUGGESTED 邀请；SELECTED 接收用户 open_id，最多 200 人，ALL_SUGGESTED 候选集由服务端解析。
-- [`+meeting-end`](references/lark-vc-agent-meeting-end.md)：仅当前 Host Bot 可结束会议。
+- [`+meeting-invite`](references/lark-vc-agent-meeting-invite.md)：Bot 身份的 SELECTED / ALL_SUGGESTED 邀请；要求 Bot 已在会中且会议启用 Agent 入会能力。SELECTED 单人沿用普通单点邀请语义，ALL_SUGGESTED 和多人 SELECTED 通常需要 Bot 当前为 Host / Co-host。
+- [`+meeting-end`](references/lark-vc-agent-meeting-end.md)：仅当前 Host Bot 可结束会议；Bot 在会但不是 Host 时按 `bot is not host` 处理，需要转移主持人或由当前 Host/Owner 结束。
 - [`+meeting-list-active`](references/lark-vc-agent-meeting-list-active.md)：用户身份和应用身份的不同返回范围。
 - [`+meeting-events`](references/lark-vc-agent-meeting-events.md)：`meeting_id` 来源、身份延续、分页和错误码（10005 / 20001 / 20002）。
 - [`+meeting-message-send`](references/lark-vc-agent-meeting-message-send.md)：会中文本、完整 `emoji_type` 列表、身份延续和写操作风险。

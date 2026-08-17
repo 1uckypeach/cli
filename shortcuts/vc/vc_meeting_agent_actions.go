@@ -113,10 +113,7 @@ var VCMeetingInvite = common.Shortcut{
 			data = map[string]interface{}{}
 		}
 		runtime.OutFormat(data, nil, func(w io.Writer) {
-			fmt.Fprintln(w, "Invite request sent.")
-			if failed := common.GetString(data, "failed_count"); failed != "" {
-				fmt.Fprintf(w, "  Failed:  %s\n", failed)
-			}
+			printMeetingInviteResult(w, data)
 		})
 		return nil
 	},
@@ -220,6 +217,23 @@ func buildMeetingInviteBody(runtime *common.RuntimeContext) (map[string]interfac
 
 func buildMeetingInviteParams() map[string]interface{} {
 	return map[string]interface{}{"user_id_type": "open_id"}
+}
+
+func printMeetingInviteResult(w io.Writer, data map[string]interface{}) {
+	fmt.Fprintln(w, "Invite request sent.")
+	if _, ok := common.GetFloatOK(data, "failed_count"); ok {
+		fmt.Fprintf(w, "  Failed:   %d\n", common.GetInt(data, "failed_count"))
+	}
+	if _, ok := common.GetFloatOK(data, "invited_count"); ok {
+		fmt.Fprintf(w, "  Invited:  %d\n", common.GetInt(data, "invited_count"))
+	}
+	if common.GetBool(data, "has_more") {
+		fmt.Fprintln(w, "  Has more: true")
+	}
+	results, _ := data["invite_results"].([]interface{})
+	if len(results) > 0 {
+		fmt.Fprintf(w, "  Results:  %d users\n", len(results))
+	}
 }
 
 func buildMeetingInviteUsers(openIDs []string) []map[string]interface{} {
