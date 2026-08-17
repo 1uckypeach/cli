@@ -3490,7 +3490,10 @@
           "pie",
           "scatter",
           "combo",
-          "radar"
+          "radar",
+          "bubble",
+          "waterfall",
+          "pareto"
         ]
       },
       {
@@ -3531,7 +3534,42 @@
         "kind": "own",
         "type": "string",
         "required": "optional",
-        "desc": "Comma-separated 1-based value/Y-axis dimension indexes; must exclude dim1, at most 50"
+        "desc": "Comma-separated 1-based value/Y-axis dimension indexes; must exclude dim1, at most 50. Legacy bubble calls accept 2–4 indexes in x,y[,group][,size] order; new calls should use role-specific indexes. Pie and pareto charts accept exactly one"
+      },
+      {
+        "name": "key-index",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Bubble only: 1-based key/name dimension index; mutually exclusive with dim1/dim2 indexes; defaults to 1"
+      },
+      {
+        "name": "x-index",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Bubble only: 1-based X-value dimension index; must be provided with --y-index"
+      },
+      {
+        "name": "y-index",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Bubble only: 1-based Y-value dimension index; must be provided with --x-index"
+      },
+      {
+        "name": "group-index",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Bubble only: optional 1-based group dimension index"
+      },
+      {
+        "name": "size-index",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Bubble only: optional 1-based bubble-size dimension index"
       },
       {
         "name": "title",
@@ -4016,6 +4054,41 @@
         "type": "string",
         "required": "optional",
         "desc": "Comma-separated 1-based value/Y-axis series indexes within the data range; defaults to all dimensions except dim1"
+      },
+      {
+        "name": "key-index",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Bubble only: 1-based key/name dimension index; mutually exclusive with dim1/dim2 indexes; defaults to 1"
+      },
+      {
+        "name": "x-index",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Bubble only: 1-based X-value dimension index; must be provided with --y-index"
+      },
+      {
+        "name": "y-index",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Bubble only: 1-based Y-value dimension index; must be provided with --x-index"
+      },
+      {
+        "name": "group-index",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Bubble only: optional 1-based group dimension index"
+      },
+      {
+        "name": "size-index",
+        "kind": "own",
+        "type": "int",
+        "required": "optional",
+        "desc": "Bubble only: optional 1-based bubble-size dimension index"
       },
       {
         "name": "dry-run",

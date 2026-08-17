@@ -21,6 +21,67 @@ var chartHexColorPattern = regexp.MustCompile(`^#?[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})
 // source fails before a write call and tells the agent how to recover.
 const chartSeriesMaxCount = 50
 
+type chartRoleIndex struct {
+	flag  string
+	role  string
+	index int
+}
+
+var bubbleRoleIndexFlags = []struct {
+	flag string
+	role string
+}{
+	{flag: "x-index", role: "x"},
+	{flag: "y-index", role: "y"},
+	{flag: "group-index", role: "group"},
+	{flag: "size-index", role: "size"},
+}
+
+func resolveBubbleRoleIndexes(rt flagView, chartType string, dimensionCount int) (int, []chartRoleIndex, bool, error) {
+	semantic := rt.Changed("key-index")
+	for _, item := range bubbleRoleIndexFlags {
+		semantic = semantic || rt.Changed(item.flag)
+	}
+	if !semantic {
+		return 0, nil, false, nil
+	}
+	if chartType != "" && chartType != "bubble" {
+		return 0, nil, false, sheetsValidationForFlag("key-index", "bubble role indexes are only valid with --chart-type bubble")
+	}
+	if rt.Changed("dim1-index") || rt.Changed("dim2-indexes") {
+		return 0, nil, false, sheetsValidationForFlag("key-index", "bubble role indexes must not be combined with --dim1-index or --dim2-indexes")
+	}
+	if !rt.Changed("x-index") || !rt.Changed("y-index") {
+		return 0, nil, false, sheetsValidationForFlag("x-index", "--x-index and --y-index must be provided together for a bubble chart")
+	}
+
+	keyIndex := 1
+	if rt.Changed("key-index") {
+		keyIndex = rt.Int("key-index")
+	}
+	if keyIndex < 1 || (dimensionCount > 0 && keyIndex > dimensionCount) {
+		return 0, nil, false, sheetsValidationForFlag("key-index", "--key-index must be between 1 and %d for the selected --data-range", dimensionCount)
+	}
+
+	seen := map[int]string{keyIndex: "key"}
+	series := make([]chartRoleIndex, 0, len(bubbleRoleIndexFlags))
+	for _, item := range bubbleRoleIndexFlags {
+		if !rt.Changed(item.flag) {
+			continue
+		}
+		index := rt.Int(item.flag)
+		if index < 1 || (dimensionCount > 0 && index > dimensionCount) {
+			return 0, nil, false, sheetsValidationForFlag(item.flag, "--%s must be between 1 and %d for the selected --data-range", item.flag, dimensionCount)
+		}
+		if existingRole, exists := seen[index]; exists {
+			return 0, nil, false, sheetsValidationForFlag(item.flag, "--%s must not reuse index %d already assigned to %s", item.flag, index, existingRole)
+		}
+		seen[index] = item.role
+		series = append(series, chartRoleIndex{flag: item.flag, role: item.role, index: index})
+	}
+	return keyIndex, series, true, nil
+}
+
 var chartSemanticConfigFlags = []string{
 	"title",
 	"subtitle",
@@ -245,8 +306,14 @@ func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[s
 		return nil, sheetsValidationForFlag("data-range", "--data-range must provide at least 2 data points and 2 dimensions")
 	}
 
+	bubbleKeyIndex, bubbleSeries, useBubbleRoles, err := resolveBubbleRoleIndexes(rt, chartType, dimensionCount)
+	if err != nil {
+		return nil, err
+	}
 	dim1Index := 1
-	if rt.Changed("dim1-index") {
+	if useBubbleRoles {
+		dim1Index = bubbleKeyIndex
+	} else if rt.Changed("dim1-index") {
 		dim1Index = rt.Int("dim1-index")
 	}
 	if dim1Index < 1 || dim1Index > dimensionCount {
@@ -257,12 +324,18 @@ func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[s
 		)
 	}
 	dim2Indexes := make([]int, 0, dimensionCount-1)
-	for index := 1; index <= dimensionCount; index++ {
-		if index != dim1Index {
-			dim2Indexes = append(dim2Indexes, index)
+	if useBubbleRoles {
+		for _, item := range bubbleSeries {
+			dim2Indexes = append(dim2Indexes, item.index)
+		}
+	} else {
+		for index := 1; index <= dimensionCount; index++ {
+			if index != dim1Index {
+				dim2Indexes = append(dim2Indexes, index)
+			}
 		}
 	}
-	if chartType == "pie" {
+	if chartType == "pie" || chartType == "pareto" {
 		dim2Indexes = dim2Indexes[:1]
 	}
 	if rt.Changed("dim2-indexes") {
@@ -292,6 +365,12 @@ func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[s
 	}
 	if chartType == "combo" && len(dim2Indexes) < 2 {
 		return nil, sheetsValidationForFlag("dim2-indexes", "combo charts require at least two --dim2-indexes values")
+	}
+	if chartType == "bubble" && (len(dim2Indexes) < 2 || len(dim2Indexes) > 4) {
+		return nil, sheetsValidationForFlag("dim2-indexes", "bubble charts require x and y plus optional group and size indexes")
+	}
+	if chartType == "pareto" && len(dim2Indexes) != 1 {
+		return nil, sheetsValidationForFlag("dim2-indexes", "pareto charts require exactly one --dim2-indexes value")
 	}
 	if len(dim2Indexes) > chartSeriesMaxCount {
 		flagName := "data-range"
@@ -324,10 +403,15 @@ func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[s
 	if rt.Changed("data-direction") {
 		basic["data_direction"] = rt.Str("data-direction")
 	}
-	if rt.Changed("dim1-index") {
+	if useBubbleRoles {
+		basic["key_index"] = dim1Index
+		for _, item := range bubbleSeries {
+			basic[strings.ReplaceAll(item.flag, "-", "_")] = item.index
+		}
+	} else if rt.Changed("dim1-index") {
 		basic["dim1_index"] = dim1Index
 	}
-	if rt.Changed("dim2-indexes") {
+	if !useBubbleRoles && rt.Changed("dim2-indexes") {
 		basic["dim2_indexes"] = dim2Indexes
 	}
 	if err := validateChartColorFlags(rt); err != nil {
@@ -474,6 +558,16 @@ func chartDataUpdateInput(rt flagView, token, sheetID, sheetName string) (map[st
 		}
 		updates["dim2_indexes"] = dim2Indexes
 	}
+	bubbleKeyIndex, bubbleSeries, useBubbleRoles, err := resolveBubbleRoleIndexes(rt, "", 0)
+	if err != nil {
+		return nil, err
+	}
+	if useBubbleRoles {
+		updates["key_index"] = bubbleKeyIndex
+		for _, item := range bubbleSeries {
+			updates[strings.ReplaceAll(item.flag, "-", "_")] = item.index
+		}
+	}
 	input := map[string]interface{}{
 		"excel_id":  token,
 		"operation": "update",
@@ -551,8 +645,14 @@ func chartDataUpdateInputFromSnapshot(
 		return nil, nil, nil, "", err
 	}
 
+	bubbleKeyIndex, bubbleSeries, useBubbleRoles, err := resolveBubbleRoleIndexes(rt, chartType, dimensionCount)
+	if err != nil {
+		return nil, nil, nil, "", err
+	}
 	dim1Index := 1
-	if rt.Changed("dim1-index") {
+	if useBubbleRoles {
+		dim1Index = bubbleKeyIndex
+	} else if rt.Changed("dim1-index") {
 		dim1Index = rt.Int("dim1-index")
 	}
 	if dim1Index < 1 || dim1Index > dimensionCount {
@@ -563,12 +663,18 @@ func chartDataUpdateInputFromSnapshot(
 		)
 	}
 	dim2Indexes := make([]int, 0, dimensionCount-1)
-	for index := 1; index <= dimensionCount; index++ {
-		if index != dim1Index {
-			dim2Indexes = append(dim2Indexes, index)
+	if useBubbleRoles {
+		for _, item := range bubbleSeries {
+			dim2Indexes = append(dim2Indexes, item.index)
+		}
+	} else {
+		for index := 1; index <= dimensionCount; index++ {
+			if index != dim1Index {
+				dim2Indexes = append(dim2Indexes, index)
+			}
 		}
 	}
-	if chartType == "pie" && len(dim2Indexes) > 1 {
+	if (chartType == "pie" || chartType == "pareto") && len(dim2Indexes) > 1 {
 		dim2Indexes = dim2Indexes[:1]
 	}
 	if rt.Changed("dim2-indexes") {
@@ -598,6 +704,12 @@ func chartDataUpdateInputFromSnapshot(
 	}
 	if chartType == "combo" && len(dim2Indexes) < 2 {
 		return nil, nil, nil, "", sheetsValidationForFlag("dim2-indexes", "combo charts require at least two --dim2-indexes values")
+	}
+	if chartType == "bubble" && (len(dim2Indexes) < 2 || len(dim2Indexes) > 4) {
+		return nil, nil, nil, "", sheetsValidationForFlag("dim2-indexes", "bubble charts require x and y plus optional group and size indexes")
+	}
+	if chartType == "pareto" && len(dim2Indexes) != 1 {
+		return nil, nil, nil, "", sheetsValidationForFlag("dim2-indexes", "pareto charts require exactly one --dim2-indexes value")
 	}
 	if len(dim2Indexes) > chartSeriesMaxCount {
 		return nil, nil, nil, "", sheetsValidationForFlag(
@@ -639,8 +751,15 @@ func chartDataUpdateInputFromSnapshot(
 		dim1["nameRef"] = headerRefs[dim1Index]
 	}
 	series := make([]interface{}, 0, len(dim2Indexes))
-	for _, index := range dim2Indexes {
+	for seriesIndex, index := range dim2Indexes {
 		item := map[string]interface{}{"index": index}
+		if chartType == "bubble" {
+			role := []string{"x", "y", "group", "size"}[seriesIndex]
+			if useBubbleRoles {
+				role = bubbleSeries[seriesIndex].role
+			}
+			item["role"] = role
+		}
 		if detached {
 			item["nameRef"] = headerRefs[index]
 		}
@@ -699,7 +818,9 @@ func chartDataDryRunPatch(updates map[string]interface{}) map[string]interface{}
 		data["direction"] = value
 	}
 	dim1Index := 1
-	if value, ok := chartInt(updates["dim1_index"]); ok {
+	if value, ok := chartInt(updates["key_index"]); ok {
+		dim1Index = value
+	} else if value, ok := chartInt(updates["dim1_index"]); ok {
 		dim1Index = value
 	}
 	dim2Indexes := make([]int, 0, max(0, dimensionCount-1))
@@ -721,9 +842,24 @@ func chartDataDryRunPatch(updates map[string]interface{}) map[string]interface{}
 		dim1["nameRef"] = headerRefs[dim1Index]
 	}
 	data["dim1"] = map[string]interface{}{"serie": dim1}
+	semanticRoles := make([]chartRoleIndex, 0, len(bubbleRoleIndexFlags))
+	for _, item := range bubbleRoleIndexFlags {
+		if value, ok := chartInt(updates[strings.ReplaceAll(item.flag, "-", "_")]); ok {
+			semanticRoles = append(semanticRoles, chartRoleIndex{flag: item.flag, role: item.role, index: value})
+		}
+	}
+	if len(semanticRoles) > 0 {
+		dim2Indexes = dim2Indexes[:0]
+		for _, item := range semanticRoles {
+			dim2Indexes = append(dim2Indexes, item.index)
+		}
+	}
 	series := make([]interface{}, 0, len(dim2Indexes))
-	for _, value := range dim2Indexes {
+	for seriesIndex, value := range dim2Indexes {
 		item := map[string]interface{}{"index": value}
+		if len(semanticRoles) > 0 {
+			item["role"] = semanticRoles[seriesIndex].role
+		}
 		if headerRefs[value] != "" {
 			item["nameRef"] = headerRefs[value]
 		}
@@ -951,7 +1087,7 @@ func chartTypeFromSnapshot(snapshot map[string]interface{}) string {
 
 func isBasicChartType(value string) bool {
 	switch value {
-	case "column", "bar", "line", "area", "pie", "scatter", "combo", "radar":
+	case "column", "bar", "line", "area", "pie", "scatter", "combo", "radar", "bubble", "waterfall", "pareto":
 		return true
 	default:
 		return false
