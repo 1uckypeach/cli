@@ -183,8 +183,8 @@ func TestAnnotateGrantPermissionError_AppScopeNotEnabled(t *testing.T) {
 		t.Errorf("required_scope mismatch: got %v", got)
 	}
 	consoleURL, _ := result["console_url"].(string)
-	if !strings.HasPrefix(consoleURL, "https://open.feishu-pre.cn/page/scope-apply") {
-		t.Errorf("console_url should target open.feishu-pre.cn, got %s", consoleURL)
+	if !strings.HasPrefix(consoleURL, "https://open.feishu-boe.cn/page/scope-apply") {
+		t.Errorf("console_url should target open.feishu-boe.cn, got %s", consoleURL)
 	}
 	if !strings.Contains(consoleURL, "clientID=cli_demo") {
 		t.Errorf("console_url missing clientID, got %s", consoleURL)
@@ -335,7 +335,7 @@ func TestAutoGrantStderrWarning_GrantFailed_AppScopeNotEnabled_Annotated(t *test
 		t.Errorf("required_scope = %v, want docs:permission.member:create", got)
 	}
 	consoleURL, _ := result["console_url"].(string)
-	if !strings.Contains(consoleURL, "open.feishu-pre.cn/page/scope-apply") {
+	if !strings.Contains(consoleURL, "open.feishu-boe.cn/page/scope-apply") {
 		t.Errorf("console_url missing or wrong host: %s", consoleURL)
 	}
 	if !strings.Contains(consoleURL, "scopes=docs%3Apermission.member%3Acreate") {

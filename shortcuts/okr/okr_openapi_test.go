@@ -389,9 +389,9 @@ func TestParseCreateProgressRecordParams_BrandAwareSourceURL(t *testing.T) {
 	convey.Convey("parseCreateProgressRecordParams brand-aware defaults", t, func() {
 		// This test directly tests the brand-aware default logic by constructing
 		// a minimal ContentBlock JSON and checking the resolved sourceURL.
-		convey.Convey("feishu brand defaults to feishu-pre.cn", func() {
+		convey.Convey("feishu brand defaults to feishu-boe.cn", func() {
 			url := core.ResolveOpenBaseURL(core.BrandFeishu) + "/app"
-			convey.So(url, convey.ShouldEqual, "https://open.feishu-pre.cn/app")
+			convey.So(url, convey.ShouldEqual, "https://open.feishu-boe.cn/app")
 		})
 		convey.Convey("lark brand defaults to larksuite.com", func() {
 			url := core.ResolveOpenBaseURL(core.BrandLark) + "/app"

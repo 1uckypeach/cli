@@ -185,7 +185,7 @@ func TestFactoryExternalHTTPClientDoesNotParsePlatformErrorProtocol(t *testing.T
 }
 
 func TestSafeRedirectPolicyAllowsBodylessCrossOriginGetAndStripsCredentials(t *testing.T) {
-	original, err := http.NewRequest(http.MethodGet, "https://open.feishu-pre.cn/start", nil)
+	original, err := http.NewRequest(http.MethodGet, "https://open.feishu-boe.cn/start", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,11 +208,11 @@ func TestSafeRedirectPolicyAllowsBodylessCrossOriginGetAndStripsCredentials(t *t
 }
 
 func TestSafeRedirectPolicyRejectsHTTPSDowngrade(t *testing.T) {
-	original, err := http.NewRequest(http.MethodGet, "https://open.feishu-pre.cn/start", nil)
+	original, err := http.NewRequest(http.MethodGet, "https://open.feishu-boe.cn/start", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	redirect, err := http.NewRequest(http.MethodGet, "http://open.feishu-pre.cn/next", nil)
+	redirect, err := http.NewRequest(http.MethodGet, "http://open.feishu-boe.cn/next", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +282,7 @@ func TestSafeRedirectPolicyTreatsDefaultHTTPSPortAsSameOrigin(t *testing.T) {
 }
 
 func TestSafeRedirectPolicyKeepsCredentialsStrippedAcrossExternalHops(t *testing.T) {
-	original, err := http.NewRequest(http.MethodGet, "https://open.feishu-pre.cn/start", nil)
+	original, err := http.NewRequest(http.MethodGet, "https://open.feishu-boe.cn/start", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

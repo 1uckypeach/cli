@@ -126,7 +126,7 @@ func TestShared_PluginOverridesNoProxy(t *testing.T) {
 	if !ok {
 		t.Fatalf("Shared() = %T, want proxy *http.Transport, not the NO_PROXY clone", tr)
 	}
-	u, err := tr.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu-pre.cn"}})
+	u, err := tr.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu-boe.cn"}})
 	if err != nil || u == nil || u.String() != "http://127.0.0.1:3128" {
 		t.Fatalf("Proxy() = %v, %v; plugin must override NO_PROXY with the fixed proxy", u, err)
 	}
@@ -150,7 +150,7 @@ func TestShared_MalformedConfigFailsClosedEvenWithNoProxy(t *testing.T) {
 	if rt == noProxyTransport() {
 		t.Fatal("malformed config fell through to the NO_PROXY direct-egress clone — fail OPEN")
 	}
-	resp, err := rt.RoundTrip(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu-pre.cn"}})
+	resp, err := rt.RoundTrip(&http.Request{URL: &url.URL{Scheme: "https", Host: "open.feishu-boe.cn"}})
 	if err == nil {
 		t.Fatalf("RoundTrip() err = nil (resp=%v); malformed config must fail closed", resp)
 	}
@@ -161,7 +161,7 @@ func TestShared_MalformedConfigFailsClosedEvenWithNoProxy(t *testing.T) {
 	}{
 		"platform": {
 			client: NewHTTPClient(time.Second),
-			url:    "https://open.feishu-pre.cn/open-apis/test",
+			url:    "https://open.feishu-boe.cn/open-apis/test",
 		},
 		"external": {
 			client: NewHTTPClient(time.Second),

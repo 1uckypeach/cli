@@ -30,7 +30,7 @@ const (
 	HeaderTTEnv       = "x-tt-env"
 
 	SourceValue = "lark-cli"
-	TTEnvValue  = "ppe_countdown_all"
+	TTEnvValue  = "boe_countdown_all"
 
 	HeaderUserAgent = "User-Agent"
 

@@ -36,15 +36,15 @@ func TestTransportAuthorizesBeforeCollecting(t *testing.T) {
 		authorization string
 		wantSignals   bool
 	}{
-		{name: "authenticated official HTTPS", requestURL: "https://open.feishu-pre.cn/open-apis/test", authorization: "Bearer token", wantSignals: true},
+		{name: "authenticated official HTTPS", requestURL: "https://open.feishu-boe.cn/open-apis/test", authorization: "Bearer token", wantSignals: true},
 		{name: "Lark official HTTPS", requestURL: "https://open.larksuite.com/open-apis/test", authorization: "Bearer token", wantSignals: true},
-		{name: "official explicit HTTPS port", requestURL: "https://OPEN.FEISHU-PRE.CN:443/open-apis/test", authorization: "Bearer token", wantSignals: true},
-		{name: "unauthenticated", requestURL: "https://open.feishu-pre.cn/open-apis/test", wantSignals: true},
+		{name: "official explicit HTTPS port", requestURL: "https://OPEN.FEISHU-BOE.CN:443/open-apis/test", authorization: "Bearer token", wantSignals: true},
+		{name: "unauthenticated", requestURL: "https://open.feishu-boe.cn/open-apis/test", wantSignals: true},
 		{name: "official non-OpenAPI origin", requestURL: "https://accounts.feishu.cn/open-apis/test", authorization: "Bearer token", wantSignals: true},
 		{name: "off domain", requestURL: "https://example.com/test", authorization: "Bearer token", wantSignals: false},
-		{name: "lookalike", requestURL: "https://open.feishu-pre.cn.evil.example/test", authorization: "Bearer token", wantSignals: false},
-		{name: "plain HTTP", requestURL: "http://open.feishu-pre.cn/test", authorization: "Bearer token", wantSignals: false},
-		{name: "non-default port", requestURL: "https://open.feishu-pre.cn:8443/test", authorization: "Bearer token", wantSignals: false},
+		{name: "lookalike", requestURL: "https://open.feishu-boe.cn.evil.example/test", authorization: "Bearer token", wantSignals: false},
+		{name: "plain HTTP", requestURL: "http://open.feishu-boe.cn/test", authorization: "Bearer token", wantSignals: false},
+		{name: "non-default port", requestURL: "https://open.feishu-boe.cn:8443/test", authorization: "Bearer token", wantSignals: false},
 	}
 
 	for _, test := range tests {
@@ -104,7 +104,7 @@ func TestTransportValidatesSourceSnapshot(t *testing.T) {
 		received = req.Header.Clone()
 		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 	})
-	req, err := http.NewRequest(http.MethodGet, "https://open.feishu-pre.cn/open-apis/test", nil)
+	req, err := http.NewRequest(http.MethodGet, "https://open.feishu-boe.cn/open-apis/test", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

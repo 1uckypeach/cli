@@ -340,7 +340,7 @@ func TestNewDefaultInstallsSDKBootstrapSecurityPolicy(t *testing.T) {
 
 	req, err := http.NewRequest(
 		http.MethodPost,
-		"https://open.feishu-pre.cn/callback/ws/endpoint",
+		"https://open.feishu-boe.cn/callback/ws/endpoint",
 		strings.NewReader(`{"app_secret":"secret"}`),
 	)
 	if err != nil {
@@ -377,7 +377,7 @@ func TestBuildSDKTransport_StripsExtensionRiskHeaders(t *testing.T) {
 		received = req.Header.Clone()
 		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 	})
-	req, err := http.NewRequest(http.MethodGet, "https://open.feishu-pre.cn/open-apis/test", nil)
+	req, err := http.NewRequest(http.MethodGet, "https://open.feishu-boe.cn/open-apis/test", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

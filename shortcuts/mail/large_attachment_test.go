@@ -109,7 +109,7 @@ func TestBuildLargeAttachmentPreviewURL(t *testing.T) {
 		token string
 		want  string
 	}{
-		{core.BrandFeishu, "abc123", "https://www.feishu-pre.cn/mail/page/attachment?token=abc123"},
+		{core.BrandFeishu, "abc123", "https://www.feishu-boe.cn/mail/page/attachment?token=abc123"},
 		{core.BrandLark, "xyz789", "https://www.larksuite.com/mail/page/attachment?token=xyz789"},
 	}
 	for _, tt := range tests {
@@ -143,7 +143,7 @@ func TestBuildLargeAttachmentHTML(t *testing.T) {
 		t.Error("missing data-mail-token for tok_abc")
 	}
 	// Check download links
-	if !strings.Contains(html, "www.feishu-pre.cn/mail/page/attachment?token=tok_abc") {
+	if !strings.Contains(html, "www.feishu-boe.cn/mail/page/attachment?token=tok_abc") {
 		t.Error("missing download link for tok_abc")
 	}
 	if !strings.Contains(html, ">Download<") {
