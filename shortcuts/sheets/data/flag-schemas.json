@@ -1,6 +1,147 @@
 {
   "schema_version": "3",
   "flags": {
+    "+batch-chart-create": {
+      "operations": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": [
+            "chart_type",
+            "data_range"
+          ],
+          "anyOf": [
+            {
+              "required": [
+                "sheet_id"
+              ]
+            },
+            {
+              "required": [
+                "sheet_name"
+              ]
+            }
+          ],
+          "properties": {
+            "sheet_id": {
+              "type": "string",
+              "description": "目标子表 ID；与 sheet_name 二选一"
+            },
+            "sheet_name": {
+              "type": "string",
+              "description": "目标子表名；与 sheet_id 二选一"
+            },
+            "chart_type": {
+              "type": "string",
+              "enum": [
+                "column",
+                "bar",
+                "line",
+                "area",
+                "pie",
+                "scatter",
+                "combo",
+                "radar",
+                "bubble",
+                "waterfall",
+                "pareto"
+              ]
+            },
+            "data_range": {
+              "type": "string"
+            },
+            "header_range": {
+              "type": "string"
+            },
+            "data_direction": {
+              "type": "string",
+              "enum": [
+                "row",
+                "column"
+              ]
+            },
+            "dim1_index": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "dim2_indexes": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              ]
+            },
+            "key_index": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "气泡图标识/名称维度的 1-based 索引；默认 1"
+            },
+            "x_index": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "气泡图 X 值维度的 1-based 索引；与 y_index 同时提供"
+            },
+            "y_index": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "气泡图 Y 值维度的 1-based 索引；与 x_index 同时提供"
+            },
+            "group_index": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "气泡图可选分组维度的 1-based 索引"
+            },
+            "size_index": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "气泡图可选气泡大小维度的 1-based 索引"
+            },
+            "title": {
+              "type": "string"
+            },
+            "anchor_cell": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true,
+          "description": "每项直接填写 +chart-create-basic 的 flag；CLI 内部固定按 +chart-create-basic 创建，无需也不应再写 shortcut / input。"
+        }
+      }
+    },
+    "+batch-chart-update": {
+      "operations": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": [
+            "shortcut",
+            "input"
+          ],
+          "properties": {
+            "shortcut": {
+              "type": "string",
+              "enum": [
+                "+chart-config-update",
+                "+chart-data-update"
+              ]
+            },
+            "input": {
+              "type": "object",
+              "description": "对应图表更新 shortcut 的 flag 集合；包含 sheet_id 或 sheet_name，不包含 spreadsheet token/url"
+            }
+          }
+        }
+      }
+    },
     "+batch-update": {
       "operations": {
         "type": "array",
@@ -13188,119 +13329,6 @@
           "type": "object"
         },
         "type": "array"
-      }
-    },
-    "+batch-chart-create": {
-      "operations": {
-        "type": "array",
-        "minItems": 1,
-        "items": {
-          "type": "object",
-          "required": [
-            "chart_type",
-            "data_range"
-          ],
-          "anyOf": [
-            {
-              "required": [
-                "sheet_id"
-              ]
-            },
-            {
-              "required": [
-                "sheet_name"
-              ]
-            }
-          ],
-          "properties": {
-            "sheet_id": {
-              "type": "string",
-              "description": "目标子表 ID；与 sheet_name 二选一"
-            },
-            "sheet_name": {
-              "type": "string",
-              "description": "目标子表名；与 sheet_id 二选一"
-            },
-            "chart_type": {
-              "type": "string",
-              "enum": [
-                "column",
-                "bar",
-                "line",
-                "area",
-                "pie",
-                "scatter",
-                "combo",
-                "radar"
-              ]
-            },
-            "data_range": {
-              "type": "string"
-            },
-            "header_range": {
-              "type": "string"
-            },
-            "data_direction": {
-              "type": "string",
-              "enum": [
-                "row",
-                "column"
-              ]
-            },
-            "dim1_index": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "dim2_indexes": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "array",
-                  "items": {
-                    "type": "integer",
-                    "minimum": 1
-                  }
-                }
-              ]
-            },
-            "title": {
-              "type": "string"
-            },
-            "anchor_cell": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": true,
-          "description": "每项直接填写 +chart-create-basic 的 flag；CLI 内部固定按 +chart-create-basic 创建，无需也不应再写 shortcut / input。"
-        }
-      }
-    },
-    "+batch-chart-update": {
-      "operations": {
-        "type": "array",
-        "minItems": 1,
-        "items": {
-          "type": "object",
-          "required": [
-            "shortcut",
-            "input"
-          ],
-          "properties": {
-            "shortcut": {
-              "type": "string",
-              "enum": [
-                "+chart-config-update",
-                "+chart-data-update"
-              ]
-            },
-            "input": {
-              "type": "object",
-              "description": "对应图表更新 shortcut 的 flag 集合；包含 sheet_id 或 sheet_name，不包含 spreadsheet token/url"
-            }
-          }
-        }
       }
     }
   }
