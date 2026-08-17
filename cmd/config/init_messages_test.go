@@ -121,3 +121,31 @@ func TestGetInitMsg_BilingualCollapse(t *testing.T) {
 		})
 	}
 }
+
+func TestPickerCanExpress(t *testing.T) {
+	// The picker only offers 中文 and English. Unset has nothing to lose, and
+	// zh_cn/en_us are its own options — those three can round-trip.
+	for _, l := range []i18n.Lang{"", i18n.LangZhCN, i18n.LangEnUS} {
+		if !pickerCanExpress(l) {
+			t.Errorf("pickerCanExpress(%q) = false, want true", l)
+		}
+	}
+	// Everything else would be silently rewritten to zh_cn or en_us by a bare
+	// Enter, so those runs must skip the picker instead of destroying it.
+	for _, l := range []i18n.Lang{
+		i18n.LangJaJP, i18n.LangKoKR, i18n.LangFrFR, i18n.LangDeDE, i18n.LangEsES,
+		i18n.LangItIT, i18n.LangRuRU, i18n.LangPtBR, i18n.LangThTH, i18n.LangViVN,
+		i18n.LangIdID, i18n.LangMsMY,
+	} {
+		if pickerCanExpress(l) {
+			t.Errorf("pickerCanExpress(%q) = true, want false", l)
+		}
+	}
+	// Short and mis-cased spellings never reach the picker as UILang (it is
+	// always canonical or ""), but the guard must not treat them as expressible.
+	for _, l := range []i18n.Lang{"zh", "en", "ZH", "en_US"} {
+		if pickerCanExpress(l) {
+			t.Errorf("pickerCanExpress(%q) = true, want false", l)
+		}
+	}
+}

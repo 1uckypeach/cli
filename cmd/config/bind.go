@@ -239,10 +239,11 @@ func readPriorLang() i18n.Lang {
 }
 
 // shouldPromptBindLang reports whether the language picker should run: only in
-// the TUI, and only when neither --lang nor a stored preference already
-// answered the question.
+// the TUI, and only when the picker can express whatever preference is already
+// in effect. A stored zh_cn/en_us is not a reason to stop asking — it becomes
+// the pre-selected option, so re-binding stays a way to change the language.
 func shouldPromptBindLang(opts *BindOptions) bool {
-	return opts.IsTUI && !opts.langExplicit && opts.UILang == ""
+	return opts.IsTUI && !opts.langExplicit && pickerCanExpress(opts.UILang)
 }
 
 // resolveBindUILang settles the display language before any prompt renders.
@@ -266,7 +267,7 @@ func resolveBindUILang(opts *BindOptions, source string) error {
 	if !shouldPromptBindLang(opts) {
 		return nil
 	}
-	lang, err := promptLangSelection()
+	lang, err := promptLangSelection(opts.UILang)
 	if err != nil {
 		return langSelectionError(err)
 	}

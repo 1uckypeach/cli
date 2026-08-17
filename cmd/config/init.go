@@ -211,9 +211,11 @@ func resolveInitUILang(opts *ConfigInitOptions, existing *core.MultiAppConfig) {
 
 // shouldPromptInitLang reports whether the language picker should run: only in
 // a terminal, only when no non-interactive flag pinned the flow, and only when
-// neither --lang nor a stored preference already answered the question.
+// the picker can express whatever preference is already in effect. A stored
+// zh_cn/en_us is not a reason to stop asking — it becomes the pre-selected
+// option, so re-running init stays the way to change the language.
 func shouldPromptInitLang(opts *ConfigInitOptions, isTerminal bool) bool {
-	return isTerminal && !opts.langExplicit && !opts.hasAnyNonInteractiveFlag() && opts.UILang == ""
+	return isTerminal && !opts.langExplicit && !opts.hasAnyNonInteractiveFlag() && pickerCanExpress(opts.UILang)
 }
 
 // cleanupOldConfig clears keychain entries (AppSecret + UAT) for all apps in existing config except the app whose AppId equals skipAppID.
@@ -436,11 +438,12 @@ func configInitRun(opts *ConfigInitOptions) error {
 		return nil
 	}
 
-	// Last resort when nothing else expressed a language: ask. The picker
+	// Interactive runs still ask, seeded with whatever is already in effect,
+	// so re-running init remains the way to change the language. The picker
 	// offers 2 options (中文 / English) and drives BOTH opts.Lang (the
 	// preference that gets persisted) and opts.UILang (what renders now).
 	if shouldPromptInitLang(opts, f.IOStreams.IsTerminal) {
-		lang, err := promptLangSelection()
+		lang, err := promptLangSelection(opts.UILang)
 		if err != nil {
 			return langSelectionError(err)
 		}

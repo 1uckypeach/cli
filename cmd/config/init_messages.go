@@ -82,9 +82,23 @@ func getInitMsg(lang i18n.Lang) *initMsg {
 	return initMsgZh
 }
 
-// promptLangSelection shows the 中文/English picker and returns the chosen locale.
-func promptLangSelection() (i18n.Lang, error) {
+// pickerCanExpress reports whether the 中文/English picker can represent l
+// without losing it. Unset has nothing to lose. zh_cn and en_us are the
+// picker's own options. Any other locale would be silently rewritten to one of
+// those two by a bare Enter, so callers skip the picker and keep what the user
+// set with --lang.
+func pickerCanExpress(l i18n.Lang) bool {
+	return l == "" || l == i18n.LangZhCN || l == i18n.LangEnUS
+}
+
+// promptLangSelection shows the 中文/English picker and returns the chosen
+// locale. current pre-selects the option already in effect, so a user who
+// already expressed a preference keeps it by pressing Enter.
+func promptLangSelection(current i18n.Lang) (i18n.Lang, error) {
 	lang := i18n.LangZhCN
+	if current.UsesEnglishUI() {
+		lang = i18n.LangEnUS
+	}
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[i18n.Lang]().

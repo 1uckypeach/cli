@@ -1954,7 +1954,13 @@ func TestShouldPromptBindLang(t *testing.T) {
 	}{
 		{"TUI, nothing resolved", BindOptions{IsTUI: true}, true},
 		{"flag mode", BindOptions{IsTUI: false}, false},
-		{"preference already resolved", BindOptions{IsTUI: true, UILang: i18n.LangEnUS}, false},
+		// A stored zh_cn/en_us still asks — the picker pre-selects it, so
+		// re-binding remains a way to change the language.
+		{"stored en_us still asks", BindOptions{IsTUI: true, UILang: i18n.LangEnUS}, true},
+		{"stored zh_cn still asks", BindOptions{IsTUI: true, UILang: i18n.LangZhCN}, true},
+		// The picker has no option for these, so a bare Enter would silently
+		// rewrite the preference. Skip it and keep what --lang set.
+		{"stored ja_jp skips the picker", BindOptions{IsTUI: true, UILang: i18n.LangJaJP}, false},
 		{"--lang was explicit", BindOptions{IsTUI: true, langExplicit: true}, false},
 	}
 	for _, tt := range tests {

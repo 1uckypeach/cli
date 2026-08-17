@@ -715,12 +715,16 @@ func TestInitLangChain_ResolveToBundle(t *testing.T) {
 		Apps: []core.AppConfig{{AppId: "cli_x", Lang: i18n.LangEnUS}},
 	}
 	tests := []struct {
-		name     string
-		opts     ConfigInitOptions
-		existing *core.MultiAppConfig
+		name       string
+		opts       ConfigInitOptions
+		existing   *core.MultiAppConfig
+		wantPrompt bool
 	}{
-		{"--lang en_us, nothing stored", ConfigInitOptions{Lang: "en_us", langExplicit: true}, nil},
-		{"no --lang, en_us already stored", ConfigInitOptions{}, stored},
+		// --lang answers the question outright, so nothing is asked.
+		{"--lang en_us, nothing stored", ConfigInitOptions{Lang: "en_us", langExplicit: true}, nil, false},
+		// A stored preference decides what renders, but the picker still runs
+		// with it pre-selected — that is the only interactive way to change it.
+		{"no --lang, en_us already stored", ConfigInitOptions{}, stored, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -729,9 +733,12 @@ func TestInitLangChain_ResolveToBundle(t *testing.T) {
 			if opts.UILang != i18n.LangEnUS {
 				t.Fatalf("UILang = %q, want %q", opts.UILang, i18n.LangEnUS)
 			}
-			if shouldPromptInitLang(&opts, true) {
-				t.Error("language picker ran even though the preference was already known")
+			if got := shouldPromptInitLang(&opts, true); got != tt.wantPrompt {
+				t.Errorf("shouldPromptInitLang() = %v, want %v", got, tt.wantPrompt)
 			}
+			// Whatever the picker does next, the language in effect right now
+			// already selects the English bundle — nothing renders in Chinese
+			// while an English preference is live.
 			if msg := getInitMsg(opts.UILang); msg != initMsgEn {
 				t.Errorf("getInitMsg(%q) returned the non-English bundle", opts.UILang)
 			}
@@ -748,7 +755,13 @@ func TestShouldPromptInitLang(t *testing.T) {
 	}{
 		{"terminal, nothing resolved", ConfigInitOptions{}, true, true},
 		{"not a terminal", ConfigInitOptions{}, false, false},
-		{"preference already resolved", ConfigInitOptions{UILang: i18n.LangEnUS}, true, false},
+		// A stored zh_cn/en_us still asks — the picker pre-selects it, so
+		// re-running init remains the way to change the language.
+		{"stored en_us still asks", ConfigInitOptions{UILang: i18n.LangEnUS}, true, true},
+		{"stored zh_cn still asks", ConfigInitOptions{UILang: i18n.LangZhCN}, true, true},
+		// The picker has no option for these, so a bare Enter would silently
+		// rewrite the preference. Skip it and keep what --lang set.
+		{"stored ja_jp skips the picker", ConfigInitOptions{UILang: i18n.LangJaJP}, true, false},
 		{"--lang was explicit", ConfigInitOptions{langExplicit: true}, true, false},
 		{"--new pins the flow", ConfigInitOptions{New: true}, true, false},
 	}
