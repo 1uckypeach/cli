@@ -18,9 +18,9 @@
     {
       "name": "calendar",
       "file": "services/calendar.json",
-      "revision": 10,
+      "revision": 12,
       "size": 297532,
-      "sha256": "47164ebac6ce38aca5f4ec0e2d11bffd56e264c28646fbf1a94bc3747704ddb4"
+      "sha256": "69b91b731bd9f8563ebc32c85fa3d480cbee900673444e2f45a21678df19d727"
     },
     {
       "name": "contact",
@@ -39,9 +39,9 @@
     {
       "name": "im",
       "file": "services/im.json",
-      "revision": 9,
-      "size": 243433,
-      "sha256": "1fbb44ccd59bafd175dc16206e58f045ed398b10772bbcad22159080f1e6cb32"
+      "revision": 10,
+      "size": 246956,
+      "sha256": "596627056f1ecd052e10cb8d67fcbe403a9a465ae828d4a509c5517ab24eeaea"
     },
     {
       "name": "mail",
@@ -81,9 +81,9 @@
     {
       "name": "slides",
       "file": "services/slides.json",
-      "revision": 5,
-      "size": 33893,
-      "sha256": "7cb93615f2abf0bb6c7e3c4d1677bfe0b9049c29cec424bc97fa490a12dfb587"
+      "revision": 6,
+      "size": 33246,
+      "sha256": "02cca427ee8e25ec332dfe121798cd0e64724e5c9153fc7be4682feb83ee5d74"
     },
     {
       "name": "task",
@@ -95,9 +95,9 @@
     {
       "name": "vc",
       "file": "services/vc.json",
-      "revision": 7,
+      "revision": 9,
       "size": 17194,
-      "sha256": "5a9ed469b50ab7ec64f018d64edf94e3cef5cd1b1a2ca04df3a2be8664278edb"
+      "sha256": "779b54fcfaeb81a454fff461e6557cef00b13dde17473aba3c4c4dc6827866d8"
     },
     {
       "name": "wiki",

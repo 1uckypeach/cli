@@ -4572,7 +4572,7 @@
           "id": "images.create",
           "path": "images",
           "httpMethod": "POST",
-          "description": "Upload image。Identity: `bot` only (`tenant_access_token`)",
+          "description": "Upload image。Identity: supports `user` and `bot`; user identity requires `im:resource` scope on the UAT",
           "requestBody": {
             "image_type": {
               "type": "string",
@@ -4621,6 +4621,101 @@
           "danger": true,
           "risk": "write",
           "docUrl": "https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/image/create"
+        }
+      }
+    },
+    "files": {
+      "methods": {
+        "create": {
+          "id": "files.create",
+          "path": "files",
+          "httpMethod": "POST",
+          "description": "Upload file。Identity: supports `user` and `bot`; user identity requires `im:resource` scope on the UAT",
+          "requestBody": {
+            "file_type": {
+              "type": "string",
+              "description": "File type",
+              "required": true,
+              "example": "mp4",
+              "options": [
+                {
+                  "value": "opus",
+                  "description": "Uploads an OPUS audio file.\nTo upload an audio file in other formats, convert the audio file into the OPUS format. For more information about the conversion method, see the following sample code: `ffmpeg -i  SourceFile.mp3 -acodec libopus -ac 1 -ar 16000 TargetFile.opus`"
+                },
+                {
+                  "value": "mp4",
+                  "description": "Uploads an MP4 video file"
+                },
+                {
+                  "value": "pdf",
+                  "description": "Uploads a PDF file"
+                },
+                {
+                  "value": "doc",
+                  "description": "Uploads a Doc file"
+                },
+                {
+                  "value": "xls",
+                  "description": "Uploads an XLS file"
+                },
+                {
+                  "value": "ppt",
+                  "description": "Upload a PPT file"
+                },
+                {
+                  "value": "stream",
+                  "description": "Uploads a stream file. That is, files in the stream format are supported in addition to the preceding formats"
+                }
+              ],
+              "enum": [
+                "opus",
+                "mp4",
+                "pdf",
+                "doc",
+                "xls",
+                "ppt",
+                "stream"
+              ],
+              "enumName": "CreateFileFileType"
+            },
+            "file_name": {
+              "type": "string",
+              "description": "File name with a suffix",
+              "required": true,
+              "example": "test video.mp4"
+            },
+            "duration": {
+              "type": "integer",
+              "description": "Duration of the video or audio file, in milliseconds. If this field is not specified, no specific duration is displayed",
+              "required": false,
+              "example": 3000
+            },
+            "file": {
+              "type": "file",
+              "description": "File content. For specific value transmission methods, please refer to the request body example.; Note: The file size must not exceed 30 MB, and empty files cannot be uploaded",
+              "required": true,
+              "example": "Binary file"
+            }
+          },
+          "responseBody": {
+            "file_key": {
+              "type": "string",
+              "description": "File key",
+              "required": false,
+              "example": "file_456a92d6-c6ea-4de4-ac3f-7afcf44ac78g"
+            }
+          },
+          "scopes": [
+            "im:resource:upload",
+            "im:resource"
+          ],
+          "accessTokens": [
+            "user",
+            "tenant"
+          ],
+          "danger": true,
+          "risk": "write",
+          "docUrl": "https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/file/create"
         }
       }
     },

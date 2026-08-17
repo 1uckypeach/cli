@@ -120,7 +120,7 @@
                   "type": "string",
                   "description": "会议密码",
                   "required": false,
-                  "example": "971024"
+                  "example": "123456"
                 },
                 "create_time": {
                   "type": "string",

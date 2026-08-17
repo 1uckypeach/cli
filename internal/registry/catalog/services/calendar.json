@@ -2688,7 +2688,7 @@
                       "type": "string",
                       "description": "设置会议密码，仅支持 4-9 位数字",
                       "required": false,
-                      "example": "971024"
+                      "example": "123456"
                     },
                     "assign_hosts": {
                       "type": "array",
@@ -2743,7 +2743,7 @@
                       "type": "string",
                       "description": "密码",
                       "required": false,
-                      "example": "123"
+                      "example": "987"
                     },
                     "meeting_descriptions": {
                       "type": "array",
@@ -5510,7 +5510,7 @@
                       "type": "string",
                       "description": "设置会议密码，仅支持 4-9 位数字",
                       "required": false,
-                      "example": "971024"
+                      "example": "123456"
                     },
                     "assign_hosts": {
                       "type": "array",
@@ -5565,7 +5565,7 @@
                       "type": "string",
                       "description": "密码",
                       "required": false,
-                      "example": "123"
+                      "example": "987"
                     },
                     "meeting_descriptions": {
                       "type": "array",

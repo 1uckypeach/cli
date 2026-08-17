@@ -358,7 +358,7 @@
             "tenant"
           ],
           "danger": true,
-          "risk": "high-risk-write",
+          "risk": "write",
           "docUrl": "https://open.feishu.cn/api-explorer?from=op_doc_tab&apiName=revert&project=slides_ai&resource=xml_presentation.history&version=v1"
         },
         "revert_status": {
@@ -465,12 +465,12 @@
               "max": "2147483647",
               "min": "-1"
             },
-            "tid": {
+            "idempotency_key": {
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "锁的事务 ID，用于并发控制",
-              "example": "idMock"
+              "description": "幂等标记",
+              "example": "xx-slide-01"
             }
           },
           "parameterOrder": [
@@ -566,12 +566,12 @@
               "max": "2147483647",
               "min": "-1"
             },
-            "tid": {
+            "idempotency_key": {
               "type": "string",
               "location": "query",
               "required": false,
-              "description": "锁的事务 ID，用于并发控制",
-              "example": "idMock"
+              "description": "幂等标记",
+              "example": "xx-slide-01"
             }
           },
           "parameterOrder": [
@@ -594,7 +594,7 @@
             "tenant"
           ],
           "danger": true,
-          "risk": "high-risk-write",
+          "risk": "write",
           "docUrl": "https://open.feishu.cn/api-explorer?from=op_doc_tab&apiName=delete&project=slides_ai&resource=xml_presentation.slide&version=v1"
         },
         "get": {
@@ -707,13 +707,6 @@
               "example": -1,
               "max": "2147483647",
               "min": "-1"
-            },
-            "tid": {
-              "type": "string",
-              "location": "query",
-              "required": false,
-              "description": "锁的事务 ID，用于并发控制",
-              "example": "idMock"
             }
           },
           "parameterOrder": [
@@ -727,27 +720,15 @@
               "properties": {
                 "action": {
                   "type": "string",
-                  "description": "操作类型：str_replace（字符串替换）、block_replace（块替换）、block_insert（块插入）",
+                  "description": "操作类型：block_replace（块替换）、block_insert（块插入）",
                   "required": true,
-                  "example": "str_replace"
-                },
-                "pattern": {
-                  "type": "string",
-                  "description": "查找的字符串模式，str_replace 时使用",
-                  "required": false,
-                  "example": "test from"
+                  "example": "block_replace"
                 },
                 "replacement": {
                   "type": "string",
-                  "description": "替换内容，str_replace 和 block_replace 时使用",
+                  "description": "替换内容，block_replace 时使用",
                   "required": false,
                   "example": "test from1"
-                },
-                "is_multiple": {
-                  "type": "boolean",
-                  "description": "是否替换所有匹配项，默认只替换第一个，str_replace 时使用",
-                  "required": false,
-                  "example": true
                 },
                 "block_id": {
                   "type": "string",
@@ -774,6 +755,12 @@
               "description": "操作备注",
               "required": false,
               "example": "批量替换文本内容"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "description": "幂等标记",
+              "required": false,
+              "example": "xx-slide-01"
             }
           },
           "responseBody": {
