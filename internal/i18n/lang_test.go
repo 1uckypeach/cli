@@ -3,7 +3,10 @@
 
 package i18n
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParse(t *testing.T) {
 	tests := []struct {
@@ -30,28 +33,6 @@ func TestParse(t *testing.T) {
 			got, ok := Parse(tt.in)
 			if got != tt.want || ok != tt.wantOK {
 				t.Errorf("Parse(%q) = (%q, %v), want (%q, %v)", tt.in, got, ok, tt.want, tt.wantOK)
-			}
-		})
-	}
-}
-
-func TestIsEnglish(t *testing.T) {
-	tests := []struct {
-		lang Lang
-		want bool
-	}{
-		{LangEnUS, true},
-		{Lang("en"), true}, // legacy short value on disk stays robust
-		{LangZhCN, false},
-		{LangJaJP, false},
-		{Lang("zh"), false},
-		{Lang(""), false}, // unset → not English (zh bundle)
-		{Lang("garbage"), false},
-	}
-	for _, tt := range tests {
-		t.Run(string(tt.lang), func(t *testing.T) {
-			if got := tt.lang.IsEnglish(); got != tt.want {
-				t.Errorf("Lang(%q).IsEnglish() = %v, want %v", tt.lang, got, tt.want)
 			}
 		})
 	}
@@ -92,6 +73,24 @@ func TestCodes(t *testing.T) {
 		if got, ok := Parse(c); !ok || string(got) != c {
 			t.Errorf("Parse(%q) = (%q, %v), want (%q, true)", c, got, ok, c)
 		}
+	}
+}
+
+func TestCodesWithShort(t *testing.T) {
+	got := CodesWithShort()
+	if want := "zh_cn (zh), en_us (en), ja_jp (ja)"; !strings.HasPrefix(got, want) {
+		t.Errorf("CodesWithShort() = %q, want prefix %q (catalog order)", got, want)
+	}
+	// Every catalog entry must be listed with both spellings a user may type,
+	// so the listing never sends someone hunting for a value it omitted.
+	for _, e := range catalog {
+		entry := string(e.Code) + " (" + e.Short + ")"
+		if !strings.Contains(got, entry) {
+			t.Errorf("CodesWithShort() = %q, missing %q", got, entry)
+		}
+	}
+	if n := strings.Count(got, ", "); n != len(catalog)-1 {
+		t.Errorf("CodesWithShort() has %d separators, want %d", n, len(catalog)-1)
 	}
 }
 

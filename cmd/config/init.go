@@ -111,7 +111,7 @@ func NewCmdConfigInit(f *cmdutil.Factory, runF func(*ConfigInitOptions) error) *
 	cmd.Flags().BoolVar(&opts.AppSecretStdin, "app-secret-stdin", false, "Read App Secret from stdin to avoid process list exposure")
 	cmd.Flags().StringVar(&opts.Brand, "brand", "feishu", "feishu or lark (non-interactive, default feishu)")
 	cmd.Flags().StringVar(&opts.Lang, "lang", "", "language preference; also selects the interactive display language (e.g. zh or zh_cn)")
-	cmd.Flags().StringVar(&opts.ProfileName, "name", "", "create or update a named profile (append instead of replace)")
+	cmd.Flags().StringVar(&opts.ProfileName, "name", "", "create or update a named profile (append instead of replace); a new profile inherits no language preference from existing profiles, so pass --lang to set one")
 	cmd.Flags().BoolVar(&opts.ForceInit, "force-init", false, forceInitUsageWithBind)
 	cmdutil.SetRisk(cmd, "write")
 

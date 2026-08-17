@@ -186,9 +186,7 @@ func TestConfigBindRun_InvalidLang(t *testing.T) {
 			if got := output.ExitCodeOf(err); got != output.ExitValidation {
 				t.Errorf("exit code = %d, want %d (validation)", got, output.ExitValidation)
 			}
-			if !strings.Contains(err.Error(), "invalid --lang") {
-				t.Errorf("error message %q does not contain 'invalid --lang'", err.Error())
-			}
+			assertLangErrorGuidance(t, err)
 		})
 	}
 }

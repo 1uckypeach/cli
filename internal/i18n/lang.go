@@ -3,6 +3,8 @@
 
 package i18n
 
+import "strings"
+
 // Lang is a Feishu locale (e.g. "zh_cn"); "" means unset.
 type Lang string
 
@@ -53,13 +55,6 @@ func Parse(s string) (Lang, bool) {
 	return e.Code, ok
 }
 
-// IsEnglish reports whether l uses the English TUI bundle (robust to "en_us"
-// and legacy "en").
-func (l Lang) IsEnglish() bool {
-	e, _ := find(string(l))
-	return e.Code == LangEnUS
-}
-
 // UsesEnglishUI reports whether l should render the English TUI bundle.
 // Only two bundles exist (zh, en): zh_cn renders Chinese, every other
 // recognized locale renders English — a user who set a preference the TUI has
@@ -87,4 +82,21 @@ func Codes() []string {
 		out[i] = string(e.Code)
 	}
 	return out
+}
+
+// CodesWithShort renders the accepted values as "zh_cn (zh), en_us (en), ...".
+// Short codes are accepted input too, so a listing that hides them sends users
+// who typed one to hunt for a canonical locale they did not need.
+func CodesWithShort() string {
+	var b strings.Builder
+	for i, e := range catalog {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(string(e.Code))
+		b.WriteString(" (")
+		b.WriteString(e.Short)
+		b.WriteString(")")
+	}
+	return b.String()
 }

@@ -261,10 +261,22 @@ func TestConfigInitCmd_InvalidLang(t *testing.T) {
 			if got := output.ExitCodeOf(err); got != output.ExitValidation {
 				t.Errorf("exit code = %d, want %d (validation)", got, output.ExitValidation)
 			}
-			if !strings.Contains(err.Error(), "invalid --lang") {
-				t.Errorf("error message %q does not contain 'invalid --lang'", err.Error())
-			}
+			assertLangErrorGuidance(t, err)
 		})
+	}
+}
+
+// assertLangErrorGuidance pins what a rejected --lang value must tell the user:
+// which flag was wrong, that short codes are accepted too, and that the match
+// is case-sensitive — the two facts that otherwise send a user who typed "EN"
+// on a detour through "en_US".
+func assertLangErrorGuidance(t *testing.T, err error) {
+	t.Helper()
+	msg := err.Error()
+	for _, want := range []string{"invalid --lang", "zh_cn (zh)", "en_us (en)", "case-sensitive"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error message %q does not contain %q", msg, want)
+		}
 	}
 }
 
