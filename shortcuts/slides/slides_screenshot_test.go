@@ -10,6 +10,7 @@ import (
 	"errors"
 	"image"
 	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -42,10 +43,64 @@ func TestSlidesScreenshotRegionParser(t *testing.T) {
 	if err != nil || !set || got != (slidesScreenshotRegion{X: 120, Y: 80, Width: 480, Height: 220}) {
 		t.Fatalf("parseSlidesScreenshotRegion() = %#v, %v, %v", got, set, err)
 	}
-	for _, raw := range []string{"1,2,3", "-1,0,1,1", "0,0,961,1", "0,0,0,1"} {
+	for _, raw := range []string{"1,2,3", "-1,0,1,1", "0,0,961,1", "0,0,0,1", "9223372036854775807,0,1,1"} {
 		if _, _, err := parseSlidesScreenshotRegion(raw); err == nil {
 			t.Fatalf("parseSlidesScreenshotRegion(%q) succeeded", raw)
 		}
+	}
+}
+
+func TestSlidesScreenshotOverviewImagesRejectsInvalidResponseAndOrdersByRequestedID(t *testing.T) {
+	pngData := func(c color.RGBA) string {
+		t.Helper()
+		img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+		for y := 0; y < 2; y++ {
+			for x := 0; x < 2; x++ {
+				img.SetRGBA(x, y, c)
+			}
+		}
+		var out bytes.Buffer
+		if err := png.Encode(&out, img); err != nil {
+			t.Fatal(err)
+		}
+		return base64.StdEncoding.EncodeToString(out.Bytes())
+	}
+	imageItem := func(id, data string) map[string]interface{} {
+		return map[string]interface{}{"slide_id": id, "data": data}
+	}
+	red, green := pngData(color.RGBA{R: 255, A: 255}), pngData(color.RGBA{G: 255, A: 255})
+
+	ordered, err := slidesScreenshotOverviewImages(map[string]interface{}{"slide_images": []interface{}{imageItem("p2", green), imageItem("p1", red)}}, []string{"p1", "p2"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := color.RGBAModel.Convert(ordered[0].At(0, 0)).(color.RGBA); got.R != 255 || got.G != 0 {
+		t.Fatalf("first image = %#v, want p1/red", got)
+	}
+
+	for _, tc := range []struct {
+		name string
+		data map[string]interface{}
+	}{
+		{name: "missing", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", red)}}},
+		{name: "duplicate", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", red), imageItem("p1", red)}}},
+		{name: "unexpected", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", red), imageItem("p3", green)}}},
+		{name: "invalid base64", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", "not-base64"), imageItem("p2", green)}}},
+		{name: "invalid image", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", base64.StdEncoding.EncodeToString([]byte("not an image"))), imageItem("p2", green)}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := slidesScreenshotOverviewImages(tc.data, []string{"p1", "p2"})
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			p, ok := errs.ProblemOf(err)
+			if !ok {
+				t.Fatalf("error = %T %v, want typed problem", err, err)
+			}
+			if p.Category != errs.CategoryAPI || p.Subtype != errs.SubtypeInvalidResponse {
+				t.Fatalf("problem = %#v, want api/invalid_response", p)
+			}
+		})
 	}
 }
 
@@ -99,6 +154,51 @@ func TestSlidesScreenshotOverviewAllowsSingleOutputDryRun(t *testing.T) {
 	data := decodeShortcutData(t, stdout)
 	if data["output"] != "shots/overview.png" {
 		t.Fatalf("output = %#v", data["output"])
+	}
+}
+
+func TestSlidesScreenshotOverviewExecutionOrdersServerResponseBySlideID(t *testing.T) {
+	dir := t.TempDir()
+	withSlidesTestWorkingDir(t, dir)
+	encodePNG := func(c color.RGBA) string {
+		img := image.NewRGBA(image.Rect(0, 0, 960, 540))
+		for y := 0; y < 540; y++ {
+			for x := 0; x < 960; x++ {
+				img.SetRGBA(x, y, c)
+			}
+		}
+		var out bytes.Buffer
+		if err := png.Encode(&out, img); err != nil {
+			t.Fatal(err)
+		}
+		return base64.StdEncoding.EncodeToString(out.Bytes())
+	}
+	red, green := encodePNG(color.RGBA{R: 255, A: 255}), encodePNG(color.RGBA{G: 255, A: 255})
+	f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	reg.Register(&httpmock.Stub{Method: "GET", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc", Body: map[string]interface{}{
+		"code": 0, "data": map[string]interface{}{"xml_presentation": map[string]interface{}{"content": `<presentation><slide id="p1"/><slide id="p2"/></presentation>`}},
+	}})
+	reg.Register(&httpmock.Stub{Method: "POST", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc/slide_images", Body: map[string]interface{}{
+		"code": 0, "data": map[string]interface{}{"slide_images": []map[string]interface{}{
+			{"slide_id": "p2", "data": green}, {"slide_id": "p1", "data": red},
+		}},
+	}})
+
+	if err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{"+screenshot", "--presentation", "pres_abc", "--overview", "--output", "shots/overview.png", "--as", "user"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	decoded, err := os.Open(filepath.Join(dir, "shots", "overview.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer decoded.Close()
+	overview, err := png.Decode(decoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The first cell is p1 according to XML, although p2 arrived first.
+	if got := color.RGBAModel.Convert(overview.At(16+160, 56+90)).(color.RGBA); got.R < 200 || got.G > 50 {
+		t.Fatalf("first overview cell = %#v, want p1/red", got)
 	}
 }
 

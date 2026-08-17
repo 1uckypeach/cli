@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -878,7 +879,10 @@ func parseSlidesScreenshotRegion(raw string) (slidesScreenshotRegion, bool, erro
 		vals[i] = n
 	}
 	r := slidesScreenshotRegion{vals[0], vals[1], vals[2], vals[3]}
-	if r.X < 0 || r.Y < 0 || r.Width <= 0 || r.Height <= 0 || r.X+r.Width > slideCanvasWidth || r.Y+r.Height > slideCanvasHeight {
+	// Compare the remaining canvas size instead of adding X+Width. Apart from
+	// being equivalent for valid values, this cannot wrap on a hostile integer
+	// input before the bounds check runs.
+	if r.X < 0 || r.Y < 0 || r.Width <= 0 || r.Height <= 0 || r.Width > slideCanvasWidth-r.X || r.Height > slideCanvasHeight-r.Y {
 		return slidesScreenshotRegion{}, false, errs.NewValidationError(errs.SubtypeInvalidArgument, "--region must stay within the 960x540 slide canvas").WithParam("--region").WithHint("use non-negative x,y and positive width,height with x+width<=960 and y+height<=540")
 	}
 	return r, true, nil
@@ -953,21 +957,11 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 		if err != nil {
 			return err
 		}
-		for _, raw := range common.GetSlice(pageData, "slide_images") {
-			item, ok := raw.(map[string]interface{})
-			if !ok {
-				return slidesScreenshotAPIDataError(pageData, "slides screenshot returned invalid slide image")
-			}
-			b, err := base64.StdEncoding.DecodeString(common.GetString(item, "data"))
-			if err != nil {
-				return err
-			}
-			img, _, err := image.Decode(bytes.NewReader(b))
-			if err != nil {
-				return err
-			}
-			thumbs = append(thumbs, img)
+		batch, err := slidesScreenshotOverviewImages(pageData, ids[start:end])
+		if err != nil {
+			return err
 		}
+		thumbs = append(thumbs, batch...)
 	}
 	overview, cells := composeSlidesOverview(thumbs, runtime.Int("overview-columns"))
 	var encoded bytes.Buffer
@@ -997,13 +991,60 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 	return nil
 }
 
+// slidesScreenshotOverviewImages verifies that the API response is a bijection
+// with requestedIDs, then returns its images in request order. The API's array
+// order is deliberately not trusted: a mismatched thumbnail makes the overview
+// index unsafe for an agent to use in a later per-slide review.
+func slidesScreenshotOverviewImages(data map[string]interface{}, requestedIDs []string) ([]image.Image, error) {
+	items := common.GetSlice(data, "slide_images")
+	if len(items) != len(requestedIDs) {
+		return nil, slidesScreenshotAPIDataError(data, "slides screenshot returned %d images for %d requested slide IDs", len(items), len(requestedIDs))
+	}
+	requested := make(map[string]struct{}, len(requestedIDs))
+	for _, id := range requestedIDs {
+		requested[id] = struct{}{}
+	}
+	byID := make(map[string]map[string]interface{}, len(items))
+	for _, raw := range items {
+		item, ok := raw.(map[string]interface{})
+		if !ok {
+			return nil, slidesScreenshotAPIDataError(data, "slides screenshot returned invalid slide image")
+		}
+		id := common.GetString(item, "slide_id")
+		if _, ok := requested[id]; !ok || id == "" {
+			return nil, slidesScreenshotAPIDataError(data, "slides screenshot returned unexpected slide_id %q", id)
+		}
+		if _, duplicate := byID[id]; duplicate {
+			return nil, slidesScreenshotAPIDataError(data, "slides screenshot returned duplicate slide_id %q", id)
+		}
+		byID[id] = item
+	}
+	images := make([]image.Image, 0, len(requestedIDs))
+	for _, id := range requestedIDs {
+		item, ok := byID[id]
+		if !ok {
+			return nil, slidesScreenshotAPIDataError(data, "slides screenshot did not return requested slide_id %q", id)
+		}
+		b, err := base64.StdEncoding.DecodeString(common.GetString(item, "data"))
+		if err != nil {
+			return nil, slidesScreenshotImageDataCauseError(id, err, "decode screenshot for --overview: %s", err)
+		}
+		img, _, err := image.Decode(bytes.NewReader(b))
+		if err != nil {
+			return nil, slidesScreenshotImageDataCauseError(id, err, "decode screenshot image for --overview: %s", err)
+		}
+		images = append(images, img)
+	}
+	return images, nil
+}
+
 func slidesScreenshotIDsFromXML(content string) ([]string, error) {
 	d := xml.NewDecoder(strings.NewReader(content))
 	var ids []string
 	for {
 		tok, err := d.Token()
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "parse presentation XML for --overview: %v", err).WithCause(err)
