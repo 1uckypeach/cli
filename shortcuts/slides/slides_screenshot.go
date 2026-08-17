@@ -1065,7 +1065,12 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 	if end < len(ids) {
 		overviewData["next_overview_page"] = overviewPage + 1
 	}
-	runtime.Out(map[string]interface{}{"xml_presentation_id": presentationID, "overview": overviewData}, nil)
+	result := map[string]interface{}{"xml_presentation_id": presentationID, "overview": overviewData}
+	// Overview is one synthesized local image. Mirror the normal screenshot
+	// output locator at the root while retaining overview.path and its paging
+	// metadata for overview-aware consumers.
+	setSlidesScreenshotResultOutput(result, target, []map[string]interface{}{{"path": path}})
+	runtime.Out(result, nil)
 	return nil
 }
 

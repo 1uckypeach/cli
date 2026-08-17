@@ -464,6 +464,38 @@ func TestSlidesScreenshotOverviewExecutionOrdersServerResponseBySlideID(t *testi
 	if got := color.RGBAModel.Convert(overview.At(16+160, 56+90)).(color.RGBA); got.R < 200 || got.G > 50 {
 		t.Fatalf("first overview cell = %#v, want p1/red", got)
 	}
+	data := decodeShortcutData(t, stdout)
+	output, _ := data["output"].(string)
+	if filepath.Base(output) != "overview.png" || filepath.Base(filepath.Dir(output)) != "shots" || data["requested_output"] != "shots/overview" || data["output_adjusted"] != true {
+		t.Fatalf("overview root output = %#v", data)
+	}
+	overviewData, _ := data["overview"].(map[string]interface{})
+	if overviewData["path"] != data["output"] {
+		t.Fatalf("overview path = %#v, want root output %#v", overviewData["path"], data["output"])
+	}
+}
+
+func TestSlidesScreenshotOverviewExecutionSetsDefaultOutputDir(t *testing.T) {
+	dir := t.TempDir()
+	withSlidesTestWorkingDir(t, dir)
+	f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	reg.Register(&httpmock.Stub{Method: "GET", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc", Body: map[string]interface{}{
+		"code": 0, "data": map[string]interface{}{"xml_presentation": map[string]interface{}{"content": `<presentation><slide id="p1"/></presentation>`}},
+	}})
+	reg.Register(&httpmock.Stub{Method: "POST", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc/slide_images", Body: map[string]interface{}{
+		"code": 0, "data": map[string]interface{}{"slide_images": []map[string]interface{}{{"slide_id": "p1", "data": testSlidesScreenshotPNG(t, 960, 540)}}},
+	}})
+	if err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{"+screenshot", "--presentation", "pres_abc", "--overview", "--as", "user"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	data := decodeShortcutData(t, stdout)
+	if data["output_dir"] != defaultSlidesScreenshotDir {
+		t.Fatalf("output_dir = %#v, want %q", data["output_dir"], defaultSlidesScreenshotDir)
+	}
+	overviewData, _ := data["overview"].(map[string]interface{})
+	if overviewData["path"] == "" {
+		t.Fatalf("overview = %#v, want saved path", overviewData)
+	}
 }
 
 func TestSlidesScreenshotOverviewExecutionPaginatesAtTwentySlides(t *testing.T) {
