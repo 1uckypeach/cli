@@ -1058,7 +1058,7 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 		slides[i] = map[string]interface{}{"index": index, "label": fmt.Sprintf("#%02d", index), "slide_id": id, "slide_number": index, "row": cell.row, "column": cell.column, "tile": overviewRectOutput(cell.tile), "thumbnail": overviewRectOutput(cell.thumbnail)}
 	}
 	overviewImageSize := map[string]int{"width": overview.Bounds().Dx(), "height": overview.Bounds().Dy()}
-	overviewData := map[string]interface{}{"path": path, "format": "png", "size": overviewImageSize, "image_size": overviewImageSize, "columns": defaultOverviewColumns, "total_slides": len(ids), "overview_page": overviewPage, "page_size": maxSlidesPerOverview, "slide_range": map[string]int{"start": start + 1, "end": end}, "has_previous": overviewPage > 1, "has_next": end < len(ids), "slides": slides}
+	overviewData := map[string]interface{}{"path": path, "format": "png", "size": encoded.Len(), "image_size": overviewImageSize, "columns": defaultOverviewColumns, "total_slides": len(ids), "overview_page": overviewPage, "page_size": maxSlidesPerOverview, "slide_range": map[string]int{"start": start + 1, "end": end}, "has_previous": overviewPage > 1, "has_next": end < len(ids), "slides": slides}
 	if overviewPage > 1 {
 		overviewData["previous_overview_page"] = overviewPage - 1
 	}
