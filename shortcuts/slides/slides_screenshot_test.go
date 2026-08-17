@@ -252,6 +252,12 @@ func TestSlidesScreenshotOverviewImagesRejectsInvalidResponseAndOrdersByRequeste
 			if p.Category != errs.CategoryAPI || p.Subtype != errs.SubtypeInvalidResponse {
 				t.Fatalf("problem = %#v, want api/invalid_response", p)
 			}
+			if tc.name == "invalid base64" {
+				var corrupt base64.CorruptInputError
+				if !errors.As(err, &corrupt) {
+					t.Fatalf("error = %v, want preserved base64.CorruptInputError cause", err)
+				}
+			}
 		})
 	}
 }
