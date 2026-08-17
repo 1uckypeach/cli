@@ -155,25 +155,29 @@ func TestPickerCanExpress(t *testing.T) {
 	}
 }
 
-func TestPickerCanExpress_SkippingImpliesARealPreference(t *testing.T) {
+func TestPickerCanExpress_SkippedValuesAlwaysRenderEnglish(t *testing.T) {
 	// The picker gate and the bundle choice must read a stored value the same
-	// way. Skipping the picker says "this expresses a preference, do not
-	// disturb it"; UsesEnglishUI says the opposite about anything it cannot
-	// recognize, and renders Chinese. If both fire on the same value, the user
-	// is locked into Chinese with no interactive way out.
+	// way. Skipping the picker says "this expresses a preference, leave it
+	// alone" — which is only defensible if the value also drives what renders.
+	// UsesEnglishUI renders Chinese for everything it cannot recognize, so a
+	// value that is both skipped and unrecognized locks the user into Chinese
+	// with no interactive way out.
+	//
+	// Stated as one implication: skipped ⟹ renders English. zh_cn is the only
+	// Chinese-rendering value, and the picker can express it, so it is never
+	// skipped.
 	values := []i18n.Lang{
 		"", "zh", "en", "ja", "fr", "ZH", "en_US", "zh-CN", "klingon", " zh_cn", "EN",
 	}
-	for _, e := range catalogSpellings() {
-		values = append(values, e)
-	}
+	values = append(values, catalogSpellings()...)
 	for _, l := range values {
 		if pickerCanExpress(l) {
 			continue
 		}
-		if _, ok := i18n.Parse(string(l)); !ok {
-			t.Errorf("pickerCanExpress(%q) = false, but %q is not a recognized locale: "+
-				"the picker is skipped while the UI treats it as no preference", l, l)
+		if !l.UsesEnglishUI() {
+			t.Errorf("pickerCanExpress(%q) = false but UsesEnglishUI(%q) = false: "+
+				"the picker is skipped while the UI treats the value as no preference, "+
+				"so the user is stuck in Chinese with no way to change it", l, l)
 		}
 	}
 }

@@ -36,9 +36,12 @@ type ConfigInitOptions struct {
 	Lang         string // raw --lang (string for cobra); normalized to canonical/"" in validateInitLang
 	langExplicit bool   // true when --lang was explicitly passed
 
-	// UILang is the language everything this run renders in. It equals the
-	// preference this run persists: --lang, else the stored one, else the
-	// picker's answer. Resolved by resolveInitUILang before any output.
+	// UILang is the language everything this run renders in, and the
+	// preference this run persists. --lang wins outright. Otherwise the
+	// stored preference seeds the picker and the picker's answer wins — a
+	// stored value decides what renders up to that point, it does not stop the
+	// question from being asked. Resolved by resolveInitUILang before any
+	// output.
 	UILang i18n.Lang
 
 	ProfileName string // when set, create/update a named profile instead of replacing Apps[0]
@@ -210,10 +213,12 @@ func resolveInitUILang(opts *ConfigInitOptions, existing *core.MultiAppConfig) {
 }
 
 // shouldPromptInitLang reports whether the language picker should run: only in
-// a terminal, only when no non-interactive flag pinned the flow, and only when
-// the picker can express whatever preference is already in effect. A stored
-// zh_cn/en_us is not a reason to stop asking — it becomes the pre-selected
-// option, so re-running init stays the way to change the language.
+// a terminal, only when --lang did not already answer it (including an explicit
+// empty --lang, which says "do not ask"), only when no non-interactive flag
+// pinned the flow, and only when the picker can express whatever preference is
+// already in effect. A stored zh_cn/en_us is not a reason to stop asking — it
+// becomes the pre-selected option, so re-running init stays the way to change
+// the language.
 func shouldPromptInitLang(opts *ConfigInitOptions, isTerminal bool) bool {
 	return isTerminal && !opts.langExplicit && !opts.hasAnyNonInteractiveFlag() && pickerCanExpress(opts.UILang)
 }

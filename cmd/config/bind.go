@@ -43,9 +43,12 @@ type BindOptions struct {
 	Lang         string // raw --lang (string for cobra); normalized to canonical/"" in validateBindFlags
 	langExplicit bool   // true when --lang was explicitly passed
 
-	// UILang is the language everything this run renders in: --lang when
-	// given, otherwise the workspace's stored preference, otherwise the
-	// picker's answer. Resolved by resolveBindUILang before any output.
+	// UILang is the language everything this run renders in, and the
+	// preference this run persists. --lang wins outright. Otherwise the
+	// workspace's stored preference seeds the picker and the picker's answer
+	// wins — a stored value decides what renders up to that point, it does not
+	// stop the question from being asked. Resolved by resolveBindUILang before
+	// any output, and again by reresolveBindUILang once the workspace is final.
 	UILang i18n.Lang
 
 	// Brand holds the resolved Lark product brand ("feishu" | "lark") for
@@ -154,6 +157,9 @@ func configBindRunWithRecovery(opts *BindOptions, projector *recovery.Projector)
 		return err
 	}
 	core.SetCurrentWorkspace(core.Workspace(source))
+	// The workspace is final only now. When it came from tuiSelectSource, this
+	// is the first chance to read the preference stored for it.
+	reresolveBindUILang(opts)
 	targetConfigPath := core.GetConfigPath()
 
 	existing, err := reconcileExistingBinding(opts, source, targetConfigPath)
@@ -239,18 +245,25 @@ func readPriorLang() i18n.Lang {
 }
 
 // shouldPromptBindLang reports whether the language picker should run: only in
-// the TUI, and only when the picker can express whatever preference is already
-// in effect. A stored zh_cn/en_us is not a reason to stop asking — it becomes
-// the pre-selected option, so re-binding stays a way to change the language.
+// the TUI, only when --lang did not already answer it (including an explicit
+// empty --lang, which says "do not ask"), and only when the picker can express
+// whatever preference is already in effect. A stored zh_cn/en_us is not a
+// reason to stop asking — it becomes the pre-selected option, so re-binding
+// stays a way to change the language.
 func shouldPromptBindLang(opts *BindOptions) bool {
 	return opts.IsTUI && !opts.langExplicit && pickerCanExpress(opts.UILang)
 }
 
 // resolveBindUILang settles the display language before any prompt renders.
 // It is the preference this run will persist: --lang when given, otherwise the
-// one already stored for the workspace being bound. When the source is not yet
-// known there is no workspace config to read — and no stored preference to
-// miss, since an unbound workspace has none.
+// one already stored for the workspace being bound, otherwise the picker's
+// answer.
+//
+// When the source is still unknown here, the workspace it will resolve to is
+// whatever tuiSelectSource asks for next, so there is no config to read yet —
+// the stored preference of that workspace is picked up afterwards by
+// reresolveBindUILang. Only the source-selection screen renders before that,
+// and only in a language derived from --lang or the picker.
 //
 // Not a pure resolver: reading the stored preference requires the workspace to
 // be current, so a known source is applied to the process-global workspace here
@@ -274,6 +287,19 @@ func resolveBindUILang(opts *BindOptions, source string) error {
 	opts.Lang = string(lang)
 	opts.UILang = lang
 	return nil
+}
+
+// reresolveBindUILang recomputes the display language once the workspace is
+// final, so everything rendered from here on matches the preference this run
+// persists. It never prompts: the picker question, if it was going to be
+// asked, has already been asked.
+//
+// Idempotent by construction — preferredLang returns the request whenever there
+// is one, and every path that skipped the stored preference earlier left
+// opts.Lang empty. It changes the outcome only when the source came from
+// tuiSelectSource, where resolveBindUILang had no workspace to read.
+func reresolveBindUILang(opts *BindOptions) {
+	opts.UILang = preferredLang(i18n.Lang(opts.Lang), readPriorLang())
 }
 
 // finalizeSource turns a possibly-empty detected source into the one this run
@@ -484,8 +510,12 @@ func commitBinding(
 
 	replaced := previousConfigBytes != nil
 	// uiMsg renders human-facing text (the stderr success banner). It follows
-	// opts.UILang, which resolves to the same preference as appConfig.Lang
-	// below — stderr and the JSON message cannot disagree on language.
+	// opts.UILang, which reresolveBindUILang derived from the same two inputs
+	// as appConfig.Lang below (the --lang request and this workspace's stored
+	// preference) — so in practice the banner and the JSON message agree. They
+	// are computed by different code reading the same file, though, not forced
+	// equal, so treat a mismatch as a bug in one of the two resolvers rather
+	// than an impossibility.
 	uiMsg := getBindMsg(opts.UILang)
 	display := sourceDisplayName(source)
 
@@ -519,8 +549,8 @@ func commitBinding(
 	// JSON "message" follows the effective preference on disk (appConfig.Lang),
 	// not the raw --lang value: when --lang is omitted on re-bind, preferredLang
 	// has already inherited the prior preference into appConfig.Lang, and the
-	// message should respect that inherited choice. opts.UILang resolves from
-	// the same two inputs, so the stderr banner above matches this language.
+	// message should respect that inherited choice. See the uiMsg comment above
+	// for how the stderr banner arrives at the same language.
 	prefMsg := getBindMsg(appConfig.Lang)
 	brand := brandDisplay(string(appConfig.Brand), appConfig.Lang)
 	switch opts.Identity {

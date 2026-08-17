@@ -1975,9 +1975,10 @@ func TestShouldPromptBindLang(t *testing.T) {
 	}
 }
 
-func TestResolveBindUILang_FlagMode(t *testing.T) {
-	// Flag mode never prompts, so resolveBindUILang fully determines the
-	// language here: --lang wins, otherwise the workspace's stored preference.
+func TestResolveBindUILang_NoPrompt(t *testing.T) {
+	// opts.IsTUI stays false throughout, so the picker never runs and
+	// resolveBindUILang alone decides: --lang wins, otherwise the workspace's
+	// stored preference.
 	saveWorkspace(t)
 	baseDir := t.TempDir()
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", baseDir)
@@ -1999,7 +2000,9 @@ func TestResolveBindUILang_FlagMode(t *testing.T) {
 	}{
 		{"stored preference is used", "", "openclaw", i18n.LangEnUS},
 		{"flag wins over stored", "zh_cn", "openclaw", i18n.LangZhCN},
-		{"no workspace resolved yet", "", "", ""},
+		// Nothing to read yet — the workspace is whatever tuiSelectSource
+		// returns next. reresolveBindUILang settles it; see the test below.
+		{"source still unknown, stays unresolved", "", "", ""},
 		{"workspace without config", "", "hermes", ""},
 	}
 	for _, tt := range tests {
@@ -2010,6 +2013,69 @@ func TestResolveBindUILang_FlagMode(t *testing.T) {
 			}
 			if opts.UILang != tt.want {
 				t.Errorf("UILang = %q, want %q", opts.UILang, tt.want)
+			}
+		})
+	}
+}
+
+func TestReresolveBindUILang(t *testing.T) {
+	// The TUI path picks the source after resolveBindUILang has already run,
+	// so the workspace's stored preference is first readable here. Without
+	// this second pass the success banner renders in a different language than
+	// the preference the same run writes to disk.
+	saveWorkspace(t)
+	baseDir := t.TempDir()
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", baseDir)
+
+	wsDir := filepath.Join(baseDir, "openclaw")
+	if err := os.MkdirAll(wsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	stored := `{"apps":[{"appId":"cli_x","brand":"feishu","lang":"en_us","users":[]}]}`
+	if err := os.WriteFile(filepath.Join(wsDir, "config.json"), []byte(stored), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name string
+		opts BindOptions
+		want i18n.Lang
+	}{
+		{
+			// The case this pass exists for: source came from tuiSelectSource,
+			// so resolveBindUILang left UILang empty.
+			name: "picks up the preference of the workspace chosen in the TUI",
+			opts: BindOptions{},
+			want: i18n.LangEnUS,
+		},
+		{
+			// --lang "" is an explicit "do not ask", which suppresses the
+			// picker. Before this pass it also silently suppressed the stored
+			// preference, so stderr rendered Chinese while the JSON message
+			// and the persisted value were en_us.
+			name: "explicit empty --lang still inherits the stored preference",
+			opts: BindOptions{langExplicit: true},
+			want: i18n.LangEnUS,
+		},
+		{
+			name: "a resolved language is left alone",
+			opts: BindOptions{Lang: "zh_cn", UILang: i18n.LangZhCN},
+			want: i18n.LangZhCN,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			core.SetCurrentWorkspace(core.WorkspaceOpenClaw)
+			opts := tt.opts
+			reresolveBindUILang(&opts)
+			if opts.UILang != tt.want {
+				t.Errorf("UILang = %q, want %q", opts.UILang, tt.want)
+			}
+			// Running it again must not move: everything downstream assumes
+			// the language stops changing once the workspace is final.
+			reresolveBindUILang(&opts)
+			if opts.UILang != tt.want {
+				t.Errorf("second call moved UILang to %q, want %q", opts.UILang, tt.want)
 			}
 		})
 	}

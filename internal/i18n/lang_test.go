@@ -94,43 +94,66 @@ func TestCodesWithShort(t *testing.T) {
 	}
 }
 
+// wantEnglishBundle pins, by hand, which TUI bundle each canonical locale
+// renders in. Written out rather than derived, so it disagrees with the
+// implementation when the implementation is wrong.
+var wantEnglishBundle = map[Lang]bool{
+	LangZhCN: false,
+	LangEnUS: true,
+	LangJaJP: true,
+	LangKoKR: true,
+	LangFrFR: true,
+	LangDeDE: true,
+	LangEsES: true,
+	LangItIT: true,
+	LangRuRU: true,
+	LangPtBR: true,
+	LangThTH: true,
+	LangViVN: true,
+	LangIdID: true,
+	LangMsMY: true,
+}
+
 func TestUsesEnglishUI(t *testing.T) {
-	// Only two TUI bundles exist. zh_cn — and anything that expresses no
-	// usable preference — renders Chinese; every other supported locale
-	// renders English.
-	chinese := []Lang{
-		LangZhCN, "zh", // Chinese, canonical and short
+	for lang, want := range wantEnglishBundle {
+		if got := lang.UsesEnglishUI(); got != want {
+			t.Errorf("UsesEnglishUI(%q) = %v, want %v", lang, got, want)
+		}
+	}
+
+	// Short codes resolve to their canonical locale's bundle.
+	for short, want := range map[Lang]bool{"zh": false, "en": true, "ja": true} {
+		if got := short.UsesEnglishUI(); got != want {
+			t.Errorf("UsesEnglishUI(%q) = %v, want %v", short, got, want)
+		}
+	}
+
+	// Anything expressing no usable preference renders Chinese: it means "no
+	// preference stated", not "prefers a non-Chinese language".
+	for _, l := range []Lang{
 		"",        // unset
 		"unknown", // not in the catalog
 		"ZH",      // wrong case: find() is case-sensitive
 		"en_US",   // wrong case for a real locale
-	}
-	for _, l := range chinese {
+	} {
 		if l.UsesEnglishUI() {
 			t.Errorf("UsesEnglishUI(%q) = true, want false", l)
-		}
-	}
-
-	english := []Lang{
-		LangEnUS, "en",
-		LangJaJP, LangKoKR, LangFrFR, LangDeDE, LangEsES, LangItIT,
-		LangRuRU, LangPtBR, LangThTH, LangViVN, LangIdID, LangMsMY,
-		"ja", // short code for a non-English locale
-	}
-	for _, l := range english {
-		if !l.UsesEnglishUI() {
-			t.Errorf("UsesEnglishUI(%q) = false, want true", l)
 		}
 	}
 }
 
 func TestUsesEnglishUI_CoversEveryCatalogEntry(t *testing.T) {
-	// Guard against a new locale being added to the catalog without deciding
-	// which bundle it renders in.
+	// A locale added to the catalog without a hand-written entry above has had
+	// no one decide which bundle it renders in.
 	for _, e := range catalog {
-		want := e.Code != LangZhCN
-		if got := e.Code.UsesEnglishUI(); got != want {
-			t.Errorf("UsesEnglishUI(%q) = %v, want %v", e.Code, got, want)
+		if _, ok := wantEnglishBundle[e.Code]; !ok {
+			t.Errorf("catalog has %q but wantEnglishBundle does not: "+
+				"decide which TUI bundle it renders in", e.Code)
+		}
+	}
+	for lang := range wantEnglishBundle {
+		if _, ok := find(string(lang)); !ok {
+			t.Errorf("wantEnglishBundle has %q but the catalog does not", lang)
 		}
 	}
 }
