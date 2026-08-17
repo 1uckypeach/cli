@@ -4,6 +4,7 @@
 package vc
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1754,6 +1755,32 @@ func TestVCShortcuts_RegistersMeetingAgentCommands(t *testing.T) {
 	}
 	if !reflect.DeepEqual(commands, want) {
 		t.Fatalf("shortcut commands = %#v, want %#v", commands, want)
+	}
+}
+
+func TestPrintMeetingInviteResultIncludesAggregateAndResultSummary(t *testing.T) {
+	var buf bytes.Buffer
+	printMeetingInviteResult(&buf, map[string]interface{}{
+		"failed_count":  1,
+		"invited_count": 2,
+		"has_more":      true,
+		"invite_results": []interface{}{
+			map[string]interface{}{"id": "ou_a", "status": 1},
+			map[string]interface{}{"id": "ou_b", "status": 2},
+		},
+	})
+
+	out := buf.String()
+	for _, want := range []string{
+		"Invite request sent.",
+		"Failed:   1",
+		"Invited:  2",
+		"Has more: true",
+		"Results:  2 users",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("pretty output missing %q: %s", want, out)
+		}
 	}
 }
 
