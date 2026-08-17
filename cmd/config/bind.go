@@ -159,6 +159,11 @@ func configBindRunWithRecovery(opts *BindOptions, projector *recovery.Projector)
 	core.SetCurrentWorkspace(core.Workspace(source))
 	// The workspace is final only now. When it came from tuiSelectSource, this
 	// is the first chance to read the preference stored for it.
+	//
+	// The language is resolved twice — once before the first prompt, once here.
+	// Anything that renders text belongs after this line: between the two, the
+	// only language available is what --lang or the picker supplied, which is
+	// not yet the preference this run persists.
 	reresolveBindUILang(opts)
 	targetConfigPath := core.GetConfigPath()
 
