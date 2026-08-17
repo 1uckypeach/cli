@@ -20,6 +20,8 @@ This shortcut only accepts bot identity and calls `POST /open-apis/vc/v1/bots/in
 
 - `SELECTED` sends explicit user `open_id` values and rejects more than 200 IDs before sending.
 - `ALL_SUGGESTED` sends only the type. The server builds the Calendar one-click-invite candidate set, consumes all Calendar pages, filters resources, bots, the actor itself, declined and removed attendees, applies the 200-person cap, and then reuses the shared InviteParticipant policy chain.
+- Wire contract: `SELECTED` sends `invite_type=2`, `invitees=[{"id":"ou_xxx","user_type":1}]`, and query `user_id_type=open_id`; `ALL_SUGGESTED` sends `invite_type=1` and omits `invitees`.
+- Response contract: `SELECTED` may return `invite_results` for explicit invitees; `ALL_SUGGESTED` returns aggregate fields such as `failed_count`, `invited_count`, and `has_more`, without per-user `invite_results`.
 
 ## Permission Notes
 
