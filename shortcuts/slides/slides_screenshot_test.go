@@ -52,6 +52,24 @@ func TestSlidesScreenshotRegionParser(t *testing.T) {
 	}
 }
 
+func TestSlidesScreenshotRejectsExplicitEmptyRegion(t *testing.T) {
+	for _, args := range [][]string{
+		{"+screenshot", "--presentation", "pres_abc", "--slide-id", "p1", "--region", "", "--dry-run", "--as", "user"},
+		{"+screenshot", "--presentation", "pres_abc", "--overview", "--region", "", "--dry-run", "--as", "user"},
+	} {
+		f, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+		err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, args)
+		if err == nil {
+			t.Fatalf("args %#v succeeded, want validation error", args)
+		}
+		p, ok := errs.ProblemOf(err)
+		var validation *errs.ValidationError
+		if !ok || p.Category != errs.CategoryValidation || p.Subtype != errs.SubtypeInvalidArgument || !errors.As(err, &validation) || validation.Param != "--region" {
+			t.Fatalf("args %#v problem = %#v, want validation/invalid_argument for --region", args, p)
+		}
+	}
+}
+
 func TestSlidesScreenshotRegionUsesPresentationCanvas(t *testing.T) {
 	canvas, err := slidesScreenshotCanvasFromXML(`<presentation width="1024" height="768"><slide id="p1"/></presentation>`)
 	if err != nil || canvas != (slidesScreenshotCanvas{Width: 1024, Height: 768}) {
@@ -315,6 +333,23 @@ func TestSlidesScreenshotOverviewAllowsSingleOutputDryRun(t *testing.T) {
 	}
 }
 
+func TestSlidesScreenshotOverviewRejectsNonPNGOutputDuringValidation(t *testing.T) {
+	for _, output := range []string{"shots/overview.jpg", "shots/overview.jpeg"} {
+		f, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+		err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{
+			"+screenshot", "--presentation", "pres_overview", "--overview", "--output", output, "--dry-run", "--as", "user",
+		})
+		if err == nil {
+			t.Fatalf("output %q succeeded, want validation error", output)
+		}
+		p, ok := errs.ProblemOf(err)
+		var validation *errs.ValidationError
+		if !ok || p.Category != errs.CategoryValidation || p.Subtype != errs.SubtypeInvalidArgument || !errors.As(err, &validation) || validation.Param != "--output" {
+			t.Fatalf("output %q problem = %#v, want validation/invalid_argument for --output", output, p)
+		}
+	}
+}
+
 func TestSlidesScreenshotOverviewPageValidation(t *testing.T) {
 	f, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
 	for _, args := range [][]string{
@@ -359,7 +394,7 @@ func TestSlidesScreenshotOverviewExecutionOrdersServerResponseBySlideID(t *testi
 		}},
 	}})
 
-	if err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{"+screenshot", "--presentation", "pres_abc", "--overview", "--output", "shots/overview.png", "--as", "user"}); err != nil {
+	if err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{"+screenshot", "--presentation", "pres_abc", "--overview", "--output", "shots/overview", "--as", "user"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	decoded, err := os.Open(filepath.Join(dir, "shots", "overview.png"))

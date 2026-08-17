@@ -74,6 +74,9 @@ var SlidesScreenshot = common.Shortcut{
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		overview := runtime.Bool("overview")
+		if runtime.Changed("region") && strings.TrimSpace(runtime.Str("region")) == "" {
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--region cannot be empty").WithParam("--region").WithHint("provide x,y,width,height in the presentation canvas")
+		}
 		region, regionSet, err := parseSlidesScreenshotRegion(runtime.Str("region"))
 		if err != nil {
 			return err
@@ -154,6 +157,12 @@ var SlidesScreenshot = common.Shortcut{
 			}
 			if err := validateScreenshotOutputPath(runtime, runtime.Str("output")); err != nil {
 				return err
+			}
+			if overview {
+				ext := strings.ToLower(filepath.Ext(runtime.Str("output")))
+				if ext != "" && ext != ".png" {
+					return errs.NewValidationError(errs.SubtypeInvalidArgument, "--overview output must be .png").WithParam("--output")
+				}
 			}
 		} else {
 			if !renderMode && runtime.Changed("output-name") {
@@ -1065,8 +1074,8 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 	path := target.requested
 	if path == "" {
 		path = filepath.Join(target.safeOutputDir, safeScreenshotFileBase(presentationID)+"_overview.png")
-	} else if ext := strings.ToLower(filepath.Ext(path)); ext != "" && ext != ".png" {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--overview output must be .png").WithParam("--output")
+	} else if filepath.Ext(path) == "" {
+		path += ".png"
 	}
 	path, err = writeUniqueScreenshotPath(runtime, path, encoded.Bytes())
 	if err != nil {
