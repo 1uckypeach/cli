@@ -5,6 +5,7 @@ package slides
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -21,8 +22,17 @@ import (
 
 	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/internal/cmdutil"
+	"github.com/larksuite/cli/internal/credential"
 	"github.com/larksuite/cli/internal/httpmock"
 )
+
+type slidesScreenshotScopeResolver struct {
+	result *credential.TokenResult
+}
+
+func (r *slidesScreenshotScopeResolver) ResolveToken(context.Context, credential.TokenSpec) (*credential.TokenResult, error) {
+	return r.result, nil
+}
 
 func TestSlidesScreenshotDeclaredScopes(t *testing.T) {
 	base := []string{"slides:presentation:screenshot"}
@@ -330,6 +340,79 @@ func TestSlidesScreenshotOverviewAllowsSingleOutputDryRun(t *testing.T) {
 	data := decodeShortcutData(t, stdout)
 	if data["output"] != "shots/overview.png" {
 		t.Fatalf("output = %#v", data["output"])
+	}
+}
+
+func TestSlidesScreenshotOverviewDryRunListsDynamicScreenshotBatches(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{
+		"+screenshot", "--presentation", "pres_overview", "--overview", "--dry-run", "--as", "user",
+	})
+	if err != nil {
+		t.Fatalf("overview dry-run: %v", err)
+	}
+	steps := decodeShortcutDryRunAPI(t, stdout)
+	if len(steps) != 3 {
+		t.Fatalf("dry-run calls = %#v, want XML GET plus two screenshot-batch POSTs", steps)
+	}
+	assertDryRunStep(t, steps, 0, "GET", "/open-apis/slides_ai/v1/xml_presentations/pres_overview")
+	for i, wantID := range []string{"<overview page slide IDs 1-10>", "<overview page slide IDs 11-20, if present>"} {
+		step := assertDryRunStep(t, steps, i+1, "POST", "/open-apis/slides_ai/v1/xml_presentations/pres_overview/slide_images")
+		body, ok := step["body"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("api[%d].body = %#v, want object", i+1, step["body"])
+		}
+		slideIDs, ok := body["slide_ids"].([]interface{})
+		if !ok || len(slideIDs) != 1 || slideIDs[0] != wantID {
+			t.Fatalf("api[%d].body.slide_ids = %#v, want [%q]", i+1, body["slide_ids"], wantID)
+		}
+	}
+	if !strings.Contains(steps[2]["desc"].(string), "optional second") {
+		t.Fatalf("second batch description = %#v, want optional marker", steps[2]["desc"])
+	}
+}
+
+func TestSlidesScreenshotOverviewWikiDryRunListsResolveXMLAndBatches(t *testing.T) {
+	f, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{
+		"+screenshot", "--presentation", "https://example.feishu.cn/wiki/wiki_token", "--overview", "--dry-run", "--as", "user",
+	})
+	if err != nil {
+		t.Fatalf("wiki overview dry-run: %v", err)
+	}
+	steps := decodeShortcutDryRunAPI(t, stdout)
+	if len(steps) != 4 {
+		t.Fatalf("dry-run calls = %#v, want wiki GET, XML GET, and two screenshot-batch POSTs", steps)
+	}
+	assertDryRunStep(t, steps, 0, "GET", "/open-apis/wiki/v2/spaces/get_node")
+	for i := 1; i < len(steps); i++ {
+		wantMethod := "POST"
+		wantURL := "/open-apis/slides_ai/v1/xml_presentations/%3Cresolved_slides_token%3E/slide_images"
+		if i == 1 {
+			wantMethod = "GET"
+			wantURL = "/open-apis/slides_ai/v1/xml_presentations/%3Cresolved_slides_token%3E"
+		}
+		assertDryRunStep(t, steps, i, wantMethod, wantURL)
+	}
+}
+
+func TestSlidesScreenshotOverviewAndRegionPreflightPresentationReadScope(t *testing.T) {
+	for _, args := range [][]string{
+		{"+screenshot", "--presentation", "pres_overview", "--overview", "--dry-run", "--as", "user"},
+		{"+screenshot", "--presentation", "pres_region", "--slide-id", "p1", "--region", "0,0,1,1", "--dry-run", "--as", "user"},
+	} {
+		f, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+		f.Credential = credential.NewCredentialProvider(nil, nil, &slidesScreenshotScopeResolver{
+			result: &credential.TokenResult{Token: "test-token", Scopes: "slides:presentation:screenshot"},
+		}, nil)
+		err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, args)
+		if err == nil {
+			t.Fatalf("args %#v succeeded, want missing presentation read scope", args)
+		}
+		var permission *errs.PermissionError
+		if !errors.As(err, &permission) || permission.Subtype != errs.SubtypeMissingScope || !reflect.DeepEqual(permission.MissingScopes, []string{"slides:presentation:read"}) {
+			t.Fatalf("args %#v error = %#v, want missing slides:presentation:read", args, err)
+		}
 	}
 }
 

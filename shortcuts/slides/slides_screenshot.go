@@ -55,7 +55,8 @@ var SlidesScreenshot = common.Shortcut{
 	Risk:        "read",
 	Scopes:      []string{"slides:presentation:screenshot"},
 	// wiki:node:read is required only for wiki URLs; slides:presentation:read
-	// is required only by --overview to enumerate the current page order.
+	// is required by --overview to enumerate the current page order and by
+	// --region to resolve the presentation's logical canvas.
 	ConditionalScopes: []string{"wiki:node:read", "slides:presentation:read"},
 	AuthTypes:         []string{"user", "bot"},
 	Flags: []common.Flag{
@@ -144,6 +145,15 @@ var SlidesScreenshot = common.Shortcut{
 			if err := validateSlidesScreenshotSelectorLimit(selectorCount); err != nil {
 				return err
 			}
+			// Both modes read the presentation XML before rendering. Keep this
+			// conditional preflight in Validate so --dry-run reports the same
+			// authorization requirement as execution, and a wiki URL cannot reach
+			// its resolve call before a missing Slides read scope is surfaced.
+			if overview || regionSet {
+				if err := runtime.EnsureScopes([]string{"slides:presentation:read"}); err != nil {
+					return err
+				}
+			}
 		}
 		if runtime.Changed("output") {
 			if runtime.Changed("output-dir") {
@@ -197,9 +207,21 @@ var SlidesScreenshot = common.Shortcut{
 		if runtime.Bool("overview") {
 			if ref.Kind == "wiki" {
 				presentationID = "<resolved_slides_token>"
-				dry.Desc("3-step orchestration: resolve wiki → fetch current slide IDs → render batches and compose a local overview PNG").GET("/open-apis/wiki/v2/spaces/get_node").Params(map[string]interface{}{"token": ref.Token})
+				dry.GET("/open-apis/wiki/v2/spaces/get_node").
+					Desc("Resolve the wiki node to its Slides presentation before reading the overview page").
+					Params(map[string]interface{}{"token": ref.Token})
 			}
-			dry.Desc(fmt.Sprintf("Fetch current presentation XML, then render overview page %d (at most %d slides) in batches of at most 10 pages and compose one local overview PNG", runtime.Int("overview-page"), maxSlidesPerOverview)).GET(fmt.Sprintf("/open-apis/slides_ai/v1/xml_presentations/%s", validate.EncodePathSegment(presentationID))).Params(map[string]interface{}{"revision_id": -1})
+			overviewURL := fmt.Sprintf("/open-apis/slides_ai/v1/xml_presentations/%s", validate.EncodePathSegment(presentationID))
+			screenshotURL := overviewURL + "/slide_images"
+			dry.GET(overviewURL).
+				Desc(fmt.Sprintf("Fetch current presentation XML to select overview page %d (at most %d slides)", runtime.Int("overview-page"), maxSlidesPerOverview)).
+				Params(map[string]interface{}{"revision_id": -1})
+			dry.POST(screenshotURL).
+				Desc("Render the first dynamic overview batch (slide IDs 1-10 of the selected overview page)").
+				Body(map[string]interface{}{"slide_ids": []string{"<overview page slide IDs 1-10>"}})
+			dry.POST(screenshotURL).
+				Desc("Render the optional second dynamic overview batch (slide IDs 11-20; sent only when the selected page has more than 10 slides)").
+				Body(map[string]interface{}{"slide_ids": []string{"<overview page slide IDs 11-20, if present>"}})
 			return setSlidesScreenshotDryRunOutput(dry, runtime).Set("base64_output", "suppressed; decoded locally and composed into overview PNG during execution")
 		}
 		if ref.Kind == "wiki" {
