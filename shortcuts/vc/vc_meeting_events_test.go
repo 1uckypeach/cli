@@ -1047,10 +1047,10 @@ func TestMeetingEvents_ExecutePretty(t *testing.T) {
 		"当前身份：Demo Bot [bot]",
 		"会议主题：项目例会",
 		"会议时间：2026-04-17 15:15:00（进行中）",
-		"Demo Bot(bot_001) 加入了会议",
-		"Alice(u1): [text] 第一条\\n第二行",
-		"Alice(u1): [text] 第二条",
-		"Bob(u2) 开始共享「共享文档」",
+		"Demo Bot 加入了会议",
+		"Alice: [text] 第一条\\n第二行",
+		"Alice: [text] 第二条",
+		"Bob 开始共享「共享文档」",
 		"URL: https://example.com/doc",
 		"page_token: 1710000000000000000",
 	} {
@@ -1726,9 +1726,9 @@ func TestVCMeetingEventsDocumentContextCLIBehavior(t *testing.T) {
 		reg.Verify(t)
 		out := stdout.String()
 		wantOrdered := []string{
-			"Alice(u1) 聚焦评论 comment-1",
-			"Bob(u2) 定位到章节「Roadmap > Milestone」",
-			"Carol(u3) 打开 whiteboard 预览 wb-1",
+			"Alice 聚焦评论 comment-1",
+			"Bob 定位到章节「Roadmap > Milestone」",
+			"Carol 打开 whiteboard 预览 wb-1",
 		}
 		last := -1
 		for _, want := range wantOrdered {
@@ -1767,27 +1767,6 @@ func TestLeaveAction(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := leaveAction(tt.item); got != tt.want {
 				t.Fatalf("leaveAction() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestMeetingEventUserWithID(t *testing.T) {
-	tests := []struct {
-		name string
-		user map[string]interface{}
-		want string
-	}{
-		{name: "nil", want: ""},
-		{name: "name and id", user: map[string]interface{}{"user_name": "Alice", "id": "u1"}, want: "Alice(u1)"},
-		{name: "name only", user: map[string]interface{}{"user_name": "Alice"}, want: "Alice"},
-		{name: "id only", user: map[string]interface{}{"id": "u1"}, want: "u1"},
-		{name: "empty", user: map[string]interface{}{}, want: ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := meetingEventUserWithID(tt.user); got != tt.want {
-				t.Fatalf("meetingEventUserWithID() = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -1886,7 +1865,7 @@ func TestMeetingEventSummary(t *testing.T) {
 					},
 				},
 			},
-			want: "participant u2 (Bob) left",
+			want: "participant Bob left",
 		},
 		{
 			name: "fallback unknown event",
