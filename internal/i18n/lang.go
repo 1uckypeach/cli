@@ -75,15 +75,6 @@ func (l Lang) Base() string {
 	return e.Short
 }
 
-// Codes lists the canonical locales, for --help and error messages.
-func Codes() []string {
-	out := make([]string, len(catalog))
-	for i, e := range catalog {
-		out[i] = string(e.Code)
-	}
-	return out
-}
-
 // CodesWithShort renders the accepted values as "zh_cn (zh), en_us (en), ...".
 // Short codes are accepted input too, so a listing that hides them sends users
 // who typed one to hunt for a canonical locale they did not need.

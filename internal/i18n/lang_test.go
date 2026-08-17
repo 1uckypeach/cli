@@ -60,16 +60,16 @@ func TestBase(t *testing.T) {
 	}
 }
 
-func TestCodes(t *testing.T) {
-	codes := Codes()
-	if len(codes) != 14 {
-		t.Fatalf("len(Codes()) = %d, want 14", len(codes))
+func TestCatalog(t *testing.T) {
+	if len(catalog) != 14 {
+		t.Fatalf("len(catalog) = %d, want 14", len(catalog))
 	}
-	if codes[0] != "zh_cn" {
-		t.Errorf("Codes()[0] = %q, want %q (catalog order)", codes[0], "zh_cn")
+	if catalog[0].Code != LangZhCN {
+		t.Errorf("catalog[0].Code = %q, want %q", catalog[0].Code, LangZhCN)
 	}
 	// Every code must round-trip through Parse to itself (canonical).
-	for _, c := range codes {
+	for _, e := range catalog {
+		c := string(e.Code)
 		if got, ok := Parse(c); !ok || string(got) != c {
 			t.Errorf("Parse(%q) = (%q, %v), want (%q, true)", c, got, ok, c)
 		}
@@ -127,11 +127,10 @@ func TestUsesEnglishUI(t *testing.T) {
 func TestUsesEnglishUI_CoversEveryCatalogEntry(t *testing.T) {
 	// Guard against a new locale being added to the catalog without deciding
 	// which bundle it renders in.
-	for _, code := range Codes() {
-		l := Lang(code)
-		want := code != string(LangZhCN)
-		if got := l.UsesEnglishUI(); got != want {
-			t.Errorf("UsesEnglishUI(%q) = %v, want %v", code, got, want)
+	for _, e := range catalog {
+		want := e.Code != LangZhCN
+		if got := e.Code.UsesEnglishUI(); got != want {
+			t.Errorf("UsesEnglishUI(%q) = %v, want %v", e.Code, got, want)
 		}
 	}
 }
