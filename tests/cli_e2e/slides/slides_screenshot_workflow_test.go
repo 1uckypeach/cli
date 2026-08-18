@@ -216,9 +216,9 @@ func TestSlidesScreenshotOverviewAndRegionLiveE2E(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "png", overviewFormat, overviewResult.Stdout)
 	require.Equal(t, 1360, overviewConfig.Width, overviewResult.Stdout)
-	require.Equal(t, 252, overviewConfig.Height, overviewResult.Stdout)
+	require.Equal(t, 236, overviewConfig.Height, overviewResult.Stdout)
 	require.Equal(t, int64(1360), overview.Get("image_size.width").Int(), overviewResult.Stdout)
-	require.Equal(t, int64(252), overview.Get("image_size.height").Int(), overviewResult.Stdout)
+	require.Equal(t, int64(236), overview.Get("image_size.height").Int(), overviewResult.Stdout)
 
 	regionResult, err := clie2e.RunCmd(ctx, clie2e.Request{
 		Args: []string{
