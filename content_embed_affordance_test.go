@@ -52,6 +52,10 @@ func TestEmbeddedDocsAffordanceComplementsShortcutMetadata(t *testing.T) {
 			useWhen: []string{
 				"Read an entire Lark document, or limit the result to an outline, section, block range, or keyword match.",
 			},
+			tips: []string{
+				"Comments are always included in the response with no flag to disable it; expect `reference_map.comments` regardless of `--doc-format`.",
+				"`--doc-format xml` marks commented content inline via a `comment-refs` attribute; `markdown`/`im-markdown` carry no inline ref — comments there live only in `reference_map.comments`.",
+			},
 		},
 		"+update": {
 			description: "Update a Lark document",
