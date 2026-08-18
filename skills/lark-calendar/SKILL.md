@@ -35,10 +35,10 @@ lark-cli calendar +agenda --as bot
 | Shortcut | 说明 |
 |----------|------|
 | `+agenda` | 查看日程安排（默认今天） |
-| [`+meeting`](references/lark-calendar-meeting.md) | 通过日程事件 ID 获取关联的视频会议信息（meeting_id、meeting_note），日程开过视频会议才会有meeting_id |
+| [`+meeting`](references/lark-calendar-meeting.md) | 通过日程事件 ID 获取关联的视频会议信息（meeting_id、meeting_note），日程开过视频会议才会有meeting_id,**注意**: 视频会议链接获取走+get命令 |
 | [`+create`](references/lark-calendar-create.md) | 创建日程并邀请参会人（ISO 8601 时间） |
 | [`+update`](references/lark-calendar-update.md) | 更新既有日程字段，或独立增量添加/移除参会人和会议室 |
-| `+freebusy` | 查询用户主日历的忙闲信息和 RSVP 状态（纯查询场景；预约场景走 `+suggestion`） |
+| `+freebusy` | 查询主日历的忙闲/RSVP状态/空闲时间段。(**如需预约/推荐时间段**走 `+suggestion`——它综合工作时间、忙碌区间和休息时间推荐。) |
 | [`+room-find`](references/lark-calendar-room-find.md) | 针对一个或多个**明确的**时间块查找可用会议室（无明确时间时禁止直接调用，需先走 +suggestion） |
 | [`+rsvp`](references/lark-calendar-rsvp.md) | 回复日程（接受/拒绝/待定） |
 | [`+suggestion`](references/lark-calendar-suggestion.md) | 根据非明确时间或一段时间范围，推荐多个可用时间块方案 |
@@ -84,20 +84,36 @@ lark-cli calendar +agenda --start 2026-03-10 --end 2026-03-17 --calendar-id <cal
 - 已取消的日程自动过滤；无日程时直接告知"日程清空"。
 - 时间范围超过 40 天会自动拆分查询并合并结果。
 
-### `+freebusy` — 查询主日历忙闲时段和 RSVP 状态
+### `+freebusy` — 查询主日历忙闲时段 / 事件 / 公共空闲
 
-仅返回忙碌时段起止时间，不含日程标题等隐私信息；其他订阅日历不在范围内。
+`+freebusy` 一个入口承担四种视角：几何计算类（`busy` / `free` / `common_free`）走自动合并；事件维度类（`raw_busy`）保留每条上游日程 + `rsvp_status`。
 
 ```bash
 # start/end 时间范围（ISO 8601 / YYYY-MM-DD / Unix 秒），均可选；默认当天
-# user-id 目标用户 open_id（ou_ 前缀）可选；默认当前登录用户，bot 身份必须显式指定
-lark-cli calendar +freebusy --start 2026-03-11 --end 2026-03-12 --user-id ou_xxx
+# user-id 目标用户 open_id，可重复或用逗号分隔；默认当前登录用户，bot 身份必须显式传至少一个
+# type 视角四选一（默认 busy）：
+#   busy         每个 user 合并后的忙碌区间（找空档、看忙碌时段）
+#   raw_busy     每个 user 的原始日程块 + rsvp_status（数会议、看每个会的 rsvp）
+#   free         每个 user 在时间窗内的空闲区间（可带 --min-duration 过滤）
+#   common_free  所有 user 的共同空闲区间（可带 --min-duration 过滤）
+# min-duration 仅对 free / common_free 生效；Go duration 格式，例如 30m、1h、90m
+
+# 查询忙碌时间段（去重并合并相邻/重叠段）
+lark-cli calendar +freebusy --start 2026-03-11 --end 2026-03-11 --user-id ou_a,ou_b --type busy
+
+# 看别人有几个会、每个会的起止 + rsvp（不合并相邻/重叠段，带rsvp状态）
+lark-cli calendar +freebusy --start 2026-03-11 --end 2026-03-11 --user-id ou_a,ou_b --type raw_busy
+
+# 查询用户空闲时间段
+lark-cli calendar +freebusy --start 2026-03-11 --end 2026-03-11 --user-id ou_a,ou_b --type free
+
+# 多人公共空闲时间段（推荐替代手工合并）
+lark-cli calendar +freebusy --start 2026-03-11T09:00:00+08:00 --end 2026-03-11T18:00:00+08:00 --user-id ou_a,ou_b --type common_free --min-duration 30m
 ```
 
 用法提示：
-- **仅判断是否有空** → `+freebusy`；**需要日程详情** → `+agenda`。
-- 检查多人可用性：分别调用并对比，找共同空闲。
-- 预约/改约场景下，调用规则（参与人过多、含群组、来自 `+suggestion` 等）详见 [schedule-clear-time.md § 查询忙闲](references/lark-calendar-schedule-clear-time.md#2-查询忙闲)。
+- **`+freebusy` 只适用于查询忙碌/空闲时间段这一事实**。如果目标是"给会议**推荐**一个合适的时间段"（单人或多人），必须优先使用 [`+suggestion`](references/lark-calendar-suggestion.md)——它会综合**工作时间段、忙碌时间段、休息时间段**来推荐，`+freebusy` 只回答"哪些区间空着"，不判断该区间是否适合排会。
+- **多人公共空闲**：只想拿"哪些区间共同没被占"→ `--type common_free [--min-duration <dur>]`；想拿"推荐的会议时间段"→ 走 `+suggestion`。
 
 ## 前置条件路由
 
@@ -121,6 +137,9 @@ lark-cli calendar +freebusy --start 2026-03-11 --end 2026-03-12 --user-id ou_xxx
 - **时间块 vs 时间范围**：时间块是具体确定的连续时间段（如 `14:00~15:00`），时间范围是泛指（如"今天下午"）。`+room-find` 必须基于确定时间块，不能基于模糊范围。
 - **会议室（Room）**："room"不是"房间"，是"会议室"。会议室是日程的一种参与人（resource attendee），不能脱离日程单独预定。
 - **日程会议 ID（Meeting ID）**：日程的历史视频会议 ID，在日程上开过视频会议才会有。
+- **日程分享链接 vs 会议链接**：两者是不同事物，不可混用。
+  - 日程分享链接：`https://<domain>/calendar/share?token=<token>`，指向日程本身，用于分享日程详情。
+  - 会议链接：`https://<domain>/j/<number>`，指向视频会议入口；同一重复性日程序列的所有实例共用同一个会议链接。
 
 ## 术语映射
 
@@ -189,8 +208,8 @@ lark-cli calendar events delete --calendar-id <calendar_id> --event-id <event_id
 ## 常用其他域命令
 
 ```bash
-# 搜索用户，更多参数详见 lark-contact
-lark-cli contact +search-user --query <query> --as user
+# 批量搜索多个用户，更多参数详见 lark-contact
+lark-cli contact +search-user --queries "<q1>,<q2>" --as user
 
 # 搜索群聊，更多参数详见 lark-im
 lark-cli im +chat-search --query <query> --as user

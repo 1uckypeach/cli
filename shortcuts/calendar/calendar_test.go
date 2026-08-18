@@ -1826,14 +1826,19 @@ func TestFreebusy_Success(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
 	reg.Register(&httpmock.Stub{
 		Method: "POST",
-		URL:    "/open-apis/calendar/v4/freebusy/list",
+		URL:    "/open-apis/calendar/v4/freebusy/batch",
 		Body: map[string]interface{}{
 			"code": 0, "msg": "ok",
 			"data": map[string]interface{}{
-				"freebusy_list": []interface{}{
+				"freebusy_lists": []interface{}{
 					map[string]interface{}{
-						"start_time": "2025-03-21T10:00:00+08:00",
-						"end_time":   "2025-03-21T11:00:00+08:00",
+						"user_id": "ou_someone",
+						"freebusy_items": []interface{}{
+							map[string]interface{}{
+								"start_time": "2025-03-21T10:00:00+08:00",
+								"end_time":   "2025-03-21T11:00:00+08:00",
+							},
+						},
 					},
 				},
 			},
@@ -1878,7 +1883,7 @@ func TestFreebusy_APIError(t *testing.T) {
 	f, _, _, reg := cmdutil.TestFactory(t, defaultConfig())
 	reg.Register(&httpmock.Stub{
 		Method: "POST",
-		URL:    "/open-apis/calendar/v4/freebusy/list",
+		URL:    "/open-apis/calendar/v4/freebusy/batch",
 		Body: map[string]interface{}{
 			"code": 190001,
 			"msg":  "permission denied",
@@ -1903,7 +1908,7 @@ func TestFreebusy_InvalidParamsWithDetail(t *testing.T) {
 
 	reg.Register(&httpmock.Stub{
 		Method: "POST",
-		URL:    "/open-apis/calendar/v4/freebusy/list",
+		URL:    "/open-apis/calendar/v4/freebusy/batch",
 		Body: map[string]interface{}{
 			"code": codeInvalidParamsWithDetail,
 			"msg":  "invalid params",
