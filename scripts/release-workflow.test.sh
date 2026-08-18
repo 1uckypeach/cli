@@ -50,6 +50,7 @@ jobs.each do |job_name, job|
 end
 
 expected_jobs = %w[preflight license-compliance build-sign-notarize create-draft-release verify-macos publish-github publish-npm retry-guidance]
+expect_equal(workflow.dig("env", "RELEASE_GO_VERSION"), "1.26.5", "release Go version")
 expect_equal(jobs.keys.sort, expected_jobs.sort, "release jobs")
 
 expect_equal(workflow.fetch("concurrency"), {
@@ -154,6 +155,8 @@ jobs.each do |job_name, job|
 end
 
 build_steps = jobs.fetch("build-sign-notarize").fetch("steps")
+setup_go = build_steps.find { |step| step["uses"]&.start_with?("actions/setup-go@") }
+expect_equal(setup_go&.dig("with", "go-version"), "${{ env.RELEASE_GO_VERSION }}", "release Go toolchain input")
 fetch_metadata_index = build_steps.index { |step| step["name"] == "Fetch build metadata" }
 prepare_key_index = build_steps.index { |step| step["name"] == "Prepare Apple notarization key" }
 contract_error("build metadata must be fetched before Apple credentials are prepared") unless fetch_metadata_index && prepare_key_index && fetch_metadata_index < prepare_key_index
@@ -163,6 +166,19 @@ candidate_step = build_steps.find { |step| step["name"] == "Build release candid
 candidate_run = candidate_step&.fetch("run", nil)
 contract_error("candidate archives must contain third-party notices") unless candidate_run&.include?("THIRD_PARTY_NOTICES")
 contract_error("candidate npm package must contain third-party notices") unless candidate_run&.include?("package/THIRD_PARTY_NOTICES.md")
+
+goreleaser_index = build_steps.index { |step| step["name"] == "Run GoReleaser" }
+toolchain_verify_index = build_steps.index { |step| step["name"] == "Verify release Go toolchain" }
+candidate_index = build_steps.index { |step| step["name"] == "Build release candidate" }
+unless goreleaser_index && toolchain_verify_index && candidate_index && goreleaser_index < toolchain_verify_index && toolchain_verify_index < candidate_index
+  contract_error("release Go toolchain must be verified after GoReleaser and before candidate packaging")
+end
+toolchain_verify_run = build_steps.fetch(toolchain_verify_index).fetch("run")
+contract_error("release toolchain verification must reject an empty binary set") unless toolchain_verify_run.include?("${#release_binaries[@]} > 0")
+contract_error("release toolchain verification must inspect embedded build metadata") unless toolchain_verify_run.include?('go version -m "$binary"')
+contract_error("release toolchain verification must compare against the configured version") unless toolchain_verify_run.include?('expected="go${RELEASE_GO_VERSION}"')
+contract_error("release toolchain verification must check every binary") unless toolchain_verify_run.include?('for binary in "${release_binaries[@]}"; do')
+contract_error("release toolchain verification must reject mismatches") unless toolchain_verify_run.include?('[[ "$actual" == "$expected" ]]')
 
 macos = jobs.fetch("verify-macos")
 expect_equal(macos.fetch("strategy").fetch("matrix").fetch("include"), [
