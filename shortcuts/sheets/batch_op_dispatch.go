@@ -706,7 +706,7 @@ func collectBatchOperationTranslations(
 		}
 	}
 	if budgetErr != nil {
-		return nil, budgetErr
+		return nil, nil, nil, budgetErr
 	}
 	out := make([]interface{}, 0, len(rawOps))
 	originalIndexes := make([]int, 0, len(rawOps))
@@ -757,7 +757,7 @@ func batchOperationFailuresError(failures []batchOpTranslationFailure, total int
 		// keys: …" contract) inline: folding N errors leaves one Hint slot, so
 		// without this the multi-op error would carry LESS guidance than the
 		// single-op one it replaces.
-		parts = append(parts, fmt.Sprintf("%d) %s", i+1, aggregatedIssueText(e)))
+		parts = append(parts, fmt.Sprintf("%d) %s", i+1, aggregatedIssueText(e.Err)))
 	}
 	msg := fmt.Sprintf("%d of %d operations failed validation: %s", len(failures), total, strings.Join(parts, "; "))
 	if truncated {
