@@ -53,6 +53,7 @@ var SlidesAddSlide = common.Shortcut{
 		{Name: "slide", Desc: "one complete <slide> XML document", Required: true, Input: []string{common.File, common.Stdin}},
 		{Name: "before-slide-id", Desc: "insert before this slide_id (default: append after the last page)"},
 		{Name: "revision-id", Type: "int", Default: "-1", Desc: "presentation revision (-1 = latest; pass a specific number for optimistic locking)"},
+		noLintFlag(),
 	},
 	Tips: []string{
 		"<img src=\"@path\"> placeholders resolve against the current directory, not the directory of the --slide file, and are deduplicated per call: a page-by-page loop re-uploads a shared image once per page, so upload it once with slides +media-upload and reuse the file_token instead.",
@@ -228,7 +229,7 @@ func addSlideXML(runtime *common.RuntimeContext) (string, error) {
 
 // addSlideQuery builds the query params shared by dry-run and execute.
 func addSlideQuery(runtime *common.RuntimeContext) map[string]interface{} {
-	return map[string]interface{}{"revision_id": runtime.Int("revision-id")}
+	return withLintXML(map[string]interface{}{"revision_id": runtime.Int("revision-id")}, runtime)
 }
 
 // addSlideBody builds the request body shared by dry-run and execute.

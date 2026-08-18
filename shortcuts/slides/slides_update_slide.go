@@ -98,6 +98,7 @@ var updateSlideFlags = []common.Flag{
 	{Name: "content", Aliases: contentFlagAliases, Desc: "the page's full target XML, one <slide> root; elements omitted here are removed from the page", Required: true, Input: []string{common.File, common.Stdin}},
 	{Name: "revision-id", Type: "int", Default: "-1", Desc: "revision to apply against; -1 (default) means latest. Pinning an older revision rebuilds the page from that snapshot and discards newer edits to it"},
 	{Name: "tid", Desc: "transaction id for concurrent-edit locking (usually empty)"},
+	noLintFlag(),
 }
 
 func updateSlideValidate(_ context.Context, runtime *common.RuntimeContext) error {
@@ -312,7 +313,7 @@ func updateSlideQuery(runtime *common.RuntimeContext, slideID string) map[string
 	if tid := strings.TrimSpace(runtime.Str("tid")); tid != "" {
 		query["tid"] = tid
 	}
-	return query
+	return withLintXML(query, runtime)
 }
 
 // updateSlideParts builds the one part the command ever sends. block_id is the

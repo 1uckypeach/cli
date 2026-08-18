@@ -44,6 +44,7 @@ var SlidesCreate = common.Shortcut{
 		// by the framework, so it is not spelled out in Desc.
 		{Name: "slides", Desc: "slide content JSON array (each element is a <slide> XML string, max 10; for more pages, create first then add them one at a time with slides +add-slide). <img src=\"@./local.png\"> placeholders are auto-uploaded and replaced with file_token.", Input: []string{common.File, common.Stdin}},
 		{Name: "slide", Type: "string_array", Desc: "one complete <slide> XML document, or @path to read one from a file; repeat once per page (max 10) and the CLI assembles the array for you, so no JSON escaping is needed. <img src=\"@./local.png\"> placeholders are handled as with --slides. Mutually exclusive with --slides."},
+		noLintFlag(),
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		slides, param, err := createSlideContents(runtime)
@@ -101,6 +102,7 @@ var SlidesCreate = common.Shortcut{
 			for i, slideXML := range slides {
 				dry.POST("/open-apis/slides_ai/v1/xml_presentations/<xml_presentation_id>/slide").
 					Desc(fmt.Sprintf("[%d/%d] Add slide %d%s", slideStepStart+i, total, i+1, slideDescSuffix)).
+					Params(createSlideQuery(runtime)).
 					Body(map[string]interface{}{
 						"slide": map[string]interface{}{"content": slideXML},
 					})
@@ -181,7 +183,7 @@ var SlidesCreate = common.Shortcut{
 				slideData, err := runtime.CallAPITyped(
 					"POST",
 					slideURL,
-					map[string]interface{}{"revision_id": -1},
+					createSlideQuery(runtime),
 					map[string]interface{}{
 						"slide": map[string]interface{}{"content": slideXML},
 					},
@@ -353,6 +355,18 @@ func effectiveTitle(title string) string {
 }
 
 // buildPresentationXML builds the minimal XML for a new empty presentation.
+// createSlideQuery builds the query for the per-page calls +create makes after
+// the presentation exists. revision_id is pinned to -1 (latest) rather than
+// exposed: the deck was created by this same command a moment ago, so there is
+// no earlier revision a caller could sensibly target.
+//
+// The presentation-create call itself takes no lint switch. Its body is the
+// title-only <presentation> shell from buildPresentationXML — there is no page
+// in it for the server to lint.
+func createSlideQuery(runtime *common.RuntimeContext) map[string]interface{} {
+	return withLintXML(map[string]interface{}{"revision_id": -1}, runtime)
+}
+
 func buildPresentationXML(title string) string {
 	escapedTitle := xmlEscape(title)
 	if escapedTitle == "" {
