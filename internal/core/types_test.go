@@ -75,35 +75,6 @@ func TestResolveOpenBaseURL(t *testing.T) {
 	}
 }
 
-func TestResolveEndpoints_EnvOverridesOpenAndAccounts(t *testing.T) {
-	t.Setenv("LARKSUITE_CLI_OPEN_BASE_URL", "https://open.feishu-boe.cn")
-	t.Setenv("LARKSUITE_CLI_ACCOUNTS_BASE_URL", "https://accounts.feishu-boe.cn")
-
-	ep := ResolveEndpoints(BrandFeishu)
-	if ep.Open != "https://open.feishu-boe.cn" {
-		t.Errorf("Open = %q, want BOE override", ep.Open)
-	}
-	if ep.Accounts != "https://accounts.feishu-boe.cn" {
-		t.Errorf("Accounts = %q, want BOE override", ep.Accounts)
-	}
-	if ep.MCP != "https://mcp.feishu.cn" {
-		t.Errorf("MCP = %q, want default", ep.MCP)
-	}
-}
-
-func TestResolveEndpoints_InvalidEnvOverrideIgnored(t *testing.T) {
-	t.Setenv("LARKSUITE_CLI_OPEN_BASE_URL", "https://open.feishu-boe.cn/open-apis")
-	t.Setenv("LARKSUITE_CLI_ACCOUNTS_BASE_URL", "http://accounts.feishu-boe.cn")
-
-	ep := ResolveEndpoints(BrandFeishu)
-	if ep.Open != "https://open.feishu.cn" {
-		t.Errorf("Open = %q, want default when override is invalid", ep.Open)
-	}
-	if ep.Accounts != "https://accounts.feishu.cn" {
-		t.Errorf("Accounts = %q, want default when override is invalid", ep.Accounts)
-	}
-}
-
 func TestParseBrand(t *testing.T) {
 	cases := []struct {
 		in   string
@@ -162,17 +133,6 @@ func TestIsPlatformEndpointHost_ExactMatchOnly(t *testing.T) {
 	} {
 		if IsPlatformEndpointHost(host) {
 			t.Errorf("IsPlatformEndpointHost(%q) = true, want false", host)
-		}
-	}
-}
-
-func TestIsPlatformEndpointHost_IncludesEnvOverrides(t *testing.T) {
-	t.Setenv("LARKSUITE_CLI_OPEN_BASE_URL", "https://open.feishu-boe.cn")
-	t.Setenv("LARKSUITE_CLI_ACCOUNTS_BASE_URL", "https://accounts.feishu-boe.cn")
-
-	for _, host := range []string{"open.feishu-boe.cn", "accounts.feishu-boe.cn"} {
-		if !IsPlatformEndpointHost(host) {
-			t.Errorf("IsPlatformEndpointHost(%q) = false, want true for env override", host)
 		}
 	}
 }

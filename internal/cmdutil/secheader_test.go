@@ -338,27 +338,3 @@ func TestBaseSecurityHeaders_AgentTraceRejectsLFInjection(t *testing.T) {
 		t.Fatalf("BaseSecurityHeaders()[%s] = %q, want absent for LF value", HeaderAgentTrace, v)
 	}
 }
-
-func TestBaseSecurityHeaders_NoTTEnvHeaderWhenEnvUnset(t *testing.T) {
-	t.Setenv(envvars.CliTTEnv, "")
-	h := BaseSecurityHeaders()
-	if v := h.Get(HeaderTTEnv); v != "" {
-		t.Fatalf("BaseSecurityHeaders() included %s = %q, want absent when env unset", HeaderTTEnv, v)
-	}
-}
-
-func TestBaseSecurityHeaders_IncludesTTEnvHeaderWhenEnvSet(t *testing.T) {
-	t.Setenv(envvars.CliTTEnv, "boe_f_agent_calendar_meeti")
-	h := BaseSecurityHeaders()
-	if v := h.Get(HeaderTTEnv); v != "boe_f_agent_calendar_meeti" {
-		t.Fatalf("BaseSecurityHeaders()[%s] = %q, want %q", HeaderTTEnv, v, "boe_f_agent_calendar_meeti")
-	}
-}
-
-func TestBaseSecurityHeaders_NoTTEnvHeaderWhenEnvInvalid(t *testing.T) {
-	t.Setenv(envvars.CliTTEnv, "boe\r\nX-Evil: attack")
-	h := BaseSecurityHeaders()
-	if v := h.Get(HeaderTTEnv); v != "" {
-		t.Fatalf("BaseSecurityHeaders() included %s = %q, want absent for invalid input", HeaderTTEnv, v)
-	}
-}

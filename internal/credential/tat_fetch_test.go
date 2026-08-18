@@ -74,26 +74,6 @@ func TestFetchTAT_Success(t *testing.T) {
 	}
 }
 
-func TestFetchTAT_UsesAccountsBaseURLOverride(t *testing.T) {
-	t.Setenv("LARKSUITE_CLI_ACCOUNTS_BASE_URL", "https://accounts.feishu-boe.cn")
-	rt := &stubRoundTripper{
-		respCode: 200,
-		respBody: `{"code":0,"access_token":"t-abc","token_type":"Bearer","expires_in":7200}`,
-	}
-	hc := &http.Client{Transport: rt}
-
-	token, err := FetchTAT(context.Background(), hc, core.BrandFeishu, "cli_app", "secret_x")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if token != "t-abc" {
-		t.Errorf("token = %q, want t-abc", token)
-	}
-	if rt.gotReq.URL.String() != "https://accounts.feishu-boe.cn/oauth/v3/token" {
-		t.Errorf("url = %s", rt.gotReq.URL.String())
-	}
-}
-
 // invalid_client (wrong app_id/app_secret on the client_credentials grant) is a
 // deterministic client-side rejection that FetchTAT routes to
 // classifyTATResponseCode as CategoryConfig / SubtypeInvalidClient — the same
