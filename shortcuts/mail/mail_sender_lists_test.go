@@ -251,6 +251,12 @@ func TestMailSenderListShortcut_ValidateInputs(t *testing.T) {
 	}, f, stdout)
 	requireSenderListValidationParam(t, err, "--page-size")
 
+	err = runMountedMailShortcut(t, MailSenderAllowlist, []string{
+		"+sender-allowlist",
+		"--page-size", "101",
+	}, f, stdout)
+	requireSenderListValidationParam(t, err, "--page-size")
+
 	err = runMountedMailShortcut(t, MailSenderAllowlistModify, []string{
 		"+sender-allowlist-modify",
 		"--add", "valid@example.com,",

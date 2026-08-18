@@ -5,10 +5,13 @@ package mail
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/larksuite/cli/shortcuts/common"
 )
+
+const mailSenderListMaxPageSize = 100
 
 var MailSenderAllowlist = newMailSenderListShortcut(senderListShortcutConfig{
 	command:     "+sender-allowlist",
@@ -57,12 +60,13 @@ func newMailSenderListShortcut(cfg senderListShortcutConfig) common.Shortcut {
 		Flags: []common.Flag{
 			{Name: "mailbox", Default: "me", Desc: "Mailbox email address or user_mailbox_id (default: me)."},
 			{Name: "query", Desc: "Prefix keyword to search sender email addresses or domains."},
-			{Name: "page-size", Type: "int", Default: "20", Desc: "Page size for list/search mode."},
+			{Name: "page-size", Type: "int", Default: "20", Desc: fmt.Sprintf("Page size for list/search mode, range 1-%d.", mailSenderListMaxPageSize)},
 			{Name: "page-token", Desc: "Page token returned by a previous list/search response."},
 		},
 		Validate: func(ctx context.Context, rt *common.RuntimeContext) error {
-			if rt.Int("page-size") <= 0 {
-				return mailValidationParamError("--page-size", "must be greater than 0")
+			pageSize := rt.Int("page-size")
+			if pageSize < 1 || pageSize > mailSenderListMaxPageSize {
+				return mailValidationParamError("--page-size", "must be between 1 and %d", mailSenderListMaxPageSize)
 			}
 			return nil
 		},
