@@ -996,8 +996,7 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 	if err != nil {
 		return err
 	}
-	content := common.GetString(common.GetMap(data, "xml_presentation"), "content")
-	ids, err := slidesScreenshotIDsFromXML(content)
+	ids, err := slidesScreenshotOverviewIDs(data)
 	if err != nil {
 		return err
 	}
@@ -1124,16 +1123,30 @@ func slidesScreenshotOverviewImages(data map[string]interface{}, requestedIDs []
 func slidesScreenshotIDsFromXML(content string) ([]string, error) {
 	d := xml.NewDecoder(strings.NewReader(content))
 	var ids []string
+	seenRoot := false
 	for {
 		tok, err := d.Token()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
+				if !seenRoot {
+					return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "presentation XML for --overview has no root element")
+				}
 				break
 			}
 			return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "parse presentation XML for --overview: %v", err).WithCause(err)
 		}
 		start, ok := tok.(xml.StartElement)
-		if !ok || start.Name.Local != "slide" {
+		if !ok {
+			continue
+		}
+		if !seenRoot {
+			seenRoot = true
+			if start.Name.Local != "presentation" {
+				return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "presentation XML for --overview has root element %q, want presentation", start.Name.Local)
+			}
+			continue
+		}
+		if start.Name.Local != "slide" {
 			continue
 		}
 		for _, a := range start.Attr {
@@ -1144,6 +1157,18 @@ func slidesScreenshotIDsFromXML(content string) ([]string, error) {
 		}
 	}
 	return ids, nil
+}
+
+func slidesScreenshotOverviewIDs(data map[string]interface{}) ([]string, error) {
+	presentation, ok := data["xml_presentation"].(map[string]interface{})
+	if !ok {
+		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "xml_presentation response for --overview must be an object")
+	}
+	content, ok := presentation["content"].(string)
+	if !ok || strings.TrimSpace(content) == "" {
+		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "xml_presentation.content response for --overview must be a non-empty string")
+	}
+	return slidesScreenshotIDsFromXML(content)
 }
 
 type overviewCell struct {

@@ -274,6 +274,63 @@ func TestSlidesScreenshotIDsFromXMLPreservesPageOrder(t *testing.T) {
 	}
 }
 
+func TestSlidesScreenshotOverviewRejectsMalformedPresentationResponseBeforeScreenshot(t *testing.T) {
+	tests := []struct {
+		name string
+		data map[string]interface{}
+	}{
+		{name: "missing presentation", data: map[string]interface{}{}},
+		{name: "presentation is not object", data: map[string]interface{}{"xml_presentation": "not-an-object"}},
+		{name: "missing content", data: map[string]interface{}{"xml_presentation": map[string]interface{}{}}},
+		{name: "content is not string", data: map[string]interface{}{"xml_presentation": map[string]interface{}{"content": 42}}},
+		{name: "blank content", data: map[string]interface{}{"xml_presentation": map[string]interface{}{"content": " \n\t "}}},
+		{name: "malformed xml", data: map[string]interface{}{"xml_presentation": map[string]interface{}{"content": "<presentation>"}}},
+		{name: "wrong root", data: map[string]interface{}{"xml_presentation": map[string]interface{}{"content": "<document><slide id=\"p1\"/></document>"}}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+			postCalled := false
+			reg.Register(&httpmock.Stub{Method: "GET", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc", Body: map[string]interface{}{
+				"code": 0, "data": tc.data,
+			}})
+			reg.Register(&httpmock.Stub{Method: "POST", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc/slide_images", OnMatch: func(_ *http.Request) {
+				postCalled = true
+			}, Body: map[string]interface{}{
+				"code": 0, "data": map[string]interface{}{"slide_images": []interface{}{}},
+			}, Optional: true})
+
+			err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{"+screenshot", "--presentation", "pres_abc", "--overview", "--as", "user"})
+			if err == nil {
+				t.Fatal("expected invalid response error")
+			}
+			p, ok := errs.ProblemOf(err)
+			if !ok || p.Category != errs.CategoryInternal || p.Subtype != errs.SubtypeInvalidResponse {
+				t.Fatalf("problem = %#v, want internal/invalid_response", p)
+			}
+			if postCalled {
+				t.Fatal("screenshot POST was called after malformed presentation response")
+			}
+		})
+	}
+}
+
+func TestSlidesScreenshotOverviewTreatsEmptyPresentationAsFailedPrecondition(t *testing.T) {
+	f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
+	reg.Register(&httpmock.Stub{Method: "GET", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc", Body: map[string]interface{}{
+		"code": 0, "data": map[string]interface{}{"xml_presentation": map[string]interface{}{"content": "<presentation/>"}},
+	}})
+	err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{"+screenshot", "--presentation", "pres_abc", "--overview", "--as", "user"})
+	if err == nil {
+		t.Fatal("expected empty presentation error")
+	}
+	p, ok := errs.ProblemOf(err)
+	if !ok || p.Category != errs.CategoryValidation || p.Subtype != errs.SubtypeFailedPrecondition {
+		t.Fatalf("problem = %#v, want validation/failed_precondition", p)
+	}
+}
+
 func TestComposeSlidesOverviewScalesWholeSlideAndProvidesIndexGeometry(t *testing.T) {
 	src := image.NewRGBA(image.Rect(0, 0, 960, 540))
 	drawQuadrant := func(r image.Rectangle, c color.RGBA) {
