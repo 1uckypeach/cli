@@ -6,8 +6,6 @@ package core
 import (
 	"net/url"
 	"strings"
-
-	"github.com/larksuite/cli/internal/envvars"
 )
 
 // LarkBrand represents the Lark platform brand.
@@ -46,34 +44,22 @@ type Endpoints struct {
 // ResolveEndpoints resolves endpoint URLs for the brand, normalizing its
 // input so stored values with unusual casing still resolve correctly.
 func ResolveEndpoints(brand LarkBrand) Endpoints {
-	var endpoints Endpoints
 	switch ParseBrand(string(brand)) {
 	case BrandLark:
-		endpoints = Endpoints{
+		return Endpoints{
 			Open:     "https://open.larksuite.com",
 			Accounts: "https://accounts.larksuite.com",
 			MCP:      "https://mcp.larksuite.com",
 			AppLink:  "https://applink.larksuite.com",
 		}
 	default:
-		endpoints = Endpoints{
+		return Endpoints{
 			Open:     "https://open.feishu.cn",
 			Accounts: "https://accounts.feishu.cn",
 			MCP:      "https://mcp.feishu.cn",
 			AppLink:  "https://applink.feishu.cn",
 		}
 	}
-	return applyEndpointOverrides(endpoints)
-}
-
-func applyEndpointOverrides(endpoints Endpoints) Endpoints {
-	if open := envvars.OpenBaseURL(); open != "" {
-		endpoints.Open = open
-	}
-	if accounts := envvars.AccountsBaseURL(); accounts != "" {
-		endpoints.Accounts = accounts
-	}
-	return endpoints
 }
 
 // ResolveOpenBaseURL returns the Open API base URL for the given brand.
@@ -81,7 +67,7 @@ func ResolveOpenBaseURL(brand LarkBrand) string {
 	return ResolveEndpoints(brand).Open
 }
 
-func platformEndpointHosts() map[string]struct{} {
+var platformEndpointHosts = func() map[string]struct{} {
 	hosts := make(map[string]struct{})
 	for _, brand := range []LarkBrand{BrandFeishu, BrandLark} {
 		endpoints := ResolveEndpoints(brand)
@@ -93,14 +79,14 @@ func platformEndpointHosts() map[string]struct{} {
 		}
 	}
 	return hosts
-}
+}()
 
 // IsPlatformEndpointHost reports whether hostname exactly matches one of the
 // endpoint hosts produced by ResolveEndpoints. It intentionally does not use a
 // suffix match: lookalike external domains must never enter the platform
 // transport extension.
 func IsPlatformEndpointHost(hostname string) bool {
-	_, ok := platformEndpointHosts()[strings.ToLower(hostname)]
+	_, ok := platformEndpointHosts[strings.ToLower(hostname)]
 	return ok
 }
 
