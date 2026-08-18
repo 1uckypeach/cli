@@ -67,8 +67,8 @@ var SlidesScreenshot = common.Shortcut{
 		{Name: "output", Desc: "preferred relative output path for a single screenshot (extension optional; .png, .jpg, or .jpeg)"},
 		{Name: "output-dir", Default: defaultSlidesScreenshotDir, Desc: "relative directory for saved screenshots"},
 		{Name: "output-name", Desc: "file name stem for --content render output"},
-		{Name: "overview", Type: "bool", Desc: "render every current slide into one local overview PNG; cannot be combined with slide selectors, --content, or --region"},
-		{Name: "overview-page", Type: "int", Default: "1", Desc: "1-based overview page; each overview contains at most 20 slides"},
+		{Name: "overview", Type: "bool", Desc: "render one indexed overview PNG containing up to 20 current slides; use --overview-page for additional slides; cannot be combined with slide selectors, --content, or --region"},
+		{Name: "overview-page", Type: "int", Default: "1", Desc: "1-based overview page (up to 20 slides); continue with next_overview_page while has_next is true"},
 		{Name: "region", Desc: "crop exactly one existing slide as x,y,width,height in the rendered screenshot pixels; cannot be combined with --overview"},
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {

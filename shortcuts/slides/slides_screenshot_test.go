@@ -59,6 +59,19 @@ func TestSlidesScreenshotDeclaredScopes(t *testing.T) {
 	}
 }
 
+func TestSlidesScreenshotOverviewFlagDescriptionsExposePagination(t *testing.T) {
+	descriptions := make(map[string]string)
+	for _, flag := range SlidesScreenshot.Flags {
+		descriptions[flag.Name] = flag.Desc
+	}
+	if got := descriptions["overview"]; !strings.Contains(got, "one indexed overview PNG containing up to 20") || !strings.Contains(got, "--overview-page") {
+		t.Fatalf("--overview description = %q, want single-page limit and pagination guidance", got)
+	}
+	if got := descriptions["overview-page"]; !strings.Contains(got, "next_overview_page") || !strings.Contains(got, "has_next") {
+		t.Fatalf("--overview-page description = %q, want response-driven pagination guidance", got)
+	}
+}
+
 func TestSlidesScreenshotRegionParser(t *testing.T) {
 	got, set, err := parseSlidesScreenshotRegion("120,80,480,220")
 	if err != nil || !set || got != (slidesScreenshotRegion{X: 120, Y: 80, Width: 480, Height: 220}) {
