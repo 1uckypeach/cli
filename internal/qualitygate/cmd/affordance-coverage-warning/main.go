@@ -8,19 +8,31 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
 
 	"github.com/larksuite/cli/internal/affordance"
+	"github.com/larksuite/cli/internal/apicatalog"
 	"github.com/larksuite/cli/internal/registry"
 )
 
 func main() {
 	affordance.SetSource(os.DirFS("affordance"))
-	methods := registry.EmbeddedCatalog().WalkMethods(nil)
+	reportCoverage(
+		os.Stdout,
+		registry.EmbeddedCatalog().WalkMethods(nil),
+		func(service, methodID string) bool {
+			_, ok := affordance.For(service, methodID)
+			return ok
+		},
+	)
+}
+
+func reportCoverage(out io.Writer, methods []apicatalog.MethodRef, documented func(service, methodID string) bool) {
 	if len(methods) == 0 {
-		fmt.Println("WARNING: no embedded API metadata; run make fetch_meta before checking coverage.")
+		fmt.Fprintln(out, "WARNING: no embedded API metadata; run make fetch_meta before checking coverage.")
 		return
 	}
 	var missing []string
@@ -29,17 +41,17 @@ func main() {
 		if strings.HasPrefix(methodID, "+") {
 			continue
 		}
-		if _, ok := affordance.For(service, methodID); !ok {
+		if !documented(service, methodID) {
 			missing = append(missing, service+"/"+methodID)
 		}
 	}
 	sort.Strings(missing)
 	if len(missing) == 0 {
-		fmt.Println("Affordance coverage is complete.")
+		fmt.Fprintln(out, "Affordance coverage is complete.")
 		return
 	}
-	fmt.Printf("WARNING: %d native command(s) have no affordance document:\n", len(missing))
+	fmt.Fprintf(out, "WARNING: %d native command(s) have no affordance document:\n", len(missing))
 	for _, key := range missing {
-		fmt.Println(key)
+		fmt.Fprintln(out, key)
 	}
 }
