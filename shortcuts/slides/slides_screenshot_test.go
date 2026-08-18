@@ -368,7 +368,7 @@ func TestComposeSlidesOverviewScalesWholeSlideAndProvidesIndexGeometry(t *testin
 	if got := color.RGBAModel.Convert(out.At(thumb.Min.X+240, thumb.Min.Y+135)).(color.RGBA); got.R < 200 || got.G < 200 {
 		t.Fatalf("bottom-right thumbnail = %#v, want yellow", got)
 	}
-	if out.Bounds().Dx() != 352 || out.Bounds().Dy() != 252 {
+	if out.Bounds().Dx() != 352 || out.Bounds().Dy() != 236 {
 		t.Fatalf("overview size = %v", out.Bounds())
 	}
 }
@@ -616,8 +616,8 @@ func TestSlidesScreenshotOverviewExecutionPaginatesAtTwentySlides(t *testing.T) 
 		t.Fatalf("overview.size = %#v, want positive encoded-byte count", overview["size"])
 	}
 	imageSize, _ := overview["image_size"].(map[string]interface{})
-	if imageSize["width"] != float64(1360) || imageSize["height"] != float64(1196) {
-		t.Fatalf("overview.image_size = %#v, want 1360x1196", imageSize)
+	if imageSize["width"] != float64(1360) || imageSize["height"] != float64(1116) {
+		t.Fatalf("overview.image_size = %#v, want 1360x1116", imageSize)
 	}
 	rangeData, _ := overview["slide_range"].(map[string]interface{})
 	if rangeData["start"] != float64(21) || rangeData["end"] != float64(40) {

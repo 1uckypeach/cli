@@ -1188,23 +1188,32 @@ func composeSlidesOverviewFromIndex(images []image.Image, columns int, firstInde
 	if columns < 1 {
 		columns = defaultOverviewColumns
 	}
-	const thumbW, thumbH, headerH, pad = 320, 180, 40, 16
+	const thumbW, thumbH, headerH, pad = 320, 180, 24, 16
 	rows := int(math.Ceil(float64(len(images)) / float64(columns)))
 	tileH := headerH + thumbH
 	out := image.NewRGBA(image.Rect(0, 0, columns*thumbW+(columns+1)*pad, rows*tileH+(rows+1)*pad))
-	draw.Draw(out, out.Bounds(), &image.Uniform{C: color.White}, image.Point{}, draw.Src)
+	draw.Draw(out, out.Bounds(), &image.Uniform{C: color.RGBA{R: 246, G: 247, B: 249, A: 255}}, image.Point{}, draw.Src)
 	cells := make([]overviewCell, len(images))
 	for i, src := range images {
 		r, c := i/columns, i%columns
 		x, y := pad+c*(thumbW+pad), pad+r*(tileH+pad)
 		tile := image.Rect(x, y, x+thumbW, y+tileH)
 		thumbnail := image.Rect(x, y+headerH, x+thumbW, y+tileH)
-		draw.Draw(out, image.Rect(x, y, x+thumbW, y+headerH), &image.Uniform{C: color.RGBA{R: 20, G: 35, B: 58, A: 255}}, image.Point{}, draw.Src)
+		draw.Draw(out, image.Rect(x, y, x+thumbW, y+headerH), &image.Uniform{C: color.RGBA{R: 49, G: 50, B: 53, A: 255}}, image.Point{}, draw.Src)
 		xdraw.CatmullRom.Scale(out, thumbnail, src, src.Bounds(), draw.Over, nil)
-		drawOverviewIndex(out, image.Pt(x+14, y+7), firstIndex+i)
+		drawOverviewThumbnailBorder(out, thumbnail)
+		drawOverviewIndex(out, image.Pt(x+9, y+5), firstIndex+i)
 		cells[i] = overviewCell{row: r, column: c, tile: tile, thumbnail: thumbnail}
 	}
 	return out, cells
+}
+
+func drawOverviewThumbnailBorder(dst draw.Image, thumbnail image.Rectangle) {
+	border := &image.Uniform{C: color.RGBA{R: 205, G: 208, B: 213, A: 255}}
+	draw.Draw(dst, image.Rect(thumbnail.Min.X, thumbnail.Min.Y, thumbnail.Max.X, thumbnail.Min.Y+1), border, image.Point{}, draw.Src)
+	draw.Draw(dst, image.Rect(thumbnail.Min.X, thumbnail.Max.Y-1, thumbnail.Max.X, thumbnail.Max.Y), border, image.Point{}, draw.Src)
+	draw.Draw(dst, image.Rect(thumbnail.Min.X, thumbnail.Min.Y, thumbnail.Min.X+1, thumbnail.Max.Y), border, image.Point{}, draw.Src)
+	draw.Draw(dst, image.Rect(thumbnail.Max.X-1, thumbnail.Min.Y, thumbnail.Max.X, thumbnail.Max.Y), border, image.Point{}, draw.Src)
 }
 
 var overviewDigitPixels = map[rune][]string{
@@ -1222,7 +1231,7 @@ var overviewDigitPixels = map[rune][]string{
 }
 
 func drawOverviewIndex(dst draw.Image, at image.Point, index int) {
-	const scale, gap = 4, 5
+	const scale, gap = 2, 3
 	x := at.X
 	for _, ch := range fmt.Sprintf("#%02d", index) {
 		glyph := overviewDigitPixels[ch]
