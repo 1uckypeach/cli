@@ -18,6 +18,13 @@ metadata:
 
 **所有表示本地文件的 `@path` 均使用 `@./xxx` 形式的相对路径，并以运行 `lark-cli` 时的当前工作目录（CWD）为基准。**
 
+**本地文件与 Windows 编码安全（CRITICAL）：**
+
+- 在生成任何草稿或输入文件前，先把命令执行工具的工作目录固定为当前任务的共享可写工作区；文件创建/编辑工具和 `lark-cli` 进程必须以同一目录为根。优先使用命令执行工具的 `workdir` / `cwd` 能力，不依赖跨命令保留的 shell `cd` 状态。
+- Agent 生成的 XML、Markdown、JSON 和资源描述必须保存为 UTF-8 文件，并通过相对 `@./path` 传给 CLI。复杂或非 ASCII 内容不使用 stdin。
+- Windows 下禁止用 `Get-Content`、`Out-String` 或其他 PowerShell 文本管道把文件内容传给 `--content -` / `--presentation-decision -`；这类管道可能在 CLI 收到内容前替换非 ASCII 字符。
+- stdin 仅保留给能够直接提供原始 UTF-8 字节的宿主调用方，不作为 Agent 的文件路径错误恢复方案。若无法让文件工具与 `lark-cli` 使用同一 CWD，停止并报告运行环境问题，不得降级到文本管道。
+
 ### 文档内容
 
 - **读取 / 摘要 — [`+fetch`](references/lark-doc-fetch.md)**：先读参考再获取文档。

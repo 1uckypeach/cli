@@ -1297,7 +1297,7 @@ func TestDocsScriptHelpExamplesAreCrossShellSafe(t *testing.T) {
 	if strings.Contains(cmd.Example, "--content @") {
 		t.Fatalf("help examples contain an unquoted @file argument: %q", cmd.Example)
 	}
-	for _, want := range []string{`--command init-draft --presentation-decision`, `--content "@./draft.xml"`} {
+	for _, want := range []string{`--presentation-decision "@./presentation-decision.json"`, `--content "@./draft.xml"`} {
 		if !strings.Contains(cmd.Example, want) {
 			t.Errorf("help examples missing %q: %q", want, cmd.Example)
 		}

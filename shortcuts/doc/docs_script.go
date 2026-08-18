@@ -33,7 +33,7 @@ const (
 	docsScriptDraftXMLFileName      = "draft.xml"
 	docsScriptDraftRandomHexLength  = 8
 	docsScriptDecisionFile          = ".presentation-decision.json"
-	docsScriptDraftTip              = "The workspace directory has been created successfully. draft_path points to a new XML file that does not exist yet. Create and write the file directly without reading it first."
+	docsScriptDraftTip              = "The workspace directory has been created successfully. draft_path points to a new XML file that does not exist yet. Create and write that UTF-8 file relative to the same working directory used for init-draft, and run parse and create from that same working directory. Do not pipe document text through a shell text command."
 	docsScriptListBlockType         = "list"
 	docsScriptAssessmentPassed      = "passed"
 	docsScriptAssessmentFailed      = "failed"
@@ -67,7 +67,7 @@ var DocsScript = common.Shortcut{
 		},
 		{
 			Name:  "content",
-			Desc:  "local XML content for parse; use @relative-file or - for stdin; mutually exclusive with --doc",
+			Desc:  "local XML content for parse; prefer a UTF-8 @relative-file under the command working directory; - reads stdin; mutually exclusive with --doc",
 			Input: []string{common.File, common.Stdin},
 		},
 		{
@@ -76,7 +76,7 @@ var DocsScript = common.Shortcut{
 		},
 		{
 			Name:  "presentation-decision",
-			Desc:  "Presentation Decision JSON required by init-draft and saved as the draft profile baseline; genre_contract and adapter accept a short name, \"none\", or null; accepts inline JSON (recommended for init-draft), @relative-file, or - for stdin",
+			Desc:  "Presentation Decision JSON required by init-draft and saved as the draft profile baseline; genre_contract and adapter accept a short name, \"none\", or null; prefer a UTF-8 @relative-file for agent workflows; also accepts inline JSON or - for stdin",
 			Input: []string{common.File, common.Stdin},
 		},
 	},
@@ -185,7 +185,7 @@ type docsScriptFetchResponse struct {
 
 func installDocsScriptHelp(cmd *cobra.Command) {
 	installDocsContentPathCapture(cmd)
-	cmd.Example = `  lark-cli docs +script --command init-draft --presentation-decision '<JSON>'
+	cmd.Example = `  lark-cli docs +script --command init-draft --presentation-decision "@./presentation-decision.json"
   lark-cli docs +script --command parse --content "@./draft.xml"
   lark-cli docs +script --command parse --doc "https://example.larksuite.com/docx/doxcn..."`
 }

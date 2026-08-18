@@ -87,15 +87,18 @@
 }
 ```
 
-不预建临时目录、草稿或决策文件。将上述 JSON 原样替换命令中的占位符并实际执行：
+先固定当前任务的共享可写工作区为 `task_cwd`：文件创建/编辑工具以该目录为根，后续每一次 `lark-cli` 命令也都通过命令执行工具的 `workdir` / `cwd` 在该目录启动。不要依赖上一次 shell 命令遗留的 `cd` 状态；无法对齐两者时停止并报告运行环境问题，不得改用 stdin。
+
+不预建 CLI 管理的草稿目录或 XML。将上述 JSON 写入 `task_cwd` 下任务独占的 UTF-8 `decision_input_path`，再实际执行：
 
 ```bash
-lark-cli docs +script --command init-draft --presentation-decision '<上方完整 JSON>' --format json
+lark-cli docs +script --command init-draft --presentation-decision "@./<decision_input_path>" --format json
 ```
 
 成功后：
 
-- 保持当前工作目录不变；将 `data.workspace` 原样记为 `work_dir`，将 `data.draft_path` 原样记为 `draft_path`；遵循 `data.tip`，后续始终使用 `@./<draft_path>`。
+- 删除已经保存为基线的 `decision_input_path`；将 `data.workspace` 原样记为 `work_dir`，将 `data.draft_path` 原样记为 `draft_path`。二者都是相对于 `task_cwd` 的路径。
+- 后续文件操作继续以 `task_cwd` 为根，所有 `lark-cli` 命令继续显式使用同一个执行 `workdir` / `cwd`；遵循 `data.tip`，始终使用 `@./<draft_path>`，不得使用 PowerShell 文本管道或 `--content -` 代替。
 - CLI 会创建独占的 `work_dir` 并保存 `.presentation-decision.json` 作为固定基线，**但不会创建 `draft_path` 指向的 XML**。`draft_path` 是当前任务可直接写入的新文件路径；要求、资料或 contract 实质变化时，提交新决策并重新初始化，不得直接改基线。
 
 ### Step 5：生成 release candidate。
@@ -103,19 +106,19 @@ lark-cli docs +script --command init-draft --presentation-decision '<上方完�
 读取 [`lark-doc-xml.md`](lark-doc-xml.md)，并结合 Presentation Decision、适用 contract 和 Philosophy 生成完整 XML。使用扩展标签时按需读取 [`拓展标签`](lark-doc-xml-extended-blocks.md)。
 
 1. 公开网络图片使用 `<img href="URL"/>`；已有本地图片使用 `<img path="@./relative/path"/>`；画板使用 `<whiteboard path="@./relative/path"/>` 并遵循[`画板工作流`](lark-doc-whiteboard.md)；HTML 使用 `<html5-block path="@./file.html"/>` 并遵循[`拓展标签`](lark-doc-xml-extended-blocks.md)。
-2. 直接在 Step 4 返回的 `draft_path` 创建并写入完整 release candidate。
+2. 通过以 `task_cwd` 为根的文件工具，在 Step 4 返回的 `draft_path` 创建并以 UTF-8 写入完整 release candidate。
 3. 首次写入后，发现 XML 语法问题时只修复最小范围，不无故重写正确内容。
 
 ### Step 6：执行 Draft Profile Check。
 
-1. 执行 `lark-cli docs +script --command parse --content "@./<draft_path>" --format json`。顶层 `ok` 仅表示命令执行成功，是否通过看 `data.assessment.status`。失败时按 `data.diagnostics[]` 局部修复；只有草稿为空、截断或结构无效时才全文重建。`parse` 不替代 XML 规则或服务端校验。
+1. 在同一个 `task_cwd` 执行 `lark-cli docs +script --command parse --content "@./<draft_path>" --format json`。顶层 `ok` 仅表示命令执行成功，是否通过看 `data.assessment.status`。失败时按 `data.diagnostics[]` 局部修复；只有草稿为空、截断或结构无效时才全文重建。路径失败时修正命令执行 CWD，不得把文件管道到 stdin。`parse` 不替代 XML 规则或服务端校验。
 2. Profile Check 通过后，按 [`lark-doc-xml.md`](lark-doc-xml.md) 复查标签、属性和值，并依据 Philosophy 检查事实与来源、用户硬约束、适用 contract / adapter 以及 `visual_plan`。最终 XML 能否写入以 `docs +create` 的服务端结果为准。
 
 ### Step 7：创建文档并处理局部失败。
 
-1. 只有最新 release candidate 完成 Draft Profile Check 和 XML 规则复查后，才读取 [`lark-doc-create.md`](lark-doc-create.md)，使用同一个 `draft_path` 创建文档。
-2. 创建结果存在 warning、局部资源失败或回查发现局部问题时，不得再次新建文档；读取 [`lark-doc-update.md`](lark-doc-update.md)，对已创建文档做最小范围修复，并按 update 流程 fetch 验证。
+1. 只有最新 release candidate 完成 Draft Profile Check 和 XML 规则复查后，才读取 [`lark-doc-create.md`](lark-doc-create.md)，在同一个 `task_cwd` 使用同一个 `@./<draft_path>` 创建文档。
+2. 创建成功后必须 fetch，核对标题和至少一段包含非 ASCII 字符的代表性正文与 release candidate 一致。存在乱码、warning、局部资源失败或其他不一致时，不得再次新建文档；读取 [`lark-doc-update.md`](lark-doc-update.md)，对已创建文档做最小范围修复，并按 update 流程 fetch 验证。
 
 ### Step 8：清理并交付。
 
-无论创建成功、失败或被阻塞，只要 Step 4 已返回 `work_dir`，就先离开该目录，再使用当前运行时的文件删除能力精确删除整个 `work_dir`；不要使用通配符，也不要删除目录外的用户原始文件。最终只交付用户需要的结果，并说明必要来源、未关闭缺口、异常、失败或阻塞原因，以及文档 URL 或 token。
+完成创建后的 fetch 验证，或在失败时记录必要诊断后，只要 Step 4 已返回 `work_dir`，就使用当前运行时的文件删除能力精确删除 `task_cwd` 下的整个 `work_dir`；若 `decision_input_path` 仍存在也精确删除。不要使用通配符，也不要删除这些路径外的用户原始文件。最终只交付用户需要的结果，并说明必要来源、未关闭缺口、异常、失败或阻塞原因，以及文档 URL 或 token。

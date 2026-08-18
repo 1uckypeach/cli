@@ -7,10 +7,12 @@
 ## 命令
 
 ```bash
-# 简单内容优先使用 `--content -`，文件导入如下：
-lark-cli docs +create --doc-format xml --content "@<XML 文件相对路径>"
+# Agent 生成的内容默认保存为 UTF-8 文件，并从同一个 CWD 以相对 @file 读取：
+lark-cli docs +create --doc-format xml --content "@./draft.xml"
 lark-cli docs +create --doc-format markdown --content "@./draft.md"
 ```
+
+Windows Agent 不得使用 `Get-Content`、`Out-String` 等 PowerShell 文本管道向 `--content -` 传正文。stdin 仅供能够直接提供原始 UTF-8 字节的宿主调用方使用；`@file` 路径失败时应修正命令执行 CWD，不得降级到文本管道。
 
 ## 返回值
 
@@ -43,12 +45,12 @@ lark-cli docs +create --doc-format markdown --content "@./draft.md"
 |参数|必填|说明|
 |-|-|-|
 |`--title`|否|文档标题，Markdown 导入时使用；XML 创建推荐在 `--content` 开头写 `<title>...</title>`；多个标题仅保留第一个|
-|`--content`|视情况|文档内容（XML 或 Markdown 格式）；不传 `--content` 时必须传 `--title`|
-|`--reference-map`|否|结构化 `reference_map` JSON object；必须与 `--content` 一起使用。普通写入优先把结构写在正文里；该参数主要用于保留或回放已有 `document.reference_map`。支持直接 JSON、任务独占目录内的相对 `@file`，或 `-` 从 stdin 读取。|
+|`--content`|视情况|文档内容（XML 或 Markdown 格式）；Agent 生成的复杂或非 ASCII 内容使用当前 CWD 下的 UTF-8 相对 `@file`；不传 `--content` 时必须传 `--title`|
+|`--reference-map`|否|结构化 `reference_map` JSON object；必须与 `--content` 一起使用。普通写入优先把结构写在正文里；该参数主要用于保留或回放已有 `document.reference_map`。Agent 使用任务 CWD 内的 UTF-8 相对 `@file`；也支持直接 JSON，`-` 仅供能直接提供原始 UTF-8 字节的宿主调用方使用。|
 |`--doc-format`|否|CLI 与语义创作均默认 `xml`，并建议显式传入；仅用户明确要求 Markdown 或保真导入 Markdown 时使用 `markdown`。不要混用完整的 XML 与 Markdown 文档格式；Markdown 中允许使用文档已定义的 XML 扩展标签。|
 |`--parent-token`|否|父文件夹或知识库节点 token（与 `--parent-position` 互斥）|
 |`--parent-position`|否|父节点位置，如 `my_library`（与 `--parent-token` 互斥）|
 
 ## 需要回查文档
 
-用 `lark-cli docs +fetch --doc "<document_id 或文档 URL>" --detail with-ids` 回查，若需要更多信息可查看 [`+fetch`](lark-doc-fetch.md)。
+用 `lark-cli docs +fetch --doc "<document_id 或文档 URL>" --detail with-ids` 回查，并核对标题和至少一段包含非 ASCII 字符的代表性正文与输入一致；若需要更多信息可查看 [`+fetch`](lark-doc-fetch.md)。
