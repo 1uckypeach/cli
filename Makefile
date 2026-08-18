@@ -33,7 +33,7 @@ fetch_meta:
 # Manual inventory only: reports missing native-command affordances as warnings
 # and always exits successfully, so platform metadata changes do not block PRs.
 affordance-coverage-warning: fetch_meta
-	LARKSUITE_CLI_REMOTE_META=off go run ./internal/affordance/cmd/coverage-warning
+	LARKSUITE_CLI_REMOTE_META=off go run ./internal/qualitygate/cmd/affordance-coverage-warning
 
 build: fetch_meta
 	go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) .
