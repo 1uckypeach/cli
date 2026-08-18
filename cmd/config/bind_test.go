@@ -2058,6 +2058,10 @@ func TestReresolveBindUILang(t *testing.T) {
 			want: i18n.LangEnUS,
 		},
 		{
+			// An answered language question is final. This is what makes the
+			// pass idempotent, and it is also why the boundary in
+			// TestBindTUISourceSelection_PickerAnswerOutranksStoredPreference
+			// cannot be closed from here.
 			name: "a resolved language is left alone",
 			opts: BindOptions{Lang: "zh_cn", UILang: i18n.LangZhCN},
 			want: i18n.LangZhCN,
@@ -2078,6 +2082,86 @@ func TestReresolveBindUILang(t *testing.T) {
 				t.Errorf("second call moved UILang to %q, want %q", opts.UILang, tt.want)
 			}
 		})
+	}
+}
+
+// TestBindTUISourceSelection_PickerAnswerOutranksStoredPreference pins a known
+// boundary, not a desired behaviour.
+//
+// When no --source is given and no Agent environment is detected, the workspace
+// is whatever tuiSelectSource asks for next — so the language question has to be
+// asked before there is any config to read. The picker is therefore seeded from
+// nothing and lands on Chinese. Its answer is written to opts.Lang, which
+// preferredLang treats exactly like an explicit --lang, so the second pass
+// cannot restore the chosen workspace's stored preference: a bare Enter
+// persists zh_cn over it.
+//
+// Closing this means asking the language question after the source is known,
+// which leaves the source-selection screen with no language to render in — the
+// very failure this change set exists to remove. Removing it for real needs the
+// source-selection screen to stop depending on a language at all (render it
+// bilingually, the way the picker's own "Language / 语言" title already does),
+// and only then move the picker after the source.
+//
+// If this test starts failing, the ordering was changed deliberately: rewrite
+// it to describe the new behaviour rather than restoring the assertion.
+func TestBindTUISourceSelection_PickerAnswerOutranksStoredPreference(t *testing.T) {
+	saveWorkspace(t)
+	baseDir := t.TempDir()
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", baseDir)
+
+	wsDir := filepath.Join(baseDir, "openclaw")
+	if err := os.MkdirAll(wsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	storedPref := i18n.LangEnUS
+	stored := `{"apps":[{"appId":"cli_x","brand":"feishu","lang":"en_us","users":[]}]}`
+	if err := os.WriteFile(filepath.Join(wsDir, "config.json"), []byte(stored), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Step 1: no --source, no Agent env — the source is not known yet. IsTUI is
+	// left false here only so resolveBindUILang returns instead of opening a
+	// terminal; the gate below is what decides whether the real TUI would ask.
+	opts := &BindOptions{}
+	if err := resolveBindUILang(opts, ""); err != nil {
+		t.Fatalf("resolveBindUILang: %v", err)
+	}
+	if opts.UILang != "" {
+		t.Fatalf("UILang = %q before the source is known, want empty", opts.UILang)
+	}
+	inTUI := *opts
+	inTUI.IsTUI = true
+	if !shouldPromptBindLang(&inTUI) {
+		t.Fatal("the picker must still run here — with nothing resolved it is the only way to ask")
+	}
+
+	// Step 2: the picker runs with that empty seed, so it opens on 中文 and a
+	// bare Enter returns zh_cn. promptLangSelection needs a terminal, so stand
+	// in for it with the exact writes it performs.
+	if seeded := opts.UILang; seeded.UsesEnglishUI() {
+		t.Fatalf("picker seed %q would open on English; this test models the Chinese default", seeded)
+	}
+	opts.Lang = string(i18n.LangZhCN)
+	opts.UILang = i18n.LangZhCN
+
+	// Step 3: the user now picks the workspace that stores en_us.
+	core.SetCurrentWorkspace(core.WorkspaceOpenClaw)
+	reresolveBindUILang(opts)
+
+	if opts.UILang != i18n.LangZhCN {
+		t.Errorf("UILang = %q, want %q — the second pass cannot outrank an answered picker",
+			opts.UILang, i18n.LangZhCN)
+	}
+
+	// Step 4: and that is what lands on disk, replacing the stored preference.
+	appConfig := &core.AppConfig{AppId: "cli_x"}
+	applyPreferences(appConfig, opts, storedPref)
+	if appConfig.Lang != i18n.LangZhCN {
+		t.Errorf("persisted Lang = %q, want %q", appConfig.Lang, i18n.LangZhCN)
+	}
+	if appConfig.Lang == storedPref {
+		t.Fatal("stored preference survived; the boundary is closed and this test should be rewritten")
 	}
 }
 
