@@ -36,16 +36,16 @@ lark-cli apps +cache-get --app-id app_xxx --environment online --key <key> --for
 ```
 
 ### +cache-delete
-删一个缓存 key。**重复删、或删一个本就不存在的 key，都算成功**（返回删除数量 0）、不会报错；删中则返回删除数量 1。删掉后应用下次会自动重新取最新数据，影响小，故不需 `--yes`。
+删一个缓存 key。**重复删、或删一个本就不存在的 key，都算成功**（返回 `deleted_key_count=0`）、不会报错；删中则返回 `deleted_key_count=1`。删掉后应用下次会自动重新取最新数据，影响小，故不需 `--yes`。
 
-**删除数量的含义别读错**——它是「本次是否真的删掉了东西」的唯一判据：
+**响应里的 `deleted_key_count` 别读错**——它是「本次是否真的删掉了东西」的唯一判据：
 
-| 返回 | 含义 | 该怎么向用户表述 |
+| `deleted_key_count` | 含义 | 该怎么向用户表述 |
 |---|---|---|
-| 删除数量 `1` | 命中并删掉了 | 「已删除该 key」 |
-| 删除数量 `0` | 请求成功，但这个 key **本来就不存在或已过期**，没有东西被删掉 | 「该 key 原本就不存在／已过期，无需删除」——**不要说成「已成功删除」** |
+| `1` | 命中并删掉了 | 「已删除该 key」 |
+| `0` | 请求成功，但没有删掉任何 key——这个 key **本来就不存在或已过期** | 「该 key 原本就不存在／已过期，无需删除」——**不要说成「已成功删除」** |
 
-要证明「删除生效了」，用「删前 `+cache-get` 确认存在 → `+cache-delete` 拿到数量 1 → 删后 `+cache-get` 得到 `exists=false`」这条链；只靠删后一次 miss 是不够的，因为 key 从一开始就不存在时结果完全一样。
+要证明「删除生效了」，用「删前 `+cache-get` 确认存在 → `+cache-delete` 拿到 `deleted_key_count=1` → 删后 `+cache-get` 得到 `exists=false`」这条链；只靠删后一次 miss 是不够的，因为 key 从一开始就不存在时（`deleted_key_count=0`）结果完全一样。
 
 ```bash
 lark-cli apps +cache-delete --app-id app_xxx --environment dev --key <key>
