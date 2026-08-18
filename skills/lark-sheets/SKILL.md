@@ -70,7 +70,7 @@ metadata:
 | 批量清除多区域 | `+cells-batch-clear`（high-risk-write 需用户确认后带 `--yes`；`--scope`） | `lark-sheets-batch-update` | `--target` |
 | 调整列宽 / 行高 | `+cols-resize` / `+rows-resize`（行、列是两个独立命令；连同样式一起调时并入 `+styles-put` 的 `row_sizes` / `col_sizes`） | `lark-sheets-range-operations` | `--dimension`（无此 flag） |
 | 分组汇总 / 透视 | `+pivot-create`（默认不传落点 flag → 自动新建子表，零覆盖） | `lark-sheets-pivot-table` | 用 SUMIF / 本地脚本拼一张假透视表 |
-| 画图表 / 可视化（柱 / 折线 / 饼 / 条 / 散点 / 组合…） | 先读 `lark-sheets-chart`；普通图用 `+chart-create-basic`，多图用扁平输入的 `+batch-chart-create`，已有图的数据源用 `+chart-data-update`、常用配置用 `+chart-config-update`；只有单系列 / 单数据点 / 高级引擎字段才用完整 `+chart-create` / `+chart-update` snapshot | `lark-sheets-chart` | matplotlib / 本地画图再贴图（原生图表可交互、随数据更新） |
+| 画图表 / 可视化（柱 / 折线 / 饼 / 条 / 散点 / 组合…） | 先读 `lark-sheets-chart`；普通单图用 `+chart-create-basic`，多图用扁平输入的 `+batch-chart-create`；已有图的数据源用 `+chart-data-update`、常用配置用 `+chart-config-update`；只有语义 shortcut 无法表达的单系列 / 单数据点 / 高级字段才用 `+chart-create` / `+chart-update`，并只提交必要的局部 properties。多图先断言目标数量，图片迁移成真图表后必须删除并复查原浮动图片 | `lark-sheets-chart` | matplotlib / 本地画图再贴图（原生图表可交互、随数据更新） |
 | 条件高亮 / 数据条 / 色阶 / 重复值标记 | `+cond-format-create` | `lark-sheets-conditional-format` | `+highlight`、`+conditional-format`、逐格 `+cells-set-style` 硬凑 |
 | 筛选 / 只看符合条件的行 | `+filter-create` | `lark-sheets-filter` | pandas filter 后覆盖写回（会毁原数据；要保存多份筛选状态用 `+filter-view-create`） |
 
@@ -208,7 +208,7 @@ lark-cli sheets +csv-get --url "https://.../sheets/shtXXX" --sheet-name "<真实
 >
 > **审批协议**：先 `--dry-run` 预览、向用户展示将执行的操作与影响范围，**获得用户明确同意后**再在原命令追加 `--yes` 执行。未经用户同意不得带 `--yes`，也不得在 exit 10 后静默补 `--yes` 重试——那等于禁用门禁。完整协议见 [`../lark-shared/SKILL.md`](../lark-shared/SKILL.md)。
 
-**Agent 使用提示**：写复合 JSON flag 前对结构不确定时，先 `--print-schema --flag-name <name>`（深层字段用点分路径切片）再构造 payload。图表任务必须先读 `lark-sheets-chart`：能用 `+chart-create-basic` / `+chart-data-update` / `+chart-config-update` 的语义参数就不得探查 schema 或构造 snapshot；互不依赖的多图创建用 `+batch-chart-create`（每项直接填写 `+chart-create-basic` flags，不套 `shortcut` / `input`），多图更新用 `+batch-chart-update`。`--dry-run` 展示的 `tool_name` / `operation` / `basic_chart` / `properties` 是内部 MCP body，只能检查，不能复制回 operations。只有单系列、单数据点或高级引擎字段无语义参数时，才用 `+chart-create --print-example <type>` 或点分 schema 构造完整 snapshot。reference 的 `## Schemas` 段只给一层结构。
+**Agent 使用提示**：写复合 JSON flag 前对结构不确定时，先 `--print-schema --flag-name <name>`（深层字段用点分路径切片）再构造 payload。图表任务必须先读 `lark-sheets-chart`：能用 `+chart-create-basic` / `+chart-data-update` / `+chart-config-update` 的语义参数就不得探查 schema 或构造 snapshot；互不依赖的多图创建用 `+batch-chart-create`（每项直接填写 `+chart-create-basic` flags，不套 `shortcut` / `input`），多图更新用 `+batch-chart-update`。`--dry-run` 展示的 `tool_name` / `operation` / `basic_chart` / `properties` 是内部 MCP body，只能检查，不能复制回 operations。只有单系列、单数据点或高级引擎字段无语义参数时，才使用 `+chart-create` / `+chart-update`：高级创建从对应类型的最小 example 起步，高级更新只提交必要的局部 properties。reference 的 `## Schemas` 段只给一层结构。
 
 ### flag 内容类型与输出约定（术语速记）
 
