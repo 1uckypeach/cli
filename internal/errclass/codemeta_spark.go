@@ -24,6 +24,7 @@ var sparkCodeMeta = map[int]CodeMeta{
 	3344040: {Category: errs.CategoryAPI, Subtype: errs.SubtypeInvalidParameters},          // unsupported member type
 	3344041: {Category: errs.CategoryAPI, Subtype: errs.SubtypeInvalidParameters},          // invalid member ID
 
+	221800:    {Category: errs.CategoryValidation, Subtype: errs.SubtypeFailedPrecondition}, // Miaoda not activated for this tenant
 	400002465: {Category: errs.CategoryValidation, Subtype: errs.SubtypeFailedPrecondition}, // app has no database yet
 	500002759: {Category: errs.CategoryValidation, Subtype: errs.SubtypeFailedPrecondition}, // app has no database yet, pre-4xx renumber
 	400002655: {Category: errs.CategoryValidation, Subtype: errs.SubtypeFailedPrecondition}, // app has no running container yet (online observability)

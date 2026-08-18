@@ -127,3 +127,73 @@ func TestWithAppsHint_FillsEmptyHintKeepsMessage(t *testing.T) {
 		t.Fatalf("message mutated: %q", p.Message)
 	}
 }
+
+// A failed_precondition failure must NOT inherit the command's request-shaped
+// hint: by classification the request is valid, so "fix your request" advice is
+// wrong. Regression guard for 221800 "miaoda UAT not activated", which used to be
+// answered with the +db-execute table/column hint.
+func TestWithAppsHint_WithholdsHintForFailedPrecondition(t *testing.T) {
+	in := errs.NewValidationError(errs.SubtypeFailedPrecondition, "miaoda UAT not activated").WithCode(221800)
+	out := withAppsHint(in, "verify table/column names with `lark-cli apps +db-table-get`")
+	p, ok := errs.ProblemOf(out)
+	if !ok {
+		t.Fatalf("returned error is not typed: %T", out)
+	}
+	if p.Hint != "" {
+		t.Fatalf("hint = %q, want empty: a request-shaped hint cannot explain a precondition failure", p.Hint)
+	}
+	// Only the hint is withheld — classification, code and message must survive so
+	// the envelope still tells the caller what happened.
+	if p.Subtype != errs.SubtypeFailedPrecondition || p.Code != 221800 || p.Message != "miaoda UAT not activated" {
+		t.Fatalf("classification mutated: subtype=%q code=%d msg=%q", p.Subtype, p.Code, p.Message)
+	}
+}
+
+// The gate declines to invent a hint; it must never drop one the upstream sent.
+func TestWithAppsHint_KeepsUpstreamHintOnFailedPrecondition(t *testing.T) {
+	in := errs.NewValidationError(errs.SubtypeFailedPrecondition, "not activated").WithHint("activate Miaoda first")
+	out := withAppsHint(in, "verify --app-id")
+	p, _ := errs.ProblemOf(out)
+	if p.Hint != "activate Miaoda first" {
+		t.Fatalf("hint = %q, want the upstream hint preserved", p.Hint)
+	}
+}
+
+// The no-database recovery flow is itself a failed_precondition (400002465), and its
+// override runs before the gate — so it must keep rewriting message and forcing its
+// own accurate hint. Guards the ordering inside withAppsHint.
+func TestWithAppsHint_NoDatabaseOverrideOutranksTheGate(t *testing.T) {
+	in := errs.NewValidationError(errs.SubtypeFailedPrecondition, "workspace has no db branch").WithCode(appNoDatabaseCode)
+	out := withAppsHint(in, "verify table/column names")
+	p, _ := errs.ProblemOf(out)
+	if p.Message != appNoDatabaseMessage {
+		t.Fatalf("message = %q, want the no-database rewrite %q", p.Message, appNoDatabaseMessage)
+	}
+	if p.Hint != appNoDatabaseHint {
+		t.Fatalf("hint = %q, want the cloud-dev recovery hint", p.Hint)
+	}
+}
+
+// Everything that is not a precondition keeps inheriting the command hint —
+// including api/unknown, where most unclassified Spark codes still land, and the
+// two classes other tests in this package assert on purpose (caller standing,
+// transient upstream). Narrowing the gate further would fail here.
+func TestWithAppsHint_FillsHintForOtherClasses(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"api/not_found", errs.NewAPIError(errs.SubtypeNotFound, "table does not exist").WithCode(400002469)},
+		{"api/unknown unclassified business code", errs.NewAPIError(errs.SubtypeUnknown, "boom").WithCode(999999)},
+		{"api/server_error", errs.NewAPIError(errs.SubtypeServerError, "upstream busy").WithCode(503)},
+		{"authentication/token_invalid", errs.NewAuthenticationError(errs.SubtypeTokenInvalid, "permission denied").WithCode(99991663)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out := withAppsHint(tc.err, appIDListHint)
+			p, _ := errs.ProblemOf(out)
+			if p.Hint != appIDListHint {
+				t.Fatalf("hint = %q, want %q", p.Hint, appIDListHint)
+			}
+		})
+	}
+}
