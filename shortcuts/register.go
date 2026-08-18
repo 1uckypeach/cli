@@ -398,6 +398,39 @@ var sheetsBeforeYouEdit = map[string]string{
 	// rows fall back to the default height and clip long text.
 	"+dim-insert": "--inherit-style does not inherit row heights: read the neighbor row_height first and follow up with +rows-resize when inserting rows for long text — details: references/lark-sheets-sheet-structure.md (run: lark-cli skills read lark-sheets references/lark-sheets-sheet-structure.md)",
 
+	// Object creation/update: each object kind has a dedicated reference with
+	// the exact property vocabulary; guessing properties from Excel/OpenAPI
+	// habits is the dominant failure mode for these commands.
+	"+chart-create":       "before configuring the chart, get a minimal working --properties template via +chart-create --print-example <type>, and read references/lark-sheets-chart.md for refs/index vocabulary (run: lark-cli skills read lark-sheets references/lark-sheets-chart.md)",
+	"+chart-update":       "chart property vocabulary and update semantics: references/lark-sheets-chart.md (run: lark-cli skills read lark-sheets references/lark-sheets-chart.md)",
+	"+pivot-create":       "pivot field/aggregation vocabulary and placement rules: references/lark-sheets-pivot-table.md (run: lark-cli skills read lark-sheets references/lark-sheets-pivot-table.md)",
+	"+pivot-update":       "pivot field/aggregation vocabulary and update semantics: references/lark-sheets-pivot-table.md (run: lark-cli skills read lark-sheets references/lark-sheets-pivot-table.md)",
+	"+cond-format-create": "rule types, ranges and color conventions: references/lark-sheets-conditional-format.md (run: lark-cli skills read lark-sheets references/lark-sheets-conditional-format.md)",
+	"+cond-format-update": "rule types, ranges and color conventions: references/lark-sheets-conditional-format.md (run: lark-cli skills read lark-sheets references/lark-sheets-conditional-format.md)",
+	"+sparkline-create":   "sparkline group config and data refs: references/lark-sheets-sparkline.md (run: lark-cli skills read lark-sheets references/lark-sheets-sparkline.md)",
+	"+sparkline-update":   "sparkline group config and data refs: references/lark-sheets-sparkline.md (run: lark-cli skills read lark-sheets references/lark-sheets-sparkline.md)",
+	"+float-image-create": "float image placement/size/z-order: references/lark-sheets-float-image.md (run: lark-cli skills read lark-sheets references/lark-sheets-float-image.md)",
+	"+float-image-update": "float image placement/size/z-order: references/lark-sheets-float-image.md (run: lark-cli skills read lark-sheets references/lark-sheets-float-image.md)",
+	"+filter-create":      "filter condition vocabulary: references/lark-sheets-filter.md (run: lark-cli skills read lark-sheets references/lark-sheets-filter.md)",
+	"+filter-update":      "filter condition vocabulary: references/lark-sheets-filter.md (run: lark-cli skills read lark-sheets references/lark-sheets-filter.md)",
+	"+filter-view-create": "filter view semantics (view-scoped, does not mutate the sheet): references/lark-sheets-filter-view.md (run: lark-cli skills read lark-sheets references/lark-sheets-filter-view.md)",
+	"+filter-view-update": "filter view semantics: references/lark-sheets-filter-view.md (run: lark-cli skills read lark-sheets references/lark-sheets-filter-view.md)",
+	"+dropdown-set":       "dropdown options + colors live in the batch-update vocabulary: references/lark-sheets-batch-update.md (run: lark-cli skills read lark-sheets references/lark-sheets-batch-update.md)",
+	"+dropdown-update":    "dropdown options + colors: references/lark-sheets-batch-update.md (run: lark-cli skills read lark-sheets references/lark-sheets-batch-update.md)",
+
+	// Range operations and style delivery.
+	"+cells-replace":         "check replacement scope and residue before/after replacing: references/lark-sheets-search-replace.md (run: lark-cli skills read lark-sheets references/lark-sheets-search-replace.md)",
+	"+range-sort":            "sort scope pitfalls (header rows, partial-range tearing): references/lark-sheets-range-operations.md (run: lark-cli skills read lark-sheets references/lark-sheets-range-operations.md)",
+	"+range-copy":            "range operation semantics: references/lark-sheets-range-operations.md (run: lark-cli skills read lark-sheets references/lark-sheets-range-operations.md)",
+	"+range-fill":            "fill semantics (series vs copy): references/lark-sheets-range-operations.md (run: lark-cli skills read lark-sheets references/lark-sheets-range-operations.md)",
+	"+range-move":            "move semantics and reference impact: references/lark-sheets-range-operations.md (run: lark-cli skills read lark-sheets references/lark-sheets-range-operations.md)",
+	"+styles-put":            "one-shot style spec vocabulary (cell_styles/merges/sizes/freeze): references/lark-sheets-styles-put.md (run: lark-cli skills read lark-sheets references/lark-sheets-styles-put.md)",
+	"+cells-set-style":       "style attribute vocabulary: references/lark-sheets-styles-put.md (run: lark-cli skills read lark-sheets references/lark-sheets-styles-put.md)",
+	"+cells-batch-set-style": "style attribute vocabulary: references/lark-sheets-styles-put.md (run: lark-cli skills read lark-sheets references/lark-sheets-styles-put.md)",
+	"+sheet-copy":            "template-sheet copy inherits formulas/merges/banding/widths — appending to an existing workbook: references/lark-sheets-workbook.md (run: lark-cli skills read lark-sheets references/lark-sheets-workbook.md)",
+	"+sheet-create":          "when to copy a template sheet instead of creating blank: references/lark-sheets-workbook.md (run: lark-cli skills read lark-sheets references/lark-sheets-workbook.md)",
+	"+dim-delete":            "structure edit semantics and reference impact: references/lark-sheets-sheet-structure.md (run: lark-cli skills read lark-sheets references/lark-sheets-sheet-structure.md)",
+
 	// Structure reads are the natural pre-edit checkpoint: point the agent at
 	// the per-scenario routing table before it starts mutating.
 	"+workbook-info": "pick the per-scenario reference before you act: the scenario-to-command table in SKILL.md lists which references/lark-sheets-*.md to read for each edit (run: lark-cli skills read lark-sheets SKILL.md)",
