@@ -17,12 +17,12 @@ func TestWriteRegistryCoverage(t *testing.T) {
 			total++
 		}
 	}
-	if total != 36 {
-		t.Fatalf("write contracts = %d, want 36", total)
+	if total != 37 {
+		t.Fatalf("write contracts = %d, want 37", total)
 	}
 	want := map[StrategyKind]int{
 		AuthoritativeAckKind:           9,
-		RequiredResultKind:             12,
+		RequiredResultKind:             13,
 		BatchPartialKind:               11,
 		RequiredResultBatchPartialKind: 1,
 		ResponseSetAssertionKind:       2,
@@ -47,6 +47,7 @@ func TestWriteRegistryCoverage(t *testing.T) {
 		"im chats create", "im chats link", "im chats update",
 		"im feed.groups batch_add_item", "im feed.groups batch_remove_item",
 		"im feed.groups create", "im feed.groups delete", "im feed.groups update",
+		"im files create",
 		"im images create", "im messages delete", "im messages forward",
 		"im messages merge_forward", "im messages urgent_app",
 		"im messages urgent_phone", "im messages urgent_sms", "im pins create",
@@ -85,11 +86,11 @@ func TestReadRegistryCoverage(t *testing.T) {
 		counts[contract.Strategy.Kind]++
 		gotKeys = append(gotKeys, contract.Key)
 	}
-	if len(gotKeys) != 24 {
-		t.Fatalf("read contracts = %d, want 24", len(gotKeys))
+	if len(gotKeys) != 25 {
+		t.Fatalf("read contracts = %d, want 25", len(gotKeys))
 	}
 	wantCounts := map[StrategyKind]int{
-		EntityReadKind:      8,
+		EntityReadKind:      9,
 		CollectionReadKind:  13,
 		SearchReadKind:      2,
 		MaterializeReadKind: 1,
@@ -120,6 +121,7 @@ func TestReadRegistryCoverage(t *testing.T) {
 		"im chat.user_setting batch_query",
 		"im chats get",
 		"im feed.groups batch_query",
+		"im messages read_status",
 		"im messages read_users",
 		"im pins list",
 		"im reactions batch_query",

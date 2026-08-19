@@ -15,7 +15,7 @@ import (
 
 const (
 	imContractCoverageRule = "im_contract_coverage"
-	expectedIMLeafCommands = 60
+	expectedIMLeafCommands = 62
 )
 
 var acceptanceOnlyCommandAllowlist = map[imcatalog.ContractKey]struct{}{

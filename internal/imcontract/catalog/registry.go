@@ -102,6 +102,7 @@ func buildContracts() map[ContractKey]Contract {
 		read("im chat.user_setting batch_query", EntityReadKind),
 		read("im chats get", EntityReadKind),
 		read("im feed.groups batch_query", EntityReadKind),
+		read("im messages read_status", EntityReadKind),
 		func() Contract {
 			c := read("im reactions batch_query", EntityReadKind)
 			c.Strategy.ReadHint = HintBatchReactions
@@ -144,6 +145,7 @@ func buildContracts() map[ContractKey]Contract {
 		required("im chats create", topString("chat_id"), ReplaySameIdempotencyKey),
 		required("im chats link", topString("share_link"), ReplayForbidden),
 		required("im feed.groups create", topString("group_id"), ReplayForbidden),
+		required("im files create", topString("file_key"), ReplayForbidden),
 		required("im images create", topString("image_key"), ReplayForbidden),
 		required("im messages forward", topString("message_id"), ReplaySameIdempotencyKey),
 		required("im pins create", topObject("pin"), ReplayForbidden),
