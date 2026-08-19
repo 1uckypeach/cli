@@ -356,7 +356,11 @@ func TestNewDefaultInstallsSDKBootstrapSecurityPolicy(t *testing.T) {
 	if got := received.Get(HeaderSource); got != SourceValue {
 		t.Fatalf("%s = %q, want trusted value %q", HeaderSource, got, SourceValue)
 	}
-	if got := received.Get(riskcontrol.HeaderOSType); got != "" {
+	// The extension-injected forgery must never survive to the network. With no
+	// config file present, risk control now defaults on, so the header carries
+	// the trusted host value ("3" on macOS) rather than being suppressed. The
+	// extension's "extension-value" must be gone either way.
+	if got := received.Get(riskcontrol.HeaderOSType); got == "extension-value" {
 		t.Fatalf("%s = %q, want extension value stripped", riskcontrol.HeaderOSType, got)
 	}
 	if got := received.Get(HeaderBuild); got != DetectBuildKind() {

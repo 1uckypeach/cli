@@ -13,15 +13,20 @@ type workspaceConfigSource interface {
 }
 
 // resolveSDKHostSignalSource applies workspace policy at the SDK transport
-// boundary.
+// boundary. Account protection is default-on: host-signal collection is
+// suppressed only when a readable config carries an explicit opt-out
+// (risk-control off). A config that is missing, unreadable, or malformed
+// exposes no opt-out to honor, so collection defaults on rather than failing
+// closed — otherwise env-only sandboxes without a config.json would silently
+// drop every risk-control signal.
 func resolveSDKHostSignalSource(config workspaceConfigSource) riskcontrol.Source {
 	if config == nil {
 		return nil
 	}
 	workspace, configErr := config.MultiAppConfig()
-	// Default-on means an existing config with no explicit preference. Absent
-	// or unreadable config cannot authorize host-signal collection.
-	if configErr != nil || !workspace.RiskControlEnabled() {
+	// Only an explicit opt-out in a successfully loaded config suppresses
+	// collection. A load failure falls through to default-on.
+	if configErr == nil && !workspace.RiskControlEnabled() {
 		return nil
 	}
 	return riskcontrol.NewHostSource()

@@ -4,10 +4,14 @@
 package auth
 
 import (
+	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/larksuite/cli/errs"
+	"github.com/larksuite/cli/internal/keychain"
 	"github.com/zalando/go-keyring"
 )
 
@@ -18,6 +22,44 @@ func setupStoredTokenTest(t *testing.T) {
 	t.Setenv("LARKSUITE_CLI_DATA_DIR", filepath.Join(root, "data"))
 	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", filepath.Join(root, "config"))
 	keyring.MockInit()
+}
+
+func TestReadStoredTokenDistinguishesMissingFromCorrupt(t *testing.T) {
+	setupStoredTokenTest(t)
+
+	const (
+		appID      = "cli_corrupt"
+		userOpenID = "ou_corrupt"
+		secret     = "sensitive-access-token"
+	)
+
+	stored, err := ReadStoredToken(appID, userOpenID)
+	if err != nil || stored != nil {
+		t.Fatalf("missing token = (%#v, %v), want (nil, nil)", stored, err)
+	}
+
+	malformed := `{"accessToken":"` + secret + `",`
+	if writeErr := keychain.Set(keychain.LarkCliService, accountKey(appID, userOpenID), malformed); writeErr != nil {
+		t.Fatalf("keychain.Set() error = %v", writeErr)
+	}
+
+	stored, err = ReadStoredToken(appID, userOpenID)
+	if stored != nil {
+		t.Fatalf("corrupt token = %#v, want nil", stored)
+	}
+	var storageErr *errs.InternalError
+	if !errors.As(err, &storageErr) || storageErr.Subtype != errs.SubtypeStorage {
+		t.Fatalf("corrupt token error = %T (%v), want internal/storage", err, err)
+	}
+	if !errors.Is(err, errStoredTokenCorrupt) {
+		t.Fatalf("corrupt token error = %v, want corruption sentinel in cause chain", err)
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Fatalf("corrupt token error leaked credential content: %v", err)
+	}
+	if got := GetStoredToken(appID, userOpenID); got != nil {
+		t.Fatalf("best-effort GetStoredToken() = %#v, want nil", got)
+	}
 }
 
 func TestStoredTokenGenerationGuard(t *testing.T) {

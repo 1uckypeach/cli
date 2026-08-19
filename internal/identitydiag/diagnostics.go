@@ -28,6 +28,7 @@ const (
 	StatusMissing       = "missing"
 	StatusNeedsRefresh  = "needs_refresh"
 	StatusVerifyFailed  = "verify_failed"
+	StatusError         = "error"
 )
 
 // verifyTimeout bounds each network call made during --verify so that a
@@ -88,16 +89,20 @@ func FilterRecovery(result Result, canReference func(recovery.Target) bool) Resu
 }
 
 func withPolicyError(identity Identity, err error) Identity {
+	problem, ok := errs.ProblemOf(err)
+	if !ok || problem.Category != errs.CategoryPolicy {
+		return identity
+	}
+	return withTypedError(identity, err)
+}
+
+func withTypedError(identity Identity, err error) Identity {
 	var typed errs.TypedError
 	if !errors.As(err, &typed) {
 		return identity
 	}
-	problem := typed.ProblemDetail()
-	if problem == nil || problem.Category != errs.CategoryPolicy {
-		return identity
-	}
 	// Keep the concrete typed value: reducing it to Problem would discard
-	// policy-specific wire fields such as challenge_url or rules.
+	// category-specific wire fields such as challenge_url or rules.
 	identity.Error = typed
 	return identity
 }
@@ -312,7 +317,15 @@ func diagnoseUser(ctx context.Context, f *cmdutil.Factory, cfg *core.CliConfig, 
 		UserName: cfg.UserName,
 		OpenID:   cfg.UserOpenId,
 	}
-	stored := larkauth.GetStoredToken(cfg.AppID, cfg.UserOpenId)
+	stored, err := larkauth.ReadStoredToken(cfg.AppID, cfg.UserOpenId)
+	if err != nil {
+		id.Status = StatusError
+		id.Message = "User identity: error (" + err.Error() + ")"
+		if problem, ok := errs.ProblemOf(err); ok {
+			id.Hint = problem.Hint
+		}
+		return withTypedError(id, err)
+	}
 	if stored == nil {
 		id.Status = StatusMissing
 		id.Message = "User identity: missing (no token in keychain for " + cfg.UserOpenId + ")"
@@ -479,6 +492,8 @@ func StatusMessage(status string) string {
 		return "not configured"
 	case StatusVerifyFailed:
 		return "verify failed"
+	case StatusError:
+		return "error"
 	case StatusNeedsRefresh:
 		return "needs refresh"
 	case StatusMissing:

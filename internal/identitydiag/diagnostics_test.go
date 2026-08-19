@@ -349,6 +349,7 @@ func TestStatusMessage(t *testing.T) {
 		StatusVerifyFailed:  "verify failed",
 		StatusNeedsRefresh:  "needs refresh",
 		StatusMissing:       "missing",
+		StatusError:         "error",
 		"unknown":           "unknown",
 	}
 	for in, want := range cases {
