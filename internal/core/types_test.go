@@ -11,8 +11,8 @@ import (
 
 func TestResolveEndpoints_Feishu(t *testing.T) {
 	ep := ResolveEndpoints(BrandFeishu)
-	if ep.Open != "https://open.feishu-boe.cn" {
-		t.Errorf("Open = %q, want open.feishu-boe.cn", ep.Open)
+	if ep.Open != "https://open.feishu-pre.cn" {
+		t.Errorf("Open = %q, want open.feishu-pre.cn", ep.Open)
 	}
 	if ep.Accounts != "https://accounts.feishu.cn" {
 		t.Errorf("Accounts = %q, want feishu.cn", ep.Accounts)
@@ -43,8 +43,8 @@ func TestResolveEndpoints_Lark(t *testing.T) {
 
 func TestResolveEndpoints_EmptyDefaultsToFeishu(t *testing.T) {
 	ep := ResolveEndpoints("")
-	if ep.Open != "https://open.feishu-boe.cn" {
-		t.Errorf("Open = %q, want open.feishu-boe.cn for empty brand", ep.Open)
+	if ep.Open != "https://open.feishu-pre.cn" {
+		t.Errorf("Open = %q, want open.feishu-pre.cn for empty brand", ep.Open)
 	}
 	// The unified OAuth v3 Token Endpoint mints TAT on the accounts domain;
 	// pin the default-brand host so a stray non-production domain revert is caught.
@@ -54,7 +54,7 @@ func TestResolveEndpoints_EmptyDefaultsToFeishu(t *testing.T) {
 }
 
 func TestResolveOpenBaseURL(t *testing.T) {
-	if got := ResolveOpenBaseURL(BrandFeishu); got != "https://open.feishu-boe.cn" {
+	if got := ResolveOpenBaseURL(BrandFeishu); got != "https://open.feishu-pre.cn" {
 		t.Errorf("ResolveOpenBaseURL(feishu) = %q", got)
 	}
 	if got := ResolveOpenBaseURL(BrandLark); got != "https://open.larksuite.com" {
@@ -91,14 +91,14 @@ func TestResolveEndpoints_NormalizesBrand(t *testing.T) {
 			t.Errorf("ResolveEndpoints(%q).Open = %q, want the lark endpoint", raw, got)
 		}
 	}
-	if got := ResolveEndpoints(LarkBrand("unexpected")).Open; got != "https://open.feishu-boe.cn" {
+	if got := ResolveEndpoints(LarkBrand("unexpected")).Open; got != "https://open.feishu-pre.cn" {
 		t.Errorf("ResolveEndpoints(unexpected).Open = %q, want the feishu default", got)
 	}
 }
 
 func TestIsPlatformEndpointHost_ExactMatchOnly(t *testing.T) {
 	for _, host := range []string{
-		"open.feishu-boe.cn",
+		"open.feishu-pre.cn",
 		"accounts.feishu.cn",
 		"mcp.feishu.cn",
 		"applink.feishu.cn",
@@ -114,8 +114,8 @@ func TestIsPlatformEndpointHost_ExactMatchOnly(t *testing.T) {
 
 	for _, host := range []string{
 		"example.com",
-		"open.feishu-boe.cn.example.com",
-		"notopen.feishu-boe.cn",
+		"open.feishu-pre.cn.example.com",
+		"notopen.feishu-pre.cn",
 		"",
 	} {
 		if IsPlatformEndpointHost(host) {
@@ -144,15 +144,15 @@ func TestIsPlatformEndpointURL_RequiresSecureStandardOrigin(t *testing.T) {
 	if IsPlatformEndpointURL(nil) {
 		t.Error("IsPlatformEndpointURL(nil) = true, want false")
 	}
-	uppercaseScheme := &url.URL{Scheme: "HTTPS", Host: "open.feishu-boe.cn", Path: "/path"}
+	uppercaseScheme := &url.URL{Scheme: "HTTPS", Host: "open.feishu-pre.cn", Path: "/path"}
 	if !IsPlatformEndpointURL(uppercaseScheme) {
 		t.Error("IsPlatformEndpointURL() rejected uppercase HTTPS scheme")
 	}
 
 	for _, rawURL := range []string{
-		"http://open.feishu-boe.cn/path",
-		"https://open.feishu-boe.cn:8443/path",
-		"https://open.feishu-boe.cn.example.com/path",
+		"http://open.feishu-pre.cn/path",
+		"https://open.feishu-pre.cn:8443/path",
+		"https://open.feishu-pre.cn.example.com/path",
 	} {
 		candidate, err := url.Parse(rawURL)
 		if err != nil {
@@ -164,9 +164,9 @@ func TestIsPlatformEndpointURL_RequiresSecureStandardOrigin(t *testing.T) {
 	}
 
 	for _, rawURL := range []string{
-		"https://open.feishu-boe.cn/path",
-		"https://open.feishu-boe.cn:443/path",
-		"https://OPEN.FEISHU-BOE.CN/path",
+		"https://open.feishu-pre.cn/path",
+		"https://open.feishu-pre.cn:443/path",
+		"https://OPEN.FEISHU-PRE.CN/path",
 	} {
 		candidate, err := url.Parse(rawURL)
 		if err != nil {

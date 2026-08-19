@@ -526,7 +526,7 @@ func TestRemoteMetaURL_BrandSpecific(t *testing.T) {
 	// Default URL (feishu) with no version
 	configuredBrand = core.BrandFeishu
 	u := remoteMetaURL("")
-	if !strings.Contains(u, "open.feishu-boe.cn") {
+	if !strings.Contains(u, "open.feishu-pre.cn") {
 		t.Errorf("expected feishu URL, got %s", u)
 	}
 	if strings.Contains(u, "data_version") {

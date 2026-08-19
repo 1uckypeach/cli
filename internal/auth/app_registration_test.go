@@ -69,7 +69,7 @@ func TestRequestAppRegistration_UsesFeishuBootstrapAndConfiguredVerificationBran
 		brand            core.LarkBrand
 		verificationHost string
 	}{
-		{core.BrandFeishu, "open.feishu-boe.cn"},
+		{core.BrandFeishu, "open.feishu-pre.cn"},
 		{core.BrandLark, "open.larksuite.com"},
 	}
 	for _, c := range cases {

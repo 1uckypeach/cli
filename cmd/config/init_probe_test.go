@@ -231,7 +231,7 @@ func TestRunProbe_ProbeRequestShape(t *testing.T) {
 	if rt.probeReq.Method != http.MethodPost {
 		t.Errorf("probe method = %s, want POST", rt.probeReq.Method)
 	}
-	if got := rt.probeReq.URL.String(); got != "https://open.feishu-boe.cn/open-apis/application/v6/larksuite_cli_app/probe" {
+	if got := rt.probeReq.URL.String(); got != "https://open.feishu-pre.cn/open-apis/application/v6/larksuite_cli_app/probe" {
 		t.Errorf("probe URL = %s", got)
 	}
 	if got := rt.probeReq.Header.Get("Authorization"); got != "Bearer t-ok" {

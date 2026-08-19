@@ -598,18 +598,18 @@ func TestSDKWebSocketBootstrapMatcherIsNarrow(t *testing.T) {
 		{
 			name:   "platform bootstrap",
 			method: http.MethodPost,
-			url:    "https://open.feishu-boe.cn/callback/ws/endpoint",
+			url:    "https://open.feishu-pre.cn/callback/ws/endpoint",
 			want:   true,
 		},
 		{
 			name:   "other platform path",
 			method: http.MethodPost,
-			url:    "https://open.feishu-boe.cn/open-apis/test",
+			url:    "https://open.feishu-pre.cn/open-apis/test",
 		},
 		{
 			name:   "wrong bootstrap method",
 			method: http.MethodGet,
-			url:    "https://open.feishu-boe.cn/callback/ws/endpoint",
+			url:    "https://open.feishu-pre.cn/callback/ws/endpoint",
 		},
 		{
 			name:   "external lookalike",
@@ -647,7 +647,7 @@ func TestSDKTransportBridgeLeavesOtherPlatformPathsUntouched(t *testing.T) {
 	})}
 	installSDKTransportBridge(client, isSDKWebSocketBootstrapRequest, nil)
 
-	req, err := http.NewRequest(http.MethodGet, "https://open.feishu-boe.cn/open-apis/test", nil)
+	req, err := http.NewRequest(http.MethodGet, "https://open.feishu-pre.cn/open-apis/test", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

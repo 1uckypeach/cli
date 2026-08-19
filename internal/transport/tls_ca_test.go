@@ -141,7 +141,7 @@ func TestApplyExtraRootCA_ClonesExistingTLSConfig(t *testing.T) {
 	caPath := filepath.Join(t.TempDir(), "ca.pem")
 	writeFile(t, caPath, mustCreateTestCertPEM(t), 0600)
 
-	original := &tls.Config{ServerName: "open.feishu-boe.cn"}
+	original := &tls.Config{ServerName: "open.feishu-pre.cn"}
 	tr := &http.Transport{TLSClientConfig: original}
 	if err := applyExtraRootCA(tr, caPath); err != nil {
 		t.Fatalf("applyExtraRootCA() error = %v", err)
