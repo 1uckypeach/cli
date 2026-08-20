@@ -60,9 +60,60 @@ func loadFlagSchemas() (*flagSchemaIndex, error) {
 		if idx.Flags == nil {
 			idx.Flags = map[string]map[string]json.RawMessage{}
 		}
+		if entry := idx.Flags["+chart-update"]; entry != nil {
+			if raw := entry["properties"]; raw != nil {
+				partial, err := recursivePartialJSONSchema(raw)
+				if err != nil {
+					parseFlagErr = errs.NewInternalError(errs.SubtypeUnknown, "derive +chart-update --properties schema: %v", err).WithCause(err)
+					return
+				}
+				entry["properties"] = partial
+			}
+		}
 		parsedFlagSchemas = &idx
 	})
 	return parsedFlagSchemas, parseFlagErr
+}
+
+// recursivePartialJSONSchema derives an update schema from a full object
+// schema by removing required constraints at every nested schema node. The
+// remaining type, enum, bounds, and additionalProperties constraints still
+// reject malformed fields that are present in the patch.
+func recursivePartialJSONSchema(raw json.RawMessage) (json.RawMessage, error) {
+	var schema map[string]interface{}
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		return nil, err
+	}
+	makeJSONSchemaRecursivePartial(schema)
+	return json.Marshal(schema)
+}
+
+func makeJSONSchemaRecursivePartial(schema map[string]interface{}) {
+	delete(schema, "required")
+
+	for _, key := range []string{"properties", "patternProperties", "dependentSchemas", "definitions", "$defs"} {
+		children, _ := schema[key].(map[string]interface{})
+		for _, child := range children {
+			makeJSONSchemaValueRecursivePartial(child)
+		}
+	}
+	for _, key := range []string{"items", "additionalProperties", "contains", "not", "if", "then", "else", "propertyNames"} {
+		makeJSONSchemaValueRecursivePartial(schema[key])
+	}
+	for _, key := range []string{"prefixItems", "allOf", "anyOf", "oneOf"} {
+		makeJSONSchemaValueRecursivePartial(schema[key])
+	}
+}
+
+func makeJSONSchemaValueRecursivePartial(value interface{}) {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		makeJSONSchemaRecursivePartial(typed)
+	case []interface{}:
+		for _, item := range typed {
+			makeJSONSchemaValueRecursivePartial(item)
+		}
+	}
 }
 
 // commandsWithFlagSchema returns the set of shortcut commands that have
