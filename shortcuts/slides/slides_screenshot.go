@@ -884,6 +884,9 @@ func cropSlidesScreenshotResponse(data map[string]interface{}, region slidesScre
 	if !ok {
 		return nil, slidesScreenshotAPIDataError(data, "slides screenshot returned invalid slide_images[0]")
 	}
+	if _, _, err := slideScreenshotFormat(item); err != nil {
+		return nil, slidesScreenshotImageDataError(common.GetString(item, "slide_id"), "%s", err)
+	}
 	encoded := common.GetString(item, "data")
 	b, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"image"
+	"image/color"
 	"image/png"
 	"net/http"
 	"os"
@@ -65,7 +66,18 @@ func TestSlidesScreenshotRegionParser(t *testing.T) {
 	for _, raw := range []string{"1,2,3", "-1,0,1,1", "0,0,0,1"} {
 		if _, _, err := parseSlidesScreenshotRegion(raw); err == nil {
 			t.Fatalf("parseSlidesScreenshotRegion(%q) succeeded", raw)
+		} else {
+			requireSlidesScreenshotRegionValidation(t, err)
 		}
+	}
+}
+
+func requireSlidesScreenshotRegionValidation(t *testing.T, err error) {
+	t.Helper()
+	p, ok := errs.ProblemOf(err)
+	var validation *errs.ValidationError
+	if !ok || p.Category != errs.CategoryValidation || p.Subtype != errs.SubtypeInvalidArgument || !errors.As(err, &validation) || validation.Param != "--region" {
+		t.Fatalf("problem = %#v, want validation/invalid_argument for --region", p)
 	}
 }
 
@@ -106,6 +118,8 @@ func TestSlidesScreenshotRegionBoundsCoverScreenshotEdges(t *testing.T) {
 	} {
 		if err := validateSlidesScreenshotRegionBounds(region, imageSize); err == nil {
 			t.Fatalf("region %#v succeeded, want bounds error", region)
+		} else {
+			requireSlidesScreenshotRegionValidation(t, err)
 		}
 	}
 }
@@ -135,6 +149,10 @@ func TestSlidesScreenshotRegionExecutionUsesScreenshotPixels(t *testing.T) {
 	dir := t.TempDir()
 	withSlidesTestWorkingDir(t, dir)
 	source := image.NewRGBA(image.Rect(0, 0, 1600, 1200))
+	topLeft := color.RGBA{R: 17, G: 34, B: 51, A: 255}
+	bottomRight := color.RGBA{R: 68, G: 85, B: 102, A: 255}
+	source.SetRGBA(120, 80, topLeft)
+	source.SetRGBA(599, 299, bottomRight)
 	var sourcePNG bytes.Buffer
 	if err := png.Encode(&sourcePNG, source); err != nil {
 		t.Fatal(err)
@@ -158,6 +176,12 @@ func TestSlidesScreenshotRegionExecutionUsesScreenshotPixels(t *testing.T) {
 	if cropped.Bounds().Dx() != 480 || cropped.Bounds().Dy() != 220 {
 		t.Fatalf("cropped size = %dx%d, want 480x220", cropped.Bounds().Dx(), cropped.Bounds().Dy())
 	}
+	if got := color.RGBAModel.Convert(cropped.At(0, 0)).(color.RGBA); got != topLeft {
+		t.Fatalf("cropped top-left pixel = %#v, want %#v", got, topLeft)
+	}
+	if got := color.RGBAModel.Convert(cropped.At(479, 219)).(color.RGBA); got != bottomRight {
+		t.Fatalf("cropped bottom-right pixel = %#v, want %#v", got, bottomRight)
+	}
 	data := decodeShortcutData(t, stdout)
 	region, ok := data["region"].(map[string]interface{})
 	if !ok {
@@ -179,6 +203,24 @@ func TestSlidesScreenshotRegionExecutionUsesScreenshotPixels(t *testing.T) {
 	imageSize, _ := saved["image_size"].(map[string]interface{})
 	if imageSize["width"] != float64(480) || imageSize["height"] != float64(220) {
 		t.Fatalf("saved image_size = %#v", imageSize)
+	}
+}
+
+func TestSlidesScreenshotRegionRejectsUnsupportedSourceFormat(t *testing.T) {
+	data := map[string]interface{}{
+		"slide_images": []interface{}{map[string]interface{}{
+			"slide_id": "p1",
+			"format":   99,
+			"data":     testSlidesScreenshotPNG(t, 10, 10),
+		}},
+	}
+	_, err := cropSlidesScreenshotResponse(data, slidesScreenshotRegion{X: 0, Y: 0, Width: 1, Height: 1})
+	if err == nil {
+		t.Fatal("cropSlidesScreenshotResponse() succeeded with an unsupported source format")
+	}
+	p, ok := errs.ProblemOf(err)
+	if !ok || p.Category != errs.CategoryAPI || p.Subtype != errs.SubtypeInvalidResponse {
+		t.Fatalf("problem = %#v, want api/invalid_response", p)
 	}
 }
 
