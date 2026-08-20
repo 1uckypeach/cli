@@ -386,9 +386,20 @@ func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[s
 		)
 	}
 
+	xAxisNumbersAs := strings.TrimSpace(rt.Str("x-axis-numbers-as"))
+	if xAxisNumbersAs == "" {
+		xAxisNumbersAs = "text"
+	}
+	if xAxisNumbersAs != "text" && xAxisNumbersAs != "values" {
+		return nil, sheetsValidationForFlag(
+			"x-axis-numbers-as",
+			"--x-axis-numbers-as must be text or values",
+		)
+	}
 	basic := map[string]interface{}{
-		"chart_type": chartType,
-		"data_range": normalizedDataRange,
+		"chart_type":        chartType,
+		"data_range":        normalizedDataRange,
+		"x_axis_numbers_as": xAxisNumbersAs,
 	}
 	if rt.Changed("header-range") {
 		headerRange := strings.TrimSpace(rt.Str("header-range"))
