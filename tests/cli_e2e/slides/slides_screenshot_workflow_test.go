@@ -173,8 +173,6 @@ func TestSlidesScreenshotOverviewAndRegionLiveE2E(t *testing.T) {
 	createResult.AssertStdoutStatus(t, true)
 	presentationID := gjson.Get(createResult.Stdout, "data.xml_presentation_id").String()
 	require.NotEmpty(t, presentationID, createResult.Stdout)
-	slideIDs := gjson.Get(createResult.Stdout, "data.slide_ids").Array()
-	require.Len(t, slideIDs, 2, createResult.Stdout)
 	parentT.Cleanup(func() {
 		cleanupCtx, cleanupCancel := clie2e.CleanupContext()
 		defer cleanupCancel()
@@ -184,6 +182,8 @@ func TestSlidesScreenshotOverviewAndRegionLiveE2E(t *testing.T) {
 		})
 		clie2e.ReportCleanupFailure(parentT, "delete presentation "+presentationID, deleteResult, deleteErr)
 	})
+	slideIDs := gjson.Get(createResult.Stdout, "data.slide_ids").Array()
+	require.Len(t, slideIDs, 2, createResult.Stdout)
 
 	workDir := t.TempDir()
 	overviewResult, err := clie2e.RunCmd(ctx, clie2e.Request{
