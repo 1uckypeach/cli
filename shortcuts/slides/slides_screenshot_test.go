@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/png"
 	"net/http"
 	"os"
@@ -202,29 +203,19 @@ func TestSlidesScreenshotOverviewTreatsEmptyPresentationAsFailedPrecondition(t *
 	}
 }
 
-func TestComposeSlidesOverviewScalesWholeSlideAndProvidesIndexGeometry(t *testing.T) {
-	src := image.NewRGBA(image.Rect(0, 0, 960, 540))
-	drawQuadrant := func(r image.Rectangle, c color.RGBA) {
-		for y := r.Min.Y; y < r.Max.Y; y++ {
-			for x := r.Min.X; x < r.Max.X; x++ {
-				src.SetRGBA(x, y, c)
-			}
-		}
-	}
-	drawQuadrant(image.Rect(0, 0, 480, 270), color.RGBA{R: 255, A: 255})
-	drawQuadrant(image.Rect(480, 0, 960, 270), color.RGBA{G: 255, A: 255})
-	drawQuadrant(image.Rect(0, 270, 480, 540), color.RGBA{B: 255, A: 255})
-	drawQuadrant(image.Rect(480, 270, 960, 540), color.RGBA{R: 255, G: 255, A: 255})
+func TestComposeSlidesOverviewPreservesAspectRatioAndProvidesGeometry(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 600, 800))
+	draw.Draw(src, src.Bounds(), &image.Uniform{C: color.RGBA{R: 255, A: 255}}, image.Point{}, draw.Src)
 	out, cells := composeSlidesOverview([]image.Image{src}, 1)
-	if len(cells) != 1 || cells[0].thumbnail.Dx() != 320 || cells[0].thumbnail.Dy() != 180 {
+	if len(cells) != 1 || cells[0].tile.Dx() != 320 || cells[0].tile.Dy() != 180 || cells[0].thumbnail.Dx() != 135 || cells[0].thumbnail.Dy() != 180 {
 		t.Fatalf("cells = %#v", cells)
 	}
 	thumb := cells[0].thumbnail
-	if got := color.RGBAModel.Convert(out.At(thumb.Min.X+80, thumb.Min.Y+45)).(color.RGBA); got.R < 200 || got.G > 50 {
-		t.Fatalf("top-left thumbnail = %#v, want red", got)
+	if got := color.RGBAModel.Convert(out.At(thumb.Min.X+thumb.Dx()/2, thumb.Min.Y+thumb.Dy()/2)).(color.RGBA); got.R < 200 || got.G > 50 {
+		t.Fatalf("thumbnail center = %#v, want red", got)
 	}
-	if got := color.RGBAModel.Convert(out.At(thumb.Min.X+240, thumb.Min.Y+135)).(color.RGBA); got.R < 200 || got.G < 200 {
-		t.Fatalf("bottom-right thumbnail = %#v, want yellow", got)
+	if got := color.RGBAModel.Convert(out.At(cells[0].tile.Min.X+20, cells[0].tile.Min.Y+cells[0].tile.Dy()/2)).(color.RGBA); got.R < 240 || got.G < 240 || got.B < 240 {
+		t.Fatalf("left letterbox = %#v, want white", got)
 	}
 	if out.Bounds().Dx() != 352 || out.Bounds().Dy() != 212 {
 		t.Fatalf("overview size = %v", out.Bounds())

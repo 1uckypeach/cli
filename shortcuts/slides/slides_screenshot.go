@@ -1063,6 +1063,19 @@ func overviewRectOutput(r image.Rectangle) map[string]int {
 	return map[string]int{"x": r.Min.X, "y": r.Min.Y, "width": r.Dx(), "height": r.Dy()}
 }
 
+func overviewImageRect(tile image.Rectangle, src image.Image) image.Rectangle {
+	srcSize := src.Bounds().Size()
+	scale := math.Min(
+		float64(tile.Dx())/float64(srcSize.X),
+		float64(tile.Dy())/float64(srcSize.Y),
+	)
+	width := int(math.Round(float64(srcSize.X) * scale))
+	height := int(math.Round(float64(srcSize.Y) * scale))
+	x := tile.Min.X + (tile.Dx()-width)/2
+	y := tile.Min.Y + (tile.Dy()-height)/2
+	return image.Rect(x, y, x+width, y+height)
+}
+
 func composeSlidesOverview(images []image.Image, columns int) (*image.RGBA, []overviewCell) {
 	if columns < 1 {
 		columns = defaultOverviewColumns
@@ -1077,9 +1090,10 @@ func composeSlidesOverview(images []image.Image, columns int) (*image.RGBA, []ov
 		r, c := i/columns, i%columns
 		x, y := pad+c*(thumbW+pad), pad+r*(tileH+pad)
 		tile := image.Rect(x, y, x+thumbW, y+tileH)
-		thumbnail := image.Rect(x, y, x+thumbW, y+tileH)
+		draw.Draw(out, tile, &image.Uniform{C: color.White}, image.Point{}, draw.Src)
+		thumbnail := overviewImageRect(tile, src)
 		xdraw.CatmullRom.Scale(out, thumbnail, src, src.Bounds(), draw.Over, nil)
-		drawOverviewThumbnailBorder(out, thumbnail)
+		drawOverviewThumbnailBorder(out, tile)
 		cells[i] = overviewCell{row: r, column: c, tile: tile, thumbnail: thumbnail}
 	}
 	return out, cells
