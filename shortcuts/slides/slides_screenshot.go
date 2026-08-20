@@ -914,7 +914,7 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 		}
 		thumbs = append(thumbs, batch...)
 	}
-	overview, cells := composeSlidesOverviewFromIndex(thumbs, defaultOverviewColumns, start+1)
+	overview, cells := composeSlidesOverview(thumbs, defaultOverviewColumns)
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, overview); err != nil {
 		return errs.NewInternalError(errs.SubtypeFileIO, "encode overview PNG: %v", err).WithCause(err)
@@ -937,7 +937,7 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 	for i, id := range pageIDs {
 		cell := cells[i]
 		index := start + i + 1
-		slides[i] = map[string]interface{}{"index": index, "label": fmt.Sprintf("#%02d", index), "slide_id": id, "slide_number": index, "row": cell.row, "column": cell.column, "tile": overviewRectOutput(cell.tile), "thumbnail": overviewRectOutput(cell.thumbnail)}
+		slides[i] = map[string]interface{}{"index": index, "slide_id": id, "slide_number": index, "row": cell.row, "column": cell.column, "tile": overviewRectOutput(cell.tile), "thumbnail": overviewRectOutput(cell.thumbnail)}
 	}
 	overviewImageSize := map[string]int{"width": overview.Bounds().Dx(), "height": overview.Bounds().Dy()}
 	overviewData := map[string]interface{}{"path": path, "format": "png", "size": encoded.Len(), "image_size": overviewImageSize, "columns": defaultOverviewColumns, "total_slides": len(ids), "overview_page": overviewPage, "page_size": maxSlidesPerOverview, "slide_range": map[string]int{"start": start + 1, "end": end}, "has_previous": overviewPage > 1, "has_next": end < len(ids), "slides": slides}
@@ -1064,16 +1064,12 @@ func overviewRectOutput(r image.Rectangle) map[string]int {
 }
 
 func composeSlidesOverview(images []image.Image, columns int) (*image.RGBA, []overviewCell) {
-	return composeSlidesOverviewFromIndex(images, columns, 1)
-}
-
-func composeSlidesOverviewFromIndex(images []image.Image, columns int, firstIndex int) (*image.RGBA, []overviewCell) {
 	if columns < 1 {
 		columns = defaultOverviewColumns
 	}
-	const thumbW, thumbH, headerH, pad = 320, 180, 24, 16
+	const thumbW, thumbH, pad = 320, 180, 16
 	rows := int(math.Ceil(float64(len(images)) / float64(columns)))
-	tileH := headerH + thumbH
+	tileH := thumbH
 	out := image.NewRGBA(image.Rect(0, 0, columns*thumbW+(columns+1)*pad, rows*tileH+(rows+1)*pad))
 	draw.Draw(out, out.Bounds(), &image.Uniform{C: color.RGBA{R: 246, G: 247, B: 249, A: 255}}, image.Point{}, draw.Src)
 	cells := make([]overviewCell, len(images))
@@ -1081,11 +1077,9 @@ func composeSlidesOverviewFromIndex(images []image.Image, columns int, firstInde
 		r, c := i/columns, i%columns
 		x, y := pad+c*(thumbW+pad), pad+r*(tileH+pad)
 		tile := image.Rect(x, y, x+thumbW, y+tileH)
-		thumbnail := image.Rect(x, y+headerH, x+thumbW, y+tileH)
-		draw.Draw(out, image.Rect(x, y, x+thumbW, y+headerH), &image.Uniform{C: color.RGBA{R: 49, G: 50, B: 53, A: 255}}, image.Point{}, draw.Src)
+		thumbnail := image.Rect(x, y, x+thumbW, y+tileH)
 		xdraw.CatmullRom.Scale(out, thumbnail, src, src.Bounds(), draw.Over, nil)
 		drawOverviewThumbnailBorder(out, thumbnail)
-		drawOverviewIndex(out, image.Pt(x+9, y+5), firstIndex+i)
 		cells[i] = overviewCell{row: r, column: c, tile: tile, thumbnail: thumbnail}
 	}
 	return out, cells
@@ -1097,34 +1091,4 @@ func drawOverviewThumbnailBorder(dst draw.Image, thumbnail image.Rectangle) {
 	draw.Draw(dst, image.Rect(thumbnail.Min.X, thumbnail.Max.Y-1, thumbnail.Max.X, thumbnail.Max.Y), border, image.Point{}, draw.Src)
 	draw.Draw(dst, image.Rect(thumbnail.Min.X, thumbnail.Min.Y, thumbnail.Min.X+1, thumbnail.Max.Y), border, image.Point{}, draw.Src)
 	draw.Draw(dst, image.Rect(thumbnail.Max.X-1, thumbnail.Min.Y, thumbnail.Max.X, thumbnail.Max.Y), border, image.Point{}, draw.Src)
-}
-
-var overviewDigitPixels = map[rune][]string{
-	'#': {"01010", "11111", "01010", "11111", "01010"},
-	'0': {"01110", "10001", "10011", "10101", "11001", "10001", "01110"},
-	'1': {"00100", "01100", "00100", "00100", "00100", "00100", "01110"},
-	'2': {"01110", "10001", "00001", "00010", "00100", "01000", "11111"},
-	'3': {"11110", "00001", "00001", "01110", "00001", "00001", "11110"},
-	'4': {"00010", "00110", "01010", "10010", "11111", "00010", "00010"},
-	'5': {"11111", "10000", "11110", "00001", "00001", "10001", "01110"},
-	'6': {"00110", "01000", "10000", "11110", "10001", "10001", "01110"},
-	'7': {"11111", "00001", "00010", "00100", "01000", "01000", "01000"},
-	'8': {"01110", "10001", "10001", "01110", "10001", "10001", "01110"},
-	'9': {"01110", "10001", "10001", "01111", "00001", "00010", "11100"},
-}
-
-func drawOverviewIndex(dst draw.Image, at image.Point, index int) {
-	const scale, gap = 2, 3
-	x := at.X
-	for _, ch := range fmt.Sprintf("#%02d", index) {
-		glyph := overviewDigitPixels[ch]
-		for y, row := range glyph {
-			for col, on := range row {
-				if on == '1' {
-					draw.Draw(dst, image.Rect(x+col*scale, at.Y+y*scale, x+(col+1)*scale, at.Y+(y+1)*scale), &image.Uniform{C: color.White}, image.Point{}, draw.Src)
-				}
-			}
-		}
-		x += (len(glyph[0]) + gap) * scale
-	}
 }

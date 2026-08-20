@@ -216,9 +216,9 @@ func TestSlidesScreenshotOverviewLiveE2E(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "png", overviewFormat, overviewResult.Stdout)
 	require.Equal(t, 1360, overviewConfig.Width, overviewResult.Stdout)
-	require.Equal(t, 236, overviewConfig.Height, overviewResult.Stdout)
+	require.Equal(t, 212, overviewConfig.Height, overviewResult.Stdout)
 	require.Equal(t, int64(1360), overview.Get("image_size.width").Int(), overviewResult.Stdout)
-	require.Equal(t, int64(236), overview.Get("image_size.height").Int(), overviewResult.Stdout)
+	require.Equal(t, int64(212), overview.Get("image_size.height").Int(), overviewResult.Stdout)
 
 }
 

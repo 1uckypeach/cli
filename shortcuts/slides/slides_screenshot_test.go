@@ -43,28 +43,6 @@ func testSlidesScreenshotPNG(t *testing.T, width, height int) string {
 	return base64.StdEncoding.EncodeToString(out.Bytes())
 }
 
-func assertOverviewIndexPixels(t *testing.T, img image.Image, at image.Point, index int) {
-	t.Helper()
-	const scale, gap = 2, 3
-	x := at.X
-	for _, ch := range fmt.Sprintf("#%02d", index) {
-		glyph := overviewDigitPixels[ch]
-		for y, row := range glyph {
-			for col, on := range row {
-				got := color.RGBAModel.Convert(img.At(x+col*scale, at.Y+y*scale)).(color.RGBA)
-				if on == '1' {
-					if got.R < 240 || got.G < 240 || got.B < 240 {
-						t.Fatalf("index #%d glyph %q pixel (%d,%d) = %#v, want white", index, ch, col, y, got)
-					}
-				} else if got.R > 100 || got.G > 100 || got.B > 100 {
-					t.Fatalf("index #%d glyph %q pixel (%d,%d) = %#v, want dark background", index, ch, col, y, got)
-				}
-			}
-		}
-		x += (len(glyph[0]) + gap) * scale
-	}
-}
-
 func TestSlidesScreenshotDeclaredScopes(t *testing.T) {
 	base := []string{"slides:presentation:screenshot"}
 	if got := SlidesScreenshot.ScopesForIdentity("user"); !reflect.DeepEqual(got, base) {
@@ -248,7 +226,7 @@ func TestComposeSlidesOverviewScalesWholeSlideAndProvidesIndexGeometry(t *testin
 	if got := color.RGBAModel.Convert(out.At(thumb.Min.X+240, thumb.Min.Y+135)).(color.RGBA); got.R < 200 || got.G < 200 {
 		t.Fatalf("bottom-right thumbnail = %#v, want yellow", got)
 	}
-	if out.Bounds().Dx() != 352 || out.Bounds().Dy() != 236 {
+	if out.Bounds().Dx() != 352 || out.Bounds().Dy() != 212 {
 		t.Fatalf("overview size = %v", out.Bounds())
 	}
 }
@@ -496,8 +474,8 @@ func TestSlidesScreenshotOverviewExecutionPaginatesAtTwentySlides(t *testing.T) 
 		t.Fatalf("overview.size = %#v, want positive encoded-byte count", overview["size"])
 	}
 	imageSize, _ := overview["image_size"].(map[string]interface{})
-	if imageSize["width"] != float64(1360) || imageSize["height"] != float64(1116) {
-		t.Fatalf("overview.image_size = %#v, want 1360x1116", imageSize)
+	if imageSize["width"] != float64(1360) || imageSize["height"] != float64(996) {
+		t.Fatalf("overview.image_size = %#v, want 1360x996", imageSize)
 	}
 	rangeData, _ := overview["slide_range"].(map[string]interface{})
 	if rangeData["start"] != float64(21) || rangeData["end"] != float64(40) {
@@ -508,26 +486,13 @@ func TestSlidesScreenshotOverviewExecutionPaginatesAtTwentySlides(t *testing.T) 
 		t.Fatalf("slides = %#v", slides)
 	}
 	slide, _ := slides[0].(map[string]interface{})
-	if slide["index"] != float64(21) || slide["label"] != "#21" || slide["slide_id"] != "p21" {
+	if slide["index"] != float64(21) || slide["slide_id"] != "p21" {
 		t.Fatalf("slide = %#v", slide)
 	}
 	last, _ := slides[19].(map[string]interface{})
-	if last["index"] != float64(40) || last["label"] != "#40" || last["slide_id"] != "p40" {
+	if last["index"] != float64(40) || last["slide_id"] != "p40" {
 		t.Fatalf("last slide = %#v", last)
 	}
-	overviewFile, err := os.Open(overview["path"].(string))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer overviewFile.Close()
-	overviewImage, _, err := image.Decode(overviewFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	firstTile, _ := slide["tile"].(map[string]interface{})
-	lastTile, _ := last["tile"].(map[string]interface{})
-	assertOverviewIndexPixels(t, overviewImage, image.Pt(int(firstTile["x"].(float64))+9, int(firstTile["y"].(float64))+5), 21)
-	assertOverviewIndexPixels(t, overviewImage, image.Pt(int(lastTile["x"].(float64))+9, int(lastTile["y"].(float64))+5), 40)
 }
 
 func TestSlidesScreenshotCompatibilityAliases(t *testing.T) {
