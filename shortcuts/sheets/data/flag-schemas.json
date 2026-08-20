@@ -79,6 +79,41 @@
                 }
               ]
             },
+            "series_types": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "column",
+                      "line",
+                      "area"
+                    ]
+                  }
+                }
+              ]
+            },
+            "series_y_axes": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "left",
+                      "right"
+                    ]
+                  }
+                }
+              ]
+            },
             "key_index": {
               "type": "integer",
               "minimum": 1,

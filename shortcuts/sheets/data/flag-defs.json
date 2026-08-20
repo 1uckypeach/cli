@@ -3549,6 +3549,20 @@
         "desc": "Comma-separated 1-based value/Y-axis dimension indexes; must exclude dim1, at most 50. Legacy bubble calls accept 2–4 indexes in x,y[,group][,size] order; new calls should use role-specific indexes. Pie and pareto charts accept exactly one"
       },
       {
+        "name": "series-types",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Combo charts only; comma-separated series types aligned with --dim2-indexes; use column, line, or area and provide one value per selected series"
+      },
+      {
+        "name": "series-y-axes",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "Combo charts only; comma-separated left or right Y-axis assignments aligned with --dim2-indexes; provide one value per selected series"
+      },
+      {
         "name": "key-index",
         "kind": "own",
         "type": "int",
@@ -3681,7 +3695,7 @@
         "kind": "own",
         "type": "string",
         "required": "optional",
-        "desc": "Data label position",
+        "desc": "Pass only when the user explicitly requests a position; omit it for chart-type-aware data label placement",
         "enum": [
           "auto",
           "top",
@@ -3914,7 +3928,7 @@
         "kind": "own",
         "type": "string",
         "required": "optional",
-        "desc": "Data label position",
+        "desc": "Pass only when the user explicitly requests a position; omit it for chart-type-aware data label placement",
         "enum": [
           "auto",
           "top",

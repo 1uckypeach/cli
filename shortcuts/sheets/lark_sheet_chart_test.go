@@ -4,6 +4,7 @@
 package sheets
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -428,6 +429,78 @@ func TestChartCreateBasic_SelectsDimensionsAtCreation(t *testing.T) {
 	indexes := basic["dim2_indexes"].([]interface{})
 	if len(indexes) != 3 || indexes[0] != float64(2) || indexes[1] != float64(6) || indexes[2] != float64(8) {
 		t.Fatalf("basic_chart.dim2_indexes = %#v", indexes)
+	}
+}
+
+func TestChartCreateBasic_ConfiguresComboSeriesSemantically(t *testing.T) {
+	t.Parallel()
+	body := parseDryRunBody(t, ChartCreateBasic, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-type", "combo",
+		"--data-range", "A1:D7",
+		"--dim2-indexes", "2,3,4",
+		"--series-types", "column,column,line",
+		"--series-y-axes", "left,left,right",
+	})
+	basic := decodeToolInput(t, body, "manage_chart_object")["basic_chart"].(map[string]interface{})
+	if got := basic["series_types"]; !reflect.DeepEqual(got, []interface{}{"column", "column", "line"}) {
+		t.Fatalf("basic_chart.series_types = %#v", got)
+	}
+	if got := basic["series_y_axes"]; !reflect.DeepEqual(got, []interface{}{"left", "left", "right"}) {
+		t.Fatalf("basic_chart.series_y_axes = %#v", got)
+	}
+}
+
+func TestChartCreateBasic_ConfiguresComboSeriesSemanticallyInBatch(t *testing.T) {
+	t.Parallel()
+	body := parseDryRunBody(t, BatchChartCreate, []string{
+		"--url", testURL,
+		"--operations", `[{"sheet_id":"sh1","chart_type":"combo","data_range":"A1:D7","dim2_indexes":[2,3,4],"series_types":["column","column","line"],"series_y_axes":["left","left","right"]}]`,
+	})
+	input := decodeToolInput(t, body, "batch_update")
+	ops := input["operations"].([]interface{})
+	basic := ops[0].(map[string]interface{})["input"].(map[string]interface{})["basic_chart"].(map[string]interface{})
+	if got := basic["series_types"]; !reflect.DeepEqual(got, []interface{}{"column", "column", "line"}) {
+		t.Fatalf("batch basic_chart.series_types = %#v", got)
+	}
+	if got := basic["series_y_axes"]; !reflect.DeepEqual(got, []interface{}{"left", "left", "right"}) {
+		t.Fatalf("batch basic_chart.series_y_axes = %#v", got)
+	}
+}
+
+func TestChartCreateBasic_ValidatesComboSeriesSemantics(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "non combo",
+			args: []string{"--chart-type", "line", "--data-range", "A1:C7", "--series-y-axes", "left,right"},
+			want: "only valid for combo charts",
+		},
+		{
+			name: "type count",
+			args: []string{"--chart-type", "combo", "--data-range", "A1:D7", "--series-types", "column,line"},
+			want: "one value per selected value series",
+		},
+		{
+			name: "invalid axis",
+			args: []string{"--chart-type", "combo", "--data-range", "A1:C7", "--series-y-axes", "left,secondary"},
+			want: "expected one of left, right",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := append([]string{"--url", testURL, "--sheet-id", testSheetID}, tc.args...)
+			_, _, err := runShortcutCapturingErr(t, ChartCreateBasic, args)
+			requireValidation(t, err, tc.want)
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want substring %q", err, tc.want)
+			}
+		})
 	}
 }
 

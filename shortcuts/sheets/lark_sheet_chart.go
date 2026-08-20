@@ -366,6 +366,29 @@ func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[s
 	if chartType == "combo" && len(dim2Indexes) < 2 {
 		return nil, sheetsValidationForFlag("dim2-indexes", "combo charts require at least two --dim2-indexes values")
 	}
+	if chartType != "combo" && (rt.Changed("series-types") || rt.Changed("series-y-axes")) {
+		return nil, sheetsValidationForFlag("series-types", "--series-types and --series-y-axes are only valid for combo charts")
+	}
+	var seriesTypes []string
+	if rt.Changed("series-types") {
+		seriesTypes, err = parseChartEnumList(rt.Str("series-types"), "series-types", []string{"column", "line", "area"})
+		if err != nil {
+			return nil, err
+		}
+		if len(seriesTypes) != len(dim2Indexes) {
+			return nil, sheetsValidationForFlag("series-types", "--series-types must contain one value per selected value series")
+		}
+	}
+	var seriesYAxes []string
+	if rt.Changed("series-y-axes") {
+		seriesYAxes, err = parseChartEnumList(rt.Str("series-y-axes"), "series-y-axes", []string{"left", "right"})
+		if err != nil {
+			return nil, err
+		}
+		if len(seriesYAxes) != len(dim2Indexes) {
+			return nil, sheetsValidationForFlag("series-y-axes", "--series-y-axes must contain one value per selected value series")
+		}
+	}
 	if chartType == "bubble" && (len(dim2Indexes) < 2 || len(dim2Indexes) > 4) {
 		return nil, sheetsValidationForFlag("dim2-indexes", "bubble charts require x and y plus optional group and size indexes")
 	}
@@ -424,6 +447,12 @@ func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[s
 	}
 	if !useBubbleRoles && rt.Changed("dim2-indexes") {
 		basic["dim2_indexes"] = dim2Indexes
+	}
+	if rt.Changed("series-types") {
+		basic["series_types"] = seriesTypes
+	}
+	if rt.Changed("series-y-axes") {
+		basic["series_y_axes"] = seriesYAxes
 	}
 	if err := validateChartColorFlags(rt); err != nil {
 		return nil, err
@@ -1300,6 +1329,38 @@ func parseChartDim2Indexes(raw string) ([]int, error) {
 		indexes = append(indexes, index)
 	}
 	return validateChartDim2Indexes(indexes)
+}
+
+func parseChartEnumList(raw, flagName string, allowed []string) ([]string, error) {
+	raw = strings.TrimSpace(raw)
+	values := []string{}
+	if strings.HasPrefix(raw, "[") {
+		if err := json.Unmarshal([]byte(raw), &values); err != nil {
+			return nil, sheetsValidationForFlag(flagName, "--%s must be a comma-separated list or a JSON string array", flagName)
+		}
+	} else {
+		values = strings.Split(raw, ",")
+	}
+	if len(values) == 0 {
+		return nil, sheetsValidationForFlag(flagName, "--%s must not be empty", flagName)
+	}
+	allowedSet := make(map[string]struct{}, len(allowed))
+	for _, value := range allowed {
+		allowedSet[value] = struct{}{}
+	}
+	for index := range values {
+		values[index] = strings.TrimSpace(values[index])
+		if _, ok := allowedSet[values[index]]; !ok {
+			return nil, sheetsValidationForFlag(
+				flagName,
+				"--%s value %q is invalid; expected one of %s",
+				flagName,
+				values[index],
+				strings.Join(allowed, ", "),
+			)
+		}
+	}
+	return values, nil
 }
 
 func validateChartDim2Indexes(indexes []int) ([]int, error) {

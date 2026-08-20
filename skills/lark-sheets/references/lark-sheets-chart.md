@@ -32,7 +32,7 @@
 
 普通创建、数据源修正和常用配置更新不要构造原始 snapshot。
 
-典型工作流：先确认表头和精确数据范围，用 `+chart-create-basic` 一次创建并尽量在同次调用中带上已知标题/轴/标签要求；创建后用返回的完整 `snapshot` 检查范围、方向与系列，再按需用 `+chart-list` 验证。已有图表的数据范围或方向错误时用 `+chart-data-update`，常用配置修正用 `+chart-config-update`。只有用户要求单个系列、数据点或高级引擎字段时，才读取现有 snapshot 并调 `+chart-update --properties`。不要为了常用配置先输出整份 schema，也不要删除重建已经创建成功的图表。
+典型工作流：先确认表头和精确数据范围，用 `+chart-create-basic` 一次创建并尽量在同次调用中带上已知标题/轴/标签内容要求；标签位置只有用户明确指定时才传。创建后用返回的完整 `snapshot` 检查范围、方向与系列，再按需用 `+chart-list` 验证。已有图表的数据范围或方向错误时用 `+chart-data-update`，常用配置修正用 `+chart-config-update`。只有用户要求单个系列、数据点或高级引擎字段时，才读取现有 snapshot 并调 `+chart-update --properties`。不要为了常用配置先输出整份 schema，也不要删除重建已经创建成功的图表。
 
 **多图表工作流**：先完成所有辅助数据和表头，列出每张目标图的类型、精确数据范围、标题和落点；确认清单后，用一次 `+batch-chart-create` 批量创建。它的每个 operation 直接填写 `+chart-create-basic` flags，CLI 内部固定按 `+chart-create-basic` 执行，不要再套 `shortcut` / `input`。图表之间独立时允许部分成功：按返回的逐项结果定位失败图表，只重试失败项。批量 create 的逐项结果不返回完整 snapshot；批次后每个受影响的 sheet 各调用一次 `+chart-list`。已经成功创建的图表有数据源或配置差异时，用 `+batch-chart-update` 批量执行对应的语义更新，不要删除重建。
 
@@ -88,6 +88,7 @@
 **常见配置错误（必须注意）**：
 - **图表类型选择错误**：用户说"堆积柱形图 / 百分比堆积"时，用 `+chart-create-basic --stack normal|percent` 或 `+chart-config-update --stack normal|percent`；用户说"占比 / 比例"时，优先考虑饼图或百分比堆积图。注意 `column` 是纵向柱形图、`bar` 是横向条形图，"对比 / 各 XX" 类纵向柱默认用 `column`。
 - **数据标签开关**：创建时用 `--data-labels`，已有图用 `+chart-config-update --data-labels`；明确关闭时传 `none`，不要为常用标签配置构造原始 `labels` 对象。
+- **数据标签位置**：只有用户明确要求标签位置时才传 `--data-label-position`；未明确时必须省略，让图表按类型自动选择。不要用 `top` 表达“柱子外部顶端”：对柱形/条形/组合图的柱系列，`top` 表示柱内顶端；用户明确要求柱外时使用 `outside`。
 - **数据源范围与系列名来源要对齐**：
   - 默认让 `--data-range` 包含真正的表头行 / 列；表头上方的合并大标题必须跳过。
   - 数据和语义表头分离时，`--data-range` 只传纯数据，`--header-range` 传对应的一行（column）或一列（row）表头。范围可以是不连续多范围，也支持来自多个子表；不要因为跨子表就退回原始 snapshot。
@@ -187,7 +188,7 @@ _公共四件套 · 系统：`--dry-run`_
 | `--x-axis-label-angle` | int | optional | X 轴标签旋转角度（可选值：`-90` / `-45` / `0` / `45` / `90`） |
 | `--y-axis-label-angle` | int | optional | 左 Y 轴标签旋转角度（可选值：`-90` / `-45` / `0` / `45` / `90`） |
 | `--data-labels` | string | optional | 数据标签内容；none 隐藏标签；兼容 category_percentage 并自动按 value_percentage 处理（可选值：`none` / `value` / `percentage` / `value_percentage` / `category_percentage` / `category` / `series`） |
-| `--data-label-position` | string | optional | 数据标签位置（可选值：`auto` / `top` / `bottom` / `left` / `right` / `center` / `inside` / `outside`） |
+| `--data-label-position` | string | optional | 仅当用户明确指定时传入；省略时按图表类型自动优化数据标签位置（可选值：`auto` / `top` / `bottom` / `left` / `right` / `center` / `inside` / `outside`） |
 | `--stack` | string | optional | 堆叠模式（可选值：`none` / `normal` / `percent`） |
 | `--stacked` | bool | optional | 兼容别名；等价于 --stack normal（隐藏 flag：不在 `--help` 列出，但可正常传入） |
 | `--smooth` | bool | optional | 是否使用平滑曲线；支持 --smooth=false 和 --smooth false |
@@ -213,7 +214,7 @@ _公共四件套 · 系统：`--dry-run`_
 | `--x-axis-label-angle` | int | optional | X 轴标签旋转角度（可选值：`-90` / `-45` / `0` / `45` / `90`） |
 | `--y-axis-label-angle` | int | optional | 左 Y 轴标签旋转角度（可选值：`-90` / `-45` / `0` / `45` / `90`） |
 | `--data-labels` | string | optional | 数据标签内容；none 隐藏标签；兼容 category_percentage 并自动按 value_percentage 处理（可选值：`none` / `value` / `percentage` / `value_percentage` / `category_percentage` / `category` / `series`） |
-| `--data-label-position` | string | optional | 数据标签位置（可选值：`auto` / `top` / `bottom` / `left` / `right` / `center` / `inside` / `outside`） |
+| `--data-label-position` | string | optional | 仅当用户明确指定时传入；省略时按图表类型自动优化数据标签位置（可选值：`auto` / `top` / `bottom` / `left` / `right` / `center` / `inside` / `outside`） |
 | `--stack` | string | optional | 堆叠模式（可选值：`none` / `normal` / `percent`） |
 | `--stacked` | bool | optional | 兼容别名；等价于 --stack normal（隐藏 flag：不在 `--help` 列出，但可正常传入） |
 | `--smooth` | bool | optional | 是否使用平滑曲线；支持 --smooth=false 和 --smooth false |
@@ -263,7 +264,7 @@ _公共四件套 · 系统：`--yes`、`--dry-run`_
 lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
   --chart-type column --data-range "'Sheet1'!A1:C10" \
   --title "销售额对比" --x-axis-title "品类" --y-axis-title "销售额" \
-  --legend-position bottom --data-labels value --data-label-position top
+  --legend-position bottom --data-labels value
 
 # 双轴组合图：首个数值列为左轴柱，其余数值列为右轴折线
 lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
@@ -350,7 +351,7 @@ lark-cli sheets +chart-config-update --url "..." --sheet-id "$SID" --chart-id "c
   --title "新标题" --x-axis-label-angle -45 --legend-position right
 
 lark-cli sheets +chart-config-update --url "..." --sheet-id "$SID" --chart-id "chrXXX" \
-  --data-labels value_percentage --data-label-position outside --stack percent
+  --data-labels value_percentage --stack percent
 ```
 
 ### `+chart-create`
