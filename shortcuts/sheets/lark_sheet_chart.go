@@ -1029,9 +1029,9 @@ func applyChartConfigPatch(
 		} else {
 			labels := map[string]interface{}{
 				"series":     value == "series",
-				"category":   value == "category",
-				"value":      value == "value" || value == "value_percentage",
-				"percentage": value == "percentage" || value == "value_percentage",
+				"category":   strings.Contains(value, "category"),
+				"value":      strings.Contains(value, "value"),
+				"percentage": strings.Contains(value, "percentage"),
 			}
 			if position, ok := updates["data_label_position"]; ok {
 				labels["position"] = position
@@ -1538,8 +1538,6 @@ func addChartSemanticConfig(rt flagView, out map[string]interface{}) {
 		key := strings.ReplaceAll(flag, "-", "_")
 		if flag == "x-axis-label-angle" || flag == "y-axis-label-angle" {
 			out[key] = rt.Int(flag)
-		} else if flag == "data-labels" && rt.Str(flag) == "category_percentage" {
-			out[key] = "value_percentage"
 		} else {
 			out[key] = rt.Str(flag)
 		}

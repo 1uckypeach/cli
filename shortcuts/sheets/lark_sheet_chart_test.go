@@ -319,14 +319,6 @@ func TestChartSemanticShortcuts_CompatibleAliases(t *testing.T) {
 		t.Fatalf("--stacked normalized stack = %#v, want non-percentage stack", extra["stack"])
 	}
 	body = parseDryRunBody(t, chartConfigUpdate, []string{
-		"--url", testURL, "--sheet-id", testSheetID, "--chart-id", "chart-1", "--data-labels", "category_percentage",
-	})
-	snapshot = chartDryRunSnapshot(t, decodeToolInput(t, body, "manage_chart_object"))
-	labels := snapshot["plotArea"].(map[string]interface{})["plot"].(map[string]interface{})["labels"].(map[string]interface{})
-	if labels["value"] != true || labels["percentage"] != true {
-		t.Fatalf("data-labels normalized value = %#v, want value+percentage", labels)
-	}
-	body = parseDryRunBody(t, chartConfigUpdate, []string{
 		"--url", testURL,
 		"--sheet-id", testSheetID,
 		"--chart-id", "chart-1",
@@ -337,11 +329,46 @@ func TestChartSemanticShortcuts_CompatibleAliases(t *testing.T) {
 	snapshot = chartDryRunSnapshot(t, decodeToolInput(t, body, "manage_chart_object"))
 	plotArea := snapshot["plotArea"].(map[string]interface{})
 	axes := plotArea["axes"].([]interface{})
-	labels = plotArea["plot"].(map[string]interface{})["labels"].(map[string]interface{})
+	labels := plotArea["plot"].(map[string]interface{})["labels"].(map[string]interface{})
 	if axes[0].(map[string]interface{})["title"].(map[string]interface{})["text"] != "Month" ||
 		axes[1].(map[string]interface{})["title"].(map[string]interface{})["text"] != "Revenue" ||
 		labels["value"] != true || labels["percentage"] != true {
 		t.Fatalf("chart config aliases = %#v", snapshot)
+	}
+}
+
+func TestChartSemanticShortcuts_DataLabelCombinations(t *testing.T) {
+	t.Parallel()
+	chartConfigUpdate := shortcutFromRegistry(t, "+chart-config-update")
+	tests := []struct {
+		input      string
+		category   bool
+		value      bool
+		percentage bool
+	}{
+		{"value", false, true, false},
+		{"category", true, false, false},
+		{"percentage", false, false, true},
+		{"value_category", true, true, false},
+		{"value_percentage", false, true, true},
+		{"category_percentage", true, false, true},
+		{"value_category_percentage", true, true, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			body := parseDryRunBody(t, chartConfigUpdate, []string{
+				"--url", testURL,
+				"--sheet-id", testSheetID,
+				"--chart-id", "chart-1",
+				"--data-labels", tc.input,
+			})
+			snapshot := chartDryRunSnapshot(t, decodeToolInput(t, body, "manage_chart_object"))
+			labels := snapshot["plotArea"].(map[string]interface{})["plot"].(map[string]interface{})["labels"].(map[string]interface{})
+			if labels["category"] != tc.category || labels["value"] != tc.value || labels["percentage"] != tc.percentage {
+				t.Fatalf("%s labels = %#v, want category=%t value=%t percentage=%t", tc.input, labels, tc.category, tc.value, tc.percentage)
+			}
+		})
 	}
 }
 

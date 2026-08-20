@@ -143,10 +143,10 @@ var intuitiveFlagHints = map[string]map[string]string{
 	},
 	"+chart-create-basic": {
 		"position":    "use --anchor-cell F2 for the chart anchor; optionally pair --width and --height for its pixel size",
-		"show-labels": "use --data-labels value (or percentage/value_percentage/category/series; use none to hide labels)",
+		"show-labels": "use --data-labels value (or any value/category/percentage combination such as value_category_percentage; use series for series names or none to hide labels)",
 	},
 	"+chart-config-update": {
-		"show-labels": "use --data-labels value (or percentage/value_percentage/category/series; use none to hide labels)",
+		"show-labels": "use --data-labels value (or any value/category/percentage combination such as value_category_percentage; use series for series names or none to hide labels)",
 	},
 }
 

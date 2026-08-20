@@ -626,13 +626,13 @@ func TestShortcuts_IntuitiveFlagHints(t *testing.T) {
 			command:  "+chart-create-basic",
 			args:     []string{"--url", testURL, "--sheet-name", "s", "--show-labels", "true"},
 			wrong:    "--show-labels",
-			wantHint: []string{"--data-labels value", "value_percentage"},
+			wantHint: []string{"--data-labels value", "value_category_percentage", "series", "none"},
 		},
 		{
 			command:  "+chart-config-update",
 			args:     []string{"--url", testURL, "--sheet-name", "s", "--show-labels", "true"},
 			wrong:    "--show-labels",
-			wantHint: []string{"--data-labels value", "none"},
+			wantHint: []string{"--data-labels value", "value_category_percentage", "series", "none"},
 		},
 	}
 	for _, tc := range cases {

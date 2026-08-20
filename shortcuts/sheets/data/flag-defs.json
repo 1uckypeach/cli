@@ -3679,14 +3679,16 @@
         "kind": "own",
         "type": "string",
         "required": "optional",
-        "desc": "Data label content; none removes labels; category_percentage is normalized to value_percentage",
+        "desc": "Data label content; combine value, category, and percentage in value_category_percentage order for any non-empty combination; series shows series names and none removes labels",
         "enum": [
           "none",
           "value",
+          "category",
           "percentage",
+          "value_category",
           "value_percentage",
           "category_percentage",
-          "category",
+          "value_category_percentage",
           "series"
         ]
       },
@@ -3912,14 +3914,16 @@
         "kind": "own",
         "type": "string",
         "required": "optional",
-        "desc": "Data label content; none removes labels; category_percentage is normalized to value_percentage",
+        "desc": "Data label content; combine value, category, and percentage in value_category_percentage order for any non-empty combination; series shows series names and none removes labels",
         "enum": [
           "none",
           "value",
+          "category",
           "percentage",
+          "value_category",
           "value_percentage",
           "category_percentage",
-          "category",
+          "value_category_percentage",
           "series"
         ]
       },
