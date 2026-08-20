@@ -87,8 +87,8 @@
 
 **常见配置错误（必须注意）**：
 - **图表类型选择错误**：用户说"堆积柱形图 / 百分比堆积"时，用 `+chart-create-basic --stack normal|percent` 或 `+chart-config-update --stack normal|percent`；用户说"占比 / 比例"时，优先考虑饼图或百分比堆积图。注意 `column` 是纵向柱形图、`bar` 是横向条形图，"对比 / 各 XX" 类纵向柱默认用 `column`。
-- **数据标签开关**：创建时用 `--data-labels`，已有图用 `+chart-config-update --data-labels`；明确关闭时传 `none`，不要为常用标签配置构造原始 `labels` 对象。
-- **数据标签位置**：只有用户明确要求标签位置时才传 `--data-label-position`；未明确时必须省略，让图表按类型自动选择。不要用 `top` 表达“柱子外部顶端”：对柱形/条形/组合图的柱系列，`top` 表示柱内顶端；用户明确要求柱外时使用 `outside`。
+- **数据标签开关**：创建时用 `--data-labels`，已有图用 `+chart-config-update --data-labels`；明确关闭时传 `none`，不要为常用标签配置构造原始 `labels` 对象。用常量或重复值系列表示基准、目标、阈值或上下限时，默认关闭该系列标签；不支持单点标签时，不得用全系列重复标签代替，改用包含名称和值的系列名、图例或标题。
+- **数据标签位置**：只有用户明确要求标签位置时才传 `--data-label-position`；未明确时必须省略，让图表按类型自动选择。标签位置只控制摆放方式，不能实现仅显示末点或关键点；柱形、条形及组合图柱系列的 `top` 表示柱内顶端，明确要求柱外时使用 `outside`。
 - **数据源范围与系列名来源要对齐**：
   - 默认让 `--data-range` 包含真正的表头行 / 列；表头上方的合并大标题必须跳过。
   - 数据和语义表头分离时，`--data-range` 只传纯数据，`--header-range` 传对应的一行（column）或一列（row）表头。范围可以是不连续多范围，也支持来自多个子表；不要因为跨子表就退回原始 snapshot。
@@ -138,7 +138,7 @@
 完成本次所有图表创建或更新后，再逐图核对以下项；全部通过才算完成：
 
 1. **数量**：图表数 = 用户明确要求的数量（"每个 / 分别 / 逐一"等数量词已逐项展开为独立图，不用一张多系列图代替）。
-2. **文案与展示项**：回读图表标题、副标题和坐标轴标题，确认语义准确且无乱码、占位符或空括号；图例、数据标签按用户要求展示或隐藏（未要求时不擅自增删）。带坐标轴的图表还要回读每条轴的字段语义、类型、单位、最小值 / 最大值、刻度以及主副轴归属；多图对比时再核对边界、跨度和口径是否符合用户的可比性要求。
+2. **文案与展示项**：回读图表标题、副标题和坐标轴标题，确认语义准确且无乱码、占位符或空括号；图例、数据标签按用户要求展示或隐藏（未要求时不擅自增删），辅助系列不得用全点重复标签模拟单点或末点。带坐标轴的图表还要回读每条轴的字段语义、类型、单位、最小值 / 最大值、刻度以及主副轴归属；多图对比时再核对边界、跨度和口径是否符合用户的可比性要求。
 3. **位置与布局**：图表创建、配置更新、数据更新或位置调整后，每个受影响子表运行一次 `python scripts/lark_chart_layout_check.py "<表格 URL 或 spreadsheet token>" --worksheet-id "<reference_id>"`，无需先用 `ls` 探测脚本。`data.passed=true` 且退出码为 `0` 才可交付；退出码 `2` 且 `data.passed=false` 表示检查成功发现问题，按返回位置用 `+chart-update --properties` 最小 patch 调整后重跑。退出码 `1`、网络超时或无有效 JSON 时只重试一次；仍失败则明确报告布局未完成验收，禁止用人工估算代替。
 
 ## Shortcuts
@@ -174,6 +174,8 @@ _公共四件套 · 系统：`--dry-run`_
 | `--x-axis-numbers-as` | string | optional | 横轴数字的解释方式；text 将数字视为等间距文本类别，values 按连续数值及真实间距绘制（可选值：`text` / `values`）（默认 `text`） |
 | `--dim1-index` | int | optional | 类别/X 轴维度在数据范围中的 1-based 索引；默认 1 |
 | `--dim2-indexes` | string | optional | 值/Y 轴系列的 1-based 索引列表，逗号分隔；不能包含 dim1，最多 50 个。气泡图旧调用按 x,y[,group][,size] 顺序传 2–4 个，新调用优先使用角色索引；饼图和排列图只传 1 个 |
+| `--series-types` | string | optional | 仅组合图；按 --dim2-indexes 顺序指定系列类型，逗号分隔，可选 column、line、area，数量必须与数值系列一致 |
+| `--series-y-axes` | string | optional | 仅组合图；按 --dim2-indexes 顺序指定系列使用 left 或 right Y 轴，逗号分隔，数量必须与数值系列一致 |
 | `--key-index` | int | optional | 仅气泡图：标识/名称维度的 1-based 索引；与 dim1/dim2 索引互斥，默认 1 |
 | `--x-index` | int | optional | 仅气泡图：X 值维度的 1-based 索引；须与 --y-index 一起提供 |
 | `--y-index` | int | optional | 仅气泡图：Y 值维度的 1-based 索引；须与 --x-index 一起提供 |
@@ -257,7 +259,7 @@ _公共四件套 · 系统：`--yes`、`--dry-run`_
 
 ### `+chart-create-basic`
 
-默认使用第 1 个维度作为类别/X 轴，其余维度作为数值系列；普通图表可用 1-based 的 `--dim1-index` 和逗号分隔的 `--dim2-indexes` 精确选择。横轴数字默认按等间距文本类别处理；只有数字之间的真实间距需要影响图形位置时，才传 `--x-axis-numbers-as values` 使用连续数轴。气泡图改用 `--key-index`、`--x-index`、`--y-index` 和可选的 `--group-index` / `--size-index`，其中 x/y 必须同时提供，key 默认 1；角色索引不能与 dim1/dim2 索引混用。旧气泡图的 dim1/dim2 位置调用仍兼容。饼图和排列图只允许一个数值系列；组合图至少需要两个数值系列；所有图表最多选择 50 个数值系列。默认让 `--data-range` 包含真实表头；只有“维度/系列名称”与纯数据分离时，才让 `--data-range` 只传纯数据，并用 `--header-range` 传对应的一行（column）或一列（row）表头。类别维度与数值维度不连续时，范围参数可传逗号分隔的多范围，也支持来自多个子表；沿数据点轴对齐的跨子表范围会保留独立引用，同一子表内错行、错列或重叠时合并为最小包围矩形，跨子表范围无法对齐时会报错。单独调用成功后返回完整 `snapshot`，可直接检查创建结果并继续修改。参数名使用 `--anchor-cell` 和 `--data-labels`。兼容调用中，`--type` / `--range` 会分别按 `--chart-type` / `--data-range` 处理，`--x-axis` / `--y-axis` 会按轴标题处理；新调用仍优先使用规范参数名。
+默认使用第 1 个维度作为类别/X 轴，其余维度作为数值系列；普通图表可用 1-based 的 `--dim1-index` 和逗号分隔的 `--dim2-indexes` 精确选择。组合图默认首个数值系列为左轴柱、其余为右轴折线；需要其它组合时，用 `--series-types` 和 `--series-y-axes` 按 `--dim2-indexes` 的顺序逐项指定系列类型与左右轴，两组参数的数量都必须与最终数值系列数一致。横轴数字默认按等间距文本类别处理；只有数字之间的真实间距需要影响图形位置时，才传 `--x-axis-numbers-as values` 使用连续数轴。气泡图改用 `--key-index`、`--x-index`、`--y-index` 和可选的 `--group-index` / `--size-index`，其中 x/y 必须同时提供，key 默认 1；角色索引不能与 dim1/dim2 索引混用。旧气泡图的 dim1/dim2 位置调用仍兼容。饼图和排列图只允许一个数值系列；组合图至少需要两个数值系列；所有图表最多选择 50 个数值系列。默认让 `--data-range` 包含真实表头；只有“维度/系列名称”与纯数据分离时，才让 `--data-range` 只传纯数据，并用 `--header-range` 传对应的一行（column）或一列（row）表头。类别维度与数值维度不连续时，范围参数可传逗号分隔的多范围，也支持来自多个子表；沿数据点轴对齐的跨子表范围会保留独立引用，同一子表内错行、错列或重叠时合并为最小包围矩形，跨子表范围无法对齐时会报错。单独调用成功后返回完整 `snapshot`，可直接检查创建结果并继续修改。参数名使用 `--anchor-cell` 和 `--data-labels`。兼容调用中，`--type` / `--range` 会分别按 `--chart-type` / `--data-range` 处理，`--x-axis` / `--y-axis` 会按轴标题处理；新调用仍优先使用规范参数名。
 
 ```bash
 # 柱形图：默认放在数据范围右侧
@@ -266,9 +268,11 @@ lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
   --title "销售额对比" --x-axis-title "品类" --y-axis-title "销售额" \
   --legend-position bottom --data-labels value
 
-# 双轴组合图：首个数值列为左轴柱，其余数值列为右轴折线
+# 双轴组合图：月度目标、实际完成为左轴柱，完成率为右轴折线
 lark-cli sheets +chart-create-basic --url "..." --sheet-name "Sheet1" \
   --chart-type combo --data-range "'Sheet1'!A1:D13" \
+  --dim1-index 1 --dim2-indexes 2,3,4 \
+  --series-types column,column,line --series-y-axes left,left,right \
   --title "价格与效率" --y-axis-title "价格" --secondary-y-axis-title "效率" \
   --anchor-cell F2 --width 700 --height 400
 
