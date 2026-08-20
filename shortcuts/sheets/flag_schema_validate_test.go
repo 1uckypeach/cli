@@ -1031,23 +1031,34 @@ func TestValidateInputAgainstSchema_RealMinimum(t *testing.T) {
 // still validates the fields that are present.
 func TestValidateInputAgainstSchema_ChartUpdateRecursivePartial(t *testing.T) {
 	t.Parallel()
+	plot := map[string]interface{}{
+		"type":   "column",
+		"labels": map[string]interface{}{"value": true, "position": "top"},
+	}
 	patch := map[string]interface{}{
 		"properties": map[string]interface{}{
 			"snapshot": map[string]interface{}{
 				"plotArea": map[string]interface{}{
-					"plot": map[string]interface{}{
-						"labels": map[string]interface{}{"value": true, "position": "top"},
-					},
+					"plot": plot,
 				},
 			},
 		},
 	}
 
+	if err := validateInputAgainstSchema(mapFlagView{command: "+chart-create"}, patch); err != nil {
+		t.Fatalf("complete chart-create payload rejected: %v", err)
+	}
+	delete(plot, "type")
 	if err := validateInputAgainstSchema(mapFlagView{command: "+chart-update"}, patch); err != nil {
 		t.Fatalf("nested chart update patch rejected: %v", err)
 	}
-	if err := validateInputAgainstSchema(mapFlagView{command: "+chart-create"}, patch); err == nil {
-		t.Fatal("chart-create must retain the full nested required-field contract")
+	createErr := validateInputAgainstSchema(mapFlagView{command: "+chart-create"}, patch)
+	ve := requireValidation(t, createErr, `required property "type" is missing`)
+	if ve.Param != "--properties" {
+		t.Errorf("param = %q, want --properties", ve.Param)
+	}
+	if ve.Cause == nil {
+		t.Error("chart-create schema error must preserve its underlying cause")
 	}
 
 	invalid := map[string]interface{}{
@@ -1062,9 +1073,9 @@ func TestValidateInputAgainstSchema_ChartUpdateRecursivePartial(t *testing.T) {
 		},
 	}
 	err := validateInputAgainstSchema(mapFlagView{command: "+chart-update"}, invalid)
-	ve := requireValidation(t, err, "position")
-	if !strings.Contains(ve.Message, "not in enum") {
-		t.Errorf("error = %q, want enum validation", ve.Message)
+	invalidVE := requireValidation(t, err, "position")
+	if !strings.Contains(invalidVE.Message, "not in enum") {
+		t.Errorf("error = %q, want enum validation", invalidVE.Message)
 	}
 }
 
