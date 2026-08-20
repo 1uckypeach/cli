@@ -103,13 +103,6 @@ lark-cli slides +screenshot --as user \
 }
 ```
 
-`--overview` 的 `data.overview` 包含：
-
-- `path`、`format`、`size`、`image_size`：合成 PNG 的本地路径、格式、字节数和像素尺寸。
-- `columns`（固定为 `4`）、`total_slides`、`overview_page`、`page_size`、`slide_range`：网格和分页信息。
-- `has_previous`、`previous_overview_page`、`has_next`、`next_overview_page`：存在时表示相邻 overview 页。
-- `slides[]`：当前 overview 页内每张幻灯片的 `index`、`label`、`slide_id`、`slide_number`、`row`、`column`、`tile` 和 `thumbnail`。后两者为 `{x,y,width,height}` 像素矩形。
-
 ## 注意事项
 
 1. 优先使用 `slides +screenshot` 保存本地图片，不要把图片 Base64 打到 stdout。
