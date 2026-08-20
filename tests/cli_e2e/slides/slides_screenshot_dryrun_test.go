@@ -5,7 +5,6 @@ package slides
 
 import (
 	"context"
-	"strconv"
 	"testing"
 	"time"
 
@@ -308,14 +307,13 @@ func TestSlidesScreenshotOverviewDryRunE2E(t *testing.T) {
 	require.NoError(t, err)
 	result.AssertExitCode(t, 0)
 
-	require.Equal(t, int64(3), gjson.Get(result.Stdout, "data.api.#").Int(), result.Stdout)
-	require.Equal(t, "GET", gjson.Get(result.Stdout, "data.api.0.method").String(), result.Stdout)
-	require.Equal(t, "/open-apis/slides_ai/v1/xml_presentations/presScreenshotOverview", gjson.Get(result.Stdout, "data.api.0.url").String(), result.Stdout)
-	require.Equal(t, int64(-1), gjson.Get(result.Stdout, "data.api.0.params.revision_id").Int(), result.Stdout)
-	for _, index := range []int{1, 2} {
-		require.Equal(t, "POST", gjson.Get(result.Stdout, "data.api."+strconv.Itoa(index)+".method").String(), result.Stdout)
-		require.Equal(t, "/open-apis/slides_ai/v1/xml_presentations/presScreenshotOverview/slide_images", gjson.Get(result.Stdout, "data.api."+strconv.Itoa(index)+".url").String(), result.Stdout)
-		require.Len(t, gjson.Get(result.Stdout, "data.api."+strconv.Itoa(index)+".body.slide_ids").Array(), 1, result.Stdout)
+	require.Equal(t, int64(2), gjson.Get(result.Stdout, "data.api.#").Int(), result.Stdout)
+	for index, wantStart := range map[string]int64{"0": 21, "1": 31} {
+		require.Equal(t, "POST", gjson.Get(result.Stdout, "data.api."+index+".method").String(), result.Stdout)
+		require.Equal(t, "/open-apis/slides_ai/v1/xml_presentations/presScreenshotOverview/slide_images", gjson.Get(result.Stdout, "data.api."+index+".url").String(), result.Stdout)
+		values := gjson.Get(result.Stdout, "data.api."+index+".body.slide_numbers").Array()
+		require.Len(t, values, 10, result.Stdout)
+		require.Equal(t, wantStart, values[0].Int(), result.Stdout)
 	}
 	require.Equal(t, "overview-page-02", gjson.Get(result.Stdout, "data.output").String(), result.Stdout)
 }

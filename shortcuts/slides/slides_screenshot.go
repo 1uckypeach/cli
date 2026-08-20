@@ -7,15 +7,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/xml"
-	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
 	_ "image/jpeg"
 	"image/png"
-	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -54,9 +51,8 @@ var SlidesScreenshot = common.Shortcut{
 	Description: "Save up to 10 slide screenshots to local files without printing Base64 image data",
 	Risk:        "read",
 	Scopes:      []string{"slides:presentation:screenshot"},
-	// wiki:node:read is required only for wiki URLs; slides:presentation:read
-	// is required only by --overview to enumerate the current page order.
-	ConditionalScopes: []string{"wiki:node:read", "slides:presentation:read"},
+	// wiki:node:read is required only when --presentation is a wiki URL.
+	ConditionalScopes: []string{"wiki:node:read"},
 	AuthTypes:         []string{"user", "bot"},
 	Flags: []common.Flag{
 		listModePresentationRefFlag(),
@@ -119,15 +115,6 @@ var SlidesScreenshot = common.Shortcut{
 			if err := validateSlidesScreenshotSelectorLimit(selectorCount); err != nil {
 				return err
 			}
-			// Overview reads the presentation XML before rendering. Keep this
-			// conditional preflight in Validate so --dry-run reports the same
-			// authorization requirement as execution, and a wiki URL cannot reach
-			// its resolve call before a missing Slides read scope is surfaced.
-			if overview {
-				if err := runtime.EnsureScopes([]string{"slides:presentation:read"}); err != nil {
-					return err
-				}
-			}
 		}
 		if runtime.Changed("output") {
 			if runtime.Changed("output-dir") {
@@ -185,17 +172,14 @@ var SlidesScreenshot = common.Shortcut{
 					Desc("Resolve the wiki node to its Slides presentation before reading the overview page").
 					Params(map[string]interface{}{"token": ref.Token})
 			}
-			overviewURL := fmt.Sprintf("/open-apis/slides_ai/v1/xml_presentations/%s", validate.EncodePathSegment(presentationID))
-			screenshotURL := overviewURL + "/slide_images"
-			dry.GET(overviewURL).
-				Desc(fmt.Sprintf("Fetch current presentation XML to select overview page %d (at most %d slides)", runtime.Int("overview-page"), maxSlidesPerOverview)).
-				Params(map[string]interface{}{"revision_id": -1})
+			screenshotURL := fmt.Sprintf("/open-apis/slides_ai/v1/xml_presentations/%s/slide_images", validate.EncodePathSegment(presentationID))
+			start := (runtime.Int("overview-page")-1)*maxSlidesPerOverview + 1
 			dry.POST(screenshotURL).
-				Desc("Render the first dynamic overview batch (slide IDs 1-10 of the selected overview page)").
-				Body(map[string]interface{}{"slide_ids": []string{"<overview page slide IDs 1-10>"}})
+				Desc("Render the first overview batch by page number; the response supplies total_count and revision").
+				Body(map[string]interface{}{"slide_numbers": slidesScreenshotNumberRange(start, start+maxSlidesPerScreenshot-1)})
 			dry.POST(screenshotURL).
-				Desc("Render the optional second dynamic overview batch (slide IDs 11-20; sent only when the selected page has more than 10 slides)").
-				Body(map[string]interface{}{"slide_ids": []string{"<overview page slide IDs 11-20, if present>"}})
+				Desc("Render the optional second overview batch when total_count reaches it").
+				Body(map[string]interface{}{"slide_numbers": slidesScreenshotNumberRange(start+maxSlidesPerScreenshot, start+maxSlidesPerOverview-1)})
 			return setSlidesScreenshotDryRunOutput(dry, runtime).Set("base64_output", "suppressed; decoded locally and composed into overview PNG during execution")
 		}
 		if ref.Kind == "wiki" {
@@ -868,51 +852,64 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 	if err != nil {
 		return err
 	}
-	if err := runtime.EnsureScopes([]string{"slides:presentation:read"}); err != nil {
-		return err
-	}
 	presentationID, err := resolvePresentationID(runtime, ref)
 	if err != nil {
 		return err
 	}
-	data, err := runtime.CallAPITyped("GET", fmt.Sprintf("/open-apis/slides_ai/v1/xml_presentations/%s", validate.EncodePathSegment(presentationID)), map[string]interface{}{"revision_id": -1}, nil)
-	if err != nil {
-		return err
-	}
-	ids, err := slidesScreenshotOverviewIDs(data)
-	if err != nil {
-		return err
-	}
-	if len(ids) == 0 {
-		return errs.NewValidationError(errs.SubtypeFailedPrecondition, "--overview found no current slide IDs").WithHint("verify the presentation contains slides, then retry")
-	}
 	overviewPage := runtime.Int("overview-page")
-	maxPage := (len(ids) + maxSlidesPerOverview - 1) / maxSlidesPerOverview
+	start := (overviewPage-1)*maxSlidesPerOverview + 1
+	url := fmt.Sprintf("/open-apis/slides_ai/v1/xml_presentations/%s/slide_images", validate.EncodePathSegment(presentationID))
+	firstData, err := doSlidesScreenshotAPIJSONWithLogID(runtime, "POST", url, larkcore.QueryParams{}, map[string]interface{}{"slide_numbers": slidesScreenshotNumberRange(start, start+maxSlidesPerScreenshot-1)})
+	if err != nil {
+		return err
+	}
+	total, err := slidesScreenshotOverviewTotalCount(firstData)
+	if err != nil {
+		return err
+	}
+	if total == 0 {
+		return errs.NewValidationError(errs.SubtypeFailedPrecondition, "--overview found no slides").WithHint("verify the presentation contains slides, then retry")
+	}
+	firstRevision, hasFirstRevision := slidesScreenshotOverviewRevision(firstData)
+	maxPage := (total + maxSlidesPerOverview - 1) / maxSlidesPerOverview
 	if overviewPage > maxPage {
-		return errs.NewValidationError(errs.SubtypeFailedPrecondition, "--overview-page %d is outside this %d-slide presentation", overviewPage, len(ids)).WithParam("--overview-page").WithHint(fmt.Sprintf("use a value between 1 and %d", maxPage))
+		return errs.NewValidationError(errs.SubtypeFailedPrecondition, "--overview-page %d is outside this %d-slide presentation", overviewPage, total).WithParam("--overview-page").WithHint(fmt.Sprintf("use a value between 1 and %d", maxPage))
 	}
-	start := (overviewPage - 1) * maxSlidesPerOverview
-	end := start + maxSlidesPerOverview
-	if end > len(ids) {
-		end = len(ids)
+	end := start + maxSlidesPerOverview - 1
+	if end > total {
+		end = total
 	}
-	pageIDs := ids[start:end]
-	thumbs := make([]image.Image, 0, len(pageIDs))
-	for batchStart := 0; batchStart < len(pageIDs); batchStart += maxSlidesPerScreenshot {
-		batchEnd := batchStart + maxSlidesPerScreenshot
-		if batchEnd > len(pageIDs) {
-			batchEnd = len(pageIDs)
-		}
-		url := fmt.Sprintf("/open-apis/slides_ai/v1/xml_presentations/%s/slide_images", validate.EncodePathSegment(presentationID))
-		pageData, err := doSlidesScreenshotAPIJSONWithLogID(runtime, "POST", url, larkcore.QueryParams{}, map[string]interface{}{"slide_ids": pageIDs[batchStart:batchEnd]})
+	firstEnd := start + maxSlidesPerScreenshot - 1
+	if firstEnd > end {
+		firstEnd = end
+	}
+	pageSlides, err := slidesScreenshotOverviewImages(firstData, slidesScreenshotNumberRange(start, firstEnd))
+	if err != nil {
+		return err
+	}
+	if firstEnd < end {
+		secondData, err := doSlidesScreenshotAPIJSONWithLogID(runtime, "POST", url, larkcore.QueryParams{}, map[string]interface{}{"slide_numbers": slidesScreenshotNumberRange(firstEnd+1, end)})
 		if err != nil {
 			return err
 		}
-		batch, err := slidesScreenshotOverviewImages(pageData, pageIDs[batchStart:batchEnd])
+		if secondTotal, err := slidesScreenshotOverviewTotalCount(secondData); err != nil || secondTotal != total {
+			if err != nil {
+				return err
+			}
+			return errs.NewInternalError(errs.SubtypeInvalidResponse, "slides screenshot total_count changed from %d to %d while generating overview", total, secondTotal)
+		}
+		if secondRevision, hasSecondRevision := slidesScreenshotOverviewRevision(secondData); hasFirstRevision && hasSecondRevision && secondRevision != firstRevision {
+			return errs.NewInternalError(errs.SubtypeInvalidResponse, "slides screenshot revision changed from %s to %s while generating overview", firstRevision, secondRevision)
+		}
+		secondSlides, err := slidesScreenshotOverviewImages(secondData, slidesScreenshotNumberRange(firstEnd+1, end))
 		if err != nil {
 			return err
 		}
-		thumbs = append(thumbs, batch...)
+		pageSlides = append(pageSlides, secondSlides...)
+	}
+	thumbs := make([]image.Image, len(pageSlides))
+	for i := range pageSlides {
+		thumbs[i] = pageSlides[i].image
 	}
 	overview, cells := composeSlidesOverview(thumbs, defaultOverviewColumns)
 	var encoded bytes.Buffer
@@ -933,18 +930,17 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 	if err != nil {
 		return err
 	}
-	slides := make([]map[string]interface{}, len(pageIDs))
-	for i, id := range pageIDs {
+	slides := make([]map[string]interface{}, len(pageSlides))
+	for i, pageSlide := range pageSlides {
 		cell := cells[i]
-		index := start + i + 1
-		slides[i] = map[string]interface{}{"index": index, "slide_id": id, "slide_number": index, "row": cell.row, "column": cell.column, "tile": overviewRectOutput(cell.tile), "thumbnail": overviewRectOutput(cell.thumbnail)}
+		slides[i] = map[string]interface{}{"index": pageSlide.number, "slide_id": pageSlide.id, "slide_number": pageSlide.number, "row": cell.row, "column": cell.column, "tile": overviewRectOutput(cell.tile), "thumbnail": overviewRectOutput(cell.thumbnail)}
 	}
 	overviewImageSize := map[string]int{"width": overview.Bounds().Dx(), "height": overview.Bounds().Dy()}
-	overviewData := map[string]interface{}{"path": path, "format": "png", "size": encoded.Len(), "image_size": overviewImageSize, "columns": defaultOverviewColumns, "total_slides": len(ids), "overview_page": overviewPage, "page_size": maxSlidesPerOverview, "slide_range": map[string]int{"start": start + 1, "end": end}, "has_previous": overviewPage > 1, "has_next": end < len(ids), "slides": slides}
+	overviewData := map[string]interface{}{"path": path, "format": "png", "size": encoded.Len(), "image_size": overviewImageSize, "columns": defaultOverviewColumns, "total_slides": total, "overview_page": overviewPage, "page_size": maxSlidesPerOverview, "slide_range": map[string]int{"start": start, "end": end}, "has_previous": overviewPage > 1, "has_next": end < total, "slides": slides}
 	if overviewPage > 1 {
 		overviewData["previous_overview_page"] = overviewPage - 1
 	}
-	if end < len(ids) {
+	if end < total {
 		overviewData["next_overview_page"] = overviewPage + 1
 	}
 	result := map[string]interface{}{"xml_presentation_id": presentationID, "overview": overviewData}
@@ -956,39 +952,58 @@ func executeSlidesScreenshotOverview(runtime *common.RuntimeContext) error {
 	return nil
 }
 
+type slidesScreenshotOverviewImage struct {
+	id     string
+	number int
+	image  image.Image
+}
+
+func slidesScreenshotNumberRange(start, end int) []int {
+	if end < start {
+		return nil
+	}
+	values := make([]int, 0, end-start+1)
+	for value := start; value <= end; value++ {
+		values = append(values, value)
+	}
+	return values
+}
+
 // slidesScreenshotOverviewImages verifies that the API response is a bijection
-// with requestedIDs, then returns its images in request order. The API's array
-// order is deliberately not trusted: a mismatched thumbnail makes the overview
-// index unsafe for an agent to use in a later per-slide review.
-func slidesScreenshotOverviewImages(data map[string]interface{}, requestedIDs []string) ([]image.Image, error) {
+// with requested page numbers, then returns its images in page order.
+func slidesScreenshotOverviewImages(data map[string]interface{}, requestedNumbers []int) ([]slidesScreenshotOverviewImage, error) {
 	items := common.GetSlice(data, "slide_images")
-	if len(items) != len(requestedIDs) {
-		return nil, slidesScreenshotAPIDataError(data, "slides screenshot returned %d images for %d requested slide IDs", len(items), len(requestedIDs))
+	if len(items) != len(requestedNumbers) {
+		return nil, slidesScreenshotAPIDataError(data, "slides screenshot returned %d images for %d requested slide numbers", len(items), len(requestedNumbers))
 	}
-	requested := make(map[string]struct{}, len(requestedIDs))
-	for _, id := range requestedIDs {
-		requested[id] = struct{}{}
+	requested := make(map[int]struct{}, len(requestedNumbers))
+	for _, number := range requestedNumbers {
+		requested[number] = struct{}{}
 	}
-	byID := make(map[string]map[string]interface{}, len(items))
+	byNumber := make(map[int]map[string]interface{}, len(items))
 	for _, raw := range items {
 		item, ok := raw.(map[string]interface{})
 		if !ok {
 			return nil, slidesScreenshotAPIDataError(data, "slides screenshot returned invalid slide image")
 		}
-		id := common.GetString(item, "slide_id")
-		if _, ok := requested[id]; !ok || id == "" {
-			return nil, slidesScreenshotAPIDataError(data, "slides screenshot returned unexpected slide_id %q", id)
+		number := slideScreenshotInt(item, "slide_number")
+		if _, ok := requested[number]; !ok || number < 1 {
+			return nil, slidesScreenshotAPIDataError(data, "slides screenshot returned unexpected slide_number %d", number)
 		}
-		if _, duplicate := byID[id]; duplicate {
-			return nil, slidesScreenshotAPIDataError(data, "slides screenshot returned duplicate slide_id %q", id)
+		if _, duplicate := byNumber[number]; duplicate {
+			return nil, slidesScreenshotAPIDataError(data, "slides screenshot returned duplicate slide_number %d", number)
 		}
-		byID[id] = item
+		byNumber[number] = item
 	}
-	images := make([]image.Image, 0, len(requestedIDs))
-	for _, id := range requestedIDs {
-		item, ok := byID[id]
+	images := make([]slidesScreenshotOverviewImage, 0, len(requestedNumbers))
+	for _, number := range requestedNumbers {
+		item, ok := byNumber[number]
 		if !ok {
-			return nil, slidesScreenshotAPIDataError(data, "slides screenshot did not return requested slide_id %q", id)
+			return nil, slidesScreenshotAPIDataError(data, "slides screenshot did not return requested slide_number %d", number)
+		}
+		id := common.GetString(item, "slide_id")
+		if id == "" {
+			return nil, slidesScreenshotAPIDataError(data, "slides screenshot returned no slide_id for slide_number %d", number)
 		}
 		b, err := base64.StdEncoding.DecodeString(common.GetString(item, "data"))
 		if err != nil {
@@ -998,60 +1013,52 @@ func slidesScreenshotOverviewImages(data map[string]interface{}, requestedIDs []
 		if err != nil {
 			return nil, slidesScreenshotImageDataCauseError(id, err, "decode screenshot image for --overview: %s", err)
 		}
-		images = append(images, img)
+		images = append(images, slidesScreenshotOverviewImage{id: id, number: number, image: img})
 	}
 	return images, nil
 }
 
-func slidesScreenshotIDsFromXML(content string) ([]string, error) {
-	d := xml.NewDecoder(strings.NewReader(content))
-	var ids []string
-	seenRoot := false
-	for {
-		tok, err := d.Token()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				if !seenRoot {
-					return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "presentation XML for --overview has no root element")
-				}
-				break
-			}
-			return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "parse presentation XML for --overview: %v", err).WithCause(err)
-		}
-		start, ok := tok.(xml.StartElement)
+func slidesScreenshotOverviewTotalCount(data map[string]interface{}) (int, error) {
+	for _, key := range []string{"total_count", "totalCount", "TotalCount"} {
+		value, ok := data[key]
 		if !ok {
 			continue
 		}
-		if !seenRoot {
-			seenRoot = true
-			if start.Name.Local != "presentation" {
-				return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "presentation XML for --overview has root element %q, want presentation", start.Name.Local)
+		switch value := value.(type) {
+		case float64:
+			if value >= 0 && value == math.Trunc(value) {
+				return int(value), nil
 			}
-			continue
-		}
-		if start.Name.Local != "slide" {
-			continue
-		}
-		for _, a := range start.Attr {
-			if a.Name.Local == "id" && strings.TrimSpace(a.Value) != "" {
-				ids = append(ids, a.Value)
-				break
+		case int:
+			if value >= 0 {
+				return value, nil
+			}
+		case string:
+			count, err := strconv.Atoi(value)
+			if err == nil && count >= 0 {
+				return count, nil
+			}
+		default:
+			count, err := strconv.Atoi(fmt.Sprint(value))
+			if err == nil && count >= 0 {
+				return count, nil
 			}
 		}
+		return 0, errs.NewInternalError(errs.SubtypeInvalidResponse, "slides screenshot returned invalid %s", key)
 	}
-	return ids, nil
+	return 0, errs.NewInternalError(errs.SubtypeInvalidResponse, "slides screenshot returned no total_count for --overview")
 }
 
-func slidesScreenshotOverviewIDs(data map[string]interface{}) ([]string, error) {
-	presentation, ok := data["xml_presentation"].(map[string]interface{})
-	if !ok {
-		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "xml_presentation response for --overview must be an object")
+func slidesScreenshotOverviewRevision(data map[string]interface{}) (string, bool) {
+	for _, key := range []string{"revision", "revision_id", "Revision"} {
+		if value, ok := data[key]; ok && value != nil {
+			revision := strings.TrimSpace(fmt.Sprint(value))
+			if revision != "" {
+				return revision, true
+			}
+		}
 	}
-	content, ok := presentation["content"].(string)
-	if !ok || strings.TrimSpace(content) == "" {
-		return nil, errs.NewInternalError(errs.SubtypeInvalidResponse, "xml_presentation.content response for --overview must be a non-empty string")
-	}
-	return slidesScreenshotIDsFromXML(content)
+	return "", false
 }
 
 type overviewCell struct {

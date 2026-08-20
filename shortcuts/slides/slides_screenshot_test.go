@@ -14,7 +14,6 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
-	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -54,7 +53,7 @@ func TestSlidesScreenshotDeclaredScopes(t *testing.T) {
 	}
 
 	got := SlidesScreenshot.DeclaredScopesForIdentity("user")
-	want := []string{"slides:presentation:screenshot", "wiki:node:read", "slides:presentation:read"}
+	want := []string{"slides:presentation:screenshot", "wiki:node:read"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("declared scopes = %#v, want %#v", got, want)
 	}
@@ -76,7 +75,7 @@ func TestSlidesScreenshotOverviewFlagDescriptionsExposePagination(t *testing.T) 
 	}
 }
 
-func TestSlidesScreenshotOverviewImagesRejectsInvalidResponseAndOrdersByRequestedID(t *testing.T) {
+func TestSlidesScreenshotOverviewImagesRejectsInvalidResponseAndOrdersByRequestedNumber(t *testing.T) {
 	pngData := func(c color.RGBA) string {
 		t.Helper()
 		img := image.NewRGBA(image.Rect(0, 0, 2, 2))
@@ -91,16 +90,16 @@ func TestSlidesScreenshotOverviewImagesRejectsInvalidResponseAndOrdersByRequeste
 		}
 		return base64.StdEncoding.EncodeToString(out.Bytes())
 	}
-	imageItem := func(id, data string) map[string]interface{} {
-		return map[string]interface{}{"slide_id": id, "data": data}
+	imageItem := func(id string, number int, data string) map[string]interface{} {
+		return map[string]interface{}{"slide_id": id, "slide_number": number, "data": data}
 	}
 	red, green := pngData(color.RGBA{R: 255, A: 255}), pngData(color.RGBA{G: 255, A: 255})
 
-	ordered, err := slidesScreenshotOverviewImages(map[string]interface{}{"slide_images": []interface{}{imageItem("p2", green), imageItem("p1", red)}}, []string{"p1", "p2"})
+	ordered, err := slidesScreenshotOverviewImages(map[string]interface{}{"slide_images": []interface{}{imageItem("p2", 2, green), imageItem("p1", 1, red)}}, []int{1, 2})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got := color.RGBAModel.Convert(ordered[0].At(0, 0)).(color.RGBA); got.R != 255 || got.G != 0 {
+	if got := color.RGBAModel.Convert(ordered[0].image.At(0, 0)).(color.RGBA); got.R != 255 || got.G != 0 {
 		t.Fatalf("first image = %#v, want p1/red", got)
 	}
 
@@ -108,14 +107,14 @@ func TestSlidesScreenshotOverviewImagesRejectsInvalidResponseAndOrdersByRequeste
 		name string
 		data map[string]interface{}
 	}{
-		{name: "missing", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", red)}}},
-		{name: "duplicate", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", red), imageItem("p1", red)}}},
-		{name: "unexpected", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", red), imageItem("p3", green)}}},
-		{name: "invalid base64", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", "not-base64"), imageItem("p2", green)}}},
-		{name: "invalid image", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", base64.StdEncoding.EncodeToString([]byte("not an image"))), imageItem("p2", green)}}},
+		{name: "missing", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", 1, red)}}},
+		{name: "duplicate", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", 1, red), imageItem("p2", 1, red)}}},
+		{name: "unexpected", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", 1, red), imageItem("p3", 3, green)}}},
+		{name: "invalid base64", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", 1, "not-base64"), imageItem("p2", 2, green)}}},
+		{name: "invalid image", data: map[string]interface{}{"slide_images": []interface{}{imageItem("p1", 1, base64.StdEncoding.EncodeToString([]byte("not an image"))), imageItem("p2", 2, green)}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := slidesScreenshotOverviewImages(tc.data, []string{"p1", "p2"})
+			_, err := slidesScreenshotOverviewImages(tc.data, []int{1, 2})
 			if err == nil {
 				t.Fatal("expected error")
 			}
@@ -136,62 +135,19 @@ func TestSlidesScreenshotOverviewImagesRejectsInvalidResponseAndOrdersByRequeste
 	}
 }
 
-func TestSlidesScreenshotIDsFromXMLPreservesPageOrder(t *testing.T) {
-	ids, err := slidesScreenshotIDsFromXML(`<presentation><slide id="p1"/><slide id="p2"/><slide/></presentation>`)
-	if err != nil {
-		t.Fatal(err)
+func TestSlidesScreenshotOverviewRejectsMissingTotalCount(t *testing.T) {
+	if _, err := slidesScreenshotOverviewTotalCount(map[string]interface{}{}); err == nil {
+		t.Fatal("expected missing total_count error")
 	}
-	if !reflect.DeepEqual(ids, []string{"p1", "p2"}) {
-		t.Fatalf("ids = %#v", ids)
-	}
-}
-
-func TestSlidesScreenshotOverviewRejectsMalformedPresentationResponseBeforeScreenshot(t *testing.T) {
-	tests := []struct {
-		name string
-		data map[string]interface{}
-	}{
-		{name: "missing presentation", data: map[string]interface{}{}},
-		{name: "presentation is not object", data: map[string]interface{}{"xml_presentation": "not-an-object"}},
-		{name: "missing content", data: map[string]interface{}{"xml_presentation": map[string]interface{}{}}},
-		{name: "content is not string", data: map[string]interface{}{"xml_presentation": map[string]interface{}{"content": 42}}},
-		{name: "blank content", data: map[string]interface{}{"xml_presentation": map[string]interface{}{"content": " \n\t "}}},
-		{name: "malformed xml", data: map[string]interface{}{"xml_presentation": map[string]interface{}{"content": "<presentation>"}}},
-		{name: "wrong root", data: map[string]interface{}{"xml_presentation": map[string]interface{}{"content": "<document><slide id=\"p1\"/></document>"}}},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
-			postCalled := false
-			reg.Register(&httpmock.Stub{Method: "GET", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc", Body: map[string]interface{}{
-				"code": 0, "data": tc.data,
-			}})
-			reg.Register(&httpmock.Stub{Method: "POST", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc/slide_images", OnMatch: func(_ *http.Request) {
-				postCalled = true
-			}, Body: map[string]interface{}{
-				"code": 0, "data": map[string]interface{}{"slide_images": []interface{}{}},
-			}, Optional: true})
-
-			err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{"+screenshot", "--presentation", "pres_abc", "--overview", "--as", "user"})
-			if err == nil {
-				t.Fatal("expected invalid response error")
-			}
-			p, ok := errs.ProblemOf(err)
-			if !ok || p.Category != errs.CategoryInternal || p.Subtype != errs.SubtypeInvalidResponse {
-				t.Fatalf("problem = %#v, want internal/invalid_response", p)
-			}
-			if postCalled {
-				t.Fatal("screenshot POST was called after malformed presentation response")
-			}
-		})
+	if _, err := slidesScreenshotOverviewTotalCount(map[string]interface{}{"total_count": -1.0}); err == nil {
+		t.Fatal("expected invalid total_count error")
 	}
 }
 
-func TestSlidesScreenshotOverviewTreatsEmptyPresentationAsFailedPrecondition(t *testing.T) {
+func TestSlidesScreenshotOverviewTreatsEmptyResponseAsFailedPrecondition(t *testing.T) {
 	f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
-	reg.Register(&httpmock.Stub{Method: "GET", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc", Body: map[string]interface{}{
-		"code": 0, "data": map[string]interface{}{"xml_presentation": map[string]interface{}{"content": "<presentation/>"}},
+	reg.Register(&httpmock.Stub{Method: "POST", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc/slide_images", Body: map[string]interface{}{
+		"code": 0, "data": map[string]interface{}{"total_count": 0, "slide_images": []interface{}{}},
 	}})
 	err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{"+screenshot", "--presentation", "pres_abc", "--overview", "--as", "user"})
 	if err == nil {
@@ -245,23 +201,27 @@ func TestSlidesScreenshotOverviewDryRunListsDynamicScreenshotBatches(t *testing.
 		t.Fatalf("overview dry-run: %v", err)
 	}
 	steps := decodeShortcutDryRunAPI(t, stdout)
-	if len(steps) != 3 {
-		t.Fatalf("dry-run calls = %#v, want XML GET plus two screenshot-batch POSTs", steps)
+	if len(steps) != 2 {
+		t.Fatalf("dry-run calls = %#v, want two screenshot-batch POSTs", steps)
 	}
-	assertDryRunStep(t, steps, 0, "GET", "/open-apis/slides_ai/v1/xml_presentations/pres_overview")
-	for i, wantID := range []string{"<overview page slide IDs 1-10>", "<overview page slide IDs 11-20, if present>"} {
-		step := assertDryRunStep(t, steps, i+1, "POST", "/open-apis/slides_ai/v1/xml_presentations/pres_overview/slide_images")
+	for i, wantNumbers := range [][]int{{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, {11, 12, 13, 14, 15, 16, 17, 18, 19, 20}} {
+		step := assertDryRunStep(t, steps, i, "POST", "/open-apis/slides_ai/v1/xml_presentations/pres_overview/slide_images")
 		body, ok := step["body"].(map[string]interface{})
 		if !ok {
 			t.Fatalf("api[%d].body = %#v, want object", i+1, step["body"])
 		}
-		slideIDs, ok := body["slide_ids"].([]interface{})
-		if !ok || len(slideIDs) != 1 || slideIDs[0] != wantID {
-			t.Fatalf("api[%d].body.slide_ids = %#v, want [%q]", i+1, body["slide_ids"], wantID)
+		slideNumbers, ok := body["slide_numbers"].([]interface{})
+		if !ok || len(slideNumbers) != len(wantNumbers) {
+			t.Fatalf("api[%d].body.slide_numbers = %#v", i+1, body["slide_numbers"])
+		}
+		for j, want := range wantNumbers {
+			if slideNumbers[j] != float64(want) {
+				t.Fatalf("api[%d].body.slide_numbers = %#v", i+1, slideNumbers)
+			}
 		}
 	}
-	if !strings.Contains(steps[2]["desc"].(string), "optional second") {
-		t.Fatalf("second batch description = %#v, want optional marker", steps[2]["desc"])
+	if !strings.Contains(steps[1]["desc"].(string), "optional second") {
+		t.Fatalf("second batch description = %#v, want optional marker", steps[1]["desc"])
 	}
 }
 
@@ -274,35 +234,12 @@ func TestSlidesScreenshotOverviewWikiDryRunListsResolveXMLAndBatches(t *testing.
 		t.Fatalf("wiki overview dry-run: %v", err)
 	}
 	steps := decodeShortcutDryRunAPI(t, stdout)
-	if len(steps) != 4 {
-		t.Fatalf("dry-run calls = %#v, want wiki GET, XML GET, and two screenshot-batch POSTs", steps)
+	if len(steps) != 3 {
+		t.Fatalf("dry-run calls = %#v, want wiki GET and two screenshot-batch POSTs", steps)
 	}
 	assertDryRunStep(t, steps, 0, "GET", "/open-apis/wiki/v2/spaces/get_node")
 	for i := 1; i < len(steps); i++ {
-		wantMethod := "POST"
-		wantURL := "/open-apis/slides_ai/v1/xml_presentations/%3Cresolved_slides_token%3E/slide_images"
-		if i == 1 {
-			wantMethod = "GET"
-			wantURL = "/open-apis/slides_ai/v1/xml_presentations/%3Cresolved_slides_token%3E"
-		}
-		assertDryRunStep(t, steps, i, wantMethod, wantURL)
-	}
-}
-
-func TestSlidesScreenshotOverviewPreflightPresentationReadScope(t *testing.T) {
-	for _, args := range [][]string{{"+screenshot", "--presentation", "pres_overview", "--overview", "--dry-run", "--as", "user"}} {
-		f, stdout, _, _ := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
-		f.Credential = credential.NewCredentialProvider(nil, nil, &slidesScreenshotScopeResolver{
-			result: &credential.TokenResult{Token: "test-token", Scopes: "slides:presentation:screenshot"},
-		}, nil)
-		err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, args)
-		if err == nil {
-			t.Fatalf("args %#v succeeded, want missing presentation read scope", args)
-		}
-		var permission *errs.PermissionError
-		if !errors.As(err, &permission) || permission.Subtype != errs.SubtypeMissingScope || !reflect.DeepEqual(permission.MissingScopes, []string{"slides:presentation:read"}) {
-			t.Fatalf("args %#v error = %#v, want missing slides:presentation:read", args, err)
-		}
+		assertDryRunStep(t, steps, i, "POST", "/open-apis/slides_ai/v1/xml_presentations/%3Cresolved_slides_token%3E/slide_images")
 	}
 }
 
@@ -340,7 +277,7 @@ func TestSlidesScreenshotOverviewPageValidation(t *testing.T) {
 	}
 }
 
-func TestSlidesScreenshotOverviewExecutionOrdersServerResponseBySlideID(t *testing.T) {
+func TestSlidesScreenshotOverviewExecutionOrdersServerResponseBySlideNumber(t *testing.T) {
 	dir := t.TempDir()
 	withSlidesTestWorkingDir(t, dir)
 	encodePNG := func(c color.RGBA) string {
@@ -358,12 +295,9 @@ func TestSlidesScreenshotOverviewExecutionOrdersServerResponseBySlideID(t *testi
 	}
 	red, green := encodePNG(color.RGBA{R: 255, A: 255}), encodePNG(color.RGBA{G: 255, A: 255})
 	f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
-	reg.Register(&httpmock.Stub{Method: "GET", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc", Body: map[string]interface{}{
-		"code": 0, "data": map[string]interface{}{"xml_presentation": map[string]interface{}{"content": `<presentation><slide id="p1"/><slide id="p2"/></presentation>`}},
-	}})
 	reg.Register(&httpmock.Stub{Method: "POST", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc/slide_images", Body: map[string]interface{}{
-		"code": 0, "data": map[string]interface{}{"slide_images": []map[string]interface{}{
-			{"slide_id": "p2", "data": green}, {"slide_id": "p1", "data": red},
+		"code": 0, "data": map[string]interface{}{"total_count": 2, "slide_images": []map[string]interface{}{
+			{"slide_id": "p2", "slide_number": 2, "data": green}, {"slide_id": "p1", "slide_number": 1, "data": red},
 		}},
 	}})
 
@@ -379,8 +313,7 @@ func TestSlidesScreenshotOverviewExecutionOrdersServerResponseBySlideID(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The first cell is p1 according to XML, although p2 arrived first.
-	if got := color.RGBAModel.Convert(overview.At(16+160, 56+90)).(color.RGBA); got.R < 200 || got.G > 50 {
+	if got := color.RGBAModel.Convert(overview.At(16+160, 16+90)).(color.RGBA); got.R < 200 || got.G > 50 {
 		t.Fatalf("first overview cell = %#v, want p1/red", got)
 	}
 	data := decodeShortcutData(t, stdout)
@@ -398,11 +331,8 @@ func TestSlidesScreenshotOverviewExecutionSetsDefaultOutputDir(t *testing.T) {
 	dir := t.TempDir()
 	withSlidesTestWorkingDir(t, dir)
 	f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
-	reg.Register(&httpmock.Stub{Method: "GET", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc", Body: map[string]interface{}{
-		"code": 0, "data": map[string]interface{}{"xml_presentation": map[string]interface{}{"content": `<presentation><slide id="p1"/></presentation>`}},
-	}})
 	reg.Register(&httpmock.Stub{Method: "POST", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc/slide_images", Body: map[string]interface{}{
-		"code": 0, "data": map[string]interface{}{"slide_images": []map[string]interface{}{{"slide_id": "p1", "data": testSlidesScreenshotPNG(t, 960, 540)}}},
+		"code": 0, "data": map[string]interface{}{"total_count": 1, "slide_images": []map[string]interface{}{{"slide_id": "p1", "slide_number": 1, "data": testSlidesScreenshotPNG(t, 960, 540)}}},
 	}})
 	if err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{"+screenshot", "--presentation", "pres_abc", "--overview", "--as", "user"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -420,12 +350,6 @@ func TestSlidesScreenshotOverviewExecutionSetsDefaultOutputDir(t *testing.T) {
 func TestSlidesScreenshotOverviewExecutionPaginatesAtTwentySlides(t *testing.T) {
 	dir := t.TempDir()
 	withSlidesTestWorkingDir(t, dir)
-	var xml strings.Builder
-	xml.WriteString("<presentation>")
-	for i := 1; i <= 41; i++ {
-		fmt.Fprintf(&xml, `<slide id="p%d"/>`, i)
-	}
-	xml.WriteString("</presentation>")
 	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
 	img.SetRGBA(0, 0, color.RGBA{B: 255, A: 255})
 	var encoded bytes.Buffer
@@ -433,21 +357,20 @@ func TestSlidesScreenshotOverviewExecutionPaginatesAtTwentySlides(t *testing.T) 
 		t.Fatal(err)
 	}
 	f, stdout, _, reg := cmdutil.TestFactory(t, slidesTestConfig(t, ""))
-	reg.Register(&httpmock.Stub{Method: "GET", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc", Body: map[string]interface{}{
-		"code": 0, "data": map[string]interface{}{"xml_presentation": map[string]interface{}{"content": xml.String()}},
-	}})
 	responseFor := func(start, end int) map[string]interface{} {
 		items := make([]map[string]interface{}, 0, end-start+1)
 		for i := start; i <= end; i++ {
-			items = append(items, map[string]interface{}{"slide_id": fmt.Sprintf("p%d", i), "data": base64.StdEncoding.EncodeToString(encoded.Bytes())})
+			items = append(items, map[string]interface{}{"slide_id": fmt.Sprintf("p%d", i), "slide_number": i, "data": base64.StdEncoding.EncodeToString(encoded.Bytes())})
 		}
-		return map[string]interface{}{"code": 0, "data": map[string]interface{}{"slide_images": items}}
+		return map[string]interface{}{"code": 0, "data": map[string]interface{}{"total_count": 41, "slide_images": items}}
 	}
 	for _, batch := range []struct{ start, end int }{{21, 30}, {31, 40}} {
 		reg.Register(&httpmock.Stub{
 			Method: "POST", URL: "/open-apis/slides_ai/v1/xml_presentations/pres_abc/slide_images",
-			Body:       responseFor(batch.start, batch.end),
-			BodyFilter: func(body []byte) bool { return strings.Contains(string(body), fmt.Sprintf("p%d", batch.start)) },
+			Body: responseFor(batch.start, batch.end),
+			BodyFilter: func(body []byte) bool {
+				return strings.Contains(string(body), fmt.Sprintf("\"slide_numbers\":[%d", batch.start))
+			},
 		})
 	}
 	if err := runSlidesShortcut(t, f, stdout, SlidesScreenshot, []string{"+screenshot", "--presentation", "pres_abc", "--overview", "--overview-page", "2", "--output", "shots/overview.png", "--as", "user"}); err != nil {
