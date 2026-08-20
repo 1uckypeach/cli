@@ -50,7 +50,38 @@ func TestChartCreateBasic_AllTypes(t *testing.T) {
 			if basic["chart_type"] != chartType || basic["data_range"] != rangeValue {
 				t.Fatalf("basic_chart = %#v", basic)
 			}
+			if basic["x_axis_numbers_as"] != "text" {
+				t.Fatalf("x_axis_numbers_as = %v, want text", basic["x_axis_numbers_as"])
+			}
 		})
+	}
+}
+
+func TestChartCreateBasic_XAxisNumbersAsValues(t *testing.T) {
+	t.Parallel()
+	body := parseDryRunBody(t, ChartCreateBasic, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-type", "scatter",
+		"--data-range", "A1:C10",
+		"--x-axis-numbers-as", "values",
+	})
+	basic := decodeToolInput(t, body, "manage_chart_object")["basic_chart"].(map[string]interface{})
+	if basic["x_axis_numbers_as"] != "values" {
+		t.Fatalf("x_axis_numbers_as = %v, want values", basic["x_axis_numbers_as"])
+	}
+}
+
+func TestChartCreateBasic_XAxisNumbersAsRejectsInvalidBatchValue(t *testing.T) {
+	t.Parallel()
+	_, err := chartCreateBasicInput(newMapFlagViewForCommand("+chart-create-basic", map[string]interface{}{
+		"sheet-id":          testSheetID,
+		"chart-type":        "scatter",
+		"data-range":        "A1:C10",
+		"x-axis-numbers-as": "auto",
+	}), "token", testSheetID, "")
+	if err == nil || !strings.Contains(err.Error(), "--x-axis-numbers-as must be text or values") {
+		t.Fatalf("error = %v, want x-axis-numbers-as validation", err)
 	}
 }
 
@@ -190,6 +221,9 @@ func TestChartSemanticShortcuts_InDedicatedBatch(t *testing.T) {
 		}
 		if _, ok := chartInput["basic_chart"].(map[string]interface{}); !ok {
 			t.Fatalf("operations[%d].input.basic_chart = %#v", i, chartInput["basic_chart"])
+		}
+		if chartInput["basic_chart"].(map[string]interface{})["x_axis_numbers_as"] != "text" {
+			t.Fatalf("operations[%d].input.basic_chart.x_axis_numbers_as = %#v", i, chartInput["basic_chart"])
 		}
 	}
 }

@@ -3523,6 +3523,18 @@
         ]
       },
       {
+        "name": "x-axis-numbers-as",
+        "kind": "own",
+        "type": "string",
+        "required": "optional",
+        "desc": "How to interpret numeric X-axis values; text treats numbers as evenly spaced text categories, while values uses a continuous numeric scale and preserves true spacing",
+        "default": "text",
+        "enum": [
+          "text",
+          "values"
+        ]
+      },
+      {
         "name": "dim1-index",
         "kind": "own",
         "type": "int",
