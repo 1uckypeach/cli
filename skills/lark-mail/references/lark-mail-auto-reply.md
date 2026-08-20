@@ -24,7 +24,7 @@ lark-cli mail +auto-reply-modify --as user \
 # 从文件读取正文
 lark-cli mail +auto-reply-modify --as user --content @auto-reply.html
 
-# 正文中的本地图片会自动内嵌
+# 正文中的本地图片会上传为内嵌图片
 lark-cli mail +auto-reply-modify --as user --content '<p>休假中<img src="./logo.png"></p>'
 
 # 关闭自动回复
@@ -38,8 +38,8 @@ lark-cli mail +auto-reply-modify --as user --disable
 | `--mailbox <email>` | 两者 | 否 | 邮箱地址，默认 `me` |
 | `--enable` | modify | 否 | 开启自动回复；与 `--disable` 互斥 |
 | `--disable` | modify | 否 | 关闭自动回复；与 `--enable` 互斥 |
-| `--content <html>` | modify | 否 | 自动回复正文；支持直接传值、`@file` 和 `-` stdin；本地 `<img src="./file.png">` 会自动内嵌 |
-| `--content-file <path>` | modify | 否 | 从当前目录下的文件读取正文；与 `--content` 互斥；正文里的本地图片会自动内嵌 |
+| `--content <text-or-html>` | modify | 否 | 自动回复正文，支持纯文本或 HTML；支持直接传值、`@file` 和 `-` stdin；本地 `<img src="./file.png">` 会上传并改写为 `cid:` 引用 |
+| `--content-file <path>` | modify | 否 | 从当前目录下的文件读取正文；与 `--content` 互斥；正文里的本地图片会上传并改写为 `cid:` 引用 |
 | `--start <time>` | modify | 否 | 开始日期，支持 Unix timestamp 或 ISO 8601；按当天开始保存 |
 | `--end <time>` | modify | 否 | 结束日期，支持 Unix timestamp 或 ISO 8601；按当天结束保存 |
 | `--timezone <tz>` | modify | 否 | 时区，例如 `Asia/Shanghai` |
@@ -65,7 +65,7 @@ lark-cli mail +auto-reply-modify --as user --disable
   "data": {
     "auto_reply": {
       "enabled": true,
-      "content_html": "<p>我正在休假，回来后回复。</p>",
+      "content": "<p>我正在休假，回来后回复。</p>",
       "content_summary": "我正在休假，回来后回复。",
       "start_time": "1786723200000",
       "end_time": "1787068799999",
@@ -81,7 +81,8 @@ lark-cli mail +auto-reply-modify --as user --disable
 | 字段 | 说明 |
 |------|------|
 | `enabled` | 是否开启自动回复 |
-| `content_html` | 自动回复 HTML 正文 |
+| `content` | 自动回复正文，可能是纯文本或 HTML |
+| `images` | 正文内联图片元数据，和 `content` 里的 `cid:` 引用对应 |
 | `content_summary` | 自动回复摘要 |
 | `start_time` | 毫秒级开始日期时间戳 |
 | `end_time` | 毫秒级结束日期时间戳 |

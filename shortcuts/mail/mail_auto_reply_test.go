@@ -24,6 +24,7 @@ func TestMailAutoReply(t *testing.T) {
 			"data": map[string]interface{}{
 				"auto_reply": map[string]interface{}{
 					"enabled":             true,
+					"content_html":        "<p>OOO</p>",
 					"content_summary":     "OOO",
 					"start_time":          "1786723200000",
 					"end_time":            "1787068799999",
@@ -46,6 +47,12 @@ func TestMailAutoReply(t *testing.T) {
 	}
 	if autoReply["enabled"] != true {
 		t.Fatalf("enabled = %#v, want true", autoReply["enabled"])
+	}
+	if autoReply["content"] != "<p>OOO</p>" {
+		t.Fatalf("content = %#v, want <p>OOO</p>", autoReply["content"])
+	}
+	if _, ok := autoReply["content_html"]; ok {
+		t.Fatalf("content_html should not be exposed in CLI output: %#v", autoReply)
 	}
 	if autoReply["content_summary"] != "OOO" {
 		t.Fatalf("content_summary = %#v", autoReply["content_summary"])
@@ -117,6 +124,7 @@ func TestMailAutoReplyModifyBuildsFriendlyPayload(t *testing.T) {
 
 	assertAutoReplyPayloadValue(t, captured, "enabled", true)
 	assertAutoReplyPayloadValue(t, captured, "content_html", "<p>Out today</p>")
+	assertAutoReplyPayloadEmptyImages(t, captured)
 	assertAutoReplyPayloadAbsent(t, captured, "content_summary")
 	assertAutoReplyPayloadValue(t, captured, "start_time", "1786723200000")
 	assertAutoReplyPayloadValue(t, captured, "end_time", "1787068799999")
@@ -176,13 +184,62 @@ func TestMailAutoReplyContentFile(t *testing.T) {
 	reg.Verify(t)
 
 	assertAutoReplyPayloadValue(t, captured, "content_html", "<p>From file</p>")
+	assertAutoReplyPayloadEmptyImages(t, captured)
 	assertAutoReplyPayloadAbsent(t, captured, "content_summary")
 	assertAutoReplyPayloadValue(t, captured, "enabled", true)
 	assertAutoReplyPayloadValue(t, captured, "only_send_to_tenant", true)
 	assertAutoReplyPayloadAbsent(t, captured, "auto_reply")
 }
 
-func TestMailAutoReplyEmbedsLocalImages(t *testing.T) {
+func TestMailAutoReplyEmptyContentClearsBody(t *testing.T) {
+	f, stdout, _, reg := mailShortcutTestFactory(t)
+	var captured map[string]interface{}
+	reg.Register(&httpmock.Stub{
+		Method: "GET",
+		URL:    mailboxPath("me", "settings", "auto_reply"),
+		Body: map[string]interface{}{
+			"code": 0,
+			"msg":  "ok",
+			"data": map[string]interface{}{
+				"auto_reply": map[string]interface{}{
+					"enabled":             false,
+					"content_html":        "<p>Old</p>",
+					"content_summary":     "Old",
+					"start_time":          "1786723200000",
+					"end_time":            "1787068799999",
+					"time_zone":           "Asia/Shanghai",
+					"only_send_to_tenant": false,
+				},
+			},
+		},
+	})
+	reg.Register(&httpmock.Stub{
+		Method: "PUT",
+		URL:    mailboxPath("me", "settings", "auto_reply"),
+		BodyFilter: func(body []byte) bool {
+			if err := json.Unmarshal(body, &captured); err != nil {
+				t.Fatalf("unmarshal request body: %v; body=%s", err, body)
+			}
+			return true
+		},
+		Body: map[string]interface{}{
+			"code": 0,
+			"msg":  "ok",
+			"data": map[string]interface{}{"auto_reply": map[string]interface{}{"content_summary": ""}},
+		},
+	})
+
+	if err := runMountedMailShortcut(t, MailAutoReplyModify, []string{"+auto-reply-modify", "--content", ""}, f, stdout); err != nil {
+		t.Fatalf("runMountedMailShortcut() error = %v", err)
+	}
+	reg.Verify(t)
+
+	assertAutoReplyPayloadValue(t, captured, "content_html", "")
+	assertAutoReplyPayloadEmptyImages(t, captured)
+	assertAutoReplyPayloadAbsent(t, captured, "content_summary")
+}
+
+func TestMailAutoReplyUploadsLocalImages(t *testing.T) {
 	chdirTemp(t)
 	png, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
 	if err != nil {
@@ -194,6 +251,14 @@ func TestMailAutoReplyEmbedsLocalImages(t *testing.T) {
 
 	f, stdout, _, reg := mailShortcutTestFactory(t)
 	var captured map[string]interface{}
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    "/open-apis/drive/v1/medias/upload_all",
+		Body: map[string]interface{}{
+			"code": 0,
+			"data": map[string]interface{}{"file_token": "file_logo"},
+		},
+	})
 	reg.Register(&httpmock.Stub{
 		Method: "GET",
 		URL:    mailboxPath("me", "settings", "auto_reply"),
@@ -233,11 +298,29 @@ func TestMailAutoReplyEmbedsLocalImages(t *testing.T) {
 	reg.Verify(t)
 
 	html, _ := captured["content_html"].(string)
-	if !strings.Contains(html, `src="data:image/png;base64,`) {
-		t.Fatalf("content_html should embed local image as data URI, got %q", html)
+	if !strings.Contains(html, `src="cid:`) {
+		t.Fatalf("content_html should rewrite local image to cid ref, got %q", html)
 	}
 	if strings.Contains(html, `src="logo.png"`) {
 		t.Fatalf("local image path should have been replaced, got %q", html)
+	}
+	images, ok := captured["images"].([]interface{})
+	if !ok || len(images) != 1 {
+		t.Fatalf("images should contain one uploaded image, got %#v", captured["images"])
+	}
+	image, ok := images[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("image should be an object, got %#v", images[0])
+	}
+	if image["file_key"] != "file_logo" {
+		t.Fatalf("image file_key = %#v, want file_logo", image["file_key"])
+	}
+	if image["image_name"] != "logo.png" {
+		t.Fatalf("image_name = %#v, want logo.png", image["image_name"])
+	}
+	cid, _ := image["cid"].(string)
+	if cid == "" || !strings.Contains(html, "cid:"+cid) {
+		t.Fatalf("image cid %q should be referenced by html %q", cid, html)
 	}
 	assertAutoReplyPayloadAbsent(t, captured, "content_summary")
 }
@@ -338,5 +421,16 @@ func assertAutoReplyPayloadAbsent(t *testing.T, payload map[string]interface{}, 
 	t.Helper()
 	if _, ok := payload[key]; ok {
 		t.Fatalf("%s should be absent (payload=%#v)", key, payload)
+	}
+}
+
+func assertAutoReplyPayloadEmptyImages(t *testing.T, payload map[string]interface{}) {
+	t.Helper()
+	images, ok := payload["images"].([]interface{})
+	if !ok {
+		t.Fatalf("images should be an empty array, got %#v", payload["images"])
+	}
+	if len(images) != 0 {
+		t.Fatalf("images should be empty, got %#v", images)
 	}
 }
