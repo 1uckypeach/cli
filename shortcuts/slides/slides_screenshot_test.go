@@ -43,6 +43,28 @@ func testSlidesScreenshotPNG(t *testing.T, width, height int) string {
 	return base64.StdEncoding.EncodeToString(out.Bytes())
 }
 
+func assertOverviewIndexPixels(t *testing.T, img image.Image, at image.Point, index int) {
+	t.Helper()
+	const scale, gap = 2, 3
+	x := at.X
+	for _, ch := range fmt.Sprintf("#%02d", index) {
+		glyph := overviewDigitPixels[ch]
+		for y, row := range glyph {
+			for col, on := range row {
+				got := color.RGBAModel.Convert(img.At(x+col*scale, at.Y+y*scale)).(color.RGBA)
+				if on == '1' {
+					if got.R < 240 || got.G < 240 || got.B < 240 {
+						t.Fatalf("index #%d glyph %q pixel (%d,%d) = %#v, want white", index, ch, col, y, got)
+					}
+				} else if got.R > 100 || got.G > 100 || got.B > 100 {
+					t.Fatalf("index #%d glyph %q pixel (%d,%d) = %#v, want dark background", index, ch, col, y, got)
+				}
+			}
+		}
+		x += (len(glyph[0]) + gap) * scale
+	}
+}
+
 func TestSlidesScreenshotDeclaredScopes(t *testing.T) {
 	base := []string{"slides:presentation:screenshot"}
 	if got := SlidesScreenshot.ScopesForIdentity("user"); !reflect.DeepEqual(got, base) {
@@ -493,6 +515,19 @@ func TestSlidesScreenshotOverviewExecutionPaginatesAtTwentySlides(t *testing.T) 
 	if last["index"] != float64(40) || last["label"] != "#40" || last["slide_id"] != "p40" {
 		t.Fatalf("last slide = %#v", last)
 	}
+	overviewFile, err := os.Open(overview["path"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer overviewFile.Close()
+	overviewImage, _, err := image.Decode(overviewFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstTile, _ := slide["tile"].(map[string]interface{})
+	lastTile, _ := last["tile"].(map[string]interface{})
+	assertOverviewIndexPixels(t, overviewImage, image.Pt(int(firstTile["x"].(float64))+9, int(firstTile["y"].(float64))+5), 21)
+	assertOverviewIndexPixels(t, overviewImage, image.Pt(int(lastTile["x"].(float64))+9, int(lastTile["y"].(float64))+5), 40)
 }
 
 func TestSlidesScreenshotCompatibilityAliases(t *testing.T) {
