@@ -1026,6 +1026,48 @@ func TestValidateInputAgainstSchema_RealMinimum(t *testing.T) {
 	}
 }
 
+// TestValidateInputAgainstSchema_ChartUpdateRecursivePartial verifies that
+// update accepts a deeply nested patch while create remains strict and update
+// still validates the fields that are present.
+func TestValidateInputAgainstSchema_ChartUpdateRecursivePartial(t *testing.T) {
+	t.Parallel()
+	patch := map[string]interface{}{
+		"properties": map[string]interface{}{
+			"snapshot": map[string]interface{}{
+				"plotArea": map[string]interface{}{
+					"plot": map[string]interface{}{
+						"labels": map[string]interface{}{"value": true, "position": "top"},
+					},
+				},
+			},
+		},
+	}
+
+	if err := validateInputAgainstSchema(mapFlagView{command: "+chart-update"}, patch); err != nil {
+		t.Fatalf("nested chart update patch rejected: %v", err)
+	}
+	if err := validateInputAgainstSchema(mapFlagView{command: "+chart-create"}, patch); err == nil {
+		t.Fatal("chart-create must retain the full nested required-field contract")
+	}
+
+	invalid := map[string]interface{}{
+		"properties": map[string]interface{}{
+			"snapshot": map[string]interface{}{
+				"plotArea": map[string]interface{}{
+					"plot": map[string]interface{}{
+						"labels": map[string]interface{}{"position": "diagonal"},
+					},
+				},
+			},
+		},
+	}
+	err := validateInputAgainstSchema(mapFlagView{command: "+chart-update"}, invalid)
+	ve := requireValidation(t, err, "position")
+	if !strings.Contains(ve.Message, "not in enum") {
+		t.Errorf("error = %q, want enum validation", ve.Message)
+	}
+}
+
 // TestValidateInputAgainstSchema_RealAdditionalProperties pins the
 // additionalProperties: <schema> form against the real embedded
 // schema. +pivot-create properties.collapse is declared as a dynamic
