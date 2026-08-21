@@ -68,6 +68,8 @@ func TestChartCreateBasic_XAxisNumbersAsValues(t *testing.T) {
 		"--x-axis-numbers-as", "values",
 		"--x-axis-min", "237",
 		"--x-axis-max", "239",
+		"--y-axis-min", "0.3",
+		"--y-axis-max", "3.8",
 	})
 	basic := decodeToolInput(t, body, "manage_chart_object")["basic_chart"].(map[string]interface{})
 	if basic["x_axis_numbers_as"] != "values" {
@@ -75,6 +77,9 @@ func TestChartCreateBasic_XAxisNumbersAsValues(t *testing.T) {
 	}
 	if basic["x_axis_min"] != float64(237) || basic["x_axis_max"] != float64(239) {
 		t.Fatalf("x axis bounds = %v..%v, want 237..239", basic["x_axis_min"], basic["x_axis_max"])
+	}
+	if basic["y_axis_min"] != float64(0.3) || basic["y_axis_max"] != float64(3.8) {
+		t.Fatalf("y axis bounds = %v..%v, want 0.3..3.8", basic["y_axis_min"], basic["y_axis_max"])
 	}
 }
 
@@ -103,6 +108,20 @@ func TestChartCreateBasic_XAxisBoundsRejectInvalidRange(t *testing.T) {
 	}), "token", testSheetID, "")
 	if err == nil || !strings.Contains(err.Error(), "--x-axis-min must be less than --x-axis-max") {
 		t.Fatalf("error = %v, want X-axis bounds validation", err)
+	}
+}
+
+func TestChartCreateBasic_YAxisBoundsRejectInvalidRange(t *testing.T) {
+	t.Parallel()
+	_, err := chartCreateBasicInput(newMapFlagViewForCommand("+chart-create-basic", map[string]interface{}{
+		"sheet-id":   testSheetID,
+		"chart-type": "scatter",
+		"data-range": "A1:C10",
+		"y-axis-min": 4,
+		"y-axis-max": 1,
+	}), "token", testSheetID, "")
+	if err == nil || !strings.Contains(err.Error(), "--y-axis-min must be less than --y-axis-max") {
+		t.Fatalf("error = %v, want Y-axis bounds validation", err)
 	}
 }
 
@@ -334,12 +353,18 @@ func TestChartConfigUpdate_XAxisBounds(t *testing.T) {
 		"--chart-id", "chart-1",
 		"--x-axis-min", "237",
 		"--x-axis-max", "239",
+		"--y-axis-min", "0.3",
+		"--y-axis-max", "3.8",
 	})
 	snapshot := chartDryRunSnapshot(t, decodeToolInput(t, body, "manage_chart_object"))
 	axes := snapshot["plotArea"].(map[string]interface{})["axes"].([]interface{})
 	xAxis := axes[0].(map[string]interface{})
 	if xAxis["min"] != float64(237) || xAxis["max"] != float64(239) {
 		t.Fatalf("x axis = %#v, want min=237 max=239", xAxis)
+	}
+	yAxis := axes[1].(map[string]interface{})
+	if yAxis["min"] != float64(0.3) || yAxis["max"] != float64(3.8) {
+		t.Fatalf("y axis = %#v, want min=0.3 max=3.8", yAxis)
 	}
 }
 

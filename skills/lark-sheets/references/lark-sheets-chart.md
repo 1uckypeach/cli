@@ -174,6 +174,8 @@ _公共四件套 · 系统：`--dry-run`_
 | `--x-axis-numbers-as` | string | optional | 横轴数字的解释方式；text 将数字视为等间距文本类别，values 按连续数值及真实间距绘制（可选值：`text` / `values`）（默认 `text`） |
 | `--x-axis-min` | float64 | optional | 连续数值 X 轴的显示范围下界；需同时使用 --x-axis-numbers-as values |
 | `--x-axis-max` | float64 | optional | 连续数值 X 轴的显示范围上界；需同时使用 --x-axis-numbers-as values |
+| `--y-axis-min` | float64 | optional | 左 Y 轴的显示范围下界；必须小于 --y-axis-max |
+| `--y-axis-max` | float64 | optional | 左 Y 轴的显示范围上界；必须大于 --y-axis-min |
 | `--dim1-index` | int | optional | 类别/X 轴维度在数据范围中的 1-based 索引；默认 1 |
 | `--dim2-indexes` | string | optional | 值/Y 轴系列的 1-based 索引列表，逗号分隔；不能包含 dim1，最多 50 个。气泡图旧调用按 x,y[,group][,size] 顺序传 2–4 个，新调用优先使用角色索引；饼图和排列图只传 1 个 |
 | `--series-types` | string | optional | 仅组合图；按 --dim2-indexes 顺序指定系列类型，逗号分隔，可选 column、line、area，数量必须与数值系列一致 |
@@ -219,6 +221,8 @@ _公共四件套 · 系统：`--dry-run`_
 | `--y-axis-label-angle` | int | optional | 左 Y 轴标签旋转角度（可选值：`-90` / `-45` / `0` / `45` / `90`） |
 | `--x-axis-min` | float64 | optional | 连续数值 X 轴的显示范围下界；必须小于 --x-axis-max |
 | `--x-axis-max` | float64 | optional | 连续数值 X 轴的显示范围上界；必须大于 --x-axis-min |
+| `--y-axis-min` | float64 | optional | 左 Y 轴的显示范围下界；必须小于 --y-axis-max |
+| `--y-axis-max` | float64 | optional | 左 Y 轴的显示范围上界；必须大于 --y-axis-min |
 | `--data-labels` | string | optional | 数据标签内容；value、category、percentage 可按 value_category_percentage 顺序组成任意非空组合；series 显示系列名称，none 隐藏标签（可选值：`none` / `value` / `category` / `percentage` / `value_category` / `value_percentage` / `category_percentage` / `value_category_percentage` / `series`） |
 | `--data-label-position` | string | optional | 仅当用户明确指定时传入；省略时按图表类型自动优化数据标签位置（可选值：`auto` / `top` / `bottom` / `left` / `right` / `center` / `inside` / `outside`） |
 | `--stack` | string | optional | 堆叠模式（可选值：`none` / `normal` / `percent`） |
