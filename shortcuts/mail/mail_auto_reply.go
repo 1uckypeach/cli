@@ -167,10 +167,12 @@ func buildAutoReplyPatch(ctx context.Context, runtime *common.RuntimeContext, up
 	if err != nil {
 		return nil, err
 	}
-	if err := validateAutoReplyContentHTML(runtime, content); err != nil {
-		return nil, err
-	}
 	contentChanged := runtime.Changed("content") || runtime.Changed("content-file")
+	if contentChanged {
+		if err := validateAutoReplyContentHTML(runtime, content); err != nil {
+			return nil, err
+		}
+	}
 	images := []map[string]interface{}{}
 	if uploadLocalImages && contentChanged && content != "" {
 		content, images, err = uploadAutoReplyLocalImages(ctx, runtime, content)
@@ -259,9 +261,6 @@ func validateAutoReplyContentHTML(runtime *common.RuntimeContext, contentHTML st
 	if strings.TrimSpace(contentHTML) == "" {
 		return nil
 	}
-	if len([]rune(contentHTML)) > maxAutoReplyContentHTMLRunes {
-		return mailFailedPreconditionError("auto-reply content_html exceeds %d characters", maxAutoReplyContentHTMLRunes)
-	}
 	param := "--content"
 	if runtime.Str("content") == "" && runtime.Str("content-file") != "" {
 		param = "--content-file"
@@ -291,6 +290,9 @@ func validateAutoReplyContentHTML(runtime *common.RuntimeContext, contentHTML st
 
 func validateAutoReplyContentLimits(contentHTML string, images []map[string]interface{}) error {
 	totalBytes := int64(len([]byte(contentHTML)))
+	if len([]rune(contentHTML)) > maxAutoReplyContentHTMLRunes {
+		return mailFailedPreconditionError("auto-reply content exceeds %d characters", maxAutoReplyContentHTMLRunes)
+	}
 	if len(images) > maxAutoReplyImageCount {
 		return mailFailedPreconditionError("auto-reply images count exceeds %d", maxAutoReplyImageCount)
 	}

@@ -51,7 +51,7 @@ lark-cli mail +auto-reply-modify --as user --disable
 - `+auto-reply` 只调用读取接口，需要 `mail:user_mailbox.message:readonly`。
 - `+auto-reply-modify` 只更新用户提供的选项，未指定的配置会保留。
 - 修改正文时，本地图片上传后以 `cid:` 和 `images[]` 元信息保存，不会把 data URI 写入正文。
-- 写入限制：正文最多 20000 字符，内联图片最多 250 张，内容总大小最多 25 MB。
+- 写入限制：最终保存的正文最多 20000 字符，内联图片最多 250 张，内容总大小最多 25 MB。
 - 读取时会自动下载 `images[]` 中的图片并在每项的 `data` 字段返回 base64；单张下载失败只在该项返回 `error`，不影响其他图片。
 - 修改需要 `mail:user_mailbox.message:readonly` 和 `mail:user_mailbox.message:modify`。
 - 写操作必须先向用户展示预览并取得明确确认。预览至少包含：`enabled`、时间范围、时区、收件范围和内容摘要。

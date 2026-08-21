@@ -389,7 +389,7 @@ func TestMailAutoReplyContentLimits(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected content length validation error")
 		}
-		if !strings.Contains(err.Error(), "content_html exceeds 20000 characters") {
+		if !strings.Contains(err.Error(), "content exceeds 20000 characters") {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
