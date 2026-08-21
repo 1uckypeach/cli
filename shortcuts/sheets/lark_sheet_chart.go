@@ -1093,7 +1093,12 @@ func applyChartConfigPatch(
 	if value, ok := updates["stack"].(string); ok {
 		extra := chartMap(plot["extra"])
 		if value == "none" {
-			delete(extra, "stack")
+			chartType, _ := plot["type"].(string)
+			if chartType == "" || chartType == "waterfall" {
+				extra["stack"] = map[string]interface{}{"enabled": false}
+			} else {
+				delete(extra, "stack")
+			}
 		} else {
 			extra["stack"] = map[string]interface{}{"percentage": value == "percent"}
 		}

@@ -330,6 +330,54 @@ func TestChartConfigUpdate_PartialFields(t *testing.T) {
 	}
 }
 
+func TestChartConfigUpdate_StackNonePreservesExplicitFalse(t *testing.T) {
+	t.Parallel()
+	body := parseDryRunBody(t, ChartConfigUpdate, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-id", "chart-1",
+		"--stack", "none",
+	})
+	plot := chartDryRunSnapshot(t, decodeToolInput(t, body, "manage_chart_object"))["plotArea"].(map[string]interface{})["plot"].(map[string]interface{})
+	stack := plot["extra"].(map[string]interface{})["stack"].(map[string]interface{})
+	if stack["enabled"] != false {
+		t.Fatalf("stack = %#v, want enabled=false", stack)
+	}
+}
+
+func TestApplyChartConfigPatch_StackNoneIsExplicitForWaterfallOnly(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		chartType string
+		explicit  bool
+	}{
+		{chartType: "waterfall", explicit: true},
+		{chartType: "column", explicit: false},
+	} {
+		t.Run(tc.chartType, func(t *testing.T) {
+			current := map[string]interface{}{
+				"plotArea": map[string]interface{}{
+					"plot": map[string]interface{}{
+						"type":  tc.chartType,
+						"extra": map[string]interface{}{"stack": map[string]interface{}{"percentage": false}},
+					},
+				},
+			}
+			patch, _ := applyChartConfigPatch(current, map[string]interface{}{"stack": "none"})
+			plot := patch["plotArea"].(map[string]interface{})["plot"].(map[string]interface{})
+			stack, ok := plot["extra"].(map[string]interface{})["stack"].(map[string]interface{})
+			if tc.explicit {
+				if !ok || stack["enabled"] != false {
+					t.Fatalf("stack = %#v, want enabled=false", stack)
+				}
+			} else if ok {
+				t.Fatalf("stack = %#v, want removed", stack)
+			}
+		})
+	}
+}
+
 func TestChartConfigUpdate_SpacedSmoothBool(t *testing.T) {
 	t.Parallel()
 	body := parseDryRunBody(t, ChartConfigUpdate, []string{
