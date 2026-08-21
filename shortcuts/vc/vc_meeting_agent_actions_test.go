@@ -28,26 +28,6 @@ func TestVCMeetingInviteNormalizesTypeBeforeEnumValidation(t *testing.T) {
 	}
 }
 
-func TestBuildMeetingStartBodyUsesTypedAction(t *testing.T) {
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("meeting-number", "", "")
-	cmd.Flags().String("password", "", "")
-	cmd.Flags().String("call-id", "", "")
-	_ = cmd.Flags().Set("meeting-number", "123456789")
-
-	body, err := buildMeetingStartBody(common.TestNewRuntimeContext(cmd, defaultConfig()))
-
-	if err != nil {
-		t.Fatalf("buildMeetingStartBody() error = %v", err)
-	}
-	if body["action"] != 2 {
-		t.Fatalf("action = %#v, want START_AND_JOIN(2)", body["action"])
-	}
-	if _, ok := body["meeting_action"]; ok {
-		t.Fatalf("body must not contain legacy meeting_action: %#v", body)
-	}
-}
-
 func TestBuildMeetingInviteBodySelectedUsesInvitees(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("meeting-id", "", "")

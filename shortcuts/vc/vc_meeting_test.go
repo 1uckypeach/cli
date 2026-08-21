@@ -123,6 +123,22 @@ func TestBuildMeetingJoinBody_WithoutCallID(t *testing.T) {
 	}
 }
 
+func TestBuildMeetingJoinBody_StartAction(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("meeting-number", "", "")
+	cmd.Flags().String("password", "", "")
+	cmd.Flags().String("call-id", "", "")
+	cmd.Flags().String("action", "", "")
+	_ = cmd.Flags().Set("meeting-number", "123456789")
+	_ = cmd.Flags().Set("action", "start")
+
+	body := buildMeetingJoinBody(common.TestNewRuntimeContext(cmd, defaultConfig()))
+
+	if body["action"] != 2 {
+		t.Errorf("action = %v, want 2", body["action"])
+	}
+}
+
 func TestBuildMeetingJoinBody_WithCallID(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("meeting-number", "", "")
@@ -212,6 +228,21 @@ func TestMeetingJoin_Validate_Valid(t *testing.T) {
 	}
 }
 
+func TestMeetingJoin_Validate_StartRequiresBot(t *testing.T) {
+	f, _, _, _ := cmdutil.TestFactory(t, defaultConfig())
+
+	err := mountAndRun(t, VCMeetingJoin, []string{
+		"+meeting-join", "--as", "user",
+		"--meeting-number", "123456789",
+		"--action", "start",
+		"--dry-run",
+	}, f, nil)
+
+	if err == nil || !strings.Contains(err.Error(), "--action start requires --as bot") {
+		t.Fatalf("start action error = %v", err)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // DryRun tests: VCMeetingJoin
 // ---------------------------------------------------------------------------
@@ -279,6 +310,9 @@ func TestMeetingJoin_Execute_Success(t *testing.T) {
 	}
 	if req["join_type"].(float64) != 1 {
 		t.Errorf("join_type = %v, want 1", req["join_type"])
+	}
+	if _, exists := req["action"]; exists {
+		t.Errorf("default join must not include action, got %v", req["action"])
 	}
 	ji, _ := req["join_identify"].(map[string]interface{})
 	if ji["meeting_no"] != "123456789" {

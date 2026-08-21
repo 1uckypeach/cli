@@ -1748,10 +1748,13 @@ func TestVCShortcuts_RegistersMeetingAgentCommands(t *testing.T) {
 	for _, shortcut := range got {
 		commands[shortcut.Command] = true
 	}
-	for _, want := range []string{"+meeting-start", "+meeting-invite", "+meeting-end"} {
+	for _, want := range []string{"+meeting-invite", "+meeting-end"} {
 		if !commands[want] {
 			t.Fatalf("shortcut commands missing %s: %#v", want, commands)
 		}
+	}
+	if commands["+meeting-start"] {
+		t.Fatalf("shortcut commands must not register +meeting-start: %#v", commands)
 	}
 }
 

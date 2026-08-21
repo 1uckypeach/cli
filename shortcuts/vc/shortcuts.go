@@ -12,7 +12,6 @@ func Shortcuts() []common.Shortcut {
 		VCNotes,
 		VCRecording,
 		VCDetail,
-		VCMeetingStart,
 		VCMeetingJoin,
 		VCMeetingInvite,
 		VCMeetingEnd,
