@@ -34,7 +34,7 @@ var VCMeetingCountdown = common.Shortcut{
 	Command:     "+meeting-countdown",
 	Description: "Operate an in-meeting countdown",
 	Risk:        "write",
-	Scopes:      []string{"vc:meeting"},
+	Scopes:      []string{"vc:meeting.interaction:write"},
 	AuthTypes:   []string{"user", "bot"},
 	HasFormat:   true,
 	Flags: []common.Flag{

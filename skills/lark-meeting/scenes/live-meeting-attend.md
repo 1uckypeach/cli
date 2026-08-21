@@ -91,7 +91,7 @@ lark-cli vc +meeting-countdown --as bot --meeting-id <meeting_id> --action prolo
 
 - 始终沿用产生 `meeting_id` 的应用身份；不要切换成用户身份。
 - 用户只给 9 位会议号时，先按应用身份活跃会议列表匹配；匹配失败时不要为了倒计时自动入会，除非用户明确要求机器人入会。
-- `end_in_advance` 和 `close` 不携带 `--duration`、提醒点或结束音频参数。
+- `end_in_advance` 和 `close_window` 不携带 `--duration`、提醒点或结束音频参数。
 - 操作失败时停止并报告；不自动重试或换身份，避免重复可见副作用。
 
 动作、提醒点和权限规则见 [`lark-vc-meeting-countdown`](../references/lark-vc-meeting-countdown.md)。
@@ -116,7 +116,7 @@ lark-cli vc +meeting-leave --as bot --meeting-id <meeting_id>
 应用身份返回 `no permission`、`missing required scope(s)` 或 `missing_scopes` 时，不要执行 `auth login`。按顺序检查：
 
 1. 按 CLI 错误中的 `hint` 处理；返回 `console_url` 时将其原样提供给用户。
-2. 确认应用已开通对应权限，已发布并安装到当前租户。入会和应用身份会议查询需要 `vc:meeting.bot.join:write`；会中发消息需要 `vc:meeting.message:write`；会中倒计时需要 `vc:meeting`。
+2. 确认应用已开通对应权限，已发布并安装到当前租户。入会和应用身份会议查询需要 `vc:meeting.bot.join:write`；会中发消息需要 `vc:meeting.message:write`；会中倒计时需要 `vc:meeting.interaction:write`。
 3. 在开放平台确认“权限可访问的数据范围”已保存为“按条件筛选”，条件为“会议的归属者 包含 与应用的可用范围一致”。
 4. 上述配置均正确仍失败时，保留 CLI 返回的错误码和 `log_id`，按服务端权限异常排查；不要反复登录或改用其他身份重试。
 

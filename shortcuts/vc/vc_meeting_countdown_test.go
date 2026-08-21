@@ -59,6 +59,18 @@ func assertMeetingCountdownValidationError(t *testing.T, err error, wantParam st
 	}
 }
 
+func TestMeetingCountdownScope(t *testing.T) {
+	want := []string{"vc:meeting.interaction:write"}
+	if len(VCMeetingCountdown.Scopes) != len(want) {
+		t.Fatalf("Scopes = %v, want %v", VCMeetingCountdown.Scopes, want)
+	}
+	for i := range want {
+		if VCMeetingCountdown.Scopes[i] != want[i] {
+			t.Fatalf("Scopes = %v, want %v", VCMeetingCountdown.Scopes, want)
+		}
+	}
+}
+
 func TestMeetingCountdownBuildBody_Set(t *testing.T) {
 	runtime := newMeetingCountdownRuntime()
 	mustSetMeetingCountdownFlag(t, runtime, "action", "set")

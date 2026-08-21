@@ -90,7 +90,7 @@ lark-cli vc +meeting-countdown --as user --meeting-id <meeting_id> --action clos
 
 - 用户身份：当前用户必须正在该会议中。
 - 应用身份：应用机器人必须正在该会议中。
-- 需要 `vc:meeting` 权限；应用身份还需要应用已安装、数据范围已配置。
+- 需要 `vc:meeting.interaction:write` 权限；应用身份还需要应用已安装、数据范围已配置。
 
 应用身份权限错误时，不要引导用户反复 `auth login`。按主 skill 的“应用身份权限配置检查”处理。
 
