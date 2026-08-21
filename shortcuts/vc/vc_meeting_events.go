@@ -937,10 +937,9 @@ func countdownChangedEntries(payload map[string]interface{}, fallbackTime time.T
 
 func countdownTimelineSubject(item map[string]interface{}) string {
 	switch countdownAction(common.GetString(item, "action")) {
-	case "END_IN_ADVANCE":
-		return "倒计时"
-	case "CLOSE":
-		return "倒计时窗口"
+	case "ENDED", "REMIND":
+		// 自然结束与临近提醒由系统触发，无操作人，subject 留空，语义由 description 承载
+		return ""
 	default:
 		if subject := meetingEventUserWithID(common.GetMap(item, "operator")); subject != "" {
 			return subject
@@ -956,9 +955,13 @@ func countdownActionDescription(action string) string {
 	case "PROLONG":
 		return "延长了倒计时"
 	case "END_IN_ADVANCE":
-		return "已提前结束"
-	case "CLOSE":
-		return "已关闭"
+		return "提前结束了倒计时"
+	case "CLOSE_WINDOW":
+		return "关闭了倒计时窗口"
+	case "ENDED":
+		return "倒计时已结束"
+	case "REMIND":
+		return "倒计时结束前提醒"
 	default:
 		return "更新了倒计时"
 	}
@@ -966,6 +969,9 @@ func countdownActionDescription(action string) string {
 
 func countdownDetails(item map[string]interface{}) []string {
 	var details []string
+	if remain := countdownRemainDetail(item); remain != "" {
+		details = append(details, remain)
+	}
 	if duration := countdownDurationDetail(item); duration != "" {
 		details = append(details, duration)
 	}
@@ -976,6 +982,14 @@ func countdownDetails(item map[string]interface{}) []string {
 		details = append(details, "seq_id："+seqID)
 	}
 	return details
+}
+
+func countdownRemainDetail(item map[string]interface{}) string {
+	remain := strings.TrimSpace(fieldValueString(item, "remain_minutes"))
+	if remain == "" {
+		return ""
+	}
+	return "剩余：" + remain + "分钟"
 }
 
 func countdownDurationDetail(item map[string]interface{}) string {
@@ -1645,9 +1659,19 @@ func countdownChangedSummary(payload map[string]interface{}) string {
 		}
 		return "countdown prolonged"
 	case "END_IN_ADVANCE":
+		if operator != "" {
+			return fmt.Sprintf("countdown ended in advance by %s", operator)
+		}
 		return "countdown ended in advance"
-	case "CLOSE":
+	case "CLOSE_WINDOW":
+		if operator != "" {
+			return fmt.Sprintf("countdown window closed by %s", operator)
+		}
 		return "countdown window closed"
+	case "ENDED":
+		return "countdown ended"
+	case "REMIND":
+		return "countdown reminder"
 	default:
 		return "countdown changed"
 	}
