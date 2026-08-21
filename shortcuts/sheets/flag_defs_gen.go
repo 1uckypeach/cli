@@ -224,6 +224,7 @@ var flagDefs = map[string]commandDef{
 	"+chart-config-update": {
 		Risk: "write",
 		Flags: []flagDef{
+			{Name: "last-point-label", Kind: "own", Type: "bool", Required: "optional", Desc: "For line, area, radar, and linear combo series only; true shows a value label on the last data point of every series, while false removes those point labels"},
 			{Name: "url", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet URL (XOR with `--spreadsheet-token`)"},
 			{Name: "spreadsheet-token", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet token (XOR with `--url`)"},
 			{Name: "sheet-id", Kind: "public", Type: "string", Required: "xor", Desc: "Sheet reference_id (XOR with `--sheet-name`)"},

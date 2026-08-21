@@ -3826,6 +3826,13 @@
     "risk": "write",
     "flags": [
       {
+        "name": "last-point-label",
+        "kind": "own",
+        "type": "bool",
+        "required": "optional",
+        "desc": "For line, area, radar, and linear combo series only; true shows a value label on the last data point of every series, while false removes those point labels"
+      },
+      {
         "name": "url",
         "kind": "public",
         "type": "string",

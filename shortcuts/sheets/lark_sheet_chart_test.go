@@ -447,6 +447,29 @@ func TestChartSemanticShortcuts_DataLabelCombinations(t *testing.T) {
 	}
 }
 
+func TestChartSemanticShortcuts_LastPointLabel(t *testing.T) {
+	t.Parallel()
+	chartConfigUpdate := shortcutFromRegistry(t, "+chart-config-update")
+	for _, tc := range []struct {
+		arg  string
+		want bool
+	}{
+		{arg: "true", want: true},
+		{arg: "false", want: false},
+	} {
+		body := parseDryRunBody(t, chartConfigUpdate, []string{
+			"--url", testURL,
+			"--sheet-id", testSheetID,
+			"--chart-id", "chart-1",
+			"--last-point-label=" + tc.arg,
+		})
+		input := decodeToolInput(t, body, "manage_chart_object")
+		if input["last_point_label"] != tc.want {
+			t.Fatalf("--last-point-label=%s input = %#v, want %t", tc.arg, input, tc.want)
+		}
+	}
+}
+
 func TestChartSemanticShortcuts_CompatibleAliasesInBatch(t *testing.T) {
 	t.Parallel()
 	body := parseDryRunBody(t, BatchChartUpdate, []string{

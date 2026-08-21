@@ -530,7 +530,7 @@ func chartConfigUpdateInput(rt flagView, token, sheetID, sheetName string) (map[
 		return nil, err
 	}
 	addChartSemanticConfig(rt, updates)
-	if len(updates) == 0 {
+	if len(updates) == 0 && !rt.Changed("last-point-label") {
 		return nil, common.ValidationErrorf("at least one chart configuration flag is required")
 	}
 	patch, _ := applyChartConfigPatch(map[string]interface{}{}, updates)
@@ -541,6 +541,9 @@ func chartConfigUpdateInput(rt flagView, token, sheetID, sheetName string) (map[
 		"properties": map[string]interface{}{
 			"snapshot": patch,
 		},
+	}
+	if rt.Changed("last-point-label") {
+		input["last_point_label"] = rt.Bool("last-point-label")
 	}
 	sheetSelectorForToolInput(input, sheetID, sheetName)
 	if err := validateInputAgainstSchema(rt, input); err != nil {
@@ -660,6 +663,9 @@ func chartConfigUpdateInputFromSnapshot(
 		"properties": map[string]interface{}{
 			"snapshot": patch,
 		},
+	}
+	if rt.Changed("last-point-label") {
+		input["last_point_label"] = rt.Bool("last-point-label")
 	}
 	sheetSelectorForToolInput(input, sheetID, sheetName)
 	if err := validateInputAgainstSchema(rt, input); err != nil {

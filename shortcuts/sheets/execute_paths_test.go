@@ -930,6 +930,7 @@ func TestExecute_ChartConfigUpdate_ReadsSnapshotAndWritesPartialPatch(t *testing
 		"--chart-id", "chart-1",
 		"--title", "New",
 		"--y-axis-title", "Revenue",
+		"--last-point-label=true",
 	}, read, write)
 	if err != nil {
 		t.Fatalf("execute failed: %v\nout=%s", err, out)
@@ -940,6 +941,9 @@ func TestExecute_ChartConfigUpdate_ReadsSnapshotAndWritesPartialPatch(t *testing
 		t.Fatalf("read chart_id = %#v", readInput["chart_id"])
 	}
 	writeInput := decodeToolInput(t, decodeRawEnvelopeBody(t, write.CapturedBody), "manage_chart_object")
+	if writeInput["last_point_label"] != true {
+		t.Fatalf("last_point_label = %#v, want true", writeInput["last_point_label"])
+	}
 	snapshot := chartDryRunSnapshot(t, writeInput)
 	if snapshot["title"].(map[string]interface{})["text"] != "New" {
 		t.Fatalf("partial title = %#v", snapshot["title"])

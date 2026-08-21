@@ -1863,11 +1863,33 @@
                                   "type": "string",
                                   "description": "形状"
                                 },
-                                "size": {
-                                  "type": "number",
-                                  "description": "大小"
-                                },
-                                "fillGradient": {
+                                  "size": {
+                                    "type": "number",
+                                    "description": "大小"
+                                  },
+                                  "labels": {
+                                    "type": "object",
+                                    "description": "单点数据标签配置，仅折线图、面积图、雷达图及组合图中的线性系列生效。labels 对象的存在性即开关；显示最后一点的值时传 {\"value\": true}。",
+                                    "properties": {
+                                      "position": {
+                                        "type": "string",
+                                        "description": "标签位置",
+                                        "enum": ["auto", "top", "bottom", "left", "right", "center", "inside", "outside"]
+                                      },
+                                      "series": {"type": "boolean", "description": "是否显示系列名"},
+                                      "category": {"type": "boolean", "description": "是否显示类别名"},
+                                      "value": {"type": "boolean", "description": "是否显示值"},
+                                      "percentage": {"type": "boolean", "description": "是否显示百分比"},
+                                      "format": {"type": "string", "description": "标签数字格式"},
+                                      "fontSize": {"type": "number", "description": "字体大小"},
+                                      "bold": {"type": "boolean", "description": "是否加粗"},
+                                      "italic": {"type": "boolean", "description": "是否斜体"},
+                                      "underline": {"type": "boolean", "description": "是否下划线"},
+                                      "strikethrough": {"type": "boolean", "description": "是否删除线"},
+                                      "color": {"type": "string", "description": "字体颜色"}
+                                    }
+                                  },
+                                  "fillGradient": {
                                   "type": "object",
                                   "description": "单个数据点填充渐变配置",
                                   "properties": {
@@ -3702,11 +3724,33 @@
                                       "type": "string",
                                       "description": "形状"
                                     },
-                                    "size": {
-                                      "type": "number",
-                                      "description": "大小"
-                                    },
-                                    "fillGradient": {
+                                  "size": {
+                                    "type": "number",
+                                    "description": "大小"
+                                  },
+                                  "labels": {
+                                    "type": "object",
+                                    "description": "单点数据标签配置，仅折线图、面积图、雷达图及组合图中的线性系列生效。labels 对象的存在性即开关；显示最后一点的值时传 {\"value\": true}。",
+                                    "properties": {
+                                      "position": {
+                                        "type": "string",
+                                        "description": "标签位置",
+                                        "enum": ["auto", "top", "bottom", "left", "right", "center", "inside", "outside"]
+                                      },
+                                      "series": {"type": "boolean", "description": "是否显示系列名"},
+                                      "category": {"type": "boolean", "description": "是否显示类别名"},
+                                      "value": {"type": "boolean", "description": "是否显示值"},
+                                      "percentage": {"type": "boolean", "description": "是否显示百分比"},
+                                      "format": {"type": "string", "description": "标签数字格式"},
+                                      "fontSize": {"type": "number", "description": "字体大小"},
+                                      "bold": {"type": "boolean", "description": "是否加粗"},
+                                      "italic": {"type": "boolean", "description": "是否斜体"},
+                                      "underline": {"type": "boolean", "description": "是否下划线"},
+                                      "strikethrough": {"type": "boolean", "description": "是否删除线"},
+                                      "color": {"type": "string", "description": "字体颜色"}
+                                    }
+                                  },
+                                  "fillGradient": {
                                       "type": "object",
                                       "description": "单个数据点填充渐变配置",
                                       "properties": {
@@ -5782,11 +5826,33 @@
                                   "type": "string",
                                   "description": "形状"
                                 },
-                                "size": {
-                                  "type": "number",
-                                  "description": "大小"
-                                },
-                                "fillGradient": {
+                                  "size": {
+                                    "type": "number",
+                                    "description": "大小"
+                                  },
+                                  "labels": {
+                                    "type": "object",
+                                    "description": "单点数据标签配置，仅折线图、面积图、雷达图及组合图中的线性系列生效。labels 对象的存在性即开关；显示最后一点的值时传 {\"value\": true}。",
+                                    "properties": {
+                                      "position": {
+                                        "type": "string",
+                                        "description": "标签位置",
+                                        "enum": ["auto", "top", "bottom", "left", "right", "center", "inside", "outside"]
+                                      },
+                                      "series": {"type": "boolean", "description": "是否显示系列名"},
+                                      "category": {"type": "boolean", "description": "是否显示类别名"},
+                                      "value": {"type": "boolean", "description": "是否显示值"},
+                                      "percentage": {"type": "boolean", "description": "是否显示百分比"},
+                                      "format": {"type": "string", "description": "标签数字格式"},
+                                      "fontSize": {"type": "number", "description": "字体大小"},
+                                      "bold": {"type": "boolean", "description": "是否加粗"},
+                                      "italic": {"type": "boolean", "description": "是否斜体"},
+                                      "underline": {"type": "boolean", "description": "是否下划线"},
+                                      "strikethrough": {"type": "boolean", "description": "是否删除线"},
+                                      "color": {"type": "string", "description": "字体颜色"}
+                                    }
+                                  },
+                                  "fillGradient": {
                                   "type": "object",
                                   "description": "单个数据点填充渐变配置",
                                   "properties": {
@@ -7621,11 +7687,33 @@
                                       "type": "string",
                                       "description": "形状"
                                     },
-                                    "size": {
-                                      "type": "number",
-                                      "description": "大小"
-                                    },
-                                    "fillGradient": {
+                                  "size": {
+                                    "type": "number",
+                                    "description": "大小"
+                                  },
+                                  "labels": {
+                                    "type": "object",
+                                    "description": "单点数据标签配置，仅折线图、面积图、雷达图及组合图中的线性系列生效。labels 对象的存在性即开关；显示最后一点的值时传 {\"value\": true}。",
+                                    "properties": {
+                                      "position": {
+                                        "type": "string",
+                                        "description": "标签位置",
+                                        "enum": ["auto", "top", "bottom", "left", "right", "center", "inside", "outside"]
+                                      },
+                                      "series": {"type": "boolean", "description": "是否显示系列名"},
+                                      "category": {"type": "boolean", "description": "是否显示类别名"},
+                                      "value": {"type": "boolean", "description": "是否显示值"},
+                                      "percentage": {"type": "boolean", "description": "是否显示百分比"},
+                                      "format": {"type": "string", "description": "标签数字格式"},
+                                      "fontSize": {"type": "number", "description": "字体大小"},
+                                      "bold": {"type": "boolean", "description": "是否加粗"},
+                                      "italic": {"type": "boolean", "description": "是否斜体"},
+                                      "underline": {"type": "boolean", "description": "是否下划线"},
+                                      "strikethrough": {"type": "boolean", "description": "是否删除线"},
+                                      "color": {"type": "string", "description": "字体颜色"}
+                                    }
+                                  },
+                                  "fillGradient": {
                                       "type": "object",
                                       "description": "单个数据点填充渐变配置",
                                       "properties": {

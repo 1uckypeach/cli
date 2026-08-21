@@ -363,7 +363,7 @@ lark-cli sheets +chart-data-update --url "..." --sheet-id "$SID" --chart-id "chr
 
 ### `+chart-config-update`
 
-只传需要改的字段，成功后返回更新后的 `viewModel`。`--data-labels` 支持 `value`、`category`、`percentage` 的任意非空组合，组合值按 `value_category_percentage` 顺序拼接；另可用 `series` 显示系列名称、用 `none` 删除数据标签。`--legend-position hidden` 隐藏图例；`--smooth=false` 和 `--smooth false` 都可显式关闭平滑曲线。为减少参数重试，`--stacked` 自动按 `--stack normal` 处理，`percentage,value` 或 `value,percentage` 自动按 `value_percentage` 处理，`--x-axis` / `--y-axis` 自动按 `--x-axis-title` / `--y-axis-title` 处理；新调用仍优先使用规范参数。
+只传需要改的字段，成功后返回更新后的 `viewModel`。`--data-labels` 支持 `value`、`category`、`percentage` 的任意非空组合，组合值按 `value_category_percentage` 顺序拼接；另可用 `series` 显示系列名称、用 `none` 删除数据标签。折线图、面积图、雷达图及组合图中的线性系列可用 `--last-point-label=true` 只开启每个系列最后一个数据点的数值标签，传 `false` 关闭这些单点标签。`--legend-position hidden` 隐藏图例；`--smooth=false` 和 `--smooth false` 都可显式关闭平滑曲线。为减少参数重试，`--stacked` 自动按 `--stack normal` 处理，`percentage,value` 或 `value,percentage` 自动按 `value_percentage` 处理，`--x-axis` / `--y-axis` 自动按 `--x-axis-title` / `--y-axis-title` 处理；新调用仍优先使用规范参数。
 
 ```bash
 lark-cli sheets +chart-config-update --url "..." --sheet-id "$SID" --chart-id "chrXXX" \
@@ -371,6 +371,9 @@ lark-cli sheets +chart-config-update --url "..." --sheet-id "$SID" --chart-id "c
 
 lark-cli sheets +chart-config-update --url "..." --sheet-id "$SID" --chart-id "chrXXX" \
   --data-labels value_percentage --stack percent
+
+lark-cli sheets +chart-config-update --url "..." --sheet-id "$SID" --chart-id "chrXXX" \
+  --last-point-label=true
 ```
 
 ### `+chart-create`
