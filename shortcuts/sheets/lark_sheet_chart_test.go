@@ -66,10 +66,43 @@ func TestChartCreateBasic_XAxisNumbersAsValues(t *testing.T) {
 		"--chart-type", "scatter",
 		"--data-range", "A1:C10",
 		"--x-axis-numbers-as", "values",
+		"--x-axis-min", "237",
+		"--x-axis-max", "239",
 	})
 	basic := decodeToolInput(t, body, "manage_chart_object")["basic_chart"].(map[string]interface{})
 	if basic["x_axis_numbers_as"] != "values" {
 		t.Fatalf("x_axis_numbers_as = %v, want values", basic["x_axis_numbers_as"])
+	}
+	if basic["x_axis_min"] != float64(237) || basic["x_axis_max"] != float64(239) {
+		t.Fatalf("x axis bounds = %v..%v, want 237..239", basic["x_axis_min"], basic["x_axis_max"])
+	}
+}
+
+func TestChartCreateBasic_XAxisBoundsRequireValues(t *testing.T) {
+	t.Parallel()
+	_, err := chartCreateBasicInput(newMapFlagViewForCommand("+chart-create-basic", map[string]interface{}{
+		"sheet-id":   testSheetID,
+		"chart-type": "scatter",
+		"data-range": "A1:C10",
+		"x-axis-min": 237,
+	}), "token", testSheetID, "")
+	if err == nil || !strings.Contains(err.Error(), "require --x-axis-numbers-as values") {
+		t.Fatalf("error = %v, want numeric X-axis validation", err)
+	}
+}
+
+func TestChartCreateBasic_XAxisBoundsRejectInvalidRange(t *testing.T) {
+	t.Parallel()
+	_, err := chartCreateBasicInput(newMapFlagViewForCommand("+chart-create-basic", map[string]interface{}{
+		"sheet-id":          testSheetID,
+		"chart-type":        "scatter",
+		"data-range":        "A1:C10",
+		"x-axis-numbers-as": "values",
+		"x-axis-min":        239,
+		"x-axis-max":        237,
+	}), "token", testSheetID, "")
+	if err == nil || !strings.Contains(err.Error(), "--x-axis-min must be less than --x-axis-max") {
+		t.Fatalf("error = %v, want X-axis bounds validation", err)
 	}
 }
 
@@ -290,6 +323,23 @@ func TestChartConfigUpdate_SpacedSmoothBool(t *testing.T) {
 	plot := chartDryRunSnapshot(t, input)["plotArea"].(map[string]interface{})["plot"].(map[string]interface{})
 	if plot["extra"].(map[string]interface{})["smooth"] != false {
 		t.Fatalf("snapshot smooth = %v, want false", plot)
+	}
+}
+
+func TestChartConfigUpdate_XAxisBounds(t *testing.T) {
+	t.Parallel()
+	body := parseDryRunBody(t, ChartConfigUpdate, []string{
+		"--url", testURL,
+		"--sheet-id", testSheetID,
+		"--chart-id", "chart-1",
+		"--x-axis-min", "237",
+		"--x-axis-max", "239",
+	})
+	snapshot := chartDryRunSnapshot(t, decodeToolInput(t, body, "manage_chart_object"))
+	axes := snapshot["plotArea"].(map[string]interface{})["axes"].([]interface{})
+	xAxis := axes[0].(map[string]interface{})
+	if xAxis["min"] != float64(237) || xAxis["max"] != float64(239) {
+		t.Fatalf("x axis = %#v, want min=237 max=239", xAxis)
 	}
 }
 

@@ -6,6 +6,7 @@ package sheets
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -91,6 +92,8 @@ var chartSemanticConfigFlags = []string{
 	"secondary-y-axis-title",
 	"x-axis-label-angle",
 	"y-axis-label-angle",
+	"x-axis-min",
+	"x-axis-max",
 	"data-labels",
 	"data-label-position",
 	"stack",
@@ -419,6 +422,9 @@ func chartCreateBasicInput(rt flagView, token, sheetID, sheetName string) (map[s
 			"--x-axis-numbers-as must be text or values",
 		)
 	}
+	if err := validateChartXAxisBounds(rt, xAxisNumbersAs == "values"); err != nil {
+		return nil, err
+	}
 	basic := map[string]interface{}{
 		"chart_type":        chartType,
 		"data_range":        normalizedDataRange,
@@ -510,6 +516,9 @@ func chartConfigUpdateInput(rt flagView, token, sheetID, sheetName string) (map[
 		return nil, err
 	}
 	if err := validateChartSemanticEnums(rt); err != nil {
+		return nil, err
+	}
+	if err := validateChartXAxisBounds(rt, true); err != nil {
 		return nil, err
 	}
 	addChartSemanticConfig(rt, updates)
@@ -1020,6 +1029,21 @@ func applyChartConfigPatch(
 			label["angle"] = value
 			axis["label"] = label
 		}
+		plotChanged = true
+	}
+	for _, item := range []struct {
+		key      string
+		axisProp string
+	}{
+		{"x_axis_min", "min"},
+		{"x_axis_max", "max"},
+	} {
+		value, ok := updates[item.key]
+		if !ok {
+			continue
+		}
+		axis := ensureChartAxisMap(plotArea, "x", "bottom")
+		axis[item.axisProp] = value
 		plotChanged = true
 	}
 
@@ -1538,6 +1562,8 @@ func addChartSemanticConfig(rt flagView, out map[string]interface{}) {
 		key := strings.ReplaceAll(flag, "-", "_")
 		if flag == "x-axis-label-angle" || flag == "y-axis-label-angle" {
 			out[key] = rt.Int(flag)
+		} else if flag == "x-axis-min" || flag == "x-axis-max" {
+			out[key] = rt.Float64(flag)
 		} else {
 			out[key] = rt.Str(flag)
 		}
@@ -1559,6 +1585,36 @@ func validateChartSemanticEnums(rt flagView) error {
 			sheetsInvalidParam("stack", "cannot be used with --stacked"),
 			sheetsInvalidParam("stacked", "cannot be used with --stack"),
 		)
+	}
+	return nil
+}
+
+func validateChartXAxisBounds(rt flagView, numericAxis bool) error {
+	hasMin := rt.Changed("x-axis-min")
+	hasMax := rt.Changed("x-axis-max")
+	if !hasMin && !hasMax {
+		return nil
+	}
+	if !numericAxis {
+		return sheetsValidationForFlag(
+			"x-axis-numbers-as",
+			"--x-axis-min and --x-axis-max require --x-axis-numbers-as values",
+		)
+	}
+	if hasMin {
+		value := rt.Float64("x-axis-min")
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return sheetsValidationForFlag("x-axis-min", "--x-axis-min must be a finite number")
+		}
+	}
+	if hasMax {
+		value := rt.Float64("x-axis-max")
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return sheetsValidationForFlag("x-axis-max", "--x-axis-max must be a finite number")
+		}
+	}
+	if hasMin && hasMax && rt.Float64("x-axis-min") >= rt.Float64("x-axis-max") {
+		return sheetsValidationForFlag("x-axis-min", "--x-axis-min must be less than --x-axis-max")
 	}
 	return nil
 }

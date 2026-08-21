@@ -3535,6 +3535,20 @@
         ]
       },
       {
+        "name": "x-axis-min",
+        "kind": "own",
+        "type": "float64",
+        "required": "optional",
+        "desc": "Lower display bound for a continuous numeric X-axis; requires --x-axis-numbers-as values"
+      },
+      {
+        "name": "x-axis-max",
+        "kind": "own",
+        "type": "float64",
+        "required": "optional",
+        "desc": "Upper display bound for a continuous numeric X-axis; requires --x-axis-numbers-as values"
+      },
+      {
         "name": "dim1-index",
         "kind": "own",
         "type": "int",
@@ -3894,6 +3908,20 @@
           "45",
           "90"
         ]
+      },
+      {
+        "name": "x-axis-min",
+        "kind": "own",
+        "type": "float64",
+        "required": "optional",
+        "desc": "Lower display bound for a continuous numeric X-axis; must be less than --x-axis-max"
+      },
+      {
+        "name": "x-axis-max",
+        "kind": "own",
+        "type": "float64",
+        "required": "optional",
+        "desc": "Upper display bound for a continuous numeric X-axis; must be greater than --x-axis-min"
       },
       {
         "name": "y-axis-label-angle",
