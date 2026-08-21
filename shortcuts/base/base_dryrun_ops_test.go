@@ -5,6 +5,7 @@ package base
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -117,6 +118,47 @@ func TestDryRunFieldOps(t *testing.T) {
 	assertDryRunContains(t, autoNumberDR, "PUT /open-apis/base/v3/bases/app_x/tables/tbl_1/fields/fld_1", `"name":"编号"`, `"type":"auto_number"`, `"rules":[`, `"length":4`)
 	if out := autoNumberDR.Format(); strings.Contains(out, "auto_serial") || strings.Contains(out, "reformat_existing_records") || strings.Contains(out, "/open-apis/bitable/v1/") {
 		t.Fatalf("auto_number dry-run must stay on v3 field JSON, got:\n%s", out)
+	}
+}
+
+func TestDryRunButtonRuleOps(t *testing.T) {
+	ctx := context.Background()
+
+	for _, fieldRef := range []string{"fld_1", "按钮"} {
+		t.Run(fieldRef, func(t *testing.T) {
+			rt := newBaseTestRuntime(
+				map[string]string{
+					"base-token":  "app_x",
+					"table-id":    "tbl_1",
+					"field-id":    fieldRef,
+					"workflow-id": "wkf_1",
+				},
+				nil,
+				nil,
+			)
+			resolvePath := baseV3Path("bases", "app_x", "tables", "tbl_1", "fields", fieldRef)
+			buttonRulePath := "/open-apis/base/v3/bases/app_x/tables/tbl_1/fields/%3Cresolved_field_id%3E/button_rule"
+			assertDryRunContains(t, BaseButtonRuleBind.DryRun(ctx, rt), "GET "+resolvePath, "PUT "+buttonRulePath, `"workflow_id":"wkf_1"`)
+			assertDryRunContains(t, BaseButtonRuleGet.DryRun(ctx, rt), "GET "+resolvePath, "GET "+buttonRulePath)
+			assertDryRunContains(t, BaseButtonRuleUnbind.DryRun(ctx, rt), "GET "+resolvePath, "PUT "+buttonRulePath, `"workflow_id":""`)
+
+			dryRunJSON, err := json.Marshal(BaseButtonRuleBind.DryRun(ctx, rt))
+			if err != nil {
+				t.Fatalf("marshal dry-run: %v", err)
+			}
+			var envelope map[string]interface{}
+			if err := json.Unmarshal(dryRunJSON, &envelope); err != nil {
+				t.Fatalf("decode dry-run: %v", err)
+			}
+			if envelope["field_ref"] != fieldRef || envelope["resolved_field_id"] != "<resolved_field_id>" {
+				t.Fatalf("dry-run field identity=%#v", envelope)
+			}
+			for _, want := range []string{`"desc":"Resolve --field-id as a field ID or name"`, `"desc":"Use the canonical field ID returned by step 1"`} {
+				if !strings.Contains(string(dryRunJSON), want) {
+					t.Fatalf("dry-run JSON missing %q: %s", want, dryRunJSON)
+				}
+			}
+		})
 	}
 }
 

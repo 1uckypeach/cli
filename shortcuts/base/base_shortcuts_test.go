@@ -169,6 +169,7 @@ func TestShortcutsCatalog(t *testing.T) {
 		"+base-get", "+base-copy", "+base-create",
 		"+role-create", "+role-delete", "+role-update", "+role-list", "+role-get", "+advperm-enable", "+advperm-disable",
 		"+workflow-list", "+workflow-get", "+workflow-create", "+workflow-update", "+workflow-enable", "+workflow-disable",
+		"+button-rule-bind", "+button-rule-get", "+button-rule-unbind",
 		"+data-query",
 		"+form-create", "+form-delete", "+form-list", "+form-update", "+form-get", "+form-detail",
 		"+form-questions-create", "+form-questions-delete", "+form-questions-update", "+form-questions-list",
@@ -877,6 +878,34 @@ func TestBaseWorkflowHelpGuidesAgents(t *testing.T) {
 			wantTips: []string{
 				"workflow-id must start with wkf",
 				"does not delete the workflow or its steps",
+			},
+		},
+		{
+			name:     "button rule bind",
+			shortcut: BaseButtonRuleBind,
+			wantTips: []string{
+				"Use this after +workflow-create and +field-create",
+				"do not put workflow_id in the field JSON",
+				"public wkf ID",
+				"retry this command instead of recreating them",
+			},
+		},
+		{
+			name:     "button rule get",
+			shortcut: BaseButtonRuleGet,
+			wantTips: []string{
+				"bound=false",
+				"public wkf ID",
+				"Use this after +button-rule-bind",
+			},
+		},
+		{
+			name:     "button rule unbind",
+			shortcut: BaseButtonRuleUnbind,
+			wantTips: []string{
+				"does not delete the field or workflow",
+				"Repeat unbind is safe",
+				"+button-rule-get after unbind",
 			},
 		},
 	}
