@@ -19,13 +19,13 @@ lark-cli vc +meeting-invite --as bot --meeting-id 69999999 --type ALL_SUGGESTED 
 该 shortcut 仅支持 bot 身份，调用 `POST /open-apis/vc/v1/bots/invite`。
 
 - `SELECTED` 显式发送用户 `open_id`；本地会在请求前拒绝超过 200 个 ID 的输入。
-- `ALL_SUGGESTED` 只发送邀请类型。服务端会构建 Calendar 一键邀请候选集，遍历全部日历页，过滤资源、Bot、调用方本人、已拒绝和已移除的参会人，应用 200 人上限，再复用共享的 `InviteParticipant` 策略链。
+- `ALL_SUGGESTED` 只发送邀请类型。服务端根据 Calendar 状态解析一键邀请候选集，并应用 200 人上限。
 - 请求契约：`SELECTED` 发送 `invite_type=2`、`invitees=[{"id":"ou_xxx","user_type":1}]` 和查询参数 `user_id_type=open_id`；`ALL_SUGGESTED` 发送 `invite_type=1` 且省略 `invitees`。
 - 返回契约：`SELECTED` 可返回显式受邀人的 `invite_results`；`ALL_SUGGESTED` 仅返回 `failed_count`、`invited_count`、`has_more` 等聚合字段，不返回逐用户 `invite_results`。
 
 ## 权限与前置条件
 
 - 目标必须是 Calendar VC 会议，且应用 Bot 已在会中。
-- Agent Invite 依赖会议的 Agent 加入能力。日程未开启 AI/Agent 会议设置时，候选人解析前就会失败。
+- Agent Invite 依赖会议的 Agent 加入能力。日程未开启 AI/Agent 会议设置时，邀请请求会失败。
 - 仅包含一名受邀人的 `SELECTED` 复用普通单点邀请策略，普通会中参会人也可能有权邀请该用户。
-- `ALL_SUGGESTED` 和多用户 `SELECTED` 使用批量/建议列表邀请策略。实际调用时 Bot 应为当前 host 或 co-host；普通参会 Bot 可能被共享会控策略拒绝，或其候选人被过滤。
+- `ALL_SUGGESTED` 和多用户 `SELECTED` 使用批量/建议列表邀请策略。实际调用时 Bot 应为当前 host 或 co-host；普通参会 Bot 可能没有批量邀请权限。

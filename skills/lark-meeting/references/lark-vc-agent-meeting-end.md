@@ -19,8 +19,8 @@ lark-cli vc +meeting-end --as bot --meeting-id 69999999 --dry-run
 
 所需应用 Scope：`vc:meeting.bot.manage:write`。
 
-## 错误处理
+## 常见失败原因
 
-- `bot is not in the meeting`：当前应用 Bot 不在会议中。先使用同一应用 Bot 发起或加入该 Calendar 会议，再执行结束。
-- `bot is not host`：应用 Bot 在会中但不是当前 Host。将 Host 转交给该 Bot，或由当前 Host/Owner 结束会议。
-- `switch for allowing agents to join meetings is disabled`：当前会议未开启 Agent 会议能力，或会议 Owner 的必要灰度开关未开启。
+- 当前应用 Bot 不在会议中：先使用同一应用 Bot 发起或加入该 Calendar 会议，再执行结束。
+- 应用 Bot 在会中但不是当前 Host：将 Host 转交给该 Bot，或由当前 Host/Owner 结束会议。
+- 会议未启用 Agent 会议能力：确认会议设置及会议 Owner 的必要灰度开关。
