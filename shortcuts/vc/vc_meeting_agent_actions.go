@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/larksuite/cli/errs"
@@ -23,7 +26,34 @@ const (
 	meetingInviteeLimit            = 200
 	meetingInviteTypeAllValue      = 1
 	meetingInviteTypeSelectedValue = 2
+	meetingInviteeUserType         = 1
+	meetingInviteStatusSucceeded   = 1
+	meetingInviteStatusFailed      = 2
+
+	meetingInviteCandidateLimitNotice = "Some eligible candidates were not invited because the service limit is 200."
 )
+
+var meetingIDRe = regexp.MustCompile(`^\d+$`)
+
+type meetingInvitee struct {
+	ID       string `json:"id"`
+	UserType int    `json:"user_type"`
+}
+
+type meetingInviteRequest struct {
+	MeetingID  string           `json:"meeting_id"`
+	InviteType int              `json:"invite_type"`
+	Invitees   []meetingInvitee `json:"invitees,omitempty"`
+}
+
+type meetingEndRequest struct {
+	MeetingID string `json:"meeting_id"`
+}
+
+type meetingInviteResult struct {
+	ID     string
+	Status int
+}
 
 // VCMeetingInvite invites users through the Agent bot invite path.
 var VCMeetingInvite = common.Shortcut{
@@ -40,35 +70,34 @@ var VCMeetingInvite = common.Shortcut{
 		{Name: "open-ids", Type: "string_slice", Desc: "user open_ids for SELECTED (maximum 200)"},
 	},
 	Normalize: func(_ context.Context, flags *common.FlagContext) error {
-		return flags.SetCanonical("type", strings.ToUpper(strings.TrimSpace(flags.Str("type"))))
+		inviteType := strings.ToUpper(strings.TrimSpace(flags.Str("type")))
+		if inviteType == "" {
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--type is required").WithParam("--type")
+		}
+		return flags.SetCanonical("type", inviteType)
 	},
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		_, err := buildMeetingInviteBody(runtime)
-		return err
-	},
-	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
-		body, err := buildMeetingInviteBody(runtime)
-		if err != nil {
-			return common.NewDryRunAPI().Set("error", err.Error())
-		}
-		return common.NewDryRunAPI().POST(meetingBotInvitePath).
-			Params(buildMeetingInviteParams()).
-			Body(body)
-	},
-	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		body, err := buildMeetingInviteBody(runtime)
-		if err != nil {
+		if err := validateMeetingIDFlag(runtime.Str("meeting-id")); err != nil {
 			return err
 		}
-		data, err := runtime.CallAPITyped(http.MethodPost, meetingBotInvitePath, buildMeetingInviteParams(), body)
+		return validateMeetingInviteFlags(runtime)
+	},
+	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
+		return common.NewDryRunAPI().POST(meetingBotInvitePath).
+			Params(buildMeetingInviteParams()).
+			Body(buildMeetingInviteBody(runtime))
+	},
+	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
+		data, err := runtime.CallAPITyped(http.MethodPost, meetingBotInvitePath, buildMeetingInviteParams(), buildMeetingInviteBody(runtime))
 		if err != nil {
 			return err
 		}
 		if data == nil {
 			data = map[string]interface{}{}
 		}
-		runtime.OutFormat(data, nil, func(w io.Writer) {
-			printMeetingInviteResult(w, data)
+		output := buildMeetingInviteOutput(data)
+		runtime.OutFormat(output, nil, func(w io.Writer) {
+			printMeetingInviteResult(w, output)
 		})
 		return nil
 	},
@@ -90,18 +119,10 @@ var VCMeetingEnd = common.Shortcut{
 		return validateMeetingIDFlag(runtime.Str("meeting-id"))
 	},
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
-		body, err := buildMeetingEndBody(runtime)
-		if err != nil {
-			return common.NewDryRunAPI().Set("error", err.Error())
-		}
-		return common.NewDryRunAPI().POST(meetingBotEndPath).Body(body)
+		return common.NewDryRunAPI().POST(meetingBotEndPath).Body(buildMeetingEndBody(runtime))
 	},
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		body, err := buildMeetingEndBody(runtime)
-		if err != nil {
-			return err
-		}
-		data, err := runtime.CallAPITyped(http.MethodPost, meetingBotEndPath, nil, body)
+		data, err := runtime.CallAPITyped(http.MethodPost, meetingBotEndPath, nil, buildMeetingEndBody(runtime))
 		if err != nil {
 			return err
 		}
@@ -115,50 +136,56 @@ var VCMeetingEnd = common.Shortcut{
 	},
 }
 
-func buildMeetingInviteBody(runtime *common.RuntimeContext) (map[string]interface{}, error) {
-	if err := validateMeetingIDFlag(runtime.Str("meeting-id")); err != nil {
-		return nil, err
-	}
-	inviteType := strings.ToUpper(strings.TrimSpace(runtime.Str("type")))
+func validateMeetingInviteFlags(runtime *common.RuntimeContext) error {
 	openIDs := normalizeMeetingInviteOpenIDs(runtime.StrSlice("open-ids"))
-	var inviteTypeValue int
-	switch inviteType {
+	switch runtime.Str("type") {
 	case meetingInviteTypeSelected:
-		inviteTypeValue = meetingInviteTypeSelectedValue
 		if len(openIDs) == 0 {
-			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--open-ids is required when --type is SELECTED").WithParam("--open-ids")
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--open-ids is required when --type is SELECTED").WithParam("--open-ids")
 		}
 		if len(openIDs) > meetingInviteeLimit {
-			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--open-ids accepts at most %d users, got %d", meetingInviteeLimit, len(openIDs)).WithParam("--open-ids")
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--open-ids accepts at most %d users, got %d", meetingInviteeLimit, len(openIDs)).WithParam("--open-ids")
 		}
 		for _, openID := range openIDs {
 			if !strings.HasPrefix(openID, "ou_") {
-				return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--open-ids only accepts user open_id values (ou_xxx)").WithParam("--open-ids")
+				return errs.NewValidationError(errs.SubtypeInvalidArgument, "--open-ids only accepts user open_id values (ou_xxx)").WithParam("--open-ids")
 			}
 		}
 	case meetingInviteTypeAllSuggested:
-		inviteTypeValue = meetingInviteTypeAllValue
 		if len(openIDs) != 0 {
-			return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--open-ids must not be set when --type is ALL_SUGGESTED").WithParam("--open-ids")
+			return errs.NewValidationError(errs.SubtypeInvalidArgument, "--open-ids must not be set when --type is ALL_SUGGESTED").WithParam("--open-ids")
 		}
-	case "":
-		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--type is required").WithParam("--type")
-	default:
-		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--type must be ALL_SUGGESTED or SELECTED, got %q", runtime.Str("type")).WithParam("--type")
 	}
+	return nil
+}
 
-	body := map[string]interface{}{
-		"meeting_id":  strings.TrimSpace(runtime.Str("meeting-id")),
-		"invite_type": inviteTypeValue,
+func buildMeetingInviteBody(runtime *common.RuntimeContext) meetingInviteRequest {
+	body := meetingInviteRequest{
+		MeetingID: strings.TrimSpace(runtime.Str("meeting-id")),
 	}
-	if inviteType == meetingInviteTypeSelected {
-		body["invitees"] = buildMeetingInviteUsers(openIDs)
+	if runtime.Str("type") == meetingInviteTypeSelected {
+		body.InviteType = meetingInviteTypeSelectedValue
+		body.Invitees = buildMeetingInviteUsers(normalizeMeetingInviteOpenIDs(runtime.StrSlice("open-ids")))
+	} else {
+		body.InviteType = meetingInviteTypeAllValue
 	}
-	return body, nil
+	return body
 }
 
 func buildMeetingInviteParams() map[string]interface{} {
 	return map[string]interface{}{"user_id_type": "open_id"}
+}
+
+func buildMeetingInviteOutput(data map[string]interface{}) map[string]interface{} {
+	output := make(map[string]interface{}, len(data)+1)
+	for key, value := range data {
+		output[key] = value
+	}
+	if common.GetBool(data, "has_more") {
+		output["notice"] = meetingInviteCandidateLimitNotice
+	}
+	delete(output, "has_more")
+	return output
 }
 
 func printMeetingInviteResult(w io.Writer, data map[string]interface{}) {
@@ -169,21 +196,50 @@ func printMeetingInviteResult(w io.Writer, data map[string]interface{}) {
 	if invitedCount, ok := common.GetFloatOK(data, "invited_count"); ok {
 		fmt.Fprintf(w, "  Invited:  %d\n", int(invitedCount))
 	}
-	if common.GetBool(data, "has_more") {
-		fmt.Fprintln(w, "  Has more: true")
+	if notice := common.GetString(data, "notice"); notice != "" {
+		fmt.Fprintf(w, "  Note: %s\n", notice)
 	}
-	results, _ := data["invite_results"].([]interface{})
+	results := meetingInviteResults(data)
 	if len(results) > 0 {
-		fmt.Fprintf(w, "  Results:  %d users\n", len(results))
+		fmt.Fprintln(w, "  Invite results:")
+		for _, result := range results {
+			fmt.Fprintf(w, "    %s: %s\n", result.ID, meetingInviteStatusLabel(result.Status))
+		}
 	}
 }
 
-func buildMeetingInviteUsers(openIDs []string) []map[string]interface{} {
-	invitees := make([]map[string]interface{}, 0, len(openIDs))
+func meetingInviteResults(data map[string]interface{}) []meetingInviteResult {
+	items, _ := data["invite_results"].([]interface{})
+	results := make([]meetingInviteResult, 0, len(items))
+	common.EachMap(items, func(item map[string]interface{}) {
+		status, ok := common.GetFloatOK(item, "status")
+		if id := common.GetStringLoose(item, "id"); id != "" && ok {
+			results = append(results, meetingInviteResult{ID: id, Status: int(status)})
+		}
+	})
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].ID < results[j].ID
+	})
+	return results
+}
+
+func meetingInviteStatusLabel(status int) string {
+	switch status {
+	case meetingInviteStatusSucceeded:
+		return "invited"
+	case meetingInviteStatusFailed:
+		return "failed"
+	default:
+		return fmt.Sprintf("unknown (%d)", status)
+	}
+}
+
+func buildMeetingInviteUsers(openIDs []string) []meetingInvitee {
+	invitees := make([]meetingInvitee, 0, len(openIDs))
 	for _, openID := range openIDs {
-		invitees = append(invitees, map[string]interface{}{
-			"id":        openID,
-			"user_type": 1,
+		invitees = append(invitees, meetingInvitee{
+			ID:       openID,
+			UserType: meetingInviteeUserType,
 		})
 	}
 	return invitees
@@ -206,13 +262,8 @@ func normalizeMeetingInviteOpenIDs(values []string) []string {
 	return openIDs
 }
 
-func buildMeetingEndBody(runtime *common.RuntimeContext) (map[string]interface{}, error) {
-	if err := validateMeetingIDFlag(runtime.Str("meeting-id")); err != nil {
-		return nil, err
-	}
-	return map[string]interface{}{
-		"meeting_id": strings.TrimSpace(runtime.Str("meeting-id")),
-	}, nil
+func buildMeetingEndBody(runtime *common.RuntimeContext) meetingEndRequest {
+	return meetingEndRequest{MeetingID: strings.TrimSpace(runtime.Str("meeting-id"))}
 }
 
 func validateMeetingIDFlag(value string) error {
@@ -220,20 +271,11 @@ func validateMeetingIDFlag(value string) error {
 	if meetingID == "" {
 		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--meeting-id is required").WithParam("--meeting-id")
 	}
-	if !isDigits(meetingID) {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--meeting-id must be numeric").WithParam("--meeting-id")
+	if !meetingIDRe.MatchString(meetingID) || strings.TrimLeft(meetingID, "0") == "" {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--meeting-id must be a positive integer").WithParam("--meeting-id")
+	}
+	if _, err := strconv.ParseInt(meetingID, 10, 64); err != nil {
+		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--meeting-id is out of range").WithParam("--meeting-id")
 	}
 	return nil
-}
-
-func isDigits(value string) bool {
-	if value == "" {
-		return false
-	}
-	for _, r := range value {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
 }

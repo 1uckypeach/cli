@@ -4,7 +4,6 @@
 package vc
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1740,48 +1739,6 @@ func TestVCMeetingEventsDocumentContextCLIBehavior(t *testing.T) {
 			last = index
 		}
 	})
-}
-
-func TestVCShortcuts_RegistersMeetingAgentCommands(t *testing.T) {
-	got := Shortcuts()
-	commands := make(map[string]bool)
-	for _, shortcut := range got {
-		commands[shortcut.Command] = true
-	}
-	for _, want := range []string{"+meeting-invite", "+meeting-end"} {
-		if !commands[want] {
-			t.Fatalf("shortcut commands missing %s: %#v", want, commands)
-		}
-	}
-	if commands["+meeting-start"] {
-		t.Fatalf("shortcut commands must not register +meeting-start: %#v", commands)
-	}
-}
-
-func TestPrintMeetingInviteResultIncludesAggregateAndResultSummary(t *testing.T) {
-	var buf bytes.Buffer
-	printMeetingInviteResult(&buf, map[string]interface{}{
-		"failed_count":  1,
-		"invited_count": 2,
-		"has_more":      true,
-		"invite_results": []interface{}{
-			map[string]interface{}{"id": "ou_a", "status": 1},
-			map[string]interface{}{"id": "ou_b", "status": 2},
-		},
-	})
-
-	out := buf.String()
-	for _, want := range []string{
-		"Invite request sent.",
-		"Failed:   1",
-		"Invited:  2",
-		"Has more: true",
-		"Results:  2 users",
-	} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("pretty output missing %q: %s", want, out)
-		}
-	}
 }
 
 func TestLeaveAction(t *testing.T) {

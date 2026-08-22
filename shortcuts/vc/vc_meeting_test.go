@@ -57,20 +57,19 @@ func TestBuildMeetingJoinBody_WithoutPassword(t *testing.T) {
 	_ = cmd.Flags().Set("meeting-number", "123456789")
 
 	runtime := common.TestNewRuntimeContext(cmd, defaultConfig())
-	body := buildMeetingJoinBody(runtime)
+	body := buildMeetingJoinBody(runtime, meetingJoinActionJoin)
 
-	if body["join_type"] != 1 {
-		t.Errorf("join_type = %v, want 1", body["join_type"])
+	if body.JoinType != 1 {
+		t.Errorf("join_type = %v, want 1", body.JoinType)
 	}
-	ji, ok := body["join_identify"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("join_identify missing or wrong type: %v", body["join_identify"])
+	if body.JoinIdentify.MeetingNo != "123456789" {
+		t.Errorf("meeting_no = %v, want 123456789", body.JoinIdentify.MeetingNo)
 	}
-	if ji["meeting_no"] != "123456789" {
-		t.Errorf("meeting_no = %v, want 123456789", ji["meeting_no"])
+	if body.Password != "" {
+		t.Errorf("password should be empty, got %q", body.Password)
 	}
-	if _, exists := body["password"]; exists {
-		t.Errorf("password should be omitted when empty, got %v", body["password"])
+	if body.Action != nil {
+		t.Errorf("default join must not include action, got %d", *body.Action)
 	}
 }
 
@@ -82,10 +81,10 @@ func TestBuildMeetingJoinBody_WithPassword(t *testing.T) {
 	_ = cmd.Flags().Set("password", "secret")
 
 	runtime := common.TestNewRuntimeContext(cmd, defaultConfig())
-	body := buildMeetingJoinBody(runtime)
+	body := buildMeetingJoinBody(runtime, meetingJoinActionJoin)
 
-	if body["password"] != "secret" {
-		t.Errorf("password = %v, want secret", body["password"])
+	if body.Password != "secret" {
+		t.Errorf("password = %v, want secret", body.Password)
 	}
 }
 
@@ -97,14 +96,13 @@ func TestBuildMeetingJoinBody_TrimsWhitespace(t *testing.T) {
 	_ = cmd.Flags().Set("password", "  pw  ")
 
 	runtime := common.TestNewRuntimeContext(cmd, defaultConfig())
-	body := buildMeetingJoinBody(runtime)
+	body := buildMeetingJoinBody(runtime, meetingJoinActionJoin)
 
-	ji, _ := body["join_identify"].(map[string]interface{})
-	if ji["meeting_no"] != "123456789" {
-		t.Errorf("meeting_no should be trimmed, got %q", ji["meeting_no"])
+	if body.JoinIdentify.MeetingNo != "123456789" {
+		t.Errorf("meeting_no should be trimmed, got %q", body.JoinIdentify.MeetingNo)
 	}
-	if body["password"] != "pw" {
-		t.Errorf("password should be trimmed, got %q", body["password"])
+	if body.Password != "pw" {
+		t.Errorf("password should be trimmed, got %q", body.Password)
 	}
 }
 
@@ -116,10 +114,10 @@ func TestBuildMeetingJoinBody_WithoutCallID(t *testing.T) {
 	_ = cmd.Flags().Set("meeting-number", "123456789")
 
 	runtime := common.TestNewRuntimeContext(cmd, defaultConfig())
-	body := buildMeetingJoinBody(runtime)
+	body := buildMeetingJoinBody(runtime, meetingJoinActionJoin)
 
-	if _, exists := body["call_id"]; exists {
-		t.Errorf("call_id should be omitted when empty, got %v", body["call_id"])
+	if body.CallID != "" {
+		t.Errorf("call_id should be empty, got %q", body.CallID)
 	}
 }
 
@@ -132,10 +130,10 @@ func TestBuildMeetingJoinBody_StartAction(t *testing.T) {
 	_ = cmd.Flags().Set("meeting-number", "123456789")
 	_ = cmd.Flags().Set("action", "start")
 
-	body := buildMeetingJoinBody(common.TestNewRuntimeContext(cmd, defaultConfig()))
+	body := buildMeetingJoinBody(common.TestNewRuntimeContext(cmd, defaultConfig()), meetingJoinActionStart)
 
-	if body["action"] != 2 {
-		t.Errorf("action = %v, want 2", body["action"])
+	if body.Action == nil || *body.Action != meetingJoinStartAPIFlag {
+		t.Errorf("action = %v, want %d", body.Action, meetingJoinStartAPIFlag)
 	}
 }
 
@@ -146,7 +144,6 @@ func TestMeetingJoinAction(t *testing.T) {
 		want   string
 	}{
 		{name: "start", action: "start", want: meetingJoinActionStart},
-		{name: "trimmed uppercase start", action: " START ", want: meetingJoinActionStart},
 		{name: "join", action: "join", want: meetingJoinActionJoin},
 		{name: "unexpected defaults to join", action: "other", want: meetingJoinActionJoin},
 	}
@@ -164,6 +161,20 @@ func TestMeetingJoinAction(t *testing.T) {
 	}
 }
 
+func TestVCMeetingJoinNormalizesAction(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("action", "", "")
+	_ = cmd.Flags().Set("action", " START ")
+	runtime := common.TestNewRuntimeContext(cmd, defaultConfig())
+
+	if err := VCMeetingJoin.Normalize(context.Background(), runtime.FlagContext()); err != nil {
+		t.Fatalf("VCMeetingJoin.Normalize() error = %v", err)
+	}
+	if got := meetingJoinAction(runtime); got != meetingJoinActionStart {
+		t.Fatalf("meetingJoinAction() = %q, want %q", got, meetingJoinActionStart)
+	}
+}
+
 func TestBuildMeetingJoinBody_WithCallID(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("meeting-number", "", "")
@@ -173,10 +184,10 @@ func TestBuildMeetingJoinBody_WithCallID(t *testing.T) {
 	_ = cmd.Flags().Set("call-id", "a08e06bf-9a41-44e4-a89c-a7871899e783")
 
 	runtime := common.TestNewRuntimeContext(cmd, defaultConfig())
-	body := buildMeetingJoinBody(runtime)
+	body := buildMeetingJoinBody(runtime, meetingJoinActionJoin)
 
-	if body["call_id"] != "a08e06bf-9a41-44e4-a89c-a7871899e783" {
-		t.Errorf("call_id = %v, want a08e06bf-9a41-44e4-a89c-a7871899e783", body["call_id"])
+	if body.CallID != "a08e06bf-9a41-44e4-a89c-a7871899e783" {
+		t.Errorf("call_id = %v, want a08e06bf-9a41-44e4-a89c-a7871899e783", body.CallID)
 	}
 }
 
@@ -189,10 +200,10 @@ func TestBuildMeetingJoinBody_TrimsCallIDWhitespace(t *testing.T) {
 	_ = cmd.Flags().Set("call-id", "  call-xyz  ")
 
 	runtime := common.TestNewRuntimeContext(cmd, defaultConfig())
-	body := buildMeetingJoinBody(runtime)
+	body := buildMeetingJoinBody(runtime, meetingJoinActionJoin)
 
-	if body["call_id"] != "call-xyz" {
-		t.Errorf("call_id should be trimmed, got %q", body["call_id"])
+	if body.CallID != "call-xyz" {
+		t.Errorf("call_id should be trimmed, got %q", body.CallID)
 	}
 }
 

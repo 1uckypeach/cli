@@ -23,6 +23,18 @@ const (
 
 var meetingNumberRe = regexp.MustCompile(`^\d{9}$`)
 
+type meetingJoinIdentify struct {
+	MeetingNo string `json:"meeting_no"`
+}
+
+type meetingJoinRequest struct {
+	JoinType     int                 `json:"join_type"`
+	JoinIdentify meetingJoinIdentify `json:"join_identify"`
+	Password     string              `json:"password,omitempty"`
+	CallID       string              `json:"call_id,omitempty"`
+	Action       *int                `json:"action,omitempty"`
+}
+
 // validMeetingNumber checks whether s is a valid 9-digit meeting number.
 func validMeetingNumber(s string) bool {
 	return meetingNumberRe.MatchString(s)
@@ -57,14 +69,13 @@ var VCMeetingJoin = common.Shortcut{
 		return nil
 	},
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
-		body := buildMeetingJoinBody(runtime)
 		return common.NewDryRunAPI().
 			POST(meetingBotJoinPath).
-			Body(body)
+			Body(buildMeetingJoinBody(runtime, meetingJoinAction(runtime)))
 	},
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
-		body := buildMeetingJoinBody(runtime)
-		data, err := runtime.CallAPITyped("POST", meetingBotJoinPath, nil, body)
+		action := meetingJoinAction(runtime)
+		data, err := runtime.CallAPITyped("POST", meetingBotJoinPath, nil, buildMeetingJoinBody(runtime, action))
 		if err != nil {
 			return err
 		}
@@ -74,14 +85,14 @@ var VCMeetingJoin = common.Shortcut{
 		runtime.OutFormat(data, nil, func(w io.Writer) {
 			meeting, _ := data["meeting"].(map[string]interface{})
 			if meeting == nil {
-				if meetingJoinAction(runtime) == meetingJoinActionStart {
+				if action == meetingJoinActionStart {
 					fmt.Fprintln(w, "Started Calendar meeting (no meeting info returned).")
 				} else {
 					fmt.Fprintln(w, "Joined meeting (no meeting info returned).")
 				}
 				return
 			}
-			if meetingJoinAction(runtime) == meetingJoinActionStart {
+			if action == meetingJoinActionStart {
 				fmt.Fprintln(w, "Started Calendar meeting.")
 			} else {
 				fmt.Fprintln(w, "Joined meeting successfully.")
@@ -95,29 +106,26 @@ var VCMeetingJoin = common.Shortcut{
 	},
 }
 
-func buildMeetingJoinBody(runtime *common.RuntimeContext) map[string]interface{} {
-	meetingNo := strings.TrimSpace(runtime.Str("meeting-number"))
-	body := map[string]interface{}{
-		"join_type": 1,
-		"join_identify": map[string]interface{}{
-			"meeting_no": meetingNo,
-		},
+func buildMeetingJoinBody(runtime *common.RuntimeContext, action string) meetingJoinRequest {
+	body := meetingJoinRequest{
+		JoinType:     1,
+		JoinIdentify: meetingJoinIdentify{MeetingNo: strings.TrimSpace(runtime.Str("meeting-number"))},
 	}
 	if pw := strings.TrimSpace(runtime.Str("password")); pw != "" {
-		body["password"] = pw
+		body.Password = pw
 	}
 	if cid := strings.TrimSpace(runtime.Str("call-id")); cid != "" {
-		body["call_id"] = cid
+		body.CallID = cid
 	}
-	if meetingJoinAction(runtime) == meetingJoinActionStart {
-		body["action"] = meetingJoinStartAPIFlag
+	if action == meetingJoinActionStart {
+		startAction := meetingJoinStartAPIFlag
+		body.Action = &startAction
 	}
 	return body
 }
 
 func meetingJoinAction(runtime *common.RuntimeContext) string {
-	action := strings.ToLower(strings.TrimSpace(runtime.Str("action")))
-	if action == meetingJoinActionStart {
+	if runtime.Str("action") == meetingJoinActionStart {
 		return meetingJoinActionStart
 	}
 	return meetingJoinActionJoin

@@ -21,7 +21,8 @@ lark-cli vc +meeting-invite --as bot --meeting-id 69999999 --type ALL_SUGGESTED 
 - `SELECTED` 显式发送用户 `open_id`；本地会在请求前拒绝超过 200 个 ID 的输入。
 - `ALL_SUGGESTED` 只发送邀请类型。服务端根据 Calendar 状态解析一键邀请候选集，并应用 200 人上限。
 - 请求契约：`SELECTED` 发送 `invite_type=2`、`invitees=[{"id":"ou_xxx","user_type":1}]` 和查询参数 `user_id_type=open_id`；`ALL_SUGGESTED` 发送 `invite_type=1` 且省略 `invitees`。
-- 返回契约：`SELECTED` 可返回显式受邀人的 `invite_results`；`ALL_SUGGESTED` 仅返回 `failed_count`、`invited_count`、`has_more` 等聚合字段，不返回逐用户 `invite_results`。
+- 返回契约：`SELECTED` 可返回显式受邀人的 `invite_results`；CLI 会按响应 `id` 展示每项 `invited` 或 `failed` 状态。`ALL_SUGGESTED` 仅返回聚合字段，不返回逐用户 `invite_results`。
+- `ALL_SUGGESTED` 的 `has_more=true` 表示候选人超过服务端单次 200 人上限，不是可翻页信号。该接口没有 continuation 或 `page_token`；CLI 会显示截断提示而不输出 `has_more`。
 
 ## 权限与前置条件
 
