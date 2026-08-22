@@ -139,6 +139,31 @@ func TestBuildMeetingJoinBody_StartAction(t *testing.T) {
 	}
 }
 
+func TestMeetingJoinAction(t *testing.T) {
+	tests := []struct {
+		name   string
+		action string
+		want   string
+	}{
+		{name: "start", action: "start", want: meetingJoinActionStart},
+		{name: "trimmed uppercase start", action: " START ", want: meetingJoinActionStart},
+		{name: "join", action: "join", want: meetingJoinActionJoin},
+		{name: "unexpected defaults to join", action: "other", want: meetingJoinActionJoin},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := &cobra.Command{Use: "test"}
+			cmd.Flags().String("action", "", "")
+			_ = cmd.Flags().Set("action", tt.action)
+
+			if got := meetingJoinAction(common.TestNewRuntimeContext(cmd, defaultConfig())); got != tt.want {
+				t.Fatalf("meetingJoinAction() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestBuildMeetingJoinBody_WithCallID(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("meeting-number", "", "")
@@ -265,6 +290,108 @@ func TestMeetingJoin_DryRun(t *testing.T) {
 	}
 	if !strings.Contains(out, "pw123") {
 		t.Errorf("dry-run should include password, got: %s", out)
+	}
+}
+
+func TestMeetingJoin_StartAction_Bot(t *testing.T) {
+	t.Run("dry run normalizes action", func(t *testing.T) {
+		f, stdout, _, _ := cmdutil.TestFactory(t, defaultConfig())
+		err := mountAndRun(t, VCMeetingJoin, []string{
+			"+meeting-join",
+			"--meeting-number", "123456789",
+			"--action", " START ",
+			"--dry-run",
+			"--as", "bot",
+		}, f, stdout)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		for _, want := range []string{meetingBotJoinPath, "\"action\"", "2"} {
+			if !strings.Contains(stdout.String(), want) {
+				t.Fatalf("dry-run output missing %q: %s", want, stdout.String())
+			}
+		}
+	})
+
+	t.Run("execute", func(t *testing.T) {
+		f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
+		stub := &httpmock.Stub{
+			Method: "POST",
+			URL:    meetingBotJoinPath,
+			Body: map[string]interface{}{
+				"code": 0,
+				"msg":  "ok",
+				"data": map[string]interface{}{
+					"meeting": map[string]interface{}{
+						"id":         "69999999",
+						"meeting_no": "123456789",
+						"topic":      "Calendar meeting",
+						"start_time": "1700000000",
+					},
+				},
+			},
+		}
+		reg.Register(stub)
+
+		err := mountAndRun(t, VCMeetingJoin, []string{
+			"+meeting-join",
+			"--meeting-number", "123456789",
+			"--action", "start",
+			"--format", "pretty",
+			"--as", "bot",
+		}, f, stdout)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		reg.Verify(t)
+
+		var body map[string]interface{}
+		if err := json.Unmarshal(stub.CapturedBody, &body); err != nil {
+			t.Fatalf("decode captured request body: %v", err)
+		}
+		if body["action"] != float64(meetingJoinStartAPIFlag) {
+			t.Fatalf("request action = %#v, want %d", body["action"], meetingJoinStartAPIFlag)
+		}
+		for _, want := range []string{"Started Calendar meeting.", "69999999", "123456789", "Calendar meeting", "1700000000"} {
+			if !strings.Contains(stdout.String(), want) {
+				t.Fatalf("pretty output missing %q: %s", want, stdout.String())
+			}
+		}
+	})
+}
+
+func TestMeetingJoin_StartAction_NoMeetingInfo(t *testing.T) {
+	f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
+	reg.Register(&httpmock.Stub{
+		Method: "POST",
+		URL:    meetingBotJoinPath,
+		Body: map[string]interface{}{
+			"code": 0,
+			"msg":  "ok",
+		},
+	})
+
+	err := mountAndRun(t, VCMeetingJoin, []string{
+		"+meeting-join",
+		"--meeting-number", "123456789",
+		"--action", "start",
+		"--format", "pretty",
+		"--as", "bot",
+	}, f, stdout)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	reg.Verify(t)
+	if !strings.Contains(stdout.String(), "Started Calendar meeting (no meeting info returned).") {
+		t.Fatalf("pretty output = %s", stdout.String())
+	}
+}
+
+func TestPrintMeetingSummaryWithoutMeeting(t *testing.T) {
+	var out strings.Builder
+	printMeetingSummary(&out, map[string]interface{}{})
+	if got := out.String(); got != "" {
+		t.Fatalf("printMeetingSummary() = %q, want empty output", got)
 	}
 }
 

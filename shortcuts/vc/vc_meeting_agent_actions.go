@@ -163,11 +163,11 @@ func buildMeetingInviteParams() map[string]interface{} {
 
 func printMeetingInviteResult(w io.Writer, data map[string]interface{}) {
 	fmt.Fprintln(w, "Invite request sent.")
-	if _, ok := common.GetFloatOK(data, "failed_count"); ok {
-		fmt.Fprintf(w, "  Failed:   %d\n", common.GetInt(data, "failed_count"))
+	if failedCount, ok := common.GetFloatOK(data, "failed_count"); ok {
+		fmt.Fprintf(w, "  Failed:   %d\n", int(failedCount))
 	}
-	if _, ok := common.GetFloatOK(data, "invited_count"); ok {
-		fmt.Fprintf(w, "  Invited:  %d\n", common.GetInt(data, "invited_count"))
+	if invitedCount, ok := common.GetFloatOK(data, "invited_count"); ok {
+		fmt.Fprintf(w, "  Invited:  %d\n", int(invitedCount))
 	}
 	if common.GetBool(data, "has_more") {
 		fmt.Fprintln(w, "  Has more: true")
