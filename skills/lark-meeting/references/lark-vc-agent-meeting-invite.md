@@ -1,6 +1,6 @@
 # vc +meeting-invite
 
-Invite selected users or all eligible Calendar attendees through the Agent bot API.
+通过 Agent Bot API 邀请指定用户，或一键邀请符合条件的 Calendar 参会人。
 
 ```bash
 lark-cli vc +meeting-invite --as bot --meeting-id 69999999 --type SELECTED --open-ids ou_xxx,ou_yyy
@@ -8,24 +8,24 @@ lark-cli vc +meeting-invite --as bot --meeting-id 69999999 --type ALL_SUGGESTED
 lark-cli vc +meeting-invite --as bot --meeting-id 69999999 --type ALL_SUGGESTED --dry-run
 ```
 
-## Parameters
+## 参数
 
-| Parameter | Required | Description |
+| 参数 | 必填 | 说明 |
 | --- | --- | --- |
-| `--meeting-id` | Yes | Meeting ID, not the 9-digit meeting number. |
-| `--type` | Yes | `SELECTED` or `ALL_SUGGESTED` (case-insensitive). |
-| `--open-ids` | For `SELECTED` | User `open_id` values (`ou_xxx`), comma-separated or repeated, maximum 200. Do not set for `ALL_SUGGESTED`. |
+| `--meeting-id` | 是 | 长数字 Meeting ID，不是 9 位会议号。 |
+| `--type` | 是 | `SELECTED` 或 `ALL_SUGGESTED`，大小写不敏感。 |
+| `--open-ids` | `SELECTED` 时必填 | 用户 `open_id`（`ou_xxx`），支持逗号分隔或重复传入，最多 200 个；`ALL_SUGGESTED` 时不得传入。 |
 
-This shortcut only accepts bot identity and calls `POST /open-apis/vc/v1/bots/invite`.
+该 shortcut 仅支持 bot 身份，调用 `POST /open-apis/vc/v1/bots/invite`。
 
-- `SELECTED` sends explicit user `open_id` values and rejects more than 200 IDs before sending.
-- `ALL_SUGGESTED` sends only the type. The server builds the Calendar one-click-invite candidate set, consumes all Calendar pages, filters resources, bots, the actor itself, declined and removed attendees, applies the 200-person cap, and then reuses the shared InviteParticipant policy chain.
-- Wire contract: `SELECTED` sends `invite_type=2`, `invitees=[{"id":"ou_xxx","user_type":1}]`, and query `user_id_type=open_id`; `ALL_SUGGESTED` sends `invite_type=1` and omits `invitees`.
-- Response contract: `SELECTED` may return `invite_results` for explicit invitees; `ALL_SUGGESTED` returns aggregate fields such as `failed_count`, `invited_count`, and `has_more`, without per-user `invite_results`.
+- `SELECTED` 显式发送用户 `open_id`；本地会在请求前拒绝超过 200 个 ID 的输入。
+- `ALL_SUGGESTED` 只发送邀请类型。服务端会构建 Calendar 一键邀请候选集，遍历全部日历页，过滤资源、Bot、调用方本人、已拒绝和已移除的参会人，应用 200 人上限，再复用共享的 `InviteParticipant` 策略链。
+- 请求契约：`SELECTED` 发送 `invite_type=2`、`invitees=[{"id":"ou_xxx","user_type":1}]` 和查询参数 `user_id_type=open_id`；`ALL_SUGGESTED` 发送 `invite_type=1` 且省略 `invitees`。
+- 返回契约：`SELECTED` 可返回显式受邀人的 `invite_results`；`ALL_SUGGESTED` 仅返回 `failed_count`、`invited_count`、`has_more` 等聚合字段，不返回逐用户 `invite_results`。
 
-## Permission Notes
+## 权限与前置条件
 
-- The meeting must be a Calendar VC meeting and the app bot must already be in the meeting.
-- Agent Invite depends on the meeting's Agent join capability. If the Calendar meeting did not enable the AI/Agent meeting setting, invite calls fail before candidates are resolved.
-- `SELECTED` with one invitee follows the normal single-invite policy, so a regular in-meeting participant may be able to invite that user.
-- `ALL_SUGGESTED` and multi-user `SELECTED` use the batch/suggested-list invite policy. In practice, the bot should be the current host or co-host before calling them; a regular participant bot can be rejected or have candidates filtered by the shared meeting permission chain.
+- 目标必须是 Calendar VC 会议，且应用 Bot 已在会中。
+- Agent Invite 依赖会议的 Agent 加入能力。日程未开启 AI/Agent 会议设置时，候选人解析前就会失败。
+- 仅包含一名受邀人的 `SELECTED` 复用普通单点邀请策略，普通会中参会人也可能有权邀请该用户。
+- `ALL_SUGGESTED` 和多用户 `SELECTED` 使用批量/建议列表邀请策略。实际调用时 Bot 应为当前 host 或 co-host；普通参会 Bot 可能被共享会控策略拒绝，或其候选人被过滤。
