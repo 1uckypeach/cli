@@ -33,6 +33,7 @@ func TestMeetingSkillOwnsVCReferences(t *testing.T) {
 		sharedName string
 		oldName    string
 		command    string
+		userOnly   bool
 	}{
 		{
 			sharedName: "lark-vc-meeting-list-active.md",
@@ -49,6 +50,18 @@ func TestMeetingSkillOwnsVCReferences(t *testing.T) {
 			oldName:    "lark-vc-agent-meeting-message-send.md",
 			command:    "lark-cli vc +meeting-message-send",
 		},
+		{
+			sharedName: "lark-vc-meeting-end.md",
+			oldName:    "",
+			command:    "lark-cli vc +meeting-end",
+			userOnly:   true,
+		},
+		{
+			sharedName: "lark-vc-meeting-participant-kickout.md",
+			oldName:    "",
+			command:    "lark-cli vc +meeting-participant-kickout",
+			userOnly:   true,
+		},
 	}
 
 	for _, reference := range references {
@@ -58,11 +71,17 @@ func TestMeetingSkillOwnsVCReferences(t *testing.T) {
 			content := readVCContractFile(t, "skills", "lark-meeting", "references", reference.sharedName)
 			require.Contains(t, content, reference.command)
 			require.Contains(t, content, "--as user")
-			require.Contains(t, content, "--as bot")
+			if reference.userOnly {
+				require.NotContains(t, content, "--as bot")
+			} else {
+				require.Contains(t, content, "--as bot")
+			}
 
 			oldPaths := []string{
 				vcContractPath(t, "skills", "lark-vc", "references", reference.sharedName),
-				vcContractPath(t, "skills", "lark-vc-agent", "references", reference.oldName),
+			}
+			if reference.oldName != "" {
+				oldPaths = append(oldPaths, vcContractPath(t, "skills", "lark-vc-agent", "references", reference.oldName))
 			}
 			for _, oldPath := range oldPaths {
 				_, err := vfs.Stat(oldPath)
@@ -78,6 +97,8 @@ func TestVCSharedMeetingReferencesHaveValidMarkdownLinks(t *testing.T) {
 		"lark-vc-meeting-list-active.md",
 		"lark-vc-meeting-events.md",
 		"lark-vc-meeting-message-send.md",
+		"lark-vc-meeting-end.md",
+		"lark-vc-meeting-participant-kickout.md",
 	}
 
 	for _, reference := range references {

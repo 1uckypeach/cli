@@ -5,6 +5,7 @@ package output
 
 import (
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/larksuite/cli/errs"
@@ -16,6 +17,28 @@ import (
 type failingWriter struct {
 	limit int
 	n     int
+}
+
+func TestWriteTypedErrorEnvelopeWithNoticeProvider_NilDoesNotReadGlobal(t *testing.T) {
+	original := PendingNotice
+	called := false
+	PendingNotice = func() map[string]interface{} {
+		called = true
+		return map[string]interface{}{"source": "global"}
+	}
+	t.Cleanup(func() { PendingNotice = original })
+
+	var out strings.Builder
+	err := errs.NewValidationError(errs.SubtypeInvalidArgument, "invalid input")
+	if ok := WriteTypedErrorEnvelopeWithNoticeProvider(&out, err, "user", nil); !ok {
+		t.Fatal("typed error was not handled")
+	}
+	if called {
+		t.Fatal("nil invocation provider consulted PendingNotice")
+	}
+	if strings.Contains(out.String(), "_notice") {
+		t.Fatalf("nil invocation provider emitted notice: %s", out.String())
+	}
 }
 
 func (f *failingWriter) Write(p []byte) (int, error) {

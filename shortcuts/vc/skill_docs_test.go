@@ -83,6 +83,60 @@ func TestVCBotShortcutsIdentityDocsMatchAuthTypes(t *testing.T) {
 	}
 }
 
+func TestVCMeetingManagementDocsMatchAuthTypesAndContracts(t *testing.T) {
+	skill := readSkillDoc(t, "skills/lark-meeting/SKILL.md")
+
+	for _, cmd := range []struct {
+		name      string
+		authTypes []string
+		reference string
+		sceneNeed string
+	}{
+		{
+			name:      "+meeting-end",
+			authTypes: VCMeetingEnd.AuthTypes,
+			reference: "lark-vc-meeting-end.md",
+			sceneNeed: "vc +meeting-end",
+		},
+		{
+			name:      "+meeting-participant-kickout",
+			authTypes: VCMeetingParticipantKickout.AuthTypes,
+			reference: "lark-vc-meeting-participant-kickout.md",
+			sceneNeed: "vc +meeting-participant-kickout",
+		},
+	} {
+		t.Run(cmd.name, func(t *testing.T) {
+			if hasAuthType(cmd.authTypes, "bot") || !hasAuthType(cmd.authTypes, "user") {
+				t.Fatalf("%s AuthTypes = %v, want user-only", cmd.name, cmd.authTypes)
+			}
+			if !strings.Contains(skill, "references/"+cmd.reference) {
+				t.Fatalf("skills/lark-meeting/SKILL.md must link %s to %s", cmd.name, cmd.reference)
+			}
+
+			reference := readSkillDoc(t, "skills/lark-meeting/references/"+cmd.reference)
+			if !strings.Contains(reference, "仅支持 `user` 身份") && !strings.Contains(reference, "必须显式使用 `--as user`") {
+				t.Fatalf("%s must state that %s is user-only", cmd.reference, cmd.name)
+			}
+			if !strings.Contains(reference, "--dry-run") || !strings.Contains(reference, "--yes") {
+				t.Fatalf("%s must document both --dry-run preview and --yes confirmation", cmd.reference)
+			}
+		})
+	}
+
+	scene := readSkillDoc(t, "skills/lark-meeting/scenes/live-meeting-interact.md")
+	for _, needle := range []string{
+		"vc +meeting-end",
+		"vc +meeting-participant-kickout",
+		"vc meeting get",
+		"--dry-run",
+		"--yes",
+	} {
+		if !strings.Contains(scene, needle) {
+			t.Errorf("live-meeting-interact.md must mention %q for meeting management routing", needle)
+		}
+	}
+}
+
 func TestMeetingArtifactSceneDelegatesToDomainOwners(t *testing.T) {
 	scene := readSkillDoc(t, "skills/lark-meeting/scenes/query-meeting-and-artifacts.md")
 	for _, target := range []string{
