@@ -10,6 +10,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/larksuite/cli/errs"
@@ -26,8 +27,8 @@ func TestMeetingEndContract(t *testing.T) {
 	if !VCMeetingEnd.ConfirmationBeforeNetwork {
 		t.Fatal("ConfirmationBeforeNetwork = false, want true")
 	}
-	if len(VCMeetingEnd.Scopes) != 0 {
-		t.Fatalf("Scopes = %v, want []", VCMeetingEnd.Scopes)
+	if !reflect.DeepEqual(VCMeetingEnd.Scopes, []string{}) {
+		t.Fatalf("Scopes = %#v, want explicit empty slice", VCMeetingEnd.Scopes)
 	}
 	if len(VCMeetingEnd.ConditionalUserScopes) != 1 || VCMeetingEnd.ConditionalUserScopes[0] != "vc:meeting" {
 		t.Fatalf("ConditionalUserScopes = %v, want [vc:meeting]", VCMeetingEnd.ConditionalUserScopes)
@@ -237,7 +238,7 @@ func TestMeetingEndDryRunDoesNotResolveScopesOrCallAPI(t *testing.T) {
 func TestMeetingEndExecuteScopePreflightRunsBeforeAPI(t *testing.T) {
 	f, accountResolver, _, reg, stdout := newMeetingManagementFactoryWithCounters(t)
 	resolver := &meetingManagementCountingTokenResolver{
-		result: &credential.TokenResult{Token: "uat-test", Scopes: ""},
+		result: &credential.TokenResult{Token: "uat-test", Scopes: "vc:record:readonly"},
 	}
 	f.Credential = credential.NewCredentialProvider(nil, accountResolver, resolver, nil)
 	apiCalls := 0

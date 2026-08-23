@@ -24,6 +24,7 @@ var VCMeetingEnd = common.Shortcut{
 	Description:               "End an ongoing meeting",
 	Risk:                      "high-risk-write",
 	ConfirmationBeforeNetwork: true,
+	Scopes:                    []string{},
 	ConditionalUserScopes:     []string{"vc:meeting"},
 	AuthTypes:                 []string{"user"},
 	HasFormat:                 true,

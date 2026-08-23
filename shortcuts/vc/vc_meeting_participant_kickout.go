@@ -40,6 +40,7 @@ var VCMeetingParticipantKickout = common.Shortcut{
 	Description:               "Remove one or more participants from an ongoing meeting",
 	Risk:                      "high-risk-write",
 	ConfirmationBeforeNetwork: true,
+	Scopes:                    []string{},
 	ConditionalUserScopes:     []string{"vc:meeting"},
 	AuthTypes:                 []string{"user"},
 	HasFormat:                 true,
@@ -107,6 +108,10 @@ func validateMeetingParticipantKickoutResponse(data map[string]interface{}, requ
 		return errs.NewInternalError(errs.SubtypeInvalidResponse, "meeting participant kickout response has invalid kickout_results").WithCause(err)
 	}
 
+	// OpenAPI preserves the original request body but normalizes identical
+	// participant tuples to the first occurrence before executing HostManage.
+	// Correlate against that normalized tuple set so a successful destructive
+	// request is not reported as failed merely because the input had duplicates.
 	want := make(map[string]struct{}, len(requested))
 	for _, participant := range requested {
 		key, ok := meetingParticipantTupleKey(participant.ID, participant.UserType)
@@ -118,13 +123,12 @@ func validateMeetingParticipantKickoutResponse(data map[string]interface{}, requ
 	if len(results) != len(want) {
 		return errs.NewInternalError(
 			errs.SubtypeInvalidResponse,
-			"meeting participant kickout response returned %d result(s), want %d unique requested tuple(s)",
+			"meeting participant kickout response returned %d result(s), want %d normalized requested tuple(s)",
 			len(results),
 			len(want),
 		)
 	}
 
-	seen := make(map[string]struct{}, len(results))
 	for index, result := range results {
 		rawID, hasID := result["id"]
 		rawUserType, hasUserType := result["user_type"]
@@ -140,13 +144,13 @@ func validateMeetingParticipantKickoutResponse(data map[string]interface{}, requ
 		if !ok {
 			return errs.NewInternalError(errs.SubtypeInvalidResponse, "meeting participant kickout result %d has invalid id", index)
 		}
-		if _, exists := want[key]; !exists {
-			return errs.NewInternalError(errs.SubtypeInvalidResponse, "meeting participant kickout response returned an unrequested tuple")
+		if _, requested := want[key]; !requested {
+			return errs.NewInternalError(errs.SubtypeInvalidResponse, "meeting participant kickout response returned an unrequested or excess tuple")
 		}
-		if _, duplicate := seen[key]; duplicate {
-			return errs.NewInternalError(errs.SubtypeInvalidResponse, "meeting participant kickout response returned a duplicate tuple")
-		}
-		seen[key] = struct{}{}
+		delete(want, key)
+	}
+	if len(want) != 0 {
+		return errs.NewInternalError(errs.SubtypeInvalidResponse, "meeting participant kickout response is missing a requested tuple")
 	}
 	return nil
 }

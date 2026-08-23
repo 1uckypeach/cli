@@ -132,18 +132,18 @@ func RegisterOfflineMeetingManagementPreflight(ctx context.Context, program *cob
 			continue
 		}
 		if !shortcut.ConfirmationBeforeNetwork || shortcut.Normalize != nil || shortcut.OnInvoke != nil {
-			return fmt.Errorf("offline preflight invariant failed for vc %s", shortcut.Command)
+			return errs.NewInternalError(errs.SubtypeUnknown, "offline preflight invariant failed for vc %s", shortcut.Command)
 		}
 		for _, flag := range shortcut.Flags {
 			if len(flag.Input) != 0 {
-				return fmt.Errorf("offline preflight input invariant failed for vc %s --%s", shortcut.Command, flag.Name)
+				return errs.NewInternalError(errs.SubtypeUnknown, "offline preflight input invariant failed for vc %s --%s", shortcut.Command, flag.Name)
 			}
 		}
 		shortcut.MountOfflinePreflightWithContext(ctx, vcGroup, f)
 		found[shortcut.Command] = struct{}{}
 	}
 	if len(found) != len(offlineMeetingManagementCommands) {
-		return fmt.Errorf("offline meeting-management preflight registry is incomplete")
+		return errs.NewInternalError(errs.SubtypeUnknown, "offline meeting-management preflight registry is incomplete")
 	}
 	return nil
 }

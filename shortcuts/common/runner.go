@@ -41,7 +41,7 @@ import (
 // --yes. The caller must now rebuild the normal command tree so config, strict
 // mode, plugin policy, scopes, and the real API execution keep their existing
 // behavior.
-var ErrOfflinePreflightPassed = errors.New("offline shortcut preflight passed")
+var ErrOfflinePreflightPassed = errors.New("offline shortcut preflight passed") //nolint:forbidigo // internal control-flow sentinel; consumed by errors.Is before error presentation
 
 // RuntimeContext provides helpers for shortcut execution.
 type RuntimeContext struct {

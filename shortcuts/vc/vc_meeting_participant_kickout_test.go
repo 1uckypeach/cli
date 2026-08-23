@@ -25,8 +25,8 @@ func TestMeetingParticipantKickoutContract(t *testing.T) {
 	if !VCMeetingParticipantKickout.ConfirmationBeforeNetwork {
 		t.Fatal("ConfirmationBeforeNetwork = false, want true")
 	}
-	if len(VCMeetingParticipantKickout.Scopes) != 0 {
-		t.Fatalf("Scopes = %v, want []", VCMeetingParticipantKickout.Scopes)
+	if !reflect.DeepEqual(VCMeetingParticipantKickout.Scopes, []string{}) {
+		t.Fatalf("Scopes = %#v, want explicit empty slice", VCMeetingParticipantKickout.Scopes)
 	}
 	if !reflect.DeepEqual(VCMeetingParticipantKickout.ConditionalUserScopes, []string{"vc:meeting"}) {
 		t.Fatalf("ConditionalUserScopes = %v, want [vc:meeting]", VCMeetingParticipantKickout.ConditionalUserScopes)
@@ -171,8 +171,9 @@ func TestMeetingParticipantKickoutDryRunPreservesTuplesWithoutAPICall(t *testing
 
 func TestMeetingParticipantKickoutValidationStopsBeforeAnyAPICall(t *testing.T) {
 	tests := []struct {
-		name string
-		args []string
+		name              string
+		args              []string
+		wantRequiredError bool
 	}{
 		{
 			name: "malformed participant tuple",
@@ -193,7 +194,8 @@ func TestMeetingParticipantKickoutValidationStopsBeforeAnyAPICall(t *testing.T) 
 			},
 		},
 		{
-			name: "missing participant",
+			name:              "missing participant",
+			wantRequiredError: true,
 			args: []string{
 				"+meeting-participant-kickout",
 				"--meeting-id", "7651377260537433044",
@@ -235,12 +237,18 @@ func TestMeetingParticipantKickoutValidationStopsBeforeAnyAPICall(t *testing.T) 
 			})
 
 			err := mountAndRun(t, VCMeetingParticipantKickout, tt.args, f, stdout)
-			var validationErr *errs.ValidationError
-			if !errors.As(err, &validationErr) {
-				t.Fatalf("error = %T %v, want *errs.ValidationError", err, err)
-			}
-			if validationErr.Param != "--participant" {
-				t.Fatalf("Param = %q, want --participant", validationErr.Param)
+			if tt.wantRequiredError {
+				if err == nil || err.Error() != `required flag(s) "participant" not set` {
+					t.Fatalf("error = %T %v, want Cobra required-flag error", err, err)
+				}
+			} else {
+				var validationErr *errs.ValidationError
+				if !errors.As(err, &validationErr) {
+					t.Fatalf("error = %T %v, want *errs.ValidationError", err, err)
+				}
+				if validationErr.Param != "--participant" {
+					t.Fatalf("Param = %q, want --participant", validationErr.Param)
+				}
 			}
 			if accountResolver.requests != 0 {
 				t.Fatalf("ResolveAccount calls = %d, want 0", accountResolver.requests)
@@ -294,7 +302,7 @@ func TestMeetingParticipantKickoutRequiresConfirmationWithoutAPICall(t *testing.
 func TestMeetingParticipantKickoutExecuteScopePreflightRunsBeforeAPI(t *testing.T) {
 	f, accountResolver, _, reg, stdout := newMeetingManagementFactoryWithCounters(t)
 	resolver := &meetingManagementCountingTokenResolver{
-		result: &credential.TokenResult{Token: "uat-test", Scopes: ""},
+		result: &credential.TokenResult{Token: "uat-test", Scopes: "vc:record:readonly"},
 	}
 	f.Credential = credential.NewCredentialProvider(nil, accountResolver, resolver, nil)
 	apiCalls := 0
@@ -352,8 +360,8 @@ func TestMeetingParticipantKickoutExecutePreservesRequestAndServerResults(t *tes
 					"data": map[string]interface{}{
 						"server_page": "preserved",
 						"kickout_results": []interface{}{
-							map[string]interface{}{"id": "000456", "user_type": 2, "result": 7, "server_detail": "denied"},
-							map[string]interface{}{"id": "000123", "user_type": 1, "result": 1},
+							map[string]interface{}{"id": "000456", "user_type": 2, "result": map[string]interface{}{"future_code": 9}, "server_detail": "second-first"},
+							map[string]interface{}{"id": "000123", "user_type": 1, "result": "future-result", "server_detail": "first-second"},
 						},
 					},
 				},
@@ -395,10 +403,10 @@ func TestMeetingParticipantKickoutExecutePreservesRequestAndServerResults(t *tes
 					Data        struct {
 						ServerPage     string `json:"server_page"`
 						KickoutResults []struct {
-							ID           string `json:"id"`
-							UserType     int    `json:"user_type"`
-							Result       int    `json:"result"`
-							ServerDetail string `json:"server_detail"`
+							ID           string      `json:"id"`
+							UserType     int         `json:"user_type"`
+							Result       interface{} `json:"result"`
+							ServerDetail string      `json:"server_detail"`
 						} `json:"kickout_results"`
 					} `json:"data"`
 				} `json:"data"`
@@ -411,17 +419,11 @@ func TestMeetingParticipantKickoutExecutePreservesRequestAndServerResults(t *tes
 				outputEnvelope.Data.Data.ServerPage != "preserved" || len(outputEnvelope.Data.Data.KickoutResults) != 2 {
 				t.Fatalf("envelope = %#v, want complete server envelope and data", outputEnvelope)
 			}
-			wantResults := []struct {
-				ID           string `json:"id"`
-				UserType     int    `json:"user_type"`
-				Result       int    `json:"result"`
-				ServerDetail string `json:"server_detail"`
-			}{
-				{ID: "000456", UserType: 2, Result: 7, ServerDetail: "denied"},
-				{ID: "000123", UserType: 1, Result: 1},
-			}
-			if !reflect.DeepEqual(outputEnvelope.Data.Data.KickoutResults, wantResults) {
-				t.Fatalf("kickout_results = %#v, want %#v", outputEnvelope.Data.Data.KickoutResults, wantResults)
+			results := outputEnvelope.Data.Data.KickoutResults
+			if results[0].ID != "000456" || results[0].UserType != 2 || results[0].ServerDetail != "second-first" ||
+				!reflect.DeepEqual(results[0].Result, map[string]interface{}{"future_code": float64(9)}) ||
+				results[1].ID != "000123" || results[1].UserType != 1 || results[1].Result != "future-result" || results[1].ServerDetail != "first-second" {
+				t.Fatalf("kickout_results = %#v, want server order and opaque result values preserved after request deduplication", results)
 			}
 		})
 	}
@@ -438,6 +440,73 @@ func TestValidateMeetingParticipantKickoutResponseTreatsResultAsOpaque(t *testin
 		if err := validateMeetingParticipantKickoutResponse(data, requested); err != nil {
 			t.Fatalf("result %#v was interpreted instead of treated as opaque: %v", result, err)
 		}
+	}
+}
+
+func TestValidateMeetingParticipantKickoutResponseUsesNormalizedTupleBijection(t *testing.T) {
+	duplicateRequest := []meetingParticipantKickoutUser{
+		{ID: "123", UserType: 1},
+		{ID: "123", UserType: 1},
+	}
+	if err := validateMeetingParticipantKickoutResponse(
+		map[string]interface{}{"kickout_results": []interface{}{
+			map[string]interface{}{"id": "123", "user_type": 1, "result": "future-result"},
+		}},
+		duplicateRequest,
+	); err != nil {
+		t.Fatalf("duplicate request normalized to one server result was rejected: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		requested []meetingParticipantKickoutUser
+		results   []interface{}
+	}{
+		{
+			name: "distinct requests cannot be satisfied by a duplicate response",
+			requested: []meetingParticipantKickoutUser{
+				{ID: "123", UserType: 1},
+				{ID: "456", UserType: 2},
+			},
+			results: []interface{}{
+				map[string]interface{}{"id": "123", "user_type": 1, "result": "future-result"},
+				map[string]interface{}{"id": "123", "user_type": 1, "result": 7},
+			},
+		},
+		{
+			name: "duplicate normalized request cannot be satisfied by an extra response",
+			requested: []meetingParticipantKickoutUser{
+				{ID: "123", UserType: 1},
+				{ID: "123", UserType: 1},
+			},
+			results: []interface{}{
+				map[string]interface{}{"id": "123", "user_type": 1, "result": map[string]interface{}{"code": 9}},
+				map[string]interface{}{"id": "456", "user_type": 2, "result": nil},
+			},
+		},
+		{
+			name: "conflicting user types cannot be collapsed in a success response",
+			requested: []meetingParticipantKickoutUser{
+				{ID: "123", UserType: 1},
+				{ID: "123", UserType: 2},
+			},
+			results: []interface{}{
+				map[string]interface{}{"id": "123", "user_type": 1, "result": "future-result"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateMeetingParticipantKickoutResponse(
+				map[string]interface{}{"kickout_results": tt.results},
+				tt.requested,
+			)
+			problem, ok := errs.ProblemOf(err)
+			if !ok || problem.Category != errs.CategoryInternal || problem.Subtype != errs.SubtypeInvalidResponse {
+				t.Fatalf("error = %T %v, problem = %#v, want internal/invalid_response", err, err, problem)
+			}
+		})
 	}
 }
 
