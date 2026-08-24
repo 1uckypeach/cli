@@ -941,8 +941,12 @@ func TestExecute_ChartConfigUpdate_ReadsSnapshotAndWritesPartialPatch(t *testing
 		t.Fatalf("read chart_id = %#v", readInput["chart_id"])
 	}
 	writeInput := decodeToolInput(t, decodeRawEnvelopeBody(t, write.CapturedBody), "manage_chart_object")
-	if writeInput["last_point_label"] != true {
-		t.Fatalf("last_point_label = %#v, want true", writeInput["last_point_label"])
+	if _, ok := writeInput["last_point_label"]; ok {
+		t.Fatalf("last_point_label must not be written at the tool input root: %#v", writeInput)
+	}
+	writeProperties := writeInput["properties"].(map[string]interface{})
+	if writeProperties["last_point_label"] != true {
+		t.Fatalf("last_point_label = %#v, want true", writeProperties["last_point_label"])
 	}
 	snapshot := chartDryRunSnapshot(t, writeInput)
 	if snapshot["title"].(map[string]interface{})["text"] != "New" {

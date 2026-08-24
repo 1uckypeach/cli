@@ -543,7 +543,7 @@ func chartConfigUpdateInput(rt flagView, token, sheetID, sheetName string) (map[
 		},
 	}
 	if rt.Changed("last-point-label") {
-		input["last_point_label"] = rt.Bool("last-point-label")
+		input["properties"].(map[string]interface{})["last_point_label"] = rt.Bool("last-point-label")
 	}
 	sheetSelectorForToolInput(input, sheetID, sheetName)
 	if err := validateInputAgainstSchema(rt, input); err != nil {
@@ -665,7 +665,7 @@ func chartConfigUpdateInputFromSnapshot(
 		},
 	}
 	if rt.Changed("last-point-label") {
-		input["last_point_label"] = rt.Bool("last-point-label")
+		input["properties"].(map[string]interface{})["last_point_label"] = rt.Bool("last-point-label")
 	}
 	sheetSelectorForToolInput(input, sheetID, sheetName)
 	if err := validateInputAgainstSchema(rt, input); err != nil {

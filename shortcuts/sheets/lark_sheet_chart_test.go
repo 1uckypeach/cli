@@ -512,7 +512,11 @@ func TestChartSemanticShortcuts_LastPointLabel(t *testing.T) {
 			"--last-point-label=" + tc.arg,
 		})
 		input := decodeToolInput(t, body, "manage_chart_object")
-		if input["last_point_label"] != tc.want {
+		if _, ok := input["last_point_label"]; ok {
+			t.Fatalf("--last-point-label=%s must not be written at the tool input root: %#v", tc.arg, input)
+		}
+		properties := input["properties"].(map[string]interface{})
+		if properties["last_point_label"] != tc.want {
 			t.Fatalf("--last-point-label=%s input = %#v, want %t", tc.arg, input, tc.want)
 		}
 	}

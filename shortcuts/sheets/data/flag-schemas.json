@@ -1040,6 +1040,10 @@
               "height"
             ]
           },
+          "last_point_label": {
+            "type": "boolean",
+            "description": "update 使用。true 为折线图、面积图、雷达图及组合图中的线性系列开启最后一个数据点的数值标签；false 关闭这些单点标签。"
+          },
           "snapshot": {
             "description": "图表快照配置。create 需要完整配置；update 可只提供需要变更的字段，对象字段递归合并，数组整段替换，未提供的字段保持现状。",
             "properties": {
@@ -5002,6 +5006,10 @@
               "width",
               "height"
             ]
+          },
+          "last_point_label": {
+            "type": "boolean",
+            "description": "update 使用。true 为折线图、面积图、雷达图及组合图中的线性系列开启最后一个数据点的数值标签；false 关闭这些单点标签。"
           },
           "snapshot": {
             "description": "图表快照配置。create 需要完整配置；update 可只提供需要变更的字段，对象字段递归合并，数组整段替换，未提供的字段保持现状。",
