@@ -195,10 +195,6 @@ var ChartConfigUpdate = common.Shortcut{
 		if err != nil {
 			return err
 		}
-		input, err := chartConfigUpdateInput(runtime, token, sheetID, sheetName)
-		if err != nil {
-			return err
-		}
 		snapshot, err := fetchChartSnapshot(ctx, runtime, token, sheetID, sheetName, runtime.Str("chart-id"))
 		if err != nil {
 			return err
@@ -252,10 +248,6 @@ var ChartDataUpdate = common.Shortcut{
 			return err
 		}
 		sheetID, sheetName, err := resolveSheetSelector(runtime)
-		if err != nil {
-			return err
-		}
-		input, err := chartDataUpdateInput(runtime, token, sheetID, sheetName)
 		if err != nil {
 			return err
 		}

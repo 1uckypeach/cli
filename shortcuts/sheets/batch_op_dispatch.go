@@ -225,12 +225,8 @@ var batchOpDispatch = map[string]batchOpMapping{
 	"+float-image-delete": {"manage_float_image_object", objDeleteTranslate(floatImageDeleteSpec)},
 }
 
-// allowedBatchShortcuts lists every shortcut accepted inside +batch-update,
-// sorted, for the not-allowed error hint.
-func allowedBatchShortcuts() []string {
-	return allowedShortcuts(batchOpDispatch)
-}
-
+// allowedShortcuts returns the sorted shortcut keys of a batch dispatch map,
+// used for the not-allowed error hint.
 func allowedShortcuts(dispatch map[string]batchOpMapping) []string {
 	out := make([]string, 0, len(dispatch))
 	for sc := range dispatch {

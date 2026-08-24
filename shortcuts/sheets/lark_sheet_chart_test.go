@@ -27,7 +27,6 @@ func TestChartCreateBasic_AllTypes(t *testing.T) {
 
 	types := []string{"column", "bar", "line", "area", "pie", "scatter", "combo", "radar"}
 	for _, chartType := range types {
-		chartType := chartType
 		t.Run(chartType, func(t *testing.T) {
 			t.Parallel()
 			rangeValue := "A1:C4"
@@ -216,7 +215,6 @@ func TestChartCreateBasic_MergesMisalignedOrOverlappingRanges(t *testing.T) {
 		{name: "overlapping columns", input: "A1:B10,B1:C10", expected: "A1:C10"},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			body := parseDryRunBody(t, ChartCreateBasic, []string{

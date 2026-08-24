@@ -467,10 +467,6 @@ func compactBatchChartCreateOutput(out interface{}) interface{} {
 	return root
 }
 
-// batchUpdateInput translates the user-supplied CLI-shape operations array
-// into the MCP batch_update payload. Returns ValidationErrorf-typed errors
-// (errs.ValidationError) on any per-op shape problem (translator validates
-// each entry).
 type batchLocalValidationFailure struct {
 	Index    int    `json:"index"`
 	Shortcut string `json:"shortcut,omitempty"`
@@ -484,14 +480,6 @@ type batchUpdatePlan struct {
 	originalIndexes []int
 	localFailures   []batchLocalValidationFailure
 	total           int
-}
-
-func batchUpdateInput(runtime *common.RuntimeContext, token string) (map[string]interface{}, error) {
-	plan, err := buildBatchUpdatePlan(runtime, token)
-	if err != nil {
-		return nil, err
-	}
-	return plan.input, nil
 }
 
 func buildBatchUpdatePlan(runtime *common.RuntimeContext, token string) (*batchUpdatePlan, error) {
