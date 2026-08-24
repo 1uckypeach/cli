@@ -2048,7 +2048,7 @@ func TestMeetingEventSummary(t *testing.T) {
 		{
 			name:  "countdown changed",
 			event: countdownChangedEvent(),
-			want:  "6 countdown changes",
+			want:  "6 countdown changes: set, prolonged, ended in advance, window closed, ended, reminder",
 		},
 	}
 	for _, tt := range tests {

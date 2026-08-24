@@ -1642,7 +1642,7 @@ func magicShareEndedSummary(payload map[string]interface{}) string {
 func countdownChangedSummary(payload map[string]interface{}) string {
 	items := common.GetSlice(payload, "countdown_items")
 	if len(items) > 1 {
-		return fmt.Sprintf("%d countdown changes", len(items))
+		return countdownChangedMultiSummary(items)
 	}
 	item := firstSliceMap(payload, "countdown_items")
 	action := countdownAction(common.GetString(item, "action"))
@@ -1674,6 +1674,45 @@ func countdownChangedSummary(payload map[string]interface{}) string {
 		return "countdown reminder"
 	default:
 		return "countdown changed"
+	}
+}
+
+func countdownChangedMultiSummary(items []interface{}) string {
+	actions := make([]string, 0, len(items))
+	seen := make(map[string]bool, len(items))
+	for _, raw := range items {
+		item, _ := raw.(map[string]interface{})
+		if item == nil {
+			continue
+		}
+		action := countdownActionSummaryLabel(common.GetString(item, "action"))
+		if !seen[action] {
+			actions = append(actions, action)
+			seen[action] = true
+		}
+	}
+	if len(actions) == 0 {
+		return fmt.Sprintf("%d countdown changes", len(items))
+	}
+	return fmt.Sprintf("%d countdown changes: %s", len(items), strings.Join(actions, ", "))
+}
+
+func countdownActionSummaryLabel(action string) string {
+	switch countdownAction(action) {
+	case "SET":
+		return "set"
+	case "PROLONG":
+		return "prolonged"
+	case "END_IN_ADVANCE":
+		return "ended in advance"
+	case "CLOSE_WINDOW":
+		return "window closed"
+	case "ENDED":
+		return "ended"
+	case "REMIND":
+		return "reminder"
+	default:
+		return "changed"
 	}
 }
 
