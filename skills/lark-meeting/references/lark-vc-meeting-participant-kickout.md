@@ -28,7 +28,7 @@ lark-cli vc +meeting-participant-kickout \
 | 参数 | 必填 | 说明 |
 |------|------|------|
 | `--meeting-id <id>` | 是 | 正十进制且大于 0 的 int64 会议 ID；会先去除首尾空白 |
-| `--participant '<id>=<user_type>'` | 是 | 可重复 1 至 10 次；每项必须恰好包含一个 `=`，ID 必须非空且首尾不能有空白，`user_type` 必须是 1 至 7 的整数 |
+| `--participant '<id>=<user_type>'` | 是 | 可重复 1 至 10 次；每项必须恰好包含一个 `=`，ID 必须是正十进制且大于 0 的 int64 且首尾不能有空白，`user_type` 必须是 1 至 7 的整数 |
 | `--dry-run` | 否 | 只预览 POST 路径和请求体，不发送 API 请求，也不移出参会人 |
 | `--yes` | 真实执行必需 | 确认高风险写操作；只有用户明确确认会议和目标参会人后才能传入 |
 
