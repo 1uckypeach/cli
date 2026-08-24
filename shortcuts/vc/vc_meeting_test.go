@@ -1192,12 +1192,12 @@ func TestBuildMeetingInviteBodySelectedUsesInvitees(t *testing.T) {
 	cmd.Flags().String("meeting-id", "", "")
 	cmd.Flags().String("type", "", "")
 	cmd.Flags().StringSlice("open-ids", nil, "")
-	_ = cmd.Flags().Set("meeting-id", " 69999999 ")
+	_ = cmd.Flags().Set("meeting-id", " 7628568141510692381 ")
 	_ = cmd.Flags().Set("type", meetingInviteTypeSelected)
 	_ = cmd.Flags().Set("open-ids", "ou_a,ou_b,ou_a")
 
 	body := buildMeetingInviteBody(common.TestNewRuntimeContext(cmd, defaultConfig()))
-	if body.MeetingID != "69999999" || body.InviteType != meetingInviteTypeSelectedValue {
+	if body.MeetingID != "7628568141510692381" || body.InviteType != meetingInviteTypeSelectedValue {
 		t.Fatalf("body = %#v", body)
 	}
 	wantInvitees := []meetingInvitee{
@@ -1217,7 +1217,7 @@ func TestBuildMeetingInviteBodyAllSuggestedOmitsOpenIDs(t *testing.T) {
 	cmd.Flags().String("meeting-id", "", "")
 	cmd.Flags().String("type", "", "")
 	cmd.Flags().StringSlice("open-ids", nil, "")
-	_ = cmd.Flags().Set("meeting-id", "69999999")
+	_ = cmd.Flags().Set("meeting-id", "7628568141510692381")
 	_ = cmd.Flags().Set("type", meetingInviteTypeAllSuggested)
 
 	body := buildMeetingInviteBody(common.TestNewRuntimeContext(cmd, defaultConfig()))
@@ -1234,7 +1234,7 @@ func TestBuildMeetingInviteBodyRejectsNonUserOpenID(t *testing.T) {
 	cmd.Flags().String("meeting-id", "", "")
 	cmd.Flags().String("type", "", "")
 	cmd.Flags().StringSlice("open-ids", nil, "")
-	_ = cmd.Flags().Set("meeting-id", "69999999")
+	_ = cmd.Flags().Set("meeting-id", "7628568141510692381")
 	_ = cmd.Flags().Set("type", meetingInviteTypeSelected)
 	_ = cmd.Flags().Set("open-ids", "oc_chat")
 
@@ -1274,20 +1274,20 @@ func TestBuildMeetingInviteBodyRejectsInvalidCombinations(t *testing.T) {
 		},
 		{
 			name:       "selected without open IDs",
-			meetingID:  "69999999",
+			meetingID:  "7628568141510692381",
 			inviteType: meetingInviteTypeSelected,
 			wantErr:    "--open-ids is required",
 		},
 		{
 			name:       "selected with too many open IDs",
-			meetingID:  "69999999",
+			meetingID:  "7628568141510692381",
 			inviteType: meetingInviteTypeSelected,
 			openIDs:    tooManyOpenIDs,
 			wantErr:    "at most 200 users",
 		},
 		{
 			name:       "all suggested with open IDs",
-			meetingID:  "69999999",
+			meetingID:  "7628568141510692381",
 			inviteType: meetingInviteTypeAllSuggested,
 			openIDs:    []string{"ou_a"},
 			wantErr:    "must not be set",
@@ -1340,7 +1340,7 @@ func TestMeetingInvite_DryRun(t *testing.T) {
 
 	err := mountAndRun(t, VCMeetingInvite, []string{
 		"+meeting-invite",
-		"--meeting-id", "69999999",
+		"--meeting-id", "7628568141510692381",
 		"--type", " selected ",
 		"--open-ids", "ou_a,ou_b,ou_a",
 		"--dry-run",
@@ -1357,7 +1357,7 @@ func TestMeetingInvite_DryRun(t *testing.T) {
 	cmd.Flags().String("meeting-id", "", "")
 	cmd.Flags().String("type", "", "")
 	cmd.Flags().StringSlice("open-ids", nil, "")
-	_ = cmd.Flags().Set("meeting-id", "69999999")
+	_ = cmd.Flags().Set("meeting-id", "7628568141510692381")
 	_ = cmd.Flags().Set("type", meetingInviteTypeSelected)
 	_ = cmd.Flags().Set("open-ids", "ou_a,ou_b")
 	raw, marshalErr := json.Marshal(VCMeetingInvite.DryRun(context.Background(), common.TestNewRuntimeContext(cmd, defaultConfig())))
@@ -1385,12 +1385,12 @@ func TestMeetingInvite_DryRun(t *testing.T) {
 	if call.Params["user_id_type"] != "open_id" {
 		t.Fatalf("dry-run params = %#v", call.Params)
 	}
-	if call.Body.MeetingID != "69999999" || call.Body.InviteType != meetingInviteTypeSelectedValue || len(call.Body.Invitees) != 2 {
+	if call.Body.MeetingID != "7628568141510692381" || call.Body.InviteType != meetingInviteTypeSelectedValue || len(call.Body.Invitees) != 2 {
 		t.Fatalf("dry-run body = %#v", call.Body)
 	}
 
 	out := stdout.String()
-	for _, want := range []string{meetingBotInvitePath, "user_id_type", "open_id", "69999999", "invite_type"} {
+	for _, want := range []string{meetingBotInvitePath, "user_id_type", "open_id", "7628568141510692381", "invite_type"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("dry-run output missing %q: %s", want, out)
 		}
@@ -1424,7 +1424,7 @@ func TestMeetingInvite_ExecuteSelectedPrettyOutput(t *testing.T) {
 
 	err := mountAndRun(t, VCMeetingInvite, []string{
 		"+meeting-invite",
-		"--meeting-id", "69999999",
+		"--meeting-id", "7628568141510692381",
 		"--type", "selected",
 		"--open-ids", "ou_a,ou_b,ou_a",
 		"--format", "pretty",
@@ -1442,7 +1442,7 @@ func TestMeetingInvite_ExecuteSelectedPrettyOutput(t *testing.T) {
 	if err := json.Unmarshal(stub.CapturedBody, &body); err != nil {
 		t.Fatalf("decode captured request body: %v", err)
 	}
-	if body["meeting_id"] != "69999999" || body["invite_type"] != float64(meetingInviteTypeSelectedValue) {
+	if body["meeting_id"] != "7628568141510692381" || body["invite_type"] != float64(meetingInviteTypeSelectedValue) {
 		t.Fatalf("request body = %#v", body)
 	}
 	invitees, ok := body["invitees"].([]interface{})
@@ -1516,7 +1516,7 @@ func TestMeetingInvite_ExecuteHandlesAPIErrorAndEmptyData(t *testing.T) {
 
 		err := mountAndRun(t, VCMeetingInvite, []string{
 			"+meeting-invite",
-			"--meeting-id", "69999999",
+			"--meeting-id", "7628568141510692381",
 			"--type", meetingInviteTypeAllSuggested,
 			"--as", "bot",
 		}, f, stdout)
@@ -1536,7 +1536,7 @@ func TestMeetingInvite_ExecuteHandlesAPIErrorAndEmptyData(t *testing.T) {
 
 		err := mountAndRun(t, VCMeetingInvite, []string{
 			"+meeting-invite",
-			"--meeting-id", "69999999",
+			"--meeting-id", "7628568141510692381",
 			"--type", meetingInviteTypeAllSuggested,
 			"--format", "pretty",
 			"--as", "bot",
@@ -1554,10 +1554,10 @@ func TestMeetingInvite_ExecuteHandlesAPIErrorAndEmptyData(t *testing.T) {
 func TestBuildMeetingEndBody(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("meeting-id", "", "")
-	_ = cmd.Flags().Set("meeting-id", " 69999999 ")
+	_ = cmd.Flags().Set("meeting-id", " 7628568141510692381 ")
 
 	body := buildMeetingEndBody(common.TestNewRuntimeContext(cmd, defaultConfig()))
-	if body.MeetingID != "69999999" {
+	if body.MeetingID != "7628568141510692381" {
 		t.Fatalf("body = %#v", body)
 	}
 }
@@ -1568,12 +1568,12 @@ func TestValidateMeetingIDFlag(t *testing.T) {
 		value   string
 		wantErr string
 	}{
-		{name: "positive integer", value: "69999999"},
-		{name: "leading zero positive integer", value: "0001"},
+		{name: "positive integer", value: "7628568141510692381"},
+		{name: "leading zero long meeting ID", value: "0007628568141510692381"},
 		{name: "missing", value: " ", wantErr: "--meeting-id is required"},
 		{name: "zero", value: "0", wantErr: "--meeting-id must be a positive integer"},
 		{name: "non-numeric", value: "699a9999", wantErr: "--meeting-id must be a positive integer"},
-		{name: "overflow", value: "9223372036854775808", wantErr: "--meeting-id is out of range"},
+		{name: "overflow", value: "9223372036854775808", wantErr: "--meeting-id must be a positive integer"},
 	}
 
 	for _, tt := range tests {
@@ -1608,14 +1608,14 @@ func TestMeetingEnd_DryRunAndExecutePrettyOutput(t *testing.T) {
 		f, stdout, _, _ := cmdutil.TestFactory(t, defaultConfig())
 		err := mountAndRun(t, VCMeetingEnd, []string{
 			"+meeting-end",
-			"--meeting-id", "69999999",
+			"--meeting-id", "7628568141510692381",
 			"--dry-run",
 			"--as", "bot",
 		}, f, stdout)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		for _, want := range []string{meetingBotEndPath, "69999999"} {
+		for _, want := range []string{meetingBotEndPath, "7628568141510692381"} {
 			if !strings.Contains(stdout.String(), want) {
 				t.Fatalf("dry-run output missing %q: %s", want, stdout.String())
 			}
@@ -1637,9 +1637,10 @@ func TestMeetingEnd_DryRunAndExecutePrettyOutput(t *testing.T) {
 
 		err := mountAndRun(t, VCMeetingEnd, []string{
 			"+meeting-end",
-			"--meeting-id", " 69999999 ",
+			"--meeting-id", " 7628568141510692381 ",
 			"--format", "pretty",
 			"--as", "bot",
+			"--yes",
 		}, f, stdout)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -1650,10 +1651,10 @@ func TestMeetingEnd_DryRunAndExecutePrettyOutput(t *testing.T) {
 		if err := json.Unmarshal(stub.CapturedBody, &body); err != nil {
 			t.Fatalf("decode captured request body: %v", err)
 		}
-		if !reflect.DeepEqual(body, map[string]interface{}{"meeting_id": "69999999"}) {
+		if !reflect.DeepEqual(body, map[string]interface{}{"meeting_id": "7628568141510692381"}) {
 			t.Fatalf("request body = %#v", body)
 		}
-		if !strings.Contains(stdout.String(), "Ended meeting 69999999.") {
+		if !strings.Contains(stdout.String(), "Ended meeting 7628568141510692381.") {
 			t.Fatalf("pretty output = %s", stdout.String())
 		}
 	})
@@ -1670,8 +1671,9 @@ func TestMeetingEnd_ExecuteHandlesAPIErrorAndEmptyData(t *testing.T) {
 
 		err := mountAndRun(t, VCMeetingEnd, []string{
 			"+meeting-end",
-			"--meeting-id", "69999999",
+			"--meeting-id", "7628568141510692381",
 			"--as", "bot",
+			"--yes",
 		}, f, stdout)
 		if err == nil {
 			t.Fatalf("execute error = %v", err)
@@ -1689,15 +1691,16 @@ func TestMeetingEnd_ExecuteHandlesAPIErrorAndEmptyData(t *testing.T) {
 
 		err := mountAndRun(t, VCMeetingEnd, []string{
 			"+meeting-end",
-			"--meeting-id", "69999999",
+			"--meeting-id", "7628568141510692381",
 			"--format", "pretty",
 			"--as", "bot",
+			"--yes",
 		}, f, stdout)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		reg.Verify(t)
-		if !strings.Contains(stdout.String(), "Ended meeting 69999999.") {
+		if !strings.Contains(stdout.String(), "Ended meeting 7628568141510692381.") {
 			t.Fatalf("pretty output = %s", stdout.String())
 		}
 	})

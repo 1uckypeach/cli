@@ -106,7 +106,7 @@ lark-cli vc +meeting-message-send --as bot --meeting-id <meeting_id> --msg-type 
 只有用户明确要求结束整场会议时才执行；不要把结束会议和机器人离会混用。
 
 ```bash
-lark-cli vc +meeting-end --as bot --meeting-id <meeting_id>
+lark-cli vc +meeting-end --as bot --meeting-id <meeting_id> --yes
 ```
 
 - 输入是长数字 `meeting_id`。

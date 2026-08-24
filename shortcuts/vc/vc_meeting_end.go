@@ -8,17 +8,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
-	"strconv"
 	"strings"
 
-	"github.com/larksuite/cli/errs"
 	"github.com/larksuite/cli/shortcuts/common"
 )
 
 const meetingBotEndPath = "/open-apis/vc/v1/bots/end"
-
-var meetingIDRe = regexp.MustCompile(`^\d+$`)
 
 type meetingEndRequest struct {
 	MeetingID string `json:"meeting_id"`
@@ -29,7 +24,7 @@ var VCMeetingEnd = common.Shortcut{
 	Service:     "vc",
 	Command:     "+meeting-end",
 	Description: "End a meeting as the host app bot",
-	Risk:        "write",
+	Risk:        "high-risk-write",
 	Scopes:      []string{"vc:meeting.bot.manage:write"},
 	AuthTypes:   []string{"bot"},
 	HasFormat:   true,
@@ -47,11 +42,17 @@ var VCMeetingEnd = common.Shortcut{
 		if err != nil {
 			return err
 		}
+		meetingID := strings.TrimSpace(runtime.Str("meeting-id"))
 		if data == nil {
 			data = map[string]interface{}{}
 		}
-		runtime.OutFormat(data, nil, func(w io.Writer) {
-			fmt.Fprintf(w, "Ended meeting %s.\n", strings.TrimSpace(runtime.Str("meeting-id")))
+		output := make(map[string]interface{}, len(data)+1)
+		for key, value := range data {
+			output[key] = value
+		}
+		output["meeting_id"] = meetingID
+		runtime.OutFormat(output, nil, func(w io.Writer) {
+			fmt.Fprintf(w, "Ended meeting %s.\n", meetingID)
 		})
 		return nil
 	},
@@ -62,15 +63,5 @@ func buildMeetingEndBody(runtime *common.RuntimeContext) meetingEndRequest {
 }
 
 func validateMeetingIDFlag(value string) error {
-	meetingID := strings.TrimSpace(value)
-	if meetingID == "" {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--meeting-id is required").WithParam("--meeting-id")
-	}
-	if !meetingIDRe.MatchString(meetingID) || strings.TrimLeft(meetingID, "0") == "" {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--meeting-id must be a positive integer").WithParam("--meeting-id")
-	}
-	if _, err := strconv.ParseInt(meetingID, 10, 64); err != nil {
-		return errs.NewValidationError(errs.SubtypeInvalidArgument, "--meeting-id is out of range").WithParam("--meeting-id")
-	}
-	return nil
+	return validateMeetingEventsMeetingID(value)
 }

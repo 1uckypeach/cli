@@ -82,10 +82,12 @@ var VCMeetingInvite = common.Shortcut{
 		if err != nil {
 			return err
 		}
+		meetingID := strings.TrimSpace(runtime.Str("meeting-id"))
 		if data == nil {
 			data = map[string]interface{}{}
 		}
 		output := buildMeetingInviteOutput(data)
+		output["meeting_id"] = meetingID
 		runtime.OutFormat(output, nil, func(w io.Writer) {
 			printMeetingInviteResult(w, output)
 		})
