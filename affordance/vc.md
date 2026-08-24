@@ -28,6 +28,11 @@
 ### Skills
 - lark-meeting/references/lark-vc-meeting-events.md
 
+## +meeting-screenshot
+
+### Skills
+- lark-meeting/references/lark-vc-meeting-screenshot.md
+
 ## +meeting-message-send
 
 ### Skills
