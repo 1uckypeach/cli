@@ -20,5 +20,6 @@ func Shortcuts() []common.Shortcut {
 		VCMeetingEvents,
 		VCMeetingMessageSend,
 		VCMeetingScreenshot,
+		VCMeetingCountdown,
 	}
 }

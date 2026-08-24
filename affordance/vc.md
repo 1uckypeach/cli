@@ -38,6 +38,11 @@
 ### Skills
 - lark-meeting/references/lark-vc-meeting-message-send.md
 
+## +meeting-countdown
+
+### Skills
+- lark-meeting/references/lark-vc-meeting-countdown.md
+
 ## +meeting-join
 
 ### Skills
