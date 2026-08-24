@@ -132,6 +132,7 @@ lark-cli calendar +freebusy --start 2026-03-11 --end 2026-03-12 --user-id ou_xxx
 | 查询日历/日程或未来时间的会议 | 本 skill |
 | 按关键词搜索日程 | 本 skill（`+search-event`） |
 | 从日程获取关联的视频会议 ID 或用户绑定的会议纪要文档 | 本 skill（`+meeting`） |
+| 把日程分享给某人 / 群 | 本 skill：先 `calendar events share_info` 取**日程分享链接**，再走 [lark-im](../lark-im/SKILL.md) 发送该链接；分享链接不是 applink，不要自己拼接或用 applink 代替 |
 | 从日程进一步拿 AI 智能纪要 / 逐字稿 / 妙记产物 | 先 `+meeting` 取 `meeting_id`，再 [`vc +detail`](../lark-vc/references/lark-vc-detail.md) → [`note +detail`](../lark-note/references/lark-note-detail.md) / [`minutes +detail`](../lark-minutes/references/lark-minutes-detail.md) |
 | 预约/改约日程、调整时间、添加/更换会议室、查会议室 | 先判断新建 vs 编辑，再进入 [schedule-meeting 工作流](references/lark-calendar-schedule-meeting.md) |
 | 仅编辑日程字段（标题/描述）或增删参会人（不涉及时间和会议室） | 先定位 `event_id`，再读 [+update](references/lark-calendar-update.md) 执行变更 |
@@ -166,7 +167,8 @@ lark-cli calendar <resource> <method> [flags]
 # 查询用户主日历
 lark-cli calendar calendars primary
 
-# 获取日程分享链接
+# 获取日程分享链接（分享给他人/群前必须先拿到）
+# 返回形如 {{domain}}/calendar/share?token=<token> 的分享链接，不是 applink；直接把该链接发给对方（对方可凭链接中的 token 走 +join-event 加入）
 lark-cli calendar events share_info --calendar-id <calendar_id> --event-id <event_id>
 
 # 删除日程
