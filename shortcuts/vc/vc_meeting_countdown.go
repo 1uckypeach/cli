@@ -96,13 +96,14 @@ func buildMeetingCountdownBody(runtime *common.RuntimeContext) (map[string]inter
 	durationSet := runtime.Changed("duration")
 	reminder := runtime.Int("reminder-before-end")
 	reminderSet := runtime.Changed("reminder-before-end")
+	audioAtEndSet := runtime.Changed("need-play-audio-at-end")
 	if err := validateMeetingCountdownDuration(action, duration, durationSet); err != nil {
 		return nil, err
 	}
 	if err := validateMeetingCountdownReminder(action, duration, reminder, reminderSet); err != nil {
 		return nil, err
 	}
-	if action != meetingCountdownActionSet && runtime.Bool("need-play-audio-at-end") {
+	if action != meetingCountdownActionSet && audioAtEndSet {
 		return nil, errs.NewValidationError(errs.SubtypeInvalidArgument, "--need-play-audio-at-end is only supported when --action set").WithParam("--need-play-audio-at-end")
 	}
 
@@ -114,8 +115,8 @@ func buildMeetingCountdownBody(runtime *common.RuntimeContext) (map[string]inter
 		body["duration"] = duration
 	}
 	if action == meetingCountdownActionSet {
-		if runtime.Bool("need-play-audio-at-end") {
-			body["need_play_audio_at_end"] = true
+		if audioAtEndSet {
+			body["need_play_audio_at_end"] = runtime.Bool("need-play-audio-at-end")
 		}
 		if reminderSet {
 			body["reminder_before_end"] = reminder

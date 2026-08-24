@@ -99,6 +99,21 @@ func TestMeetingCountdownBuildBody_Set(t *testing.T) {
 	}
 }
 
+func TestMeetingCountdownBuildBody_SetExplicitFalseAudio(t *testing.T) {
+	runtime := newMeetingCountdownRuntime()
+	mustSetMeetingCountdownFlag(t, runtime, "action", "set")
+	mustSetMeetingCountdownFlag(t, runtime, "duration", "5")
+	mustSetMeetingCountdownFlag(t, runtime, "need-play-audio-at-end", "false")
+
+	body, err := buildMeetingCountdownBody(runtime)
+	if err != nil {
+		t.Fatalf("buildMeetingCountdownBody() error = %v", err)
+	}
+	if body["need_play_audio_at_end"] != false {
+		t.Fatalf("need_play_audio_at_end = %#v, want false", body["need_play_audio_at_end"])
+	}
+}
+
 func TestMeetingCountdownBuildBody_Prolong(t *testing.T) {
 	runtime := newMeetingCountdownRuntime()
 	mustSetMeetingCountdownFlag(t, runtime, "action", "prolong")
@@ -174,13 +189,17 @@ func TestMeetingCountdownValidateRejectsReminderNotLessThanDurationMinutes(t *te
 }
 
 func TestMeetingCountdownValidateRejectsSetOnlyFieldsForClose(t *testing.T) {
-	runtime := newMeetingCountdownRuntime()
-	mustSetMeetingCountdownFlag(t, runtime, "meeting-id", "7651377260537433044")
-	mustSetMeetingCountdownFlag(t, runtime, "action", "close_window")
-	mustSetMeetingCountdownFlag(t, runtime, "need-play-audio-at-end", "true")
+	for _, value := range []string{"true", "false"} {
+		t.Run(value, func(t *testing.T) {
+			runtime := newMeetingCountdownRuntime()
+			mustSetMeetingCountdownFlag(t, runtime, "meeting-id", "7651377260537433044")
+			mustSetMeetingCountdownFlag(t, runtime, "action", "close_window")
+			mustSetMeetingCountdownFlag(t, runtime, "need-play-audio-at-end", value)
 
-	err := VCMeetingCountdown.Validate(context.Background(), runtime)
-	assertMeetingCountdownValidationError(t, err, "--need-play-audio-at-end")
+			err := VCMeetingCountdown.Validate(context.Background(), runtime)
+			assertMeetingCountdownValidationError(t, err, "--need-play-audio-at-end")
+		})
+	}
 }
 
 func TestMeetingCountdownDryRun_Set(t *testing.T) {

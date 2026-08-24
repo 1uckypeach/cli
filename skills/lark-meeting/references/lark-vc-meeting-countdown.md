@@ -50,6 +50,7 @@ Dry-run 请求体示例：
 
 ```json
 {
+  "meeting_id": "<meeting_id>",
   "action": "set",
   "duration": 5,
   "need_play_audio_at_end": true,
